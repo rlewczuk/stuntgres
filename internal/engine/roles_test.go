@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -99,7 +100,7 @@ func TestRoleAuthorityAndSurface(t *testing.T) {
 	if _, err := other.Roles().Descriptor(a.Ref); err == nil {
 		t.Fatal("foreign principal")
 	}
-	if _, err := e.Roles().Descriptor(PrincipalRef{}); err == nil {
+	if _, err := e.Roles().Descriptor(authorization.PrincipalRef{}); err == nil {
 		t.Fatal("zero principal")
 	}
 	roleError(t, e, op, "CREATE ROLE a", "42710", `role "a" already exists`, "")
@@ -174,7 +175,7 @@ func TestRoleSessionAuthorizationAndStaleIdentity(t *testing.T) {
 	if _, err := e.Execute(a, statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("stale session adopted recreated role")
 	}
-	if _, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: PrincipalRef{owner: New(), id: 10}}); err == nil {
+	if _, err := e.StartSession(context.Background(), SessionStart{ID: SessionID(testSessionID.Add(1)), Authenticated: New().authorizationDomain.Principal(10)}); err == nil {
 		t.Fatal("foreign initialization")
 	}
 	nolog, _ := e.Roles().Lookup("nolog")
@@ -192,12 +193,12 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 			for _, name := range []string{"grantor", "endpoint", "member", "retained"} {
 				roleExecute(t, e, op, "CREATE ROLE "+name)
 			}
-			lookup := func(name string) PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
-			upstream := Membership{Role: lookup("endpoint"), Member: lookup("grantor"), Grantor: lookup("postgres"), Admin: true, Inherit: true, Set: true}
-			downstream := Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
-			unrelated := Membership{Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
+			lookup := func(name string) authorization.PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
+			upstream := authorization.Membership{Role: lookup("endpoint"), Member: lookup("grantor"), Grantor: lookup("postgres"), Admin: true, Inherit: true, Set: true}
+			downstream := authorization.Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("grantor"), Inherit: true, Set: true}
+			unrelated := authorization.Membership{Role: lookup("retained"), Member: lookup("member"), Grantor: lookup("postgres")}
 			seed := e.Roles().Memberships()
-			for _, edge := range []Membership{upstream, downstream, unrelated} {
+			for _, edge := range []authorization.Membership{upstream, downstream, unrelated} {
 				if err := grantMembership(t, e, edge); err != nil {
 					t.Fatal(err)
 				}
@@ -214,15 +215,15 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 			}
 			roleExecute(t, e, op, "DROP ROLE "+order)
 			if strings.Contains(order, "member") {
-				if len(e.roles.edges) != 3 {
-					t.Fatal("member batch retained edges", e.roles.edges)
+				if len(fixtureEdges(e.roles)) != 3 {
+					t.Fatal("member batch retained edges", fixtureEdges(e.roles))
 				}
 			} else {
-				if len(e.roles.edges) != 4 || !reflect.DeepEqual(e.roles.edges[:3], seed) || e.roles.edges[3] != unrelated {
-					t.Fatal("unrelated edge removed", e.roles.edges)
+				if len(fixtureEdges(e.roles)) != 4 || !reflect.DeepEqual(fixtureEdges(e.roles)[:3], seed) || fixtureEdges(e.roles)[3] != unrelated {
+					t.Fatal("unrelated edge removed", fixtureEdges(e.roles))
 				}
 				roleExecute(t, e, op, "DROP ROLE member")
-				if len(e.roles.edges) != 3 {
+				if len(fixtureEdges(e.roles)) != 3 {
 					t.Fatal("member endpoint retained")
 				}
 			}
@@ -230,7 +231,7 @@ func TestRoleDropMembershipAtomicity(t *testing.T) {
 				t.Fatal("retained membership view changed")
 			}
 			copied := read.Memberships()
-			copied[3] = Membership{}
+			copied[3] = authorization.Membership{}
 			if read.Memberships()[3] != upstream {
 				t.Fatal("membership read exposed backing array")
 			}
@@ -296,7 +297,7 @@ func TestRoleControlsOwnersAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "legacy"}]].(*relationDescriptor)
-	if d.owner != e.roles.names["postgres"] {
+	if d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("legacy owner")
 	}
 }
@@ -307,11 +308,11 @@ func TestRolePersistentReferencesAndIdentityGuards(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE dependent")
 	d, _ := e.Roles().Lookup("dependent")
-	payload := []PrincipalRef{d.Ref}
+	payload := []authorization.PrincipalRef{d.Ref}
 	if err := e.SetRoleReferences(context.Background(), "feature payload", payload); err != nil {
 		t.Fatal(err)
 	}
-	payload[0] = PrincipalRef{}
+	payload[0] = authorization.PrincipalRef{}
 	before := e.roles
 	roleError(t, e, op, "DROP ROLE dependent", "2BP01", `role "dependent" cannot be dropped because some objects depend on it`, "privileges for feature payload")
 	if e.roles != before {
@@ -329,10 +330,10 @@ func TestRolePersistentReferencesAndIdentityGuards(t *testing.T) {
 	op.session.mu.Unlock()
 	roleError(t, e, op, "DROP ROLE postgres", "55006", "current user cannot be dropped", "")
 	roleExecute(t, e, op, "DROP ROLE dependent")
-	if err := grantMembership(t, e, Membership{Role: d.Ref}); err == nil {
+	if err := grantMembership(t, e, authorization.Membership{Role: d.Ref}); err == nil {
 		t.Fatal("stale membership endpoints")
 	}
-	if err := e.SetRoleReferences(context.Background(), "feature payload", []PrincipalRef{d.Ref}); err == nil {
+	if err := e.SetRoleReferences(context.Background(), "feature payload", []authorization.PrincipalRef{d.Ref}); err == nil {
 		t.Fatal("stale persistent reference")
 	}
 }
@@ -370,7 +371,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	for _, name := range []string{"first", "second"} {
 		ref := roleTableRef(t, e, name)
 		d := e.state.descriptors[ref.Address].(*relationDescriptor)
-		if d.owner.owner != e {
+		if e.Roles().ValidatePrincipal(d.owner) != nil {
 			t.Fatal("foreign owner after restore")
 		}
 	}

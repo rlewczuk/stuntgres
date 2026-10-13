@@ -3,10 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
-
-	"stuntgres/internal/sqlstate"
 )
 
 // The channel closes only after the worker's operation defers have completed.
@@ -92,15 +92,15 @@ func TestDeleteUsingSourceAdmissionRefresh(t *testing.T) {
 			}
 			owner, _ := e.Roles().Lookup("postgres")
 			actor, _ := e.Roles().Lookup("admission_reader")
-			grant := func(name string, mask Privileges) {
+			grant := func(name string, mask authorization.Privileges) {
 				ref := roleTableRef(t, e, name)
-				if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 					t.Fatal(err)
 				}
 			}
-			grant("t", DeletePrivilege|SelectPrivilege)
-			grant("s", SelectPrivilege)
-			grant("r", SelectPrivilege)
+			grant("t", authorization.DeletePrivilege|authorization.SelectPrivilege)
+			grant("s", authorization.SelectPrivilege)
+			grant("r", authorization.SelectPrivilege)
 			sessionSQL(t, writer, "SET SESSION AUTHORIZATION admission_reader")
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "ALTER TABLE r ALTER COLUMN k SET NOT NULL")

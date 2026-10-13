@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -18,19 +19,19 @@ func TestQueryDistinctOnPhysicalACLAndHeldRebind(t *testing.T) {
 			}
 			roleExecute(t, e, op, "CREATE VIEW invoker_on WITH(security_invoker=true) AS SELECT DISTINCT ON(secret) id FROM acl_t ORDER BY secret,id DESC")
 			reader, _ := e.Roles().Lookup("distinct_on_reader")
-			grantor := e.roles.names["postgres"]
+			grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			table := roleTableRef(t, e, "acl_t")
 			id := table
 			id.Address.SubID = 1
-			grant := func(ref ObjectRef, rights Privileges) {
+			grant := func(ref ObjectRef, rights authorization.Privileges) {
 				t.Helper()
-				if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 					t.Fatal(err)
 				}
 			}
 			grant(table, 0)
-			grant(id, SelectPrivilege)
-			grant(roleTableRef(t, e, "invoker_on"), SelectPrivilege)
+			grant(id, authorization.SelectPrivilege)
+			grant(roleTableRef(t, e, "invoker_on"), authorization.SelectPrivilege)
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION distinct_on_reader")
 			ast := statement(t, "SELECT DISTINCT ON(secret) id AS secret FROM acl_t ORDER BY secret")
 			held, err := e.Describe(op, ast)
@@ -77,7 +78,7 @@ func TestQueryDistinctOnPhysicalACLAndHeldRebind(t *testing.T) {
 			}
 			grant(id, 0)
 			execute(true)
-			grant(id, SelectPrivilege)
+			grant(id, authorization.SelectPrivilege)
 			execute(false)
 		})
 	}

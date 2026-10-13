@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 	run(t, e, "CREATE TABLE private_source.src(a INT)")
 	source := roleTableRef(t, e, "src")
 	reader, _ := e.Roles().Lookup("like_reader")
-	owner := e.roles.names["postgres"]
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	op, done := roleOperation(t, e, "like_reader")
 	defer done()
 	for _, tc := range []struct {
@@ -40,7 +41,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 			t.Fatal(err, got, tc.want)
 		}
 	}
-	grant := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	column := source
 	column.Address.SubID = 1
 	if err := e.SetObjectACL(context.Background(), column, grant); err != nil {

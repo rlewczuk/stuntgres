@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -105,16 +106,16 @@ func TestPGSequencesACL(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
 	owner := e.state.descriptors[ref.Address].(*relationDescriptor).owner
 	sessionSQL(t, a, "SET SESSION AUTHORIZATION reader")
-	for _, mask := range []Privileges{0, UpdatePrivilege, UsagePrivilege, SelectPrivilege, UsagePrivilege | UpdatePrivilege} {
-		acl := ACLValue{Explicit: true}
+	for _, mask := range []authorization.Privileges{0, authorization.UpdatePrivilege, authorization.UsagePrivilege, authorization.SelectPrivilege, authorization.UsagePrivilege | authorization.UpdatePrivilege} {
+		acl := authorization.ACLValue{Explicit: true}
 		if mask != 0 {
-			acl.Entries = []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: mask}}
+			acl.Entries = []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: mask}}
 		}
 		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 		var value driver.Value
-		if mask&(UsagePrivilege|SelectPrivilege) != 0 {
+		if mask&(authorization.UsagePrivilege|authorization.SelectPrivilege) != 0 {
 			value = int64(42)
 		}
 		pgSequencesRows(t, a, "SELECT sequencename,last_value FROM pg_sequences", [][]driver.Value{{"s", value}})
@@ -122,9 +123,9 @@ func TestPGSequencesACL(t *testing.T) {
 		if !ok {
 			t.Fatal("reader absent")
 		}
-		acl = ACLValue{Explicit: true}
+		acl = authorization.ACLValue{Explicit: true}
 		if mask != 0 {
-			acl.Entries = []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: mask}}
+			acl.Entries = []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask}}
 		}
 		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 			t.Fatal(err)

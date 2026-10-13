@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"testing"
@@ -30,14 +31,14 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	ref := roleTableRef(t, e, "v")
 	reader, _ := e.Roles().Lookup("reader")
 	successor, _ := e.Roles().Lookup("successor")
-	grantor := e.roles.names["postgres"]
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}
 	old := e.state.descriptors[ref.Address].(*relationDescriptor)
 	copyDescriptor := *old
-	copyDescriptor.columnACL = map[int32]ACLValue{old.attributes[0]: acl, old.attributes[1]: {Explicit: true}}
+	copyDescriptor.columnACL = map[int32]authorization.ACLValue{old.attributes[0]: acl, old.attributes[1]: {Explicit: true}}
 	copyDescriptor.comment = "retained view"
 	copyDescriptor.columnComments = map[int32]string{old.attributes[0]: "retained column"}
 	copyDescriptor.revision++
@@ -75,8 +76,8 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	}
 	roleExecute(t, e, op, "ALTER VIEW v OWNER TO successor")
 	transferred := e.state.descriptors[ref.Address].(*relationDescriptor)
-	wantACL := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: successor.Ref, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
-	if transferred.owner != successor.Ref || !reflect.DeepEqual(transferred.acl, wantACL) || !reflect.DeepEqual(transferred.columnACL[old.attributes[0]], wantACL) || !reflect.DeepEqual(transferred.columnACL[old.attributes[1]], ACLValue{Explicit: true}) {
+	wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
+	if transferred.owner != successor.Ref || !reflect.DeepEqual(transferred.acl, wantACL) || !reflect.DeepEqual(transferred.columnACL[old.attributes[0]], wantACL) || !reflect.DeepEqual(transferred.columnACL[old.attributes[1]], authorization.ACLValue{Explicit: true}) {
 		t.Fatal("owner ACL rewrite", transferred)
 	}
 	var dump bytes.Buffer
@@ -101,8 +102,8 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 			owner, _ := e.Roles().Lookup("owner")
 			middle, _ := e.Roles().Lookup("middle")
 			member, _ := e.Roles().Lookup("member")
-			grantor := e.roles.names["postgres"]
-			for _, m := range []Membership{{Role: owner.Ref, Member: middle.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: middle.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: owner.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}} {
+			grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			for _, m := range []authorization.Membership{{Role: owner.Ref, Member: middle.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: middle.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: owner.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}} {
 				if err := grantMembership(t, e, m); err != nil {
 					t.Fatal(err)
 				}
@@ -110,7 +111,7 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 			// Namespace rights isolate view ownership, not inherited schema ACLs.
 			nsAddress := e.CatalogRead().Lookup(NameKey{ClassID: NamespaceClassID, Name: "s"})[0]
 			ns := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: nsAddress}
-			if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: member.Ref}, Privileges: UsagePrivilege | CreatePrivilege}}}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION member")

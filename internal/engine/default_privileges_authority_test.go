@@ -3,10 +3,10 @@ package engine
 import (
 	"errors"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
 func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
@@ -25,7 +25,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		}
 		if err == nil {
 			auth.catalog = f.e.stageRead(stage)
-			auth.roles.catalog = auth.catalog
+			auth.recaptureCatalog(auth.catalog)
 		}
 		f.e.mu.Unlock()
 		if err != nil {
@@ -33,7 +33,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		}
 		base := auth.catalog.state.descriptors[auth.catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: f.schema, Name: name}]].(*typeDescriptor)
 		array := auth.catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.array)}].(*typeDescriptor)
-		if !matchesDefaultBaseline(array.acl, f.owner, defaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
+		if !authorization.MatchesDefaultBaseline(array.acl, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
 			t.Fatal("associated enum array consumed selected TYPES ACL", array.acl)
 		}
 		auth.state.CurrentUser = f.reader
@@ -88,7 +88,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	namespace := *state.descriptors[f.schema].(*namespaceDescriptor)
 	namespace.name = "pg_temp_default_authority"
 	namespace.temporary = f.op.session.token
-	namespace.acl = ACLValue{Explicit: true}
+	namespace.acl = authorization.ACLValue{Explicit: true}
 	state.descriptors[f.schema] = &namespace
 	f.e.mu.Lock()
 	auth, err := f.e.authorizationLocked(f.op)
@@ -97,10 +97,10 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = CatalogRead{f.e, state}
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = f.reader
 	ref := ObjectRef{owner: f.e.owner, Epoch: state.epoch, Address: f.schema}
-	for _, privilege := range []Privileges{UsagePrivilege, CreatePrivilege, UsagePrivilege | CreatePrivilege} {
+	for _, privilege := range []authorization.Privileges{authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege} {
 		if err := auth.Check(AccessRequirement{Object: ref, Privileges: privilege}); err != nil {
 			t.Fatal("physical namespace authority depended on current actor", privilege, err)
 		}
@@ -128,7 +128,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		candidate.descriptors[f.schema] = &invalidNamespace
 		invalid := auth
 		invalid.catalog = CatalogRead{f.e, candidate}
-		invalid.roles.catalog = invalid.catalog
+		invalid.recaptureCatalog(invalid.catalog)
 		invalid.session = &Session{token: token}
 		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
 	}
@@ -141,7 +141,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	ordinary.descriptors[f.schema] = &permanent
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = CatalogRead{f.e, ordinary}
-	ordinaryAuth.roles.catalog = ordinaryAuth.catalog
+	ordinaryAuth.recaptureCatalog(ordinaryAuth.catalog)
 	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.name)
 	foreign := ref
 	foreign.owner = New().owner
@@ -149,12 +149,12 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal("physical namespace authority admitted foreign object")
 	}
 	staleActor := auth
-	staleActor.state.CurrentUser = PrincipalRef{owner: f.e, id: 999999}
+	staleActor.state.CurrentUser = f.e.authorizationDomain.Principal(999999)
 	if err := staleActor.CanUse(ref); err == nil {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}
-	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20111}, namespace: f.schema, name: "temp_acl_denied", owner: f.owner, revision: 1, relationKind: tableRelation, acl: ACLValue{Explicit: true}}
+	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20111}, namespace: f.schema, name: "temp_acl_denied", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}}
 	state.descriptors[table.address] = table
 	tableRef := ObjectRef{owner: f.e.owner, Epoch: state.epoch, Address: table.address}
-	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
+	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
 }

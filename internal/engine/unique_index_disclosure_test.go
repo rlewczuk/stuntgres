@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -28,24 +29,24 @@ func TestUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 				if !ok || actor.Superuser {
 					t.Fatal("owner must be nonsuperuser", actor, ok)
 				}
-				grant := func(attribute int32, rights Privileges) {
+				grant := func(attribute int32, rights authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
+					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
 					if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 						t.Fatal(err)
 					}
 				}
-				rights := InsertPrivilege
+				rights := authorization.InsertPrivilege
 				if mode == "table" {
-					rights |= SelectPrivilege
+					rights |= authorization.SelectPrivilege
 				}
 				grant(0, rights)
 				if mode == "partial" || mode == "all" {
-					grant(1, SelectPrivilege)
+					grant(1, authorization.SelectPrivilege)
 				}
 				if mode == "all" {
-					grant(2, SelectPrivilege)
+					grant(2, authorization.SelectPrivilege)
 				}
 				before, store := e.state, e.storage[ref.Address]
 				ast := statement(t, "CREATE UNIQUE INDEX ui_ab ON ui_t(a,b)")
@@ -105,11 +106,11 @@ func TestUniqueIndexCurrentACLAfterWait(t *testing.T) {
 				t.Fatal(actor, ok)
 			}
 			grant := func(visible bool) {
-				rights := InsertPrivilege
+				rights := authorization.InsertPrivilege
 				if visible {
-					rights |= SelectPrivilege
+					rights |= authorization.SelectPrivilege
 				}
-				acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
+				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
 				if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 					t.Fatal(err)
 				}

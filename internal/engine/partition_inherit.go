@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -36,7 +37,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	d.acl = stage.creationACL(d.owner, namespace, defaultTables)
+	d.acl = stage.creationACL(d.owner, namespace, authorization.DefaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, err
 	}
@@ -95,7 +96,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		return nil, err
 	}
 	auth.catalog = e.stageRead(stage)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
 	localDefaults, err := bindCreateDefaults(binder, d.columns, declarations)

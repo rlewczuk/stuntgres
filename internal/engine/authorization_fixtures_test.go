@@ -1,0 +1,90 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/parser"
+)
+
+func cloneRoleFixture(r *roleCatalog) *roleCatalog {
+	return &roleCatalog{root: r.root, revision: r.revision + 1}
+}
+func emptyRoleFixture(e *Engine) *roleCatalog {
+	root := authorization.Seed(&e.authorizationDomain)
+	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)
+	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
+		targets[ref] = d
+	}
+	return &roleCatalog{root: root.Retire(targets), revision: 1}
+}
+func fixtureRole(r *roleCatalog, ref authorization.PrincipalRef) authorization.RoleDescriptor {
+	d, _ := r.root.Read(authorization.PrincipalRef{}).Find(ref)
+	return d
+}
+func putFixtureRole(r *roleCatalog, d authorization.RoleDescriptor) {
+	root, err := r.root.PutDescriptor(d)
+	if err != nil {
+		panic(err)
+	}
+	r.root = root
+}
+func retireFixtureRole(r *roleCatalog, ref authorization.PrincipalRef) {
+	d := fixtureRole(r, ref)
+	r.root = r.root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{ref: d})
+}
+func fixtureEdges(r *roleCatalog) []authorization.Membership {
+	return r.root.Read(authorization.PrincipalRef{}).Memberships()
+}
+
+// Build private graph fixtures through genuine storage and membership candidates.
+// Temporary descriptor names/flags exist only on unpublished roots and are restored.
+func setFixtureEdges(r *roleCatalog, edges []authorization.Membership) {
+	candidate := *r
+	destination := r
+	r = &candidate
+	read := r.root.Read(authorization.PrincipalRef{})
+	origins := make(map[authorization.PrincipalRef]bool)
+	for edge := range read.Edges() {
+		origins[edge.Grantor] = true
+	}
+	if len(origins) != 0 {
+		root, err := authorization.OwnedMembershipCandidate(context.Background(), read, origins)
+		if err != nil {
+			panic(err)
+		}
+		r.root = root
+	}
+	for _, edge := range edges {
+		original := fixtureRole(r, edge.Grantor)
+		oldBootstrap, hasBootstrap := r.root.Read(authorization.PrincipalRef{}).Lookup("postgres")
+		if hasBootstrap && oldBootstrap.Ref != original.Ref {
+			temp := oldBootstrap
+			temp.Name = fmt.Sprintf("fixture_bootstrap_%d", temp.Ref.ID())
+			putFixtureRole(r, temp)
+		}
+		elevated := original
+		elevated.Name = "postgres"
+		elevated.Superuser = true
+		putFixtureRole(r, elevated)
+		target := fixtureRole(r, edge.Role)
+		member := fixtureRole(r, edge.Member)
+		request := &parser.RoleMembership{Targets: []parser.RoleSpec{{Name: target.Name}}, Members: []parser.RoleSpec{{Name: member.Name}}, Options: []parser.MembershipOption{{Name: "admin", Value: edge.Admin}, {Name: "inherit", Value: edge.Inherit}, {Name: "set", Value: edge.Set}}}
+		root, changed, _, err := authorization.MembershipCandidate(context.Background(), r.root.Read(authorization.PrincipalRef{}), authorization.RoleState{CurrentUser: edge.Grantor, SessionUser: edge.Grantor}, request, nil, false, false)
+		if err != nil {
+			panic(err)
+		}
+		if changed {
+			r.root = root
+		}
+		putFixtureRole(r, original)
+		if hasBootstrap && oldBootstrap.Ref != original.Ref {
+			putFixtureRole(r, oldBootstrap)
+		}
+	}
+	destination.root = candidate.root
+}
+
+func objectACLUnitEntry(source, target authorization.PrincipalRef, use, options authorization.Privileges) authorization.ACLEntry {
+	return authorization.ACLEntry{Grantor: source, Grantee: authorization.ACLGrantee{Role: target}, Privileges: use, GrantOptions: options}
+}

@@ -3,11 +3,11 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestMathBinding(t *testing.T) {
@@ -43,13 +43,13 @@ func TestMathBinding(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE m(n NUMERIC,unused NUMERIC)")
 	roleExecute(t, e, op, "INSERT INTO m VALUES(1.25,9)")
 	reader, _ := e.Roles().Lookup("math_reader")
-	grantor := e.roles.names["postgres"]
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	ref := roleTableRef(t, e, "m")
 	grant := func(subID int32) {
 		t.Helper()
 		column := ref
 		column.Address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 			t.Fatal(err)
 		}
 	}

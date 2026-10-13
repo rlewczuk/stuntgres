@@ -3,21 +3,29 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func ownershipUnitRoles() (e *Engine, owner, source, target, reader PrincipalRef) {
-	owner, source, target, reader = grantUnitRoles()
-	e = owner.owner
-	for name, ref := range map[string]PrincipalRef{"ownership_source": source, "ownership_target": target, "ownership_reader": reader} {
-		role := e.roles.roles[ref]
-		role.Name = name
-		e.roles.roles[ref] = role
-		e.roles.names[name] = ref
+func ownershipUnitRoles() (e *Engine, owner, source, target, reader authorization.PrincipalRef) {
+	e = New()
+	owner = e.authorizationDomain.Principal(10)
+	refs := []*authorization.PrincipalRef{&source, &target, &reader}
+	names := []string{"ownership_source", "ownership_target", "ownership_reader"}
+	publication := cloneRoleFixture(e.roles)
+	for i, destination := range refs {
+		e.nextPrincipal = uint64(100001 + i)
+		ref, err := e.nextRolePrincipalLocked()
+		if err != nil {
+			panic(err)
+		}
+		*destination = ref
+		e.nextPrincipal = ref.ID() + 1
+		putFixtureRole(publication, authorization.RoleDescriptor{Ref: ref, Name: names[i], Inherit: true})
 	}
+	e.roles = publication
 	return
 }
 func ownershipUnitExec(t *testing.T, e *Engine, q string) {
@@ -36,32 +44,6 @@ func ownershipUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 		t.Fatal(err)
 	}
 }
-func TestRoleOwnershipACLScopes(t *testing.T) {
-	_, old, next, third, reader := ownershipUnitRoles()
-	for _, mask := range []Privileges{SelectPrivilege | UpdatePrivilege, UsagePrivilege | CreatePrivilege} {
-		original := ACLValue{Explicit: true, Entries: []ACLEntry{
-			{Grantor: old, Grantee: ACLGrantee{Role: old}, Privileges: mask, GrantOptions: mask},
-			{Grantor: next, Grantee: ACLGrantee{Role: next}, Privileges: SelectPrivilege},
-			{Grantor: old, Grantee: ACLGrantee{Role: reader}, Privileges: mask},
-			{Grantor: third, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
-		}}
-		retained := append([]ACLEntry(nil), original.Entries...)
-		got := schemaACLOwner(original, old, next)
-		want := ACLValue{Explicit: true, Entries: []ACLEntry{
-			{Grantor: next, Grantee: ACLGrantee{Role: next}, Privileges: mask | SelectPrivilege, GrantOptions: mask},
-			{Grantor: next, Grantee: ACLGrantee{Role: reader}, Privileges: mask},
-			{Grantor: third, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
-		}}
-		if !reflect.DeepEqual(got, want) || !reflect.DeepEqual(original.Entries, retained) {
-			t.Fatal("owner ACL collision/provenance/immutability", got, want, original)
-		}
-	}
-	for _, acl := range []ACLValue{{}, {Explicit: true}} {
-		if got := schemaACLOwner(acl, old, next); !reflect.DeepEqual(got, acl) {
-			t.Fatal("NULL/empty distinction", acl, got)
-		}
-	}
-}
 func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	e, owner, _, target, reader := ownershipUnitRoles()
 	for _, q := range []string{"CREATE TABLE ownership_t(id SERIAL PRIMARY KEY,payload INT)", "CREATE INDEX ownership_idx ON ownership_t(payload)", "INSERT INTO ownership_t(payload) VALUES(7)", "CREATE TYPE ownership_e AS ENUM('a')", "CREATE DOMAIN ownership_d AS INT", "CREATE TYPE ownership_c AS(id INT)"} {
@@ -73,8 +55,8 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	// GRANT-provider extensions. Install them in the canonical private stage.
 	setup := e.BeginCatalogStage(base)
 	copy := *table
-	copy.acl = ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, reader, SelectPrivilege, 0)}}
-	copy.columnACL = map[int32]ACLValue{table.attributes[1]: {Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, reader, UpdatePrivilege, UpdatePrivilege)}}}
+	copy.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.SelectPrivilege, 0)}}
+	copy.columnACL = map[int32]authorization.ACLValue{table.attributes[1]: {Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UpdatePrivilege, authorization.UpdatePrivilege)}}}
 	copy.revision++
 	if err := setup.Replace(&copy); err != nil {
 		t.Fatal(err)
@@ -82,7 +64,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	for _, id := range []sqltype.ID{table.rowType, base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(table.rowType)}].(*typeDescriptor).array} {
 		d := base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}].(*typeDescriptor)
 		next := *d
-		next.acl = ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, reader, UsagePrivilege, 0)}}
+		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
 		next.revision++
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
@@ -172,7 +154,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 			}
 		}
 	}
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: DefinitionRevision(^uint64(0)), owner: e.roles.names["postgres"]}
+	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_overflow", revision: DefinitionRevision(^uint64(0)), owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -223,33 +205,20 @@ func TestRoleOwnershipDirectProviderProtection(t *testing.T) {
 		}
 	}
 }
-func TestRoleOwnershipGrantOptionsRespectObjectMask(t *testing.T) {
-	e, owner, _, _, reader := ownershipUnitRoles()
-	for _, mask := range []Privileges{CreatePrivilege, UsagePrivilege, SelectPrivilege | UpdatePrivilege} {
-		if got, err := scopedACLGrantOptions(context.Background(), e.Roles(), ACLValue{}, owner, owner, mask); err != nil || got != mask {
-			t.Fatal("implicit ownership leaked foreign-class privilege bits", mask, got, err)
-		}
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader}, Privileges: CreatePrivilege | SelectPrivilege, GrantOptions: CreatePrivilege | SelectPrivilege}}}
-		if got, err := scopedACLGrantOptions(context.Background(), e.Roles(), acl, owner, reader, mask); err != nil || got != (CreatePrivilege|SelectPrivilege)&mask {
-			t.Fatal("explicit grant options leaked foreign-class privilege bits", mask, got, err)
-		}
-	}
-}
-
 func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 	e := New()
-	graph := cloneRoles(e.roles)
-	initial := PrincipalRef{e, bootstrapPrincipalID}
-	renamed := graph.roles[initial]
+	graph := cloneRoleFixture(e.roles)
+	initial := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+	renamed := fixtureRole(graph, initial)
 	renamed.Name = "renamed_initial"
-	graph.roles[initial] = renamed
-	delete(graph.names, "postgres")
-	graph.names[renamed.Name] = initial
-	ordinary := PrincipalRef{e, e.nextPrincipal}
-	graph.roles[ordinary] = RoleDescriptor{Ref: ordinary, Name: "postgres", Superuser: true, Inherit: true}
-	graph.names["postgres"] = ordinary
+	putFixtureRole(graph, renamed)
+
+	ordinary := e.authorizationDomain.Principal(e.nextPrincipal)
+	putFixtureRole(graph, authorization.RoleDescriptor{Ref: ordinary, Name: "postgres", Superuser: true, Inherit: true})
+
 	auth := catalogAuthorization(e, e.CatalogRead())
-	auth.roles = RoleRead{e, graph, auth.catalog}
+	auth.roles = e.roleRead(auth.catalog, graph)
+	auth.roleRecord = graph
 	retained := e.roles
 	for _, reassign := range []bool{false, true} {
 		refs, protected, err := ownedSources(auth, []parser.RoleSpec{{Name: "postgres"}, {Name: "renamed_initial"}, {Name: "renamed_initial"}}, reassign)
@@ -257,14 +226,14 @@ func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 			t.Fatal("canonical initial source or deduplicated union", refs, protected, err)
 		}
 		refs, protected, err = ownedSources(auth, []parser.RoleSpec{{Name: "postgres"}}, reassign)
-		if err != nil || len(refs) != 1 || protected != (PrincipalRef{}) {
+		if err != nil || len(refs) != 1 || protected != (authorization.PrincipalRef{}) {
 			t.Fatal("ordinary familiar-name superuser was protected", refs, protected, err)
 		}
 		if _, _, err = ownedSources(auth, []parser.RoleSpec{{Name: "renamed_initial"}, {Name: "missing_source"}}, reassign); err == nil {
 			t.Fatal("initial protection masked late operand resolution")
 		}
 	}
-	if graph.roles[initial].predefined || e.roles != retained || e.roles.roles[initial].Name != "postgres" {
+	if fixtureRole(graph, initial).Predefined() || e.roles != retained || fixtureRole(e.roles, initial).Name != "postgres" {
 		t.Fatal("protection changed unrelated predefined flag or live initial identity")
 	}
 }

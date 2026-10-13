@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 	"time"
 )
@@ -18,16 +19,16 @@ func TestUpdateFromEarlierSourceMetadataAndAuthorityRefresh(t *testing.T) {
 			}
 			actor, _ := e.Roles().Lookup("admission_writer")
 			owner, _ := e.Roles().Lookup("postgres")
-			grant := func(table string, mask Privileges) {
+			grant := func(table string, mask authorization.Privileges) {
 				t.Helper()
 				ref := roleTableRef(t, e, table)
-				if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 					t.Fatal(err)
 				}
 			}
-			grant("t", UpdatePrivilege|SelectPrivilege)
-			grant("s", SelectPrivilege)
-			grant("r", SelectPrivilege)
+			grant("t", authorization.UpdatePrivilege|authorization.SelectPrivilege)
+			grant("s", authorization.SelectPrivilege)
+			grant("r", authorization.SelectPrivilege)
 			sessionSQL(t, writer, "SET SESSION AUTHORIZATION admission_writer")
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "LOCK TABLE r IN ACCESS EXCLUSIVE MODE")

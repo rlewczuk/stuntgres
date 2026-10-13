@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,8 +23,8 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, Object
 func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
-	owner := e.roles.names["postgres"]
-	if d.name != "pg_extension" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.attributeHighWater != 8 || len(d.columns) != 8 || d.owner != owner || owner.id != 10 {
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	if d.name != "pg_extension" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.attributeHighWater != 8 || len(d.columns) != 8 || d.owner != owner || owner.ID() != 10 {
 		t.Fatal("relation identity", d, owner)
 	}
 	names := [8]string{"oid", "extname", "extowner", "extnamespace", "extrelocatable", "extversion", "extconfig", "extcondition"}
@@ -38,7 +39,7 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Explicit || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != SelectPrivilege {
+	if len(d.acl.Entries) != 1 || !d.acl.Explicit || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
 	if d.rowType != 10074 {
@@ -65,7 +66,7 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 		t.Fatal("foreign generation accepted")
 	}
 	class := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles, CatalogRead{e, e.state}}, ObjectRef{}, class)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +94,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	e := New()
 	d, ref := pgExtensionUnitSource(t, e)
 	before, names := maps.Clone(e.state.descriptors), maps.Clone(e.state.names)
-	old, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles, CatalogRead{e, e.state}}, ref, d)
+	old, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ref, d)
 	if err != nil || old == nil {
 		t.Fatal("capture", old, err)
 	}
@@ -146,7 +147,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		}
 	}
 	view := CatalogRead{owner: e, state: &state}
-	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, RoleRead{e, e.roles, view}, ref, d); err != nil || rows == nil || rows.count() != 0 {
+	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d); err != nil || rows == nil || rows.count() != 0 {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
 	delete(state.descriptors, ObjectAddress{ClassID: TypeClassID, ObjectID: 1028})
@@ -195,7 +196,7 @@ func TestPGExtensionCapture(t *testing.T) {
 func TestPGExtensionCaptureInstalled(t *testing.T) {
 	e := New()
 	d, ref := pgExtensionUnitSource(t, e)
-	empty, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles, CatalogRead{e, e.state}}, ref, d)
+	empty, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ref, d)
 	if err != nil || empty == nil || empty.count() != 0 {
 		t.Fatal("fresh installed catalog", empty, err)
 	}
@@ -206,12 +207,12 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	address := e.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]
 	ext := e.state.descriptors[address].(*extensionDescriptor)
 	d = pgExtensionUnitShape(t, e)
-	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles, CatalogRead{e, e.state}}, ref, d)
+	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ref, d)
 	if err != nil || captured == nil || captured.count() != 1 {
 		t.Fatal("installed descriptor not projected", captured, err)
 	}
 	row := captured.anonymous[0]
-	for i, expected := range []OID{ext.address.ObjectID, OID(ext.owner.id), ext.targetNamespace.ObjectID} {
+	for i, expected := range []OID{ext.address.ObjectID, OID(ext.owner.ID()), ext.targetNamespace.ObjectID} {
 		actual, err := row[[]int{0, 2, 3}[i]].OID()
 		if err != nil || actual != uint32(expected) {
 			t.Fatal("descriptor-derived identity", i, actual, expected, err)

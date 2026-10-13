@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -127,7 +128,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			name := ownedSequenceName(table.name, table.columns[slot].Name, used)
 			if len(explicit.Parts) != 0 {
 				auth.catalog = read
-				auth.roles.catalog = auth.catalog
+				auth.recaptureCatalog(auth.catalog)
 				ns, err := e.creationNamespace(auth, explicit)
 				if err != nil {
 					return err
@@ -169,7 +170,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	options.owned.SubID = table.attributes[slot]
 	options.identity = true
 	d := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: rev, sequencePlanStamp: rev, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
-	d.acl = stage.creationACL(table.owner, table.namespace, defaultSequences)
+	d.acl = stage.creationACL(table.owner, table.namespace, authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
 		return err
 	}

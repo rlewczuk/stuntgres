@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -361,19 +362,19 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.groups_acl(id INT,k INT)")
 	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: table.address}
-	reader := PrincipalRef{owner: e, id: 1000000}
-	roles := cloneRoles(e.roles)
-	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "groups_unit_reader"}
-	roles.names["groups_unit_reader"] = reader
+	reader := e.authorizationDomain.Principal(1000000)
+	roles := cloneRoleFixture(e.roles)
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "groups_unit_reader"})
+
 	e.roles = roles
 	column := func(index int) ObjectRef {
 		object := ref
 		object.Address.SubID = table.attributes[index]
 		return object
 	}
-	grant := func(object ObjectRef, rights Privileges) {
+	grant := func(object ObjectRef, rights authorization.Privileges) {
 		t.Helper()
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: table.owner, Grantee: ACLGrantee{Role: reader}, Privileges: rights}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
 		if err := e.SetObjectACL(context.Background(), object, acl); err != nil {
 			t.Fatal(err)
 		}
@@ -393,9 +394,9 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			for i := range table.columns {
-				rights := Privileges(0)
+				rights := authorization.Privileges(0)
 				if i == 0 {
-					rights = SelectPrivilege
+					rights = authorization.SelectPrivilege
 				}
 				grant(column(i), rights)
 			}
@@ -438,7 +439,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 			}
 			check(tc.denied)
 			for _, i := range tc.reads {
-				grant(column(i), SelectPrivilege)
+				grant(column(i), authorization.SelectPrivilege)
 			}
 			check(false)
 			if len(tc.reads) > 0 {

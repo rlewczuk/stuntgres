@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -17,16 +18,16 @@ func TestMergeInsertHeldACL(t *testing.T) {
 	}
 	owner := admin.RoleState().CurrentUser
 	actor, _ := e.Roles().Lookup("merge_held_writer")
-	grant := func(table string, attribute int, mask Privileges) {
+	grant := func(table string, attribute int, mask authorization.Privileges) {
 		ref := roleTableRef(t, e, table)
 		ref.Address.SubID = int32(attribute)
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant("t", 1, InsertPrivilege|SelectPrivilege)
-	grant("t", 2, InsertPrivilege)
-	grant("source", 1, SelectPrivilege)
+	grant("t", 1, authorization.InsertPrivilege|authorization.SelectPrivilege)
+	grant("t", 2, authorization.InsertPrivilege)
+	grant("source", 1, authorization.SelectPrivilege)
 	writer, writerDone := roleOperation(t, e, "merge_held_writer")
 	defer writerDone()
 	ast := statement(t, "MERGE INTO t USING source s ON t.id=s.id WHEN NOT MATCHED AND s.id>0 THEN INSERT(id) VALUES(s.id) WHEN NOT MATCHED THEN INSERT(v) VALUES(1)")
@@ -66,7 +67,7 @@ func TestMergeInsertHeldACL(t *testing.T) {
 	if len(rows) != 1 || rows[0][0] != int64(1) {
 		t.Fatal("target revoke changed rows", rows)
 	}
-	grant("t", 2, InsertPrivilege)
+	grant("t", 2, authorization.InsertPrivilege)
 	execute(1, "")
 	roleExecute(t, e, admin, "INSERT INTO source VALUES(3)")
 	grant("source", 1, 0)
@@ -77,7 +78,7 @@ func TestMergeInsertHeldACL(t *testing.T) {
 	if len(rows) != 2 || rows[0][0] != int64(1) || rows[1][0] != int64(2) {
 		t.Fatal("source revoke changed rows", rows)
 	}
-	grant("source", 1, SelectPrivilege)
+	grant("source", 1, authorization.SelectPrivilege)
 	execute(1, "")
 	result = roleExecute(t, e, admin, "SELECT id,v FROM t ORDER BY id")
 	rows = tuples(result)

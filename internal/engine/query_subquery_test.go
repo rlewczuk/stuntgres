@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -579,20 +580,20 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 		roleExecute(t, e, op, sql)
 	}
 	reader, _ := e.Roles().Lookup("subquery_reader")
-	grantor := e.roles.names["postgres"]
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	outer, child := roleTableRef(t, e, "o"), roleTableRef(t, e, "c")
-	grant := func(ref ObjectRef, rights Privileges) {
+	grant := func(ref ObjectRef, rights authorization.Privileges) {
 		t.Helper()
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant(outer, SelectPrivilege)
+	grant(outer, authorization.SelectPrivilege)
 	grant(child, 0)
 	key, value := child, child
 	key.Address.SubID = 1
 	value.Address.SubID = 2
-	grant(key, SelectPrivilege)
+	grant(key, authorization.SelectPrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION subquery_reader")
 	ast := statement(t, "SELECT EXISTS(SELECT c.v FROM c WHERE c.k=o.id) FROM o WHERE FALSE")
 	e.mu.Lock()
@@ -624,7 +625,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 		}
 	}
 	check(true)
-	grant(value, SelectPrivilege)
+	grant(value, authorization.SelectPrivilege)
 	check(false)
 	grant(value, 0)
 	check(true)

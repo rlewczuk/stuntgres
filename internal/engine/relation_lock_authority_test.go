@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestRelationLockAuthority(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	reader, _ := e.Roles().Lookup("lockreader")
 	bootstrap := op.RoleState().CurrentUser
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION lockreader")

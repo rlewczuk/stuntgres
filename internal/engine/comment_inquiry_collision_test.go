@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	owner := e.roles.names["postgres"]
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := stage.Create(&namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, owner: owner, name: "collision", revision: 1, comment: "namespace candidate"}); err != nil {
 		t.Fatal(err)
 	}

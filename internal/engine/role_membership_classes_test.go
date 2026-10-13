@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -33,7 +34,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	// Namespace/relation ACLs use their existing internal publication seam.
 	// Type ACLs use the same validated immutable descriptor staging as domain
 	// fixtures; this does not expand the production SetObjectACL capability.
-	setACL := func(ref ObjectRef, acl ACLValue) error {
+	setACL := func(ref ObjectRef, acl authorization.ACLValue) error {
 		view, err := op.Authorization()
 		if err != nil {
 			return err
@@ -48,7 +49,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		}
 		next := *typ
 		next.revision++
-		acl.Entries = append([]ACLEntry(nil), acl.Entries...)
+		acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
 		next.acl = acl
 		stage := e.BeginCatalogStage(view.catalog)
 		defer e.DiscardCatalogStage(stage)
@@ -81,11 +82,11 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 			t.Fatal(d.Name(), err)
 		}
 		before := e.CatalogRead().state
-		invalid := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: rights.Ref}, Privileges: Privileges(1 << 31)}}}
+		invalid := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: rights.Ref}, Privileges: authorization.Privileges(1 << 31)}}}
 		if err := setACL(ref, invalid); err == nil || e.CatalogRead().state != before {
 			t.Fatal("invalid class mask published", d.Name(), err)
 		}
-		if err := setACL(ref, ACLValue{Explicit: true}); err != nil {
+		if err := setACL(ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal(err)
 		}
 		view, err = op.Authorization()
@@ -100,7 +101,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil || got != mask {
 			t.Fatal("implicit owner options", d.Name(), got, mask, err)
 		}
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: rights.Ref}, Privileges: mask, GrantOptions: mask}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: rights.Ref}, Privileges: mask, GrantOptions: mask}}}
 		if err := setACL(ref, acl); err != nil {
 			t.Fatal(err)
 		}

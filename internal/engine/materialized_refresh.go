@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func materializedRefreshAccess(auth AuthorizationView, ref ObjectRef) error {
 	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != materializedViewRelation {
 		return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.name))
 	}
-	if err := auth.Check(AccessRequirement{Object: ref, Privileges: MaintainPrivilege}); err != nil {
+	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.MaintainPrivilege}); err != nil {
 		return err
 	}
 	if d.relationKind != materializedViewRelation {

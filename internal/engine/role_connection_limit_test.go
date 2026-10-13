@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-func roleLimitStart(e *Engine, ref PrincipalRef, id SessionID, p SessionDefaultProvider) (*Session, error) {
+func roleLimitStart(e *Engine, ref authorization.PrincipalRef, id SessionID, p SessionDefaultProvider) (*Session, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return e.StartSession(ctx, SessionStart{ID: id, Authenticated: ref, Defaults: p})
@@ -28,7 +29,7 @@ func roleLimitClose(t *testing.T, s *Session) {
 		t.Fatal(err)
 	}
 }
-func roleLimitDenied(t *testing.T, e *Engine, ref PrincipalRef, name string) {
+func roleLimitDenied(t *testing.T, e *Engine, ref authorization.PrincipalRef, name string) {
 	t.Helper()
 	s, err := roleLimitStart(e, ref, SessionID(testSessionID.Add(1)), nil)
 	var d *sqlstate.Error
@@ -40,7 +41,7 @@ func roleLimitDenied(t *testing.T, e *Engine, ref PrincipalRef, name string) {
 		t.Fatalf("admission: %v %#v want %#v", s, err, want)
 	}
 }
-func roleLimitOpen(t *testing.T, e *Engine, ref PrincipalRef) *Session {
+func roleLimitOpen(t *testing.T, e *Engine, ref authorization.PrincipalRef) *Session {
 	t.Helper()
 	s, err := roleLimitStart(e, ref, SessionID(testSessionID.Add(1)), nil)
 	if err != nil {
@@ -124,7 +125,7 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 		t.Fatalf("trusted nonexistent principal boundary: %v", missingErr)
 	}
 	// Count attribution remains physical authenticated even across authorization.
-	physical := roleLimitOpen(t, e, e.roles.names["postgres"])
+	physical := roleLimitOpen(t, e, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"))
 	identity, err := physical.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +137,7 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 	e.sessionMu.Lock()
 	count := e.roleSessionCountLocked(other.Ref)
 	e.sessionMu.Unlock()
-	if count != 1 || physical.countedAuthenticated != e.roles.names["postgres"] {
+	if count != 1 || physical.countedAuthenticated != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("identity switch changed accounting", count)
 	}
 }
@@ -401,8 +402,9 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 				// Retain a real automatic ADMIN edge alongside every owner field.
 				roleAttributeCreate(t, e, setup, "retained_child", false, parser.RoleOptions{})
 				setup.Done()
+				beforePublication := e.roles
 				before := e.Roles()
-				next, revision := e.nextPrincipal, before.state.revision
+				next, revision := e.nextPrincipal, beforePublication.revision
 				salt := []byte("0123456789abcdef")
 				secret := strings.Replace(passwordExpectedSecret("notempty", salt, 1), "$4096:", "$2147483647:", 1)
 				var stmt parser.Statement = roleAttributeAlter("cancel_owner", parser.RoleOptions{Present: parser.RolePassword, Password: secret})
@@ -435,7 +437,7 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 				if !errors.Is(err, context.Canceled) || ctx.checks.Load() < 128 || ctx.checks.Load() > 130 {
 					t.Fatal("operation did not stop inside derivation", err, ctx.checks.Load())
 				}
-				if e.Roles().state != before.state || e.nextPrincipal != next || e.roles.revision != revision || !reflect.DeepEqual(e.Roles().Memberships(), before.Memberships()) {
+				if e.roles != beforePublication || e.nextPrincipal != next || e.roles.revision != revision || !reflect.DeepEqual(e.Roles().Memberships(), before.Memberships()) {
 					t.Fatal("canceled derivation published attributes, graph, revision or allocator")
 				}
 				if _, ok := e.Roles().Lookup("canceled_child"); ok || len(op.DetachNotices()) != 0 {

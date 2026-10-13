@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -12,63 +13,66 @@ import (
 // revision cache can supply the expected authority.
 func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	e := New()
-	roles := cloneRoles(e.roles)
-	previous := roles.names["postgres"]
-	next := PrincipalRef{owner: e, id: 100001}
-	member := PrincipalRef{owner: e, id: 100002}
-	bootstrap := roles.roles[previous]
+	roles := cloneRoleFixture(e.roles)
+	previous := roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	next := e.authorizationDomain.Principal(100001)
+	member := e.authorizationDomain.Principal(100002)
+	bootstrap := fixtureRole(roles, previous)
 	bootstrap.Superuser = false
-	roles.roles[previous] = bootstrap
-	roles.roles[next] = RoleDescriptor{Ref: next, Name: "successor", Inherit: true}
-	roles.roles[member] = RoleDescriptor{Ref: member, Name: "member", Inherit: true}
-	implicit := roles.names["pg_database_owner"]
+	putFixtureRole(roles, bootstrap)
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: next, Name: "successor", Inherit: true})
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: member, Name: "member", Inherit: true})
+	implicit := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	before := CatalogRead{e, e.state}
 	candidate := cloneCatalog(e.state)
 	database := *candidate.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	database.owner = next
 	candidate.descriptors[currentDatabaseAddress] = &database
 	after := CatalogRead{e, candidate}
-	oldRead, newRead := RoleRead{e, roles, before}, RoleRead{e, roles, after}
+	oldRead, newRead := e.roleRead(before, roles), e.roleRead(after, roles)
+	oldView, newView := catalogAuthorization(e, before), catalogAuthorization(e, after)
+	oldView.roleRecord, oldView.roles = roles, oldRead
+	newView.roleRecord, newView.roles = roles, newRead
 	for _, item := range []struct {
-		read         RoleRead
-		owner, other PrincipalRef
+		read         authorization.Read
+		owner, other authorization.PrincipalRef
 	}{{oldRead, previous, next}, {newRead, next, previous}} {
 		for _, inherit := range []bool{false, true} {
-			closure, err := item.read.roleClosure(context.Background(), item.owner, inherit)
-			if err != nil || !reflect.DeepEqual(closure, []PrincipalRef{item.owner, implicit}) {
+			closure, err := item.read.RoleClosure(context.Background(), item.owner, inherit)
+			if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{item.owner, implicit}) {
 				t.Fatal("canonical owner closure", closure, err)
 			}
-			closure, err = item.read.roleClosure(context.Background(), item.other, inherit)
-			if err != nil || !reflect.DeepEqual(closure, []PrincipalRef{item.other}) {
+			closure, err = item.read.RoleClosure(context.Background(), item.other, inherit)
+			if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{item.other}) {
 				t.Fatal("former owner leaked", closure, err)
 			}
 		}
-		if ok, err := item.read.canSetRole(item.owner, implicit); err != nil || !ok {
+		if ok, err := item.read.CanSetRole(item.owner, implicit); err != nil || !ok {
 			t.Fatal("implicit SET", ok, err)
 		}
-		if ok, err := item.read.adminOfRole(item.owner, implicit); err != nil || ok {
+		if ok, err := item.read.AdminOfRole(item.owner, implicit); err != nil || ok {
 			t.Fatal("implicit ADMIN invented", ok, err)
 		}
 	}
 	for _, flags := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
-		graph := cloneRoles(roles)
-		graph.edges = []Membership{{Role: next, Member: member, Grantor: previous, Inherit: flags[0], Set: flags[1]}}
-		read := RoleRead{e, graph, after}
-		closure, err := read.roleClosure(context.Background(), member, false)
-		if err != nil || !reflect.DeepEqual(closure, []PrincipalRef{member, next, implicit}) {
+		graph := cloneRoleFixture(roles)
+		setFixtureEdges(graph, []authorization.Membership{{Role: next, Member: member, Grantor: previous, Inherit: flags[0], Set: flags[1]}})
+		read := e.roleRead(after, graph)
+		closure, err := read.RoleClosure(context.Background(), member, false)
+		if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{member, next, implicit}) {
 			t.Fatal("MEMBER owner hop", flags, closure, err)
 		}
-		if ok, err := read.inheritsRole(member, implicit); err != nil || ok != flags[0] {
+		if ok, err := read.InheritsRole(member, implicit); err != nil || ok != flags[0] {
 			t.Fatal("INHERIT owner hop", flags, ok, err)
 		}
-		if ok, err := read.canSetRole(member, implicit); err != nil || ok != flags[1] {
+		if ok, err := read.CanSetRole(member, implicit); err != nil || ok != flags[1] {
 			t.Fatal("SET owner hop", flags, ok, err)
 		}
-		if ok, err := read.adminOfRole(member, implicit); err != nil || ok {
+		if ok, err := read.AdminOfRole(member, implicit); err != nil || ok {
 			t.Fatal("member ADMIN invented", flags, ok, err)
 		}
 	}
-	if before.Epoch() != after.Epoch() || oldRead.state.revision != newRead.state.revision || before.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner != previous || len(roles.edges) != len(e.roles.edges) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
 		t.Fatal("source pair mutated")
 	}
 }
@@ -85,12 +89,13 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	if _, err := auth.object(ref); err == nil {
 		t.Fatal("mixed retained pair accepted")
 	}
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	if _, err := auth.object(ref); err != nil {
 		t.Fatal("matching retained pair rejected", err)
 	}
 	foreign := New()
-	auth.roles.catalog = foreign.CatalogRead()
+	auth.roles = foreign.Roles()
+	auth.pairedCatalog = foreign.CatalogRead()
 	if _, err := auth.object(ref); err == nil {
 		t.Fatal("foreign pair accepted")
 	}
@@ -110,7 +115,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 		message     string
 	}{
 		{AccessRequirement{Object: ref, OwnerOnly: true}, `must be owner of database ownership "odd" database`},
-		{AccessRequirement{Object: ref, Privileges: CreatePrivilege}, `permission denied for database "ownership ""odd"" database"`},
+		{AccessRequirement{Object: ref, Privileges: authorization.CreatePrivilege}, `permission denied for database "ownership ""odd"" database"`},
 	} {
 		err := auth.Check(tc.requirement)
 		expected := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: tc.message}
@@ -118,7 +123,7 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 			t.Fatal("distinct database diagnostic convention", err, "want", expected)
 		}
 	}
-	if candidate.descriptors[currentDatabaseAddress] != &database || auth.roles.catalog.state != candidate {
+	if candidate.descriptors[currentDatabaseAddress] != &database || auth.pairedCatalog.state != candidate {
 		t.Fatal("diagnostic check changed retained descriptor or role/catalog pair")
 	}
 }

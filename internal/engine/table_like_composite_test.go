@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -22,12 +23,12 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal("composite fixture lacks reciprocal type authority")
 	}
 	reader, _ := e.Roles().Lookup("composite_reader")
-	owner := e.roles.names["postgres"]
-	denied := ACLValue{Explicit: true}
-	grant := func(privilege Privileges) ACLValue {
-		return ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: privilege}}}
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	denied := authorization.ACLValue{Explicit: true}
+	grant := func(privilege authorization.Privileges) authorization.ACLValue {
+		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: privilege}}}
 	}
-	setTypeACL := func(acl ACLValue) {
+	setTypeACL := func(acl authorization.ACLValue) {
 		t.Helper()
 		// Type ACL fixtures use the existing immutable descriptor publication
 		// seam, as domain/enum authorization tests do; no public setter expands.
@@ -60,10 +61,10 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	assertDenied("CREATE TABLE clone (LIKE source_type INCLUDING ALL)", want)
 	column := sourceRef
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, grant(SelectPrivilege)); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, grant(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), sourceRef, grant(SelectPrivilege)); err != nil {
+	if err := e.SetObjectACL(context.Background(), sourceRef, grant(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	assertDenied("CREATE TABLE clone (LIKE source_type INCLUDING ALL)", want)
@@ -71,7 +72,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), sourceRef, denied); err != nil {
 		t.Fatal(err)
 	}
-	setTypeACL(grant(UsagePrivilege))
+	setTypeACL(grant(authorization.UsagePrivilege))
 	source = e.CatalogRead().state.descriptors[sourceRef.Address].(*relationDescriptor)
 	sourceType = e.CatalogRead().state.descriptors[typeRef.Address].(*typeDescriptor)
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(LIKE source_type INCLUDING ALL)")

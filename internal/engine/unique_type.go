@@ -205,7 +205,7 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate
 		validationStore = &relationStorage{versions: live}
 	}
 	auth.catalog = candidate
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	for _, index := range indexes {
 		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, validationStore)
 		if err != nil {

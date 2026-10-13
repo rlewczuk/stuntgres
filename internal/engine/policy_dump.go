@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 )
 
 type dumpPolicyGroup struct{ owner, table, sql string }
@@ -32,7 +33,7 @@ func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *poli
 	return r.expressionSQL(ctx, view, expression.syntax, viewLiteralPath{clause: viewTargetLiteral})
 }
 
-func policyDumpGroups(ctx context.Context, view CatalogRead, roles RoleRead) ([]dumpPolicyGroup, error) {
+func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.state.descriptors {
 		d, ok := descriptor.(*relationDescriptor)

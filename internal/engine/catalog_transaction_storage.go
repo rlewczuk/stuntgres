@@ -39,7 +39,7 @@ type catalogAuthority struct {
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
 func (v AuthorizationView) catalogAuthorityLocked(ref ObjectRef, descriptor Descriptor) *catalogAuthority {
-	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roles.state.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.state.descriptors[currentDatabaseAddress], databasePredecessor: v.databasePredecessor}
+	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roleRecord.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.state.descriptors[currentDatabaseAddress], databasePredecessor: v.databasePredecessor}
 }
 
 // Statement authority expires at successful Finish, never at outer Commit.

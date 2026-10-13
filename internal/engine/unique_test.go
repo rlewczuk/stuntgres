@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -159,23 +160,23 @@ func TestUniqueInsertPrivilegeDisclosure(t *testing.T) {
 				roleExecute(t, e, admin, "INSERT INTO t(a,b) VALUES(1,'x')")
 				ref := roleTableRef(t, e, "t")
 				actor, _ := e.Roles().Lookup("unique_actor")
-				grant := func(attribute int32, privileges Privileges) {
+				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					if err := e.SetObjectACL(context.Background(), target, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
-				grant(1, InsertPrivilege)
-				grant(2, InsertPrivilege)
+				grant(1, authorization.InsertPrivilege)
+				grant(2, authorization.InsertPrivilege)
 				switch mode {
 				case "partial":
-					grant(1, InsertPrivilege|SelectPrivilege)
+					grant(1, authorization.InsertPrivilege|authorization.SelectPrivilege)
 				case "keys":
-					grant(1, InsertPrivilege|SelectPrivilege)
-					grant(2, InsertPrivilege|SelectPrivilege)
+					grant(1, authorization.InsertPrivilege|authorization.SelectPrivilege)
+					grant(2, authorization.InsertPrivilege|authorization.SelectPrivilege)
 				case "table":
-					grant(0, SelectPrivilege)
+					grant(0, authorization.SelectPrivilege)
 				}
 				op, finish := roleOperation(t, e, "unique_actor")
 				defer finish()

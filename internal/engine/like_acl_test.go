@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -17,11 +18,11 @@ func TestLikePatternEscapeColumnACL(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO acl_t VALUES(1,'a%','!')")
 	ref := roleTableRef(t, e, "acl_t")
 	reader, _ := e.Roles().Lookup("like_reader")
-	entry := ACLEntry{Grantor: op.RoleState().CurrentUser, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}
+	entry := authorization.ACLEntry{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
 	grant := func(sub int32) {
 		column := ref
 		column.Address.SubID = sub
-		if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{entry}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -120,7 +121,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	change := e.BeginCatalogStage(e.CatalogRead())
 	replacement := *a
 	replacement.revision++
-	replacement.acl = ACLValue{Explicit: true}
+	replacement.acl = authorization.ACLValue{Explicit: true}
 	if err = change.Replace(&replacement); err != nil {
 		t.Fatal(err)
 	}
@@ -173,11 +174,11 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))
 	a := domainUnitType(t, e.CatalogRead(), "a")
 	e.mu.Lock()
-	reader := PrincipalRef{e, e.nextPrincipal}
+	reader := e.authorizationDomain.Principal(e.nextPrincipal)
 	e.nextPrincipal++
-	roles := cloneRoles(e.roles)
-	roles.names["reader"] = reader
-	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "reader"}
+	roles := cloneRoleFixture(e.roles)
+
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader"})
 	e.roles = roles
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
@@ -189,7 +190,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	domainUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of type a")
 	stage := e.BeginCatalogStage(auth.catalog)
 	next := *a
-	next.acl = ACLValue{Explicit: true}
+	next.acl = authorization.ACLValue{Explicit: true}
 	next.revision++
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)

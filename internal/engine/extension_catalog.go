@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 )
 
 const (
@@ -30,7 +31,7 @@ type extensionDescriptor struct {
 	revision        DefinitionRevision
 	name, version   string
 	targetNamespace ObjectAddress
-	owner           PrincipalRef
+	owner           authorization.PrincipalRef
 	members         [6]ObjectAddress
 }
 
@@ -45,7 +46,7 @@ type procedureDescriptor struct {
 	revision                      DefinitionRevision
 	name                          string
 	signature                     procedureSignature
-	owner                         PrincipalRef
+	owner                         authorization.PrincipalRef
 	result                        OID
 	volatility                    Volatility
 	strict                        bool
@@ -76,7 +77,7 @@ type tsDictionaryDescriptor struct {
 	address, namespace, extension, template ObjectAddress
 	revision                                DefinitionRevision
 	name                                    string
-	owner                                   PrincipalRef
+	owner                                   authorization.PrincipalRef
 	provider                                *unaccentProvider
 }
 

@@ -3,12 +3,13 @@ package engine
 import (
 	"context"
 	"math"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
 // Project only current NOLOGIN identities and their direct membership records
 // from the statement's immutable role root. Options and credentials are not read.
-func capturePGGroup(ctx context.Context, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGGroup(ctx context.Context, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -17,29 +18,22 @@ func capturePGGroup(ctx context.Context, roles RoleRead, ref ObjectRef, source *
 		count, next int
 		elements    []sqltype.Value
 	}
-	groups := make(map[PrincipalRef]group)
-	for principal, role := range roles.state.roles {
+	groups := make(map[authorization.PrincipalRef]group)
+	for principal, role := range roles.RoleEntries() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if role.Login || principal.owner != roles.owner || principal.id == 0 || principal.id > math.MaxUint32 || role.Ref != principal {
+		if !roles.GroupRole(principal, role) {
 			continue
 		}
 		groups[principal] = group{name: role.Name}
 	}
-	validMember := func(member PrincipalRef) bool {
-		if member.owner != roles.owner || member.id == 0 || member.id > math.MaxUint32 {
-			return false
-		}
-		role, ok := roles.state.roles[member]
-		return ok && role.Ref == member
-	}
-	for _, edge := range roles.state.edges {
+	for edge := range roles.Edges() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		g, ok := groups[edge.Role]
-		if !ok || !validMember(edge.Member) {
+		if !ok || !roles.GroupMember(edge.Member) {
 			continue
 		}
 		// Lower bound one also needs a representable int32 upper bound.
@@ -58,15 +52,15 @@ func capturePGGroup(ctx context.Context, roles RoleRead, ref ObjectRef, source *
 			groups[principal] = g
 		}
 	}
-	for _, edge := range roles.state.edges {
+	for edge := range roles.Edges() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		g, ok := groups[edge.Role]
-		if !ok || !validMember(edge.Member) {
+		if !ok || !roles.GroupMember(edge.Member) {
 			continue
 		}
-		element, err := sqltype.OIDValue(source.columns[2].Usage.Type.Element(), uint32(edge.Member.id))
+		element, err := sqltype.OIDValue(source.columns[2].Usage.Type.Element(), uint32(edge.Member.ID()))
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +73,7 @@ func capturePGGroup(ctx context.Context, roles RoleRead, ref ObjectRef, source *
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		id, err := sqltype.OIDValue(source.columns[1].Usage.Type, uint32(principal.id))
+		id, err := sqltype.OIDValue(source.columns[1].Usage.Type, uint32(principal.ID()))
 		if err != nil {
 			return nil, err
 		}

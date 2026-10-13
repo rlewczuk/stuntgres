@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -78,23 +79,23 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 				if !ok || actor.Superuser {
 					t.Fatal("nonsuperuser owner fixture", actor, ok)
 				}
-				grant := func(attribute int32, privileges Privileges) {
+				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}
+					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}
 					if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 						t.Fatal(err)
 					}
 				}
 				// REINDEX separately requires MAINTAIN; this fixture revokes
 				// SELECT, not the authority needed to reach duplicate checking.
-				grant(0, InsertPrivilege|MaintainPrivilege)
+				grant(0, authorization.InsertPrivilege|authorization.MaintainPrivilege)
 				if access == "table" {
-					grant(0, InsertPrivilege|MaintainPrivilege|SelectPrivilege)
+					grant(0, authorization.InsertPrivilege|authorization.MaintainPrivilege|authorization.SelectPrivilege)
 				}
 				if access == "key_columns" {
-					grant(1, SelectPrivilege)
-					grant(2, SelectPrivilege)
+					grant(1, authorization.SelectPrivilege)
+					grant(2, authorization.SelectPrivilege)
 				}
 				definition := "n,n"
 				detail := "Key (n, n)=(1, 1) is duplicated."

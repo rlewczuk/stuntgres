@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
 	ns := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
@@ -60,8 +61,8 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	}
 	// Lookup privileges and table ACLs are different checkpoints. A fresh
 	// view sees USAGE restored, Prepare succeeds, and Execute still denies.
-	bootstrap := e.roles.names["postgres"]
-	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}}}); err != nil {
+	bootstrap := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, query := range []string{"SELECT id FROM public.secret", "INSERT INTO secret VALUES(9)"} {
@@ -88,7 +89,7 @@ func TestRoleColumnDependencyConsumerBoundary(t *testing.T) {
 			ref := roleTableRef(t, e, `"odd table"`)
 			ref.Address.SubID = 1
 			reader, _ := e.Roles().Lookup("reader")
-			acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 			if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 				t.Fatal(err)
 			}
@@ -109,7 +110,7 @@ func TestRoleColumnDependencyConsumerBoundary(t *testing.T) {
 				}
 			}
 			roleError(t, e, op, "DROP ROLE reader", "2BP01", `role "reader" cannot be dropped because some objects depend on it`, `privileges for column odd column of table "odd table"`)
-			if err := e.SetObjectACL(context.Background(), ref, ACLValue{}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err != nil {
 				t.Fatal(err)
 			}
 			roleExecute(t, e, op, "DROP ROLE reader")
@@ -157,7 +158,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	beforeOID, beforeRevision := e.nextOID, e.nextRevision
 	original := e.state.descriptors[ref.Address].(*relationDescriptor)
 	dependencies := descriptorReferences(original)
-	invalid := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege, GrantOptions: SelectPrivilege}}}
+	invalid := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.SelectPrivilege}}}
 	unchanged := func() {
 		t.Helper()
 		if e.state != beforeCatalog || e.roles != beforeRoles || e.nextOID != beforeOID || e.nextRevision != beforeRevision || !reflect.DeepEqual(descriptorReferences(e.state.descriptors[ref.Address]), dependencies) {
@@ -169,9 +170,9 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	}
 	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	namespaceACL := invalid
-	namespaceACL.Entries = append([]ACLEntry(nil), invalid.Entries...)
-	namespaceACL.Entries[0].Privileges = UsagePrivilege
-	namespaceACL.Entries[0].GrantOptions = UsagePrivilege
+	namespaceACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
+	namespaceACL.Entries[0].Privileges = authorization.UsagePrivilege
+	namespaceACL.Entries[0].GrantOptions = authorization.UsagePrivilege
 	if err := e.SetObjectACL(ctx, namespace, namespaceACL); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 		t.Fatal("namespace mutation accepted PUBLIC grant options", err)
 	}
@@ -195,7 +196,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		unchanged()
 		bad := *original
 		if column {
-			bad.columnACL = map[int32]ACLValue{1: invalid}
+			bad.columnACL = map[int32]authorization.ACLValue{1: invalid}
 		} else {
 			bad.acl = invalid
 		}
@@ -223,10 +224,10 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		foreignRef := roleTableRef(t, source, "imported")
 		foreign := *source.state.descriptors[foreignRef.Address].(*relationDescriptor)
 		foreignACL := invalid
-		foreignACL.Entries = append([]ACLEntry(nil), invalid.Entries...)
-		foreignACL.Entries[0].Grantor = source.roles.names["postgres"]
+		foreignACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
+		foreignACL.Entries[0].Grantor = source.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if column {
-			foreign.columnACL = map[int32]ACLValue{1: foreignACL}
+			foreign.columnACL = map[int32]authorization.ACLValue{1: foreignACL}
 		} else {
 			foreign.acl = foreignACL
 		}
@@ -250,8 +251,8 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			for _, name := range []string{"endpoint", "member", "owner"} {
 				roleExecute(t, e, op, "CREATE ROLE "+name)
 			}
-			lookup := func(name string) PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
-			edge := Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("postgres"), Inherit: true, Set: true}
+			lookup := func(name string) authorization.PrincipalRef { d, _ := e.Roles().Lookup(name); return d.Ref }
+			edge := authorization.Membership{Role: lookup("endpoint"), Member: lookup("member"), Grantor: lookup("postgres"), Inherit: true, Set: true}
 			expectedEdges := append(e.Roles().Memberships(), edge)
 			if err := grantMembership(t, e, edge); err != nil {
 				t.Fatal(err)
@@ -306,9 +307,9 @@ func TestRoleColumnDependencySubIDOrderAndOwnerSuppression(t *testing.T) {
 			ref := roleTableRef(t, e, "secret")
 			reader, _ := e.Roles().Lookup("reader")
 			owner := op.RoleState().CurrentUser
-			acl := ACLValue{Explicit: true, Entries: []ACLEntry{
-				{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege},
-				{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege},
+			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege},
+				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege},
 			}}
 			column := ref
 			column.Address.SubID = 1
@@ -345,7 +346,7 @@ func TestRoleColumnDependencySubIDOrderAndOwnerSuppression(t *testing.T) {
 			roleError(t, e, op, "DROP ROLE owner", "2BP01", `role "owner" cannot be dropped because some objects depend on it`, "owner of table secret")
 			for _, sub := range []int32{2, 1} {
 				column.Address.SubID = sub
-				if err := e.SetObjectACL(context.Background(), column, ACLValue{}); err != nil {
+				if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -362,8 +363,8 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
 	ref := roleTableRef(t, e, "secret")
-	grantor := e.roles.names["postgres"]
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -380,8 +381,8 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 		t.Fatal(got)
 	}
 	reader := op.RoleState().CurrentUser
-	acl.Entries[0].Grantee = ACLGrantee{Role: reader}
-	acl.Entries[0].GrantOptions = SelectPrivilege
+	acl.Entries[0].Grantee = authorization.ACLGrantee{Role: reader}
+	acl.Entries[0].GrantOptions = authorization.SelectPrivilege
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal("real role options rejected", err)
 	}
@@ -390,11 +391,11 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	options, err = view.Effective(ref, true)
-	if err != nil || options != SelectPrivilege {
+	if err != nil || options != authorization.SelectPrivilege {
 		t.Fatal("real role options lost", options, err)
 	}
 	oldOptions, err := view.Effective(ref, false)
-	if err != nil || oldOptions != SelectPrivilege {
+	if err != nil || oldOptions != authorization.SelectPrivilege {
 		t.Fatal(oldOptions, err)
 	}
 }
@@ -499,7 +500,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 		publishWinner: func(Descriptor) {
 			close(entered)
 			<-release
-			if err := grantMembership(t, e, Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.names["postgres"]}); err != nil {
+			if err := grantMembership(t, e, authorization.Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}); err != nil {
 				t.Error(err)
 			}
 		},

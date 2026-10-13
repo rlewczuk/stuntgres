@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -75,13 +76,13 @@ func defaultDomainACL(d *typeDescriptor) bool {
 	if !d.acl.Explicit {
 		return false
 	}
-	var public, owner, options Privileges
+	var public, owner, options authorization.Privileges
 	for _, entry := range d.acl.Entries {
 		if entry.Grantor != d.owner {
 			return false
 		}
 		if entry.Grantee.Public {
-			if entry.Grantee.Role != (PrincipalRef{}) || entry.GrantOptions != 0 {
+			if entry.Grantee.Role != (authorization.PrincipalRef{}) || entry.GrantOptions != 0 {
 				return false
 			}
 			public |= entry.Privileges
@@ -93,7 +94,7 @@ func defaultDomainACL(d *typeDescriptor) bool {
 			options |= entry.GrantOptions
 		}
 	}
-	return public == UsagePrivilege && owner == UsagePrivilege && options == 0
+	return public == authorization.UsagePrivilege && owner == authorization.UsagePrivilege && options == 0
 }
 
 // Catalog rendering resolves the captured namespace, including renamed schemas;
@@ -126,7 +127,7 @@ func catalogTypeDeclaration(view CatalogRead, u sqltype.Usage) (string, error) {
 	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(descriptor.Name()), nil
 }
 
-func domainDumpStatement(ctx context.Context, view CatalogRead, roles RoleRead, d *typeDescriptor, replayNames *domainReplayNames) (dumpDomain, error) {
+func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, d *typeDescriptor, replayNames *domainReplayNames) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}

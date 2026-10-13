@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
 )
@@ -121,10 +122,10 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	}
 	array := sqltype.LookupArray(sqltype.ID(arrayID), associatedArrayName(stage, relation.namespace, relation.name), typ)
 	relation.rowType = typ.ID()
-	baseline := defaultBaseline(relation.owner, defaultTypes, false)
+	baseline := authorization.DefaultBaseline(relation.owner, authorization.DefaultTypes, false)
 	acl := baseline
 	if relation.relationKind == compositeRelation {
-		acl = stage.creationACL(relation.owner, relation.namespace, defaultTypes)
+		acl = stage.creationACL(relation.owner, relation.namespace, authorization.DefaultTypes)
 	}
 	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, array: array.ID(), owningRelation: relation.address}); err != nil {
 		return err
@@ -162,7 +163,7 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 	}
 	next := *row
 	if row.owner != relation.owner {
-		next.acl = schemaACLOwner(row.acl, row.owner, relation.owner)
+		next.acl = authorization.SchemaACLOwner(row.acl, row.owner, relation.owner)
 	}
 	next.namespace, next.owner, next.revision = relation.namespace, relation.owner, relation.revision
 	if same {
@@ -191,7 +192,7 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 		}
 		copy := *array
 		if array.owner != relation.owner {
-			copy.acl = schemaACLOwner(array.acl, array.owner, relation.owner)
+			copy.acl = authorization.SchemaACLOwner(array.acl, array.owner, relation.owner)
 		}
 		copy.namespace, copy.owner, copy.revision = relation.namespace, relation.owner, relation.revision
 		arrayName := array.Name()

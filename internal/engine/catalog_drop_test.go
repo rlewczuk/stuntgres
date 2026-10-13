@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -206,7 +207,7 @@ func TestCatalogDropChangedDescriptorAndUnrelatedRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.SetObjectACL(context.Background(), a, ACLValue{Explicit: true}); err != nil {
+	if err = e.SetObjectACL(context.Background(), a, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	changes, err := e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()})
@@ -277,7 +278,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()
-	custom := &namespaceDescriptor{address: ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, name: "feature", revision: 1, owner: e.roles.names["postgres"]}
+	custom := &namespaceDescriptor{address: ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, name: "feature", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err = stage.Create(custom); err != nil {
 		t.Fatal(err)

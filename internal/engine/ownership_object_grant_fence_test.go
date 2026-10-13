@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -38,9 +39,9 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if err != nil || actor.Superuser {
 					t.Fatal("fixture is not an ordinary actor", err)
 				}
-				dbRole := auth.roles.state.names["pg_database_owner"]
+				dbRole := auth.roles.LookupRef("pg_database_owner")
 				table := auth.catalog.state.descriptors[root.Address].(*relationDescriptor)
-				if table.owner != dbRole || table.owner == actor.Ref || auth.databasePredecessor != committed || auth.roles.catalog != auth.catalog {
+				if table.owner != dbRole || table.owner == actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical inherited DB-owner authority")
 				}
 				if private && auth.catalog.state.descriptors[currentDatabaseAddress] == committed {
@@ -52,7 +53,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				checkReader := func(view AuthorizationView, allowed bool) {
 					t.Helper()
 					view.state.CurrentUser = reader
-					err := view.Check(AccessRequirement{Object: root, Privileges: SelectPrivilege})
+					err := view.Check(AccessRequirement{Object: root, Privileges: authorization.SelectPrivilege})
 					if allowed {
 						if err != nil {
 							t.Fatal("actual staged reader right is absent", err)
@@ -67,7 +68,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				checkReader(auth, false)
 				oldRoles, oldCatalog := e.roles, e.state
 				sessionRevision, epoch := session.authorization.revision, oldCatalog.epoch
-				oldACL := ACLValue{Explicit: table.acl.Explicit, Entries: append([]ACLEntry(nil), table.acl.Entries...)}
+				oldACL := authorization.ACLValue{Explicit: table.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), table.acl.Entries...)}
 				oldKeys := append([]uniqueConstraint(nil), table.uniqueConstraints...)
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
@@ -88,13 +89,13 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal(err)
 				}
 				pending := retained.catalog.state.descriptors[root.Address].(*relationDescriptor)
-				if pending == table || retained.roles.state == oldRoles || retained.roles.catalog != retained.catalog || session.transactions.catalog.descriptors[root.Address] != pending {
+				if pending == table || retained.roleRecord == oldRoles || retained.pairedCatalog != retained.catalog || session.transactions.catalog.descriptors[root.Address] != pending {
 					t.Fatal("utility did not stage real paired ACL/role/catalog roots")
 				}
 				found := false
 				for _, entry := range pending.acl.Entries {
 					if !entry.Grantee.Public && entry.Grantee.Role == reader {
-						if entry.Grantor != dbRole || entry.Privileges != SelectPrivilege || entry.GrantOptions != SelectPrivilege {
+						if entry.Grantor != dbRole || entry.Privileges != authorization.SelectPrivilege || entry.GrantOptions != authorization.SelectPrivilege {
 							t.Fatal("actual grant lacks canonical owner origin and option", entry)
 						}
 						found = true
@@ -104,14 +105,14 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal("staging lost the grant or published/mutated a prefix")
 				}
 				checkReader(retained, true)
-				pendingRoles, pendingDB := retained.roles.state, retained.catalog.state.descriptors[currentDatabaseAddress]
+				pendingRoles, pendingDB := retained.roleRecord, retained.catalog.state.descriptors[currentDatabaseAddress]
 				if outcome == "database" {
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					database := *e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 					if private {
 						database.owner = actor.Ref
 					} else {
-						database.owner = oldRoles.names["postgres"]
+						database.owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
 					database.revision++
 					if err := stage.Replace(&database); err != nil {
@@ -161,7 +162,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				indexMaintenanceUnchanged(t, e, before)
 				checkReader(catalogAuthorization(e, e.CatalogRead()), false)
 				checkReader(retained, true)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.acl, oldACL) || !reflect.DeepEqual(table.uniqueConstraints, oldKeys) || retained.roles.state != pendingRoles || retained.catalog.state.descriptors[currentDatabaseAddress] != pendingDB || auth.databasePredecessor != committed {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(table.acl, oldACL) || !reflect.DeepEqual(table.uniqueConstraints, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.state.descriptors[currentDatabaseAddress] != pendingDB || auth.databasePredecessor != committed {
 					t.Fatal("veto mutated old ACL/keys/storage or retained authority roots")
 				}
 			})

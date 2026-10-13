@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -55,18 +56,18 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		t.Fatal("canceled publication", err)
 	}
 	e.mu.Lock()
-	reader := PrincipalRef{e, e.nextPrincipal}
+	reader := e.authorizationDomain.Principal(e.nextPrincipal)
 	e.nextPrincipal++
-	roles := cloneRoles(e.roles)
-	roles.names["reader"] = reader
-	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "reader"}
+	roles := cloneRoleFixture(e.roles)
+
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader"})
 	e.roles = roles
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.state.CurrentUser = reader
 	// Grant schema access through the authority fixture, without adding SQL GRANT.
 	ns := *auth.catalog.state.descriptors[mood.Namespace()].(*namespaceDescriptor)
-	ns.acl = ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: ns.owner, Grantee: ACLGrantee{Role: reader}, Privileges: UsagePrivilege | CreatePrivilege}}}
+	ns.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	namespaceStage := e.BeginCatalogStage(auth.catalog)
 	ns.revision++
 	if err := namespaceStage.Replace(&ns); err != nil {
@@ -87,7 +88,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		t.Fatal("enum owner and ACL references missing")
 	}
 	next := *mood
-	next.acl = ACLValue{Explicit: true}
+	next.acl = authorization.ACLValue{Explicit: true}
 	next.revision++
 	revoke := e.BeginCatalogStage(e.CatalogRead())
 	if err := revoke.Replace(&next); err != nil {

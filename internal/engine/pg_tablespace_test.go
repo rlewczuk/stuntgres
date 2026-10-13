@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -59,7 +60,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	e := New()
 	d, source := pgTablespaceUnitCapture(t, e)
 	pgTablespaceUnitRows(t, source)
-	if d.owner != (PrincipalRef{e, bootstrapPrincipalID}) || d.rowType == 0 || d.relationKind != catalogRelation || d.virtualView || !representedSummaryTable(1213) {
+	if d.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.rowType == 0 || d.relationKind != catalogRelation || d.virtualView || !representedSummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
 	if !reflect.DeepEqual(d.attributes, []int32{1, 2, 3, 5}) || d.attributeHighWater != 5 {
@@ -78,7 +79,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	if _, exists := d.index["spcacl"]; exists {
 		t.Fatal("unsupported ACL carrier fabricated")
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
+	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
 		t.Fatal("public readonly ACL", d.acl)
 	}
 	row := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}].(*typeDescriptor)
@@ -103,13 +104,11 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	e := New()
 	_, retained := pgTablespaceUnitCapture(t, e)
-	initial := PrincipalRef{e, bootstrapPrincipalID}
-	roles := cloneRoles(e.roles)
-	r := roles.roles[initial]
-	delete(roles.names, r.Name)
+	initial := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+	roles := cloneRoleFixture(e.roles)
+	r := fixtureRole(roles, initial)
 	r.Name = "renamed_initial"
-	roles.roles[initial] = r
-	roles.names[r.Name] = initial
+	putFixtureRole(roles, r)
 	e.roles = roles
 	d, renamed := pgTablespaceUnitCapture(t, e)
 	if d.owner != initial {
@@ -128,13 +127,11 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	pgTablespaceUnitRows(t, retained)
 	// A source with matching renamed provenance can genuinely replace it.
 	source := New()
-	sourceInitial := PrincipalRef{source, bootstrapPrincipalID}
-	sourceRoles := cloneRoles(source.roles)
-	sourceRole := sourceRoles.roles[sourceInitial]
-	delete(sourceRoles.names, sourceRole.Name)
+	sourceInitial := source.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+	sourceRoles := cloneRoleFixture(source.roles)
+	sourceRole := fixtureRole(sourceRoles, sourceInitial)
 	sourceRole.Name = r.Name
-	sourceRoles.roles[sourceInitial] = sourceRole
-	sourceRoles.names[sourceRole.Name] = sourceInitial
+	putFixtureRole(sourceRoles, sourceRole)
 	source.roles = sourceRoles
 	if _, err := e.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -145,12 +142,10 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	}
 	pgTablespaceUnitRows(t, renamed)
 	// Restore the target name required by Reset's fresh source provenance.
-	roles = cloneRoles(e.roles)
-	r = roles.roles[initial]
-	delete(roles.names, r.Name)
+	roles = cloneRoleFixture(e.roles)
+	r = fixtureRole(roles, initial)
 	r.Name = "postgres"
-	roles.roles[initial] = r
-	roles.names[r.Name] = initial
+	putFixtureRole(roles, r)
 	e.roles = roles
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)

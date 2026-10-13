@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -22,7 +23,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	}
 	t.Cleanup(op.Done)
 	c := newCatalogChanges()
-	namespace := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, name: "pg_temp_candidate", revision: 1, owner: e.roles.names["postgres"], temporary: session.token}
+	namespace := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, name: "pg_temp_candidate", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), temporary: session.token}
 	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20001}, namespace: namespace.address, name: "candidate", revision: 1, owner: namespace.owner, onCommit: action, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.address, namespace)
@@ -173,7 +174,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = e.privateCatalogLocked(c)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_temp"}, {Text: "explicit_identity"}}}
 	if _, err := e.creationNamespace(auth, name); err == nil {
 		t.Fatal("generic creation gained TEMP alias authority")

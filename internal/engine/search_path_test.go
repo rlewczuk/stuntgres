@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -48,14 +49,14 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	e.mu.Lock()
-	reader := PrincipalRef{e, e.nextPrincipal}
+	reader := e.authorizationDomain.Principal(e.nextPrincipal)
 	e.nextPrincipal++
-	roles := cloneRoles(e.roles)
-	roles.names["reader"] = reader
-	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "reader", Login: true, Inherit: true, ConnectionLimit: -1}
+	roles := cloneRoleFixture(e.roles)
+
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader", Login: true, Inherit: true, ConnectionLimit: -1})
 	e.roles = roles
 	e.mu.Unlock()
-	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader}, Privileges: UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.bounded(id pg_catalog._name)")

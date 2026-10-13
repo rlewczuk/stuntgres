@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -37,7 +38,7 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 		schemaRef := ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.namespace}
 		err := auth.CanUse(schemaRef)
 		if err == nil {
-			err = auth.checkColumns(binding{ref: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.address}, relation: parent}, SelectPrivilege, nil)
+			err = auth.checkColumns(binding{ref: ObjectRef{owner: ref.owner, Epoch: ref.Epoch, Address: parent.address}, relation: parent}, authorization.SelectPrivilege, nil)
 		}
 		if err != nil {
 			var diagnostic *sqlstate.Error

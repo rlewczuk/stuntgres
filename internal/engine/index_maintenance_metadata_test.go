@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -218,7 +219,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 	}
 	// An explicit empty table ACL cannot hide a structural metadata record.
 	parent := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: index.sqlIndex.parent}
-	if err := e.SetObjectACL(context.Background(), parent, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), parent, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	records, names, err := indexCatalogMetadata(context.Background(), e.CatalogRead())

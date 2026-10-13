@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"sync"
 	"testing"
 	"time"
@@ -12,8 +13,8 @@ import (
 func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *namespaceDescriptor) {
 	t.Helper()
 	e, owner, source, target, reader := ownershipUnitRoles()
-	e.roles.edges = append(e.roles.edges, Membership{Role: target, Member: source, Grantor: owner, Admin: true}, Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true})
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_guard", revision: 1, owner: owner, acl: ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, source, UsagePrivilege, UsagePrivilege), grantUnitEntry(source, reader, UsagePrivilege, 0)}}}
+	setFixtureEdges(e.roles, append(fixtureEdges(e.roles), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
+	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 200000}, name: "ownership_guard", revision: 1, owner: owner, acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	if err := setup.Create(ns); err != nil {
 		t.Fatal(err)
@@ -21,7 +22,7 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *namespaceDesc
 	ownershipUnitPublish(t, e, setup)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.roleRevision = e.roles.revision
-	if err := stageOwnedCleanup(context.Background(), stage, RoleRead{e, e.roles, stage.base}, map[PrincipalRef]bool{source: true}); err != nil {
+	if err := stageOwnedCleanup(context.Background(), stage, e.roleRead(stage.base, e.roles), e.roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
 	if stage.roleCandidate == nil || stage.descriptors[ns.address] == nil {
@@ -32,14 +33,14 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *namespaceDesc
 func TestRoleOwnershipPublicationAtomicCleanup(t *testing.T) {
 	e, stage, ns := ownershipCleanupStage(t)
 	oldState, oldRoles := e.state, e.roles
-	oldEdges := append([]Membership(nil), oldRoles.edges...)
-	oldACL := append([]ACLEntry(nil), ns.acl.Entries...)
+	oldEdges := append([]authorization.Membership(nil), fixtureEdges(oldRoles)...)
+	oldACL := append([]authorization.ACLEntry(nil), ns.acl.Entries...)
 	ownershipUnitPublish(t, e, stage)
 	current := e.state.descriptors[ns.address].(*namespaceDescriptor)
-	if e.state == oldState || e.roles != stage.roleCandidate || len(current.acl.Entries) != 0 || len(e.roles.edges) != len(oldEdges)-1 {
+	if e.state == oldState || e.roles != stage.roleCandidate || len(current.acl.Entries) != 0 || len(fixtureEdges(e.roles)) != len(oldEdges)-1 {
 		t.Fatal("catalog and membership did not commit together")
 	}
-	if !reflect.DeepEqual(oldRoles.edges, oldEdges) || !reflect.DeepEqual(ns.acl.Entries, oldACL) || oldState.descriptors[ns.address] != ns {
+	if !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || !reflect.DeepEqual(ns.acl.Entries, oldACL) || oldState.descriptors[ns.address] != ns {
 		t.Fatal("publication mutated retained snapshots")
 	}
 }
@@ -86,7 +87,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				ownershipUnitPublish(t, e, other)
 			case "database":
 				replacement := *e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
-				replacement.owner = e.roles.names["ownership_target"]
+				replacement.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
 				replacement.revision++
 				other := e.BeginCatalogStage(e.CatalogRead())
 				if err := other.Replace(&replacement); err != nil {
@@ -115,8 +116,9 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				e.roles = &next
 			case "invalid-member":
 				next := *stage.roleCandidate
-				next.edges = append([]Membership(nil), next.edges...)
-				next.edges[0].Set = !next.edges[0].Set
+				edges := fixtureEdges(&next)
+				edges[0].Set = !edges[0].Set
+				setFixtureEdges(&next, edges)
 				stage.roleCandidate = &next
 			}
 			state, roles := e.state, e.roles

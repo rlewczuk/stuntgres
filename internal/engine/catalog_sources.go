@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -141,7 +142,7 @@ func (e *Engine) initializeCatalogSources() error {
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		if spec.oid == 1213 {
-			d.owner = PrincipalRef{e, bootstrapPrincipalID}
+			d.owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 			d.acl.Entries[0].Grantor = d.owner
 			d.attributeHighWater = 5
 		}
@@ -200,8 +201,8 @@ func (e *Engine) initializeCatalogSources() error {
 }
 
 func (e *Engine) catalogSourceDescriptor(oid OID, namespace ObjectAddress, name string, count int) *relationDescriptor {
-	owner := e.roles.names["postgres"]
-	return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}}
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: namespace, name: name, revision: 1, relationKind: catalogRelation, owner: owner, index: make(map[string]int, count), attributes: make([]int32, count), columns: make([]ColumnDescriptor, count), attributeHighWater: int32(count), acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *relationDescriptor) {
@@ -218,7 +219,7 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	e.state.names[NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 }
 
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if source.address.ObjectID == 1213 {
 		return capturePGTablespace(ctx, ref, source)
 	}
@@ -348,7 +349,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				kind = "p"
 			}
 			isPartition := relation.membership != nil || relation.sqlIndex != nil && relation.sqlIndex.partitionParent != (ObjectAddress{})
-			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.id)), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated), oid(8, uint32(relation.ofType.ObjectID)), boolean(9, isPartition)})
+			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.ID())), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated), oid(8, uint32(relation.ofType.ObjectID)), boolean(9, isPartition)})
 		case 2618:
 			if relation.view == nil {
 				continue

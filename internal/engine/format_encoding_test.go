@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"testing"
-
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestFormatEncodingNormalizers(t *testing.T) {

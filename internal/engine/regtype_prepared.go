@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ type regtypeConstant struct {
 type regtypeAnalysis struct {
 	constants []regtypeConstant
 	path      sequenceEnvironment
-	role      PrincipalRef
+	role      authorization.PrincipalRef
 	database  string
 }
 

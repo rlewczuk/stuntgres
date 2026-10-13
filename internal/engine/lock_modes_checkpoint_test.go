@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -70,7 +71,7 @@ func TestLockModesRevokedOwner(t *testing.T) {
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION lockowner")
 	roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
 	ref := roleTableRef(t, e, "owned")
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	tx, err := e.Begin(op, TxOptions{})

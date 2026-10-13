@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -21,14 +22,14 @@ func TestRowLockViewSequenceDiagnostics(t *testing.T) {
 		lockEmpty(t, e)
 	}
 	reader, _ := e.Roles().Lookup("sequence_reader")
-	grantor := e.roles.names["postgres"]
-	entry := ACLEntry{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	entry := authorization.ACLEntry{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
 	for _, name := range []string{"s", "v"} {
 		rights := entry
 		if name == "v" {
-			rights.Privileges |= UpdatePrivilege
+			rights.Privileges |= authorization.UpdatePrivilege
 		}
-		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), ACLValue{Explicit: true, Entries: []ACLEntry{rights}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{rights}}); err != nil {
 			t.Fatal(err)
 		}
 	}

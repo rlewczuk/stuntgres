@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -194,23 +195,23 @@ func TestMergeInsertColumnAuthority(t *testing.T) {
 	}
 	owner := op.RoleState().CurrentUser
 	actor, _ := e.Roles().Lookup("merge_writer")
-	grant := func(table string, attribute int, mask Privileges) {
+	grant := func(table string, attribute int, mask authorization.Privileges) {
 		ref := roleTableRef(t, e, table)
 		ref.Address.SubID = int32(attribute)
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant("t", 1, InsertPrivilege)
-	grant("s", 1, SelectPrivilege)
+	grant("t", 1, authorization.InsertPrivilege)
+	grant("s", 1, authorization.SelectPrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION merge_writer")
 	q := "MERGE INTO t USING s ON FALSE WHEN NOT MATCHED AND FALSE THEN INSERT(id) VALUES(s.id) WHEN NOT MATCHED THEN INSERT(v) VALUES(1)"
 	roleError(t, e, op, q, "42501", "permission denied for table t", "")
 	roleExecute(t, e, op, "MERGE INTO t USING s ON FALSE WHEN NOT MATCHED THEN INSERT(id) VALUES(s.id)")
 	roleExecute(t, e, op, "MERGE INTO t USING s ON FALSE WHEN NOT MATCHED THEN INSERT(id) VALUES(1)")
 	roleError(t, e, op, "MERGE INTO t USING s ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id) VALUES(s.id)", "42501", "permission denied for table t", "")
-	grant("t", 2, InsertPrivilege)
-	grant("t", 1, InsertPrivilege|SelectPrivilege)
+	grant("t", 2, authorization.InsertPrivilege)
+	grant("t", 1, authorization.InsertPrivilege|authorization.SelectPrivilege)
 	roleExecute(t, e, op, q)
 	grant("s", 1, 0)
 	roleError(t, e, op, "MERGE INTO t USING s ON FALSE WHEN NOT MATCHED THEN INSERT(id) VALUES(1)", "42501", "permission denied for table s", "")

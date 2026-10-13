@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -23,13 +24,13 @@ func TestExpressionArithmeticDeleteAuthorization(t *testing.T) {
 				ref := roleTableRef(t, e, "t")
 				owner := op.RoleState().CurrentUser
 				reader, _ := e.Roles().Lookup("reader")
-				grant := func(object ObjectRef, mask Privileges) {
+				grant := func(object ObjectRef, mask authorization.Privileges) {
 					t.Helper()
-					if err := e.SetObjectACL(context.Background(), object, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: mask}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), object, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
-				grant(ref, DeletePrivilege)
+				grant(ref, authorization.DeletePrivilege)
 				roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 				ast := statement(t, query)
 				description, err := e.Describe(op, ast)
@@ -61,11 +62,11 @@ func TestExpressionArithmeticDeleteAuthorization(t *testing.T) {
 				denied()
 				column := ref
 				column.Address.SubID = 2
-				grant(column, SelectPrivilege)
+				grant(column, authorization.SelectPrivilege)
 				if query == "DELETE FROM t WHERE b+i=14" {
 					denied()
 					column.Address.SubID = 3
-					grant(column, SelectPrivilege)
+					grant(column, authorization.SelectPrivilege)
 				}
 				result, err := execute()
 				if err != nil || result.Count != 2 || result.Rows != nil {

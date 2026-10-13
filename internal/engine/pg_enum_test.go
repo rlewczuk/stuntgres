@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -127,7 +128,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 10044 || row.owner != d.owner || array.owner != d.owner {
 		t.Fatal("row/array ownership", row, array)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != SelectPrivilege {
+	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
 	captured, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, d)
@@ -143,18 +144,18 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err != nil {
+	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("PUBLIC catalog ACL", err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	currentAuth, err := readerOp.Authorization()
 	if err != nil {
 		t.Fatal(err)
 	}
-	domainUnitDiagnostic(t, currentAuth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}), "42501", "permission denied for table pg_enum")
-	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err != nil {
+	domainUnitDiagnostic(t, currentAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table pg_enum")
+	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("ACL update mutated retained authorization", err)
 	}
 	if err := e.SetObjectACL(context.Background(), ref, d.acl); err != nil {
@@ -164,15 +165,15 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := restoredAuth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err != nil {
+	if err := restoredAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("restored PUBLIC catalog ACL", err)
 	}
-	domainUnitDiagnostic(t, currentAuth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}), "42501", "permission denied for table pg_enum")
+	domainUnitDiagnostic(t, currentAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table pg_enum")
 	for _, q := range []string{"CREATE TYPE mood AS ENUM ('z','q')", "CREATE TYPE empty AS ENUM ()", "CREATE DOMAIN wrapped AS mood"} {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles, e.CatalogRead()}, ref, d)
+	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.CatalogRead(), e.roles), ref, d)
 	if err != nil || len(captured.anonymous) != 2 {
 		t.Fatal("enum-only capture", captured, err)
 	}

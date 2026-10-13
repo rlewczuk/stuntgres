@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -207,7 +208,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 
 // Publish real immutable type ACL descriptors, not a replacement SQL codec or
 // role/session revision. Type-only ACL replacement is the established seam.
-func typedReviewTypeACL(t *testing.T, e *Engine, address ObjectAddress, acl ACLValue) {
+func typedReviewTypeACL(t *testing.T, e *Engine, address ObjectAddress, acl authorization.ACLValue) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -228,7 +229,7 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ObjectAdd
 	roleExecute(t, e, admin, "CREATE DOMAIN member AS integer")
 	roleExecute(t, e, admin, "CREATE TYPE foreign_pair AS (z integer)")
 	ns := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege | CreatePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	finish()
@@ -244,7 +245,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	defer done()
 	pair := roleTableRef(t, e, "pair")
 	source := e.CatalogRead().state.descriptors[pair.Address].(*relationDescriptor)
-	typedReviewTypeACL(t, e, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}, ACLValue{Explicit: true})
+	typedReviewTypeACL(t, e, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}, authorization.ACLValue{Explicit: true})
 	reader, finish := roleOperation(t, e, "typed_reader")
 	defer finish()
 	roleExecute(t, e, reader, "CREATE TABLE mine(id integer)")
@@ -265,7 +266,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 	if len(mineDescriptor.columns) != 2 || mineDescriptor.columns[1].Usage.Type.ID() != sqltype.Bool {
 		t.Fatal("source-owner CASCADE failed foreign-owner target")
 	}
-	typedReviewTypeACL(t, e, member, ACLValue{Explicit: true})
+	typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
 	before = e.CatalogRead().state
 	roleError(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE", "42501", "permission denied for type member", "")
 	roleError(t, e, owner, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE member CASCADE", "42501", "permission denied for type member", "")
@@ -274,7 +275,7 @@ func TestTypedAuthorizationProviderACL(t *testing.T) {
 		t.Fatal("denied member/grouped DROP changed graph")
 	}
 	memberDescriptor := e.CatalogRead().state.descriptors[member].(*typeDescriptor)
-	grant := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: memberDescriptor.owner, Grantee: ACLGrantee{Role: owner.RoleState().CurrentUser}, Privileges: UsagePrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: memberDescriptor.owner, Grantee: authorization.ACLGrantee{Role: owner.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, member, grant)
 	roleExecute(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE")
 	mineDescriptor = e.CatalogRead().state.descriptors[mine.Address].(*relationDescriptor)
@@ -303,7 +304,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 		}
 		called = true
 		e.providers[RelationClassID] = original
-		typedReviewTypeACL(t, e, member, ACLValue{Explicit: true})
+		typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
 		after = e.CatalogRead().state
 	}}
 	_, err := e.Execute(op, statement(t, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE"), 0, nil)

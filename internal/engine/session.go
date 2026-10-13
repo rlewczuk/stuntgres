@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"sync/atomic"
@@ -57,7 +58,7 @@ type SessionResource interface {
 type SessionStart struct {
 	ID            SessionID
 	Defaults      SessionDefaultProvider
-	Authenticated PrincipalRef
+	Authenticated authorization.PrincipalRef
 }
 type sessionState uint8
 
@@ -77,7 +78,7 @@ type Session struct {
 	cond  *sync.Cond
 	token SessionToken
 	// Written before registry publication, never changed by identity switches.
-	countedAuthenticated   PrincipalRef
+	countedAuthenticated   authorization.PrincipalRef
 	state                  sessionState
 	completed              chan struct{}
 	leases                 int
@@ -132,10 +133,10 @@ type Operation struct {
 	restoreTableDestination bool
 	restoreInsertAuthority  bool
 	restoreCommentAuthority bool
-	materializedPopulation  bool         // Operation-local execution path, never session settings.
-	materializedOwner       PrincipalRef // Population-only effective principal; session_user is unchanged.
+	materializedPopulation  bool                       // Operation-local execution path, never session settings.
+	materializedOwner       authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
 	restoreDefaultReplay    bool
-	discardRoleReset        RoleState // nonzero Authenticated only during DISCARD ALL publication
+	discardRoleReset        authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {
@@ -162,10 +163,10 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	e.mu.Lock()
 	authenticated := start.Authenticated
-	if authenticated == (PrincipalRef{}) {
-		authenticated = e.roles.names["postgres"]
+	if authenticated == (authorization.PrincipalRef{}) {
+		authenticated = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
-	role, authErr := (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(authenticated)
+	role, authErr := (e.roleRead(CatalogRead{e, e.state}, e.roles)).Descriptor(authenticated)
 	e.mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
@@ -180,7 +181,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	s.databaseName = e.databaseName
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(ctx, true)
-	auth := &sessionAuthorization{session: s, state: RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, revision: 1}
+	auth := &sessionAuthorization{session: s, state: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, revision: 1}
 	_, authErr = op.Attach(Authorization, auth)
 	if authErr == nil {
 		s.authorization = auth
@@ -201,7 +202,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err == nil {
 		err = authErr
 	}
-	var resetRole PrincipalRef
+	var resetRole authorization.PrincipalRef
 	if err == nil {
 		resetRole, err = e.initialRole(op.Context(), authenticated, start.Defaults)
 	}
@@ -240,12 +241,12 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	e.mu.Lock()
 	if err == nil {
-		role, err = (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(authenticated)
+		role, err = (e.roleRead(CatalogRead{e, e.state}, e.roles)).Descriptor(authenticated)
 		if err == nil && !role.Login {
 			err = roleLoginError(role.Name)
 		}
-		if err == nil && resetRole != (PrincipalRef{}) {
-			err = validateInitialRole(RoleRead{e, e.roles, CatalogRead{e, e.state}}, authenticated, resetRole)
+		if err == nil && resetRole != (authorization.PrincipalRef{}) {
+			err = validateInitialRole(e.roleRead(CatalogRead{e, e.state}, e.roles), authenticated, resetRole)
 		}
 	}
 	s.mu.Lock()
@@ -265,7 +266,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		} else if !role.Superuser && role.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) >= int(role.ConnectionLimit) {
 			err = roleConnectionLimitError(role.Name)
 		} else if err = ctx.Err(); err == nil {
-			if resetRole != (PrincipalRef{}) {
+			if resetRole != (authorization.PrincipalRef{}) {
 				auth.state.CurrentUser, auth.state.ResetRole = resetRole, resetRole
 			}
 			s.state = live

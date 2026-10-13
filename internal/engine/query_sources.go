@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 )
 
@@ -12,8 +13,8 @@ type queryLeaf struct {
 	relation         *relationDescriptor
 	storage          *relationStorage
 	only             bool
-	principal        PrincipalRef // Relation authority, not expression/session identity.
-	frozenAttributes []int32      // Execution-owned stored-view subquery layout.
+	principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
+	frozenAttributes []int32                    // Execution-owned stored-view subquery layout.
 	uses             []int
 	mark             queryRowMark
 	query            *parser.Select
@@ -156,7 +157,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	if scope.authority == nil {
 		scope.authority = &queryAuthority{scope: scope}
 	}
-	var invoker PrincipalRef
+	var invoker authorization.PrincipalRef
 	for _, leaf := range leaves {
 		if leaf.relation.relationKind == viewRelation {
 			auth, err := e.authorizationLocked(scope.op)
@@ -175,14 +176,15 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.commentCatalog.state == nil {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
-		scope.commentRoles = RoleRead{e, e.operationRolesLocked(scope.op), scope.commentCatalog}
+		scope.commentRoles = e.roleRead(scope.commentCatalog, e.operationRolesLocked(scope.op))
 	}
 	if scope.deparsePath == nil {
 		auth, err := e.authorizationLocked(scope.op)
 		if err != nil {
 			return err
 		}
-		auth.catalog, auth.roles = scope.commentCatalog, scope.commentRoles
+		auth.recaptureCatalog(scope.commentCatalog)
+		scope.commentRoles = auth.roles
 		scope.deparseAuth = auth
 		scope.deparsePath, err = e.referencePath(auth)
 		return err
@@ -227,7 +229,7 @@ func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, rel
 	return nil
 }
 
-func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, inherited queryRowMark, locks *queryLockContext) (*querySource, error) {
+func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker authorization.PrincipalRef, inherited queryRowMark, locks *queryLockContext) (*querySource, error) {
 	// Metadata-only retained captures have no admitted transaction owner.
 	// Singleton execution still advertises its actual live statement snapshot.
 	if scope.txRef != (TxRef{}) {

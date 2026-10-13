@@ -1,6 +1,9 @@
 package engine
 
-import "testing"
+import (
+	"stuntgres/internal/engine/authorization"
+	"testing"
+)
 
 func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	e, op, done, _ := policyUnitFixture(t)
@@ -41,7 +44,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	b, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()
@@ -49,7 +52,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	}
 	leaf := b.querySources[0]
 	view, err := scope.acquireDataViewLocked(e, leaf.ref)
-	reader := e.roles.names["rls_history_reader"]
+	reader := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

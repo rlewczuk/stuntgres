@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"unicode/utf8"
 )
 
@@ -27,7 +28,7 @@ type extensionOwnerRecord struct {
 	Members []extensionMemberOwner `json:"members"`
 }
 
-func extensionOwnerMetadata(catalog CatalogRead, roles RoleRead, ext *extensionDescriptor) (string, error) {
+func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *extensionDescriptor) (string, error) {
 	owner, err := roles.Descriptor(ext.owner)
 	if err != nil {
 		return "", err
@@ -40,7 +41,7 @@ func extensionOwnerMetadata(catalog CatalogRead, roles RoleRead, ext *extensionD
 	for _, a := range ext.members {
 		d := catalog.state.descriptors[a]
 		var member extensionMemberOwner
-		var principal PrincipalRef
+		var principal authorization.PrincipalRef
 		switch d := d.(type) {
 		case *procedureDescriptor:
 			member = extensionMemberOwner{Kind: "procedure", Name: d.name, Signature: string(d.signature)}
@@ -186,7 +187,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 	}
 	seen := map[ObjectAddress]bool{}
 	candidate := cloneCatalog(e.state)
-	roles := RoleRead{e, e.roles, CatalogRead{e, candidate}}
+	roles := e.roleRead(CatalogRead{e, candidate}, e.roles)
 	ownersChanged := false
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {

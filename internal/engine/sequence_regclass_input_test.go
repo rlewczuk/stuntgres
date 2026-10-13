@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func sequenceInputExecute(t *testing.T, e *Engine, op *Operation, query string, args ...any) (Result, error) {
@@ -82,7 +82,7 @@ func TestSequenceRegclassParameterNamespaceInput(t *testing.T) {
 	}
 	ref := roleTableRef(t, e, "private.s")
 	namespace := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: e.state.descriptors[ref.Address].Namespace()}
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_input_reader")

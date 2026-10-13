@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -111,7 +112,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ObjectRef, row []s
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(p.scope.owner.catalog)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	relation, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || relation.relationKind != sequenceRelation {
 		return sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
@@ -124,7 +125,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ObjectRef, row []s
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}
-	if rights&(SelectPrivilege|UsagePrivilege) != 0 && generator.called {
+	if rights&(authorization.SelectPrivilege|authorization.UsagePrivilege) != 0 && generator.called {
 		row[10], err = sqltype.Integer(row[10].Type(), generator.last)
 	}
 	return err

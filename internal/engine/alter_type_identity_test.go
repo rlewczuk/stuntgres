@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -20,7 +21,7 @@ func TestAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
 	run(t, e, "CREATE SEQUENCE q START 10 CACHE 7 OWNED BY t.c")
 	tableRef, sequenceRef := roleTableRef(t, e, "t"), roleTableRef(t, e, "q")
 	table := e.state.descriptors[tableRef.Address].(*relationDescriptor)
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: table.owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	for _, subID := range []int32{0, table.attributes[0]} {
 		ref := tableRef
 		ref.Address.SubID = subID
@@ -82,7 +83,7 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				columnRef := tableRef
 				columnRef.Address.SubID = initial.attributes[0]
 				sequenceRef := roleTableRef(t, e, "t_c_seq")
-				acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: initial.owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: initial.owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 				for _, ref := range []ObjectRef{tableRef, columnRef, sequenceRef} {
 					if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 						t.Fatal(err)

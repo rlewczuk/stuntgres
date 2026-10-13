@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -21,27 +22,27 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err := retained.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		t.Fatal("inherited owner", err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	view, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err == nil {
+	if err := view.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err == nil {
 		t.Fatal("explicit empty inherited owner use")
 	}
 	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		t.Fatal(err)
 	}
-	mask := tableGrantPrivileges
+	mask := authorization.TableGrantPrivileges
 	options, err := view.Effective(ref, true)
 	if err != nil || options != mask {
 		t.Fatal("inherited implicit options", options, err)
 	}
 	owner, _ := e.Roles().Lookup("owner")
 	rights, _ := e.Roles().Lookup("rights")
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}, {Grantor: owner.Ref, Grantee: ACLGrantee{Role: rights.Ref}, Privileges: InsertPrivilege, GrantOptions: InsertPrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}, {Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: rights.Ref}, Privileges: authorization.InsertPrivilege, GrantOptions: authorization.InsertPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -54,31 +55,31 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := view.Effective(ref, false)
-	if err != nil || got != SelectPrivilege|InsertPrivilege {
+	if err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege {
 		t.Fatal("PUBLIC + inherited ACL", got, err)
 	}
 	got, err = view.Effective(ref, true)
-	if err != nil || got != InsertPrivilege {
+	if err != nil || got != authorization.InsertPrivilege {
 		t.Fatal("inherited grant options", got, err)
 	}
 	column := ref
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: rights.Ref}, Privileges: UpdatePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: rights.Ref}, Privileges: authorization.UpdatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	view, err = op.Authorization()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Check(AccessRequirement{Object: column, Privileges: SelectPrivilege | InsertPrivilege | UpdatePrivilege}); err != nil {
+	if err := view.Check(AccessRequirement{Object: column, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege}); err != nil {
 		t.Fatal("exact column aggregation", err)
 	}
-	if err := view.Check(AccessRequirement{Object: ref, Privileges: UpdatePrivilege}); err == nil {
+	if err := view.Check(AccessRequirement{Object: ref, Privileges: authorization.UpdatePrivilege}); err == nil {
 		t.Fatal("column grants leaked into table mask")
 	}
 	other := column
 	other.Address.SubID = 2
-	if err := view.Check(AccessRequirement{Object: other, Privileges: UpdatePrivilege}); err == nil {
+	if err := view.Check(AccessRequirement{Object: other, Privileges: authorization.UpdatePrivilege}); err == nil {
 		t.Fatal("other column leaked")
 	}
 	if err := retained.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -516,7 +517,7 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltyp
 	if err != nil {
 		return "", err
 	}
-	if whole&SelectPrivilege != 0 {
+	if whole&authorization.SelectPrivilege != 0 {
 		return failingRowDetail(row, s.output, nil, nil, b.relation)
 	}
 	// Preserve the small/wide supplied-column manifest convention. Assignment
@@ -551,7 +552,7 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltyp
 		if err != nil {
 			return "", err
 		}
-		if rights&SelectPrivilege != 0 {
+		if rights&authorization.SelectPrivilege != 0 {
 			visible = append(visible, index)
 		}
 	}

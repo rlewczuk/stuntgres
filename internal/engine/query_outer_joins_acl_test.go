@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -15,10 +16,10 @@ func TestQueryOuterJoinsBothUsingKeysACL(t *testing.T) {
 				roleExecute(t, e, op, sql)
 			}
 			reader, _ := e.Roles().Lookup("outer_key_reader")
-			grantor := e.roles.names["postgres"]
-			grant := func(ref ObjectRef, rights Privileges) {
+			grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			grant := func(ref ObjectRef, rights authorization.Privileges) {
 				t.Helper()
-				if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -26,7 +27,7 @@ func TestQueryOuterJoinsBothUsingKeysACL(t *testing.T) {
 				ref := roleTableRef(t, e, name)
 				grant(ref, 0)
 				ref.Address.SubID = 1
-				grant(ref, SelectPrivilege)
+				grant(ref, authorization.SelectPrivilege)
 			}
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION outer_key_reader")
 			ast := statement(t, "SELECT 1 FROM a "+kind+" JOIN b USING(k) LIMIT 0")

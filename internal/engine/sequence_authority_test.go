@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -43,7 +44,7 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	}
 	r.Rows.Close()
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: UsagePrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 		t.Fatal("unauthorized ALTER published catalog")
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "DROP SEQUENCE s")
@@ -84,8 +85,8 @@ func TestSequenceNamespacePrivilegeCheckpoints(t *testing.T) {
 	roleExecute(t, e, op, "CREATE SEQUENCE private.s")
 	ref := roleTableRef(t, e, "private.s")
 	namespace := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: e.state.descriptors[ref.Address].Namespace()}
-	bootstrap := e.roles.names["postgres"]
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true}); err != nil {
+	bootstrap := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_reader")
@@ -123,7 +124,7 @@ func TestSequenceNamespacePrivilegeCheckpoints(t *testing.T) {
 	if !errors.As(err, &got) || *got != want {
 		t.Fatalf("regclass Prepare: %#v, want %#v", got, want)
 	}
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.Describe(op, statement(t, "SELECT nextval('private.s')")); err != nil {

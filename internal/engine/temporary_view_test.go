@@ -21,7 +21,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		t.Fatal(err)
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	auth.stagedTemporary = table.namespace
 	b, err := e.describe(op.Context(), raw, auth, ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
 	if err != nil {

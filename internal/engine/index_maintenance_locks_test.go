@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -286,7 +287,7 @@ func TestIndexMaintenanceMaintainRevokedDuringWait(t *testing.T) {
 	if !ok {
 		t.Fatal("missing role fixture")
 	}
-	if err := e.SetObjectACL(context.Background(), table, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: user.Ref}, Privileges: MaintainPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.MaintainPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	sessionSQL(t, actor, "SET SESSION AUTHORIZATION maintainer")
@@ -294,7 +295,7 @@ func TestIndexMaintenanceMaintainRevokedDuringWait(t *testing.T) {
 	sessionSQL(t, admin, "LOCK TABLE t IN ROW EXCLUSIVE MODE")
 	_, await := indexMaintenanceAsync(t, e, actor, "REINDEX INDEX ix")
 	lockPending(t, e, 1)
-	if err := e.SetObjectACL(context.Background(), table, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	before := indexMaintenanceCapture(e)
@@ -321,10 +322,10 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 		t.Fatal("missing role fixture")
 	}
 	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: user.Ref}, Privileges: UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), table, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	sessionSQL(t, actor, "SET SESSION AUTHORIZATION maintainer")
@@ -348,7 +349,7 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 	}
 	transactionEnd(t, admin, tx, false)
 	lockEmpty(t, e)
-	if err := e.SetObjectACL(context.Background(), table, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: user.Ref}, Privileges: MaintainPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.MaintainPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, q := range []string{"REINDEX INDEX ix", "REINDEX TABLE t"} {

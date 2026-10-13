@@ -2,12 +2,13 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
 // prepareStoredQueryLocked consumes Engine.mu on all returns. Both ordinary
 // views and refresh execute the frozen tree through current attribute bridges.
-func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (LogicalNode, *querySource, error) {
+func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (LogicalNode, *querySource, error) {
 	ctx := scope.op.Context()
 	if scope.authority == nil {
 		scope.authority = &queryAuthority{scope: scope}

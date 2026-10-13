@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,7 +23,7 @@ func (e *Engine) capturePreparedSourceLocked(ctx context.Context, ref ObjectRef,
 			return nil, err
 		}
 		owner := sqltype.Null(source.columns[3].Usage.Type)
-		if role, ok := e.roles.roles[entry.owner]; ok {
+		if role, ok := e.roles.root.Read(authorization.PrincipalRef{}).Find(entry.owner); ok {
 			owner = sqltype.String(source.columns[3].Usage.Type, role.Name)
 		}
 		rows = append(rows, []sqltype.Value{xid, sqltype.String(source.columns[1].Usage.Type, entry.gid), prepared, owner, sqltype.String(source.columns[4].Usage.Type, entry.database)})

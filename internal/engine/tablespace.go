@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -62,7 +63,7 @@ func (e *Engine) executeCreateTablespace(op *Operation, stmt *parser.CreateTable
 	if stmt.Owner != nil {
 		owner = *stmt.Owner
 	}
-	if _, err := membershipRole(auth.roles, auth.state, owner); err != nil {
+	if _, err := authorization.MembershipRole(auth.roles, auth.state, owner); err != nil {
 		return Result{}, err
 	}
 	if _, err := tablespaceLocation(stmt.Location); err != nil {

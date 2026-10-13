@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -32,25 +33,25 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				grant := func(attribute int32, rights Privileges) {
+				grant := func(attribute int32, rights authorization.Privileges) {
 					view := e.CatalogRead()
 					address := parent.address
 					address.SubID = attribute
 					ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: address}
-					acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
+					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
 					if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 						t.Fatal(err)
 					}
 				}
-				grant(0, InsertPrivilege)
+				grant(0, authorization.InsertPrivilege)
 				switch mode {
 				case "partial":
-					grant(1, SelectPrivilege)
+					grant(1, authorization.SelectPrivilege)
 				case "keys":
-					grant(1, SelectPrivilege)
-					grant(2, SelectPrivilege)
+					grant(1, authorization.SelectPrivilege)
+					grant(2, authorization.SelectPrivilege)
 				case "table":
-					grant(0, InsertPrivilege|SelectPrivilege)
+					grant(0, authorization.InsertPrivilege|authorization.SelectPrivilege)
 				}
 				view := e.CatalogRead()
 				current := view.state.descriptors[parent.address].(*relationDescriptor)

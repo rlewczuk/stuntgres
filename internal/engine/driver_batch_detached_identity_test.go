@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
 func batchUnitDiagnostic(t *testing.T, err error, code, message string) {
@@ -57,23 +57,23 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			}
 			auth, err := op.Authorization()
 			op.Done()
-			if err != nil || auth.roles.state != e.roles || auth.state.CurrentUser != entry.owner || auth.missingCurrent != entry.owner {
+			if err != nil || auth.roleRecord != e.roles || auth.state.CurrentUser != entry.owner || auth.missingCurrent != entry.owner {
 				t.Fatal("numeric authority did not admit missing effective name", err)
 			}
 			if _, exists := auth.roles.Lookup("detached"); exists {
 				t.Fatal("detached private role name leaked into new command")
 			}
-			batchUnitDiagnostic(t, auth.Check(AccessRequirement{Object: table, Privileges: SelectPrivilege}), "42501", "permission denied for table t")
+			batchUnitDiagnostic(t, auth.Check(AccessRequirement{Object: table, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table t")
 			unadmitted := auth
-			unadmitted.missingCurrent = PrincipalRef{}
+			unadmitted.missingCurrent = authorization.PrincipalRef{}
 			if _, err := unadmitted.Effective(table, false); err == nil {
 				t.Fatal("unadmitted missing actor acquired numeric authority")
 			}
-			if err := unadmitted.Check(AccessRequirement{Object: table, Privileges: SelectPrivilege}); err == nil {
+			if err := unadmitted.Check(AccessRequirement{Object: table, Privileges: authorization.SelectPrivilege}); err == nil {
 				t.Fatal("unadmitted missing actor bypassed privilege preflight")
 			}
 			foreign := auth
-			foreign.state.CurrentUser = PrincipalRef{owner: New(), id: entry.owner.id}
+			foreign.state.CurrentUser = New().authorizationDomain.Principal(entry.owner.ID())
 			if _, err := foreign.Effective(table, false); err == nil {
 				t.Fatal("foreign numeric principal bypassed authority")
 			}

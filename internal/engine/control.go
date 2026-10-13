@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 )
 
@@ -27,17 +27,17 @@ func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
 	if !d.acl.Explicit {
 		return false
 	}
-	publicRights := UsagePrivilege
+	publicRights := authorization.UsagePrivilege
 	if d.address.ObjectID == PublicNamespaceOID {
-		publicRights |= CreatePrivilege
+		publicRights |= authorization.CreatePrivilege
 	}
-	var publicUse, publicOptions, ownerUse, ownerOptions Privileges
+	var publicUse, publicOptions, ownerUse, ownerOptions authorization.Privileges
 	for _, entry := range d.acl.Entries {
 		if entry.Grantor != d.owner {
 			return false
 		}
 		if entry.Grantee.Public {
-			if entry.Grantee.Role != (PrincipalRef{}) {
+			if entry.Grantee.Role != (authorization.PrincipalRef{}) {
 				return false
 			}
 			publicUse |= entry.Privileges
@@ -51,7 +51,7 @@ func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
 		}
 	}
 	return publicUse == publicRights && publicOptions == 0 &&
-		ownerUse == UsagePrivilege|CreatePrivilege && ownerOptions == UsagePrivilege|CreatePrivilege
+		ownerUse == authorization.UsagePrivilege|authorization.CreatePrivilege && ownerOptions == authorization.UsagePrivilege|authorization.CreatePrivilege
 }
 
 // Dump emits replayable logical definitions and rows, including renamed,
@@ -99,11 +99,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
 	originalCatalog := catalog
-	originalRoles := RoleRead{e, e.roles, originalCatalog}
+	originalRoles := e.roleRead(originalCatalog, e.roles)
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalog, constraintReplay := partitionConstraintDumpCatalog(catalog)
-	domainRoles := RoleRead{e, e.roles, catalog}
+	domainRoles := e.roleRead(catalog, e.roles)
 	if err := e.validateTemporaryCollationDump(ctx, catalog); err != nil {
 		e.mu.Unlock()
 		return err
@@ -1211,7 +1211,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	// The isolated role snapshot retains exact target identities for final remapping.
-	session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: PrincipalRef{stage, 10}})
+	session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.authorizationDomain.Principal(10)})
 	if err != nil {
 		return err
 	}

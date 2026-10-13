@@ -7,6 +7,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -85,24 +86,24 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if !ok || actor.Superuser {
 		t.Fatal("disclosure requires actual nonsuperuser", actor, ok)
 	}
-	grant := func(attribute int32, rights Privileges) {
+	grant := func(attribute int32, rights authorization.Privileges) {
 		target := ref
 		target.Address.SubID = attribute
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
 		if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
-	rights := InsertPrivilege
+	rights := authorization.InsertPrivilege
 	if disclosure == "table" {
-		rights |= SelectPrivilege
+		rights |= authorization.SelectPrivilege
 	}
 	grant(0, rights)
 	if disclosure == "partial" || disclosure == "columns" {
-		grant(1, SelectPrivilege)
+		grant(1, authorization.SelectPrivilege)
 	}
 	if disclosure == "columns" && composite {
-		grant(2, SelectPrivilege)
+		grant(2, authorization.SelectPrivilege)
 	}
 	auth, err := owner.Authorization()
 	if err != nil {

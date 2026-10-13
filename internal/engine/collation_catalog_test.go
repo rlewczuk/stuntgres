@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func collationUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
@@ -59,7 +59,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		}
 	}
 	foreignOwner := *d
-	foreignOwner.owner = New().roles.names["postgres"]
+	foreignOwner.owner = New().roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	foreignOwner.revision++
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&foreignOwner); err != nil {
@@ -161,7 +161,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	actor, _ := e.Roles().Lookup("actor")
 	target, _ := e.Roles().Lookup("target")
 	bootstrap, _ := e.Roles().Lookup("postgres")
-	if err := grantMembership(t, e, Membership{Member: actor.Ref, Role: target.Ref, Grantor: bootstrap.Ref, Set: true}); err != nil {
+	if err := grantMembership(t, e, authorization.Membership{Member: actor.Ref, Role: target.Ref, Grantor: bootstrap.Ref, Set: true}); err != nil {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()

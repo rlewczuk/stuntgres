@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -131,7 +131,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		d.relationKind, d.view, d.populated = materializedViewRelation, definition, !s.NoData
 	}
-	d.acl = stage.creationACL(owner, ns.Address, defaultTables)
+	d.acl = stage.creationACL(owner, ns.Address, authorization.DefaultTables)
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, nil, false, err
 	}

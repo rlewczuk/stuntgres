@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -73,7 +74,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 			if err != nil {
 				return err
 			}
-			if rights&MaintainPrivilege == 0 {
+			if rights&authorization.MaintainPrivilege == 0 {
 				return sqlError("42501", fmt.Sprintf("permission denied for %s %s", s.Kind.Text, d.name))
 			}
 			if parent.partition != nil {

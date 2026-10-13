@@ -59,6 +59,32 @@ role rename, role-specific setting defaults and `pg_authid`/`pg_shadow` remain
 excluded. Public role summaries expose direct attributes with masked passwords;
 no inherited attribute flags or password verifier projection is synthesized.
 
+### Package ownership
+
+The internal [authorization package](../internal/engine/authorization/README.md)
+owns immutable role descriptors and membership graphs, predefined identities,
+attribute/password algorithms, ACL grant/revoke leaves and creation-default
+privilege leaves. It does not import the engine or own locks, sessions, catalogs,
+identity allocation or publication.
+
+The engine embeds an inert provenance domain and retains each child role root
+by value in its private immutable publication record. Authorization captures
+retain that exact record and its paired catalog, including the actual attached
+database owner; stamps describe the captured publication, not later engine state.
+Read capture copies neither records nor backing graphs. Private candidates return
+root values, and only the engine installs or advances their publication revision.
+Catalog namespaces/default-policy storage, object/column checks, typed summaries,
+session journals and class-specific cleanup remain with their existing owners.
+This package cutover adds no SQL syntax, provider or authentication capability.
+
+For `pg_group`, child `Read.GroupRole` validates the already-enumerated role's
+NOLOGIN identity without another descriptor lookup; `Read.GroupMember` checks a
+live, same-domain, nonzero, OID-representable endpoint and matching descriptor.
+The engine uses those same scalar rules in the parent loop and both direct-edge
+passes. Typed NAME/OID/member arrays, origin multiplicities, count limits,
+per-entry cancellation and returned-row snapshots remain engine-owned. Private
+malformed-root units exercise these production rules, not a test-side filter.
+
 ## Predefined role capabilities
 
 The role authority seeds fixed identities. Membership never copies superuser or

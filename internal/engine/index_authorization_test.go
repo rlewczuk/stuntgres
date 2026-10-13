@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -15,9 +16,9 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE t(n INT)")
 	roleExecute(t, e, op, "CREATE INDEX idx ON t(n)")
 	ref := roleTableRef(t, e, "t")
-	owner := e.roles.names["owner"]
-	reader := e.roles.names["reader"]
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("owner")
+	reader := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("reader")
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
@@ -25,7 +26,7 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 	roleError(t, e, op, "CREATE INDEX forbidden ON t(n)", "42501", "must be owner of table t", "")
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	ns := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 type serialSequenceUnit struct {
@@ -28,16 +28,16 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	view.state = cloneCatalog(view.state)
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, owner: e.roles.names["postgres"]}
+	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90001}, name: "Mixed.Schema", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &relationDescriptor{
-		address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, owner: e.roles.names["postgres"],
+		address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90002}, namespace: ns.address, name: "Owned", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		columns:    []ColumnDescriptor{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		attributes: []int32{7, 9}, index: map[string]int{"ID": 0, "plain": 1}, attributeHighWater: 9,
 	}
 	owner := table.address
 	owner.SubID = 7
 	sequence := &relationDescriptor{
-		address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90003}, namespace: ns.address, name: "Owned.Seq", revision: 1, owner: e.roles.names["postgres"],
+		address: ObjectAddress{ClassID: RelationClassID, ObjectID: 90003}, namespace: ns.address, name: "Owned.Seq", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		relationKind: sequenceRelation, sequence: &sequenceOptions{owned: owner},
 	}
 	for _, descriptor := range []Descriptor{ns, table, sequence} {
@@ -114,7 +114,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	fresh := *f.context.statementScope
 	fresh.commentCatalog = CatalogRead{owner: f.engine, state: f.engine.state}
 	fresh.deparseAuth.catalog = fresh.commentCatalog
-	fresh.deparseAuth.roles.catalog = fresh.deparseAuth.catalog
+	fresh.deparseAuth.pairedCatalog = fresh.deparseAuth.catalog
 	value, err = f.node.Eval(&EvalContext{Context: context.Background(), statementScope: &fresh})
 	if err != nil || !value.IsNull() {
 		t.Fatal("fresh snapshot ignored NONE", value, err)

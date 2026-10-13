@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"time"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
+	"time"
 )
 
 // Marks retain immutable logical roots and held lock contributions, not
@@ -24,7 +24,7 @@ type savepointMark struct {
 	cursors             uint64
 	exclusionModes      exclusionModes
 	exclusionProjection *exclusionProjection
-	identity            RoleState
+	identity            authorization.RoleState
 }
 
 type settingsMark struct {
@@ -32,7 +32,7 @@ type settingsMark struct {
 	typed       map[string]settingValue
 	actions     map[string]settingAction
 	roleAction  roleSettingAction
-	currentRole PrincipalRef
+	currentRole authorization.PrincipalRef
 }
 
 func (m settingsMark) clone() settingsMark {
@@ -56,7 +56,7 @@ func (s *sessionSettings) savepoint() settingsMark {
 
 // candidate is already independent of the retained mark; no callbacks or
 // allocation are allowed between final preflight and effect installation.
-func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity RoleState) {
+func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity authorization.RoleState) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.values, s.typed, s.actions = candidate.values, candidate.typed, candidate.actions

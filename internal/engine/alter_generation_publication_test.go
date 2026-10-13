@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -154,7 +155,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 						t.Fatal(err)
 					}
 				case "acl":
-					if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: ACLGrantee{Role: actor.RoleState().CurrentUser}, Privileges: SelectPrivilege}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: actor.RoleState().CurrentUser}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 						t.Fatal(err)
 					}
 				case "principal":
@@ -221,7 +222,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 
 func TestAlterGeneratedExpressionDeniedEvaluation(t *testing.T) {
 	e, admin, actor, ref := generatedAuthorizationFixture(t)
-	generatedAuthorizationGrant(t, e, admin, actor, ref, 0, SelectPrivilege|InsertPrivilege|UpdatePrivilege|DeletePrivilege|ReferencesPrivilege|TriggerPrivilege)
+	generatedAuthorizationGrant(t, e, admin, actor, ref, 0, authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.DeletePrivilege|authorization.ReferencesPrivilege|authorization.TriggerPrivilege)
 	before := e.state.descriptors[ref.Address]
 	// Cooking this constant division would fail22012 if denied admission evaluated it.
 	expr := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "/"}}}, Args: []parser.Expr{alterGenerationLiteral(1), alterGenerationLiteral(0)}}

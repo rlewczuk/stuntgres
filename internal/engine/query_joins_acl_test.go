@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
 func TestQueryJoinsEverySourceACL(t *testing.T) {
@@ -43,21 +43,21 @@ func TestQueryJoinsEverySourceACL(t *testing.T) {
 					roleExecute(t, e, op, q)
 				}
 				reader, _ := e.Roles().Lookup("join_reader")
-				grantor := e.roles.names["postgres"]
-				grant := func(ref ObjectRef, rights Privileges) {
+				grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				grant := func(ref ObjectRef, rights authorization.Privileges) {
 					t.Helper()
-					if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
-				grant(roleTableRef(t, e, "a"), SelectPrivilege)
+				grant(roleTableRef(t, e, "a"), authorization.SelectPrivilege)
 				right := roleTableRef(t, e, "b")
 				grant(right, 0)
 				key, value := right, right
 				key.Address.SubID = 1
 				value.Address.SubID = 2
-				grant(key, SelectPrivilege)
-				grant(value, SelectPrivilege)
+				grant(key, authorization.SelectPrivilege)
+				grant(value, authorization.SelectPrivilege)
 				roleExecute(t, e, op, "SET SESSION AUTHORIZATION join_reader")
 				ast := statement(t, tc.query)
 				var expected *StatementDescription
@@ -123,21 +123,21 @@ func TestQueryJoinsWideAliasAndSelfSourceACL(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE a(k INT)")
 		roleExecute(t, e, op, "CREATE TABLE b("+strings.Join(columns, ",")+")")
 		reader, _ := e.Roles().Lookup("wide_join_reader")
-		grantor := e.roles.names["postgres"]
-		grant := func(ref ObjectRef, rights Privileges) {
+		grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		grant := func(ref ObjectRef, rights authorization.Privileges) {
 			t.Helper()
-			if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		grant(roleTableRef(t, e, "a"), SelectPrivilege)
+		grant(roleTableRef(t, e, "a"), authorization.SelectPrivilege)
 		right := roleTableRef(t, e, "b")
 		grant(right, 0)
 		first, last := right, right
 		first.Address.SubID = 1
 		last.Address.SubID = 70
-		grant(first, SelectPrivilege)
-		grant(last, SelectPrivilege)
+		grant(first, authorization.SelectPrivilege)
+		grant(last, authorization.SelectPrivilege)
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION wide_join_reader")
 		q := "SELECT x.last FROM a CROSS JOIN b x(" + strings.Join(aliases, ",") + ")"
 		if self {
@@ -189,9 +189,9 @@ func TestQueryJoinsInsertDestinationPriority(t *testing.T) {
 		t.Fatal(diagnostic, err)
 	}
 	reader, _ := e.Roles().Lookup("insert_join_reader")
-	grantor := e.roles.names["postgres"]
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, name := range []string{"dst", "a", "b"} {
-		if err = e.SetObjectACL(context.Background(), roleTableRef(t, e, name), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: 0}}}); err != nil {
+		if err = e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: 0}}}); err != nil {
 			t.Fatal(err)
 		}
 	}

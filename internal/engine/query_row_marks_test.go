@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -70,26 +71,26 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	}
 	roleExecute(t, e, op, "CREATE SEQUENCE s")
 	reader, _ := e.Roles().Lookup("mark_reader")
-	grantor := e.roles.names["postgres"]
-	grant := func(ref ObjectRef, rights Privileges) {
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grant := func(ref ObjectRef, rights authorization.Privileges) {
 		t.Helper()
-		acl := ACLValue{Explicit: true}
+		acl := authorization.ACLValue{Explicit: true}
 		if rights != 0 {
-			acl.Entries = []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}
+			acl.Entries = []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}
 		}
 		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
 	table, other := roleTableRef(t, e, "t"), roleTableRef(t, e, "u")
-	grant(table, SelectPrivilege)
-	grant(other, SelectPrivilege)
-	grant(roleTableRef(t, e, "s"), SelectPrivilege)
+	grant(table, authorization.SelectPrivilege)
+	grant(other, authorization.SelectPrivilege)
+	grant(roleTableRef(t, e, "s"), authorization.SelectPrivilege)
 	column := table
 	column.Address.SubID = 2
-	grant(column, UpdatePrivilege)
-	grant(roleTableRef(t, e, "owned"), SelectPrivilege)
-	grant(roleTableRef(t, e, "invoker"), SelectPrivilege)
+	grant(column, authorization.UpdatePrivilege)
+	grant(roleTableRef(t, e, "owned"), authorization.SelectPrivilege)
+	grant(roleTableRef(t, e, "invoker"), authorization.SelectPrivilege)
 	check := func(q string) error {
 		t.Helper()
 		e.mu.Lock()
@@ -122,7 +123,7 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	if err := check("SELECT id FROM owned"); err != nil {
 		t.Fatal("owner view inherited invoker ACL", err)
 	}
-	grant(column, UpdatePrivilege)
+	grant(column, authorization.UpdatePrivilege)
 	if err := check("SELECT id FROM invoker"); err != nil {
 		t.Fatal("regrant retained stale executor ACL", err)
 	}

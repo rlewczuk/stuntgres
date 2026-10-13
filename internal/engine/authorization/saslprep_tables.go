@@ -1,4 +1,4 @@
-package engine
+package authorization
 
 // RFC3454/4013 Unicode 3.2 stringprep tables, transcribed from
 // https://github.com/postgres/postgres/blob/REL_18_0/src/common/saslprep.c

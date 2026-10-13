@@ -3,229 +3,50 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 )
 
-// PrincipalRef is an engine-owned identity, never a portable numeric OID.
-type PrincipalRef struct {
-	owner *Engine
-	id    uint64
-}
-
-func (r PrincipalRef) ID() uint64 { return r.id }
-
-type RoleDescriptor struct {
-	Ref                                                                     PrincipalRef
-	Name                                                                    string
-	Login, Superuser, CreateDB, CreateRole, Inherit, Replication, BypassRLS bool
-	ConnectionLimit                                                         int32
-	Password                                                                string // Empty is SQL NULL; verifiers are immutable strings.
-	ValidUntil                                                              int64  // Typed timestamptz microseconds, including infinities.
-	HasValidUntil                                                           bool
-	Comment                                                                 string
-	predefined                                                              bool
-}
-type Membership struct {
-	Role, Member, Grantor PrincipalRef
-	Admin, Inherit, Set   bool
-}
-type roleCatalog struct {
-	revision uint64
-	roles    map[PrincipalRef]RoleDescriptor
-	names    map[string]PrincipalRef
-	edges    []Membership
-}
-type RoleRead struct {
-	owner   *Engine
-	state   *roleCatalog
-	catalog CatalogRead
-}
-
-func (r RoleRead) Lookup(name string) (RoleDescriptor, bool) {
-	if r.state == nil {
-		return RoleDescriptor{}, false
-	}
-	ref, ok := r.state.names[name]
-	if !ok {
-		return RoleDescriptor{}, false
-	}
-	d, ok := r.state.roles[ref]
-	return d, ok
-}
-func (r RoleRead) validatePrincipal(ref PrincipalRef) error {
-	if r.owner == nil || r.state == nil || r.catalog.owner != r.owner || r.catalog.state == nil || ref.owner != r.owner || ref.id == 0 {
-		return fmt.Errorf("stuntgres: foreign or zero principal")
-	}
-	return nil
-}
-func (r RoleRead) Descriptor(ref PrincipalRef) (RoleDescriptor, error) {
-	if err := r.validatePrincipal(ref); err != nil {
-		return RoleDescriptor{}, err
-	}
-	d, ok := r.state.roles[ref]
-	if !ok {
-		return RoleDescriptor{}, fmt.Errorf("stuntgres: stale principal")
-	}
-	return d, nil
-}
-func (r RoleRead) Memberships() []Membership {
-	if r.state == nil {
-		return nil
-	}
-	return append([]Membership(nil), r.state.edges...)
-}
-
-// Ordinary privileges and ownership follow INHERIT paths, never SET authority.
-// Validate endpoints before shortcuts and bound reachability by principal identity.
-func (r RoleRead) inheritsRole(actor, target PrincipalRef) (bool, error) {
-	role, err := r.Descriptor(actor)
-	if err != nil {
-		return false, err
-	}
-	if _, err := r.Descriptor(target); err != nil {
-		return false, err
-	}
-	if actor == target || role.Superuser {
-		return true, nil
-	}
-	if len(r.state.edges) == 0 && r.implicitDatabaseOwner(actor) == (PrincipalRef{}) {
-		return false, nil
-	}
-	seen := map[PrincipalRef]bool{actor: true}
-	queue := []PrincipalRef{actor}
-	for len(queue) != 0 {
-		member := queue[0]
-		queue = queue[1:]
-		for _, edge := range r.state.edges {
-			if !edge.Inherit || edge.Member != member || seen[edge.Role] {
-				continue
-			}
-			if _, err := r.Descriptor(edge.Role); err != nil {
-				return false, err
-			}
-			if edge.Role == target {
-				return true, nil
-			}
-			seen[edge.Role] = true
-			queue = append(queue, edge.Role)
-		}
-		if next := r.implicitDatabaseOwner(member); next != (PrincipalRef{}) && !seen[next] {
-			if _, err := r.Descriptor(next); err != nil {
-				return false, err
-			}
-			if next == target {
-				return true, nil
-			}
-			seen[next] = true
-			queue = append(queue, next)
-		}
-	}
-	return false, nil
-}
-
-// ADMIN traverses all memberships, not just INHERIT or SET edges. Only the
-// edge into the target must carry ADMIN; membership in the target is not ADMIN.
-func (r RoleRead) adminOfRole(actor, target PrincipalRef) (bool, error) {
-	d, err := r.Descriptor(actor)
-	if err != nil {
-		return false, err
-	}
-	if _, err = r.Descriptor(target); err != nil {
-		return false, err
-	}
-	if d.Superuser {
-		return true, nil
-	}
-	if actor == target {
-		return false, nil
-	}
-	seen := map[PrincipalRef]bool{actor: true}
-	queue := []PrincipalRef{actor}
-	for len(queue) > 0 {
-		member := queue[0]
-		queue = queue[1:]
-		for _, edge := range r.state.edges {
-			if edge.Member != member {
-				continue
-			}
-			for _, ref := range [...]PrincipalRef{edge.Role, edge.Member, edge.Grantor} {
-				if _, err = r.Descriptor(ref); err != nil {
-					return false, err
-				}
-			}
-			if edge.Role == target && edge.Admin {
-				return true, nil
-			}
-			if !seen[edge.Role] {
-				seen[edge.Role] = true
-				queue = append(queue, edge.Role)
-			}
-		}
-		if next := r.implicitDatabaseOwner(member); next != (PrincipalRef{}) && !seen[next] {
-			if _, err := r.Descriptor(next); err != nil {
-				return false, err
-			}
-			seen[next] = true
-			queue = append(queue, next)
-		}
-	}
-	return false, nil
-}
-func (e *Engine) Roles() RoleRead {
+func (e *Engine) Roles() authorization.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return RoleRead{e, e.roles, CatalogRead{e, e.state}}
+	return e.roleRead(CatalogRead{e, e.state}, e.roles)
 }
-func (e *Engine) ResolveLogin(name string) (PrincipalRef, error) {
+func (e *Engine) ResolveLogin(name string) (authorization.PrincipalRef, error) {
 	d, ok := e.Roles().Lookup(name)
 	if !ok {
-		return PrincipalRef{}, fmt.Errorf("stuntgres: authenticated role %q does not exist", name)
+		return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: authenticated role %q does not exist", name)
 	}
 	if !d.Login {
-		return PrincipalRef{}, roleLoginError(name)
+		return authorization.PrincipalRef{}, roleLoginError(name)
 	}
 	return d.Ref, nil
-}
-func cloneRoles(r *roleCatalog) *roleCatalog {
-	n := &roleCatalog{revision: r.revision + 1, roles: make(map[PrincipalRef]RoleDescriptor, len(r.roles)), names: make(map[string]PrincipalRef, len(r.names)), edges: r.edges}
-	for k, v := range r.roles {
-		n.roles[k] = v
-	}
-	for k, v := range r.names {
-		n.names[k] = v
-	}
-	return n
-}
-func advanceRoleRevision(r *roleCatalog) *roleCatalog {
-	n := *r
-	n.revision++
-	return &n
 }
 
 // SetRoleReferences publishes copied persistent dependencies owned by another
 // internal feature. An empty payload unregisters that feature's references.
-func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []PrincipalRef) error {
+func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []authorization.PrincipalRef) error {
 	if feature == "" {
 		return fmt.Errorf("stuntgres: empty role reference owner")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, ref := range refs {
-		if _, err := (RoleRead{e, e.roles, CatalogRead{e, e.state}}).Descriptor(ref); err != nil {
+		if _, err := (e.roleRead(CatalogRead{e, e.state}, e.roles)).Descriptor(ref); err != nil {
 			return err
 		}
 	}
 	if e.roles.revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	next := make(map[string][]PrincipalRef, len(e.roleReferences)+1)
+	next := make(map[string][]authorization.PrincipalRef, len(e.roleReferences)+1)
 	for key, payload := range e.roleReferences {
 		next[key] = payload
 	}
 	if len(refs) == 0 {
 		delete(next, feature)
 	} else {
-		next[feature] = append([]PrincipalRef(nil), refs...)
+		next[feature] = append([]authorization.PrincipalRef(nil), refs...)
 	}
 	roles := advanceRoleRevision(e.roles)
 	if err := ctx.Err(); err != nil {
@@ -236,10 +57,9 @@ func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []P
 	return nil
 }
 
-type RoleState struct{ Authenticated, SessionUser, CurrentUser, ResetRole PrincipalRef }
 type sessionAuthorization struct {
 	session  *Session
-	state    RoleState
+	state    authorization.RoleState
 	revision uint64
 }
 
@@ -254,99 +74,22 @@ func (a *sessionAuthorization) EndSession(token SessionToken, reason EndReason) 
 	}
 	return nil
 }
-func (op *Operation) RoleState() RoleState {
+func (op *Operation) RoleState() authorization.RoleState {
 	if op == nil || op.self != op || op.session == nil {
-		return RoleState{}
+		return authorization.RoleState{}
 	}
 	s := op.session
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.authorization == nil {
-		return RoleState{}
+		return authorization.RoleState{}
 	}
 	return s.authorization.state
 }
 
-type Privileges uint32
-
-const (
-	SelectPrivilege Privileges = 1 << iota
-	InsertPrivilege
-	UsagePrivilege
-	CreatePrivilege
-	DeletePrivilege
-	UpdatePrivilege
-	MaintainPrivilege
-	TruncatePrivilege
-	ReferencesPrivilege
-	TriggerPrivilege
-	ExecutePrivilege
-)
-
-type ACLGrantee struct {
-	Public bool
-	Role   PrincipalRef
-}
-type ACLEntry struct {
-	Grantor                  PrincipalRef
-	Grantee                  ACLGrantee
-	Privileges, GrantOptions Privileges
-}
-type ACLValue struct {
-	Explicit bool
-	Entries  []ACLEntry
-}
-
-// schemaACLOwner follows aclnewowner: transfer both ownership references and
-// combine grants that acquire the same grantor/grantee, without mutating the
-// retained descriptor. NULL and explicitly empty ACLs stay distinct.
-func schemaACLOwner(acl ACLValue, old, next PrincipalRef) ACLValue {
-	if !acl.Explicit || len(acl.Entries) == 0 {
-		return acl
-	}
-	out := ACLValue{Explicit: true, Entries: append([]ACLEntry(nil), acl.Entries...)}
-	newPresent := false
-	for i := range out.Entries {
-		entry := &out.Entries[i]
-		if entry.Grantor == old {
-			entry.Grantor = next
-		} else if entry.Grantor == next {
-			newPresent = true
-		}
-		if !entry.Grantee.Public {
-			if entry.Grantee.Role == old {
-				entry.Grantee.Role = next
-			} else if entry.Grantee.Role == next {
-				newPresent = true
-			}
-		}
-	}
-	if newPresent {
-		dst := 0
-		for i := range out.Entries {
-			entry := out.Entries[i]
-			if entry.Privileges|entry.GrantOptions == 0 {
-				continue
-			}
-			for j := i + 1; j < len(out.Entries); j++ {
-				other := &out.Entries[j]
-				if other.Grantor == entry.Grantor && other.Grantee == entry.Grantee {
-					entry.Privileges |= other.Privileges
-					entry.GrantOptions |= other.GrantOptions
-					other.Privileges, other.GrantOptions = 0, 0
-				}
-			}
-			out.Entries[dst] = entry
-			dst++
-		}
-		out.Entries = out.Entries[:dst]
-	}
-	return out
-}
-
 type AccessRequirement struct {
 	Object     ObjectRef
-	Privileges Privileges
+	Privileges authorization.Privileges
 	OwnerOnly  bool
 	OwnerNoun  string // Utility diagnostic context; never changes authority.
 }
@@ -355,28 +98,30 @@ type AuthorizationStamp struct {
 	Roles, Session uint64
 }
 type AuthorizationView struct {
-	engine  *Engine
-	catalog CatalogRead
-	roles   RoleRead
+	engine        *Engine
+	catalog       CatalogRead
+	pairedCatalog CatalogRead
+	roleRecord    *roleCatalog
+	roles         authorization.Read
 	// Committed predecessor captured under Engine.mu, distinct from private
 	// database authority retained by catalog/roles.
 	databasePredecessor Descriptor
-	state               RoleState
+	state               authorization.RoleState
 	// Actual session identities remain distinct from trusted import authority.
-	sessionRoleState RoleState
+	sessionRoleState authorization.RoleState
 	revision         uint64
 	settings         *sessionSettings
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ObjectAddress
 	// Trusted replay permissions may elevate without changing $user semantics.
-	namespaceUser PrincipalRef
+	namespaceUser authorization.PrincipalRef
 	// An owned TEMP table builder may see its namespace before session publication.
 	stagedTemporary        ObjectAddress
 	session                *Session
 	materializedPopulation bool
 	// Only command admission can retain an actually installed, unnamed role ID.
 	// Arbitrary stale/retired actor substitutions do not acquire this authority.
-	missingCurrent PrincipalRef
+	missingCurrent authorization.PrincipalRef
 }
 
 // Statement-local Restore authority must cover both lock resolution and effects.
@@ -441,12 +186,12 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 	return auth, nil
 }
 
-func (v AuthorizationView) Roles() RoleRead { return v.roles }
+func (v AuthorizationView) Roles() authorization.Read { return v.roles }
 func (v AuthorizationView) Stamp() AuthorizationStamp {
-	if v.roles.state == nil {
+	if v.roleRecord == nil {
 		return AuthorizationStamp{}
 	}
-	return AuthorizationStamp{v.catalog.Epoch(), v.roles.state.revision, v.revision}
+	return AuthorizationStamp{v.catalog.Epoch(), v.roleRecord.revision, v.revision}
 }
 func (op *Operation) Authorization() (AuthorizationView, error) {
 	if op == nil || op.self != op || op.session == nil {
@@ -474,40 +219,40 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	if s.transactions != nil {
 		view = e.privateCatalogLocked(s.transactions.catalog)
 	}
-	r := RoleRead{e, e.operationRolesLocked(op), view}
+	r := e.roleRead(view, e.operationRolesLocked(op))
 	if _, err := r.Descriptor(a.state.Authenticated); err != nil {
 		return AuthorizationView{}, err
 	}
 	// PREPARE can detach a newly created role while preserving SET ROLE's ID.
 	// Admission validates that ID's authority, not its current name visibility.
-	for _, ref := range [...]PrincipalRef{a.state.SessionUser, a.state.CurrentUser} {
-		if err := r.validatePrincipal(ref); err != nil {
+	for _, ref := range [...]authorization.PrincipalRef{a.state.SessionUser, a.state.CurrentUser} {
+		if err := r.ValidatePrincipal(ref); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
 	identity := a.state
-	if op.materializedOwner != (PrincipalRef{}) {
+	if op.materializedOwner != (authorization.PrincipalRef{}) {
 		if _, err := r.Descriptor(op.materializedOwner); err != nil {
 			return AuthorizationView{}, err
 		}
 		identity.CurrentUser = op.materializedOwner
 	}
-	authorization := AuthorizationView{engine: e, catalog: view, roles: r, databasePredecessor: e.state.descriptors[currentDatabaseAddress], state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
-	if _, exists := r.state.roles[identity.CurrentUser]; !exists {
+	authorization := AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.operationRolesLocked(op), catalog: view, roles: r, databasePredecessor: e.state.descriptors[currentDatabaseAddress], state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
+	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.missingCurrent = identity.CurrentUser
 	}
 	return authorization, nil
 }
-func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
+func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
 	switch d := d.(type) {
 	case *databaseDescriptor:
 		return d.owner, d.acl, nil
 	case *extensionDescriptor:
-		return d.owner, ACLValue{}, nil
+		return d.owner, authorization.ACLValue{}, nil
 	case *procedureDescriptor:
-		return d.owner, ACLValue{}, nil
+		return d.owner, authorization.ACLValue{}, nil
 	case *tsDictionaryDescriptor:
-		return d.owner, ACLValue{}, nil
+		return d.owner, authorization.ACLValue{}, nil
 	case *namespaceDescriptor:
 		return d.owner, d.acl, nil
 	case *relationDescriptor:
@@ -515,30 +260,30 @@ func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	case *typeDescriptor:
 		return d.owner, d.acl, nil
 	case *collationDescriptor:
-		return d.owner, ACLValue{}, nil
+		return d.owner, authorization.ACLValue{}, nil
 	}
-	return PrincipalRef{}, ACLValue{}, nil
+	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
-func classPrivileges(d Descriptor) Privileges {
+func classPrivileges(d Descriptor) authorization.Privileges {
 	if d.Kind() == DatabaseObject {
-		return CreatePrivilege
+		return authorization.CreatePrivilege
 	}
 	if d.Kind() == ExtensionObject || d.Kind() == ProcedureObject || d.Kind() == TSDictionaryObject || d.Kind() == TSTemplateObject {
 		return 0
 	}
 	if d.Kind() == TypeObject {
-		return UsagePrivilege
+		return authorization.UsagePrivilege
 	}
 	if d.Kind() == NamespaceObject {
-		return UsagePrivilege | CreatePrivilege
+		return authorization.UsagePrivilege | authorization.CreatePrivilege
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
-		return SelectPrivilege | UsagePrivilege | UpdatePrivilege
+		return authorization.SelectPrivilege | authorization.UsagePrivilege | authorization.UpdatePrivilege
 	}
-	return tableGrantPrivileges
+	return authorization.TableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
-	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || v.roles.owner != v.engine || v.roles.catalog != v.catalog || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -557,52 +302,22 @@ func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	}
 	return d, nil
 }
-func aclRights(acl ACLValue, owner PrincipalRef, principals []PrincipalRef, mask Privileges, options bool) Privileges {
-	if !acl.Explicit {
-		for _, ref := range principals {
-			if ref == owner {
-				return mask
-			}
-		}
-		return 0
-	}
-	var rights Privileges
-	for _, entry := range acl.Entries {
-		allowed := entry.Grantee.Public
-		if !allowed {
-			for _, ref := range principals {
-				if ref == entry.Grantee.Role {
-					allowed = true
-					break
-				}
-			}
-		}
-		if allowed {
-			if options {
-				rights |= entry.GrantOptions
-			} else {
-				rights |= entry.Privileges
-			}
-		}
-	}
-	return rights
-}
-func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileges, error) {
+func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authorization.Privileges, error) {
 	d, err := v.object(ref)
 	if err != nil {
 		return 0, err
 	}
 	owner, acl, columns := descriptorACL(d)
-	if err := v.roles.validatePrincipal(v.state.CurrentUser); err != nil {
+	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
 		return 0, err
 	}
-	actor, actorExists := v.roles.state.roles[v.state.CurrentUser]
+	actor, actorExists := v.roles.Find(v.state.CurrentUser)
 	if !actorExists && v.state.CurrentUser != v.missingCurrent {
 		return 0, fmt.Errorf("stuntgres: stale principal")
 	}
 	mask := classPrivileges(d)
 	if ref.Address.SubID > 0 {
-		mask = columnGrantPrivileges
+		mask = authorization.ColumnGrantPrivileges
 	}
 	if actorExists && actor.Superuser {
 		return mask, nil
@@ -615,9 +330,9 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 		v.session.token.private == nil && ns.temporary == v.session.token {
 		return mask, nil
 	}
-	principals := []PrincipalRef{v.state.CurrentUser}
+	principals := []authorization.PrincipalRef{v.state.CurrentUser}
 	if actorExists {
-		principals, err = v.roles.roleClosure(context.Background(), actor.Ref, true)
+		principals, err = v.roles.RoleClosure(context.Background(), actor.Ref, true)
 		if err != nil {
 			return 0, err
 		}
@@ -629,9 +344,9 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 			}
 		}
 	}
-	rights := aclRights(acl, owner, principals, mask, grantOptions)
+	rights := authorization.ACLRights(acl, owner, principals, mask, grantOptions)
 	if ref.Address.SubID > 0 {
-		rights |= aclRights(columns[ref.Address.SubID], PrincipalRef{}, principals, mask, grantOptions)
+		rights |= authorization.ACLRights(columns[ref.Address.SubID], authorization.PrincipalRef{}, principals, mask, grantOptions)
 	}
 	if !grantOptions && actorExists {
 		rights |= predefinedPrivileges(d, principals)
@@ -643,14 +358,14 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	if err != nil {
 		return err
 	}
-	if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && !req.OwnerOnly && req.Privileges == UsagePrivilege {
+	if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && !req.OwnerOnly && req.Privileges == authorization.UsagePrivilege {
 		req.Object.Address.ObjectID = OID(t.typ.Element().ID())
 		return v.Check(req)
 	}
-	if err := v.roles.validatePrincipal(v.state.CurrentUser); err != nil {
+	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
 		return err
 	}
-	if _, exists := v.roles.state.roles[v.state.CurrentUser]; !exists && v.state.CurrentUser != v.missingCurrent {
+	if _, exists := v.roles.Find(v.state.CurrentUser); !exists && v.state.CurrentUser != v.missingCurrent {
 		return fmt.Errorf("stuntgres: stale principal")
 	}
 	owner, _, _ := descriptorACL(d)
@@ -659,8 +374,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			return fmt.Errorf("stuntgres: owner check has ordinary mask")
 		}
 		allowed := v.state.CurrentUser == owner
-		if _, exists := v.roles.state.roles[v.state.CurrentUser]; exists && !allowed {
-			allowed, err = v.roles.inheritsRole(v.state.CurrentUser, owner)
+		if _, exists := v.roles.Find(v.state.CurrentUser); exists && !allowed {
+			allowed, err = v.roles.InheritsRole(v.state.CurrentUser, owner)
 			if err != nil {
 				return err
 			}
@@ -702,7 +417,7 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	}
 	mask := classPrivileges(d)
 	if req.Object.Address.SubID > 0 {
-		mask = columnGrantPrivileges
+		mask = authorization.ColumnGrantPrivileges
 	}
 	if req.Privileges == 0 || req.Privileges & ^mask != 0 {
 		return fmt.Errorf("stuntgres: invalid privilege mask")
@@ -739,12 +454,12 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, name))
 }
 func (v AuthorizationView) CanUse(ref ObjectRef) error {
-	return v.Check(AccessRequirement{Object: ref, Privileges: UsagePrivilege})
+	return v.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege})
 }
 func (v AuthorizationView) CheckCreate(ref ObjectRef) error {
-	return v.Check(AccessRequirement{Object: ref, Privileges: CreatePrivilege})
+	return v.Check(AccessRequirement{Object: ref, Privileges: authorization.CreatePrivilege})
 }
-func validateACL(r RoleRead, d Descriptor) error {
+func validateACL(r authorization.Read, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *tsTemplateDescriptor:
@@ -764,7 +479,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 		for _, policy := range relation.policies {
 			for _, role := range policy.roles {
 				if role.public {
-					if role.ref != (PrincipalRef{}) {
+					if role.ref != (authorization.PrincipalRef{}) {
 						return fmt.Errorf("stuntgres: PUBLIC policy principal")
 					}
 				} else if _, err := r.Descriptor(role.ref); err != nil {
@@ -773,31 +488,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 			}
 		}
 	}
-	check := func(a ACLValue, mask Privileges) error {
-		if !a.Explicit && len(a.Entries) != 0 {
-			return fmt.Errorf("stuntgres: entries in absent ACL")
-		}
-		for _, x := range a.Entries {
-			if _, err := r.Descriptor(x.Grantor); err != nil {
-				return err
-			}
-			if x.Grantee.Public {
-				if x.Grantee.Role != (PrincipalRef{}) {
-					return fmt.Errorf("stuntgres: PUBLIC principal")
-				}
-				if x.GrantOptions != 0 {
-					return fmt.Errorf("stuntgres: PUBLIC grant options")
-				}
-			} else if _, err := r.Descriptor(x.Grantee.Role); err != nil {
-				return err
-			}
-			if x.Privileges & ^mask != 0 || x.GrantOptions & ^x.Privileges != 0 {
-				return fmt.Errorf("stuntgres: invalid ACL mask")
-			}
-		}
-		return nil
-	}
-	if err := check(acl, classPrivileges(d)); err != nil {
+	if err := authorization.ValidateACL(r, acl, classPrivileges(d)); err != nil {
 		return err
 	}
 	for sub, a := range cols {
@@ -805,13 +496,13 @@ func validateACL(r RoleRead, d Descriptor) error {
 		if !ok || sub <= 0 || !relation.hasAttribute(sub) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
-		if err := check(a, columnGrantPrivileges); err != nil {
+		if err := authorization.ValidateACL(r, a, authorization.ColumnGrantPrivileges); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func descriptorReferences(d Descriptor) []PrincipalRef {
+func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	switch t := d.(type) {
 	case *tsTemplateDescriptor:
 		return nil
@@ -823,7 +514,7 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)
-	refs := []PrincipalRef{owner}
+	refs := []authorization.PrincipalRef{owner}
 	if relation, ok := d.(*relationDescriptor); ok {
 		for _, policy := range relation.policies {
 			for _, role := range policy.roles {
@@ -833,7 +524,7 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 			}
 		}
 	}
-	add := func(a ACLValue) {
+	add := func(a authorization.ACLValue) {
 		for _, x := range a.Entries {
 			refs = append(refs, x.Grantor)
 			if !x.Grantee.Public {
@@ -860,74 +551,74 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 	}
 	switch stmt.(type) {
 	case *parser.Insert:
-		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
+		if err := v.checkColumns(b, authorization.InsertPrivilege, b.targets); err != nil {
 			return err
 		}
 		if b.conflict != nil && len(b.conflict.reads) != 0 {
-			if err := v.checkColumns(b, SelectPrivilege, b.conflict.reads); err != nil {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.conflict.reads); err != nil {
 				return err
 			}
 		}
 		if b.conflict != nil && b.conflict.update != nil {
-			if err := v.checkColumns(b, UpdatePrivilege, b.conflict.updateTargets); err != nil {
+			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.conflict.updateTargets); err != nil {
 				return err
 			}
 			if len(b.conflict.actionReads) != 0 {
-				if err := v.checkColumns(b, SelectPrivilege, b.conflict.actionReads); err != nil {
+				if err := v.checkColumns(b, authorization.SelectPrivilege, b.conflict.actionReads); err != nil {
 					return err
 				}
 			}
 		}
 		if b.returning != nil && (b.returning.readRequired || len(b.returning.reads) != 0) {
-			if err := v.checkColumns(b, SelectPrivilege, b.returning.reads); err != nil {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.returning.reads); err != nil {
 				return err
 			}
 		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Merge:
 		if b.merge.hasDelete {
-			if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
+			if err := v.Check(AccessRequirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
 				return err
 			}
 		}
 		if b.merge.hasInsert {
-			if err := v.checkColumns(b, InsertPrivilege, b.merge.insertTargets); err != nil {
+			if err := v.checkColumns(b, authorization.InsertPrivilege, b.merge.insertTargets); err != nil {
 				return err
 			}
 		}
 		if len(b.merge.updateTargets) != 0 {
-			if err := v.checkColumns(b, UpdatePrivilege, b.merge.updateTargets); err != nil {
+			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.merge.updateTargets); err != nil {
 				return err
 			}
 		}
 		if len(b.usedColumns) != 0 || b.returning != nil && b.returning.readRequired {
-			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns); err != nil {
 				return err
 			}
 		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Delete:
-		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
+		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
 			return err
 		}
 		if len(b.usedColumns) != 0 {
-			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns); err != nil {
 				return err
 			}
 		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Update:
-		if err := v.checkColumns(b, UpdatePrivilege, b.targets); err != nil {
+		if err := v.checkColumns(b, authorization.UpdatePrivilege, b.targets); err != nil {
 			return err
 		}
 		if len(b.usedColumns) != 0 {
-			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns); err != nil {
 				return err
 			}
 		}
 		return v.checkQuerySources(b.querySources)
 	default:
-		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
+		return v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns)
 	}
 }
 
@@ -936,13 +627,13 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 		if source.analysisOnly {
 			continue
 		}
-		if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, SelectPrivilege, source.uses); err != nil {
+		if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.SelectPrivilege, source.uses); err != nil {
 			return err
 		}
 	}
 	for _, source := range sources {
 		if effectiveQueryRowMark(source.relation, source.mark).mode != 0 {
-			if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, UpdatePrivilege, nil); err != nil {
+			if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
@@ -954,7 +645,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	}
 	return nil
 }
-func (v AuthorizationView) checkColumns(b binding, mask Privileges, indices []int) error {
+func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
 	if b.relation.relationKind == sequenceRelation {
 		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
 	}
@@ -1011,7 +702,7 @@ func (v AuthorizationView) checkColumns(b binding, mask Privileges, indices []in
 }
 
 // SetObjectACL publishes an owned immutable ACL payload for internal features.
-func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) error {
+func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch {
@@ -1026,7 +717,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) 
 	if !acl.Explicit && len(acl.Entries) != 0 {
 		return fmt.Errorf("stuntgres: entries in absent ACL")
 	}
-	acl.Entries = append([]ACLEntry(nil), acl.Entries...)
+	acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
 	var next Descriptor
 	switch d := d.(type) {
 	case *namespaceDescriptor:
@@ -1044,7 +735,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) 
 		if ref.Address.SubID == 0 {
 			n.acl = acl
 		} else {
-			n.columnACL = make(map[int32]ACLValue, len(d.columnACL)+1)
+			n.columnACL = make(map[int32]authorization.ACLValue, len(d.columnACL)+1)
 			for k, v := range d.columnACL {
 				n.columnACL[k] = v
 			}
@@ -1058,7 +749,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) 
 	default:
 		return fmt.Errorf("stuntgres: unsupported ACL object")
 	}
-	if err := validateACL(RoleRead{e, e.roles, CatalogRead{e, e.state}}, next); err != nil {
+	if err := validateACL(e.roleRead(CatalogRead{e, e.state}, e.roles), next); err != nil {
 		return err
 	}
 	if e.roles.revision == ^uint64(0) {
@@ -1085,4 +776,37 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) 
 	e.state = state
 	e.roles = roles
 	return nil
+}
+
+func (e *Engine) roleRead(catalog CatalogRead, root *roleCatalog) authorization.Read {
+	if catalog.owner != e || catalog.state == nil || root == nil {
+		return authorization.Read{}
+	}
+	database, ok := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	if !ok {
+		return authorization.Read{}
+	}
+	read := root.root.Read(database.owner)
+	if !read.BelongsTo(&e.authorizationDomain) {
+		return authorization.Read{}
+	}
+	return read
+}
+
+// recaptureCatalog binds a substituted catalog to the same immutable role root.
+func (v *AuthorizationView) recaptureCatalog(catalog CatalogRead) {
+	v.catalog = catalog
+	v.pairedCatalog = catalog
+	v.roles = v.engine.roleRead(catalog, v.roleRecord)
+}
+
+// roleCatalog is an immutable engine-owned publication stamp. All principal,
+// descriptor, name and edge storage belongs to its embedded child root.
+type roleCatalog struct {
+	root     authorization.Root
+	revision uint64
+}
+
+func advanceRoleRevision(r *roleCatalog) *roleCatalog {
+	return &roleCatalog{root: r.root, revision: r.revision + 1}
 }

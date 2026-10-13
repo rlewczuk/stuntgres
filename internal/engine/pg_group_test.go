@@ -3,8 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -19,11 +21,11 @@ func pgGroupUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRef)
 	return d, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: address}
 }
 
-func pgGroupUnitRole(e *Engine, state *roleCatalog, id uint64, name string, login bool) PrincipalRef {
+func pgGroupUnitRole(e *Engine, state *roleCatalog, id uint64, name string, login bool) authorization.PrincipalRef {
 	ref := pgRolesUnitRole(e, state, id, name)
-	role := state.roles[ref]
+	role := fixtureRole(state, ref)
 	role.Login = login
-	state.roles[ref] = role
+	putFixtureRole(state, role)
 	return ref
 }
 
@@ -100,7 +102,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 			t.Fatal("exact group metadata", i, c)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != SelectPrivilege || d.acl.Entries[0].Grantor != d.owner || d.owner != e.roles.names["postgres"] {
+	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner || d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("PUBLIC SELECT/owner")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
@@ -119,7 +121,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 func TestPGGroupProjection(t *testing.T) {
 	e := New()
 	d, ref := pgGroupUnitSource(t, e)
-	state := &roleCatalog{roles: make(map[PrincipalRef]RoleDescriptor), names: make(map[string]PrincipalRef)}
+	state := emptyRoleFixture(e)
 	parent := pgGroupUnitRole(e, state, 20000, "parent", false)
 	middle := pgGroupUnitRole(e, state, 20001, "middle", false)
 	leaf := pgGroupUnitRole(e, state, 20002, "leaf", true)
@@ -127,10 +129,7 @@ func TestPGGroupProjection(t *testing.T) {
 	max := pgGroupUnitRole(e, state, math.MaxUint32, "max", false)
 	high := pgGroupUnitRole(e, state, uint64(1)<<32|20000, "high", false)
 	highMember := pgGroupUnitRole(e, state, uint64(1)<<32|20002, "high-member", true)
-	foreign := PrincipalRef{owner: New(), id: leaf.id}
-	state.roles[foreign] = RoleDescriptor{Ref: foreign, Name: "foreign"}
-	stale := PrincipalRef{owner: e, id: 21000}
-	state.edges = []Membership{
+	setFixtureEdges(state, []authorization.Membership{
 		{Role: parent, Member: middle, Grantor: parent},
 		{Role: middle, Member: leaf, Grantor: parent},
 		{Role: parent, Member: leaf, Grantor: parent},
@@ -138,17 +137,14 @@ func TestPGGroupProjection(t *testing.T) {
 		{Role: parent, Member: max, Grantor: parent},
 		{Role: high, Member: middle, Grantor: parent},
 		{Role: parent, Member: highMember, Grantor: parent},
-		{Role: parent, Member: foreign, Grantor: parent},
-		{Role: parent, Member: stale, Grantor: parent},
-		{Role: PrincipalRef{owner: foreign.owner, id: parent.id}, Member: leaf, Grantor: parent},
-	}
-	role := state.roles[parent]
+	})
+	role := fixtureRole(state, parent)
 	role.Superuser, role.CreateRole, role.CreateDB, role.Replication, role.BypassRLS = true, true, true, true, true
 	role.Inherit, role.ConnectionLimit, role.HasValidUntil, role.ValidUntil = false, 0, true, sqltype.TimestampNegativeInfinity
-	state.roles[parent] = role
+	putFixtureRole(state, role)
 	capture := func(root *roleCatalog) map[uint32][]sqltype.Value {
 		t.Helper()
-		source, err := capturePGGroup(context.Background(), RoleRead{owner: e, state: root, catalog: CatalogRead{e, e.state}}, ref, d)
+		source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.state}, root), ref, d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -165,19 +161,19 @@ func TestPGGroupProjection(t *testing.T) {
 	if name, _ := bag[20000][0].Text(); name != "parent" {
 		t.Fatal("group name")
 	}
-	changed := cloneRoles(state)
-	changed.edges = nil
-	replacement := changed.roles[parent]
+	changed := cloneRoleFixture(state)
+	setFixtureEdges(changed, nil)
+	replacement := fixtureRole(changed, parent)
 	replacement.Login = true
-	changed.roles[parent] = replacement
+	putFixtureRole(changed, replacement)
 	if capture(changed)[20000] != nil {
 		t.Fatal("current LOGIN still projected")
 	}
 	pgGroupUnitMembers(t, bag[20000], 20001, 20002, 20002, math.MaxUint32)
-	delete(changed.roles, leaf)
-	changed.edges = state.edges
+	setFixtureEdges(changed, fixtureEdges(state))
+	retireFixtureRole(changed, leaf)
 	pgGroupUnitMembers(t, capture(changed)[20001])
-	delete(changed.roles, parent)
+	retireFixtureRole(changed, parent)
 	if capture(changed)[20000] != nil {
 		t.Fatal("high or foreign identity aliases deleted role")
 	}
@@ -185,7 +181,7 @@ func TestPGGroupProjection(t *testing.T) {
 		invalid := *d
 		invalid.columns = slices.Clone(d.columns)
 		invalid.columns[slot].Usage.Type = testUsage(e, sqltype.Int4).Type
-		if source, err := capturePGGroup(context.Background(), RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, &invalid); err == nil || source != nil {
+		if source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.state}, state), ref, &invalid); err == nil || source != nil {
 			t.Fatal("constructor failure published partial source", slot)
 		}
 	}
@@ -193,7 +189,7 @@ func TestPGGroupProjection(t *testing.T) {
 	invalid := *d
 	invalid.columns = slices.Clone(d.columns)
 	invalid.columns[2].Usage.Type = testUsage(e, sqltype.ID(1007)).Type
-	if source, err := capturePGGroup(context.Background(), RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.state}, state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("wrong element descriptor accepted")
 	}
 }
@@ -201,10 +197,10 @@ func TestPGGroupProjection(t *testing.T) {
 func TestPGGroupRoleRoot(t *testing.T) {
 	e := New()
 	d, ref := pgGroupUnitSource(t, e)
-	old := cloneRoles(e.roles)
+	old := cloneRoleFixture(e.roles)
 	group := pgGroupUnitRole(e, old, 20000, "snapshot", false)
 	member := pgGroupUnitRole(e, old, 20001, "member", true)
-	old.edges = append(old.edges, Membership{Role: group, Member: member, Grantor: group})
+	setFixtureEdges(old, append(fixtureEdges(old), authorization.Membership{Role: group, Member: member, Grantor: group}))
 	e.roles = old
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -221,7 +217,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	open := func(s *StatementScope, r ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(s, r, e.roles.names["postgres"], queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(s, r, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -229,8 +225,8 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	}
 	capture(scope)
 	first := open(scope, ref)
-	updated := cloneRoles(old)
-	updated.edges = nil
+	updated := cloneRoleFixture(old)
+	setFixtureEdges(updated, nil)
 	e.roles = updated
 	second := open(scope, ref)
 	for _, source := range []*querySource{first, second} {
@@ -257,7 +253,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	fresh := &StatementScope{op: op, owner: op.session.transactions}
 	capture(fresh)
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, open(fresh, ref), d)[20000])
-	if scope.commentRoles.state != old || fresh.commentRoles.state != updated {
+	if scope.commentRoles != e.roleRead(scope.commentCatalog, old) || fresh.commentRoles != e.roleRead(fresh.commentCatalog, updated) {
 		t.Fatal("role capture owner changed")
 	}
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, first, d)[20000], 20001)
@@ -266,31 +262,32 @@ func TestPGGroupRoleRoot(t *testing.T) {
 func TestPGGroupCancellation(t *testing.T) {
 	e := New()
 	d, ref := pgGroupUnitSource(t, e)
-	state := &roleCatalog{roles: make(map[PrincipalRef]RoleDescriptor), names: make(map[string]PrincipalRef)}
+	state := emptyRoleFixture(e)
 	group := pgGroupUnitRole(e, state, 20000, "group", false)
 	member := pgGroupUnitRole(e, state, 20001, "member", true)
-	for range 8 {
-		state.edges = append(state.edges, Membership{Role: group, Member: member, Grantor: group})
+	for i := range 8 {
+		grantor := pgGroupUnitRole(e, state, uint64(20002+i), fmt.Sprintf("grantor_%d", i), true)
+		setFixtureEdges(state, append(fixtureEdges(state), authorization.Membership{Role: group, Member: member, Grantor: grantor}))
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, root := range []*roleCatalog{state, {roles: map[PrincipalRef]RoleDescriptor{}}} {
-		if source, err := capturePGGroup(canceled, RoleRead{owner: e, state: root, catalog: CatalogRead{e, e.state}}, ref, d); source != nil || !errors.Is(err, context.Canceled) {
+	for _, root := range []*roleCatalog{state, emptyRoleFixture(e)} {
+		if source, err := capturePGGroup(canceled, e.roleRead(CatalogRead{e, e.state}, root), ref, d); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("precancellation published source", err)
 		}
 	}
 	// Err calls: admission, roles, first edges, group allocation, second edges,
 	// emission, final. Cancel deterministically within each meaningful pass.
-	for _, at := range []int{2, 5, 12, 15, 21, 22} {
+	for _, at := range []int{2, 12, 20, 21, 29, 30} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		if source, err := capturePGGroup(ctx, RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, d); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := capturePGGroup(ctx, e.roleRead(CatalogRead{e, e.state}, state), ref, d); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("mid-pass cancellation published partial source", at, err)
 		}
-		if len(state.edges) != 8 || len(state.roles) != 2 {
+		if len(fixtureEdges(state)) != 8 || state.root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
 			t.Fatal("cancellation mutated role root")
 		}
 	}
-	source, err := capturePGGroup(context.Background(), RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, d)
+	source, err := capturePGGroup(context.Background(), e.roleRead(CatalogRead{e, e.state}, state), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}

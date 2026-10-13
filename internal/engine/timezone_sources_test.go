@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -32,7 +33,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 		if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
-		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != SelectPrivilege {
+		if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 			t.Fatal(d.acl)
 		}
 		invalid := *d

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ func schemaReserved(name string) error {
 func schemaNotice(op *Operation, code, message string) {
 	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
 }
-func schemaOwner(auth AuthorizationView, name string, identity bool) (PrincipalRef, error) {
+func schemaOwner(auth AuthorizationView, name string, identity bool) (authorization.PrincipalRef, error) {
 	if name == "" {
 		return auth.state.CurrentUser, nil
 	}
@@ -32,7 +33,7 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (PrincipalR
 	}
 	role, ok := auth.roles.Lookup(name)
 	if !ok {
-		return PrincipalRef{}, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
+		return authorization.PrincipalRef{}, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
 	}
 	return role.Ref, nil
 }
@@ -45,15 +46,15 @@ func checkPersistentCreationNamespace(catalog CatalogRead, namespace ObjectAddre
 	return nil
 }
 
-func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ObjectRef) error {
+func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ObjectRef) error {
 	auth.catalog = stage.base
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	if namespace, ok := auth.catalog.state.descriptors[ns].(*namespaceDescriptor); ok && auth.session != nil && namespace.temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}
@@ -77,7 +78,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 	}
 	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil, nil)
 	if err != nil {
@@ -103,7 +104,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		d.ofType = b.createOfType.Address()
 		stage.domainBases = append(stage.domainBases, b.createOfType)
 	}
-	d.acl = stage.creationACL(owner, ns, defaultTables)
+	d.acl = stage.creationACL(owner, ns, authorization.DefaultTables)
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
@@ -126,7 +127,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	// All owned sequences and their defaults share the private CREATE candidate.
 	auth.catalog = e.stageRead(stage)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	// Preserve operation safety, but resolve diagnostic names lazily against
 	// the staged catalog that owns these defaults, generations and CHECKs.
 	input.TypeDiagnosticName = nil
@@ -209,7 +210,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 
 // The table identity owner is shared by declared and query-derived schemas.
 // The caller transfers a private column slice; source definitions are not mutated.
-func (e *Engine) newTableDescriptorLocked(ns ObjectAddress, name string, owner PrincipalRef, columns []ColumnDescriptor, index map[string]int) (*relationDescriptor, error) {
+func (e *Engine) newTableDescriptorLocked(ns ObjectAddress, name string, owner authorization.PrincipalRef, columns []ColumnDescriptor, index map[string]int) (*relationDescriptor, error) {
 	oid, err := e.allocateOIDLocked()
 	if err != nil {
 		return nil, err
@@ -432,7 +433,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 		ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: name, revision: rev, owner: owner}
-		ns.acl = stage.creationACL(owner, ObjectAddress{}, defaultSchemas)
+		ns.acl = stage.creationACL(owner, ObjectAddress{}, authorization.DefaultSchemas)
 		if err = stage.Create(ns); err != nil {
 			return nil, err
 		}
@@ -492,7 +493,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				return nil, err
 			}
 			next.owner = target
-			next.acl = schemaACLOwner(old.acl, old.owner, target)
+			next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
 		}
 		next.revision, err = e.revisionLocked()
 		if err != nil {

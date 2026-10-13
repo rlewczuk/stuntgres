@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -43,7 +44,7 @@ func roleSwitchUnitSession(t *testing.T) (*Engine, *Session) {
 	})
 	return e, s
 }
-func roleSwitchAssert(t *testing.T, s *Session, before RoleState, name string) {
+func roleSwitchAssert(t *testing.T, s *Session, before authorization.RoleState, name string) {
 	t.Helper()
 	role, ok := s.Engine().Roles().Lookup(name)
 	if !ok {
@@ -228,7 +229,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.authorization.state.CurrentUser != login.Ref || s.authorization.state.ResetRole != (PrincipalRef{}) {
+		if s.authorization.state.CurrentUser != login.Ref || s.authorization.state.ResetRole != (authorization.PrincipalRef{}) {
 			t.Fatal(s.authorization.state)
 		}
 		s.RequestEnd(CleanClose)
@@ -322,17 +323,17 @@ func TestRoleSwitchPrincipalValidation(t *testing.T) {
 	other := New()
 	foreign, _ := other.Roles().Lookup("postgres")
 	run(t, e, "DROP ROLE switch_stale")
-	for _, target := range []PrincipalRef{{}, foreign.Ref, stale.Ref} {
-		if _, err := e.Roles().canSetRole(admin.Ref, target); err == nil {
+	for _, target := range []authorization.PrincipalRef{{}, foreign.Ref, stale.Ref} {
+		if _, err := e.Roles().CanSetRole(admin.Ref, target); err == nil {
 			t.Fatal("superuser adopted invalid target", target)
 		}
-		if _, err := e.Roles().canSetRole(target, target); err == nil {
+		if _, err := e.Roles().CanSetRole(target, target); err == nil {
 			t.Fatal("self bypass adopted invalid target", target)
 		}
 	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, target := range []PrincipalRef{foreign.Ref, stale.Ref} {
+	for _, target := range []authorization.PrincipalRef{foreign.Ref, stale.Ref} {
 		op.session.mu.Lock()
 		op.session.authorization.state.ResetRole = target
 		before := op.session.authorization.state
@@ -346,7 +347,7 @@ func TestRoleSwitchPrincipalValidation(t *testing.T) {
 		}
 	}
 	op.session.mu.Lock()
-	op.session.authorization.state.ResetRole = PrincipalRef{}
+	op.session.authorization.state.ResetRole = authorization.PrincipalRef{}
 	op.session.mu.Unlock()
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -75,7 +76,7 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	e.mu.Lock()
 	auth := catalogAuthorization(e, CatalogRead{e, e.state})
 	stage := e.BeginCatalogStage(auth.catalog)
-	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.names["postgres"], sqltype.InputEnvironment{}, nil)
+	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -25,17 +26,17 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 	}
 	ns := schemaRef(t, e, "owned")
 	table := roleTableRef(t, e, "owned.t")
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{
-		{Grantor: former.Ref, Grantee: ACLGrantee{Role: former.Ref}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege},
-		{Grantor: successor.Ref, Grantee: ACLGrantee{Role: successor.Ref}, Privileges: CreatePrivilege, GrantOptions: CreatePrivilege},
-		{Grantor: former.Ref, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: UsagePrivilege},
-		{Grantor: reader.Ref, Grantee: ACLGrantee{Public: true}, Privileges: CreatePrivilege},
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+		{Grantor: former.Ref, Grantee: authorization.ACLGrantee{Role: former.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege, GrantOptions: authorization.UsagePrivilege},
+		{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Role: successor.Ref}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege},
+		{Grantor: former.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege},
+		{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege},
 	}}
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
 	}
 	empty := schemaRef(t, e, "empty_acl")
-	if err := e.SetObjectACL(context.Background(), empty, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), empty, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
@@ -43,10 +44,10 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 	for _, name := range []string{"owned", "empty_acl", "absent_acl"} {
 		roleExecute(t, e, op, "ALTER SCHEMA "+name+" OWNER TO successor")
 	}
-	want := ACLValue{Explicit: true, Entries: []ACLEntry{
-		{Grantor: successor.Ref, Grantee: ACLGrantee{Role: successor.Ref}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege},
-		{Grantor: successor.Ref, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: UsagePrivilege},
-		{Grantor: reader.Ref, Grantee: ACLGrantee{Public: true}, Privileges: CreatePrivilege},
+	want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+		{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Role: successor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege, GrantOptions: authorization.UsagePrivilege | authorization.CreatePrivilege},
+		{Grantor: successor.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege},
+		{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege},
 	}}
 	d := e.CatalogRead().state.descriptors[ns.Address].(*namespaceDescriptor)
 	if d.owner != successor.Ref || !reflect.DeepEqual(d.acl, want) {
@@ -60,8 +61,8 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		role   string
-		rights Privileges
-	}{{"former", CreatePrivilege}, {"successor", UsagePrivilege | CreatePrivilege}, {"reader", UsagePrivilege | CreatePrivilege}} {
+		rights authorization.Privileges
+	}{{"former", authorization.CreatePrivilege}, {"successor", authorization.UsagePrivilege | authorization.CreatePrivilege}, {"reader", authorization.UsagePrivilege | authorization.CreatePrivilege}} {
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION "+tc.role)
 		view, err := op.Authorization()
 		if err != nil {
@@ -88,7 +89,7 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 			t.Fatal(err)
 		}
 		rights, err := view.Effective(ref, false)
-		wantRights := UsagePrivilege | CreatePrivilege
+		wantRights := authorization.UsagePrivilege | authorization.CreatePrivilege
 		if tc.explicit {
 			wantRights = 0
 		}
@@ -109,30 +110,30 @@ func TestSchemaACLOwnerMergeBoundary(t *testing.T) {
 	old, _ := e.Roles().Lookup("acl_old")
 	next, _ := e.Roles().Lookup("acl_new")
 	reader, _ := e.Roles().Lookup("acl_reader")
-	zero := ACLEntry{Grantor: reader.Ref, Grantee: ACLGrantee{Role: reader.Ref}}
-	original := ACLValue{Explicit: true, Entries: []ACLEntry{
-		{Grantor: reader.Ref, Grantee: ACLGrantee{Role: old.Ref}, Privileges: UsagePrivilege},
+	zero := authorization.ACLEntry{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}}
+	original := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+		{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Role: old.Ref}, Privileges: authorization.UsagePrivilege},
 		zero,
-		{Grantor: reader.Ref, Grantee: ACLGrantee{Role: old.Ref}, Privileges: CreatePrivilege},
+		{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Role: old.Ref}, Privileges: authorization.CreatePrivilege},
 	}}
-	want := ACLValue{Explicit: true, Entries: []ACLEntry{
-		{Grantor: reader.Ref, Grantee: ACLGrantee{Role: next.Ref}, Privileges: UsagePrivilege},
+	want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+		{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Role: next.Ref}, Privileges: authorization.UsagePrivilege},
 		zero,
-		{Grantor: reader.Ref, Grantee: ACLGrantee{Role: next.Ref}, Privileges: CreatePrivilege},
+		{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Role: next.Ref}, Privileges: authorization.CreatePrivilege},
 	}}
-	got := schemaACLOwner(original, old.Ref, next.Ref)
+	got := authorization.SchemaACLOwner(original, old.Ref, next.Ref)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("no-new-owner path %+v want %+v", got, want)
 	}
 	// Only an originally present successor invokes PostgreSQL's duplicate and
 	// zero-right cleanup path, even if its own entry has no rights.
-	withNext := ACLValue{Explicit: true, Entries: append(append([]ACLEntry(nil), original.Entries...), ACLEntry{Grantor: next.Ref, Grantee: ACLGrantee{Role: reader.Ref}})}
-	got = schemaACLOwner(withNext, old.Ref, next.Ref)
-	want.Entries = []ACLEntry{{Grantor: reader.Ref, Grantee: ACLGrantee{Role: next.Ref}, Privileges: UsagePrivilege | CreatePrivilege}}
+	withNext := authorization.ACLValue{Explicit: true, Entries: append(append([]authorization.ACLEntry(nil), original.Entries...), authorization.ACLEntry{Grantor: next.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}})}
+	got = authorization.SchemaACLOwner(withNext, old.Ref, next.Ref)
+	want.Entries = []authorization.ACLEntry{{Grantor: reader.Ref, Grantee: authorization.ACLGrantee{Role: next.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("merge path %+v want %+v", got, want)
 	}
-	if original.Entries[0].Grantee.Role != old.Ref || len(withNext.Entries) != 4 || withNext.Entries[2].Privileges != CreatePrivilege {
+	if original.Entries[0].Grantee.Role != old.Ref || len(withNext.Entries) != 4 || withNext.Entries[2].Privileges != authorization.CreatePrivilege {
 		t.Fatal("mutated input ACL")
 	}
 }

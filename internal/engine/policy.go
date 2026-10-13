@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
@@ -11,7 +12,7 @@ import (
 
 type policyRole struct {
 	public bool
-	ref    PrincipalRef
+	ref    authorization.PrincipalRef
 }
 
 type policyExpression struct {
@@ -75,7 +76,7 @@ func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]po
 		if role.Role.Name == "none" {
 			return nil, false, sqlError("42939", `role name "none" is reserved`)
 		}
-		ref, err := membershipRole(auth.roles, auth.sessionRoleState, role.Role)
+		ref, err := authorization.MembershipRole(auth.roles, auth.sessionRoleState, role.Role)
 		if err != nil {
 			return nil, false, err
 		}

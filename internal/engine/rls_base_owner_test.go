@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -10,7 +11,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_reader")
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_bypass BYPASSRLS")
-	reader, bypass := e.roles.names["rls_publication_reader"], e.roles.names["rls_publication_bypass"]
+	reader, bypass := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_reader"), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_bypass")
 	publish := func(next *relationDescriptor) {
 		t.Helper()
 		base := e.CatalogRead()
@@ -33,7 +34,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	publish(&enabled)
 	retained := e.CatalogRead()
 	retainedDescriptor := retained.state.descriptors[d.address].(*relationDescriptor)
-	decision := func(principal PrincipalRef, want rlsDisposition) {
+	decision := func(principal authorization.PrincipalRef, want rlsDisposition) {
 		t.Helper()
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)

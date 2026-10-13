@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 // These assertions concern borrowed roots, physical locators and authority
@@ -188,7 +188,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	op.restoreInsertAuthority = true
 	e.mu.Lock()
 	originalTargets := e.importTargets
-	e.importTargets = make(map[PrincipalRef]PrincipalRef)
+	e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 	ordinary, ordinaryErr := e.authorizationLocked(op)
 	trusted, trustedErr := e.statementAuthorizationLocked(op, statement(t, "INSERT INTO nowhere VALUES(1)"))
 	var path []ObjectAddress
@@ -206,7 +206,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 		t.Fatal("permission elevation replaced semantic namespace principal", ordinary.state, trusted.state, trusted.namespaceUser, path)
 	}
 	after, err := op.Authorization()
-	if err != nil || after.state != ordinary.state || after.namespaceUser != (PrincipalRef{}) {
+	if err != nil || after.state != ordinary.state || after.namespaceUser != (authorization.PrincipalRef{}) {
 		t.Fatal("transient replay authority changed public session identity", after.state, err)
 	}
 }

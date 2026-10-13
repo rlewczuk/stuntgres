@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -189,13 +190,13 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 	view := e.CatalogRead()
 	address := view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: "t"}]
 	query := fmt.Sprintf("SELECT pg_table_is_visible(%d::oid)", address.ObjectID)
-	for _, rights := range []Privileges{UsagePrivilege, 0, UsagePrivilege} {
-		if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+	for _, rights := range []authorization.Privileges{authorization.UsagePrivilege, 0, authorization.UsagePrivilege} {
+		if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 			t.Fatal(err)
 		}
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION visibility_reader")
 		got := tuples(roleExecute(t, e, op, query))
-		if len(got) != 1 || got[0][0] != (rights == UsagePrivilege) {
+		if len(got) != 1 || got[0][0] != (rights == authorization.UsagePrivilege) {
 			t.Fatal("schema authority/subject privilege", got, rights)
 		}
 		roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")

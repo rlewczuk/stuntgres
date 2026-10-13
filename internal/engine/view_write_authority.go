@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/parser"
+)
 
 // Caller rights are checked on the original logical target. Each nested layer
 // then uses its current owner or the original invoker, never the outer owner.
@@ -11,12 +14,12 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		return err
 	}
 	invoker := v.state.CurrentUser
-	mask := UpdatePrivilege
+	mask := authorization.UpdatePrivilege
 	switch stmt.(type) {
 	case *parser.Insert:
-		mask = InsertPrivilege
+		mask = authorization.InsertPrivilege
 	case *parser.Delete:
-		mask = DeletePrivilege
+		mask = authorization.DeletePrivilege
 	}
 	reads := b.returning != nil || len(logical.usedColumns) != 0 || logical.conflict != nil && len(logical.conflict.reads) != 0
 	for _, layer := range w.layers {
@@ -34,7 +37,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			return ErrCatalogReplaced
 		}
 		physical := binding{relation: source, ref: layer.sourceRef}
-		if mask == DeletePrivilege {
+		if mask == authorization.DeletePrivilege {
 			if err := authority.Check(AccessRequirement{Object: layer.sourceRef, Privileges: mask}); err != nil {
 				return err
 			}
@@ -71,7 +74,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 				}
 			}
 			sourceBinding := binding{ref: use, relation: relation}
-			if err := authority.checkColumns(sourceBinding, SelectPrivilege, indices); err != nil {
+			if err := authority.checkColumns(sourceBinding, authorization.SelectPrivilege, indices); err != nil {
 				return err
 			}
 			if occurrence == layer.mainOccurrence {
@@ -79,7 +82,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			}
 			mark := viewLeafRowMark(current.view, occurrence, queryRowMark{})
 			if mark.mode != 0 {
-				if err := authority.checkColumns(sourceBinding, UpdatePrivilege, nil); err != nil {
+				if err := authority.checkColumns(sourceBinding, authorization.UpdatePrivilege, nil); err != nil {
 					return err
 				}
 			}

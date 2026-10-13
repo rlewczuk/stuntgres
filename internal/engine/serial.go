@@ -2,6 +2,7 @@ package engine
 
 import (
 	"strconv"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -51,7 +52,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		options.owned = table.address
 		options.owned.SubID = table.attributes[slot]
 		sequence := &relationDescriptor{address: address, namespace: table.namespace, name: name, revision: revision, sequencePlanStamp: revision, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
-		sequence.acl = stage.creationACL(table.owner, table.namespace, defaultSequences)
+		sequence.acl = stage.creationACL(table.owner, table.namespace, authorization.DefaultSequences)
 		sequence.attributeHighWater = 3
 		if err := stage.Create(sequence); err != nil {
 			return err

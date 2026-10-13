@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -68,7 +69,7 @@ const (
 // A role has one typed journal entry, not a generic string-setting override.
 type roleSettingAction struct {
 	present             bool
-	original, candidate PrincipalRef
+	original, candidate authorization.PrincipalRef
 	kind                uint8
 }
 
@@ -81,7 +82,7 @@ func roleRevisionHeadroom(a *sessionAuthorization, needed uint64) error {
 
 // Called with settings and Session locked. Role refs were validated before
 // publication; restoration must not repeat membership eligibility checks.
-func (s *sessionSettings) touchRole(current PrincipalRef, local bool) {
+func (s *sessionSettings) touchRole(current authorization.PrincipalRef, local bool) {
 	a := s.roleAction
 	if !a.present {
 		a.present = true
@@ -89,7 +90,7 @@ func (s *sessionSettings) touchRole(current PrincipalRef, local bool) {
 	}
 	if !local {
 		a.kind = settingSession
-		a.candidate = PrincipalRef{}
+		a.candidate = authorization.PrincipalRef{}
 	} else if !s.roleAction.present {
 		a.kind = settingLocal
 	} else if a.kind == settingSession {
@@ -100,7 +101,7 @@ func (s *sessionSettings) touchRole(current PrincipalRef, local bool) {
 }
 
 // Install a complete boundary state once; admission reserves revision capacity.
-func (s *sessionSettings) restoreIdentityLocked(target RoleState) {
+func (s *sessionSettings) restoreIdentityLocked(target authorization.RoleState) {
 	a := s.session.authorization
 	if a != nil && a.state != target {
 		a.state = target
@@ -172,7 +173,7 @@ func (s *sessionSettings) finishTransaction(commit bool) {
 			}
 		}
 		s.restoreIdentityLocked(target)
-		t.identityEntry = RoleState{}
+		t.identityEntry = authorization.RoleState{}
 		t.identityCaptured = false
 		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
 		s.session.mu.Unlock()
@@ -280,7 +281,7 @@ func settingAccess(d SettingDefinition, op *Operation) error {
 			if err != nil {
 				return err
 			}
-			role, exists := view.roles.state.roles[view.state.CurrentUser]
+			role, exists := view.roles.Find(view.state.CurrentUser)
 			if exists && role.Superuser {
 				return nil
 			}

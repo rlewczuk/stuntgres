@@ -2,17 +2,18 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func refreshUnitPrincipals(e *Engine) (PrincipalRef, PrincipalRef) {
-	owner, caller := PrincipalRef{owner: e, id: 100001}, PrincipalRef{owner: e, id: 100002}
-	for _, role := range []RoleDescriptor{{Ref: owner, Name: "refresh_unit_owner", Login: true, Inherit: true, ConnectionLimit: -1}, {Ref: caller, Name: "refresh_unit_caller", Login: true, Inherit: true, ConnectionLimit: -1}} {
-		e.roles.roles[role.Ref] = role
-		e.roles.names[role.Name] = role.Ref
+func refreshUnitPrincipals(e *Engine) (authorization.PrincipalRef, authorization.PrincipalRef) {
+	owner, caller := e.authorizationDomain.Principal(100001), e.authorizationDomain.Principal(100002)
+	for _, role := range []authorization.RoleDescriptor{{Ref: owner, Name: "refresh_unit_owner", Login: true, Inherit: true, ConnectionLimit: -1}, {Ref: caller, Name: "refresh_unit_caller", Login: true, Inherit: true, ConnectionLimit: -1}} {
+		putFixtureRole(e.roles, role)
+
 	}
 	return owner, caller
 }
@@ -23,11 +24,11 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	owner, caller := refreshUnitPrincipals(e)
 	d.owner = owner
 	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}
-	auth := AuthorizationView{engine: e, catalog: e.CatalogRead(), roles: e.Roles(), state: RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}
-	for _, privilege := range []Privileges{SelectPrivilege, MaintainPrivilege} {
-		d.acl = ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, caller, privilege, 0)}}
+	auth := AuthorizationView{engine: e, pairedCatalog: e.CatalogRead(), roleRecord: e.roles, catalog: e.CatalogRead(), roles: e.Roles(), state: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}
+	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
+		d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
 		err := materializedRefreshAccess(auth, ref)
-		if privilege == MaintainPrivilege {
+		if privilege == authorization.MaintainPrivilege {
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +128,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		} else if err != nil || len(rows) != 1 {
 			t.Fatal(rows, err)
 		}
-		if op.materializedPopulation || op.materializedOwner != (PrincipalRef{}) || op.RoleState() != beforeRole || scope.identity != beforeIdentity || !sqltype.SameDatum(scope.currentSchemaResult, beforeSchema) {
+		if op.materializedPopulation || op.materializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.identity != beforeIdentity || !sqltype.SameDatum(scope.currentSchemaResult, beforeSchema) {
 			t.Fatal("population leaked owner context")
 		}
 		if err := scope.Finish(err); !fail && err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -31,7 +32,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*BoundQ
 	if err == nil {
 		// Logical-stage fixtures supply cancellation contexts directly, but keep
 		// the actual admission alive until every retained stage is closed.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.querySources, false, PrincipalRef{}, queryRowMark{}, scope.queryLocks)
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.querySources, false, authorization.PrincipalRef{}, queryRowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {

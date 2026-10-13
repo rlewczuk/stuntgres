@@ -5,6 +5,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -14,12 +15,12 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		source.grant(t, "tables", "select", nil)
 		source.grant(t, "types", "usage", []string{"default_schema"})
 		retained := source.e.CatalogRead()
-		oldRoles := target.e.Roles()
+		oldRolesPublication := target.e.roles
 		if _, err := target.e.ReplaceCatalog(context.Background(), retained); err != nil {
 			t.Fatal(err)
 		}
-		global := defaultACLKey{creator: target.owner, class: defaultTables}
-		scoped := defaultACLKey{creator: target.owner, schema: source.schema, class: defaultTypes}
+		global := defaultACLKey{creator: target.owner, class: authorization.DefaultTables}
+		scoped := defaultACLKey{creator: target.owner, schema: source.schema, class: authorization.DefaultTypes}
 		for _, key := range []defaultACLKey{global, scoped} {
 			record := target.e.state.defaultACLs[key]
 			if record == nil {
@@ -31,18 +32,18 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 				}
 			}
 		}
-		if retained.state.defaultACLs[defaultACLKey{creator: source.owner, class: defaultTables}] == nil || retained.state.defaultACLs[global] != nil || target.e.Roles().state != oldRoles.state {
+		if retained.state.defaultACLs[defaultACLKey{creator: source.owner, class: authorization.DefaultTables}] == nil || retained.state.defaultACLs[global] != nil || target.e.roles != oldRolesPublication {
 			t.Fatal("replacement changed source or target role catalog")
 		}
 		// Exact target incarnation, not just a recycled name, is fenced by remap.
 		candidate := cloneCatalog(retained.state)
 		snapshot := target.e.Roles()
-		roles := cloneRoles(target.e.roles)
+		roles := cloneRoleFixture(target.e.roles)
 		replacement := target.reader
-		replacement.id += 100
-		delete(roles.roles, target.reader)
-		roles.roles[replacement] = RoleDescriptor{Ref: replacement, Name: "default_reader", Login: true}
-		roles.names["default_reader"] = replacement
+		replacement = target.e.authorizationDomain.Principal(replacement.ID() + 100)
+		retireFixtureRole(roles, target.reader)
+		putFixtureRole(roles, authorization.RoleDescriptor{Ref: replacement, Name: "default_reader", Login: true})
+
 		target.e.roles = roles
 		if _, err := target.e.remapPreparedCatalog(candidate, source.e.Roles(), snapshot, nil); err == nil {
 			t.Fatal("recycled recipient incarnation imported")
@@ -67,8 +68,8 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		source := f.e.CatalogRead()
-		scoped := defaultACLKey{creator: f.owner, schema: f.schema, class: defaultTables}
-		global := defaultACLKey{creator: f.owner, class: defaultTables}
+		scoped := defaultACLKey{creator: f.owner, schema: f.schema, class: authorization.DefaultTables}
+		global := defaultACLKey{creator: f.owner, class: authorization.DefaultTables}
 		projection, err := persistentReplacementCatalog(source)
 		if err != nil {
 			t.Fatal(err)
@@ -79,8 +80,8 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err = f.e.ReplaceCatalog(context.Background(), source); err != nil {
 			t.Fatal(err)
 		}
-		rights := aclRights(table.acl, f.owner, []PrincipalRef{f.reader}, SelectPrivilege|InsertPrivilege, false)
-		if f.e.state.descriptors[table.address] != table || f.e.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != f.op.session.token || f.e.state.defaultACLs[scoped] != nil || f.e.state.defaultACLs[global] == nil || rights&(SelectPrivilege|InsertPrivilege) != SelectPrivilege|InsertPrivilege {
+		rights := authorization.ACLRights(table.acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
+		if f.e.state.descriptors[table.address] != table || f.e.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != f.op.session.token || f.e.state.defaultACLs[scoped] != nil || f.e.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
 			t.Fatal("self replacement confused materialized TEMP ACL with directive")
 		}
 		// Physical end removes directives tied to the retired namespace too.
@@ -88,7 +89,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if err = f.apply(grant); err != nil {
 			t.Fatal(err)
 		}
-		tempKey := defaultACLKey{creator: f.owner, schema: f.schema, class: defaultSequences}
+		tempKey := defaultACLKey{creator: f.owner, schema: f.schema, class: authorization.DefaultSequences}
 		endSnapshot := f.e.CatalogRead()
 		f.op.Done()
 		f.op.session.RequestEnd(CleanClose)
@@ -117,10 +118,10 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		imported := target.e.state.names[NameKey{ClassID: NamespaceClassID, Name: "default_schema"}]
-		if imported == target.schema || imported == (ObjectAddress{}) || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: imported, class: defaultTables}] == nil || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: target.schema, class: defaultTables}] != nil {
+		if imported == target.schema || imported == (ObjectAddress{}) || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: imported, class: authorization.DefaultTables}] == nil || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: target.schema, class: authorization.DefaultTables}] != nil {
 			t.Fatal("namespace collision did not remap imported policy identity")
 		}
-		if target.e.state.defaultACLs[defaultACLKey{creator: target.owner, class: defaultSequences}] == nil {
+		if target.e.state.defaultACLs[defaultACLKey{creator: target.owner, class: authorization.DefaultSequences}] == nil {
 			t.Fatal("foreign global policy lost")
 		}
 		// A source TEMP-only record is projected out even on a foreign import.
@@ -135,7 +136,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err := fresh.e.ReplaceCatalog(context.Background(), CatalogRead{source.e, tempSource}); err != nil {
 			t.Fatal(err)
 		}
-		if len(fresh.e.state.defaultACLs) != 1 || fresh.e.state.defaultACLs[defaultACLKey{creator: fresh.owner, class: defaultSequences}] == nil || tempSource.defaultACLs[defaultACLKey{creator: source.owner, schema: source.schema, class: defaultTables}] == nil {
+		if len(fresh.e.state.defaultACLs) != 1 || fresh.e.state.defaultACLs[defaultACLKey{creator: fresh.owner, class: authorization.DefaultSequences}] == nil || tempSource.defaultACLs[defaultACLKey{creator: source.owner, schema: source.schema, class: authorization.DefaultTables}] == nil {
 			t.Fatal("foreign TEMP policy/source filtering")
 		}
 	})
@@ -164,23 +165,24 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 		t.Fatal("stored-empty Dump", err)
 	}
 	before := f.e.CatalogRead()
+	rolesPublication := f.e.roles
 	roles := f.e.Roles()
 	edges := roles.Memberships()
 	err := f.e.Restore(context.Background(), strings.NewReader("CREATE TABLE before_reject(x INT); ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;"))
-	if err == nil || f.e.state != before.state || f.e.Roles().state != roles.state {
+	if err == nil || f.e.state != before.state || f.e.roles != rolesPublication {
 		t.Fatal("Restore admitted defaults or changed original", err)
 	}
 	if err = f.e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.e.state.defaultACLs) != 0 || f.e.roles != roles.state || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
+	if len(f.e.state.defaultACLs) != 0 || f.e.roles != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
 		t.Fatal("Reset default/role/edge boundary")
 	}
 	// Pristine dependent hardwired TYPE baselines must not make ordinary table
 	// dump/restore fail, nor require a broadened generic TypeObject fallback.
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	f.schema = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	f.owner = f.e.roles.names["postgres"]
+	f.owner = f.e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	table := defaultUnitTable(t, f, stage, "pristine", f.owner)
 	if err = defaultUnitPublish(t, f.e, stage); err != nil {
 		t.Fatal(err)

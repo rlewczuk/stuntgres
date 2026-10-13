@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "ext_acl_actor", true, parser.RoleOptions{})
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 60000}, revision: 1, name: "ext_acl", owner: e.roles.names["postgres"], acl: ACLValue{Explicit: true}}
+	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 60000}, revision: 1, name: "ext_acl", owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), acl: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -56,7 +57,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	for _, a := range ext.members {
 		if a.ClassID != TSTemplateClassID {
 			owner, _, _ := descriptorACL(e.state.descriptors[a])
-			if owner != e.roles.names["postgres"] {
+			if owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 				t.Fatal("trusted member owner")
 			}
 		}
@@ -83,7 +84,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	raw.Name.Parts = raw.Name.Parts[1:]
 	_, err = binder.bindInstalledFunction(raw)
 	extensionUnitError(t, err, "42883")
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: ns.owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: UsagePrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns.address}, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +114,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	db := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
-	if aclRights(db.acl, db.owner, []PrincipalRef{actor.Ref}, CreatePrivilege, true) != CreatePrivilege {
+	if authorization.ACLRights(db.acl, db.owner, []authorization.PrincipalRef{actor.Ref}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege {
 		t.Fatal("grant option missing")
 	}
 	delegated := extensionUnitGrant("ext_authority", "")
@@ -124,7 +125,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	db = e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	found := false
 	for _, entry := range db.acl.Entries {
-		if entry.Grantee.Public && entry.Grantor == actor.Ref && entry.Privileges&CreatePrivilege != 0 {
+		if entry.Grantee.Public && entry.Grantor == actor.Ref && entry.Privileges&authorization.CreatePrivilege != 0 {
 			found = true
 		}
 	}

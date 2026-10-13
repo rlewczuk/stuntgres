@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -44,22 +45,22 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine != catalog.owner || auth.catalog.state != catalog.state || auth.roles.state == nil || ref.owner != catalog.owner.owner || ref.Epoch != catalog.Epoch() || source == nil || source.address != ref.Address || source.address.ObjectID != tablePrivilegesOID || catalog.state.descriptors[ref.Address] != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine != catalog.owner || auth.catalog.state != catalog.state || auth.roleRecord == nil || ref.owner != catalog.owner.owner || ref.Epoch != catalog.Epoch() || source == nil || source.address != ref.Address || source.address.ObjectID != tablePrivilegesOID || catalog.state.descriptors[ref.Address] != source {
 		return nil, fmt.Errorf("stuntgres: invalid table_privileges capture")
 	}
-	if err := auth.roles.validatePrincipal(auth.state.CurrentUser); err != nil {
+	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
 		return nil, err
 	}
-	actor, actorExists := auth.roles.state.roles[auth.state.CurrentUser]
-	var principals []PrincipalRef
+	actor, actorExists := auth.roles.Find(auth.state.CurrentUser)
+	var principals []authorization.PrincipalRef
 	if actorExists && !actor.Superuser {
 		var err error
-		principals, err = auth.roles.roleClosure(ctx, actor.Ref, true)
+		principals, err = auth.roles.RoleClosure(ctx, actor.Ref, true)
 		if err != nil {
 			return nil, err
 		}
 	}
-	var granteeClosures map[PrincipalRef][]PrincipalRef
+	var granteeClosures map[authorization.PrincipalRef][]authorization.PrincipalRef
 	var rows [][]sqltype.Value
 	for _, descriptor := range catalog.state.descriptors {
 		if err := ctx.Err(); err != nil {
@@ -78,9 +79,9 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 			return nil, err
 		}
 		entries := relation.acl.Entries
-		var baseline [1]ACLEntry
+		var baseline [1]authorization.ACLEntry
 		if !relation.acl.Explicit {
-			baseline[0] = ACLEntry{Grantor: relation.owner, Grantee: ACLGrantee{Role: relation.owner}, Privileges: tableGrantPrivileges}
+			baseline[0] = authorization.ACLEntry{Grantor: relation.owner, Grantee: authorization.ACLGrantee{Role: relation.owner}, Privileges: authorization.TableGrantPrivileges}
 			entries = baseline[:]
 		}
 		for _, entry := range entries {
@@ -113,12 +114,12 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 							var known bool
 							closure, known = granteeClosures[grantee.Ref]
 							if !known {
-								closure, err = auth.roles.roleClosure(ctx, grantee.Ref, true)
+								closure, err = auth.roles.RoleClosure(ctx, grantee.Ref, true)
 								if err != nil {
 									return nil, err
 								}
 								if granteeClosures == nil {
-									granteeClosures = make(map[PrincipalRef][]PrincipalRef)
+									granteeClosures = make(map[authorization.PrincipalRef][]authorization.PrincipalRef)
 								}
 								granteeClosures[grantee.Ref] = closure
 							}
@@ -136,9 +137,9 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 				continue
 			}
 			for _, privilege := range [...]struct {
-				mask Privileges
+				mask authorization.Privileges
 				name string
-			}{{InsertPrivilege, "INSERT"}, {SelectPrivilege, "SELECT"}, {UpdatePrivilege, "UPDATE"}, {DeletePrivilege, "DELETE"}, {TruncatePrivilege, "TRUNCATE"}, {ReferencesPrivilege, "REFERENCES"}, {TriggerPrivilege, "TRIGGER"}} {
+			}{{authorization.InsertPrivilege, "INSERT"}, {authorization.SelectPrivilege, "SELECT"}, {authorization.UpdatePrivilege, "UPDATE"}, {authorization.DeletePrivilege, "DELETE"}, {authorization.TruncatePrivilege, "TRUNCATE"}, {authorization.ReferencesPrivilege, "REFERENCES"}, {authorization.TriggerPrivilege, "TRIGGER"}} {
 				if entry.Privileges&privilege.mask == 0 {
 					continue
 				}
@@ -146,7 +147,7 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 				if ownerGrantee || entry.GrantOptions&privilege.mask != 0 {
 					grantable = "YES"
 				}
-				if privilege.mask == SelectPrivilege {
+				if privilege.mask == authorization.SelectPrivilege {
 					hierarchy = "YES"
 				}
 				values := [8]string{grantor.Name, granteeName, database, namespace.Name(), relation.name, privilege.name, grantable, hierarchy}

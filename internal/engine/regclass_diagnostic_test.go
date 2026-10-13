@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 // Exercise the actual private ACL and completed-row formatter seams, not a
@@ -31,19 +31,19 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				}
 				ref := roleTableRef(t, e, "rr_diag")
 				actor, _ := e.Roles().Lookup("rr_diag_reader")
-				grant := func(attribute int32, privileges Privileges) {
+				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					if err := e.SetObjectACL(context.Background(), target, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
-				grant(2, UpdatePrivilege)
+				grant(2, authorization.UpdatePrivilege)
 				for _, attribute := range []int32{1, 3, 5} {
-					grant(attribute, SelectPrivilege)
+					grant(attribute, authorization.SelectPrivilege)
 				}
 				if whole {
-					grant(0, SelectPrivilege)
+					grant(0, authorization.SelectPrivilege)
 				}
 				descriptor, ok := e.CatalogRead().Descriptor(ref.Address)
 				if !ok {

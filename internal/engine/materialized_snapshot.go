@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"unicode/utf8"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"unicode/utf8"
 )
 
 const materializedSnapshotMarker = "stuntgres-matview-v1"
@@ -165,7 +165,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
-		var bootstrap RoleDescriptor
+		var bootstrap authorization.RoleDescriptor
 		bootstrap, err = auth.roles.Descriptor(auth.state.Authenticated)
 		if err == nil && (!bootstrap.Superuser || e.importTargets == nil) {
 			err = fmt.Errorf("stuntgres: invalid materialized view import authority")

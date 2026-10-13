@@ -189,7 +189,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			} else if action.Action == parser.AddUnique {
 				if stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
-					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roleRecord.revision
 				}
 				next, err = e.stageAddedUnique(op, auth, stage, next, action.Unique)
 				if err == nil {
@@ -277,7 +277,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 			if len(raw) != 0 && stage == nil {
 				stage = e.BeginCatalogStage(auth.catalog)
-				stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+				stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roleRecord.revision
 			}
 			next, err = e.stageAddedChecks(scope, op, auth, stage, next, raw, &addedChecks)
 		}
@@ -545,7 +545,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err == nil {
 		disclosure, err = e.authorizationLocked(op)
 		disclosure.catalog = e.privateCatalogLocked(scope.owner.catalog)
-		disclosure.roles.catalog = disclosure.catalog
+		disclosure.recaptureCatalog(disclosure.catalog)
 	}
 	e.mu.Unlock()
 	if err != nil {

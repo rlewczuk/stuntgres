@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -394,7 +395,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 		t.Fatal("switch reset notice filter", got)
 	}
 	namespace := ObjectRef{owner: e.owner, Epoch: before.Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	before = e.CatalogRead()
@@ -406,7 +407,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 		t.Fatal("denied skip emitted notice or mutated catalog")
 	}
 	// Revoking USAGE removes public from the unqualified destination path.
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	before = e.CatalogRead()
@@ -438,9 +439,9 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 					roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
 					view := e.CatalogRead()
 					namespace := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-					acl := ACLValue{Explicit: true}
+					acl := authorization.ACLValue{Explicit: true}
 					if usage {
-						acl.Entries = []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}}
+						acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}
 					}
 					if err := e.SetObjectACL(context.Background(), namespace, acl); err != nil {
 						t.Fatal(err)

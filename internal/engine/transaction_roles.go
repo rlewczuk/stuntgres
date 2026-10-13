@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/authorization"
+
 // Engine.mu protects committed and pending immutable role roots; statement
 // admission prevents concurrent mutation of this session's transaction overlay.
 func (e *Engine) operationRolesLocked(op *Operation) *roleCatalog {
@@ -46,7 +48,7 @@ func (e *Engine) touchOperationIdentityLocked(op *Operation) {
 // must not forbid a later supported removal of an owner's own dependencies.
 func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catalogState) error {
 	for ref := range c.retiredRoles {
-		if defaultRoleDependencies(CatalogRead{e, catalog}, RoleRead{e, c.roles, CatalogRead{e, catalog}}, ref, nil) {
+		if defaultRoleDependencies(CatalogRead{e, catalog}, e.roleRead(CatalogRead{e, catalog}, c.roles), ref, nil) {
 			return ErrCatalogReplaced
 		}
 		for _, descriptor := range catalog.descriptors {
@@ -54,7 +56,7 @@ func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catal
 				return ErrCatalogReplaced
 			}
 		}
-		for _, edge := range c.roles.edges {
+		for edge := range c.roles.root.Read(authorization.PrincipalRef{}).Edges() {
 			if edge.Role == ref || edge.Member == ref || edge.Grantor == ref {
 				return ErrCatalogReplaced
 			}

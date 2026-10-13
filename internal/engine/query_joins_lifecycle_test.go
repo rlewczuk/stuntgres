@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"testing"
-	"time"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
+	"time"
 )
 
 func TestQueryJoinsPrivateVisibilityAndRepeatableRead(t *testing.T) {
@@ -352,17 +352,17 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 					sessionSQL(t, holder, q)
 				}
 				role, _ := e.Roles().Lookup("waiting_join_reader")
-				grantor := e.roles.names["postgres"]
+				grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				left := roleTableRef(t, e, "a")
-				grant := func(name string, rights Privileges) {
+				grant := func(name string, rights authorization.Privileges) {
 					t.Helper()
-					if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: role.Ref}, Privileges: rights}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: rights}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
-				grant("a", SelectPrivilege)
-				grant("b", SelectPrivilege)
-				grant("dst", InsertPrivilege)
+				grant("a", authorization.SelectPrivilege)
+				grant("b", authorization.SelectPrivilege)
+				grant("dst", authorization.InsertPrivilege)
 				sessionSQL(t, reader, "SET SESSION AUTHORIZATION waiting_join_reader")
 				q := "SELECT a.k FROM a JOIN b USING(k)"
 				if inserting {

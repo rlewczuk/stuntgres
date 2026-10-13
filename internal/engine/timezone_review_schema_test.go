@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -13,10 +14,10 @@ func TestTimezoneReviewQualifiedLiteralAuthorization(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE tz_literal_anchor(id INT)")
 	roleExecute(t, e, op, "INSERT INTO tz_literal_anchor VALUES(1)")
 	reader, _ := e.Roles().Lookup("tz_literal_reader")
-	if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, "public.tz_literal_anchor"), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, "public.tz_literal_anchor"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "pg_catalog"), ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "pg_catalog"), authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION tz_literal_reader")

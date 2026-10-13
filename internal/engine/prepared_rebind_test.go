@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -132,15 +133,15 @@ func TestPreparedRebindValidity(t *testing.T) {
 		}
 		admin, _ := engine.Roles().Lookup("postgres")
 		reader, _ := engine.Roles().Lookup("acl_reader")
-		usage := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: admin.Ref, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: UsagePrivilege}}}
+		usage := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege}}}
 		early, late := schemaRef(t, engine, "a"), schemaRef(t, engine, "b")
-		set := func(ref ObjectRef, acl ACLValue) {
+		set := func(ref ObjectRef, acl authorization.ACLValue) {
 			t.Helper()
 			if err := engine.SetObjectACL(context.Background(), ref, acl); err != nil {
 				t.Fatal(err)
 			}
 		}
-		set(early, ACLValue{Explicit: true})
+		set(early, authorization.ACLValue{Explicit: true})
 		set(late, usage)
 		sessionSQL(t, caller, "SET search_path TO a,b")
 		sessionSQL(t, caller, "SET SESSION AUTHORIZATION acl_reader")
@@ -175,7 +176,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 			}
 		}
 		original := qualified
-		set(late, ACLValue{Explicit: true})
+		set(late, authorization.ACLValue{Explicit: true})
 		result, err = sequencePreparedExecute(engine, caller, qualifiedAST, &qualified)
 		if result.Rows != nil {
 			result.Rows.Close()

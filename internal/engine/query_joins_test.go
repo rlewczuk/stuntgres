@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySource) {
@@ -69,7 +69,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.querySources, false, PrincipalRef{}, queryRowMark{}, scope.queryLocks)
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.querySources, false, authorization.PrincipalRef{}, queryRowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {

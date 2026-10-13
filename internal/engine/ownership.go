@@ -2,12 +2,13 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func ownershipSuccessor(auth AuthorizationView, target PrincipalRef) error {
-	allowed, err := auth.roles.canSetRole(auth.state.CurrentUser, target)
+func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRef) error {
+	allowed, err := auth.roles.CanSetRole(auth.state.CurrentUser, target)
 	if err != nil {
 		return err
 	}
@@ -20,7 +21,7 @@ func ownershipSuccessor(auth AuthorizationView, target PrincipalRef) error {
 func ownershipDatabaseCreate(auth AuthorizationView) error {
 	return auth.CheckCreate(ObjectRef{owner: auth.engine.owner, Epoch: auth.catalog.Epoch(), Address: currentDatabaseAddress})
 }
-func ownershipEligibility(auth AuthorizationView, target PrincipalRef, namespace ObjectAddress) error {
+func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ObjectAddress) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 	if err != nil {
 		return err
@@ -66,7 +67,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 		r, ok := catalog.state.descriptors[t.owningRelation].(*relationDescriptor)
 		return ok && r.relationKind == compositeRelation
 	case *collationDescriptor:
-		return !t.seeded() && t.owner != (PrincipalRef{})
+		return !t.seeded() && t.owner != (authorization.PrincipalRef{})
 	case *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
 		return true
 	}
@@ -76,7 +77,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 // Ownership changes retain immutable type, row, index and sequence generator
 // roots. Only descriptor/ACL payloads change. All reciprocal members are staged
 // before the ordinary publication validator sees any of them.
-func stageOwnership(stage *CatalogStage, d Descriptor, target PrincipalRef) error {
+func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.PrincipalRef) error {
 	if next := stage.descriptors[d.Address()]; next != nil {
 		d = next
 	}
@@ -92,7 +93,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target PrincipalRef) erro
 	case *databaseDescriptor:
 		next := *old
 		next.owner, next.revision = target, revision
-		next.acl = schemaACLOwner(old.acl, old.owner, target)
+		next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
 		return stage.Replace(&next)
 	case *extensionDescriptor:
 		next := *old
@@ -110,7 +111,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target PrincipalRef) erro
 		next := *old
 		next.owner = target
 		next.revision = revision
-		next.acl = schemaACLOwner(old.acl, old.owner, target)
+		next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
 		return stage.Replace(&next)
 	case *collationDescriptor:
 		next := *old
@@ -121,7 +122,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target PrincipalRef) erro
 		next := *old
 		next.owner = target
 		next.revision = revision
-		next.acl = schemaACLOwner(old.acl, old.owner, target)
+		next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
 		if err = stage.Replace(&next); err != nil {
 			return err
 		}
@@ -145,14 +146,14 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target PrincipalRef) erro
 		next := *old
 		next.owner = target
 		next.revision = revision
-		next.acl = schemaACLOwner(old.acl, old.owner, target)
+		next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
 		if old.sequence != nil {
 			next.sequencePlanStamp = revision
 		}
 		if len(old.columnACL) != 0 {
-			next.columnACL = make(map[int32]ACLValue, len(old.columnACL))
+			next.columnACL = make(map[int32]authorization.ACLValue, len(old.columnACL))
 			for sub, acl := range old.columnACL {
-				next.columnACL[sub] = schemaACLOwner(acl, old.owner, target)
+				next.columnACL[sub] = authorization.SchemaACLOwner(acl, old.owner, target)
 			}
 		}
 		// Replace synchronizes the row type and its array against this owner.

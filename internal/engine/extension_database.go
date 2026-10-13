@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,8 +15,8 @@ type databaseDescriptor struct {
 	address  ObjectAddress
 	revision DefinitionRevision
 	name     string
-	owner    PrincipalRef
-	acl      ACLValue
+	owner    authorization.PrincipalRef
+	acl      authorization.ACLValue
 }
 
 func (d *databaseDescriptor) Address() ObjectAddress       { return d.address }
@@ -43,8 +44,8 @@ func (e *Engine) initializeDatabase(name string) {
 	if err == nil {
 		e.databaseName, _ = value.Text()
 	}
-	owner := e.roles.names["postgres"]
-	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner, acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: CreatePrivilege, GrantOptions: CreatePrivilege}}}}
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner, acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}}}}
 	e.state.descriptors[db.address] = db
 	e.state.names[descriptorNameKey(db)] = db.address
 }
@@ -86,7 +87,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		}
 	}
 	if s.Grantor != nil {
-		grantor, err := membershipRole(v.roles, v.state, *s.Grantor)
+		grantor, err := authorization.MembershipRole(v.roles, v.state, *s.Grantor)
 		if err != nil {
 			return Result{}, err
 		}
@@ -94,7 +95,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 			return Result{}, sqlError("0A000", "grantor must be current user")
 		}
 	}
-	grantees := make([]ACLGrantee, len(s.Grantees))
+	grantees := make([]authorization.ACLGrantee, len(s.Grantees))
 	for i, spec := range s.Grantees {
 		if spec.Public {
 			if s.GrantOption {
@@ -102,7 +103,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 			}
 			grantees[i].Public = true
 		} else {
-			role, err := membershipRole(v.roles, v.state, spec.Role)
+			role, err := authorization.MembershipRole(v.roles, v.state, spec.Role)
 			if err != nil {
 				return Result{}, err
 			}
@@ -113,23 +114,23 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	principals, err := v.roles.roleClosure(op.Context(), actor.Ref, true)
+	principals, err := v.roles.RoleClosure(op.Context(), actor.Ref, true)
 	if err != nil {
 		return Result{}, err
 	}
 	db := v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
-	source, available, err := objectGrantSource(op.Context(), db.owner, db.acl, ACLValue{}, principals, actor.Superuser, CreatePrivilege)
+	source, available, err := authorization.ObjectGrantSource(op.Context(), db.owner, db.acl, authorization.ACLValue{}, principals, actor.Superuser, authorization.CreatePrivilege)
 	if err != nil {
 		return Result{}, err
 	}
-	if available == 0 && aclRights(db.acl, db.owner, principals, CreatePrivilege, false) == 0 {
+	if available == 0 && authorization.ACLRights(db.acl, db.owner, principals, authorization.CreatePrivilege, false) == 0 {
 		return Result{}, sqlError("42501", "permission denied for database "+dependencyIdentifier(db.name))
 	}
-	grantWarning(op, db.name, "", CreatePrivilege, available, false, s.Revoke)
+	grantWarning(op, db.name, "", authorization.CreatePrivilege, available, false, s.Revoke)
 	if available == 0 {
 		return Result{}, nil
 	}
-	acl, changed, err := changeObjectACL(op.Context(), v.roles, db.acl, db.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+	acl, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, db.acl, db.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 	if err != nil || !changed {
 		return Result{}, err
 	}

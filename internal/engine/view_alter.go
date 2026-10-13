@@ -193,7 +193,7 @@ func viewDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescriptor)
 		return nil
 	}
 	ns := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
-	allowed, err := auth.roles.inheritsRole(auth.state.CurrentUser, ns.owner)
+	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.owner)
 	if err != nil {
 		return err
 	}

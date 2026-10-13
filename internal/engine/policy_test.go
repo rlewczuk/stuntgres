@@ -207,7 +207,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 		t.Fatal("lost attached policy")
 	}
 	p := copied.policies[0]
-	if p.roles[0].ref.owner != imported || p.roles[1].ref != p.roles[0].ref {
+	if imported.Roles().ValidatePrincipal(p.roles[0].ref) != nil || p.roles[1].ref != p.roles[0].ref {
 		t.Fatal("lost principal provenance/multiplicity")
 	}
 	if err = validatePolicies(view, copied); err != nil {

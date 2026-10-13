@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 )
 
-func collationDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead, definitions []*collationDescriptor) ([]dumpDomain, error) {
+func collationDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, definitions []*collationDescriptor) ([]dumpDomain, error) {
 	sort.Slice(definitions, func(i, j int) bool {
 		return collationSQLName(view, uint32(definitions[i].oid)) < collationSQLName(view, uint32(definitions[j].oid))
 	})

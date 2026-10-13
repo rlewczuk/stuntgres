@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
@@ -104,10 +105,10 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]Obj
 		}
 		if name == "$user" {
 			principal := auth.state.CurrentUser
-			if auth.namespaceUser != (PrincipalRef{}) {
+			if auth.namespaceUser != (authorization.PrincipalRef{}) {
 				principal = auth.namespaceUser
 			}
-			d, exists := auth.roles.state.roles[principal]
+			d, exists := auth.roles.Find(principal)
 			if !exists {
 				continue
 			}
@@ -146,7 +147,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]Obj
 		if err != nil {
 			return nil, false, err
 		}
-		if rights&UsagePrivilege == 0 {
+		if rights&authorization.UsagePrivilege == 0 {
 			continue
 		}
 		result = append(result, a)
@@ -264,7 +265,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
 	foreignTemporary := ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token)
 	if foreignTemporary && kind == collationLookup {
-		actor, exists := auth.roles.state.roles[auth.state.CurrentUser]
+		actor, exists := auth.roles.Find(auth.state.CurrentUser)
 		foreignTemporary = !exists || !actor.Superuser
 	}
 	if foreignTemporary && kind != installedFunctionLookup {

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync"
-	"time"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"sync"
+	"time"
 )
 
 type TxID uint64
@@ -101,7 +101,7 @@ type transactionOwner struct {
 	accessedTemporary bool
 	exclusionModes    exclusionModes
 	retainedMessage   bool // Admission spans a direct multi-command message.
-	identityEntry     RoleState
+	identityEntry     authorization.RoleState
 	identityCaptured  bool
 	messageBorn       bool
 }
@@ -354,7 +354,7 @@ type StatementScope struct {
 	foreignActionJobs           []foreignKeyJob
 	searchPathResults           [2]sqltype.Value
 	commentCatalog              CatalogRead
-	commentRoles                RoleRead
+	commentRoles                authorization.Read
 	deparseAuth                 AuthorizationView
 	visibilityCatalog           CatalogRead
 	visibilityDemand            bool

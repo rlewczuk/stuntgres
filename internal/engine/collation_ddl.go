@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -245,7 +246,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	if err != nil {
 		return err
 	}
-	var ownerTarget PrincipalRef
+	var ownerTarget authorization.PrincipalRef
 	if s.Action == "owner" {
 		ownerTarget, err = schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
 		if err != nil {

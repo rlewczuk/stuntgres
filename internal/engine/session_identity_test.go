@@ -5,47 +5,12 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
-
-func TestSessionIdentityMembershipClosure(t *testing.T) {
-	e := New()
-	for _, q := range []string{"CREATE USER a", "CREATE ROLE b", "CREATE ROLE c", "CREATE ROLE d"} {
-		run(t, e, q)
-	}
-	roles := e.Roles()
-	a, _ := roles.Lookup("a")
-	b, _ := roles.Lookup("b")
-	c, _ := roles.Lookup("c")
-	d, _ := roles.Lookup("d")
-	admin, _ := roles.Lookup("postgres")
-	edge := func(role, member PrincipalRef, set, inherit, adminOption bool) {
-		t.Helper()
-		if err := grantMembership(t, e, Membership{Role: role, Member: member, Grantor: admin.Ref, Set: set, Inherit: inherit, Admin: adminOption}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	edge(b.Ref, a.Ref, true, false, false)
-	edge(c.Ref, b.Ref, true, false, false)
-	edge(c.Ref, a.Ref, true, false, false)
-	edge(d.Ref, a.Ref, false, true, true)
-	for _, tc := range []struct {
-		from, to PrincipalRef
-		want     bool
-	}{{a.Ref, a.Ref, true}, {a.Ref, b.Ref, true}, {a.Ref, c.Ref, true}, {a.Ref, d.Ref, false}, {d.Ref, c.Ref, false}, {admin.Ref, d.Ref, true}} {
-		got, err := e.Roles().canSetRole(tc.from, tc.to)
-		if err != nil || got != tc.want {
-			t.Fatal(tc, got, err)
-		}
-	}
-	run(t, e, "DROP ROLE d")
-	if _, err := e.Roles().canSetRole(a.Ref, d.Ref); err == nil {
-		t.Fatal("stale role adopted")
-	}
-}
 
 func TestSessionIdentityTypedStableBinding(t *testing.T) {
 	e := New()
@@ -91,11 +56,11 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 	}
 	before := op.RoleState()
 	revision := op.session.authorization.revision
-	catalogRevision := e.Roles().state.revision
+	catalogRevision := e.roles.revision
 	execute("SET ROLE b")
 	after := op.RoleState()
 	b, _ := e.Roles().Lookup("b")
-	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.session.authorization.revision != revision+1 || e.Roles().state.revision != catalogRevision {
+	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.session.authorization.revision != revision+1 || e.roles.revision != catalogRevision {
 		t.Fatal(before, after)
 	}
 	// A session superuser is still authoritative while CurrentUser is ordinary.
@@ -115,7 +80,7 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 	}
 	a, _ := e.Roles().Lookup("a")
 	admin, _ := e.Roles().Lookup("postgres")
-	if err := grantMembership(t, e, Membership{Member: a.Ref, Role: b.Ref, Grantor: admin.Ref, Set: true}); err != nil {
+	if err := grantMembership(t, e, authorization.Membership{Member: a.Ref, Role: b.Ref, Grantor: admin.Ref, Set: true}); err != nil {
 		t.Fatal(err)
 	}
 	execute("SET ROLE b")
@@ -124,7 +89,7 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 		t.Fatal(op.RoleState())
 	}
 	execute("RESET SESSION AUTHORIZATION")
-	if op.RoleState() != (RoleState{Authenticated: admin.Ref, SessionUser: admin.Ref, CurrentUser: admin.Ref}) {
+	if op.RoleState() != (authorization.RoleState{Authenticated: admin.Ref, SessionUser: admin.Ref, CurrentUser: admin.Ref}) {
 		t.Fatal(op.RoleState())
 	}
 }

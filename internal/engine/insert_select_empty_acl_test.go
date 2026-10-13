@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -13,29 +14,29 @@ func TestInsertSelectEmptyManifestACL(t *testing.T) {
 	for _, tc := range []struct {
 		name, query, denied                                  string
 		emptySource                                          bool
-		sourceTable, sourceColumn, targetTable, targetColumn Privileges
+		sourceTable, sourceColumn, targetTable, targetColumn authorization.Privileges
 		count                                                int64
 		values                                               []driver.Value
 	}{
-		{name: "constant_column_select", query: "INSERT INTO t SELECT 7 FROM s", sourceColumn: SelectPrivilege, targetTable: InsertPrivilege, count: 3, values: []driver.Value{int64(7), int64(7), int64(7), int64(9)}},
-		{name: "constant_empty_relation", query: "INSERT INTO t SELECT 7 FROM s", emptySource: true, sourceColumn: SelectPrivilege, targetTable: InsertPrivilege, values: []driver.Value{int64(9)}},
-		{name: "constant_filtered", query: "INSERT INTO t SELECT 7 FROM s WHERE FALSE", sourceColumn: SelectPrivilege, targetTable: InsertPrivilege, values: []driver.Value{int64(9)}},
-		{name: "zero_width_column_select", query: "INSERT INTO t SELECT FROM s", sourceColumn: SelectPrivilege, targetTable: InsertPrivilege, count: 3, values: []driver.Value{int64(9), nil, nil, nil}},
-		{name: "zero_width_empty_relation", query: "INSERT INTO t SELECT FROM s", emptySource: true, sourceColumn: SelectPrivilege, targetTable: InsertPrivilege, values: []driver.Value{int64(9)}},
-		{name: "zero_width_filtered", query: "INSERT INTO t SELECT FROM s WHERE FALSE", sourceColumn: SelectPrivilege, targetTable: InsertPrivilege, values: []driver.Value{int64(9)}},
-		{name: "empty_target_singleton", query: "INSERT INTO t (SELECT)", targetColumn: InsertPrivilege, count: 1, values: []driver.Value{int64(9), nil}},
-		{name: "empty_target_source", query: "INSERT INTO t SELECT FROM s", sourceTable: SelectPrivilege, targetColumn: InsertPrivilege, count: 3, values: []driver.Value{int64(9), nil, nil, nil}},
-		{name: "both_empty_column_manifests", query: "INSERT INTO t SELECT FROM s", sourceColumn: SelectPrivilege, targetColumn: InsertPrivilege, count: 3, values: []driver.Value{int64(9), nil, nil, nil}},
-		{name: "empty_target_filtered", query: "INSERT INTO t SELECT FROM s WHERE FALSE", sourceColumn: SelectPrivilege, targetColumn: InsertPrivilege, values: []driver.Value{int64(9)}},
-		{name: "constant_no_select", query: "INSERT INTO t SELECT 7 FROM s", targetTable: InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
-		{name: "empty_relation_no_select", query: "INSERT INTO t SELECT 7 FROM s", emptySource: true, targetTable: InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
-		{name: "filtered_no_select", query: "INSERT INTO t SELECT 7 FROM s WHERE FALSE", targetTable: InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
-		{name: "zero_width_no_select", query: "INSERT INTO t SELECT FROM s", targetTable: InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
-		{name: "zero_width_filtered_no_select", query: "INSERT INTO t SELECT FROM s WHERE FALSE", targetTable: InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
-		{name: "source_wrong_column_privilege", query: "INSERT INTO t SELECT 7 FROM s", sourceColumn: InsertPrivilege, targetTable: InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
+		{name: "constant_column_select", query: "INSERT INTO t SELECT 7 FROM s", sourceColumn: authorization.SelectPrivilege, targetTable: authorization.InsertPrivilege, count: 3, values: []driver.Value{int64(7), int64(7), int64(7), int64(9)}},
+		{name: "constant_empty_relation", query: "INSERT INTO t SELECT 7 FROM s", emptySource: true, sourceColumn: authorization.SelectPrivilege, targetTable: authorization.InsertPrivilege, values: []driver.Value{int64(9)}},
+		{name: "constant_filtered", query: "INSERT INTO t SELECT 7 FROM s WHERE FALSE", sourceColumn: authorization.SelectPrivilege, targetTable: authorization.InsertPrivilege, values: []driver.Value{int64(9)}},
+		{name: "zero_width_column_select", query: "INSERT INTO t SELECT FROM s", sourceColumn: authorization.SelectPrivilege, targetTable: authorization.InsertPrivilege, count: 3, values: []driver.Value{int64(9), nil, nil, nil}},
+		{name: "zero_width_empty_relation", query: "INSERT INTO t SELECT FROM s", emptySource: true, sourceColumn: authorization.SelectPrivilege, targetTable: authorization.InsertPrivilege, values: []driver.Value{int64(9)}},
+		{name: "zero_width_filtered", query: "INSERT INTO t SELECT FROM s WHERE FALSE", sourceColumn: authorization.SelectPrivilege, targetTable: authorization.InsertPrivilege, values: []driver.Value{int64(9)}},
+		{name: "empty_target_singleton", query: "INSERT INTO t (SELECT)", targetColumn: authorization.InsertPrivilege, count: 1, values: []driver.Value{int64(9), nil}},
+		{name: "empty_target_source", query: "INSERT INTO t SELECT FROM s", sourceTable: authorization.SelectPrivilege, targetColumn: authorization.InsertPrivilege, count: 3, values: []driver.Value{int64(9), nil, nil, nil}},
+		{name: "both_empty_column_manifests", query: "INSERT INTO t SELECT FROM s", sourceColumn: authorization.SelectPrivilege, targetColumn: authorization.InsertPrivilege, count: 3, values: []driver.Value{int64(9), nil, nil, nil}},
+		{name: "empty_target_filtered", query: "INSERT INTO t SELECT FROM s WHERE FALSE", sourceColumn: authorization.SelectPrivilege, targetColumn: authorization.InsertPrivilege, values: []driver.Value{int64(9)}},
+		{name: "constant_no_select", query: "INSERT INTO t SELECT 7 FROM s", targetTable: authorization.InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
+		{name: "empty_relation_no_select", query: "INSERT INTO t SELECT 7 FROM s", emptySource: true, targetTable: authorization.InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
+		{name: "filtered_no_select", query: "INSERT INTO t SELECT 7 FROM s WHERE FALSE", targetTable: authorization.InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
+		{name: "zero_width_no_select", query: "INSERT INTO t SELECT FROM s", targetTable: authorization.InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
+		{name: "zero_width_filtered_no_select", query: "INSERT INTO t SELECT FROM s WHERE FALSE", targetTable: authorization.InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
+		{name: "source_wrong_column_privilege", query: "INSERT INTO t SELECT 7 FROM s", sourceColumn: authorization.InsertPrivilege, targetTable: authorization.InsertPrivilege, denied: "s", values: []driver.Value{int64(9)}},
 		{name: "empty_target_no_insert", query: "INSERT INTO t (SELECT)", denied: "t", values: []driver.Value{int64(9)}},
-		{name: "empty_target_filtered_no_insert", query: "INSERT INTO t SELECT FROM s WHERE FALSE", sourceColumn: SelectPrivilege, denied: "t", values: []driver.Value{int64(9)}},
-		{name: "target_wrong_column_privilege", query: "INSERT INTO t (SELECT)", targetColumn: SelectPrivilege, denied: "t", values: []driver.Value{int64(9)}},
+		{name: "empty_target_filtered_no_insert", query: "INSERT INTO t SELECT FROM s WHERE FALSE", sourceColumn: authorization.SelectPrivilege, denied: "t", values: []driver.Value{int64(9)}},
+		{name: "target_wrong_column_privilege", query: "INSERT INTO t (SELECT)", targetColumn: authorization.SelectPrivilege, denied: "t", values: []driver.Value{int64(9)}},
 	} {
 		for _, prepared := range []bool{false, true} {
 			mode := "direct"
@@ -57,10 +58,10 @@ func TestInsertSelectEmptyManifestACL(t *testing.T) {
 				}
 				roleExecute(t, e, op, "INSERT INTO t VALUES(9)")
 				worker, _ := e.Roles().Lookup("worker")
-				grantor := e.roles.names["postgres"]
-				grant := func(ref ObjectRef, mask Privileges) {
+				grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				grant := func(ref ObjectRef, mask authorization.Privileges) {
 					t.Helper()
-					if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -126,10 +127,10 @@ func TestInsertSelectEmptyManifestACL(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO s VALUES(1,2),(1,2)")
 			roleExecute(t, e, op, "INSERT INTO t VALUES(9,9)")
 			worker, _ := e.Roles().Lookup("worker")
-			grantor := e.roles.names["postgres"]
-			grant := func(ref ObjectRef, mask Privileges) {
+			grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			grant := func(ref ObjectRef, mask authorization.Privileges) {
 				t.Helper()
-				if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -138,11 +139,11 @@ func TestInsertSelectEmptyManifestACL(t *testing.T) {
 			ref := roleTableRef(t, e, table)
 			ref.Address.SubID = 2
 			if table == "s" {
-				grant(ref, SelectPrivilege)
-				grant(roleTableRef(t, e, "t"), InsertPrivilege)
+				grant(ref, authorization.SelectPrivilege)
+				grant(roleTableRef(t, e, "t"), authorization.InsertPrivilege)
 			} else {
-				grant(ref, InsertPrivilege)
-				grant(roleTableRef(t, e, "s"), SelectPrivilege)
+				grant(ref, authorization.InsertPrivilege)
+				grant(roleTableRef(t, e, "s"), authorization.SelectPrivilege)
 				q = "INSERT INTO t SELECT FROM s"
 				want = [][]driver.Value{{int64(9)}, {nil}, {nil}}
 			}

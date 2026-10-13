@@ -446,7 +446,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				t.Fatal(err)
 			}
 			auth.catalog = e.stageRead(setup)
-			auth.roles.catalog = auth.catalog
+			auth.recaptureCatalog(auth.catalog)
 			bind := func(name, query string, oid OID) *relationDescriptor {
 				raw, err := parser.Parse(query)
 				if err != nil {
@@ -468,7 +468,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			cover := bind("cover", `CREATE INDEX cover ON t(lower(s) COLLATE "POSIX" bpchar_ops DESC NULLS LAST,lower(s) COLLATE "default" text_ops) INCLUDE(p)`, 20002)
 			view := e.stageRead(setup)
 			auth.catalog = view
-			auth.roles.catalog = auth.catalog
+			auth.recaptureCatalog(auth.catalog)
 			for _, index := range []*relationDescriptor{unsigned, cover} {
 				if err := validateIndexDefinition(view, index); err != nil {
 					t.Fatal(err)
@@ -570,7 +570,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				t.Fatal(err)
 			}
 			auth.catalog = compactedView
-			auth.roles.catalog = auth.catalog
+			auth.recaptureCatalog(auth.catalog)
 			if err := e.rebindAlterTypeIndexes(scope, auth, &final, stage, queue); err != nil {
 				t.Fatal(err)
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -195,7 +196,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	captured, err := e.captureTableViewSummary(context.Background(), catalog, RoleRead{e, e.roles, catalog}, ObjectRef{}, source, viewPresentation{})
+	captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ObjectRef{}, source, viewPresentation{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -216,21 +217,21 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER summary_reader")
 	roleExecute(t, e, op, "CREATE TABLE summary_denied(a INT,b INT)")
 	ref := roleTableRef(t, e, "summary_denied")
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	reader, _ := e.Roles().Lookup("summary_reader")
 	column := ref
 	column.Address.SubID = 1
-	grant := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
-	for _, acl := range []ACLValue{grant, {Explicit: true}} {
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
+	for _, acl := range []authorization.ACLValue{grant, {Explicit: true}} {
 		if err := e.SetObjectACL(context.Background(), column, acl); err != nil {
 			t.Fatal(err)
 		}
 		catalog := e.CatalogRead()
 		source := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12003}].(*relationDescriptor)
 		e.mu.Lock()
-		captured, err := e.captureTableViewSummary(context.Background(), catalog, RoleRead{e, e.roles, catalog}, ObjectRef{}, source, viewPresentation{})
+		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -268,7 +269,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	capture := func(catalog CatalogRead) []sqltype.Value {
 		source := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 12003}].(*relationDescriptor)
 		e.mu.Lock()
-		captured, err := e.captureTableViewSummary(context.Background(), catalog, RoleRead{e, e.roles, catalog}, ObjectRef{}, source, viewPresentation{})
+		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles), ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

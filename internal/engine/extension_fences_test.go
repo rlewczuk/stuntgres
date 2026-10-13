@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -169,7 +170,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	}
 	// Central DROP dependencies include extension and every owned member, plus
 	// the destination database's real grantor/grantee references.
-	owner := e.roles.names["postgres"]
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	var dependencies []roleDependency
 	descriptorRoleDependencies(ext, owner, &dependencies)
 	if len(dependencies) != 1 || dependencies[0].address != ext.address || dependencies[0].kind != 'o' || !descriptorRoleDependencies(ext, owner, nil) {

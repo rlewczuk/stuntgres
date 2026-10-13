@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -75,7 +76,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	if row.owningRelation != d.address {
 		t.Fatal("row type linkage", row)
 	}
-	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != SelectPrivilege {
+	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal(d.acl)
 	}
 	s := pgIndexesUnitCapture(t, c, catalogAuthorization(e, c))
@@ -86,22 +87,22 @@ func TestPGIndexesDescriptors(t *testing.T) {
 func TestPGIndexesVisibilityPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		name                                           string
-		table                                          Privileges
+		table                                          authorization.Privileges
 		column                                         int32
 		public, owner, emptyOwner, super, schemaDenied bool
 		want                                           int
 	}{
 		{name: "no-rights"},
-		{name: "table-select", table: SelectPrivilege, want: 1},
+		{name: "table-select", table: authorization.SelectPrivilege, want: 1},
 		{name: "nonindexed-column-select", column: 3, want: 1},
-		{name: "public-select", table: SelectPrivilege, public: true, want: 1},
-		{name: "insert-only", table: InsertPrivilege},
-		{name: "delete-only", table: DeletePrivilege},
-		{name: "maintain-only", table: MaintainPrivilege},
+		{name: "public-select", table: authorization.SelectPrivilege, public: true, want: 1},
+		{name: "insert-only", table: authorization.InsertPrivilege},
+		{name: "delete-only", table: authorization.DeletePrivilege},
+		{name: "maintain-only", table: authorization.MaintainPrivilege},
 		{name: "absent-owner", owner: true, want: 1},
 		{name: "explicit-empty-owner", owner: true, emptyOwner: true},
 		{name: "superuser", super: true, emptyOwner: true, want: 1},
-		{name: "schema-denied-table-select", table: SelectPrivilege, schemaDenied: true},
+		{name: "schema-denied-table-select", table: authorization.SelectPrivilege, schemaDenied: true},
 		{name: "schema-denied-column-select", column: 3, schemaDenied: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,14 +118,14 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 			parent := roleTableRef(t, e, "pgi_unit_schema.pgi_unit_table")
 			reader, _ := e.Roles().Lookup("pgi_unit_reader")
 			owner, _ := e.Roles().Lookup("pgi_unit_owner")
-			grant := func(ref ObjectRef, rights Privileges, public bool) {
+			grant := func(ref ObjectRef, rights authorization.Privileges, public bool) {
 				t.Helper()
-				acl := ACLValue{Explicit: true}
+				acl := authorization.ACLValue{Explicit: true}
 				if rights != 0 {
-					acl.Entries = []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: reader.Ref, Public: public}, Privileges: rights}}
+					acl.Entries = []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref, Public: public}, Privileges: rights}}
 				}
 				if public {
-					acl.Entries[0].Grantee.Role = PrincipalRef{}
+					acl.Entries[0].Grantee.Role = authorization.PrincipalRef{}
 				}
 				if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 					t.Fatal(err)
@@ -132,11 +133,11 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 			}
 			schema := parent
 			schema.Address = e.CatalogRead().state.descriptors[parent.Address].(*relationDescriptor).namespace
-			schemaACL := ACLValue{Explicit: true}
+			schemaACL := authorization.ACLValue{Explicit: true}
 			if !tc.schemaDenied {
-				schemaACL.Entries = []ACLEntry{
-					{Grantor: owner.Ref, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: UsagePrivilege},
-					{Grantor: owner.Ref, Grantee: ACLGrantee{Role: owner.Ref}, Privileges: UsagePrivilege},
+				schemaACL.Entries = []authorization.ACLEntry{
+					{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege},
+					{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege},
 				}
 			}
 			if err := e.SetObjectACL(context.Background(), schema, schemaACL); err != nil {
@@ -148,7 +149,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 			if tc.column != 0 {
 				column := parent
 				column.Address.SubID = tc.column
-				grant(column, SelectPrivilege, false)
+				grant(column, authorization.SelectPrivilege, false)
 			}
 			c := e.CatalogRead()
 			auth := catalogAuthorization(e, c)
@@ -157,7 +158,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 				auth.state.CurrentUser = owner.Ref
 			}
 			if tc.super {
-				auth.state.CurrentUser = e.roles.names["postgres"]
+				auth.state.CurrentUser = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			}
 			source := pgIndexesUnitCapture(t, c, auth)
 			if source.anonymous == nil {
@@ -180,13 +181,13 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	run(t, e, "CREATE INDEX pgi_unit_index ON pgi_unit_table(n)")
 	parent := roleTableRef(t, e, "pgi_unit_table")
 	reader, _ := e.Roles().Lookup("pgi_unit_reader")
-	grant := func(sub int32, rights Privileges) {
+	grant := func(sub int32, rights authorization.Privileges) {
 		t.Helper()
 		ref := parent
 		ref.Address.SubID = sub
-		acl := ACLValue{Explicit: true}
+		acl := authorization.ACLValue{Explicit: true}
 		if rights != 0 {
-			acl.Entries = []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}
+			acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}
 		}
 		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
@@ -198,7 +199,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 		auth.state.CurrentUser = reader.Ref
 		return c, auth
 	}
-	grant(2, SelectPrivilege)
+	grant(2, authorization.SelectPrivilege)
 	old, auth := capture()
 	retained := pgIndexesUnitCapture(t, old, auth)
 	want := [][]any{{"public", "pgi_unit_table", "pgi_unit_index", nil, "CREATE INDEX pgi_unit_index ON public.pgi_unit_table USING btree (n)"}}
@@ -207,7 +208,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	if len(pgIndexesUnitRows(t, pgIndexesUnitCapture(t, c, fresh))) != 0 {
 		t.Fatal("dropped column grant disclosed index")
 	}
-	grant(3, SelectPrivilege)
+	grant(3, authorization.SelectPrivilege)
 	c, fresh = capture()
 	if !reflect.DeepEqual(pgIndexesUnitRows(t, pgIndexesUnitCapture(t, c, fresh)), want) {
 		t.Fatal("stable live nonindexed column grant lost")
@@ -248,6 +249,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	}
 	broken := auth
 	broken.roles = foreign.Roles()
+	broken.roleRecord = foreign.roles
 	if _, err := capturePGIndexes(context.Background(), old, broken, ref, d); err == nil {
 		t.Fatal("unexpected authorization failure swallowed")
 	}
@@ -272,7 +274,7 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 		e.mu.Lock()
 		_, ref := pgIndexesUnitSource(t, e.privateCatalogLocked(scope.owner.catalog))
 		// A surrounding definition principal must not replace the operation actor.
-		s, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil, nil)
+		s, err := e.openRelationSourceLocked(scope, ref, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 		err = scope.Finish(err)
 		if err != nil {
 			t.Fatal(err)
@@ -284,14 +286,14 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 	}
 	column := parent
 	column.Address.SubID = 2
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	old := capture()
 	if len(pgIndexesUnitRows(t, old)) != 1 {
 		t.Fatal("new column grant not captured")
 	}
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	if len(pgIndexesUnitRows(t, capture())) != 0 || len(pgIndexesUnitRows(t, old)) != 1 {

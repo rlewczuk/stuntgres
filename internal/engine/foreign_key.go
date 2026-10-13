@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode/utf8"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"unicode/utf8"
 )
 
 // All links are stable catalog addresses/attributes, never descriptor pointers.
@@ -152,7 +152,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescrip
 	if err != nil {
 		return err
 	}
-	if rights&ReferencesPrivilege != 0 {
+	if rights&authorization.ReferencesPrivilege != 0 {
 		return nil
 	}
 	for _, attribute := range attributes {
@@ -162,7 +162,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescrip
 		if err != nil {
 			return err
 		}
-		if rights&ReferencesPrivilege == 0 {
+		if rights&authorization.ReferencesPrivilege == 0 {
 			return sqlError("42501", "permission denied for table "+parent.name)
 		}
 	}
@@ -172,7 +172,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *relationDescrip
 func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *relationDescriptor, raw parser.ForeignKeyConstraint, target, supporting ObjectAddress) error {
 	view := e.stageRead(stage)
 	auth.catalog = view
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: target}
 	var err error
 	if target == (ObjectAddress{}) {
@@ -311,7 +311,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 		var target ObjectAddress
 		if len(targets) != 0 {
 			auth.catalog = e.stageRead(stage)
-			auth.roles.catalog = auth.catalog
+			auth.recaptureCatalog(auth.catalog)
 			current, err := e.resolveReference(auth, raw.Target)
 			if err != nil {
 				return err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"sync"
 	"testing"
@@ -163,7 +164,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 				t.Fatal("stale creation default published", err)
 			}
 			for key, record := range stage.defaultReads {
-				if key.class != defaultTables || key.creator != f.owner || record != stage.base.state.defaultACLs[key] {
+				if key.class != authorization.DefaultTables || key.creator != f.owner || record != stage.base.state.defaultACLs[key] {
 					t.Fatal("incorrect creation observations")
 				}
 			}
@@ -181,9 +182,8 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 	f.grant(t, "tables", "select", nil)
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	table := defaultUnitTable(t, f, stage, "retired", f.owner)
-	roles := cloneRoles(f.e.roles)
-	delete(roles.roles, f.reader)
-	delete(roles.names, "default_reader")
+	roles := cloneRoleFixture(f.e.roles)
+	retireFixtureRole(roles, f.reader)
 	f.e.roles = roles
 	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.state.descriptors[table.address] != nil {
 		t.Fatal("retired ACL principal published", err)

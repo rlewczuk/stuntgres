@@ -126,7 +126,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, row []sqltype.Value) (b
 		return false, false, err
 	}
 	auth.catalog = catalog
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	b := s.insertReturning.binding
 	if b.viewWrite == nil && s.partitionInsert == nil {
 		b.ref, b.relation = ref, parent

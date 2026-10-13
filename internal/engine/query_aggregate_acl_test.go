@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,18 +19,18 @@ func TestCountExpressionColumnACL(t *testing.T) {
 				roleExecute(t, e, op, "CREATE USER aggregate_reader")
 				roleExecute(t, e, op, "CREATE TABLE t(k TEXT,v INT)")
 				worker, _ := e.Roles().Lookup("aggregate_reader")
-				grantor := e.roles.names["postgres"]
+				grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				table := roleTableRef(t, e, "t")
-				grant := func(ref ObjectRef, rights Privileges) {
+				grant := func(ref ObjectRef, rights authorization.Privileges) {
 					t.Helper()
-					if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: worker.Ref}, Privileges: rights}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: rights}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
 				grant(table, 0)
 				column := table
 				column.Address.SubID = 2
-				grant(column, SelectPrivilege)
+				grant(column, authorization.SelectPrivilege)
 				roleExecute(t, e, op, "SET SESSION AUTHORIZATION aggregate_reader")
 				ast := statement(t, q)
 				var description *StatementDescription
@@ -84,10 +85,10 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO am_acl VALUES(1,1)")
 		}
 		reader, _ := e.Roles().Lookup("am_unit_reader")
-		grantor := e.roles.names["postgres"]
-		grant := func(ref ObjectRef, rights Privileges) {
+		grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		grant := func(ref ObjectRef, rights authorization.Privileges) {
 			t.Helper()
-			if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -96,7 +97,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 		visible, hidden := table, table
 		visible.Address.SubID = 1
 		hidden.Address.SubID = 2
-		grant(visible, SelectPrivilege)
+		grant(visible, authorization.SelectPrivilege)
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION am_unit_reader")
 		for _, q := range []string{"SELECT count(v) FILTER(WHERE hidden>0) FROM am_acl WHERE FALSE", "SELECT count(v ORDER BY hidden) FILTER(WHERE FALSE) FROM am_acl", "SELECT GROUPING(hidden) FROM am_acl WHERE FALSE GROUP BY ROLLUP(hidden)", "SELECT GROUPING(hidden) FROM am_acl GROUP BY GROUPING SETS((hidden),()) HAVING FALSE"} {
 			for _, prepared := range []bool{false, true} {
@@ -123,7 +124,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 				}
 			}
 		}
-		grant(hidden, SelectPrivilege)
+		grant(hidden, authorization.SelectPrivilege)
 		ast := statement(t, "SELECT count(v ORDER BY hidden) FILTER(WHERE hidden>0) FROM am_acl")
 		held, err := e.Describe(op, ast)
 		if err != nil {
@@ -165,7 +166,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 		execute(false, want)
 		grant(hidden, 0)
 		execute(true, 0)
-		grant(hidden, SelectPrivilege)
+		grant(hidden, authorization.SelectPrivilege)
 		ast = statement(t, "SELECT GROUPING(hidden) FROM am_acl GROUP BY ROLLUP(hidden) HAVING GROUPING(hidden)=1")
 		held, err = e.Describe(op, ast)
 		if err != nil {
@@ -177,7 +178,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 		execute(false, 1)
 		grant(hidden, 0)
 		execute(true, 0)
-		grant(hidden, SelectPrivilege)
+		grant(hidden, authorization.SelectPrivilege)
 		execute(false, 1)
 	}
 }

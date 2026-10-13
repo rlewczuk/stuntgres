@@ -1,6 +1,9 @@
 package engine
 
-import "slices"
+import (
+	"slices"
+	"stuntgres/internal/engine/authorization"
+)
 
 // Only sequence literal analysis is mutable; descriptions, ASTs and cursors are not.
 // Engine.mu and physical-session admission serialize this cell and path cache.
@@ -18,7 +21,7 @@ type sequenceEnvironment struct {
 }
 type sequencePathKey struct {
 	text                 string
-	role                 PrincipalRef
+	role                 authorization.PrincipalRef
 	authorization, roles uint64
 	namespace            uint64
 	epoch                CatalogEpoch
@@ -33,7 +36,7 @@ type sequencePathCache struct {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
-	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roles.state.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.state.descriptors[currentDatabaseAddress]}
+	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.state.descriptors[currentDatabaseAddress]}
 	if auth.session != nil && auth.session.transactions != nil {
 		key.private = auth.session.transactions.catalog
 	}

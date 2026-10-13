@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -15,19 +16,19 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roles := cloneRoles(auth.roles.state)
-	bootstrap := roles.roles[auth.state.CurrentUser]
+	roles := cloneRoleFixture(auth.roleRecord)
+	bootstrap := fixtureRole(roles, auth.state.CurrentUser)
 	bootstrap.Superuser = false
-	roles.roles[bootstrap.Ref] = bootstrap
-	successor := PrincipalRef{owner: e, id: 100001}
-	roles.roles[successor] = RoleDescriptor{Ref: successor, Name: "successor", Inherit: true}
+	putFixtureRole(roles, bootstrap)
+	successor := e.authorizationDomain.Principal(100001)
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
 	before := cloneCatalog(auth.catalog.state)
 	address := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	namespace := *before.descriptors[address].(*namespaceDescriptor)
-	namespace.acl = ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: namespace.owner, Grantee: ACLGrantee{Role: namespace.owner}, Privileges: UsagePrivilege | CreatePrivilege}}}
+	namespace.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.owner, Grantee: authorization.ACLGrantee{Role: namespace.owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	before.descriptors[address] = &namespace
-	auth.catalog = CatalogRead{e, before}
-	auth.roles = RoleRead{e, roles, auth.catalog}
+	auth.roleRecord = roles
+	auth.recaptureCatalog(CatalogRead{e, before})
 	warm, err := e.sequenceEnvironmentLocked(auth)
 	if err != nil || !slices.Contains(warm.namespaces, address) {
 		t.Fatal("owner did not warm public namespace", warm, err)
@@ -39,7 +40,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	after.descriptors[currentDatabaseAddress] = &database
 	fresh := auth
 	fresh.catalog = CatalogRead{e, after}
-	fresh.roles.catalog = fresh.catalog
+	fresh.recaptureCatalog(fresh.catalog)
 	revoked, err := e.sequenceEnvironmentLocked(fresh)
 	if err != nil || slices.Contains(revoked.namespaces, address) {
 		t.Fatal("warm path retained former database-owner authority", revoked, err)

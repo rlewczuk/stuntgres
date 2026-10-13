@@ -5,10 +5,10 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestQueryAliasesMetadata(t *testing.T) {
@@ -102,10 +102,10 @@ func TestQueryAliasesPhysicalACL(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO acl_t VALUES(1,9),(2,8)")
 		}
 		reader, _ := e.Roles().Lookup("alias_reader")
-		grantor := e.roles.names["postgres"]
-		grant := func(ref ObjectRef, rights Privileges) {
+		grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		grant := func(ref ObjectRef, rights authorization.Privileges) {
 			t.Helper()
-			if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -113,7 +113,7 @@ func TestQueryAliasesPhysicalACL(t *testing.T) {
 		grant(table, 0)
 		id := table
 		id.Address.SubID = 1
-		grant(id, SelectPrivilege)
+		grant(id, authorization.SelectPrivilege)
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION alias_reader")
 		ast := statement(t, "SELECT x.iid AS secret FROM acl_t x(iid) ORDER BY secret")
 		held, err := e.Describe(op, ast)

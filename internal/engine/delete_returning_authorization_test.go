@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -15,14 +16,14 @@ func TestDeleteReturningAuthorization(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	owner := op.RoleState().CurrentUser
 	reader, _ := e.Roles().Lookup("returning_reader")
-	grant := func(target ObjectRef, mask Privileges) {
+	grant := func(target ObjectRef, mask authorization.Privileges) {
 		t.Helper()
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: mask}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask}}}
 		if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant(ref, DeletePrivilege)
+	grant(ref, authorization.DeletePrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION returning_reader")
 	constant := roleExecute(t, e, op, "DELETE FROM t WHERE FALSE RETURNING 1")
 	if constant.Rows != nil {
@@ -36,7 +37,7 @@ func TestDeleteReturningAuthorization(t *testing.T) {
 	}
 	column := ref
 	column.Address.SubID = 1
-	grant(column, SelectPrivilege)
+	grant(column, authorization.SelectPrivilege)
 	for _, q := range []string{"DELETE FROM t WHERE FALSE RETURNING id", "DELETE FROM t WHERE FALSE RETURNING old.id", "DELETE FROM t WHERE FALSE RETURNING new.id"} {
 		r := roleExecute(t, e, op, q)
 		r.Rows.Close()

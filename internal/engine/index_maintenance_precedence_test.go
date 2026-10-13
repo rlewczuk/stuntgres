@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -23,10 +24,10 @@ func TestIndexMaintenanceMalformedControlBeforeDeniedWait(t *testing.T) {
 		t.Fatal("missing role fixture")
 	}
 	namespace := ObjectRef{e.owner, e.state.epoch, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: user.Ref}, Privileges: UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), table, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	sessionSQL(t, actor, "SET SESSION AUTHORIZATION im_badcontrol")

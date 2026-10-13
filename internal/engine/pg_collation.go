@@ -21,7 +21,7 @@ func capturePGCollation(ctx context.Context, catalog CatalogRead, ref ObjectRef,
 		}
 		row := make([]sqltype.Value, 12)
 		owner := d.owner
-		for i, n := range []uint32{uint32(d.oid), 0, uint32(d.Namespace().ObjectID), uint32(owner.id)} {
+		for i, n := range []uint32{uint32(d.oid), 0, uint32(d.Namespace().ObjectID), uint32(owner.ID())} {
 			if i == 1 {
 				continue
 			}

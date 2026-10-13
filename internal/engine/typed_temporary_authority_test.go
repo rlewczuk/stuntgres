@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -22,7 +23,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					before := e.CatalogRead()
 					oldType := before.state.descriptors[observed].(*typeDescriptor)
 					oldBacking := before.state.descriptors[source.owningRelation]
-					roles, authorization := e.roles.revision, reader.session.authorization.revision
+					roles, sessionRevision := e.roles.revision, reader.session.authorization.revision
 					explicit := mode == "explicit_temporary"
 					if explicit {
 						roleExecute(t, e, reader, "BEGIN")
@@ -38,7 +39,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						}
 						called = true
 						e.providers[RelationClassID] = original
-						typedReviewTypeACL(t, e, observed, ACLValue{Explicit: true})
+						typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
 						winner = e.CatalogRead().state
 					}}
 					query := "CREATE TABLE late OF pair"
@@ -73,7 +74,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					current := e.CatalogRead()
 					changed := current.state.descriptors[observed].(*typeDescriptor)
-					if current.state != winner || current.Epoch() != before.Epoch() || changed.typ != oldType.typ || current.state.descriptors[source.owningRelation] != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != authorization || reflect.DeepEqual(changed.acl, oldType.acl) {
+					if current.state != winner || current.Epoch() != before.Epoch() || changed.typ != oldType.typ || current.state.descriptors[source.owningRelation] != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.acl, oldType.acl) {
 						t.Error("rejected CREATE did not retain descriptor-only ACL winner atomically")
 					}
 					for _, d := range current.state.descriptors {
@@ -121,7 +122,7 @@ func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func
 	sourceRelation := e.CatalogRead().state.descriptors[backing.Address].(*relationDescriptor)
 	source := e.CatalogRead().state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sourceRelation.rowType)}].(*typeDescriptor)
 	reader, done := roleOperation(t, e, "typed_reader")
-	grant := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: source.owner, Grantee: ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: UsagePrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.owner, Grantee: authorization.ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, source.Address(), grant)
 	source = e.CatalogRead().state.descriptors[source.Address()].(*typeDescriptor)
 	observed := source.Address()
@@ -151,7 +152,7 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	if relation == nil || relation.ofType != source.Address() || private.storage[relation.address].replacement == nil {
 		t.Fatal("successful statement did not install actual private TEMP attachment/store")
 	}
-	typedReviewTypeACL(t, e, observed, ACLValue{Explicit: true})
+	typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
 	winner := e.CatalogRead().state.descriptors[observed]
 	roleExecute(t, e, reader, "COMMIT")
 	view := e.CatalogRead()

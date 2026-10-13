@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,7 +20,7 @@ func capturePGTablespace(ctx context.Context, ref ObjectRef, source *relationDes
 		if err != nil {
 			return nil, err
 		}
-		owner, err := sqltype.OIDValue(source.columns[2].Usage.Type, uint32(bootstrapPrincipalID))
+		owner, err := sqltype.OIDValue(source.columns[2].Usage.Type, uint32(authorization.BootstrapPrincipalID))
 		if err != nil {
 			return nil, err
 		}

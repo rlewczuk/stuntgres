@@ -6,11 +6,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"sync"
 )
 
 type Engine struct {
@@ -44,10 +44,11 @@ type Engine struct {
 	exclusionGeneration uint64
 	serializable        serializableTracker
 	prepared            map[string]*preparedTransaction
+	authorizationDomain authorization.Domain
 	roles               *roleCatalog
 	nextPrincipal       uint64
-	importTargets       map[PrincipalRef]PrincipalRef
-	roleReferences      map[string][]PrincipalRef
+	importTargets       map[authorization.PrincipalRef]authorization.PrincipalRef
+	roleReferences      map[string][]authorization.PrincipalRef
 	settingsOrder       []string
 }
 type ParameterInfo struct {
@@ -184,16 +185,16 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		oid  OID
 		name string
 	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
-		rights := UsagePrivilege
+		rights := authorization.UsagePrivilege
 		if ns.oid == PublicNamespaceOID {
-			rights |= CreatePrivilege
+			rights |= authorization.CreatePrivilege
 		}
-		owner := e.roles.names["postgres"]
+		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if ns.oid == PublicNamespaceOID {
-			owner = e.roles.names["pg_database_owner"]
+			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
 		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner,
-			acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Public: true}, Privileges: rights}, {Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege}}}}
+			acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: rights}, {Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege, GrantOptions: authorization.UsagePrivilege | authorization.CreatePrivilege}}}}
 		d.comment = namespaceCommentBaseline(ns.oid)
 		e.state.descriptors[d.address] = d
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
@@ -212,7 +213,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
-		d.owner = PrincipalRef{e, 10}
+		d.owner = e.authorizationDomain.Principal(10)
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
@@ -570,7 +571,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					if err := auth.CanUse(typeRef); err != nil {
 						return b, err
 					}
-				} else if err := auth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err != nil {
+				} else if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 					return b, err
 				}
 				offset := len(columns)

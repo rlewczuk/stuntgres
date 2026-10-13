@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,7 +12,7 @@ type collationDescriptor struct {
 	encoding                               int32
 	namespace                              ObjectAddress
 	revision                               DefinitionRevision
-	owner                                  PrincipalRef
+	owner                                  authorization.PrincipalRef
 	provider                               string
 	deterministic                          bool
 	collate, ctype, locale, rules, version *string

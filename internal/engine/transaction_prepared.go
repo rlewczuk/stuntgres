@@ -2,17 +2,17 @@ package engine
 
 import (
 	"errors"
-	"time"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"time"
 )
 
 // The registry owns these roots and the original lock/SSI identity after detach.
 // No session attachment is consulted to authorize completion.
 type preparedTransaction struct {
 	gid      string
-	owner    PrincipalRef
+	owner    authorization.PrincipalRef
 	ref      TxRef
 	prepared time.Time
 	database string
@@ -54,12 +54,12 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) error {
-	roles := RoleRead{e, e.roles, CatalogRead{e, e.state}}
+	roles := e.roleRead(CatalogRead{e, e.state}, e.roles)
 	current := op.session.authorization.state.CurrentUser
-	if err := roles.validatePrincipal(current); err != nil {
+	if err := roles.ValidatePrincipal(current); err != nil {
 		return err
 	}
-	actor, exists := roles.state.roles[current]
+	actor, exists := roles.Find(current)
 	if current != entry.owner && (!exists || !actor.Superuser) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to finish prepared transaction", Hint: "Must be superuser or the user that prepared the transaction."}
 	}
@@ -164,7 +164,7 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 		err = sqlError("42704", `prepared transaction with identifier "`+gid+`" does not exist`)
 	}
 	if err == nil {
-		actor, exists := auth.roles.state.roles[auth.state.CurrentUser]
+		actor, exists := auth.roles.Find(auth.state.CurrentUser)
 		if auth.state.CurrentUser != entry.owner && (!exists || !actor.Superuser) {
 			err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to finish prepared transaction", Hint: "Must be superuser or the user that prepared the transaction."}
 		}

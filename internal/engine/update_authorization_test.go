@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestUpdateCoreColumnAuthority(t *testing.T) {
@@ -21,23 +21,23 @@ func TestUpdateCoreColumnAuthority(t *testing.T) {
 	role, _ := e.Roles().Lookup("update_reader")
 	column := ref
 	column.Address.SubID = 1
-	grant := func(ref ObjectRef, privileges Privileges) {
+	grant := func(ref ObjectRef, privileges authorization.Privileges) {
 		t.Helper()
-		err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: role.Ref}, Privileges: privileges}}})
+		err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}})
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant(column, UpdatePrivilege)
+	grant(column, authorization.UpdatePrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION update_reader")
 	// Carrying protected b/c forward does not require SELECT on them.
 	roleExecute(t, e, op, "UPDATE t SET a=7")
 	for _, q := range []string{"UPDATE t SET b=8", "UPDATE t SET a=b", "UPDATE t SET a=8 WHERE c=3", "UPDATE t SET a=a"} {
 		roleError(t, e, op, q, "42501", "permission denied for table t", "")
 	}
-	grant(column, UpdatePrivilege|SelectPrivilege)
+	grant(column, authorization.UpdatePrivilege|authorization.SelectPrivilege)
 	column.Address.SubID = 2
-	grant(column, SelectPrivilege)
+	grant(column, authorization.SelectPrivilege)
 	roleExecute(t, e, op, "UPDATE t SET a=b WHERE a=7")
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	result := roleExecute(t, e, op, "SELECT a,b,c FROM t")
@@ -62,31 +62,31 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 					roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
 					ref := roleTableRef(t, e, "t")
 					role, _ := e.Roles().Lookup("nn_acl_actor")
-					grant := func(subID int32, privileges Privileges) {
+					grant := func(subID int32, privileges authorization.Privileges) {
 						t.Helper()
 						target := ref
 						target.Address.SubID = subID
-						acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["nn_acl_owner"], Grantee: ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
+						acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("nn_acl_owner"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
 						if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 							t.Fatal(err)
 						}
 					}
-					grant(1, UpdatePrivilege)
+					grant(1, authorization.UpdatePrivilege)
 					detail := "Failing row contains (n) = (null)."
 					switch mode {
 					case "select_readable":
-						grant(3, SelectPrivilege)
+						grant(3, authorization.SelectPrivilege)
 						detail = "Failing row contains (n, readable) = (null, visible)."
 					case "all_column_select":
-						grant(1, UpdatePrivilege|SelectPrivilege)
-						grant(2, SelectPrivilege)
-						grant(3, SelectPrivilege)
+						grant(1, authorization.UpdatePrivilege|authorization.SelectPrivilege)
+						grant(2, authorization.SelectPrivilege)
+						grant(3, authorization.SelectPrivilege)
 						detail = "Failing row contains (n, secret, readable) = (null, private, visible)."
 					case "table_select":
-						grant(0, SelectPrivilege)
+						grant(0, authorization.SelectPrivilege)
 						detail = "Failing row contains (null, private, visible)."
 					case "modified_readable":
-						grant(3, UpdatePrivilege)
+						grant(3, authorization.UpdatePrivilege)
 						detail = "Failing row contains (n, readable) = (null, new)."
 					case "owner", "superuser":
 						detail = "Failing row contains (null, private, visible)."

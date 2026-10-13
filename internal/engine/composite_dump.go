@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 )
 
 func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, predecessors []OID) ([]OID, error) {
@@ -29,7 +30,7 @@ func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, pred
 	return predecessors, nil
 }
 
-func compositeDumpStatement(ctx context.Context, view CatalogRead, roles RoleRead, relation *relationDescriptor) (dumpDomain, error) {
+func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, relation *relationDescriptor) (dumpDomain, error) {
 	row := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
 	if !defaultDomainACL(row) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed composite ACL")
@@ -67,7 +68,7 @@ func compositeDumpStatement(ctx context.Context, view CatalogRead, roles RoleRea
 
 // Render from the captured graph only. All row creators reserve their implicit
 // array names here, so domain-on-array replay follows the actual mixed order.
-func mixedDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead, order []OID, domains map[OID]*typeDescriptor, composites map[OID]*relationDescriptor) (map[OID]dumpDomain, error) {
+func mixedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, order []OID, domains map[OID]*typeDescriptor, composites map[OID]*relationDescriptor) (map[OID]dumpDomain, error) {
 	replay := newDomainReplayNames()
 	result := make(map[OID]dumpDomain, len(domains)+len(composites))
 	for _, id := range order {

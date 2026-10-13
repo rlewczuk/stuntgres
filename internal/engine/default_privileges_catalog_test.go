@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.grant(t, "tables", "select", nil)
 	base := f.e.CatalogRead()
-	key := defaultACLKey{creator: f.owner, class: defaultTables}
+	key := defaultACLKey{creator: f.owner, class: authorization.DefaultTables}
 	record := base.state.defaultACLs[key]
 	next := cloneCatalog(base.state)
 	next.defaultACLs = overlayDefaultACLs(next.defaultACLs, map[defaultACLKey]*defaultACLRecord{key: nil})
@@ -60,7 +61,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f.e.mu.Lock()
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
-	key := defaultACLKey{creator: f.owner, class: defaultTables}
+	key := defaultACLKey{creator: f.owner, class: authorization.DefaultTables}
 	if f.e.state != committedCatalog || f.e.roles != committedRoles || private.state.defaultACLs[key] == nil || changes.roles == nil || changes.rolesBase != committedRoles {
 		t.Fatal("retained utility leaked or lost private state")
 	}
@@ -71,7 +72,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	combined := f.e.privateCatalogLocked(changes)
 	err := f.e.catalogPreflightLocked(changes)
 	f.e.mu.Unlock()
-	if err != nil || combined.state.descriptors[table.address] != table || aclRights(table.acl, f.owner, []PrincipalRef{f.reader}, SelectPrivilege, false)&SelectPrivilege != SelectPrivilege {
+	if err != nil || combined.state.descriptors[table.address] != table || authorization.ACLRights(table.acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("later retained creation missed default", err)
 	}
 	if _, observed := changes.defaultReads[key]; observed {
@@ -123,12 +124,11 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 			t.Fatal("creator not owner dependency", dep)
 		}
 	}
-	removed := cloneRoles(f.e.roles)
-	delete(removed.roles, f.reader)
-	delete(removed.names, "default_reader")
+	removed := cloneRoleFixture(f.e.roles)
+	retireFixtureRole(removed, f.reader)
 	changes := newCatalogChanges()
 	changes.roles = removed
-	changes.retiredRoles = map[PrincipalRef]struct{}{f.reader: {}}
+	changes.retiredRoles = map[authorization.PrincipalRef]struct{}{f.reader: {}}
 	if err := f.e.roleRetirementPreflightLocked(changes, f.e.state); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("late default recipient retirement", err)
 	}
@@ -169,8 +169,8 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.grant(t, "tables", "select", nil)
 	f.grant(t, "tables", "insert", []string{"default_schema"})
-	global := defaultACLKey{creator: f.owner, class: defaultTables}
-	scoped := defaultACLKey{creator: f.owner, schema: f.schema, class: defaultTables}
+	global := defaultACLKey{creator: f.owner, class: authorization.DefaultTables}
+	scoped := defaultACLKey{creator: f.owner, schema: f.schema, class: authorization.DefaultTables}
 	old := f.e.CatalogRead()
 	record := old.state.defaultACLs[scoped]
 	stage := f.e.BeginCatalogStage(old)
@@ -222,9 +222,9 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if err := defaultUnitPublish(t, f.e, fresh); err != nil {
 		t.Fatal(err)
 	}
-	acl := creationDefaultACL(f.e.CatalogRead(), f.owner, namespace.address, defaultTables)
-	rights := aclRights(acl, f.owner, []PrincipalRef{f.reader}, SelectPrivilege|InsertPrivilege, false)
-	if rights&InsertPrivilege != 0 || rights&SelectPrivilege != SelectPrivilege {
+	acl := creationDefaultACL(f.e.CatalogRead(), f.owner, namespace.address, authorization.DefaultTables)
+	rights := authorization.ACLRights(acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
+	if rights&authorization.InsertPrivilege != 0 || rights&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("recreated namespace resurrected scoped defaults", acl)
 	}
 	// A concurrent newly-created scoped key must also be fenced when the staged

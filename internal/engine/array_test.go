@@ -6,11 +6,10 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"testing"
-
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {

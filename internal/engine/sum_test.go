@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -392,14 +393,14 @@ func TestSumColumnAuthorization(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE sum_secret(a INTEGER,b INTEGER,c INTEGER,unused INTEGER)")
 	ref := roleTableRef(t, e, "sum_secret")
 	owner := op.RoleState().CurrentUser
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	reader, _ := e.Roles().Lookup("sum_reader")
 	column := ref
 	column.Address.SubID = 1
-	entry := ACLEntry{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{entry}}); err != nil {
+	entry := authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION sum_reader")
@@ -419,7 +420,7 @@ func TestSumColumnAuthorization(t *testing.T) {
 	}
 	for _, subID := range []int32{2, 3} {
 		column.Address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{entry}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -428,7 +429,7 @@ func TestSumColumnAuthorization(t *testing.T) {
 	// An unrelated column is never demanded by SUM's access manifest.
 	roleError(t, e, op, "SELECT sum(unused) FROM sum_secret", "42501", "permission denied for table sum_secret", "")
 	column.Address.SubID = 2
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleError(t, e, op, "SELECT sum(a) FILTER(WHERE b>0) FROM sum_secret", "42501", "permission denied for table sum_secret", "")

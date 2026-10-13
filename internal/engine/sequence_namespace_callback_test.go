@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -35,7 +36,7 @@ func TestSequencePreparedNamespaceCallback(t *testing.T) {
 			case "Rename":
 				sessionSQL(t, s, "ALTER SCHEMA unrelated RENAME TO callback_renamed")
 			case "ACL":
-				if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "unrelated"), ACLValue{Explicit: true}); err != nil {
+				if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "unrelated"), authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}
 			}

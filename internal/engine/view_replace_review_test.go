@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -20,16 +21,16 @@ func TestViewReplaceCreationNamespaceAuthority(t *testing.T) {
 				}
 				creator, _ := e.Roles().Lookup("creator")
 				otherOwner, _ := e.Roles().Lookup("other_owner")
-				admin := e.roles.names["postgres"]
+				admin := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				source := roleTableRef(t, e, "public.t")
-				if err := e.SetObjectACL(context.Background(), source, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: admin, Grantee: ACLGrantee{Role: creator.Ref}, Privileges: SelectPrivilege}, {Grantor: admin, Grantee: ACLGrantee{Role: otherOwner.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), source, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin, Grantee: authorization.ACLGrantee{Role: creator.Ref}, Privileges: authorization.SelectPrivilege}, {Grantor: admin, Grantee: authorization.ACLGrantee{Role: otherOwner.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 					t.Fatal(err)
 				}
 				targetNS := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: e.CatalogRead().Lookup(NameKey{ClassID: NamespaceClassID, Name: "target_schema"})[0]}
 				// The actor has CREATE and owns the target view, but has no USAGE
 				// on the target namespace. Its independently accessible body source
 				// must not impose target-schema lookup requirements.
-				if err := e.SetObjectACL(context.Background(), targetNS, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: admin, Grantee: ACLGrantee{Role: creator.Ref}, Privileges: CreatePrivilege}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), targetNS, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin, Grantee: authorization.ACLGrantee{Role: creator.Ref}, Privileges: authorization.CreatePrivilege}}}); err != nil {
 					t.Fatal(err)
 				}
 				later := roleTableRef(t, e, "public.v")

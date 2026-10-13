@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -52,14 +53,14 @@ func TestTableCoreLikeOwnershipDescriptors(t *testing.T) {
 	source := roleTableRef(t, e, "source")
 	reader, _ := e.Roles().Lookup("reader")
 	owner := op.RoleState().CurrentUser
-	entry := ACLEntry{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}
+	entry := authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
 	column := source
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{entry}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	if err := e.SetObjectACL(context.Background(), source, ACLValue{Explicit: true, Entries: []ACLEntry{entry}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), source, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "CREATE TABLE clone(LIKE source)")
@@ -78,8 +79,8 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE secured(id INT)")
 	reader, _ := e.Roles().Lookup("acl_reader")
 	ref := roleTableRef(t, e, "secured")
-	entry := ACLEntry{Grantor: op.RoleState().CurrentUser, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{entry}}
+	entry := authorization.ACLEntry{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}

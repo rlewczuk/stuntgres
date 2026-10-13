@@ -1,4 +1,4 @@
-package engine
+package authorization
 
 import (
 	"context"
@@ -7,19 +7,19 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-const tableGrantPrivileges = SelectPrivilege | InsertPrivilege | UpdatePrivilege | DeletePrivilege | TruncatePrivilege | ReferencesPrivilege | TriggerPrivilege | MaintainPrivilege
-const columnGrantPrivileges = SelectPrivilege | InsertPrivilege | UpdatePrivilege | ReferencesPrivilege
+const TableGrantPrivileges = SelectPrivilege | InsertPrivilege | UpdatePrivilege | DeletePrivilege | TruncatePrivilege | ReferencesPrivilege | TriggerPrivilege | MaintainPrivilege
+const ColumnGrantPrivileges = SelectPrivilege | InsertPrivilege | UpdatePrivilege | ReferencesPrivilege
 
-func materializeRelationACL(acl ACLValue, owner PrincipalRef) ACLValue {
+func MaterializeRelationACL(acl ACLValue, owner PrincipalRef) ACLValue {
 	if acl.Explicit {
 		return acl
 	}
-	return ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: tableGrantPrivileges}}}
+	return ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: owner}, Privileges: TableGrantPrivileges}}}
 }
 
 // Choose one direct source, never a union of independently inherited sources.
 // Closure order is breadth-first, providing the nearest source on equal masks.
-func objectGrantSource(ctx context.Context, owner PrincipalRef, table, column ACLValue, principals []PrincipalRef, super bool, requested Privileges) (PrincipalRef, Privileges, error) {
+func ObjectGrantSource(ctx context.Context, owner PrincipalRef, table, column ACLValue, principals []PrincipalRef, super bool, requested Privileges) (PrincipalRef, Privileges, error) {
 	source := principals[0]
 	if super || source == owner {
 		if err := ctx.Err(); err != nil {
@@ -61,8 +61,8 @@ func objectGrantSource(ctx context.Context, owner PrincipalRef, table, column AC
 	return source, available, nil
 }
 
-func scopedACLGrantOptions(ctx context.Context, roles RoleRead, acl ACLValue, owner, role PrincipalRef, mask Privileges) (Privileges, error) {
-	principals, err := roles.roleClosure(ctx, role, true)
+func ScopedACLGrantOptions(ctx context.Context, roles Read, acl ACLValue, owner, role PrincipalRef, mask Privileges) (Privileges, error) {
+	principals, err := roles.RoleClosure(ctx, role, true)
 	if err != nil {
 		return 0, err
 	}
@@ -71,16 +71,16 @@ func scopedACLGrantOptions(ctx context.Context, roles RoleRead, acl ACLValue, ow
 			return mask, nil
 		}
 	}
-	return aclRights(acl, PrincipalRef{}, principals, mask, true) & mask, nil
+	return ACLRights(acl, PrincipalRef{}, principals, mask, true) & mask, nil
 }
 
 // Recursive removal checks remaining support within this ACL only. Circularity
 // uses a private copy; revocation uses the statement's private mutation candidate.
-func cascadeACLBits(ctx context.Context, roles RoleRead, acl *ACLValue, owner, role PrincipalRef, lost Privileges) error {
+func cascadeACLBits(ctx context.Context, roles Read, acl *ACLValue, owner, role PrincipalRef, lost Privileges) error {
 	if role == owner {
 		return nil
 	}
-	options, err := scopedACLGrantOptions(ctx, roles, *acl, owner, role, lost)
+	options, err := ScopedACLGrantOptions(ctx, roles, *acl, owner, role, lost)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func cascadeACLBits(ctx context.Context, roles RoleRead, acl *ACLValue, owner, r
 	return nil
 }
 
-func checkACLGrantCycle(ctx context.Context, roles RoleRead, acl ACLValue, owner, source PrincipalRef, grantee ACLGrantee, mask Privileges) error {
+func checkACLGrantCycle(ctx context.Context, roles Read, acl ACLValue, owner, source PrincipalRef, grantee ACLGrantee, mask Privileges) error {
 	if grantee.Public || grantee.Role == owner || source == owner || mask == 0 {
 		return nil
 	}
@@ -125,7 +125,7 @@ func checkACLGrantCycle(ctx context.Context, roles RoleRead, acl ACLValue, owner
 	if err := cascadeACLBits(ctx, roles, &candidate, owner, grantee.Role, removed); err != nil {
 		return err
 	}
-	options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, source, mask)
+	options, err := ScopedACLGrantOptions(ctx, roles, candidate, owner, source, mask)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func checkACLGrantCycle(ctx context.Context, roles RoleRead, acl ACLValue, owner
 	return nil
 }
 
-func changeObjectACL(ctx context.Context, roles RoleRead, old ACLValue, owner, source PrincipalRef, grantees []ACLGrantee, mask Privileges, option, revoke, optionOnly, cascade bool) (ACLValue, bool, error) {
+func ChangeObjectACL(ctx context.Context, roles Read, old ACLValue, owner, source PrincipalRef, grantees []ACLGrantee, mask Privileges, option, revoke, optionOnly, cascade bool) (ACLValue, bool, error) {
 	if mask == 0 {
 		return old, false, nil
 	}
@@ -201,7 +201,7 @@ func changeObjectACL(ctx context.Context, roles RoleRead, old ACLValue, owner, s
 						return old, false, err
 					}
 				} else {
-					options, err := scopedACLGrantOptions(ctx, roles, candidate, owner, grantee.Role, removed)
+					options, err := ScopedACLGrantOptions(ctx, roles, candidate, owner, grantee.Role, removed)
 					if err != nil {
 						return old, false, err
 					}

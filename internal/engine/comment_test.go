@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -17,14 +18,14 @@ func commentWant(t *testing.T, read CatalogRead, ref ObjectRef, want string) {
 func commentFailure(t *testing.T, e *Engine, op *Operation, q, code, message, detail string) {
 	t.Helper()
 	before := e.CatalogRead()
-	roles := e.Roles()
+	rolesPublication := e.roles
 	_, err := e.Execute(op, statement(t, q), 0, nil)
 	var d *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 	if !errors.As(err, &d) || *d != want {
 		t.Fatalf("%s: full diagnostic %#v want %#v", q, d, want)
 	}
-	if before.state != e.CatalogRead().state || roles.state != e.Roles().state {
+	if before.state != e.CatalogRead().state || rolesPublication != e.roles {
 		t.Fatal("failed COMMENT published metadata")
 	}
 }
@@ -119,10 +120,10 @@ func TestCommentAuthorizationAndLookup(t *testing.T) {
 	ns := schemaRef(t, e, "s")
 	otherRole, _ := e.Roles().Lookup("other")
 	ownerRole, _ := e.Roles().Lookup("owner")
-	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantee: ACLGrantee{Role: otherRole.Ref}, Grantor: ownerRole.Ref, Privileges: UsagePrivilege | CreatePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: otherRole.Ref}, Grantor: ownerRole.Ref, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), table, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantee: ACLGrantee{Role: otherRole.Ref}, Grantor: ownerRole.Ref, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: otherRole.Ref}, Grantor: ownerRole.Ref, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ q, code, message, detail string }{
@@ -158,7 +159,7 @@ func TestCommentAuthorizationAndLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 	commentWant(t, e.CatalogRead(), roleTableRef(t, e, "s.t"), "prepared")
-	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	commentFailure(t, e, other, "COMMENT ON COLUMN s.t.missing IS NULL", "42501", "permission denied for schema s", "")

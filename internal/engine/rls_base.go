@@ -2,7 +2,7 @@ package engine
 
 import (
 	"fmt"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -105,7 +105,7 @@ func rowSecurityKind(d *relationDescriptor, action parser.AlterTableActionKind) 
 
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
 // adjacent expression-enforcement capability; nil clauses contribute nothing.
-func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principal PrincipalRef, command policyCommand, proposed bool) (rlsDisposition, error) {
+func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, proposed bool) (rlsDisposition, error) {
 	if !d.rlsEnabled {
 		return rlsUnrestricted, nil
 	}
@@ -117,7 +117,7 @@ func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principa
 		return rlsUnrestricted, nil
 	}
 	if !d.rlsForced {
-		owner, err := auth.roles.inheritsRole(principal, d.owner)
+		owner, err := auth.roles.InheritsRole(principal, d.owner)
 		if err != nil {
 			return rlsUnrestricted, err
 		}
@@ -143,7 +143,7 @@ func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principa
 			if role.public {
 				return rlsNeedsExpressions, nil
 			}
-			applies, err := auth.roles.inheritsRole(principal, role.ref)
+			applies, err := auth.roles.InheritsRole(principal, role.ref)
 			if err != nil {
 				return rlsUnrestricted, err
 			}
@@ -155,7 +155,7 @@ func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principa
 	return rlsDefaultDeny, nil
 }
 
-func rowSecurityGroups(auth AuthorizationView, d *relationDescriptor, principal PrincipalRef, command policyCommand, proposed, selectRead bool) (rlsDisposition, error) {
+func rowSecurityGroups(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, proposed, selectRead bool) (rlsDisposition, error) {
 	decision, err := rowSecurityDecision(auth, d, principal, command, proposed)
 	if err != nil || !selectRead || command == policySelect {
 		return decision, err
@@ -188,7 +188,7 @@ func rowSecurityProposal(decision rlsDisposition, table string) error {
 	}
 }
 
-func rowSecurityPrincipal(auth AuthorizationView, b binding) PrincipalRef {
+func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.PrincipalRef {
 	principal := auth.state.CurrentUser
 	if b.viewWrite != nil {
 		for _, layer := range b.viewWrite.layers {
@@ -203,7 +203,7 @@ func rowSecurityPrincipal(auth AuthorizationView, b binding) PrincipalRef {
 }
 
 // The caller holds Engine.mu; this never captures row data or mutates identity.
-func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *relationDescriptor, principal PrincipalRef, command policyCommand, selectRead bool) (bool, error) {
+func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, selectRead bool) (bool, error) {
 	if !d.rlsEnabled {
 		return false, nil
 	}
@@ -212,8 +212,8 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *relationDescri
 		return false, err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.roles.catalog = auth.catalog
-	if principal == (PrincipalRef{}) {
+	auth.recaptureCatalog(auth.catalog)
+	if principal == (authorization.PrincipalRef{}) {
 		principal = auth.state.CurrentUser
 	}
 	decision, err := rowSecurityGroups(auth, d, principal, command, false, selectRead)
@@ -252,7 +252,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	principal := rowSecurityPrincipal(auth, b)
 	reads := b.returning != nil || len(b.usedColumns) != 0
 	if b.viewWrite != nil {

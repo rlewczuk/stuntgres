@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -328,14 +329,14 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	return nil
 }
 
-func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited queryRowMark, invoker PrincipalRef) error {
+func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited queryRowMark, invoker authorization.PrincipalRef) error {
 	if _, err := validateViewReadGraph(v.catalog, []queryLeaf{{relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)
 }
 
-func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited queryRowMark, invoker PrincipalRef) error {
+func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited queryRowMark, invoker authorization.PrincipalRef) error {
 	if d.relationKind != viewRelation {
 		return nil
 	}
@@ -371,11 +372,11 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 		if err != nil {
 			return err
 		}
-		if err := v.checkColumns(binding{ref: use, relation: child}, SelectPrivilege, indices); err != nil {
+		if err := v.checkColumns(binding{ref: use, relation: child}, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
 		if effectiveQueryRowMark(child, mark).mode != 0 {
-			if err := v.checkColumns(binding{ref: use, relation: child}, UpdatePrivilege, nil); err != nil {
+			if err := v.checkColumns(binding{ref: use, relation: child}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}

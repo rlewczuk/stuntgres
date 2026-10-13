@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 // Public SQL denial and PostgreSQL grant witnesses live in reference. This
@@ -19,14 +19,14 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.aa_column_acl(id INT,v INT,a INT[])")
 	ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: table.address}
-	reader := PrincipalRef{owner: e, id: 1000000}
-	roles := cloneRoles(e.roles)
-	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "aa_unit_reader"}
-	roles.names["aa_unit_reader"] = reader
+	reader := e.authorizationDomain.Principal(1000000)
+	roles := cloneRoleFixture(e.roles)
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "aa_unit_reader"})
+
 	e.roles = roles
-	grant := func(object ObjectRef, rights Privileges) {
+	grant := func(object ObjectRef, rights authorization.Privileges) {
 		t.Helper()
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: table.owner, Grantee: ACLGrantee{Role: reader}, Privileges: rights}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
 		if err := e.SetObjectACL(context.Background(), object, acl); err != nil {
 			t.Fatal(err)
 		}
@@ -54,9 +54,9 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			for i := range table.columns {
-				rights := Privileges(0)
+				rights := authorization.Privileges(0)
 				if i == 1 {
-					rights = SelectPrivilege
+					rights = authorization.SelectPrivilege
 				}
 				grant(column(i), rights)
 			}
@@ -99,7 +99,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 			check(tc.denied)
 			// Grant only actual source attributes: the array result adds no read.
 			for _, i := range tc.reads {
-				grant(column(i), SelectPrivilege)
+				grant(column(i), authorization.SelectPrivilege)
 			}
 			check(false)
 			// Retained manifests consult current ACLs, even on empty/FILTER-false paths.

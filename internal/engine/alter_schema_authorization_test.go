@@ -2,23 +2,24 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
 func TestAlterSchemaAuthorization(t *testing.T) {
 	for _, tc := range []struct {
 		name, actor, destination, code, message string
-		source, target                          Privileges
+		source, target                          authorization.Privileges
 	}{
-		{"source_usage_only", "move_owner", "s2", "", "", UsagePrivilege, UsagePrivilege | CreatePrivilege},
-		{"destination_create_only", "move_owner", "s2", "", "", UsagePrivilege, CreatePrivilege},
-		{"destination_usage_only", "move_owner", "s2", "42501", "permission denied for schema s2", UsagePrivilege, UsagePrivilege},
-		{"destination_neither", "move_owner", "s2", "42501", "permission denied for schema s2", UsagePrivilege, 0},
-		{"source_no_usage", "move_owner", "s2", "42501", "permission denied for schema s1", CreatePrivilege, CreatePrivilege},
-		{"same_schema_no_create", "move_owner", "s1", "42501", "permission denied for schema s1", UsagePrivilege, CreatePrivilege},
-		{"schema_owner_no_source_usage", "move_schema_owner", "s2", "42501", "permission denied for schema s1", 0, CreatePrivilege},
-		{"schema_owner_not_table_owner", "move_schema_owner", "s2", "42501", "must be owner of table t", UsagePrivilege, CreatePrivilege},
-		{"nonowner_with_table_rights", "move_schema_owner", "s2", "42501", "must be owner of table t", UsagePrivilege, CreatePrivilege},
+		{"source_usage_only", "move_owner", "s2", "", "", authorization.UsagePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege},
+		{"destination_create_only", "move_owner", "s2", "", "", authorization.UsagePrivilege, authorization.CreatePrivilege},
+		{"destination_usage_only", "move_owner", "s2", "42501", "permission denied for schema s2", authorization.UsagePrivilege, authorization.UsagePrivilege},
+		{"destination_neither", "move_owner", "s2", "42501", "permission denied for schema s2", authorization.UsagePrivilege, 0},
+		{"source_no_usage", "move_owner", "s2", "42501", "permission denied for schema s1", authorization.CreatePrivilege, authorization.CreatePrivilege},
+		{"same_schema_no_create", "move_owner", "s1", "42501", "permission denied for schema s1", authorization.UsagePrivilege, authorization.CreatePrivilege},
+		{"schema_owner_no_source_usage", "move_schema_owner", "s2", "42501", "permission denied for schema s1", 0, authorization.CreatePrivilege},
+		{"schema_owner_not_table_owner", "move_schema_owner", "s2", "42501", "must be owner of table t", authorization.UsagePrivilege, authorization.CreatePrivilege},
+		{"nonowner_with_table_rights", "move_schema_owner", "s2", "42501", "must be owner of table t", authorization.UsagePrivilege, authorization.CreatePrivilege},
 		{"superuser", "postgres", "s2", "", "", 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -30,15 +31,15 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			}
 			owner, _ := e.Roles().Lookup("move_owner")
 			schemaOwner, _ := e.Roles().Lookup("move_schema_owner")
-			set := func(name string, grantee PrincipalRef, privileges Privileges) {
+			set := func(name string, grantee authorization.PrincipalRef, privileges authorization.Privileges) {
 				t.Helper()
 				a := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
-				acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: schemaOwner.Ref, Grantee: ACLGrantee{Role: grantee}, Privileges: privileges}}}
+				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: privileges}}}
 				if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}, acl); err != nil {
 					t.Fatal(err)
 				}
 			}
-			set("s1", owner.Ref, UsagePrivilege|CreatePrivilege)
+			set("s1", owner.Ref, authorization.UsagePrivilege|authorization.CreatePrivilege)
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION move_owner")
 			for _, q := range []string{"CREATE TABLE s1.t(id INT)", "INSERT INTO s1.t VALUES(7)", "CREATE SEQUENCE s1.q OWNED BY s1.t.id"} {
 				roleExecute(t, e, op, q)
@@ -55,7 +56,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			q := NameAddressForTempMove(t, e, source, "q")
 			if tc.name == "nonowner_with_table_rights" {
 				table := e.state.descriptors[a].(*relationDescriptor)
-				acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: table.owner, Grantee: ACLGrantee{Role: schemaOwner.Ref}, Privileges: SelectPrivilege}}}
+				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.SelectPrivilege}}}
 				if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}, acl); err != nil {
 					t.Fatal(err)
 				}

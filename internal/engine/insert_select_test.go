@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -310,14 +311,14 @@ func TestInsertSelectIndependentACL(t *testing.T) {
 	target := roleTableRef(t, e, "t")
 	source := roleTableRef(t, e, "s")
 	worker, _ := e.Roles().Lookup("worker")
-	grantor := e.roles.names["postgres"]
-	grant := func(ref ObjectRef, mask Privileges) {
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grant := func(ref ObjectRef, mask authorization.Privileges) {
 		t.Helper()
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant(target, InsertPrivilege)
+	grant(target, authorization.InsertPrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION worker")
 	for _, q := range []string{"INSERT INTO t SELECT i FROM s", "INSERT INTO t SELECT 1 FROM s WHERE FALSE"} {
 		roleError(t, e, op, q, "42501", "permission denied for table s", "")
@@ -325,12 +326,12 @@ func TestInsertSelectIndependentACL(t *testing.T) {
 	for _, sub := range []int32{1, 3} {
 		ref := source
 		ref.Address.SubID = sub
-		grant(ref, SelectPrivilege)
+		grant(ref, authorization.SelectPrivilege)
 	}
 	roleError(t, e, op, "INSERT INTO t SELECT i FROM s WHERE b ORDER BY v", "42501", "permission denied for table s", "")
 	ref := source
 	ref.Address.SubID = 2
-	grant(ref, SelectPrivilege)
+	grant(ref, authorization.SelectPrivilege)
 	if r := roleExecute(t, e, op, "INSERT INTO t SELECT i FROM s WHERE b ORDER BY v"); r.Count != 1 || r.Rows != nil {
 		t.Fatal(r)
 	}

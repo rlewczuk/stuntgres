@@ -5,48 +5,12 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func objectPrivilege(item parser.GrantPrivilege) (Privileges, error) {
-	if item.All {
-		if item.Columns != nil {
-			return columnGrantPrivileges, nil
-		}
-		return tableGrantPrivileges, nil
-	}
-	var mask Privileges
-	switch strings.ToLower(item.Name) {
-	case "select":
-		mask = SelectPrivilege
-	case "insert":
-		mask = InsertPrivilege
-	case "update":
-		mask = UpdatePrivilege
-	case "delete":
-		mask = DeletePrivilege
-	case "truncate":
-		mask = TruncatePrivilege
-	case "references":
-		mask = ReferencesPrivilege
-	case "trigger":
-		mask = TriggerPrivilege
-	case "maintain":
-		mask = MaintainPrivilege
-	case "create", "usage", "execute", "connect", "temporary", "temp", "set", "alter system":
-		return 0, sqlError("0LP01", "invalid privilege type "+strings.ToUpper(item.Name)+" for relation")
-	default:
-		return 0, sqlError("42601", fmt.Sprintf(`unrecognized privilege type "%s"`, item.Name))
-	}
-	if item.Columns != nil && mask&^columnGrantPrivileges != 0 {
-		return 0, sqlError("0LP01", "invalid privilege type "+strings.ToUpper(item.Name)+" for column")
-	}
-	return mask, nil
-}
-
-func grantWarning(op *Operation, relation, column string, requested, available Privileges, all, revoke bool) {
+func grantWarning(op *Operation, relation, column string, requested, available authorization.Privileges, all, revoke bool) {
 	if available == requested || available != 0 && all {
 		return
 	}
@@ -93,7 +57,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Text))
 		}
 		ref := ObjectRef{owner: e.owner, Epoch: v.catalog.Epoch(), Address: addr}
-		if err := v.Check(AccessRequirement{Object: ref, Privileges: UsagePrivilege}); err != nil {
+		if err := v.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege}); err != nil {
 			return nil, err
 		}
 		start := len(targets)
@@ -115,7 +79,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 type columnGrantRequest struct {
 	sub  int32
 	name string
-	mask Privileges
+	mask authorization.Privileges
 }
 type objectGrantChange struct {
 	relation     *relationDescriptor
@@ -124,7 +88,7 @@ type objectGrantChange struct {
 
 func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser.ObjectGrant) (Result, error) {
 	if s.Grantor != nil {
-		grantor, err := membershipRole(v.roles, v.state, *s.Grantor)
+		grantor, err := authorization.MembershipRole(v.roles, v.state, *s.Grantor)
 		if err != nil {
 			return Result{}, err
 		}
@@ -139,23 +103,23 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if err != nil {
 		return Result{}, err
 	}
-	grantees := make([]ACLGrantee, len(s.Grantees))
+	grantees := make([]authorization.ACLGrantee, len(s.Grantees))
 	for i, spec := range s.Grantees {
 		if spec.Public {
-			grantees[i] = ACLGrantee{Public: true}
+			grantees[i] = authorization.ACLGrantee{Public: true}
 			continue
 		}
-		role, err := membershipRole(v.roles, v.state, spec.Role)
+		role, err := authorization.MembershipRole(v.roles, v.state, spec.Role)
 		if err != nil {
 			return Result{}, err
 		}
-		grantees[i] = ACLGrantee{Role: role}
+		grantees[i] = authorization.ACLGrantee{Role: role}
 	}
-	masks := make([]Privileges, len(s.Privileges))
-	var tableMask Privileges
+	masks := make([]authorization.Privileges, len(s.Privileges))
+	var tableMask authorization.Privileges
 	tableAll := false
 	for i, item := range s.Privileges {
-		masks[i], err = objectPrivilege(item)
+		masks[i], err = authorization.ObjectPrivilege(item)
 		if err != nil {
 			return Result{}, err
 		}
@@ -175,7 +139,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if err != nil {
 		return Result{}, err
 	}
-	principals, err := v.roles.roleClosure(op.Context(), actor.Ref, true)
+	principals, err := v.roles.RoleClosure(op.Context(), actor.Ref, true)
 	if err != nil {
 		return Result{}, err
 	}
@@ -201,7 +165,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			return Result{}, sqlError("0A000", "statement is not supported")
 		}
 		columns := make([]columnGrantRequest, 0)
-		addColumn := func(sub int32, name string, mask Privileges) {
+		addColumn := func(sub int32, name string, mask authorization.Privileges) {
 			for i := range columns {
 				if columns[i].sub == sub {
 					columns[i].mask |= mask
@@ -210,14 +174,14 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 			columns = append(columns, columnGrantRequest{sub: sub, name: name, mask: mask})
 		}
-		if s.Revoke && tableMask&columnGrantPrivileges != 0 {
+		if s.Revoke && tableMask&authorization.ColumnGrantPrivileges != 0 {
 			if relation.relationKind != viewRelation {
 				for i, name := range []string{"tableoid", "cmax", "xmax", "cmin", "xmin", "ctid"} {
-					addColumn(int32(-6+i), name, tableMask&columnGrantPrivileges)
+					addColumn(int32(-6+i), name, tableMask&authorization.ColumnGrantPrivileges)
 				}
 			}
 			for i, column := range relation.columns {
-				addColumn(relation.attributes[i], column.Name, tableMask&columnGrantPrivileges)
+				addColumn(relation.attributes[i], column.Name, tableMask&authorization.ColumnGrantPrivileges)
 			}
 		}
 		for i, item := range s.Privileges {
@@ -237,12 +201,12 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		var tableChanged bool
 		var hasRelationPrivileges, relationPrivilegesChecked bool
 		if tableMask != 0 {
-			source, available, sourceErr := objectGrantSource(op.Context(), relation.owner, originalTable, ACLValue{}, principals, actor.Superuser, tableMask)
+			source, available, sourceErr := authorization.ObjectGrantSource(op.Context(), relation.owner, originalTable, authorization.ACLValue{}, principals, actor.Superuser, tableMask)
 			if sourceErr != nil {
 				return Result{}, sourceErr
 			}
 			if available == 0 {
-				hasRelationPrivileges = aclRights(originalTable, relation.owner, principals, tableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
+				hasRelationPrivileges = authorization.ACLRights(originalTable, relation.owner, principals, authorization.TableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
 				relationPrivilegesChecked = true
 				if !hasRelationPrivileges {
 					return Result{}, sqlError("42501", "permission denied for table "+relation.name)
@@ -250,35 +214,35 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 			grantWarning(op, relation.name, "", tableMask, available, tableAll, s.Revoke)
 			if available != 0 {
-				nextTable, tableChanged, err = changeObjectACL(op.Context(), v.roles, materializeRelationACL(originalTable, relation.owner), relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+				nextTable, tableChanged, err = authorization.ChangeObjectACL(op.Context(), v.roles, authorization.MaterializeRelationACL(originalTable, relation.owner), relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			}
 			if err != nil {
 				return Result{}, err
 			}
 			tableChanged = tableChanged || available != 0 && !relation.acl.Explicit
 		}
-		var nextColumns map[int32]ACLValue
+		var nextColumns map[int32]authorization.ACLValue
 		for _, column := range columns {
 			old := relation.columnACL[column.sub]
-			source, available, sourceErr := objectGrantSource(op.Context(), relation.owner, originalTable, old, principals, actor.Superuser, column.mask)
+			source, available, sourceErr := authorization.ObjectGrantSource(op.Context(), relation.owner, originalTable, old, principals, actor.Superuser, column.mask)
 			if sourceErr != nil {
 				return Result{}, sourceErr
 			}
 			if available == 0 {
 				if !relationPrivilegesChecked {
-					hasRelationPrivileges = aclRights(originalTable, relation.owner, principals, tableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
+					hasRelationPrivileges = authorization.ACLRights(originalTable, relation.owner, principals, authorization.TableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
 					relationPrivilegesChecked = true
 				}
-				if !hasRelationPrivileges && aclRights(old, PrincipalRef{}, principals, columnGrantPrivileges, false) == 0 {
+				if !hasRelationPrivileges && authorization.ACLRights(old, authorization.PrincipalRef{}, principals, authorization.ColumnGrantPrivileges, false) == 0 {
 					return Result{}, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.name))
 				}
 			}
-			grantWarning(op, relation.name, column.name, column.mask, available, column.mask == columnGrantPrivileges, s.Revoke)
+			grantWarning(op, relation.name, column.name, column.mask, available, column.mask == authorization.ColumnGrantPrivileges, s.Revoke)
 			// System attributes participate in release diagnostics, not native storage.
 			if column.sub <= 0 {
 				continue
 			}
-			next, didChange, err := changeObjectACL(op.Context(), v.roles, old, relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+			next, didChange, err := authorization.ChangeObjectACL(op.Context(), v.roles, old, relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			if err != nil {
 				return Result{}, err
 			}
@@ -287,7 +251,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 					if prior.columnsOwned {
 						nextColumns = relation.columnACL
 					} else {
-						nextColumns = make(map[int32]ACLValue, len(relation.columnACL)+1)
+						nextColumns = make(map[int32]authorization.ACLValue, len(relation.columnACL)+1)
 						for sub, acl := range relation.columnACL {
 							nextColumns[sub] = acl
 						}
@@ -319,10 +283,10 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if candidate == nil {
 		return Result{}, op.Context().Err()
 	}
-	if v.roles.state.revision == ^uint64(0) {
+	if v.roleRecord.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	roles := advanceRoleRevision(v.roles.state)
+	roles := advanceRoleRevision(v.roleRecord)
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {

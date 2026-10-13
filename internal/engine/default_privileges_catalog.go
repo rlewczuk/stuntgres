@@ -1,6 +1,8 @@
 package engine
 
-func (s *CatalogStage) creationACL(owner PrincipalRef, schema ObjectAddress, class defaultACLClass) ACLValue {
+import "stuntgres/internal/engine/authorization"
+
+func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ObjectAddress{{}, schema} {
 		key := defaultACLKey{creator: owner, schema: namespace, class: class}
 		if s.defaultReads == nil {
@@ -89,7 +91,7 @@ func (s *CatalogStage) removeSchemaDefaults(schema ObjectAddress) {
 		s.defaultACLs[key] = nil
 	}
 }
-func defaultRoleDependencies(view CatalogRead, roles RoleRead, ref PrincipalRef, deps *[]roleDependency) bool {
+func defaultRoleDependencies(view CatalogRead, roles authorization.Read, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	for key, record := range view.state.defaultACLs {
 		kind := byte('a')
 		dependent := key.creator == ref
@@ -123,7 +125,7 @@ func defaultRoleDependencies(view CatalogRead, roles RoleRead, ref PrincipalRef,
 	}
 	return false
 }
-func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, owner PrincipalRef, schema ObjectAddress, class defaultACLClass) ACLValue {
+func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, owner authorization.PrincipalRef, schema ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ObjectAddress{{}, schema} {
 		key := defaultACLKey{creator: owner, schema: namespace, class: class}
 		if _, private := c.defaultACLs[key]; !private {

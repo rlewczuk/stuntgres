@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
@@ -84,17 +84,17 @@ func TestUpdateFromSeparatesTargetAndSourceColumnAuthority(t *testing.T) {
 	}
 	owner := op.RoleState().CurrentUser
 	actor, _ := e.Roles().Lookup("from_writer")
-	grant := func(table string, attribute int, mask Privileges) {
+	grant := func(table string, attribute int, mask authorization.Privileges) {
 		t.Helper()
 		ref := roleTableRef(t, e, table)
 		ref.Address.SubID = int32(attribute)
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant("t", 1, UpdatePrivilege)
-	grant("s", 1, SelectPrivilege)
-	grant("r", 1, SelectPrivilege)
+	grant("t", 1, authorization.UpdatePrivilege)
+	grant("s", 1, authorization.SelectPrivilege)
+	grant("r", 1, authorization.SelectPrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION from_writer")
 	result := roleExecute(t, e, op, "UPDATE t SET a=s.k FROM s JOIN r ON s.k=r.k RETURNING s.k")
 	if result.Count != 1 {

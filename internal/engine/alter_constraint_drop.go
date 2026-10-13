@@ -30,7 +30,7 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 		}
 		if stage == nil {
 			stage = e.BeginCatalogStage(auth.catalog)
-			stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision
+			stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roleRecord.revision
 		}
 		if err := stage.Replace(next); err != nil {
 			return next, stage, err

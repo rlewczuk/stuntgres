@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"sync"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"sync"
+	"testing"
 )
 
 func TestLogicalTypedTruthAndFrames(t *testing.T) {
@@ -207,7 +207,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	column := roleTableRef(t, aclEngine, "secret")
 	column.Address.SubID = 1
 	reader, _ := aclEngine.Roles().Lookup("reader")
-	if err := aclEngine.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: aclEngine.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+	if err := aclEngine.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: aclEngine.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, aclEngine, owner, "SET SESSION AUTHORIZATION reader")

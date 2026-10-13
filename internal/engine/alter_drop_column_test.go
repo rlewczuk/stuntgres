@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
@@ -191,7 +192,7 @@ func TestAlterDropColumnACLCleanupAndSurvivorAuthority(t *testing.T) {
 		role, _ := e.Roles().Lookup(name)
 		column := ref
 		column.Address.SubID = sub
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: role.Ref}, Privileges: SelectPrivilege}}}
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: authorization.SelectPrivilege}}}
 		if err := e.SetObjectACL(context.Background(), column, acl); err != nil {
 			t.Fatal(err)
 		}
@@ -212,7 +213,7 @@ func TestAlterDropColumnACLCleanupAndSurvivorAuthority(t *testing.T) {
 	dead, live := ref, ref
 	dead.Address.SubID = 2
 	live.Address.SubID = 3
-	if e.SetObjectACL(context.Background(), dead, ACLValue{Explicit: true}) == nil {
+	if e.SetObjectACL(context.Background(), dead, authorization.ACLValue{Explicit: true}) == nil {
 		t.Fatal("dead ACL accepted")
 	}
 	if err = e.SetObjectACL(context.Background(), live, next.columnACL[3]); err != nil {

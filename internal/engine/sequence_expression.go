@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -438,7 +439,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	before, beforeErr := scope.writeAuthorizationLocked(e)
 	if beforeErr == nil && scope.catalog != nil {
 		before.catalog = e.privateCatalogLocked(scope.catalog)
-		before.roles.catalog = before.catalog
+		before.recaptureCatalog(before.catalog)
 	}
 	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
 		ref.Epoch = before.catalog.Epoch()
@@ -473,7 +474,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	if scope.catalog != nil {
 		auth.catalog = e.privateCatalogLocked(scope.catalog)
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 	}
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok {
@@ -488,12 +489,12 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if ns, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == scope.op.session.token {
 		scope.owner.accessedTemporary = true
 	}
-	mask := UsagePrivilege | SelectPrivilege
+	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
 	if x.name == "nextval" {
-		mask = UsagePrivilege | UpdatePrivilege
+		mask = authorization.UsagePrivilege | authorization.UpdatePrivilege
 	}
 	if x.name == "setval" {
-		mask = UpdatePrivilege
+		mask = authorization.UpdatePrivilege
 	}
 	if !x.identity {
 		if err = auth.checkSequenceAny(ref, mask); err != nil {

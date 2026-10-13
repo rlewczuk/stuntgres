@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -20,9 +21,9 @@ func TestAlterRenamePrivileges(t *testing.T) {
 	view := e.CatalogRead()
 	address := view.state.names[NameKey{ClassID: NamespaceClassID, Name: "s"}]
 	ns := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: address}
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{
-		{Grantor: schemaOwner.Ref, Grantee: ACLGrantee{Role: owner.Ref}, Privileges: UsagePrivilege | CreatePrivilege},
-		{Grantor: schemaOwner.Ref, Grantee: ACLGrantee{Role: schemaOwner.Ref}, Privileges: UsagePrivilege | CreatePrivilege},
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
+		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
 	}}
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
@@ -30,7 +31,7 @@ func TestAlterRenamePrivileges(t *testing.T) {
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION rename_owner")
 	roleExecute(t, e, op, "CREATE TABLE s.t(a INT)")
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	acl.Entries[0].Privileges = UsagePrivilege
+	acl.Entries[0].Privileges = authorization.UsagePrivilege
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestAlterRenameDependencies(t *testing.T) {
 	column := ref
 	column.Address.SubID = 3
 	reader, _ := e.Roles().Lookup("rename_reader")
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), column, acl); err != nil {
 		t.Fatal(err)
 	}

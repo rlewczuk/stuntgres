@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -291,7 +292,7 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexK
 	if err != nil {
 		return false, err
 	}
-	if rights&SelectPrivilege != 0 {
+	if rights&authorization.SelectPrivilege != 0 {
 		return true, nil
 	}
 	for _, key := range keys {
@@ -310,7 +311,7 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexK
 		if err != nil {
 			return false, err
 		}
-		if rights&SelectPrivilege == 0 {
+		if rights&authorization.SelectPrivilege == 0 {
 			return false, nil
 		}
 	}

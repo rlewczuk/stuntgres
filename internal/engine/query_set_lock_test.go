@@ -3,11 +3,11 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestQuerySetStoredInheritedMarks(t *testing.T) {
@@ -52,15 +52,15 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 
 // Reuse the existing bound-table fixture, then construct immutable typed view
 // recipes and actual private ACLs. Public SQL witnesses live in reference only.
-func querySetLockAuthorityFixture(t *testing.T) (*Engine, PrincipalRef, PrincipalRef, ObjectRef, ObjectRef, map[string]ObjectRef) {
+func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.PrincipalRef, authorization.PrincipalRef, ObjectRef, ObjectRef, map[string]ObjectRef) {
 	t.Helper()
 	e, query, source := queryCoreFixture(t, "SELECT v FROM t")
 	base := source.ref
-	owner := PrincipalRef{owner: e, id: 1000000}
-	reader := PrincipalRef{owner: e, id: 1000001}
-	roles := cloneRoles(e.roles)
-	for _, role := range []RoleDescriptor{{Ref: owner, Name: "set_owner"}, {Ref: reader, Name: "set_reader"}} {
-		roles.roles[role.Ref], roles.names[role.Name] = role, role.Ref
+	owner := e.authorizationDomain.Principal(1000000)
+	reader := e.authorizationDomain.Principal(1000001)
+	roles := cloneRoleFixture(e.roles)
+	for _, role := range []authorization.RoleDescriptor{{Ref: owner, Name: "set_owner"}, {Ref: reader, Name: "set_reader"}} {
+		putFixtureRole(roles, role)
 	}
 	e.roles = roles
 	e.state = cloneCatalog(e.state)
@@ -104,20 +104,20 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, PrincipalRef, Principa
 	limited := setRoot()
 	limited.child = &limitNode{child: limited.child, count: literalExpression{expressionInfo: boundExpressionInfo(query.Root.(*projectNode).expressions[0]), value: zero}}
 	add("invoker_zero", true, limited, leaves)
-	grant := func(ref ObjectRef, mask Privileges) {
+	grant := func(ref ObjectRef, mask authorization.Privileges) {
 		t.Helper()
-		entries := []ACLEntry{
-			{Grantor: original.owner, Grantee: ACLGrantee{Role: owner}, Privileges: mask},
-			{Grantor: original.owner, Grantee: ACLGrantee{Role: reader}, Privileges: mask},
+		entries := []authorization.ACLEntry{
+			{Grantor: original.owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: mask},
+			{Grantor: original.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: mask},
 		}
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: entries}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant(base, SelectPrivilege)
-	grant(right, SelectPrivilege)
+	grant(base, authorization.SelectPrivilege)
+	grant(right, authorization.SelectPrivilege)
 	for _, ref := range refs {
-		grant(ref, SelectPrivilege|UpdatePrivilege)
+		grant(ref, authorization.SelectPrivilege|authorization.UpdatePrivilege)
 	}
 	return e, owner, reader, base, right, refs
 }
@@ -157,14 +157,14 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 		ref  ObjectRef
 		name string
 	}{{right, "t_right"}, {base, "t"}} {
-		if err := e.SetObjectACL(context.Background(), tc.ref, ACLValue{Explicit: true}); err != nil {
+		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal(err)
 		}
 		for _, name := range []string{"invoker", "invoker_nested", "invoker_zero"} {
 			check(name, queryRowMark{mode: rowUpdate}, tc.name)
 		}
 		// Restore this arm before checking the other arm's independent denial.
-		if err := e.SetObjectACL(context.Background(), tc.ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader}, Privileges: SelectPrivilege}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 			t.Fatal(err)
 		}
 	}

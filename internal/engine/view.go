@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -237,7 +238,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	if err := auth.CheckCreate(ns); err != nil && !s.op.restoreTableDestination {
 		return err
 	}
@@ -267,7 +268,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	ns := scope.viewCreationNamespace
 	if scope.viewChanges != nil {
 		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 	}
 	if err == nil {
 		err = auth.CheckCreate(ns)
@@ -410,7 +411,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.index = make(map[string]int, len(d.columns))
 	}
 	if old == nil {
-		d.acl = stage.creationACL(d.owner, d.namespace, defaultTables)
+		d.acl = stage.creationACL(d.owner, d.namespace, authorization.DefaultTables)
 	}
 	if scope.viewPersistence == "temporary" {
 		definition.consumer = d.address

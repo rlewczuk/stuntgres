@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
 func predefinedUtilityError(t *testing.T, e *Engine, op *Operation, stmt parser.Statement, code, message, detail string) {
@@ -31,6 +31,7 @@ func predefinedMembership(target, member string) *parser.RoleMembership {
 
 func TestPredefinedRoleInitialization(t *testing.T) {
 	e := New()
+	rPublication := e.roles
 	r := e.Roles()
 	// Independent release expectations, deliberately not generated from the seed.
 	want := map[string]uint64{
@@ -41,24 +42,28 @@ func TestPredefinedRoleInitialization(t *testing.T) {
 		"pg_execute_server_program": 4571, "pg_signal_autovacuum_worker": 6392,
 		"pg_signal_backend": 4200, "pg_use_reserved_connections": 4550,
 	}
-	if len(r.state.roles) != 17 || len(r.state.names) != 17 || r.state.revision != 1 || e.nextPrincipal != 6393 {
-		t.Fatal("initial authority", r.state, e.nextPrincipal)
+	if r.RoleCount() != 17 || r.RoleCount() != 17 || rPublication.revision != 1 || e.nextPrincipal != 6393 {
+		t.Fatal("initial authority", rPublication, e.nextPrincipal)
 	}
 	for name, id := range want {
 		d, ok := r.Lookup(name)
-		expected := RoleDescriptor{Ref: PrincipalRef{e, id}, Name: name, Inherit: true, ConnectionLimit: -1, predefined: true}
-		if !ok || d != expected {
+		expected := authorization.RoleDescriptor{Ref: e.authorizationDomain.Principal(id), Name: name, Inherit: true, ConnectionLimit: -1}
+		if !ok || d.Ref != expected.Ref || !d.Predefined() || func() bool {
+			expectedDescriptor := d
+			expectedDescriptor.Ref = expected.Ref
+			return expectedDescriptor.Name != expected.Name || expectedDescriptor.Login != expected.Login || expectedDescriptor.Superuser != expected.Superuser || expectedDescriptor.CreateDB != expected.CreateDB || expectedDescriptor.CreateRole != expected.CreateRole || expectedDescriptor.Inherit != expected.Inherit || expectedDescriptor.Replication != expected.Replication || expectedDescriptor.BypassRLS != expected.BypassRLS || expectedDescriptor.ConnectionLimit != expected.ConnectionLimit || expectedDescriptor.Password != expected.Password || expectedDescriptor.ValidUntil != expected.ValidUntil || expectedDescriptor.HasValidUntil != expected.HasValidUntil || expectedDescriptor.Comment != expected.Comment
+		}() {
 			t.Fatalf("%s: %#v want %#v", name, d, expected)
 		}
 	}
 	bootstrap, ok := r.Lookup("postgres")
-	if !ok || bootstrap.Ref.id != 10 || !bootstrap.Superuser || !bootstrap.Login {
+	if !ok || bootstrap.Ref.ID() != 10 || !bootstrap.Superuser || !bootstrap.Login {
 		t.Fatal(bootstrap)
 	}
-	edges := []Membership{
-		{Role: PrincipalRef{e, 3374}, Member: PrincipalRef{e, 3373}, Grantor: PrincipalRef{e, 10}, Inherit: true, Set: true},
-		{Role: PrincipalRef{e, 3375}, Member: PrincipalRef{e, 3373}, Grantor: PrincipalRef{e, 10}, Inherit: true, Set: true},
-		{Role: PrincipalRef{e, 3377}, Member: PrincipalRef{e, 3373}, Grantor: PrincipalRef{e, 10}, Inherit: true, Set: true},
+	edges := []authorization.Membership{
+		{Role: e.authorizationDomain.Principal(3374), Member: e.authorizationDomain.Principal(3373), Grantor: e.authorizationDomain.Principal(10), Inherit: true, Set: true},
+		{Role: e.authorizationDomain.Principal(3375), Member: e.authorizationDomain.Principal(3373), Grantor: e.authorizationDomain.Principal(10), Inherit: true, Set: true},
+		{Role: e.authorizationDomain.Principal(3377), Member: e.authorizationDomain.Principal(3373), Grantor: e.authorizationDomain.Principal(10), Inherit: true, Set: true},
 	}
 	if !reflect.DeepEqual(r.Memberships(), edges) {
 		t.Fatal("seed provenance", r.Memberships())
@@ -76,16 +81,16 @@ func TestPredefinedRoleAllocation(t *testing.T) {
 	defer done()
 	for i := range 1030 {
 		d := roleAttributeCreate(t, e, op, fmt.Sprintf("allocated_%d", i), false, parser.RoleOptions{})
-		if d.Ref.id != uint64(6393+i) || d.predefined {
+		if d.Ref.ID() != uint64(6393+i) || d.Predefined() {
 			t.Fatal("ordinary identity collided", d)
 		}
 	}
-	if e.nextPrincipal != 7423 || len(e.roles.roles) != 1047 {
-		t.Fatal(e.nextPrincipal, len(e.roles.roles))
+	if e.nextPrincipal != 7423 || e.roles.root.Read(authorization.PrincipalRef{}).RoleCount() != 1047 {
+		t.Fatal(e.nextPrincipal, e.roles.root.Read(authorization.PrincipalRef{}).RoleCount())
 	}
 	for _, name := range []string{"pg_monitor", "pg_maintain", "pg_signal_autovacuum_worker"} {
 		d, ok := e.Roles().Lookup(name)
-		if !ok || !d.predefined {
+		if !ok || !d.Predefined() {
 			t.Fatal("allocation replaced builtin", name, d)
 		}
 	}
@@ -101,7 +106,7 @@ func TestPredefinedRoleAllocation(t *testing.T) {
 	floor := New()
 	floor.nextPrincipal = 3373
 	candidate, err := floor.nextRolePrincipalLocked()
-	if err != nil || candidate != (PrincipalRef{floor, 6393}) || floor.nextPrincipal != 3373 {
+	if err != nil || candidate != (floor.authorizationDomain.Principal(6393)) || floor.nextPrincipal != 3373 {
 		t.Fatal("private checked candidate", candidate, err)
 	}
 	canceled := New()
@@ -123,62 +128,62 @@ func TestPredefinedImplicitDatabaseOwner(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	reader := roleAttributeCreate(t, e, op, "owner_path", false, parser.RoleOptions{})
-	n := cloneRoles(e.roles)
-	bootstrap, owner := PrincipalRef{e, 10}, PrincipalRef{e, 6171}
-	d := n.roles[bootstrap]
+	n := cloneRoleFixture(e.roles)
+	bootstrap, owner := e.authorizationDomain.Principal(10), e.authorizationDomain.Principal(6171)
+	d := fixtureRole(n, bootstrap)
 	d.Superuser = false // Exercise the implicit rule, not the independent SU bypass.
-	n.roles[bootstrap] = d
-	n.edges = nil
-	r := RoleRead{e, n, CatalogRead{e, e.state}}
+	putFixtureRole(n, d)
+	setFixtureEdges(n, nil)
+	r := e.roleRead(CatalogRead{e, e.state}, n)
 	for _, inherit := range []bool{false, true} {
-		got, err := r.roleClosure(context.Background(), bootstrap, inherit)
-		if err != nil || !reflect.DeepEqual(got, []PrincipalRef{bootstrap, owner}) {
+		got, err := r.RoleClosure(context.Background(), bootstrap, inherit)
+		if err != nil || !reflect.DeepEqual(got, []authorization.PrincipalRef{bootstrap, owner}) {
 			t.Fatal("empty graph closure", got, err)
 		}
 	}
-	if ok, err := r.inheritsRole(bootstrap, owner); !ok || err != nil {
+	if ok, err := r.InheritsRole(bootstrap, owner); !ok || err != nil {
 		t.Fatal(ok, err)
 	}
-	if ok, err := r.canSetRole(bootstrap, owner); !ok || err != nil {
+	if ok, err := r.CanSetRole(bootstrap, owner); !ok || err != nil {
 		t.Fatal(ok, err)
 	}
-	if ok, err := r.adminOfRole(bootstrap, owner); ok || err != nil {
+	if ok, err := r.AdminOfRole(bootstrap, owner); ok || err != nil {
 		t.Fatal("implicit ADMIN", ok, err)
 	}
-	if ok, err := r.adminOfRole(owner, owner); ok || err != nil {
+	if ok, err := r.AdminOfRole(owner, owner); ok || err != nil {
 		t.Fatal("self ADMIN", ok, err)
 	}
 	for _, flags := range [][2]bool{{false, false}, {true, false}, {false, true}} {
-		n.edges = []Membership{{Role: bootstrap, Member: reader.Ref, Grantor: bootstrap, Inherit: flags[0], Set: flags[1]}}
-		got, err := r.roleClosure(context.Background(), reader.Ref, false)
-		if err != nil || !reflect.DeepEqual(got, []PrincipalRef{reader.Ref, bootstrap, owner}) {
+		setFixtureEdges(n, []authorization.Membership{{Role: bootstrap, Member: reader.Ref, Grantor: bootstrap, Inherit: flags[0], Set: flags[1]}})
+		got, err := r.RoleClosure(context.Background(), reader.Ref, false)
+		if err != nil || !reflect.DeepEqual(got, []authorization.PrincipalRef{reader.Ref, bootstrap, owner}) {
 			t.Fatal("visited-owner MEMBER closure", got, err)
 		}
-		if ok, err := r.inheritsRole(reader.Ref, owner); ok != flags[0] || err != nil {
+		if ok, err := r.InheritsRole(reader.Ref, owner); ok != flags[0] || err != nil {
 			t.Fatal("INHERIT flags", ok, err)
 		}
-		if ok, err := r.canSetRole(reader.Ref, owner); ok != flags[1] || err != nil {
+		if ok, err := r.CanSetRole(reader.Ref, owner); ok != flags[1] || err != nil {
 			t.Fatal("SET flags", ok, err)
 		}
-		if ok, err := r.adminOfRole(reader.Ref, owner); ok || err != nil {
+		if ok, err := r.AdminOfRole(reader.Ref, owner); ok || err != nil {
 			t.Fatal("path became ADMIN", ok, err)
 		}
 	}
-	foreign := PrincipalRef{New(), 6171}
-	for _, bad := range []PrincipalRef{{}, foreign, {e, 999999}} {
-		if _, err := e.Roles().inheritsRole(bootstrap, bad); err == nil {
+	foreign := New().authorizationDomain.Principal(6171)
+	for _, bad := range []authorization.PrincipalRef{{}, foreign, e.authorizationDomain.Principal(999999)} {
+		if _, err := e.Roles().InheritsRole(bootstrap, bad); err == nil {
 			t.Fatal("SU accepted invalid target", bad)
 		}
-		if _, err := e.Roles().canSetRole(bootstrap, bad); err == nil {
+		if _, err := e.Roles().CanSetRole(bootstrap, bad); err == nil {
 			t.Fatal("SET accepted invalid target", bad)
 		}
-		if _, err := e.Roles().adminOfRole(bootstrap, bad); err == nil {
+		if _, err := e.Roles().AdminOfRole(bootstrap, bad); err == nil {
 			t.Fatal("ADMIN accepted invalid target", bad)
 		}
 	}
-	n.edges = nil
-	delete(n.roles, owner)
-	if _, err := r.roleClosure(context.Background(), bootstrap, false); err == nil {
+	setFixtureEdges(n, nil)
+	retireFixtureRole(n, owner)
+	if _, err := r.RoleClosure(context.Background(), bootstrap, false); err == nil {
 		t.Fatal("implicit edge accepted stale descriptor")
 	}
 }
@@ -201,8 +206,13 @@ func TestPredefinedMembershipRestrictions(t *testing.T) {
 	if _, exists := e.Roles().Lookup("failed_initial"); exists {
 		t.Fatal("initial member leaked")
 	}
-	for _, definition := range predefinedRoleDefinitions {
-		predefinedUtilityError(t, e, op, &parser.DropRole{Names: []string{"member", definition.name}}, "2BP01", "cannot drop role "+definition.name+" because it is required by the database system", "")
+	for _, name := range []string{
+		"pg_checkpoint", "pg_create_subscription", "pg_database_owner", "pg_maintain",
+		"pg_monitor", "pg_read_all_settings", "pg_read_all_stats", "pg_stat_scan_tables",
+		"pg_read_all_data", "pg_write_all_data", "pg_read_server_files", "pg_write_server_files",
+		"pg_execute_server_program", "pg_signal_autovacuum_worker", "pg_signal_backend", "pg_use_reserved_connections",
+	} {
+		predefinedUtilityError(t, e, op, &parser.DropRole{Names: []string{"member", name}}, "2BP01", "cannot drop role "+name+" because it is required by the database system", "")
 	}
 	predefinedUtilityError(t, e, op, &parser.DropRole{Names: []string{"pg_maintain", "absent"}}, "42704", `role "absent" does not exist`, "")
 }
@@ -211,18 +221,19 @@ func TestPredefinedRoleSnapshots(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
+	retainedPublication := e.roles
 	retained := e.Roles()
 	revoke := predefinedMembership("pg_read_all_settings", "pg_monitor")
 	revoke.Revoke = true
 	roleAttributeApply(t, e, op, revoke)
-	if len(retained.Memberships()) != 3 || len(e.Roles().Memberships()) != 2 || e.roles.revision != retained.state.revision+1 {
+	if len(retained.Memberships()) != 3 || len(e.Roles().Memberships()) != 2 || e.roles.revision != retainedPublication.revision+1 {
 		t.Fatal("snapshot publication")
 	}
-	before, err := retained.roleClosure(context.Background(), retained.state.names["pg_monitor"], true)
+	before, err := retained.RoleClosure(context.Background(), retained.LookupRef("pg_monitor"), true)
 	if err != nil || len(before) != 4 {
 		t.Fatal(before, err)
 	}
-	after, err := e.Roles().roleClosure(context.Background(), e.roles.names["pg_monitor"], true)
+	after, err := e.Roles().RoleClosure(context.Background(), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_monitor"), true)
 	if err != nil || len(after) != 3 {
 		t.Fatal(after, err)
 	}
@@ -235,7 +246,7 @@ func TestPredefinedRoleSnapshots(t *testing.T) {
 	if _, err := e.Roles().Descriptor(reader.Ref); err == nil {
 		t.Fatal("retired principal remained valid")
 	}
-	if _, err := New().Roles().Descriptor(e.roles.names["pg_read_all_data"]); err == nil {
+	if _, err := New().Roles().Descriptor(e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")); err == nil {
 		t.Fatal("fixed OID bypassed engine identity")
 	}
 }

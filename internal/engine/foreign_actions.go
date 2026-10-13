@@ -25,7 +25,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		changes = s.catalog
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	relevant := false
 	for _, descriptor := range auth.catalog.state.descriptors {
 		child, ok := descriptor.(*relationDescriptor)
@@ -135,7 +135,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	}
 	e.mu.Lock()
 	auth.catalog = e.privateCatalogLocked(changes)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]

@@ -310,7 +310,7 @@ retry:
 		parent, index = currentParent, currentIndex
 		auth, err := s.writeAuthorizationLocked(e)
 		auth.catalog = current
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 		namespace, _ := current.state.descriptors[parent.namespace].(*namespaceDescriptor)
 		root := e.indexRoots[index.address]
 		if changes := s.owner.catalog; changes != nil {

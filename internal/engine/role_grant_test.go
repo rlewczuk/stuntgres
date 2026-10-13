@@ -5,13 +5,14 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 // These fixtures exercise the private catalog planner directly, not public SQL.
-func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, PrincipalRef, ObjectAddress) {
+func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.PrincipalRef, ObjectAddress) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -94,7 +95,7 @@ func TestObjectGrantColumnTableIndependence(t *testing.T) {
 		t.Fatal(err)
 	}
 	relation := e.state.descriptors[address].(*relationDescriptor)
-	if aclRights(relation.acl, relation.owner, []PrincipalRef{reader}, tableGrantPrivileges, false)&SelectPrivilege == 0 {
+	if authorization.ACLRights(relation.acl, relation.owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false)&authorization.SelectPrivilege == 0 {
 		t.Fatal("column revoke negated table grant")
 	}
 	if !relation.acl.Explicit || len(relation.acl.Entries) != 2 {
@@ -105,22 +106,23 @@ func TestObjectGrantColumnTableIndependence(t *testing.T) {
 		t.Fatal(err)
 	}
 	relation = e.state.descriptors[address].(*relationDescriptor)
-	if aclRights(relation.acl, relation.owner, []PrincipalRef{reader}, tableGrantPrivileges, false) != 0 {
+	if authorization.ACLRights(relation.acl, relation.owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false) != 0 {
 		t.Fatal("table revoke retained source rights")
 	}
 }
 
 func TestObjectGrantRevisionExhaustionAndSessionFence(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
-	e.roles = advanceRoleRevision(e.roles)
-	e.roles.revision = ^uint64(0)
+	originalRoles := e.roles
+	saturated := *originalRoles
+	saturated.revision = ^uint64(0)
+	e.roles = &saturated
 	before := e.state
 	err := applyObjectGrantUnit(e, op, objectGrantUnitRequest())
-	if err == nil || !strings.Contains(err.Error(), "revision exhausted") || e.state != before {
+	if err == nil || !strings.Contains(err.Error(), "revision exhausted") || e.state != before || e.roles != &saturated {
 		t.Fatal(err, "revision exhaustion published")
 	}
-	e.roles = advanceRoleRevision(e.roles)
-	e.roles.revision = 1
+	e.roles = originalRoles
 	originalContext := op.ctx
 	ctx, cancel := context.WithCancel(originalContext)
 	cancel()
@@ -315,7 +317,7 @@ func TestObjectGrantMergedColumnMaskWarnings(t *testing.T) {
 							t.Fatal("revoke retained selected source rights", relation.columnACL)
 						}
 					} else {
-						wantACL := []ACLEntry{grantUnitEntry(source, target, SelectPrivilege, 0)}
+						wantACL := []authorization.ACLEntry{objectACLUnitEntry(source, target, authorization.SelectPrivilege, 0)}
 						if !reflect.DeepEqual(relation.columnACL[3].Entries, wantACL) {
 							t.Fatal("wrong source, eligible mask or stable attribute", relation.columnACL)
 						}

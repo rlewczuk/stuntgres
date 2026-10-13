@@ -200,7 +200,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 	})
 	t.Run("private_authority", func(t *testing.T) {
 		e, _, _, ext, _ := extensionTemporaryInstalled(t)
-		private, err := e.startSession(context.Background(), SessionStart{Authenticated: PrincipalRef{e, 10}}, true)
+		private, err := e.startSession(context.Background(), SessionStart{Authenticated: e.authorizationDomain.Principal(10)}, true)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -131,7 +131,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 			}
 			stage := typedRenameStage(t, e, source, table)
 			defer e.DiscardCatalogStage(stage)
-			stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+			stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roleRecord.revision
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {
 				t.Fatal(err)

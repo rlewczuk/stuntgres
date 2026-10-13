@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -16,13 +17,13 @@ func TestLockModesViews(t *testing.T) {
 	}
 	owner, _ := e.Roles().Lookup("view_owner")
 	reader, _ := e.Roles().Lookup("view_reader")
-	grantor := e.roles.names["postgres"]
-	entry := func(p PrincipalRef, r Privileges) ACLEntry {
-		return ACLEntry{Grantor: grantor, Grantee: ACLGrantee{Role: p}, Privileges: r}
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	entry := func(p authorization.PrincipalRef, r authorization.Privileges) authorization.ACLEntry {
+		return authorization.ACLEntry{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: p}, Privileges: r}
 	}
-	grant := func(ref ObjectRef, entries ...ACLEntry) {
+	grant := func(ref ObjectRef, entries ...authorization.ACLEntry) {
 		t.Helper()
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: entries}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -31,11 +32,11 @@ func TestLockModesViews(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	grant(schemaRef(t, e, "s"), entry(owner.Ref, UsagePrivilege|CreatePrivilege), entry(reader.Ref, UsagePrivilege))
+	grant(schemaRef(t, e, "s"), entry(owner.Ref, authorization.UsagePrivilege|authorization.CreatePrivilege), entry(reader.Ref, authorization.UsagePrivilege))
 	table := roleTableRef(t, e, "t")
-	grant(table, entry(owner.Ref, UpdatePrivilege))
+	grant(table, entry(owner.Ref, authorization.UpdatePrivilege))
 	for _, name := range []string{"s.owned", "s.invoker", "s.nested"} {
-		grant(roleTableRef(t, e, name), entry(owner.Ref, UpdatePrivilege), entry(reader.Ref, UpdatePrivilege))
+		grant(roleTableRef(t, e, name), entry(owner.Ref, authorization.UpdatePrivilege), entry(reader.Ref, authorization.UpdatePrivilege))
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION view_reader")
 	for _, c := range []struct{ q, message string }{
@@ -75,7 +76,7 @@ func TestLockModesViews(t *testing.T) {
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	column := table
 	column.Address.SubID = 1
-	grant(column, entry(owner.Ref, UpdatePrivilege))
+	grant(column, entry(owner.Ref, authorization.UpdatePrivilege))
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION view_reader")
 	tx, err = e.Begin(op, TxOptions{})
 	if err != nil {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -28,7 +29,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 		}
 		return auth
 	}
-	assertTargets := func(auth AuthorizationView, want PrincipalRef) {
+	assertTargets := func(auth AuthorizationView, want authorization.PrincipalRef) {
 		t.Helper()
 		if err := policyPreflight(op, auth, creation, false); err != nil {
 			t.Fatal("preflight", err)

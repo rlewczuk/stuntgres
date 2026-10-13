@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
 func inheritanceLifecycleTable(e *Engine, id OID, name string, parents ...ObjectAddress) *relationDescriptor {
-	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, owner: e.roles.names["postgres"], relationKind: tableRelation, index: map[string]int{}}
+	table := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, index: map[string]int{}}
 	if len(parents) != 0 {
 		table.inheritance = &tableInheritance{parents: parents, columns: map[int32]inheritedColumn{}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
 	}

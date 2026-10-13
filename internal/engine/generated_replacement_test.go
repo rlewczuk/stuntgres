@@ -5,11 +5,11 @@ import (
 	"errors"
 	"math/rand/v2"
 	"reflect"
-	"sync"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"sync"
+	"testing"
 )
 
 // The existing session random provider gates actual CHECK Eval, after generation
@@ -53,7 +53,7 @@ type generatedRepairFixture struct {
 func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	t.Helper()
 	e, view, d := generatedUnitDescriptor(t)
-	d.owner = e.roles.names["postgres"]
+	d.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	oldAddress := d.address
 	d.address.ObjectID = 26000
 	oid, _ := view.LookupType(sqltype.Oid)

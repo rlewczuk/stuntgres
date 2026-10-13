@@ -4,19 +4,19 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/parser"
 	"testing"
 	"time"
-
-	"stuntgres/internal/parser"
 )
 
 // Fixtures use the real private command planner, with checked identities and
 // explicit options; there is no second append-only membership publication path.
-func grantMembership(t *testing.T, e *Engine, m Membership) error {
+func grantMembership(t *testing.T, e *Engine, m authorization.Membership) error {
 	t.Helper()
 	r := e.Roles()
 	names := make([]string, 3)
-	for i, ref := range []PrincipalRef{m.Role, m.Member, m.Grantor} {
+	for i, ref := range []authorization.PrincipalRef{m.Role, m.Member, m.Grantor} {
 		d, err := r.Descriptor(ref)
 		if err != nil {
 			return err
@@ -39,13 +39,15 @@ func TestMembershipImmutableDefaultsAndAtomicity(t *testing.T) {
 	for _, q := range []string{"CREATE ROLE r", "CREATE ROLE m", "CREATE ROLE x"} {
 		roleExecute(t, e, op, q)
 	}
+	oldPublication := e.roles
 	old := e.Roles()
-	revision := old.state.revision
+	revision := oldPublication.revision
 	roleExecute(t, e, op, "GRANT r TO m")
+	readPublication := e.roles
 	read := e.Roles()
 	edges := read.Memberships()
-	if len(edges) != 4 || edges[3].Admin || !edges[3].Inherit || !edges[3].Set || read.state.revision != revision+1 || len(old.Memberships()) != 3 {
-		t.Fatal(edges, read.state.revision, revision)
+	if len(edges) != 4 || edges[3].Admin || !edges[3].Inherit || !edges[3].Set || readPublication.revision != revision+1 || len(old.Memberships()) != 3 {
+		t.Fatal(edges, readPublication.revision, revision)
 	}
 	edges[3].Inherit = false
 	if !read.Memberships()[3].Inherit {
@@ -53,13 +55,14 @@ func TestMembershipImmutableDefaultsAndAtomicity(t *testing.T) {
 	}
 	roleExecute(t, e, op, "GRANT r TO m WITH ADMIN TRUE, INHERIT FALSE, SET FALSE")
 	roleExecute(t, e, op, "GRANT r TO m WITH INHERIT TRUE")
+	nowPublication := e.roles
 	now := e.Roles()
 	edge := now.Memberships()[3]
 	if !edge.Admin || !edge.Inherit || edge.Set || !read.Memberships()[3].Set {
 		t.Fatal("omitted options or old read changed", edge)
 	}
 	roleExecute(t, e, op, "GRANT r TO m")
-	if e.roles != now.state {
+	if e.roles != nowPublication {
 		t.Fatal("no-change grant invalidated authority")
 	}
 	before := e.roles
@@ -88,8 +91,8 @@ func TestMembershipInitialFailureFences(t *testing.T) {
 		}
 	}
 	roleExecute(t, e, op, "CREATE ROLE n IN ROLE p")
-	if len(e.roles.edges) != 4 || !e.roles.edges[3].Inherit || !e.roles.edges[3].Set || e.roles.edges[3].Admin {
-		t.Fatal(e.roles.edges)
+	if len(fixtureEdges(e.roles)) != 4 || !fixtureEdges(e.roles)[3].Inherit || !fixtureEdges(e.roles)[3].Set || fixtureEdges(e.roles)[3].Admin {
+		t.Fatal(fixtureEdges(e.roles))
 	}
 }
 
@@ -101,11 +104,11 @@ func TestMembershipInitialAttributeCutover(t *testing.T) {
 	roleExecute(t, e, admin, "CREATE USER creator CREATEROLE")
 	actor, closeActor := roleOperation(t, e, "creator")
 	defer closeActor()
-	before := e.Roles()
+	beforePublication := e.roles
 	next := e.nextPrincipal
 	_, err := e.Execute(actor, statement(t, "CREATE ROLE failed LOGIN NOINHERIT CONNECTION LIMIT 2 PASSWORD 'secret' ROLE absent"), 0, nil)
 	state(t, err, "42704")
-	if e.roles != before.state || e.nextPrincipal != next {
+	if e.roles != beforePublication || e.nextPrincipal != next {
 		t.Fatal("initial membership failure published attributes, creator ADMIN or allocator")
 	}
 	roleExecute(t, e, admin, "CREATE ROLE child NOINHERIT IN ROLE parent CONNECTION LIMIT 2 PASSWORD NULL VALID UNTIL 'infinity'")
@@ -126,7 +129,7 @@ func TestMembershipInitialAttributeCutover(t *testing.T) {
 	owned, _ := e.Roles().Lookup("owned")
 	creator, _ := e.Roles().Lookup("creator")
 	edges := e.Roles().Memberships()
-	if len(edges) != 6 || edges[4] != (Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.roles.names["postgres"], Admin: true}) || edges[5].Role != owned.Ref || edges[5].Member != child.Ref || !edges[5].Inherit || !edges[5].Set {
+	if len(edges) != 6 || edges[4] != (authorization.Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}) || edges[5].Role != owned.Ref || edges[5].Member != child.Ref || !edges[5].Inherit || !edges[5].Set {
 		t.Fatal("creator ADMIN and initial membership were not combined", edges)
 	}
 	roleExecute(t, e, actor, "ALTER ROLE owned LOGIN")
@@ -138,19 +141,21 @@ func TestMembershipReferenceValidationAndRevision(t *testing.T) {
 	run(t, e, "CREATE ROLE m")
 	r, _ := e.Roles().Lookup("r")
 	m, _ := e.Roles().Lookup("m")
-	bootstrap := e.roles.names["postgres"]
-	foreign := New().roles.names["postgres"]
-	for _, ref := range []PrincipalRef{{}, foreign} {
-		for _, edge := range []Membership{{Role: ref, Member: m.Ref, Grantor: bootstrap}, {Role: r.Ref, Member: ref, Grantor: bootstrap}, {Role: r.Ref, Member: m.Ref, Grantor: ref}} {
+	bootstrap := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreign := New().roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	for _, ref := range []authorization.PrincipalRef{{}, foreign} {
+		for _, edge := range []authorization.Membership{{Role: ref, Member: m.Ref, Grantor: bootstrap}, {Role: r.Ref, Member: ref, Grantor: bootstrap}, {Role: r.Ref, Member: m.Ref, Grantor: ref}} {
 			before := e.roles
 			if err := grantMembership(t, e, edge); err == nil || e.roles != before {
 				t.Fatal("invalid ref published", edge, err)
 			}
 		}
 	}
-	e.roles.revision = ^uint64(0)
+	saturated := *e.roles
+	saturated.revision = ^uint64(0)
+	e.roles = &saturated
 	before := e.roles
-	if err := grantMembership(t, e, Membership{Role: r.Ref, Member: m.Ref, Grantor: bootstrap}); err == nil || e.roles != before || len(e.roles.edges) != 3 {
+	if err := grantMembership(t, e, authorization.Membership{Role: r.Ref, Member: m.Ref, Grantor: bootstrap}); err == nil || e.roles != before || len(fixtureEdges(e.roles)) != 3 {
 		t.Fatal("revision exhaustion published", err)
 	}
 }
@@ -167,8 +172,8 @@ func TestMembershipCascadeAlternateSource(t *testing.T) {
 	}
 	old := e.Roles()
 	roleExecute(t, e, op, "REVOKE ADMIN OPTION FOR r FROM a")
-	if len(e.roles.edges) != 8 || !old.Memberships()[3].Admin {
-		t.Fatal("alternate source or old read", e.roles.edges)
+	if len(fixtureEdges(e.roles)) != 8 || !old.Memberships()[3].Admin {
+		t.Fatal("alternate source or old read", fixtureEdges(e.roles))
 	}
 	before := e.roles
 	_, err := e.Execute(op, statement(t, "REVOKE r FROM a GRANTED BY x"), 0, nil)
@@ -177,8 +182,8 @@ func TestMembershipCascadeAlternateSource(t *testing.T) {
 		t.Fatal("restrict published")
 	}
 	roleExecute(t, e, op, "REVOKE r FROM a GRANTED BY x CASCADE")
-	if len(e.roles.edges) != 5 {
-		t.Fatal("cascade graph", e.roles.edges)
+	if len(fixtureEdges(e.roles)) != 5 {
+		t.Fatal("cascade graph", fixtureEdges(e.roles))
 	}
 }
 
@@ -192,13 +197,13 @@ func TestMembershipCancelledCandidate(t *testing.T) {
 	cancel()
 	// Closure is also used inside planning; cancellation cannot return a prefix.
 	old := e.roles
-	refs, err := (RoleRead{e, e.roles, CatalogRead{e, e.state}}).roleClosure(ctx, e.roles.names["postgres"], false)
+	refs, err := (e.roleRead(CatalogRead{e, e.state}, e.roles)).RoleClosure(ctx, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), false)
 	if err != context.Canceled || refs != nil || !reflect.DeepEqual(e.roles, old) {
 		t.Fatal(fmt.Sprint(refs), err)
 	}
 	op.ctx = ctx
 	_, err = e.Execute(op, statement(t, "GRANT r TO m"), 0, nil)
-	if err != context.Canceled || e.roles != old || len(e.roles.edges) != 3 {
+	if err != context.Canceled || e.roles != old || len(fixtureEdges(e.roles)) != 3 {
 		t.Fatal("cancelled membership published", err)
 	}
 }
@@ -237,8 +242,8 @@ func TestMembershipConcurrentCyclePublication(t *testing.T) {
 			failures++
 		}
 	}
-	if successes != 1 || failures != 1 || len(e.roles.edges) != 4 {
-		t.Fatal("concurrent cycle", successes, failures, e.roles.edges)
+	if successes != 1 || failures != 1 || len(fixtureEdges(e.roles)) != 4 {
+		t.Fatal("concurrent cycle", successes, failures, fixtureEdges(e.roles))
 	}
 }
 
@@ -261,6 +266,7 @@ func TestMembershipOrderedCandidateFailureFences(t *testing.T) {
 				roleExecute(t, e, op, q)
 			}
 			op.DetachNotices()
+			retainedPublication := e.roles
 			retained := e.Roles()
 			edges := retained.Memberships()
 			catalog := e.state
@@ -269,7 +275,7 @@ func TestMembershipOrderedCandidateFailureFences(t *testing.T) {
 			if notices := op.DetachNotices(); len(notices) != 0 {
 				t.Fatal("unreached mutation notice", notices)
 			}
-			if e.roles != retained.state || e.state != catalog || !reflect.DeepEqual(edges, retained.Memberships()) || !reflect.DeepEqual(edges, e.Roles().Memberships()) {
+			if e.roles != retainedPublication || e.state != catalog || !reflect.DeepEqual(edges, retained.Memberships()) || !reflect.DeepEqual(edges, e.Roles().Memberships()) {
 				t.Fatal("failed ordered candidate changed authority", err)
 			}
 		})
@@ -296,7 +302,7 @@ func TestMembershipRevokeOriginalRowActions(t *testing.T) {
 		t.Fatal(edges, retained.Memberships())
 	}
 	for _, edge := range edges {
-		if edge.Grantor != e.roles.names["postgres"] || edge.Admin || !edge.Inherit || !edge.Set {
+		if edge.Grantor != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || edge.Admin || !edge.Inherit || !edge.Set {
 			t.Fatal("independent source changed", edge)
 		}
 	}
@@ -324,6 +330,7 @@ func TestMembershipRevokeEntryAuthority(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	op.DetachNotices()
+	retainedPublication := e.roles
 	retained := e.Roles()
 	original := retained.Memberships()
 	catalog := e.state
@@ -332,14 +339,14 @@ func TestMembershipRevokeEntryAuthority(t *testing.T) {
 	if len(notices) != 1 || notices[0].Code != "01000" || notices[0].Message != `role "a" has not been granted membership in role "q" by role "g"` {
 		t.Fatal("entry authority warning", notices)
 	}
-	want := make([]Membership, 0, len(original)-1)
+	want := make([]authorization.Membership, 0, len(original)-1)
 	for _, edge := range original {
-		if edge.Role == retained.state.names["p"] && edge.Member == retained.state.names["a"] && edge.Grantor == retained.state.names["g"] {
+		if edge.Role == retained.LookupRef("p") && edge.Member == retained.LookupRef("a") && edge.Grantor == retained.LookupRef("g") {
 			continue
 		}
 		want = append(want, edge)
 	}
-	if len(want) != len(original)-1 || !reflect.DeepEqual(want, e.Roles().Memberships()) || !reflect.DeepEqual(original, retained.Memberships()) || e.roles.revision != retained.state.revision+1 || e.state != catalog {
+	if len(want) != len(original)-1 || !reflect.DeepEqual(want, e.Roles().Memberships()) || !reflect.DeepEqual(original, retained.Memberships()) || e.roles.revision != retainedPublication.revision+1 || e.state != catalog {
 		t.Fatal("entry batch publication", original, e.Roles().Memberships())
 	}
 	published := e.roles
@@ -375,12 +382,13 @@ func TestMembershipRevokeTargetActionOverlap(t *testing.T) {
 				roleExecute(t, e, op, q)
 			}
 			op.DetachNotices()
+			beforePublication := e.roles
 			before := e.Roles()
 			original := before.Memberships()
 			_, err := e.Execute(op, statement(t, tc.query), 0, nil)
 			if tc.code != "" {
 				state(t, err, tc.code)
-				if err.Error() != "stuntgres: tuple already updated by self" || e.roles != before.state {
+				if err.Error() != "stuntgres: tuple already updated by self" || e.roles != beforePublication {
 					t.Fatal("overlap publication or diagnostic", err)
 				}
 			} else if err != nil {
@@ -398,11 +406,11 @@ func TestMembershipRevokeTargetActionOverlap(t *testing.T) {
 			if !reflect.DeepEqual(original, before.Memberships()) {
 				t.Fatal("retained graph changed")
 			}
-			if tc.code == "" && tc.name != "same target duplicate member" && e.roles != before.state {
+			if tc.code == "" && tc.name != "same target duplicate member" && e.roles != beforePublication {
 				t.Fatal("noop invalidated authority")
 			}
-			if tc.name == "same target duplicate member" && len(e.roles.edges) != 3 {
-				t.Fatal("duplicate member failed to delete", e.roles.edges)
+			if tc.name == "same target duplicate member" && len(fixtureEdges(e.roles)) != 3 {
+				t.Fatal("duplicate member failed to delete", fixtureEdges(e.roles))
 			}
 		})
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,26 +19,26 @@ func TestCheckInsertPrivilegeDisclosure(t *testing.T) {
 				roleExecute(t, e, admin, "CREATE TABLE t(n INT,secret TEXT DEFAULT 'private',readable TEXT DEFAULT 'visible',CONSTRAINT c CHECK(n=1 AND secret='private'))")
 				ref := roleTableRef(t, e, "t")
 				actor, _ := e.Roles().Lookup("check_actor")
-				grant := func(attribute int32, privileges Privileges) {
+				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					if err := e.SetObjectACL(context.Background(), target, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
-				grant(1, InsertPrivilege)
+				grant(1, authorization.InsertPrivilege)
 				detail := "Failing row contains (n) = (2)."
 				switch mode {
 				case "readable":
-					grant(3, SelectPrivilege)
+					grant(3, authorization.SelectPrivilege)
 					detail = "Failing row contains (n, readable) = (2, visible)."
 				case "all_columns":
-					grant(1, InsertPrivilege|SelectPrivilege)
-					grant(2, SelectPrivilege)
-					grant(3, SelectPrivilege)
+					grant(1, authorization.InsertPrivilege|authorization.SelectPrivilege)
+					grant(2, authorization.SelectPrivilege)
+					grant(3, authorization.SelectPrivilege)
 					detail = "Failing row contains (n, secret, readable) = (2, private, visible)."
 				case "table":
-					grant(0, SelectPrivilege)
+					grant(0, authorization.SelectPrivilege)
 					detail = "Failing row contains (2, private, visible)."
 				}
 				op, finish := roleOperation(t, e, "check_actor")

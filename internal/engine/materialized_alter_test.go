@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -64,9 +65,9 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 	if next.owner != actor.Ref || attached.owner != actor.Ref || row.owner != actor.Ref || array.owner != actor.Ref || d.owner == actor.Ref || index.owner == actor.Ref || attached.sqlIndex != index.sqlIndex || e.indexRoots[index.address] != root || e.storage[d.address] != store {
 		t.Fatal("owner group not coherent or roots rebuilt")
 	}
-	expected := []ACLEntry{
-		{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: UsagePrivilege},
-		{Grantor: actor.Ref, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
+	expected := []authorization.ACLEntry{
+		{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege},
+		{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 	}
 	for _, typ := range []*typeDescriptor{row, array} {
 		if len(typ.acl.Entries) != len(expected) {
@@ -486,7 +487,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 	}()
 	lockPending(t, e, 1)
 	changed := *d
-	changed.owner = e.roles.names["postgres"]
+	changed.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	changed.revision++
 	stage = e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Replace(&changed); err != nil {

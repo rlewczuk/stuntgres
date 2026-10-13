@@ -3,17 +3,17 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func serializableUnitRelation(t *testing.T, e *Engine) ObjectRef {
 	t.Helper()
 	base := e.CatalogRead()
 	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}
-	d := &relationDescriptor{address: address, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "ssi_unit", revision: 1, owner: e.roles.names["postgres"], relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
+	d := &relationDescriptor{address: address, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "ssi_unit", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"v": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)

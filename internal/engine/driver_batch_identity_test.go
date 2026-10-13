@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
 // Exercise the same typed role/identity journals without adding SQL capability.
-func batchUnitIdentity(m *batchUnitMessage, current PrincipalRef) bool {
+func batchUnitIdentity(m *batchUnitMessage, current authorization.PrincipalRef) bool {
 	s := m.op.session
 	t := s.transactions
 	t.mu.Lock()

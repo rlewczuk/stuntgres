@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 )
 
@@ -36,12 +37,12 @@ func checkExplicitLock(auth AuthorizationView, ref ObjectRef, d *relationDescrip
 	if err != nil {
 		return err
 	}
-	alternatives := MaintainPrivilege | UpdatePrivilege | DeletePrivilege | TruncatePrivilege
+	alternatives := authorization.MaintainPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.TruncatePrivilege
 	if mode == accessShare || mode == relationRowShare || mode == rowExclusive {
-		alternatives |= InsertPrivilege
+		alternatives |= authorization.InsertPrivilege
 	}
 	if mode == accessShare {
-		alternatives |= SelectPrivilege
+		alternatives |= authorization.SelectPrivilege
 	}
 	if rights&alternatives != 0 {
 		if hierarchyRelation(d) {
@@ -90,7 +91,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 
 // Bound view sources never repeat namespace lookup. Each grant retains the
 // original identity and rechecks the principal against grant-time metadata.
-func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ObjectRef, name string, mode relationLockMode, policy relationLockPolicy, actor, invoker PrincipalRef, ancestors []ObjectRef, only bool) error {
+func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ObjectRef, name string, mode relationLockMode, policy relationLockPolicy, actor, invoker authorization.PrincipalRef, ancestors []ObjectRef, only bool) error {
 	for _, ancestor := range ancestors {
 		if ancestor == ref {
 			return nil

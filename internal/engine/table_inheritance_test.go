@@ -2,13 +2,14 @@ package engine
 
 import (
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func inheritanceUnitRelation(e *Engine, name string, id OID, names ...string) *relationDescriptor {
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, owner: e.roles.names["postgres"], namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, index: make(map[string]int)}
+	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: name, revision: 1, index: make(map[string]int)}
 	for i, name := range names {
 		d.index[name] = i
 		d.attributes = append(d.attributes, int32(i+1))
@@ -71,7 +72,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = view
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	stage := e.BeginCatalogStage(view)
 	b := binding{createInheritance: []createInheritanceInput{{source: p}, {source: q}}, createLocalColumns: map[string]bool{"z": true}, createDeclarations: make([]createColumnDeclaration, 3)}
 	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
@@ -173,7 +174,7 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = view
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	for _, kind := range []string{"absent", "explicit", "copied"} {
 		override := kind == "explicit"
 		child := inheritanceUnitRelation(e, "c", 22002, "a")
@@ -287,7 +288,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = view
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	for _, explicit := range []bool{false, true} {
 		child := inheritanceUnitRelation(e, "c", 22001, "g")
 		b := binding{createInheritance: []createInheritanceInput{{source: parent}}, createLocalColumns: map[string]bool{"g": true}, createDeclarations: make([]createColumnDeclaration, 1)}

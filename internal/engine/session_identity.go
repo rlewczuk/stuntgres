@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,7 @@ func (k sessionIdentityKind) spelling() string {
 
 type identitySnapshot struct {
 	database, current, session, system sqltype.Value
-	currentMissing, sessionMissing     PrincipalRef
+	currentMissing, sessionMissing     authorization.PrincipalRef
 }
 type identityExpression struct {
 	expressionInfo
@@ -52,18 +53,18 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		name, _ := auth.catalog.LookupType(sqltype.Name)
-		identity.current, identity.currentMissing = sqltype.String(name, role.Name), PrincipalRef{}
+		identity.current, identity.currentMissing = sqltype.String(name, role.Name), authorization.PrincipalRef{}
 	}
 	switch e.kind {
 	case identityCatalog, identityDatabase:
 		return identity.database, nil
 	case identityRole, identityCurrentUser, identityUser:
-		if identity.currentMissing != (PrincipalRef{}) {
+		if identity.currentMissing != (authorization.PrincipalRef{}) {
 			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.currentMissing.ID()))
 		}
 		return identity.current, nil
 	case identitySessionUser:
-		if identity.sessionMissing != (PrincipalRef{}) {
+		if identity.sessionMissing != (authorization.PrincipalRef{}) {
 			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.sessionMissing.ID()))
 		}
 		return identity.session, nil
@@ -101,14 +102,14 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 	name, _ := auth.catalog.LookupType(sqltype.Name)
 	text, _ := auth.catalog.LookupType(sqltype.Text)
-	if err := auth.roles.validatePrincipal(auth.state.CurrentUser); err != nil {
+	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
 		return err
 	}
-	current, currentExists := auth.roles.state.roles[auth.state.CurrentUser]
-	if err := auth.roles.validatePrincipal(auth.state.SessionUser); err != nil {
+	current, currentExists := auth.roles.Find(auth.state.CurrentUser)
+	if err := auth.roles.ValidatePrincipal(auth.state.SessionUser); err != nil {
 		return err
 	}
-	session, sessionExists := auth.roles.state.roles[auth.state.SessionUser]
+	session, sessionExists := auth.roles.Find(auth.state.SessionUser)
 	s.identity = identitySnapshot{database: sqltype.String(name, s.op.session.databaseName), system: sqltype.Null(text)}
 	if sessionExists {
 		s.identity.session = sqltype.String(name, session.Name)
@@ -179,52 +180,4 @@ func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundE
 	identity := node.(identityExpression)
 	identity.ordinaryCall = true
 	return identity, nil
-}
-
-// canSetRole follows only SET-authorized membership edges. Valid descriptors
-// are required even for self/superuser shortcuts; stale identities fail closed.
-func (r RoleRead) canSetRole(session, target PrincipalRef) (bool, error) {
-	actor, err := r.Descriptor(session)
-	if err != nil {
-		return false, err
-	}
-	if _, err := r.Descriptor(target); err != nil {
-		return false, err
-	}
-	if session == target || actor.Superuser {
-		return true, nil
-	}
-	if len(r.state.edges) == 0 && r.implicitDatabaseOwner(session) == (PrincipalRef{}) {
-		return false, nil
-	}
-	visited := map[PrincipalRef]bool{session: true}
-	queue := []PrincipalRef{session}
-	for len(queue) != 0 {
-		member := queue[0]
-		queue = queue[1:]
-		for _, edge := range r.state.edges {
-			if !edge.Set || edge.Member != member || visited[edge.Role] {
-				continue
-			}
-			if _, err := r.Descriptor(edge.Role); err != nil {
-				return false, err
-			}
-			if edge.Role == target {
-				return true, nil
-			}
-			visited[edge.Role] = true
-			queue = append(queue, edge.Role)
-		}
-		if next := r.implicitDatabaseOwner(member); next != (PrincipalRef{}) && !visited[next] {
-			if _, err := r.Descriptor(next); err != nil {
-				return false, err
-			}
-			if next == target {
-				return true, nil
-			}
-			visited[next] = true
-			queue = append(queue, next)
-		}
-	}
-	return false, nil
 }

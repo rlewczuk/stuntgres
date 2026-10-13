@@ -3,11 +3,11 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 // Real staging functions, immutable descriptors and the supplied physical
@@ -23,7 +23,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					provider := &typeDescriptor{typ: domain, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, owner: e.roles.names["postgres"], revision: 1}
+					provider := &typeDescriptor{typ: domain, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), revision: 1}
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
 					p.columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.attributes, p.attributeHighWater, p.index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}

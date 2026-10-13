@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
@@ -23,7 +23,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *typeDescriptor {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &typeDescriptor{typ: typ, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: e.roles.names["postgres"]}
+	descriptor := &typeDescriptor{typ: typ, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 			t.Fatal(column, d.attributes, d.index)
 		}
 	}
-	if len(d.notNullConstraints)+len(d.checkConstraints)+len(d.uniqueConstraints)+len(d.defaults)+len(d.generations)+len(d.identities)+len(d.columnACL) != 0 || !reflect.DeepEqual(d.acl, ACLValue{}) || d.owner != auth.state.CurrentUser {
+	if len(d.notNullConstraints)+len(d.checkConstraints)+len(d.uniqueConstraints)+len(d.defaults)+len(d.generations)+len(d.identities)+len(d.columnACL) != 0 || !reflect.DeepEqual(d.acl, authorization.ACLValue{}) || d.owner != auth.state.CurrentUser {
 		t.Fatal("source table decorations inherited", d)
 	}
 	queryCreatePublish(t, e, stage)

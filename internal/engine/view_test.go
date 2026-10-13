@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -17,15 +18,15 @@ func TestViewOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, admin, q)
 	}
 	reader, _ := e.Roles().Lookup("view_reader")
-	grantor := e.roles.names["postgres"]
-	grant := func(name string, rights Privileges) {
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		ref := roleTableRef(t, e, name)
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant("outer_view", SelectPrivilege)
+	grant("outer_view", authorization.SelectPrivilege)
 	grant("t", 0)
 	roleExecute(t, e, admin, "SET SESSION AUTHORIZATION view_reader")
 	ast := statement(t, "SELECT id FROM outer_view")
@@ -50,7 +51,7 @@ func TestViewOriginalInvokerAuthority(t *testing.T) {
 		}
 	}
 	execute(true)
-	grant("t", SelectPrivilege)
+	grant("t", authorization.SelectPrivilege)
 	execute(false)
 	grant("t", 0)
 	execute(true)
@@ -64,15 +65,15 @@ func TestViewPreparedOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, admin, query)
 	}
 	reader, _ := e.Roles().Lookup("prepared_view_reader")
-	grantor := e.roles.names["postgres"]
-	grant := func(name string, rights Privileges) {
+	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
-		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, name := range []string{"invoker_view", "owner_view", "t"} {
-		grant(name, SelectPrivilege)
+		grant(name, authorization.SelectPrivilege)
 	}
 	roleExecute(t, e, admin, "SET SESSION AUTHORIZATION prepared_view_reader")
 	for _, name := range []string{"invoker_view", "owner_view"} {
@@ -122,7 +123,7 @@ func TestViewPreparedOriginalInvokerAuthority(t *testing.T) {
 		grant("t", 0)
 		execute(false, true)
 		execute(true, true)
-		grant("t", SelectPrivilege)
+		grant("t", authorization.SelectPrivilege)
 		execute(false, false)
 		execute(true, false)
 	}

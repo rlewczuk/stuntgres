@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -39,7 +40,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		}
 		typeRefs[i] = ObjectRef{e.owner, view.Epoch(), addresses[0]}
 	}
-	setACL := func(ref ObjectRef, acl ACLValue) error {
+	setACL := func(ref ObjectRef, acl authorization.ACLValue) error {
 		catalog := e.CatalogRead()
 		descriptor, ok := catalog.Descriptor(ref.Address)
 		if !ok {
@@ -62,7 +63,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		domainUnitPublish(t, e, stage)
 		return nil
 	}
-	grant := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: UsagePrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
 	for _, ref := range append([]ObjectRef{namespace}, typeRefs...) {
 		if err := setACL(ref, grant); err != nil {
 			t.Fatal(err)
@@ -75,7 +76,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE public.root(k INT,state private_types.state DEFAULT 'low'::private_types.state,quantity private_types.quantity DEFAULT 11,CONSTRAINT state_ok CHECK(state<>'high'::private_types.state)) PARTITION BY RANGE(k)")
 	parent := rangePartitionRelation(t, e, "public.root")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
-	if err := setACL(typeRefs[0], ACLValue{Explicit: true}); err != nil {
+	if err := setACL(typeRefs[0], authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION actor")
@@ -84,7 +85,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	if err := setACL(typeRefs[0], grant); err != nil {
 		t.Fatal(err)
 	}
-	if err := setACL(typeRefs[1], ACLValue{Explicit: true}); err != nil {
+	if err := setACL(typeRefs[1], authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION actor")
@@ -93,7 +94,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	if err := setACL(typeRefs[1], grant); err != nil {
 		t.Fatal(err)
 	}
-	if err := setACL(namespace, ACLValue{Explicit: true}); err != nil {
+	if err := setACL(namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION actor")
@@ -137,10 +138,10 @@ func TestRangePartitionNamedTargetAuthorityDoesNotDemandLeafACL(t *testing.T) {
 	writer, _ := e.Roles().Lookup("writer")
 	rootRef := roleTableRef(t, e, "root")
 	leafRef := roleTableRef(t, e, "leaf")
-	if err := e.SetObjectACL(context.Background(), rootRef, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: ACLGrantee{Role: writer.Ref}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), rootRef, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: writer.Ref}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), leafRef, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), leafRef, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION writer")

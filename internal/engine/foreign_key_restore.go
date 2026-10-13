@@ -130,7 +130,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 		child := view.state.descriptors[declaration.child.Address].(*relationDescriptor)
 		auth := declaration.auth
 		auth.catalog = view
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 		for _, f := range child.foreignKeys {
 			if f.NotValid {
 				continue

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -352,7 +353,7 @@ func TestTruncateAuthority(t *testing.T) {
 	e, holder, p, _ := truncateUnitFixture(t)
 	sessionSQL(t, holder, "CREATE USER reader")
 	reader, _ := e.Roles().Lookup("reader")
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: TruncatePrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.TruncatePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), p, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +364,7 @@ func TestTruncateAuthority(t *testing.T) {
 	original := e.storage[p.Address]
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	lockPending(t, e, 1)
-	if err := e.SetObjectACL(context.Background(), p, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), p, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	transactionEnd(t, holder, tx, false)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -11,10 +12,10 @@ func TestLockModesPrivileges(t *testing.T) {
 	modes := []string{"ACCESS SHARE", "ROW SHARE", "ROW EXCLUSIVE", "SHARE UPDATE EXCLUSIVE", "SHARE", "SHARE ROW EXCLUSIVE", "EXCLUSIVE", "ACCESS EXCLUSIVE"}
 	for _, right := range []struct {
 		name      string
-		privilege Privileges
+		privilege authorization.Privileges
 		allowed   int
 	}{
-		{"select", SelectPrivilege, 1}, {"insert", InsertPrivilege, 3}, {"update", UpdatePrivilege, 8}, {"delete", DeletePrivilege, 8}, {"maintain", MaintainPrivilege, 8}, {"truncate", TruncatePrivilege, 8}, {"none", 0, 0},
+		{"select", authorization.SelectPrivilege, 1}, {"insert", authorization.InsertPrivilege, 3}, {"update", authorization.UpdatePrivilege, 8}, {"delete", authorization.DeletePrivilege, 8}, {"maintain", authorization.MaintainPrivilege, 8}, {"truncate", authorization.TruncatePrivilege, 8}, {"none", 0, 0},
 	} {
 		for _, public := range []bool{false, true} {
 			for i, mode := range modes {
@@ -25,11 +26,11 @@ func TestLockModesPrivileges(t *testing.T) {
 					roleExecute(t, e, op, "CREATE USER lockreader")
 					roleExecute(t, e, op, "CREATE TABLE t(v INT)")
 					reader, _ := e.Roles().Lookup("lockreader")
-					grant := ACLGrantee{Role: reader.Ref}
+					grant := authorization.ACLGrantee{Role: reader.Ref}
 					if public {
-						grant = ACLGrantee{Public: true}
+						grant = authorization.ACLGrantee{Public: true}
 					}
-					if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, "t"), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: grant, Privileges: right.privilege}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, "t"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: grant, Privileges: right.privilege}}}); err != nil {
 						t.Fatal(err)
 					}
 					roleExecute(t, e, op, "SET SESSION AUTHORIZATION lockreader")

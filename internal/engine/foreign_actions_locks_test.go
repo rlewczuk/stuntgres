@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -289,7 +290,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			// public ALTER TABLE OWNER syntax or an authorization bypass callback.
 			view := e.CatalogRead()
 			next := *view.state.descriptors[childRef.Address].(*relationDescriptor)
-			next.owner = e.roles.names["fa_owner"]
+			next.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("fa_owner")
 			next.revision++
 			stage := e.BeginCatalogStage(view)
 			if err := stage.Replace(&next); err != nil {

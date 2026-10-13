@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -47,31 +48,31 @@ func defaultUnitSortRows(rows [][]string) {
 func TestDefaultPrivilegesProjection(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := cloneCatalog(f.e.state)
-	ownerSelect := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Role: f.owner}, Privileges: SelectPrivilege}
-	publicInsert := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Public: true}, Privileges: InsertPrivilege}
-	memberUpdate := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Role: f.member}, Privileges: UpdatePrivilege}
+	ownerSelect := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.SelectPrivilege}
+	publicInsert := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.InsertPrivilege}
+	memberUpdate := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.member}, Privileges: authorization.UpdatePrivilege}
 	specs := []struct {
 		name string
 		kind relationKind
-		acl  ACLValue
+		acl  authorization.ACLValue
 	}{
-		{"proof_absent", tableRelation, ACLValue{}},
-		{"proof_named", viewRelation, ACLValue{Explicit: true, Entries: []ACLEntry{ownerSelect, defaultUnitReaderEntry(f, SelectPrivilege, SelectPrivilege), publicInsert}}},
-		{"proof_empty", tableRelation, ACLValue{Explicit: true}},
-		{"proof_partition", partitionedRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
-		{"proof_member", tableRelation, ACLValue{Explicit: true, Entries: []ACLEntry{memberUpdate}}},
-		{"proof_update_only", tableRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, UpdatePrivilege, 0)}}},
-		{"proof_maintain", tableRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, MaintainPrivilege, MaintainPrivilege)}}},
-		{"proof_column_only", tableRelation, ACLValue{Explicit: true}},
-		{"proof_mv", materializedViewRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
-		{"proof_sequence", sequenceRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
-		{"proof_index", indexRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
-		{"proof_composite", compositeRelation, ACLValue{Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}},
+		{"proof_absent", tableRelation, authorization.ACLValue{}},
+		{"proof_named", viewRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{ownerSelect, defaultUnitReaderEntry(f, authorization.SelectPrivilege, authorization.SelectPrivilege), publicInsert}}},
+		{"proof_empty", tableRelation, authorization.ACLValue{Explicit: true}},
+		{"proof_partition", partitionedRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_member", tableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{memberUpdate}}},
+		{"proof_update_only", tableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UpdatePrivilege, 0)}}},
+		{"proof_maintain", tableRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.MaintainPrivilege, authorization.MaintainPrivilege)}}},
+		{"proof_column_only", tableRelation, authorization.ACLValue{Explicit: true}},
+		{"proof_mv", materializedViewRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_sequence", sequenceRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_index", indexRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
+		{"proof_composite", compositeRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
 	}
 	for i, spec := range specs {
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(20100 + i)}, namespace: f.schema, name: spec.name, owner: f.owner, revision: 2, relationKind: spec.kind, acl: spec.acl}
 		if spec.name == "proof_column_only" {
-			d.columnACL = map[int32]ACLValue{1: {Explicit: true, Entries: []ACLEntry{defaultUnitReaderEntry(f, SelectPrivilege, 0)}}}
+			d.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}
 		state.descriptors[d.address] = d
 	}
@@ -83,7 +84,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = catalog
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	held, got := defaultUnitProjection(t, catalog, auth)
 	var want [][]string
 	for _, privilege := range []string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
@@ -122,15 +123,17 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	if !reflect.DeepEqual(memberRows, want) {
 		t.Fatal("inherited grantor visibility", memberRows)
 	}
-	roles := cloneRoles(auth.roles.state)
-	roles.edges = append([]Membership(nil), roles.edges...)
-	for i := range roles.edges {
-		if roles.edges[i].Member == f.member {
-			roles.edges[i].Inherit = false
-			roles.edges[i].Set = true
+	roles := cloneRoleFixture(auth.roleRecord)
+	edges := fixtureEdges(roles)
+	for i := range edges {
+		if edges[i].Member == f.member {
+			edges[i].Inherit = false
+			edges[i].Set = true
 		}
 	}
-	auth.roles = RoleRead{f.e, roles, auth.catalog}
+	setFixtureEdges(roles, edges)
+	auth.roleRecord = roles
+	auth.recaptureCatalog(catalog)
 	_, setRows := defaultUnitProjection(t, catalog, auth)
 	setWant := [][]string{{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"}, {"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "NO", "NO"}}
 	defaultUnitSortRows(setWant)
@@ -145,16 +148,15 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	changed := cloneCatalog(state)
 	named := *changed.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 20101}].(*relationDescriptor)
-	named.acl = ACLValue{Explicit: true}
+	named.acl = authorization.ACLValue{Explicit: true}
 	changed.descriptors[named.address] = &named
-	actor := cloneRoles(roles)
-	renamed := actor.roles[f.reader]
+	actor := cloneRoleFixture(roles)
+	renamed := fixtureRole(actor, f.reader)
 	renamed.Name = "renamed_reader"
-	actor.roles[f.reader] = renamed
-	delete(actor.names, "default_reader")
-	actor.names["renamed_reader"] = f.reader
-	auth.catalog = CatalogRead{f.e, changed}
-	auth.roles = RoleRead{f.e, actor, auth.catalog}
+	putFixtureRole(actor, renamed)
+
+	auth.roleRecord = actor
+	auth.recaptureCatalog(CatalogRead{f.e, changed})
 	auth.state.CurrentUser = f.reader
 	_, fresh := defaultUnitProjection(t, auth.catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}

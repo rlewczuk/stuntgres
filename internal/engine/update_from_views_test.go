@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -62,19 +63,19 @@ func TestUpdateFromStoredInvokerMarksRequireBaseUpdate(t *testing.T) {
 	}
 	owner := op.RoleState().CurrentUser
 	actor, _ := e.Roles().Lookup("marked_writer")
-	grant := func(table string, mask Privileges) {
+	grant := func(table string, mask authorization.Privileges) {
 		t.Helper()
 		ref := roleTableRef(t, e, table)
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant("t", UpdatePrivilege)
-	grant("s", SelectPrivilege)
-	grant("marked", SelectPrivilege)
+	grant("t", authorization.UpdatePrivilege)
+	grant("s", authorization.SelectPrivilege)
+	grant("marked", authorization.SelectPrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION marked_writer")
 	roleError(t, e, op, "UPDATE t SET a=marked.k FROM marked RETURNING marked.k", "42501", "permission denied for table s", "")
-	grant("s", SelectPrivilege|UpdatePrivilege)
+	grant("s", authorization.SelectPrivilege|authorization.UpdatePrivilege)
 	result := roleExecute(t, e, op, "UPDATE t SET a=marked.k FROM marked RETURNING marked.k")
 	if result.Count != 1 {
 		t.Fatal(result)

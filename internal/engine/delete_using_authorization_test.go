@@ -3,10 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
 func executeUsingDescription(e *Engine, op *Operation, ast parser.Statement, description *StatementDescription) (Result, error) {
@@ -34,16 +34,16 @@ func TestDeleteUsingTargetSourceColumnAuthority(t *testing.T) {
 	}
 	owner := op.RoleState().CurrentUser
 	actor, _ := e.Roles().Lookup("using_writer")
-	grant := func(table string, attribute int, mask Privileges) {
+	grant := func(table string, attribute int, mask authorization.Privileges) {
 		ref := roleTableRef(t, e, table)
 		ref.Address.SubID = int32(attribute)
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant("t", 0, DeletePrivilege)
-	grant("s", 1, SelectPrivilege)
-	grant("r", 1, SelectPrivilege)
+	grant("t", 0, authorization.DeletePrivilege)
+	grant("s", 1, authorization.SelectPrivilege)
+	grant("r", 1, authorization.SelectPrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION using_writer")
 	for _, q := range []string{"DELETE FROM t USING s WHERE FALSE", "DELETE FROM t USING s JOIN r ON s.k=r.k WHERE FALSE RETURNING s.k"} {
 		if r := roleExecute(t, e, op, q); r.Count != 0 {
@@ -55,13 +55,13 @@ func TestDeleteUsingTargetSourceColumnAuthority(t *testing.T) {
 	for _, q := range []string{"DELETE FROM t USING s WHERE t.id=s.k", "DELETE FROM t USING s WHERE FALSE RETURNING old.id", "DELETE FROM t USING s WHERE FALSE RETURNING new.id"} {
 		roleError(t, e, op, q, "42501", "permission denied for table t", "")
 	}
-	grant("t", 1, SelectPrivilege)
+	grant("t", 1, authorization.SelectPrivilege)
 	for _, q := range []string{"DELETE FROM t USING s WHERE t.id=s.k RETURNING s.secret", "DELETE FROM t USING s JOIN r ON s.secret='source' WHERE FALSE"} {
 		roleError(t, e, op, q, "42501", "permission denied for table s", "")
 	}
 	grant("r", 1, 0)
 	roleError(t, e, op, "DELETE FROM t USING s CROSS JOIN r WHERE FALSE RETURNING 1", "42501", "permission denied for table r", "")
-	grant("r", 1, SelectPrivilege)
+	grant("r", 1, authorization.SelectPrivilege)
 	ast := statement(t, "DELETE FROM t USING s JOIN r USING(k) WHERE t.id=s.k RETURNING old.id,new.id,s.k")
 	description, err := e.Describe(op, ast)
 	if err != nil {
@@ -82,7 +82,7 @@ func TestDeleteUsingTargetSourceColumnAuthority(t *testing.T) {
 		if target == "s" {
 			grant("s", 1, 0)
 		} else {
-			grant("s", 1, SelectPrivilege)
+			grant("s", 1, authorization.SelectPrivilege)
 			grant("t", 0, 0)
 		}
 		r, err = executeUsingDescription(e, op, ast, &description)

@@ -5,42 +5,42 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // The role default is an internal physical-session hook, not a registered GUC
 // or a public connector option. Providers run without publication locks.
-func (e *Engine) initialRole(ctx context.Context, authenticated PrincipalRef, provider SessionDefaultProvider) (PrincipalRef, error) {
+func (e *Engine) initialRole(ctx context.Context, authenticated authorization.PrincipalRef, provider SessionDefaultProvider) (authorization.PrincipalRef, error) {
 	if provider == nil {
-		return PrincipalRef{}, nil
+		return authorization.PrincipalRef{}, nil
 	}
 	name, present, err := provider.SessionDefault(ctx, SettingDefinition{Name: "role", BootDefault: "none", Type: SettingString})
 	if err != nil {
-		return PrincipalRef{}, err
+		return authorization.PrincipalRef{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		return PrincipalRef{}, err
+		return authorization.PrincipalRef{}, err
 	}
 	if !present || name == "none" {
-		return PrincipalRef{}, nil
+		return authorization.PrincipalRef{}, nil
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	roles := RoleRead{e, e.roles, CatalogRead{e, e.state}}
+	roles := e.roleRead(CatalogRead{e, e.state}, e.roles)
 	target, ok := roles.Lookup(name)
 	if !ok {
-		return PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
+		return authorization.PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
 	}
 	if err := validateInitialRole(roles, authenticated, target.Ref); err != nil {
-		return PrincipalRef{}, err
+		return authorization.PrincipalRef{}, err
 	}
 	return target.Ref, nil
 }
 
-func validateInitialRole(roles RoleRead, authenticated, target PrincipalRef) error {
-	allowed, err := roles.canSetRole(authenticated, target)
+func validateInitialRole(roles authorization.Read, authenticated, target authorization.PrincipalRef) error {
+	allowed, err := roles.CanSetRole(authenticated, target)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:
 		target := v.state.SessionUser
-		if s.Reset && v.state.ResetRole != (PrincipalRef{}) {
+		if s.Reset && v.state.ResetRole != (authorization.PrincipalRef{}) {
 			target = v.state.ResetRole
 		} else if !s.Reset && s.Name != "none" {
 			d, ok := v.roles.Lookup(s.Name)
@@ -95,7 +95,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		} else {
 			allowed := target == v.state.SessionUser
 			if !allowed {
-				allowed, err = v.roles.canSetRole(v.state.SessionUser, target)
+				allowed, err = v.roles.CanSetRole(v.state.SessionUser, target)
 				if err != nil {
 					return Result{}, err
 				}
@@ -156,7 +156,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		a.revision++
 		return Result{}, nil
 	case *parser.DropRole:
-		actor, exists := v.roles.state.roles[v.state.CurrentUser]
+		actor, exists := v.roles.Find(v.state.CurrentUser)
 		if !exists || !actor.Superuser {
 			return Result{}, roleDiagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
 		}
@@ -175,7 +175,7 @@ type roleDependency struct {
 
 // A nil collector stops at the first dependency without building diagnostics.
 // Admission and final publication share the exact same descriptor classification.
-func descriptorRoleDependencies(d Descriptor, ref PrincipalRef, deps *[]roleDependency) bool {
+func descriptorRoleDependencies(d Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	if relation, ok := d.(*relationDescriptor); ok {
 		for _, policy := range relation.policies {
 			for _, role := range policy.roles {
@@ -223,7 +223,7 @@ func descriptorRoleDependencies(d Descriptor, ref PrincipalRef, deps *[]roleDepe
 	return false
 }
 
-func aclRoleDependencies(address ObjectAddress, acl ACLValue, ref PrincipalRef, deps *[]roleDependency) bool {
+func aclRoleDependencies(address ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	for _, entry := range acl.Entries {
 		if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
 			return recordRoleDependency(deps, roleDependency{address: address, kind: 'a'})
@@ -373,8 +373,8 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	return prefix + kind + name
 }
 func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.DropRole) (Result, error) {
-	targets := make(map[PrincipalRef]RoleDescriptor, len(s.Names))
-	ordered := make([]PrincipalRef, 0, len(s.Names))
+	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor, len(s.Names))
+	ordered := make([]authorization.PrincipalRef, 0, len(s.Names))
 	for _, name := range s.Names {
 		d, ok := v.roles.Lookup(name)
 		if !ok {
@@ -393,19 +393,10 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	}
 	// Hypothetical endpoint cleanup precedes every dependency check. A grantor
 	// alone is not an endpoint and therefore retains its membership dependency.
-	retained := make([]Membership, 0, len(v.roles.state.edges))
-	for _, edge := range v.roles.state.edges {
-		if _, ok := targets[edge.Role]; ok {
-			continue
-		}
-		if _, ok := targets[edge.Member]; ok {
-			continue
-		}
-		retained = append(retained, edge)
-	}
+	retained := v.roleRecord.root.RetainedMemberships(targets)
 	for _, ref := range ordered {
 		d := targets[ref]
-		if d.predefined {
+		if d.Predefined() {
 			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
 		var dependencies []roleDependency
@@ -413,7 +404,7 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 			descriptorRoleDependencies(object, ref, &dependencies)
 		}
 		defaultRoleDependencies(v.catalog, v.roles, ref, &dependencies)
-		for _, edge := range retained {
+		for edge := range retained {
 			if edge.Grantor == ref {
 				member, _ := v.roles.Descriptor(edge.Member)
 				role, _ := v.roles.Descriptor(edge.Role)
@@ -452,26 +443,21 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 			return Result{}, roleDiagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
 		}
 	}
-	if v.roles.state.revision == ^uint64(0) {
+	if v.roleRecord.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	n := cloneRoles(v.roles.state)
-	n.edges = retained
-	for ref, d := range targets {
-		delete(n.roles, ref)
-		delete(n.names, d.Name)
-	}
+	n := v.roleRecord.root.Retire(targets)
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.installOperationRolesLocked(op, n)
+	e.installOperationRolesLocked(op, &roleCatalog{root: n, revision: v.roleRecord.revision + 1})
 	if t := op.session.transactions; t.retainedMessage {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.
 		if t.catalog.retiredRoles == nil {
-			t.catalog.retiredRoles = make(map[PrincipalRef]struct{}, len(ordered))
+			t.catalog.retiredRoles = make(map[authorization.PrincipalRef]struct{}, len(ordered))
 		}
 		for _, ref := range ordered {
 			t.catalog.retiredRoles[ref] = struct{}{}

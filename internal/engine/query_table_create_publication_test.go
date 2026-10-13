@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"math"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*CatalogStage, *relationDescriptor) {
@@ -17,7 +17,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 		columns[i] = ColumnDescriptor{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
 	}
 	e.mu.Lock()
-	d, err := e.newTableDescriptorLocked(ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name, e.roles.names["postgres"], columns, nil)
+	d, err := e.newTableDescriptorLocked(ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
 	stage := e.BeginCatalogStage(CatalogRead{e, e.state})
 	if err == nil {
 		err = stage.Create(d)

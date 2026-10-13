@@ -4,11 +4,12 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 )
 
 // Replay rows before these groups: an ordinary forced owner otherwise cannot
 // insert exported data. Disabled+forced is a distinct nondefault state.
-func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles RoleRead) ([]dumpPolicyGroup, error) {
+func rowSecurityDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.state.descriptors {
 		d, ok := descriptor.(*relationDescriptor)

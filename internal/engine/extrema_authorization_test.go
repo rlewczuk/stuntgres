@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestExtremaArgumentColumnAuthorization(t *testing.T) {
 	reader, _ := e.Roles().Lookup("extrema_acl_reader")
 	column := ref
 	column.Address.SubID = 1
-	grant := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), column, grant); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +35,7 @@ func TestExtremaArgumentColumnAuthorization(t *testing.T) {
 	} {
 		roleError(t, e, op, q, "42501", "permission denied for table extrema_secret", "")
 	}
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	for _, q := range []string{"SELECT min(v),max(v) FROM extrema_secret", "SELECT min(v),max(v) FROM extrema_secret WHERE FALSE"} {

@@ -21,7 +21,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	}
 	if len(changes.descriptors) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 	}
 	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
 	if ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
@@ -69,7 +69,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 			return captureErr
 		}
 		if maintenance == nil {
-			maintenance, err = e.startSession(context.Background(), SessionStart{Authenticated: PrincipalRef{e, 10}}, true)
+			maintenance, err = e.startSession(context.Background(), SessionStart{Authenticated: e.authorizationDomain.Principal(10)}, true)
 			if err != nil {
 				return err
 			}

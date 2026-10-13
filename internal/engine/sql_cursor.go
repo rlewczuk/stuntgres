@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -45,7 +46,7 @@ type sqlCursor struct {
 	leaves                                      []queryLeaf
 	locks                                       *queryLockContext
 	catalog                                     CatalogRead
-	roles                                       RoleRead
+	roles                                       authorization.Read
 	deparseAuth                                 AuthorizationView
 	deparsePath                                 []ObjectAddress
 	visibilityCatalog                           CatalogRead
@@ -69,7 +70,7 @@ func (c *sqlCursor) releaseProducer() {
 	c.root = nil
 	c.leaves, c.locks = nil, nil
 	c.catalog = CatalogRead{}
-	c.roles = RoleRead{}
+	c.roles = authorization.Read{}
 	c.deparseAuth = AuthorizationView{}
 	c.deparsePath, c.visibilityRelationPath, c.visibilityOtherPath = nil, nil, nil
 	c.visibilityCatalog = CatalogRead{}

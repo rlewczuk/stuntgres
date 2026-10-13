@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 )
 
 // Transactional descriptors, row shapes and generators share one private overlay.
@@ -25,7 +26,7 @@ type catalogChanges struct {
 	enumUnsafe         map[int64]bool         // Globally nonreused member identities.
 	rolesBase          *roleCatalog
 	roles              *roleCatalog
-	retiredRoles       map[PrincipalRef]struct{}
+	retiredRoles       map[authorization.PrincipalRef]struct{}
 	indexRebuilds      map[ObjectAddress]*relationDescriptor
 	indexFences        []catalogIndexFence
 	namespaceFences    []catalogNamespaceFence
@@ -79,7 +80,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.dependencies = append(n.dependencies, c.dependencies...)
 	n.rolesBase, n.roles = c.rolesBase, c.roles
 	if len(c.retiredRoles) != 0 {
-		n.retiredRoles = make(map[PrincipalRef]struct{}, len(c.retiredRoles))
+		n.retiredRoles = make(map[authorization.PrincipalRef]struct{}, len(c.retiredRoles))
 		for ref := range c.retiredRoles {
 			n.retiredRoles[ref] = struct{}{}
 		}
@@ -214,8 +215,9 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.roles != nil {
 		roles = c.roles
 	}
-	read := RoleRead{e, roles, e.privateCatalogLocked(c)}
-	if err := validateDefaultACLs(read, read.catalog); err != nil {
+	catalog := e.privateCatalogLocked(c)
+	read := e.roleRead(catalog, roles)
+	if err := validateDefaultACLs(read, catalog); err != nil {
 		return err
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {

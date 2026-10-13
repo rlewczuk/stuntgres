@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"strconv"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -39,27 +40,27 @@ func TestRangePartitionConstraintPrivacy(t *testing.T) {
 						t.Fatal("actor missing")
 					}
 					ref := roleTableRef(t, e, target)
-					grant := func(attribute int32, privileges Privileges) {
+					grant := func(attribute int32, privileges authorization.Privileges) {
 						t.Helper()
 						column := ref
 						column.Address.SubID = attribute
-						if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+						if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 							t.Fatal(err)
 						}
 					}
-					grant(0, InsertPrivilege)
+					grant(0, authorization.InsertPrivilege)
 					detail := "Failing row contains (k) = (9)."
 					switch mode {
 					case "column_select":
-						grant(3, SelectPrivilege)
+						grant(3, authorization.SelectPrivilege)
 						detail = "Failing row contains (k, readable) = (9, 99)."
 					case "all_column_select":
 						for _, attribute := range []int32{1, 2, 3} {
-							grant(attribute, SelectPrivilege)
+							grant(attribute, authorization.SelectPrivilege)
 						}
 						detail = "Failing row contains (k, payload, readable) = (9, private-value, 99)."
 					case "table_select":
-						grant(0, InsertPrivilege|SelectPrivilege)
+						grant(0, authorization.InsertPrivilege|authorization.SelectPrivilege)
 						detail = "Failing row contains (9, private-value, 99)."
 					case "supplied":
 						detail = "Failing row contains (k, payload) = (9, supplied-value)."
@@ -192,11 +193,11 @@ func TestRangePartitionPhysicalConstraintPrivacy(t *testing.T) {
 					if !ok {
 						t.Fatal("actor missing")
 					}
-					grant := func(table string, attribute int32, privileges Privileges) {
+					grant := func(table string, attribute int32, privileges authorization.Privileges) {
 						t.Helper()
 						ref := roleTableRef(t, e, table)
 						ref.Address.SubID = attribute
-						if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+						if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -204,14 +205,14 @@ func TestRangePartitionPhysicalConstraintPrivacy(t *testing.T) {
 					if c.target != c.leaf {
 						grant(c.leaf, 0, 0)
 					}
-					grant(c.target, 0, InsertPrivilege)
+					grant(c.target, 0, authorization.InsertPrivilege)
 					switch mode {
 					case "leaf_select":
-						grant(c.leaf, 0, SelectPrivilege)
+						grant(c.leaf, 0, authorization.SelectPrivilege)
 					case "column_select":
-						grant(c.target, 3, SelectPrivilege)
+						grant(c.target, 3, authorization.SelectPrivilege)
 					case "table_select":
-						grant(c.target, 0, InsertPrivilege|SelectPrivilege)
+						grant(c.target, 0, authorization.InsertPrivilege|authorization.SelectPrivilege)
 					}
 					op := admin
 					if mode != "owner" {

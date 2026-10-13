@@ -199,7 +199,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = e.privateCatalogLocked(candidate)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.authorizeLocked(auth, s)

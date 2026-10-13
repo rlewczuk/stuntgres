@@ -2,11 +2,12 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 )
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL and row-security checks; expressions keep the invoker.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (*querySource, error) {
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker authorization.PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (*querySource, error) {
 	ctx := scope.op.Context()
 	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
@@ -78,8 +79,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		default:
 			catalog = e.privateCatalogLocked(scope.owner.catalog)
 		}
-		roles := scope.commentRoles
-		roles.catalog = catalog
+		roles := e.roleRead(catalog, scope.deparseAuth.roleRecord)
 		if d.address.ObjectID == 12002 {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
@@ -87,7 +87,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 				return nil, err
 			}
 			auth.catalog = catalog
-			auth.roles.catalog = auth.catalog
+			auth.recaptureCatalog(auth.catalog)
 			source, err := capturePGIndexes(ctx, catalog, auth, ref, d)
 			e.mu.Unlock()
 			return source, err
@@ -148,13 +148,13 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 
 // Called before unlocked preflight and immediately before source capture. Each
 // leaf checks current ACLs; an ordinary outer owner never replaces the invoker.
-func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker PrincipalRef, mark queryRowMark) error {
+func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
 		return ErrCatalogReplaced
@@ -190,7 +190,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 		if err != nil {
 			return err
 		}
-		if err := auth.checkColumns(binding{ref: use, relation: source}, SelectPrivilege, indices); err != nil {
+		if err := auth.checkColumns(binding{ref: use, relation: source}, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
 	}

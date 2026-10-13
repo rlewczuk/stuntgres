@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"runtime"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -44,23 +45,23 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("owner principal missing")
 	}
 	ref := ObjectRef{owner: f.e.owner, Epoch: f.e.state.epoch, Address: f.parent.address}
-	acl := func(privileges Privileges) ACLValue {
-		return ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: privileges}}}
+	acl := func(privileges authorization.Privileges) authorization.ACLValue {
+		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: privileges}}}
 	}
 	schema := ObjectRef{owner: f.e.owner, Epoch: f.e.state.epoch, Address: f.parent.namespace}
-	if err := f.e.SetObjectACL(context.Background(), schema, acl(UsagePrivilege)); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), schema, acl(authorization.UsagePrivilege)); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.e.SetObjectACL(context.Background(), ref, acl(InsertPrivilege)); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), ref, acl(authorization.InsertPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	column := ref
 	column.Address.SubID = 10
-	if err := f.e.SetObjectACL(context.Background(), column, acl(SelectPrivilege)); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), column, acl(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	column.Address.SubID = 20
-	if err := f.e.SetObjectACL(context.Background(), column, acl(SelectPrivilege)); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), column, acl(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	holder, _ := insertConflictUnitScope(t, f)
@@ -188,7 +189,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if revoke == "table INSERT" {
 		revoked = ref
 	}
-	if err := f.e.SetObjectACL(context.Background(), revoked, ACLValue{Explicit: true}); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), revoked, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	release := errors.New("release holder transaction")
@@ -236,9 +237,9 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("failed waiter retained grants, requests, transaction ticket or key bucket", leaked, buckets)
 	}
 	lockEmpty(t, f.e)
-	privileges := SelectPrivilege
+	privileges := authorization.SelectPrivilege
 	if revoke == "table INSERT" {
-		privileges = InsertPrivilege
+		privileges = authorization.InsertPrivilege
 	}
 	if err := f.e.SetObjectACL(context.Background(), revoked, acl(privileges)); err != nil {
 		t.Fatal(err)

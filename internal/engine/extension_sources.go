@@ -56,7 +56,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref Objec
 		case *extensionDescriptor:
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)
-			integer(2, int64(d.owner.id))
+			integer(2, int64(d.owner.ID()))
 			integer(3, int64(d.targetNamespace.ObjectID))
 			boolean(4, true)
 			text(5, d.version)
@@ -66,7 +66,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref Objec
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)
 			integer(2, int64(d.namespace.ObjectID))
-			integer(3, int64(d.owner.id))
+			integer(3, int64(d.owner.ID()))
 			integer(4, procedureArity(d))
 			integer(5, int64(d.result))
 			vol := "v"
@@ -84,7 +84,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref Objec
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)
 			integer(2, int64(d.namespace.ObjectID))
-			integer(3, int64(d.owner.id))
+			integer(3, int64(d.owner.ID()))
 			integer(4, int64(d.template.ObjectID))
 			text(5, "rules = 'unaccent'")
 		default:

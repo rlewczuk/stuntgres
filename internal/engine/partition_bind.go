@@ -139,7 +139,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 	if auth.catalog.Epoch() != p.auth.catalog.Epoch() {
 		return nil, ErrCatalogReplaced
 	}
-	if auth.revision != p.stage.authRevision || auth.roles.state.revision != p.stage.roleRevision {
+	if auth.revision != p.stage.authRevision || auth.roleRecord.revision != p.stage.roleRevision {
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)

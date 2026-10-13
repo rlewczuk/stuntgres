@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func roleAttributeCreate(t *testing.T, e *Engine, op *Operation, name string, login bool, o parser.RoleOptions) RoleDescriptor {
+func roleAttributeCreate(t *testing.T, e *Engine, op *Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
 	t.Helper()
 	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
 	d, ok := e.Roles().Lookup(name)
@@ -34,14 +35,14 @@ func roleAttributeAlter(name string, o parser.RoleOptions) *parser.AlterRole {
 }
 func roleAttributeFailure(t *testing.T, e *Engine, op *Operation, s parser.Statement, code string) {
 	t.Helper()
-	before := e.Roles()
+	beforePublication := e.roles
 	next := e.nextPrincipal
 	r, err := e.Execute(op, s, 0, nil)
 	var d *sqlstate.Error
 	if err == nil || code != "" && (!errors.As(err, &d) || d.Code != code) || r.Rows != nil {
 		t.Fatalf("want %s: %#v %v", code, r, err)
 	}
-	if e.Roles().state != before.state || e.nextPrincipal != next {
+	if e.roles != beforePublication || e.nextPrincipal != next {
 		t.Fatal("failed mutation published role root or allocator")
 	}
 }
@@ -62,7 +63,7 @@ func TestRoleAttributesDefaultsAndRetention(t *testing.T) {
 			name = "defaults_user"
 		}
 		d := roleAttributeCreate(t, e, op, name, login, parser.RoleOptions{})
-		want := RoleDescriptor{Ref: d.Ref, Name: name, Login: login, Inherit: true, ConnectionLimit: -1}
+		want := authorization.RoleDescriptor{Ref: d.Ref, Name: name, Login: login, Inherit: true, ConnectionLimit: -1}
 		if d != want {
 			t.Fatalf("defaults %#v want %#v", d, want)
 		}
@@ -120,7 +121,7 @@ func TestRoleAttributesAuthority(t *testing.T) {
 	before := e.Roles()
 	target := roleAttributeCreate(t, e, op, "owned", false, parser.RoleOptions{})
 	edges := e.Roles().Memberships()
-	wantEdge := Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.roles.names["postgres"], Admin: true}
+	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
 	if len(edges) != 4 || edges[3] != wantEdge || len(before.Memberships()) != 3 {
 		t.Fatal("creator ADMIN not atomic", edges)
 	}
@@ -180,29 +181,24 @@ func TestRoleAttributesMembershipNonInheritanceAndAdminTraversal(t *testing.T) {
 	} {
 		roleAttributeApply(t, e, admin, grant)
 	}
-	// SQL correctly rejects cycles, including disabled-option edges. Inject
-	// one corrupt immutable root only to exercise defensive ADMIN traversal.
-	cycle := cloneRoles(e.roles)
-	cycle.edges = append(append([]Membership(nil), e.roles.edges...), Membership{Role: member.Ref, Member: middle.Ref, Grantor: e.roles.names["postgres"]})
-	e.roles = cycle
 	read := e.Roles()
 	got, _ := read.Descriptor(member.Ref)
 	if got != member {
 		t.Fatal("attributes inherited", got)
 	}
-	if inherited, err := read.inheritsRole(member.Ref, upstream.Ref); err != nil || !inherited {
+	if inherited, err := read.InheritsRole(member.Ref, upstream.Ref); err != nil || !inherited {
 		t.Fatal("object inheritance control", err)
 	}
-	if allowed, err := read.adminOfRole(member.Ref, target.Ref); err != nil || !allowed {
+	if allowed, err := read.AdminOfRole(member.Ref, target.Ref); err != nil || !allowed {
 		t.Fatal("transitive ADMIN", err)
 	}
-	if allowed, err := read.adminOfRole(member.Ref, member.Ref); err != nil || allowed {
+	if allowed, err := read.AdminOfRole(member.Ref, member.Ref); err != nil || allowed {
 		t.Fatal("self ADMIN", err)
 	}
-	if allowed, err := read.adminOfRole(member.Ref, upstream.Ref); err != nil || allowed {
+	if allowed, err := read.AdminOfRole(member.Ref, upstream.Ref); err != nil || allowed {
 		t.Fatal("SET/INHERIT implies ADMIN", err)
 	}
-	if _, err := read.adminOfRole(member.Ref, PrincipalRef{}); err == nil {
+	if _, err := read.AdminOfRole(member.Ref, authorization.PrincipalRef{}); err == nil {
 		t.Fatal("invalid ADMIN endpoint")
 	}
 	if _, err := e.ResolveLogin("member"); err == nil {
@@ -218,8 +214,8 @@ func TestRoleAttributesMembershipNonInheritanceAndAdminTraversal(t *testing.T) {
 	if !reflect.DeepEqual(read.Memberships(), e.Roles().Memberships()) {
 		t.Fatal("INHERIT rewrote explicit membership bits")
 	}
-	if allowed, err := e.Roles().adminOfRole(target.Ref, upstream.Ref); err != nil || allowed {
-		t.Fatal("cycle traversal leaked authority", err)
+	if allowed, err := e.Roles().AdminOfRole(target.Ref, upstream.Ref); err != nil || allowed {
+		t.Fatal("ADMIN traversal leaked authority", err)
 	}
 }
 
@@ -244,7 +240,7 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 	}
 	copyEdges := old.Memberships()
 	if len(copyEdges) > 0 {
-		copyEdges[0] = Membership{}
+		copyEdges[0] = authorization.Membership{}
 		if !reflect.DeepEqual(edges, old.Memberships()) {
 			t.Fatal("mutable edge snapshot")
 		}
@@ -272,7 +268,7 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 				Targets: []parser.RoleSpec{{Name: "cancel_target"}}, Members: []parser.RoleSpec{{Name: "creator_cancel"}},
 				Options: []parser.MembershipOption{{Name: "admin", Value: true}, {Name: "inherit"}, {Name: "set"}},
 			})
-			before := fixture.Roles()
+			beforePublication := fixture.roles
 			next := fixture.nextPrincipal
 			ctx, cancel := context.WithCancel(actor.Context())
 			defer cancel()
@@ -283,7 +279,7 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 				stmt = &parser.CreateRole{Name: parser.Identifier{Text: "cancel_created"}}
 			}
 			_, err := fixture.executeRoleAttributes(&StatementScope{op: actor}, stmt, 0)
-			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.Roles().state != before.state || fixture.nextPrincipal != next {
+			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.roles != beforePublication || fixture.nextPrincipal != next {
 				t.Fatal("final cancellation leaked catalog, edge, allocator", fence.observed, err)
 			}
 		})
@@ -314,11 +310,11 @@ func TestRoleAttributesControlsRetention(t *testing.T) {
 	if got != d {
 		t.Fatal("controls changed descriptor", got)
 	}
-	before := e.Roles().state
+	before := e.roles
 	if err := e.Restore(context.Background(), strings.NewReader("CREATE ROLE forbidden")); err == nil {
 		t.Fatal("Restore role whitelist widened")
 	}
-	if e.Roles().state != before {
+	if e.roles != before {
 		t.Fatal("failed Restore changed roles")
 	}
 	// Real admission/authority continue to consume the retained root.

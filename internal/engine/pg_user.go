@@ -5,25 +5,26 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Capture from the statement's immutable role root, never from live engine roles.
 // Password verifiers are deliberately not consulted: the public value is constant.
-func capturePGUser(ctx context.Context, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGUser(ctx context.Context, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	var rows [][]sqltype.Value
-	for principal, role := range roles.state.roles {
+	for principal, role := range roles.RoleEntries() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !role.Login || principal.id > math.MaxUint32 {
+		if !role.Login || principal.ID() > math.MaxUint32 {
 			continue
 		}
-		id, err := sqltype.OIDValue(source.columns[1].Usage.Type, uint32(principal.id))
+		id, err := sqltype.OIDValue(source.columns[1].Usage.Type, uint32(principal.ID()))
 		if err != nil {
 			return nil, err
 		}

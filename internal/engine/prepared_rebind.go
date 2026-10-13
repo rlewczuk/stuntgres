@@ -2,6 +2,7 @@ package engine
 
 import (
 	"strconv"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -165,7 +166,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return ObjectRef{}, ErrCatalogReplaced
 	}
 	ns := ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: d.namespace}
-	if err := auth.Check(AccessRequirement{Object: ns, Privileges: UsagePrivilege}); err != nil {
+	if err := auth.Check(AccessRequirement{Object: ns, Privileges: authorization.UsagePrivilege}); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && len(name.Parts) != 0 && name.Parts[0].Pos.Character > 0 {
 			copy := *diagnostic
 			copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)

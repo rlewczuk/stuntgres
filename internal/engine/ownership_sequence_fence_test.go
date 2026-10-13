@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -13,14 +14,14 @@ import (
 // Reuse the ownership roles and real sequence constructor, not a mock stage.
 // Only the selected database descriptor supplies the source-owner privilege;
 // the separate SET-only edge supplies successor eligibility, not source INHERIT.
-func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ObjectRef, PrincipalRef, Descriptor, *catalogChanges) {
+func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ObjectRef, authorization.PrincipalRef, Descriptor, *catalogChanges) {
 	t.Helper()
 	e, bootstrap, actor, target, reader := ownershipUnitRoles()
-	roles := cloneRoles(e.roles)
-	ordinary := roles.roles[actor]
+	roles := cloneRoleFixture(e.roles)
+	ordinary := fixtureRole(roles, actor)
 	ordinary.Login, ordinary.ConnectionLimit = true, -1
-	roles.roles[actor] = ordinary
-	roles.edges = append(roles.edges, Membership{Role: target, Member: actor, Grantor: bootstrap, Set: true})
+	putFixtureRole(roles, ordinary)
+	setFixtureEdges(roles, append(fixtureEdges(roles), authorization.Membership{Role: target, Member: actor, Grantor: bootstrap, Set: true}))
 	e.roles = roles
 	for _, query := range []string{
 		"CREATE SEQUENCE ownership_fence_seq START 40 CACHE 3",
@@ -32,13 +33,13 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 	}
 	ref := roleTableRef(t, e, "ownership_fence_seq")
 	setup := e.BeginCatalogStage(e.CatalogRead())
-	dbRole := roles.names["pg_database_owner"]
+	dbRole := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	sequence := *setup.base.state.descriptors[ref.Address].(*relationDescriptor)
 	sequence.owner = dbRole
-	sequence.acl = ACLValue{Explicit: true, Entries: []ACLEntry{
-		grantUnitEntry(dbRole, dbRole, UsagePrivilege|SelectPrivilege|UpdatePrivilege, 0),
-		grantUnitEntry(dbRole, reader, UsagePrivilege, 0),
-		grantUnitEntry(bootstrap, reader, SelectPrivilege, 0),
+	sequence.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+		objectACLUnitEntry(dbRole, dbRole, authorization.UsagePrivilege|authorization.SelectPrivilege|authorization.UpdatePrivilege, 0),
+		objectACLUnitEntry(dbRole, reader, authorization.UsagePrivilege, 0),
+		objectACLUnitEntry(bootstrap, reader, authorization.SelectPrivilege, 0),
 	}}
 	sequence.revision++
 	if err := setup.Replace(&sequence); err != nil {
@@ -100,19 +101,19 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					t.Fatal(err)
 				}
 				actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-				if err != nil || !actor.Login || actor.Superuser || auth.roles.state.roles[target].Superuser {
+				if err != nil || !actor.Login || actor.Superuser || fixtureRole(auth.roleRecord, target).Superuser {
 					t.Fatal("fixture is not an ordinary login actor and successor", err)
 				}
-				dbRole := auth.roles.state.names["pg_database_owner"]
+				dbRole := auth.roles.LookupRef("pg_database_owner")
 				old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				selectedDB := auth.catalog.state.descriptors[currentDatabaseAddress]
-				if old.owner != dbRole || old.owner == actor.Ref || selectedDB.(*databaseDescriptor).owner != actor.Ref || auth.databasePredecessor != committed || auth.roles.catalog != auth.catalog {
+				if old.owner != dbRole || old.owner == actor.Ref || selectedDB.(*databaseDescriptor).owner != actor.Ref || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture lacks canonical paired selected DB ownership authority")
 				}
 				if private && selectedDB == committed {
 					t.Fatal("private authority is not distinct from its exact committed predecessor")
 				}
-				for _, edge := range auth.roles.state.edges {
+				for edge := range auth.roles.Edges() {
 					if edge.Role == dbRole && edge.Member == actor.Ref {
 						t.Fatal("explicit membership bypasses implicit database ownership")
 					}
@@ -120,7 +121,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 					t.Fatal("selected database owner cannot own actual sequence", err)
 				}
-				if allowed, err := auth.roles.canSetRole(actor.Ref, target); err != nil || !allowed {
+				if allowed, err := auth.roles.CanSetRole(actor.Ref, target); err != nil || !allowed {
 					t.Fatal("successor is not SET eligible", err)
 				}
 				targetAuth := auth
@@ -128,7 +129,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if err := targetAuth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: old.namespace}); err != nil {
 					t.Fatal("successor lacks actual namespace CREATE", err)
 				}
-				retainedACL := ACLValue{Explicit: old.acl.Explicit, Entries: append([]ACLEntry(nil), old.acl.Entries...)}
+				retainedACL := authorization.ACLValue{Explicit: old.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), old.acl.Entries...)}
 				retainedOptions := *old.sequence
 				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.state.epoch
 				originalCatalog := e.state
@@ -178,7 +179,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						// exact installed predecessor of a distinct private view.
 						database.owner = actor.Ref
 					} else {
-						database.owner = oldRoles.names["postgres"]
+						database.owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
 					database.revision++
 					if err := stage.Replace(&database); err != nil {
@@ -205,11 +206,11 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					t.Fatal("actual OWNER handler did not stage catalog changes")
 				}
 				staged, ok := candidate.descriptors[ref.Address].(*relationDescriptor)
-				reader, bootstrap := oldRoles.names["ownership_reader"], oldRoles.names["postgres"]
-				wantACL := ACLValue{Explicit: true, Entries: []ACLEntry{
-					grantUnitEntry(target, target, UsagePrivilege|SelectPrivilege|UpdatePrivilege, 0),
-					grantUnitEntry(target, reader, UsagePrivilege, 0),
-					grantUnitEntry(bootstrap, reader, SelectPrivilege, 0),
+				reader, bootstrap := oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_reader"), oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+					objectACLUnitEntry(target, target, authorization.UsagePrivilege|authorization.SelectPrivilege|authorization.UpdatePrivilege, 0),
+					objectACLUnitEntry(target, reader, authorization.UsagePrivilege, 0),
+					objectACLUnitEntry(bootstrap, reader, authorization.SelectPrivilege, 0),
 				}}
 				if !ok || staged == old || staged.owner != target || !reflect.DeepEqual(staged.acl, wantACL) || *staged.sequence != retainedOptions || candidate.generators[ref.Address] != nil || e.state != originalCatalog {
 					t.Fatal("actual OWNER handler did not stage descriptor/ACL-only transfer without a prefix")

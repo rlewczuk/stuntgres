@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -17,13 +18,13 @@ func TestUpdateReturningColumnAuthorization(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	column := ref
 	column.Address.SubID = 1
-	grant := func(mask Privileges) {
+	grant := func(mask authorization.Privileges) {
 		t.Helper()
-		if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: mask}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant(UpdatePrivilege)
+	grant(authorization.UpdatePrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION output_writer")
 	r := roleExecute(t, e, op, "UPDATE t SET a=7 RETURNING 1")
 	if r.Count != 1 {
@@ -33,7 +34,7 @@ func TestUpdateReturningColumnAuthorization(t *testing.T) {
 	for _, q := range []string{"UPDATE t SET a=8 RETURNING a", "UPDATE t SET a=8 WHERE FALSE RETURNING old.a", "UPDATE t SET a=8 RETURNING new.a", "UPDATE t SET a=8 RETURNING CASE WHEN FALSE THEN v ELSE 'safe' END"} {
 		roleError(t, e, op, q, "42501", "permission denied for table t", "")
 	}
-	grant(UpdatePrivilege | SelectPrivilege)
+	grant(authorization.UpdatePrivilege | authorization.SelectPrivilege)
 	r = roleExecute(t, e, op, "UPDATE t SET a=8 RETURNING old.a,new.a")
 	got := tuples(r)
 	r.Rows.Close()

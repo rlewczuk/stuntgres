@@ -6,27 +6,27 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
-func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, PrincipalRef, PrincipalRef, PrincipalRef, ObjectAddress) {
+func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, authorization.PrincipalRef, authorization.PrincipalRef, authorization.PrincipalRef, ObjectAddress) {
 	t.Helper()
 	e, op, reader, address := objectGrantUnitFixture(t)
 	target := roleAttributeCreate(t, e, op, "revoke_target", true, parser.RoleOptions{}).Ref
 	leaf := roleAttributeCreate(t, e, op, "revoke_leaf", true, parser.RoleOptions{}).Ref
 	old := e.state.descriptors[address].(*relationDescriptor)
 	next := *old
-	next.acl = materializeRelationACL(ACLValue{}, old.owner)
-	next.acl.Entries = append(next.acl.Entries, grantUnitEntry(old.owner, reader, SelectPrivilege, SelectPrivilege))
-	next.columnACL = map[int32]ACLValue{
-		1: {Explicit: true, Entries: []ACLEntry{grantUnitEntry(old.owner, target, UpdatePrivilege, 0)}},
-		3: {Explicit: true, Entries: []ACLEntry{
-			grantUnitEntry(old.owner, reader, SelectPrivilege, SelectPrivilege),
-			grantUnitEntry(reader, target, SelectPrivilege, SelectPrivilege),
-			grantUnitEntry(target, leaf, SelectPrivilege, 0),
+	next.acl = authorization.MaterializeRelationACL(authorization.ACLValue{}, old.owner)
+	next.acl.Entries = append(next.acl.Entries, objectACLUnitEntry(old.owner, reader, authorization.SelectPrivilege, authorization.SelectPrivilege))
+	next.columnACL = map[int32]authorization.ACLValue{
+		1: {Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(old.owner, target, authorization.UpdatePrivilege, 0)}},
+		3: {Explicit: true, Entries: []authorization.ACLEntry{
+			objectACLUnitEntry(old.owner, reader, authorization.SelectPrivilege, authorization.SelectPrivilege),
+			objectACLUnitEntry(reader, target, authorization.SelectPrivilege, authorization.SelectPrivilege),
+			objectACLUnitEntry(target, leaf, authorization.SelectPrivilege, 0),
 		}},
 	}
 	e.state = cloneCatalog(e.state)
@@ -89,12 +89,12 @@ func TestObjectRevokeColumnSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.state.descriptors[address].(*relationDescriptor)
-	wantTable := []ACLEntry{old.acl.Entries[0], grantUnitEntry(old.owner, reader, SelectPrivilege, 0)}
-	wantColumn := []ACLEntry{grantUnitEntry(old.owner, reader, SelectPrivilege, 0)}
+	wantTable := []authorization.ACLEntry{old.acl.Entries[0], objectACLUnitEntry(old.owner, reader, authorization.SelectPrivilege, 0)}
+	wantColumn := []authorization.ACLEntry{objectACLUnitEntry(old.owner, reader, authorization.SelectPrivilege, 0)}
 	if e.state == before || next == old || e.roles.revision != roles.revision+1 || !slices.Equal(next.acl.Entries, wantTable) || !slices.Equal(next.columnACL[3].Entries, wantColumn) || !reflect.DeepEqual(next.columnACL[1], old.columnACL[1]) {
 		t.Fatal("duplicate/stable/per-column publication", next, e.roles.revision, roles.revision)
 	}
-	if old.columnACL[3].Entries[1].Grantee.Role != target || old.acl.Entries[1].GrantOptions != SelectPrivilege {
+	if old.columnACL[3].Entries[1].Grantee.Role != target || old.acl.Entries[1].GrantOptions != authorization.SelectPrivilege {
 		t.Fatal("retained original mutated", old)
 	}
 	stable, stableRoles := e.state, e.roles
@@ -124,7 +124,7 @@ func TestObjectRevokeNoopPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := e.state.descriptors[address].(*relationDescriptor)
-		if e.state == before || e.roles.revision != roles.revision+1 || !reflect.DeepEqual(next.acl, materializeRelationACL(ACLValue{}, next.owner)) || len(next.columnACL) != 0 {
+		if e.state == before || e.roles.revision != roles.revision+1 || !reflect.DeepEqual(next.acl, authorization.MaterializeRelationACL(authorization.ACLValue{}, next.owner)) || len(next.columnACL) != 0 {
 			t.Fatal("absent table defaults not explicitly materialized", next)
 		}
 		stable, stableRoles := e.state, e.roles
@@ -140,7 +140,9 @@ func TestObjectRevokePublicationFence(t *testing.T) {
 			e, op, _, _, _, _ := objectRevokeUnitFixture(t)
 			if failure == "revision" {
 				e.roles = advanceRoleRevision(e.roles)
-				e.roles.revision = ^uint64(0)
+				saturated := *e.roles
+				saturated.revision = ^uint64(0)
+				e.roles = &saturated
 			} else {
 				op.session.mu.Lock()
 				delete(op.session.operations, op)

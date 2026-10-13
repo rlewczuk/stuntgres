@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -191,7 +192,7 @@ func TestQueryWindowColumnAuthority(t *testing.T) {
 	}
 	column := ref
 	column.Address.SubID = 1
-	grant := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), column, grant); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +207,7 @@ func TestQueryWindowColumnAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleError(t, e, op, "SELECT count(*) OVER() FROM window_secret", "42501", "permission denied for table window_secret", "")

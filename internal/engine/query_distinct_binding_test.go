@@ -3,11 +3,11 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
@@ -188,18 +188,18 @@ func TestQueryDistinctPhysicalACL(t *testing.T) {
 				roleExecute(t, e, op, "INSERT INTO acl_t VALUES(1,9),(1,8),(2,8)")
 			}
 			reader, _ := e.Roles().Lookup("distinct_reader")
-			grantor := e.roles.names["postgres"]
+			grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			table := roleTableRef(t, e, "acl_t")
 			id := table
 			id.Address.SubID = 1
-			grant := func(ref ObjectRef, rights Privileges) {
+			grant := func(ref ObjectRef, rights authorization.Privileges) {
 				t.Helper()
-				if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 					t.Fatal(err)
 				}
 			}
 			grant(table, 0)
-			grant(id, SelectPrivilege)
+			grant(id, authorization.SelectPrivilege)
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION distinct_reader")
 			ast := statement(t, "SELECT DISTINCT id AS secret FROM acl_t ORDER BY secret")
 			held, err := e.Describe(op, ast)

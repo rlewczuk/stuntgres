@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"sync"
 	"testing"
 )
@@ -14,7 +15,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	q := NameAddressForTempMove(t, e, ns.Address, "q")
 	old, sequence, storage := e.state.descriptors[ref.Address], e.state.descriptors[q], e.storage[ref.Address]
 	stmt := statement(t, "ALTER TABLE protected.t SET SCHEMA s2")
-	acl.Entries[0].Privileges = CreatePrivilege
+	acl.Entries[0].Privileges = authorization.CreatePrivilege
 	var once sync.Once
 	var frontier DefinitionRevision
 	provider := e.providers[RelationClassID]

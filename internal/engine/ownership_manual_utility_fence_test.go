@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -14,7 +15,7 @@ import (
 // Creation uses a separate real namespace: its explicit ACL grants no PUBLIC
 // CREATE, and its only owner is pg_database_owner. The actor's direct ownership
 // of the OWNED BY table cannot supply the earlier namespace CREATE privilege.
-func ownershipManualCreationFixture(t *testing.T, e *Engine, actor PrincipalRef) (ObjectAddress, ObjectRef) {
+func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization.PrincipalRef) (ObjectAddress, ObjectRef) {
 	t.Helper()
 	ownershipUnitExec(t, e, "CREATE SCHEMA ownership_fence_creation")
 	ownershipUnitExec(t, e, "CREATE TABLE ownership_fence_creation.owned_table(v INT)")
@@ -22,8 +23,8 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor PrincipalRef)
 	table := roleTableRef(t, e, "ownership_fence_creation.owned_table")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	namespace := *stage.base.state.descriptors[ns].(*namespaceDescriptor)
-	namespace.owner = e.roles.names["pg_database_owner"]
-	namespace.acl = ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(namespace.owner, namespace.owner, UsagePrivilege|CreatePrivilege, 0)}}
+	namespace.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	namespace.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(namespace.owner, namespace.owner, authorization.UsagePrivilege|authorization.CreatePrivilege, 0)}}
 	namespace.revision++
 	if err := stage.Replace(&namespace); err != nil {
 		t.Fatal(err)
@@ -92,7 +93,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence Ob
 		t.Fatal(err)
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-	if err != nil || actor.Superuser || !actor.Login || auth.roles.catalog != auth.catalog || auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner != actor.Ref {
+	if err != nil || actor.Superuser || !actor.Login || auth.pairedCatalog != auth.catalog || auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner != actor.Ref {
 		t.Fatal("manual utility fixture lacks ordinary paired selected DB authority", err)
 	}
 	result, err := message.step(statement(t, "SELECT nextval('ownership_fence_seq')"))
@@ -121,7 +122,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	if private {
 		database.owner = session.authorization.state.CurrentUser
 	} else {
-		database.owner = e.roles.names["postgres"]
+		database.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
 	database.revision++
 	if err := stage.Replace(&database); err != nil {
@@ -155,9 +156,9 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	before.roots = indexMaintenanceCapture(e)
 }
 
-func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ObjectRef, auth AuthorizationView, committed Descriptor, old *relationDescriptor, retainedACL ACLValue, retainedOptions sequenceOptions, before ownershipManualSnapshot, dropped bool) {
+func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ObjectRef, auth AuthorizationView, committed Descriptor, old *relationDescriptor, retainedACL authorization.ACLValue, retainedOptions sequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
-	if e.roles != before.roles || session.authorization.revision != before.revision || e.state.epoch != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.state.descriptors[sequence.Address] != old || old.owner != auth.roles.state.names["pg_database_owner"] || old.comment != "retained sequence comment" || !reflect.DeepEqual(old.acl, retainedACL) || *old.sequence != retainedOptions {
+	if e.roles != before.roles || session.authorization.revision != before.revision || e.state.epoch != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.state.descriptors[sequence.Address] != old || old.owner != auth.roles.LookupRef("pg_database_owner") || old.comment != "retained sequence comment" || !reflect.DeepEqual(old.acl, retainedACL) || *old.sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
 	if session.sequences[sequence.Address] != before.memory || *before.memory != before.memoryValue || session.lastSequence != before.last {
@@ -200,11 +201,11 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						t.Fatal("canonical DB owner cannot CREATE in strict namespace", err)
 					}
 					withoutDB := auth
-					withoutDB.state.CurrentUser = auth.roles.state.names["ownership_reader"]
+					withoutDB.state.CurrentUser = auth.roles.LookupRef("ownership_reader")
 					if err := withoutDB.CheckCreate(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ns}); err == nil {
 						t.Fatal("namespace PUBLIC/direct rights bypass DB-derived CREATE")
 					}
-					retainedACL := ACLValue{Explicit: old.acl.Explicit, Entries: append([]ACLEntry(nil), old.acl.Entries...)}
+					retainedACL := authorization.ACLValue{Explicit: old.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), old.acl.Entries...)}
 					retainedOptions := *old.sequence
 					var syntax parser.Statement
 					newName := ownershipManualName("ownership_fence_creation", "new_sequence")
@@ -261,9 +262,9 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						}
 						array = candidate.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(enum.array)}].(*typeDescriptor)
 						members := enum.typ.EnumMembers()
-						wantTypeACL := ACLValue{Explicit: true, Entries: []ACLEntry{
-							grantUnitEntry(auth.state.CurrentUser, auth.state.CurrentUser, UsagePrivilege, 0),
-							{Grantor: auth.state.CurrentUser, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege},
+						wantTypeACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+							objectACLUnitEntry(auth.state.CurrentUser, auth.state.CurrentUser, authorization.UsagePrivilege, 0),
+							{Grantor: auth.state.CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 						}}
 						if len(members) != 2 || members[0].Label != "first" || members[1].Label != "second" || members[0].ID == members[1].ID || enum.namespace != ns || enum.owner != auth.state.CurrentUser || !candidate.enumCreated[enum.Address()] || array.namespace != ns || array.owner != enum.owner || !array.typ.IsArray() || array.typ.Element().ID() != enum.typ.ID() || !reflect.DeepEqual(enum.acl, wantTypeACL) || !reflect.DeepEqual(array.acl, wantTypeACL) {
 							t.Fatal("CREATE ENUM lost actual members/array linkage/ACL/safety bookkeeping")
@@ -465,7 +466,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				} else if err != nil || e.state.descriptors[created.address] != created || e.state.names[descriptorNameKey(created)] != created.address || e.sequences[created.address] != candidate.generators[created.address] || len(e.storage[roleTableRef(t, e, "ownership_fence_sentinel").Address].versions) != 2 {
 					t.Fatal("healthy actual OWNED wait did not publish association/counter/prefix", err)
 				}
-				retainedACL := ACLValue{Explicit: old.acl.Explicit, Entries: append([]ACLEntry(nil), old.acl.Entries...)}
+				retainedACL := authorization.ACLValue{Explicit: old.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), old.acl.Entries...)}
 				ownershipManualRetainedUnchanged(t, e, session, sequence, auth, committed, &old, retainedACL, *old.sequence, before, false)
 				if auth.catalog.state.descriptors[currentDatabaseAddress] != selectedDB {
 					t.Fatal("OWNED wait mutated retained selected authority")

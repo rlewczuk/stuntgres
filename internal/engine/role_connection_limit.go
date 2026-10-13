@@ -1,10 +1,13 @@
 package engine
 
-import "stuntgres/internal/sqlstate"
+import (
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqlstate"
+)
 
 // sessionMu owns both counting and publication/removal. Do not lock peers:
 // teardown holds their own mutex before taking sessionMu.
-func (e *Engine) roleSessionCountLocked(ref PrincipalRef) int {
+func (e *Engine) roleSessionCountLocked(ref authorization.PrincipalRef) int {
 	n := 0
 	for _, s := range e.sessions {
 		if s.countedAuthenticated == ref {

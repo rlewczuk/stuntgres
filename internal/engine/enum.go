@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -62,7 +63,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	acl := stage.creationACL(auth.state.CurrentUser, ns.Address, defaultTypes)
+	acl := stage.creationACL(auth.state.CurrentUser, ns.Address, authorization.DefaultTypes)
 	arrayOID, err := e.allocateOIDLocked()
 	if err != nil {
 		return err
@@ -74,5 +75,5 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, array: array.ID()}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: defaultBaseline(auth.state.CurrentUser, defaultTypes, false)})
+	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false)})
 }

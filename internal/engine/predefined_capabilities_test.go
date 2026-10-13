@@ -5,10 +5,10 @@ import (
 	"context"
 	"reflect"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
 func TestPredefinedCapabilityMasks(t *testing.T) {
@@ -19,26 +19,26 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, role := range []string{"pg_read_all_data", "pg_write_all_data", "pg_maintain"} {
 		roleAttributeApply(t, e, op, predefinedMembership(role, reader.Name))
 	}
-	owner := e.roles.names["postgres"]
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	// Private immutable descriptors isolate class masks from public SQL syntax.
 	descriptors := []struct {
 		d    Descriptor
-		want Privileges
+		want authorization.Privileges
 	}{
-		{&namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 100001}, name: "private", owner: owner, acl: ACLValue{Explicit: true}}, UsagePrivilege},
-		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100002}, name: "table", owner: owner, acl: ACLValue{Explicit: true}, relationKind: tableRelation, attributes: []int32{1}}, SelectPrivilege | InsertPrivilege | UpdatePrivilege | DeletePrivilege | MaintainPrivilege},
-		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100003}, name: "view", owner: owner, acl: ACLValue{Explicit: true}, relationKind: viewRelation}, SelectPrivilege | InsertPrivilege | UpdatePrivilege | DeletePrivilege | MaintainPrivilege},
-		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100004}, name: "materialized", owner: owner, acl: ACLValue{Explicit: true}, relationKind: materializedViewRelation}, SelectPrivilege | InsertPrivilege | UpdatePrivilege | DeletePrivilege | MaintainPrivilege},
-		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100005}, name: "sequence", owner: owner, acl: ACLValue{Explicit: true}, relationKind: sequenceRelation}, SelectPrivilege | UpdatePrivilege},
-		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100006}, name: "index", owner: owner, acl: ACLValue{Explicit: true}, relationKind: indexRelation}, 0},
-		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100007}, name: "catalog", owner: owner, acl: ACLValue{Explicit: true}, relationKind: catalogRelation}, SelectPrivilege},
-		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100008}, name: "provider", owner: owner, acl: ACLValue{Explicit: true}, relationKind: viewRelation, virtualView: true}, SelectPrivilege},
+		{&namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 100001}, name: "private", owner: owner, acl: authorization.ACLValue{Explicit: true}}, authorization.UsagePrivilege},
+		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100002}, name: "table", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: tableRelation, attributes: []int32{1}}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100003}, name: "view", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: viewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100004}, name: "materialized", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: materializedViewRelation}, authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.MaintainPrivilege},
+		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100005}, name: "sequence", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: sequenceRelation}, authorization.SelectPrivilege | authorization.UpdatePrivilege},
+		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100006}, name: "index", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: indexRelation}, 0},
+		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100007}, name: "catalog", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: catalogRelation}, authorization.SelectPrivilege},
+		{&relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 100008}, name: "provider", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: viewRelation, virtualView: true}, authorization.SelectPrivilege},
 	}
 	state := cloneCatalog(e.state)
 	for _, tc := range descriptors {
 		state.descriptors[tc.d.Address()] = tc.d
 	}
-	v := AuthorizationView{engine: e, catalog: CatalogRead{e, state}, roles: RoleRead{e, e.roles, CatalogRead{e, state}}, state: RoleState{CurrentUser: reader.Ref}}
+	v := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, state}, roleRecord: e.roles, catalog: CatalogRead{e, state}, roles: e.roleRead(CatalogRead{e, state}, e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
 		ref := ObjectRef{e.owner, state.epoch, tc.d.Address()}
 		got, err := v.Effective(ref, false)
@@ -54,27 +54,27 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		}
 	}
 	typ := state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 25}]
-	if predefinedPrivileges(typ, []PrincipalRef{{e, 6181}, {e, 6182}, {e, 6337}}) != 0 {
+	if predefinedPrivileges(typ, []authorization.PrincipalRef{e.authorizationDomain.Principal(6181), e.authorizationDomain.Principal(6182), e.authorizationDomain.Principal(6337)}) != 0 {
 		t.Fatal("data capability leaked onto type")
 	}
 	column := ObjectRef{e.owner, state.epoch, descriptors[1].d.Address()}
 	column.Address.SubID = 1
-	if got, err := v.Effective(column, false); err != nil || got != SelectPrivilege|InsertPrivilege|UpdatePrivilege {
+	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege {
 		t.Fatal("column mask", got, err)
 	}
 	// An ordinary ACL supplements predefined capabilities; revocation changes
 	// only fresh role views, never retained descriptor or authority snapshots.
 	table := descriptors[1].d.(*relationDescriptor)
 	withColumn := *table
-	withColumn.columnACL = map[int32]ACLValue{1: {Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: ReferencesPrivilege, GrantOptions: ReferencesPrivilege}}}}
+	withColumn.columnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := cloneCatalog(state)
 	withColumnState.descriptors[table.address] = &withColumn
 	v.catalog = CatalogRead{e, withColumnState}
-	v.roles.catalog = v.catalog
-	if got, err := v.Effective(column, false); err != nil || got != SelectPrivilege|InsertPrivilege|UpdatePrivilege|ReferencesPrivilege {
+	v.recaptureCatalog(v.catalog)
+	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege {
 		t.Fatal("ACL plus capability", got, err)
 	}
-	if got, err := v.Effective(column, true); err != nil || got != ReferencesPrivilege {
+	if got, err := v.Effective(column, true); err != nil || got != authorization.ReferencesPrivilege {
 		t.Fatal("ordinary options", got, err)
 	}
 	for _, role := range []string{"pg_read_all_data", "pg_write_all_data", "pg_maintain"} {
@@ -83,7 +83,8 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		roleAttributeApply(t, e, op, revoke)
 	}
 	fresh := v
-	fresh.roles = RoleRead{e, e.roles, fresh.catalog}
+	fresh.roleRecord = e.roles
+	fresh.roles = e.roleRead(fresh.catalog, e.roles)
 	if got, err := fresh.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
@@ -95,12 +96,13 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 			t.Fatal("capability accepted invalid object", ref)
 		}
 	}
-	fresh.state.CurrentUser = PrincipalRef{New(), reader.Ref.id}
+	fresh.state.CurrentUser = New().authorizationDomain.Principal(reader.Ref.ID())
 	if _, err := fresh.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err == nil {
 		t.Fatal("capability accepted foreign actor")
 	}
 	roleAttributeApply(t, e, op, &parser.DropRole{Names: []string{reader.Name}})
 	fresh.roles = e.Roles()
+	fresh.roleRecord = e.roles
 	fresh.state.CurrentUser = reader.Ref
 	if _, err := fresh.Effective(ObjectRef{e.owner, state.epoch, table.address}, false); err == nil {
 		t.Fatal("capability accepted retired actor")
@@ -157,22 +159,22 @@ func TestPredefinedRoleControls(t *testing.T) {
 	revoke.Revoke = true
 	roleAttributeApply(t, e, op, revoke)
 	roles := e.roles
-	sourceEdges := append([]Membership(nil), roles.edges...)
+	sourceEdges := append([]authorization.Membership(nil), fixtureEdges(roles)...)
 	stage := e.restoreStage()
-	expectedEdges := append([]Membership(nil), sourceEdges...)
+	expectedEdges := append([]authorization.Membership(nil), sourceEdges...)
 	for i := range expectedEdges {
-		expectedEdges[i].Role.owner = stage
-		expectedEdges[i].Member.owner = stage
-		expectedEdges[i].Grantor.owner = stage
+		expectedEdges[i].Role = stage.authorizationDomain.Principal(expectedEdges[i].Role.ID())
+		expectedEdges[i].Member = stage.authorizationDomain.Principal(expectedEdges[i].Member.ID())
+		expectedEdges[i].Grantor = stage.authorizationDomain.Principal(expectedEdges[i].Grantor.ID())
 	}
 	if !reflect.DeepEqual(stage.Roles().Memberships(), expectedEdges) {
 		t.Fatal("import lost captured target graph/options/provenance")
 	}
-	if e.roles != roles || !reflect.DeepEqual(sourceEdges, roles.edges) {
+	if e.roles != roles || !reflect.DeepEqual(sourceEdges, fixtureEdges(roles)) {
 		t.Fatal("import mutated retained target graph")
 	}
-	closure, err := stage.Roles().roleClosure(context.Background(), PrincipalRef{stage, 10}, true)
-	if err != nil || !reflect.DeepEqual(closure, []PrincipalRef{{stage, 10}, {stage, 6171}}) {
+	closure, err := stage.Roles().RoleClosure(context.Background(), stage.authorizationDomain.Principal(10), true)
+	if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{stage.authorizationDomain.Principal(10), stage.authorizationDomain.Principal(6171)}) {
 		t.Fatal("stage implicit owner", closure, err)
 	}
 	var dump bytes.Buffer
@@ -193,7 +195,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 			t.Fatal("control reseeded shared graph")
 		}
 		public := e.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}].(*namespaceDescriptor)
-		if public.owner != (PrincipalRef{e, 6171}) || !bootstrapNamespaceDumpable(public) {
+		if public.owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
 			t.Fatal("public owner or ACL baseline", public)
 		}
 		for _, entry := range public.acl.Entries {
@@ -207,7 +209,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	public := target.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}].(*namespaceDescriptor)
-	if public.owner != (PrincipalRef{target, 6171}) {
+	if public.owner != (target.authorizationDomain.Principal(6171)) {
 		t.Fatal("foreign public owner escaped remapping", public.owner)
 	}
 	if len(target.Roles().Memberships()) != 3 {

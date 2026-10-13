@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -137,7 +138,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	if checkErr != nil {
 		return checkErr
 	}
-	if rights&SelectPrivilege == 0 {
+	if rights&authorization.SelectPrivilege == 0 {
 		for _, entry := range parent.partition.keys {
 			if entry.derived != nil {
 				return err
@@ -148,7 +149,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 			if checkErr != nil {
 				return checkErr
 			}
-			if rights&SelectPrivilege == 0 {
+			if rights&authorization.SelectPrivilege == 0 {
 				return err
 			}
 		}

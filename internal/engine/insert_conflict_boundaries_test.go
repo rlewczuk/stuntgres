@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -98,10 +99,10 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	f.parent.owner = owner.Ref
 	f.index.owner = owner.Ref
 	ref := ObjectRef{owner: f.e.owner, Epoch: f.e.state.epoch, Address: f.parent.address}
-	acl := func(privileges Privileges) ACLValue {
-		return ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
+	acl := func(privileges authorization.Privileges) authorization.ACLValue {
+		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
 	}
-	if err := f.e.SetObjectACL(context.Background(), ref, acl(InsertPrivilege)); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), ref, acl(authorization.InsertPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	b := bindingForConflict(ref, f.parent, &boundInsertConflict{targets: []int{0, 1}, reads: []int{0, 1}})
@@ -127,16 +128,16 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	check("42501")
 	column := ref
 	column.Address.SubID = 10
-	if err := f.e.SetObjectACL(context.Background(), column, acl(SelectPrivilege)); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), column, acl(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	check("42501")
 	column.Address.SubID = 20
-	if err := f.e.SetObjectACL(context.Background(), column, acl(SelectPrivilege)); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), column, acl(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	check("")
-	if err := f.e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true}); err != nil {
+	if err := f.e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	check("42501")

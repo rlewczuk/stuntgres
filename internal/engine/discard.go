@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -25,7 +26,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 			return Result{}, fmt.Errorf("stuntgres: discard plan generation exhausted")
 		}
 	}
-	var reset RoleState
+	var reset authorization.RoleState
 	if raw.Category == parser.DiscardAll {
 		var err error
 		reset, err = s.discardAllPreflight()
@@ -47,7 +48,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	if raw.Category == parser.DiscardAll {
 		e := session.Engine()
 		s.op.discardRoleReset = reset
-		defer func() { s.op.discardRoleReset = RoleState{} }()
+		defer func() { s.op.discardRoleReset = authorization.RoleState{} }()
 		// Commit the validated TEMP closure with the normal combined publisher.
 		// Admission and replacement authority stay held until Finish. After this
 		// succeeds, no fallible owner operation or context check remains.
@@ -78,14 +79,14 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	return Result{}, nil
 }
 
-func (s *StatementScope) discardAllPreflight() (RoleState, error) {
+func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
 	session, e := s.op.session, s.op.session.Engine()
 	ticket := session.advisory.ticket
 	e.locks.mu.Lock()
 	valid := ticket != nil && ticket.session == session.token && ticket.persistent && e.locks.valid(ticket)
 	e.locks.mu.Unlock()
 	if !valid {
-		return RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
+		return authorization.RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -94,23 +95,23 @@ func (s *StatementScope) discardAllPreflight() (RoleState, error) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	if err := publicationOperationLocked(e, s.op); err != nil {
-		return RoleState{}, err
+		return authorization.RoleState{}, err
 	}
 	if session.settings.ended {
-		return RoleState{}, fmt.Errorf("stuntgres: settings attachment ended")
+		return authorization.RoleState{}, fmt.Errorf("stuntgres: settings attachment ended")
 	}
 	if err := roleRevisionHeadroom(session.authorization, 3); err != nil {
-		return RoleState{}, err
+		return authorization.RoleState{}, err
 	}
 	reset := session.authorization.state
 	reset.SessionUser, reset.CurrentUser = reset.Authenticated, reset.Authenticated
-	if reset.ResetRole != (PrincipalRef{}) {
+	if reset.ResetRole != (authorization.PrincipalRef{}) {
 		reset.CurrentUser = reset.ResetRole
 	}
-	roles := RoleRead{e, e.roles, CatalogRead{e, e.state}}
-	for _, principal := range []PrincipalRef{reset.Authenticated, reset.CurrentUser} {
+	roles := e.roleRead(CatalogRead{e, e.state}, e.roles)
+	for _, principal := range []authorization.PrincipalRef{reset.Authenticated, reset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
-			return RoleState{}, err
+			return authorization.RoleState{}, err
 		}
 	}
 	return reset, nil
@@ -119,14 +120,14 @@ func (s *StatementScope) discardAllPreflight() (RoleState, error) {
 // The combined publisher calls these under Engine -> session locks, closing the
 // gap between role-identity validation and irreversible TEMP publication.
 func (e *Engine) discardResetPreflightLocked(op *Operation) error {
-	if op.discardRoleReset.Authenticated == (PrincipalRef{}) {
+	if op.discardRoleReset.Authenticated == (authorization.PrincipalRef{}) {
 		return nil
 	}
 	if err := roleRevisionHeadroom(op.session.authorization, 3); err != nil {
 		return err
 	}
-	roles := RoleRead{e, e.roles, CatalogRead{e, e.state}}
-	for _, principal := range []PrincipalRef{op.discardRoleReset.Authenticated, op.discardRoleReset.CurrentUser} {
+	roles := e.roleRead(CatalogRead{e, e.state}, e.roles)
+	for _, principal := range []authorization.PrincipalRef{op.discardRoleReset.Authenticated, op.discardRoleReset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return err
 		}
@@ -135,7 +136,7 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 }
 
 func (e *Engine) finishDiscardRoleResetLocked(op *Operation) {
-	if op.discardRoleReset.Authenticated != (PrincipalRef{}) {
+	if op.discardRoleReset.Authenticated != (authorization.PrincipalRef{}) {
 		op.session.authorization.state = op.discardRoleReset
 		op.session.authorization.revision++
 	}

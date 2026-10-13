@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -276,12 +277,12 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	roleError(t, e, admin, "ALTER SCHEMA owned RENAME TO renamed", "42501", "permission denied for database stuntgres", "")
 	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO owner")
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
-	bootstrap := e.roles.names["postgres"]
+	bootstrap := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, tc := range []struct {
 		name   string
-		rights Privileges
-	}{{"usable", UsagePrivilege}, {"create_only", CreatePrivilege}} {
-		if err := e.SetObjectACL(context.Background(), schemaRef(t, e, tc.name), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: tc.rights}}}); err != nil {
+		rights authorization.Privileges
+	}{{"usable", authorization.UsagePrivilege}, {"create_only", authorization.CreatePrivilege}} {
+		if err := e.SetObjectACL(context.Background(), schemaRef(t, e, tc.name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: tc.rights}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -342,7 +343,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name  string
-		owner PrincipalRef
+		owner authorization.PrincipalRef
 	}{{"mixed.u", tableOwner.Ref}, {"mixed.v", laterOwner.Ref}, {"mixed.owned", owner.Ref}, {"mixed.more", tableOwner.Ref}} {
 		d := e.state.descriptors[roleTableRef(t, e, tc.name).Address].(*relationDescriptor)
 		if d.owner != tc.owner || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
@@ -408,7 +409,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name  string
-		owner PrincipalRef
+		owner authorization.PrincipalRef
 		value int64
 	}{{"mixed.u", tableOwner.Ref, 8}, {"mixed.v", laterOwner.Ref, 9}, {"mixed.owned", owner.Ref, 9}, {"mixed.more", tableOwner.Ref, 11}} {
 		d := e.state.descriptors[roleTableRef(t, e, tc.name).Address].(*relationDescriptor)

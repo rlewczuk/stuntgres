@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -25,27 +25,27 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "conflicting or redundant options", Position: strconv.Itoa(option.Pos.Offset + 1)}
 		}
 	}
-	grantees := make([]ACLGrantee, len(s.Grantees))
+	grantees := make([]authorization.ACLGrantee, len(s.Grantees))
 	publicGrantOption := false
 	for i, spec := range s.Grantees {
 		if spec.Public {
-			grantees[i] = ACLGrantee{Public: true}
+			grantees[i] = authorization.ACLGrantee{Public: true}
 			publicGrantOption = s.GrantOption
 			continue
 		}
-		role, err := membershipRole(v.roles, v.state, spec.Role)
+		role, err := authorization.MembershipRole(v.roles, v.state, spec.Role)
 		if err != nil {
 			return Result{}, err
 		}
-		grantees[i] = ACLGrantee{Role: role}
+		grantees[i] = authorization.ACLGrantee{Role: role}
 	}
-	class := defaultClass(s.Class)
+	class := authorization.DefaultClass(s.Class)
 	if class == 0 {
 		return Result{}, fmt.Errorf("stuntgres: invalid default ACL class")
 	}
-	var mask Privileges
+	var mask authorization.Privileges
 	for _, item := range s.Privileges {
-		bit, err := defaultPrivilege(item, class)
+		bit, err := authorization.DefaultPrivilege(item, class)
 		if err != nil {
 			return Result{}, err
 		}
@@ -60,11 +60,11 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	var updates map[defaultACLKey]*defaultACLRecord
 	for _, spec := range creators {
-		creator, err := membershipRole(v.roles, v.state, spec)
+		creator, err := authorization.MembershipRole(v.roles, v.state, spec)
 		if err != nil {
 			return Result{}, err
 		}
-		allowed, err := v.roles.inheritsRole(v.state.CurrentUser, creator)
+		allowed, err := v.roles.InheritsRole(v.state.CurrentUser, creator)
 		if err != nil {
 			return Result{}, err
 		}
@@ -81,7 +81,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 				if schema == (ObjectAddress{}) {
 					return Result{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name))
 				}
-				if class == defaultSchemas || class == defaultLargeObjects {
+				if class == authorization.DefaultSchemas || class == authorization.DefaultLargeObjects {
 					return Result{}, sqlError("0LP01", "cannot use IN SCHEMA clause when using GRANT/REVOKE ON "+strings.ToUpper(s.Class))
 				}
 			}
@@ -96,13 +96,13 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			if !exists {
 				old = v.catalog.state.defaultACLs[key]
 			}
-			var acl ACLValue
+			var acl authorization.ACLValue
 			if old != nil {
 				acl = old.acl
 			} else {
-				acl = defaultBaseline(creator, class, schema != (ObjectAddress{}))
+				acl = authorization.DefaultBaseline(creator, class, schema != (ObjectAddress{}))
 			}
-			next, changed, err := changeObjectACL(op.Context(), v.roles, acl, creator, creator, grantees, mask, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+			next, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, acl, creator, creator, grantees, mask, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			if err != nil {
 				return Result{}, err
 			}
@@ -112,7 +112,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			if updates == nil {
 				updates = make(map[defaultACLKey]*defaultACLRecord)
 			}
-			if matchesDefaultBaseline(next, creator, class, schema != (ObjectAddress{})) {
+			if authorization.MatchesDefaultBaseline(next, creator, class, schema != (ObjectAddress{})) {
 				updates[key] = nil
 			} else {
 				updates[key] = &defaultACLRecord{acl: next}
@@ -121,7 +121,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	for key, record := range updates {
 		old := v.catalog.state.defaultACLs[key]
-		if old == record || old != nil && record != nil && equalACL(old.acl, record.acl) {
+		if old == record || old != nil && record != nil && authorization.EqualACL(old.acl, record.acl) {
 			delete(updates, key)
 		}
 	}
@@ -130,15 +130,15 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	candidate := *v.catalog.state
 	candidate.defaultACLs = overlayDefaultACLs(v.catalog.state.defaultACLs, updates)
-	candidateRoles := v.roles
-	candidateRoles.catalog = CatalogRead{e, &candidate}
-	if err := validateDefaultACLs(candidateRoles, candidateRoles.catalog); err != nil {
+	candidateCatalog := CatalogRead{e, &candidate}
+	candidateRoles := e.roleRead(candidateCatalog, v.roleRecord)
+	if err := validateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}
-	if v.roles.state.revision == ^uint64(0) {
+	if v.roleRecord.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	nextRoles := advanceRoleRevision(v.roles.state)
+	nextRoles := advanceRoleRevision(v.roleRecord)
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {

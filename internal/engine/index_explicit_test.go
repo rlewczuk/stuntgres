@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"runtime"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 	"time"
 )
@@ -88,7 +89,7 @@ func TestBtreeIndexOwnerBeforeWriterWait(t *testing.T) {
 			sessionSQL(t, writer, "CREATE TABLE t(n INT)")
 			sessionSQL(t, writer, "CREATE USER reader")
 			ref := roleTableRef(t, e, "t")
-			if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: e.roles.names["reader"]}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("reader")}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
 			sessionSQL(t, reader, "SET ROLE reader")

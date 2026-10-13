@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -187,7 +188,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					case "comment":
 						replacement.comment = "compatible metadata revision"
 					case "acl":
-						replacement.acl = ACLValue{Explicit: true}
+						replacement.acl = authorization.ACLValue{Explicit: true}
 					}
 					e.state.descriptors[address] = &replacement
 					restore = func() { e.state.descriptors[address] = original }

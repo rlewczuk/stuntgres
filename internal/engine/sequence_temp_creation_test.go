@@ -3,9 +3,9 @@ package engine
 import (
 	"context"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestSequenceTemporaryCreationAuthority(t *testing.T) {
@@ -181,7 +181,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sessionSQL(t, s, "CREATE SCHEMA denied")
 				sessionSQL(t, s, "CREATE SEQUENCE denied.seed CACHE 7")
 				ns := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "denied"}]
-				if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns}, ACLValue{Explicit: true}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns}, authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}
 				sessionSQL(t, s, "SET SESSION AUTHORIZATION creator")

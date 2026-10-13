@@ -3,12 +3,13 @@ package engine
 import (
 	"context"
 	"math"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
 // Shared comments follow principal identities, not database-local descriptors.
 // The caller supplies the statement's saved RoleRead, including nested views.
-func capturePGShDescription(ctx context.Context, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+func capturePGShDescription(ctx context.Context, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -17,14 +18,14 @@ func capturePGShDescription(ctx context.Context, roles RoleRead, ref ObjectRef, 
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0)
-	for principal, role := range roles.state.roles {
+	for principal, role := range roles.RoleEntries() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if role.Comment == "" || principal.id > math.MaxUint32 {
+		if role.Comment == "" || principal.ID() > math.MaxUint32 {
 			continue
 		}
-		object, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(principal.id))
+		object, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(principal.ID()))
 		if err != nil {
 			return nil, err
 		}

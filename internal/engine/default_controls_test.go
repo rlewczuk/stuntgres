@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -23,7 +24,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	next := *old
 	next.revision++
 	next.comment = "eligible default descriptor"
-	next.owner = e.roles.names["default_owner"]
+	next.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}

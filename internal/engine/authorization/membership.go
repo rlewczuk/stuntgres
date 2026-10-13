@@ -1,0 +1,509 @@
+package authorization
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+)
+
+// RoleClosure preserves breadth-first order for inferred grantors. All callers
+// operate on one immutable authority (or one private mutation candidate).
+func (r Read) RoleClosure(ctx context.Context, actor PrincipalRef, inherit bool) ([]PrincipalRef, error) {
+	if _, err := r.Descriptor(actor); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	result := []PrincipalRef{actor}
+	if len(r.state.edges) == 0 && r.implicitDatabaseOwner(actor) == (PrincipalRef{}) {
+		return result, nil
+	}
+	seen := map[PrincipalRef]bool{actor: true}
+	for at := 0; at < len(result); at++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		for index, edge := range r.state.edges {
+			if index&255 == 0 {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+			}
+			if edge.Member != result[at] || inherit && !edge.Inherit || seen[edge.Role] {
+				continue
+			}
+			if _, err := r.Descriptor(edge.Role); err != nil {
+				return nil, err
+			}
+			seen[edge.Role] = true
+			result = append(result, edge.Role)
+		}
+		if next := r.implicitDatabaseOwner(result[at]); next != (PrincipalRef{}) && !seen[next] {
+			if _, err := r.Descriptor(next); err != nil {
+				return nil, err
+			}
+			seen[next] = true
+			result = append(result, next)
+		}
+	}
+	return result, nil
+}
+func directRoleAdmin(edges []Membership, role, member PrincipalRef) bool {
+	for _, edge := range edges {
+		if edge.Role == role && edge.Member == member && edge.Admin {
+			return true
+		}
+	}
+	return false
+}
+func MembershipRole(r Read, state RoleState, spec parser.RoleSpec) (PrincipalRef, error) {
+	var ref PrincipalRef
+	switch spec.Identity {
+	case "current":
+		ref = state.CurrentUser
+	case "session":
+		ref = state.SessionUser
+	default:
+		d, ok := r.Lookup(spec.Name)
+		if !ok {
+			return PrincipalRef{}, sqlError("42704", fmt.Sprintf("role \"%s\" does not exist", spec.Name))
+		}
+		ref = d.Ref
+	}
+	_, err := r.Descriptor(ref)
+	return ref, err
+}
+
+type membershipRevokeAction uint8
+
+const (
+	membershipRevokeUnchanged membershipRevokeAction = iota
+	membershipRevokeDelete
+	membershipRevokeAdmin
+	membershipRevokeInherit
+	membershipRevokeSet
+)
+
+// Plan against original rows: matching and alternate ADMIN support must not
+// change merely because an earlier recipient already has a pending action.
+func planMembershipRevoke(ctx context.Context, edges []Membership, actions []membershipRevokeAction, role PrincipalRef, index int, adminOnly, cascade bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if actions[index] == membershipRevokeDelete || adminOnly && actions[index] == membershipRevokeAdmin {
+		return nil
+	}
+	edge := edges[index]
+	if adminOnly {
+		if !edge.Admin {
+			return nil
+		}
+		actions[index] = membershipRevokeAdmin
+	} else {
+		actions[index] = membershipRevokeDelete
+		if !edge.Admin {
+			return nil
+		}
+	}
+	for i, other := range edges {
+		if i&255 == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		if other.Role == role && other.Member == edge.Member && other.Admin && actions[i] == membershipRevokeUnchanged {
+			return nil
+		}
+	}
+	for i, other := range edges {
+		if i&255 == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		if other.Role != role || other.Grantor != edge.Member || actions[i] == membershipRevokeDelete {
+			continue
+		}
+		if !cascade {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "dependent privileges exist", Hint: "Use CASCADE to revoke them too."}
+		}
+		if err := planMembershipRevoke(ctx, edges, actions, role, i, false, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func membershipGrantor(ctx context.Context, r Read, state RoleState, actor RoleDescriptor, target PrincipalRef, explicit *PrincipalRef, revoke bool) (PrincipalRef, error) {
+	bootstrap := r.state.names["postgres"]
+	if explicit == nil {
+		if actor.Superuser {
+			return bootstrap, nil
+		}
+		roles, err := r.RoleClosure(ctx, actor.Ref, true)
+		if err != nil {
+			return PrincipalRef{}, err
+		}
+		for _, ref := range roles {
+			if directRoleAdmin(r.state.edges, target, ref) {
+				return ref, nil
+			}
+		}
+		return PrincipalRef{}, sqlError("XX000", "no possible grantors")
+	}
+	grantor := *explicit
+	g, err := r.Descriptor(grantor)
+	if err != nil {
+		return PrincipalRef{}, err
+	}
+	allowed, err := r.InheritsRole(actor.Ref, grantor)
+	if err != nil {
+		return PrincipalRef{}, err
+	}
+	verb := "grant privileges as"
+	detail := fmt.Sprintf("Only roles with privileges of role \"%s\" may grant privileges as this role.", g.Name)
+	if revoke {
+		verb = "revoke privileges granted by"
+		detail = fmt.Sprintf("Only roles with privileges of role \"%s\" may revoke privileges granted by this role.", g.Name)
+	}
+	if !allowed {
+		return PrincipalRef{}, roleDiagnostic("42501", fmt.Sprintf("permission denied to %s role \"%s\"", verb, g.Name), detail)
+	}
+	if !revoke && grantor != bootstrap && !directRoleAdmin(r.state.edges, target, grantor) {
+		role, _ := r.Descriptor(target)
+		return PrincipalRef{}, roleDiagnostic("42501", fmt.Sprintf("permission denied to grant privileges as role \"%s\"", g.Name), fmt.Sprintf("The grantor must have the ADMIN option on role \"%s\".", role.Name))
+	}
+	return grantor, nil
+}
+
+func membershipAuthority(ctx context.Context, r Read, actor RoleDescriptor, target PrincipalRef, revoke, alias bool) error {
+	d, err := r.Descriptor(target)
+	if err != nil {
+		return err
+	}
+	if actor.Superuser {
+		return nil
+	}
+	verb := "grant"
+	if revoke {
+		verb = "revoke"
+	}
+	message := fmt.Sprintf("permission denied to %s role \"%s\"", verb, d.Name)
+	detail := fmt.Sprintf("Only roles with the ADMIN option on role \"%s\" may %s this role.", d.Name, verb)
+	if alias {
+		message = "permission denied to alter role"
+		detail = fmt.Sprintf("Only roles with the ADMIN option on role \"%s\" may add or drop members.", d.Name)
+	}
+	if d.Superuser {
+		detail = fmt.Sprintf("Only roles with the SUPERUSER attribute may %s roles with the SUPERUSER attribute.", verb)
+		if alias {
+			detail = "Only roles with the SUPERUSER attribute may alter roles with the SUPERUSER attribute."
+		}
+		return roleDiagnostic("42501", message, detail)
+	}
+	roles, err := r.RoleClosure(ctx, actor.Ref, false)
+	if err != nil {
+		return err
+	}
+	for _, ref := range roles {
+		if directRoleAdmin(r.state.edges, target, ref) {
+			return nil
+		}
+	}
+	return roleDiagnostic("42501", message, detail)
+}
+
+// planMembership owns its edge slice. No partially checked candidate is ever
+// published, while PostgreSQL-compatible notices can precede a later error.
+func planMembership(ctx context.Context, r Read, state RoleState, s *parser.RoleMembership, owned bool, notices []sqlstate.Error, noticeEligible, warningEligible bool) ([]Membership, []sqlstate.Error, error) {
+	actor, err := r.Descriptor(state.CurrentUser)
+	if err != nil {
+		return nil, notices, err
+	}
+	if s.Alias {
+		for _, target := range s.Targets {
+			if strings.HasPrefix(target.Name, "pg_") {
+				return nil, notices, roleDiagnostic("42939", "role name \""+target.Name+"\" is reserved", "Cannot alter reserved roles.")
+			}
+		}
+	}
+	var values, specified [3]bool
+	for _, option := range s.Options {
+		index := 0
+		switch option.Name {
+		case "admin":
+			index = 0
+		case "inherit":
+			index = 1
+		case "set":
+			index = 2
+		default:
+			return nil, notices, insertError("42601", fmt.Sprintf("unrecognized role option \"%s\"", option.Name), option.Pos)
+		}
+		values[index] = option.Value
+		specified[index] = true
+	}
+	var explicit *PrincipalRef
+	if s.Grantor != nil {
+		ref, err := MembershipRole(r, state, *s.Grantor)
+		if err != nil {
+			return nil, notices, err
+		}
+		explicit = &ref
+	}
+	members := make([]PrincipalRef, len(s.Members))
+	for i, spec := range s.Members {
+		members[i], err = MembershipRole(r, state, spec)
+		if err != nil {
+			return nil, notices, err
+		}
+		if !s.Revoke && members[i].id == DatabaseOwnerRoleID {
+			return nil, notices, roleDiagnostic("0A000", "role \"pg_database_owner\" cannot be a member of any role", "")
+		}
+	}
+	edges := r.state.edges
+	var actions, applied []membershipRevokeAction
+	revokeChanged := false
+	if s.Revoke {
+		// DelRoleMems has no command-counter increment: every target sees
+		// entry authority and rows, with a fresh per-target action plan.
+		actions = make([]membershipRevokeAction, len(edges))
+		applied = make([]membershipRevokeAction, len(edges))
+	} else if !owned {
+		edges = slices.Clone(edges)
+	}
+	for _, spec := range s.Targets {
+		if err := ctx.Err(); err != nil {
+			return nil, notices, err
+		}
+		targetRead := r
+		if !s.Revoke {
+			// AddRoleMems exposes preceding GRANT changes to the next target.
+			candidate := *r.state
+			candidate.edges = edges
+			targetRead = Read{r.owner, &candidate, r.databaseOwner}
+		}
+		role, err := MembershipRole(targetRead, state, spec)
+		if err != nil {
+			return nil, notices, err
+		}
+		if !s.Revoke && role.id == DatabaseOwnerRoleID {
+			return nil, notices, roleDiagnostic("0A000", "role \"pg_database_owner\" cannot have explicit members", "")
+		}
+		if err := membershipAuthority(ctx, targetRead, actor, role, s.Revoke, s.Alias); err != nil {
+			return nil, notices, err
+		}
+		grantor, err := membershipGrantor(ctx, targetRead, state, actor, role, explicit, s.Revoke)
+		if err != nil {
+			return nil, notices, err
+		}
+		roleName := r.state.roles[role].Name
+		grantorName := r.state.roles[grantor].Name
+		if !s.Revoke {
+			ancestors, err := targetRead.RoleClosure(ctx, role, false)
+			if err != nil {
+				return nil, notices, err
+			}
+			// Validate every recipient before ADMIN support or any notices.
+			for _, member := range members {
+				if err := ctx.Err(); err != nil {
+					return nil, notices, err
+				}
+				if slices.Contains(ancestors, member) {
+					return nil, notices, sqlError("0LP01", fmt.Sprintf("role \"%s\" is a member of role \"%s\"", roleName, r.state.roles[member].Name))
+				}
+			}
+		}
+		if !s.Revoke && values[0] && grantor != r.state.names["postgres"] {
+			if slices.Contains(members, r.state.names["postgres"]) {
+				return nil, notices, sqlError("0LP01", "ADMIN option cannot be granted back to your own grantor")
+			}
+			actions := make([]membershipRevokeAction, len(edges))
+			for i, edge := range edges {
+				if edge.Role == role && slices.Contains(members, edge.Member) {
+					if err := planMembershipRevoke(ctx, edges, actions, role, i, false, true); err != nil {
+						return nil, notices, err
+					}
+				}
+			}
+			supported := false
+			for i, edge := range edges {
+				if edge.Role == role && edge.Member == grantor && edge.Admin && actions[i] == membershipRevokeUnchanged {
+					supported = true
+					break
+				}
+			}
+			if !supported {
+				return nil, notices, sqlError("0LP01", "ADMIN option cannot be granted back to your own grantor")
+			}
+		}
+		// Duplicate recipients share this target's action plan, but later
+		// targets independently match and plan against the same original rows.
+		if s.Revoke {
+			clear(actions)
+		}
+		for _, member := range members {
+			if err := ctx.Err(); err != nil {
+				return nil, notices, err
+			}
+			memberName := r.state.roles[member].Name
+			found := -1
+			for i, edge := range edges {
+				if edge.Role == role && edge.Member == member && edge.Grantor == grantor {
+					found = i
+					break
+				}
+			}
+			if s.Revoke {
+				if found < 0 {
+					if warningEligible {
+						notices = append(notices, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf("role \"%s\" has not been granted membership in role \"%s\" by role \"%s\"", memberName, roleName, grantorName)})
+					}
+					continue
+				}
+				switch s.RevokeOption {
+				case "inherit":
+					actions[found] = membershipRevokeInherit
+				case "set":
+					actions[found] = membershipRevokeSet
+				default:
+					if err := planMembershipRevoke(ctx, edges, actions, role, found, s.RevokeOption == "admin", s.Cascade); err != nil {
+						return nil, notices, err
+					}
+				}
+				continue
+			}
+			edge := Membership{Role: role, Member: member, Grantor: grantor, Inherit: r.state.roles[member].Inherit, Set: true}
+			if found >= 0 {
+				edge = edges[found]
+			}
+			if specified[0] {
+				edge.Admin = values[0]
+			}
+			if specified[1] {
+				edge.Inherit = values[1]
+			}
+			if specified[2] {
+				edge.Set = values[2]
+			}
+			if found >= 0 {
+				if edges[found] == edge {
+					if noticeEligible {
+						notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("role \"%s\" has already been granted membership in role \"%s\" by role \"%s\"", memberName, roleName, grantorName)})
+					}
+				}
+				edges[found] = edge
+			} else {
+				edges = append(edges, edge)
+			}
+		}
+		if s.Revoke {
+			for i, action := range actions {
+				if action == membershipRevokeUnchanged {
+					continue
+				}
+				if applied[i] != membershipRevokeUnchanged {
+					return nil, notices, sqlError("XX000", "tuple already updated by self")
+				}
+				applied[i] = action
+				revokeChanged = true
+			}
+		}
+	}
+	if s.Revoke && revokeChanged {
+		if !owned {
+			edges = slices.Clone(edges)
+		}
+		n := 0
+		for i, edge := range edges {
+			switch applied[i] {
+			case membershipRevokeDelete:
+				continue
+			case membershipRevokeAdmin:
+				edge.Admin = false
+			case membershipRevokeInherit:
+				edge.Inherit = false
+			case membershipRevokeSet:
+				edge.Set = false
+			}
+			edges[n] = edge
+			n++
+		}
+		edges = edges[:n]
+	}
+	return edges, notices, nil
+}
+
+func MembershipCandidate(ctx context.Context, r Read, state RoleState, s *parser.RoleMembership, notices []sqlstate.Error, noticeEligible, warningEligible bool) (Root, bool, []sqlstate.Error, error) {
+	edges, notices, err := planMembership(ctx, r, state, s, false, notices, noticeEligible, warningEligible)
+	if err != nil {
+		return Root{}, false, notices, err
+	}
+	if slices.Equal(edges, r.state.edges) {
+		return Root{}, false, notices, ctx.Err()
+	}
+	n := *r.state
+	n.edges = edges
+	return n, true, notices, nil
+}
+
+func OwnedMembershipNeeded(r Read, sources map[PrincipalRef]bool) bool {
+	for _, edge := range r.state.edges {
+		if sources[edge.Grantor] {
+			return true
+		}
+	}
+	return false
+}
+func OwnedMembershipCandidate(ctx context.Context, r Read, sources map[PrincipalRef]bool) (Root, error) {
+	actions := make([]membershipRevokeAction, len(r.state.edges))
+	for i, edge := range r.state.edges {
+		if sources[edge.Grantor] {
+			if err := planMembershipRevoke(ctx, r.state.edges, actions, edge.Role, i, false, true); err != nil {
+				return Root{}, err
+			}
+		}
+	}
+	edges := make([]Membership, 0, len(r.state.edges))
+	for i, edge := range r.state.edges {
+		if actions[i] != membershipRevokeDelete {
+			edges = append(edges, edge)
+		}
+	}
+	n := *r.state
+	n.edges = edges
+	return n, nil
+}
+func (r *Root) ValidateDeletionCandidate(next *Root) error {
+	if len(next.roles) != len(r.roles) || len(next.names) != len(r.names) {
+		return fmt.Errorf("stuntgres: invalid ownership role candidate")
+	}
+	for ref, role := range r.roles {
+		if next.roles[ref] != role {
+			return fmt.Errorf("stuntgres: invalid ownership role descriptors")
+		}
+	}
+	for name, ref := range r.names {
+		if next.names[name] != ref {
+			return fmt.Errorf("stuntgres: invalid ownership role names")
+		}
+	}
+	index := 0
+	for _, edge := range next.edges {
+		for index < len(r.edges) && r.edges[index] != edge {
+			index++
+		}
+		if index == len(r.edges) {
+			return fmt.Errorf("stuntgres: invalid ownership membership candidate")
+		}
+		index++
+	}
+	if slices.Equal(next.edges, r.edges) {
+		return fmt.Errorf("stuntgres: unchanged ownership role candidate")
+	}
+	return nil
+}

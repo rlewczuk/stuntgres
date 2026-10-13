@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -23,7 +24,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	owner := e.roles.names["postgres"]
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
 	baseRef := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: base.address}
 	column := func(slot int) BoundExpr {

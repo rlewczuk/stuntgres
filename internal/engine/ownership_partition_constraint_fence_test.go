@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,14 +16,14 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
-	roles := cloneRoles(e.roles)
-	actor := PrincipalRef{e, 50000}
-	roles.roles[actor] = RoleDescriptor{Ref: actor, Name: "partition_db_actor", Login: true, Inherit: true, ConnectionLimit: -1}
-	roles.names["partition_db_actor"] = actor
+	roles := cloneRoleFixture(e.roles)
+	actor := e.authorizationDomain.Principal(50000)
+	putFixtureRole(roles, authorization.RoleDescriptor{Ref: actor, Name: "partition_db_actor", Login: true, Inherit: true, ConnectionLimit: -1})
+
 	e.roles = roles
 	root, leaf := roleTableRef(t, e, "root"), roleTableRef(t, e, "leaf")
 	setup := e.BeginCatalogStage(e.CatalogRead())
-	dbOwner := roles.names["pg_database_owner"]
+	dbOwner := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	for _, ref := range []ObjectRef{root, leaf} {
 		if err := stageOwnership(setup, setup.base.state.descriptors[ref.Address], dbOwner); err != nil {
 			t.Fatal(err)
@@ -78,9 +79,9 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if err != nil || actor.Superuser {
 					t.Fatal("fixture is not an ordinary actor", err)
 				}
-				dbRole := auth.roles.state.names["pg_database_owner"]
+				dbRole := auth.roles.LookupRef("pg_database_owner")
 				table := auth.catalog.state.descriptors[root.Address].(*relationDescriptor)
-				if table.owner != dbRole || auth.databasePredecessor != committed || auth.roles.catalog != auth.catalog {
+				if table.owner != dbRole || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
 					t.Fatal("fixture did not capture canonical paired DB authority")
 				}
 				if private && auth.catalog.state.descriptors[currentDatabaseAddress] == committed {
@@ -115,7 +116,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if private {
 						database.owner = actor.Ref
 					} else {
-						database.owner = oldRoles.names["postgres"]
+						database.owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
 					database.revision++
 					if err := stage.Replace(&database); err != nil {

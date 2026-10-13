@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -52,14 +53,13 @@ func pgShDescriptionUnitBag(t *testing.T, source *querySource) map[uint32]string
 func TestPGShDescriptionEmptySource(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	uncommented := cloneRoles(e.roles)
+	uncommented := cloneRoleFixture(e.roles)
 	pgShDescriptionUnitRole(e, uncommented, 20000, "uncommented", "")
-	highOnly := cloneRoles(e.roles)
+	highOnly := cloneRoleFixture(e.roles)
 	pgShDescriptionUnitRole(e, highOnly, uint64(math.MaxUint32)+1, "unrepresentable", "excluded")
-	deleted := cloneRoles(e.roles)
+	deleted := cloneRoleFixture(e.roles)
 	removed := pgShDescriptionUnitRole(e, deleted, 20000, "removed", "old")
-	delete(deleted.roles, removed)
-	delete(deleted.names, "removed")
+	retireFixtureRole(deleted, removed)
 	root := &projectNode{
 		querySchema: querySchema(d.columns),
 		child:       &sourceNode{querySchema: querySchema(d.columns), ref: ref},
@@ -75,13 +75,13 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 		state *roleCatalog
 	}{
 		{"bootstrap", e.roles},
-		{"empty role map", &roleCatalog{roles: map[PrincipalRef]RoleDescriptor{}}},
+		{"empty role map", emptyRoleFixture(e)},
 		{"uncommented role", uncommented},
 		{"only unrepresentable comment", highOnly},
 		{"dropped commented role", deleted},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			source, err := capturePGShDescription(context.Background(), RoleRead{owner: e, state: tc.state, catalog: CatalogRead{e, e.state}}, ref, d)
+			source, err := capturePGShDescription(context.Background(), e.roleRead(CatalogRead{e, e.state}, tc.state), ref, d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,14 +106,19 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	}
 }
 
-func pgShDescriptionUnitRole(e *Engine, state *roleCatalog, id uint64, name, text string) PrincipalRef {
-	ref := PrincipalRef{owner: e, id: id}
-	state.roles[ref] = RoleDescriptor{Ref: ref, Name: name, Comment: text}
-	state.names[name] = ref
+func pgShDescriptionUnitRole(e *Engine, state *roleCatalog, id uint64, name, text string) authorization.PrincipalRef {
+	e.nextPrincipal = id
+	ref, err := e.nextRolePrincipalLocked()
+	if err != nil {
+		panic(err)
+	}
+	e.nextPrincipal = ref.ID() + 1
+	putFixtureRole(state, authorization.RoleDescriptor{Ref: ref, Name: name, Comment: text})
+
 	return ref
 }
 
-func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles RoleRead, catalog CatalogRead, id uint32, want *string) {
+func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Read, catalog CatalogRead, id uint32, want *string) {
 	t.Helper()
 	oidUsage, nameUsage, textUsage := testUsage(e, sqltype.Oid), testUsage(e, sqltype.Name), testUsage(e, sqltype.Text)
 	oid, err := sqltype.OIDValue(oidUsage.Type, id)
@@ -156,7 +161,7 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 			t.Fatal("exact shared descriptor", i, c)
 		}
 	}
-	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
+	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
@@ -167,7 +172,7 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 		t.Fatal("no invented bootstrap comment", err)
 	}
 	class := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), RoleRead{e, e.roles, CatalogRead{e, e.state}}, ObjectRef{}, class)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +199,7 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 func TestPGShDescriptionIdentityWidth(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	state := cloneRoles(e.roles)
+	state := cloneRoleFixture(e.roles)
 	low := pgShDescriptionUnitRole(e, state, 20000, "low", "low shared")
 	highID := uint64(1)<<32 | 20000
 	high := pgShDescriptionUnitRole(e, state, highID, "high", "high excluded")
@@ -203,23 +208,22 @@ func TestPGShDescriptionIdentityWidth(t *testing.T) {
 	pgShDescriptionUnitRole(e, state, 20001, "empty", "")
 	pgShDescriptionUnitRole(e, state, 20002, "space", " ")
 	e.nextPrincipal = highID + 1
-	roles := RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}
+	roles := e.roleRead(CatalogRead{e, e.state}, state)
 	captured, err := capturePGShDescription(context.Background(), roles, ref, d)
 	want := map[uint32]string{20000: "low shared", math.MaxUint32: "max shared", 20002: " "}
 	if err != nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, captured), want) {
 		t.Fatal("exact width projection", captured, err)
 	}
 	pgShDescriptionUnitInquiry(t, e, roles, e.CatalogRead(), 20000, new("low shared"))
-	removed := cloneRoles(state)
-	delete(removed.roles, low)
-	delete(removed.names, "low")
-	captured, err = capturePGShDescription(context.Background(), RoleRead{owner: e, state: removed, catalog: CatalogRead{e, e.state}}, ref, d)
+	removed := cloneRoleFixture(state)
+	retireFixtureRole(removed, low)
+	captured, err = capturePGShDescription(context.Background(), e.roleRead(CatalogRead{e, e.state}, removed), ref, d)
 	delete(want, 20000)
 	if err != nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, captured), want) {
 		t.Fatal("high principal resurrected low", err)
 	}
-	pgShDescriptionUnitInquiry(t, e, RoleRead{owner: e, state: removed, catalog: CatalogRead{e, e.state}}, e.CatalogRead(), 20000, nil)
-	if e.nextPrincipal != highID+1 || state.roles[high].Ref.ID() != highID || state.roles[low].Comment != "low shared" {
+	pgShDescriptionUnitInquiry(t, e, e.roleRead(CatalogRead{e, e.state}, removed), e.CatalogRead(), 20000, nil)
+	if e.nextPrincipal != highID+1 || fixtureRole(state, high).Ref.ID() != highID || fixtureRole(state, low).Comment != "low shared" {
 		t.Fatal("projection changed uint64 identities")
 	}
 }
@@ -227,44 +231,43 @@ func TestPGShDescriptionIdentityWidth(t *testing.T) {
 func TestPGShDescriptionCapturedRows(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	old := cloneRoles(e.roles)
+	old := cloneRoleFixture(e.roles)
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
 	catalog := cloneCatalog(e.state)
 	local := ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}
 	catalog.descriptors[local] = &relationDescriptor{address: local, comment: "local collision"}
 	read := CatalogRead{owner: e, state: catalog}
-	captured, err := capturePGShDescription(context.Background(), RoleRead{owner: e, state: old, catalog: read}, ref, d)
+	captured, err := capturePGShDescription(context.Background(), e.roleRead(read, old), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := cloneRoles(old)
-	replacement := updated.roles[role]
+	updated := cloneRoleFixture(old)
+	replacement := fixtureRole(updated, role)
 	replacement.Comment = "replacement"
-	updated.roles[role] = replacement
+	putFixtureRole(updated, replacement)
 	e.roles = updated
 	fresh, err := capturePGShDescription(context.Background(), e.Roles(), ref, d)
 	if err != nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, fresh), map[uint32]string{20000: "replacement"}) {
 		t.Fatal(err)
 	}
-	pgShDescriptionUnitInquiry(t, e, RoleRead{owner: e, state: old, catalog: read}, read, 20000, new("old text"))
-	pgShDescriptionUnitInquiry(t, e, RoleRead{e, e.roles, read}, read, 20000, new("replacement"))
-	deleted := cloneRoles(updated)
-	delete(deleted.roles, role)
-	delete(deleted.names, "same_name")
+	pgShDescriptionUnitInquiry(t, e, e.roleRead(read, old), read, 20000, new("old text"))
+	pgShDescriptionUnitInquiry(t, e, e.roleRead(read, e.roles), read, 20000, new("replacement"))
+	deleted := cloneRoleFixture(updated)
+	retireFixtureRole(deleted, role)
 	pgShDescriptionUnitRole(e, deleted, 20001, "same_name", "")
 	e.roles = deleted
 	fresh, err = capturePGShDescription(context.Background(), e.Roles(), ref, d)
 	if err != nil || len(pgShDescriptionUnitBag(t, fresh)) != 0 || !reflect.DeepEqual(pgShDescriptionUnitBag(t, captured), map[uint32]string{20000: "old text"}) {
 		t.Fatal("detached rows or same-name inheritance", err)
 	}
-	pgShDescriptionUnitInquiry(t, e, RoleRead{e, e.roles, read}, read, 20000, nil)
-	pgShDescriptionUnitInquiry(t, e, RoleRead{e, e.roles, read}, read, 20001, nil)
+	pgShDescriptionUnitInquiry(t, e, e.roleRead(read, e.roles), read, 20000, nil)
+	pgShDescriptionUnitInquiry(t, e, e.roleRead(read, e.roles), read, 20001, nil)
 }
 
 func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	old := cloneRoles(e.roles)
+	old := cloneRoleFixture(e.roles)
 	role := pgShDescriptionUnitRole(e, old, 20000, "snapshot", "old")
 	e.roles = old
 	op, done := roleOperation(t, e, "postgres")
@@ -276,15 +279,15 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := cloneRoles(old)
-	replacement := updated.roles[role]
+	updated := cloneRoleFixture(old)
+	replacement := fixtureRole(updated, role)
 	replacement.Comment = "new"
-	updated.roles[role] = replacement
+	putFixtureRole(updated, replacement)
 	e.roles = updated
 	open := func(scope *StatementScope, ref ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, ref, e.roles.names["postgres"], queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(scope, ref, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -340,26 +343,26 @@ func (c *pgShDescriptionCancelContext) Err() error {
 func TestPGShDescriptionCanceledCapture(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	state := cloneRoles(e.roles)
+	state := cloneRoleFixture(e.roles)
 	pgShDescriptionUnitRole(e, state, 20000, "first", "first")
 	pgShDescriptionUnitRole(e, state, 20001, "second", "second")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []RoleRead{{owner: e, state: &roleCatalog{roles: map[PrincipalRef]RoleDescriptor{}}, catalog: CatalogRead{e, e.state}}, {owner: e, state: state, catalog: CatalogRead{e, e.state}}} {
+	for _, roles := range []authorization.Read{e.roleRead(CatalogRead{e, e.state}, emptyRoleFixture(e)), e.roleRead(CatalogRead{e, e.state}, state)} {
 		captured, err := capturePGShDescription(ctx, roles, ref, d)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("entry cancellation published source", captured, err)
 		}
 	}
 	inLoop := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: 3}
-	captured, err := capturePGShDescription(inLoop, RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, d)
+	captured, err := capturePGShDescription(inLoop, e.roleRead(CatalogRead{e, e.state}, state), ref, d)
 	if captured != nil || !errors.Is(err, context.Canceled) || inLoop.calls != 3 {
 		t.Fatal("in-loop cancellation published partial source", captured, err, inLoop.calls)
 	}
 	invalid := *d
 	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 	invalid.columns[0].Usage.Type = testUsage(e, sqltype.Int4).Type
-	captured, err = capturePGShDescription(context.Background(), RoleRead{owner: e, state: state, catalog: CatalogRead{e, e.state}}, ref, &invalid)
+	captured, err = capturePGShDescription(context.Background(), e.roleRead(CatalogRead{e, e.state}, state), ref, &invalid)
 	if captured != nil || err == nil {
 		t.Fatal("OID constructor failure published partial source", captured, err)
 	}

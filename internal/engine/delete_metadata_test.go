@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 	"time"
 )
@@ -108,7 +109,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 			if column {
 				aclRef.Address.SubID = 1
 			}
-			acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: observer.Ref}, Privileges: SelectPrivilege}}}
+			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: observer.Ref}, Privileges: authorization.SelectPrivilege}}}
 			if err := e.SetObjectACL(context.Background(), aclRef, acl); err != nil {
 				t.Fatal(err)
 			}
@@ -146,12 +147,12 @@ func TestDeleteCoreMetadataACLRevocationCommit(t *testing.T) {
 			op := transactionOperation(t, b)
 			owner := op.RoleState().CurrentUser
 			op.Done()
-			acl := func(privileges Privileges) ACLValue {
-				return ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: deleter.Ref}, Privileges: privileges}}}
+			acl := func(privileges authorization.Privileges) authorization.ACLValue {
+				return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: deleter.Ref}, Privileges: privileges}}}
 			}
-			mask := DeletePrivilege | SelectPrivilege
+			mask := authorization.DeletePrivilege | authorization.SelectPrivilege
 			if column {
-				mask = DeletePrivilege
+				mask = authorization.DeletePrivilege
 			}
 			if err := e.SetObjectACL(context.Background(), ref, acl(mask)); err != nil {
 				t.Fatal(err)
@@ -159,14 +160,14 @@ func TestDeleteCoreMetadataACLRevocationCommit(t *testing.T) {
 			aclRef := ref
 			if column {
 				aclRef.Address.SubID = 1
-				if err := e.SetObjectACL(context.Background(), aclRef, acl(SelectPrivilege)); err != nil {
+				if err := e.SetObjectACL(context.Background(), aclRef, acl(authorization.SelectPrivilege)); err != nil {
 					t.Fatal(err)
 				}
 			}
 			sessionSQL(t, a, "SET SESSION AUTHORIZATION deleter")
 			ar := transactionBegin(t, a)
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
-			if err := e.SetObjectACL(context.Background(), aclRef, ACLValue{Explicit: true}); err != nil {
+			if err := e.SetObjectACL(context.Background(), aclRef, authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
 			}
 			if !transactionEnd(t, a, ar, true).Committed {

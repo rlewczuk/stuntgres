@@ -3,9 +3,9 @@ package engine
 import (
 	"errors"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
+	"testing"
 )
 
 // Native SQL GRANT is deliberately not expanded for this part. Exercise the
@@ -14,10 +14,10 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	e := New()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	reader := PrincipalRef{e, 99}
+	reader := e.authorizationDomain.Principal(99)
 	e.mu.Lock()
-	e.roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "mv_unit_reader"}
-	e.roles.names["mv_unit_reader"] = reader
+	putFixtureRole(e.roles, authorization.RoleDescriptor{Ref: reader, Name: "mv_unit_reader"})
+
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		e.mu.Unlock()
@@ -31,13 +31,13 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	base := *d
 	base.address = ObjectAddress{ClassID: RelationClassID, ObjectID: baseOID}
 	base.name, base.relationKind, base.view = "unit_base", tableRelation, nil
-	base.acl = ACLValue{Explicit: true}
+	base.acl = authorization.ACLValue{Explicit: true}
 	if err := stage.Create(&base); err != nil {
 		t.Fatal(err)
 	}
-	d.acl = ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: d.owner, Grantee: ACLGrantee{Role: reader}, Privileges: SelectPrivilege}}}
+	d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}
 	auth.catalog, auth.state.CurrentUser = e.stageRead(stage), reader
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	baseRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: base.address}
 	mvRef := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}
 	d.view.sources = []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1}}}

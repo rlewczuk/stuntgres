@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"sync"
 	"testing"
 )
@@ -123,25 +124,25 @@ func TestSequenceACLAnyOfAndLateRevocation(t *testing.T) {
 	ref := roleTableRef(t, e, "s")
 	owner := op.RoleState().CurrentUser
 	reader, _ := e.Roles().Lookup("seq_reader")
-	grant := func(p Privileges) {
+	grant := func(p authorization.Privileges) {
 		t.Helper()
-		if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: p}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: p}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_reader")
-	for _, p := range []Privileges{UsagePrivilege, UpdatePrivilege} {
+	for _, p := range []authorization.Privileges{authorization.UsagePrivilege, authorization.UpdatePrivilege} {
 		grant(p)
 		r := roleExecute(t, e, op, "SELECT nextval('s')")
 		r.Rows.Close()
 	}
 	for _, tc := range []struct {
-		mask    Privileges
+		mask    authorization.Privileges
 		allowed map[string]bool
 	}{
-		{UsagePrivilege, map[string]bool{"SELECT nextval('s')": true, "SELECT currval('s')": true, "SELECT lastval()": true}},
-		{SelectPrivilege, map[string]bool{"SELECT currval('s')": true, "SELECT lastval()": true, "SELECT * FROM s": true}},
-		{UpdatePrivilege, map[string]bool{"SELECT nextval('s')": true, "SELECT setval('s',40)": true}},
+		{authorization.UsagePrivilege, map[string]bool{"SELECT nextval('s')": true, "SELECT currval('s')": true, "SELECT lastval()": true}},
+		{authorization.SelectPrivilege, map[string]bool{"SELECT currval('s')": true, "SELECT lastval()": true, "SELECT * FROM s": true}},
+		{authorization.UpdatePrivilege, map[string]bool{"SELECT nextval('s')": true, "SELECT setval('s',40)": true}},
 		{0, nil},
 	} {
 		grant(tc.mask)
@@ -154,15 +155,15 @@ func TestSequenceACLAnyOfAndLateRevocation(t *testing.T) {
 			}
 		}
 	}
-	grant(SelectPrivilege)
+	grant(authorization.SelectPrivilege)
 	r := roleExecute(t, e, op, "SELECT currval('s')")
 	r.Rows.Close()
 	roleError(t, e, op, "SELECT nextval('s')", "42501", "permission denied for sequence s", "")
-	grant(UpdatePrivilege)
+	grant(authorization.UpdatePrivilege)
 	r = roleExecute(t, e, op, "SELECT setval('s',40)")
 	r.Rows.Close()
 	roleError(t, e, op, "SELECT currval('s')", "42501", "permission denied for sequence s", "")
-	grant(UsagePrivilege)
+	grant(authorization.UsagePrivilege)
 	description, err := e.Describe(op, statement(t, "SELECT nextval('s')"))
 	if err != nil {
 		t.Fatal(err)

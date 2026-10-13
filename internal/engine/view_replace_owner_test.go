@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -19,12 +20,12 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			}
 			owner, _ := e.Roles().Lookup("owner")
 			successor, _ := e.Roles().Lookup("successor")
-			admin := e.roles.names["postgres"]
+			admin := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			ns := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: e.CatalogRead().Lookup(NameKey{ClassID: NamespaceClassID, Name: "s"})[0]}
-			if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: owner.Ref}, Privileges: UsagePrivilege | CreatePrivilege}, {Grantor: owner.Ref, Grantee: ACLGrantee{Role: successor.Ref}, Privileges: UsagePrivilege | CreatePrivilege}}}); err != nil {
+			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}, {Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: successor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
-			if err := grantMembership(t, e, Membership{Role: successor.Ref, Member: owner.Ref, Grantor: admin, Inherit: true, Set: set}); err != nil {
+			if err := grantMembership(t, e, authorization.Membership{Role: successor.Ref, Member: owner.Ref, Grantor: admin, Inherit: true, Set: set}); err != nil {
 				t.Fatal(err)
 			}
 			ref := roleTableRef(t, e, "s.v")
@@ -47,7 +48,7 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 			_, err = testExecute(e, context.Background(), statement(t, "SELECT id FROM s.v"), nil)
 			viewReplaceError(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for table t"})
-			if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, "s.t"), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner.Ref, Grantee: ACLGrantee{Role: successor.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+			if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, "s.t"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: successor.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
 			if got := tuples(run(t, e, "SELECT id FROM s.v")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {

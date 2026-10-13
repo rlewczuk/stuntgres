@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"sync"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	dest := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s2"}]
 	tableAddress := NameAddressForTempMove(t, e, source, "t")
 	table := e.state.descriptors[tableAddress].(*relationDescriptor)
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: table.owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 	for _, subID := range []int32{0, table.attributes[0]} {
 		address := tableAddress
 		address.SubID = subID

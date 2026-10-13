@@ -5,22 +5,23 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 func TestDropOwnedACLSelectiveCascade(t *testing.T) {
-	for _, mask := range []Privileges{SelectPrivilege, UsagePrivilege, CreatePrivilege} {
+	for _, mask := range []authorization.Privileges{authorization.SelectPrivilege, authorization.UsagePrivilege, authorization.CreatePrivilege} {
 		for _, alternate := range []bool{false, true} {
 			e, owner, source, target, reader := ownershipUnitRoles()
-			entries := []ACLEntry{grantUnitEntry(owner, source, mask, mask), grantUnitEntry(owner, target, mask, mask), grantUnitEntry(source, reader, mask, mask), grantUnitEntry(reader, target, mask, 0)}
+			entries := []authorization.ACLEntry{objectACLUnitEntry(owner, source, mask, mask), objectACLUnitEntry(owner, target, mask, mask), objectACLUnitEntry(source, reader, mask, mask), objectACLUnitEntry(reader, target, mask, 0)}
 			if alternate {
-				entries = append(entries, grantUnitEntry(target, reader, mask, mask))
+				entries = append(entries, objectACLUnitEntry(target, reader, mask, mask))
 			}
-			old := ACLValue{Explicit: true, Entries: entries}
-			retained := append([]ACLEntry(nil), entries...)
-			got, changed, err := ownedACL(context.Background(), RoleRead{e, e.roles, CatalogRead{e, e.state}}, old, owner, map[PrincipalRef]bool{source: true})
+			old := authorization.ACLValue{Explicit: true, Entries: entries}
+			retained := append([]authorization.ACLEntry(nil), entries...)
+			got, changed, err := authorization.OwnedACL(context.Background(), e.roleRead(CatalogRead{e, e.state}, e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true})
 			if err != nil || !changed || !reflect.DeepEqual(old.Entries, retained) {
 				t.Fatal("cleanup/error/immutable source", got, changed, err)
 			}
@@ -36,7 +37,7 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			if _, _, err := ownedACL(ctx, RoleRead{e, e.roles, CatalogRead{e, e.state}}, old, owner, map[PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
+			if _, _, err := authorization.OwnedACL(ctx, e.roleRead(CatalogRead{e, e.state}, e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
 		}
@@ -46,7 +47,7 @@ func TestDropOwnedPolicyTargets(t *testing.T) {
 	_, _, source, target, _ := ownershipUnitRoles()
 	old := []policyDefinition{{Name: "mixed", roles: []policyRole{{ref: source}, {ref: target}, {ref: source}}}, {Name: "last", roles: []policyRole{{ref: source}, {ref: source}}}, {Name: "public", roles: []policyRole{{public: true}, {ref: source}}}}
 	before := []int{len(old[0].roles), len(old[1].roles), len(old[2].roles)}
-	got, changed := ownedPolicies(old, map[PrincipalRef]bool{source: true})
+	got, changed := ownedPolicies(old, map[authorization.PrincipalRef]bool{source: true})
 	if !changed || len(got) != 2 || got[0].Name != "mixed" || len(got[0].roles) != 1 || got[0].roles[0].ref != target || got[1].Name != "public" || len(got[1].roles) != 1 || !got[1].roles[0].public {
 		t.Fatal(got, changed)
 	}
@@ -58,22 +59,22 @@ func TestDropOwnedPolicyTargets(t *testing.T) {
 }
 func TestDropOwnedMembershipProvenance(t *testing.T) {
 	e, owner, source, target, reader := ownershipUnitRoles()
-	e.roles.edges = append(e.roles.edges, Membership{Role: target, Member: source, Grantor: owner, Admin: true}, Membership{Role: target, Member: reader, Grantor: source, Admin: true, Inherit: true, Set: true}, Membership{Role: target, Member: owner, Grantor: reader, Inherit: true})
+	setFixtureEdges(e.roles, append(fixtureEdges(e.roles), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Admin: true, Inherit: true, Set: true}, authorization.Membership{Role: target, Member: owner, Grantor: reader, Inherit: true}))
 	old := e.roles
-	retained := append([]Membership(nil), old.edges...)
-	next, err := ownedMembershipCandidate(context.Background(), RoleRead{e, old, CatalogRead{e, e.state}}, map[PrincipalRef]bool{source: true})
-	if err != nil || next == nil || next.revision != old.revision+1 || !reflect.DeepEqual(old.edges, retained) {
+	retained := append([]authorization.Membership(nil), fixtureEdges(old)...)
+	next, err := ownedMembershipCandidate(context.Background(), e.roleRead(CatalogRead{e, e.state}, old), old.revision, map[authorization.PrincipalRef]bool{source: true})
+	if err != nil || next == nil || next.revision != old.revision+1 || !reflect.DeepEqual(fixtureEdges(old), retained) {
 		t.Fatal(next, err)
 	}
-	for _, edge := range next.edges {
+	for _, edge := range fixtureEdges(next) {
 		if edge.Grantor == source || edge.Grantor == reader {
 			t.Fatal("unsupported downstream membership survived", edge)
 		}
 	}
-	if len(next.roles) != len(old.roles) || next.roles[source] != old.roles[source] {
+	if next.root.Read(authorization.PrincipalRef{}).RoleCount() != old.root.Read(authorization.PrincipalRef{}).RoleCount() || fixtureRole(next, source) != fixtureRole(old, source) {
 		t.Fatal("DROP OWNED removed role endpoint")
 	}
-	if noChange, err := ownedMembershipCandidate(context.Background(), RoleRead{e, old, CatalogRead{e, e.state}}, map[PrincipalRef]bool{target: true}); err != nil || noChange != nil {
+	if noChange, err := ownedMembershipCandidate(context.Background(), e.roleRead(CatalogRead{e, e.state}, old), old.revision, map[authorization.PrincipalRef]bool{target: true}); err != nil || noChange != nil {
 		t.Fatal("unchanged membership cloned/revised", noChange, err)
 	}
 }
@@ -117,7 +118,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 			t.Fatal("actual cascade retained object", name)
 		}
 	}
-	if _, exists := e.roles.roles[source]; !exists || oldState.descriptors[parent] == nil || len(rows) != 1 {
+	if _, exists := e.Roles().Find(source); !exists || oldState.descriptors[parent] == nil || len(rows) != 1 {
 		t.Fatal("role/retained snapshot lost")
 	}
 }
@@ -138,7 +139,7 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	}
 	other := base.state.descriptors[base.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: "ownership_other"}]].(*relationDescriptor)
 	grant := *other
-	grant.acl = ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, source, SelectPrivilege, SelectPrivilege), grantUnitEntry(source, reader, SelectPrivilege, 0)}}
+	grant.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
 	grant.revision++
 	if err := setup.Replace(&grant); err != nil {
 		t.Fatal(err)
@@ -171,7 +172,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 		old := base.state.descriptors[a].(*typeDescriptor)
 		next := *old
 		next.revision++
-		next.acl = ACLValue{Explicit: true, Entries: []ACLEntry{grantUnitEntry(owner, source, UsagePrivilege, UsagePrivilege), grantUnitEntry(source, reader, UsagePrivilege, 0)}}
+		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
 		}
@@ -183,7 +184,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	stage.roleRevision = roles.revision
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := stageOwnedCleanup(ctx, stage, RoleRead{e, roles, base}, map[PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
+	if err := stageOwnedCleanup(ctx, stage, e.roleRead(base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if len(stage.descriptors) != 0 || e.state != base.state || e.roles != roles {
@@ -191,7 +192,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	}
 	stage = e.BeginCatalogStage(base)
 	stage.roleRevision = roles.revision
-	if err := stageOwnedCleanup(context.Background(), stage, RoleRead{e, roles, base}, map[PrincipalRef]bool{source: true}); err != nil {
+	if err := stageOwnedCleanup(context.Background(), stage, e.roleRead(base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
@@ -239,10 +240,10 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 				ownershipUnitExec(t, e, "GRANT SELECT ON ownership_external TO ownership_source")
 			}
 			if tc.membership {
-				graph := cloneRoles(e.roles)
-				graph.edges = append(graph.edges,
-					Membership{Role: target, Member: source, Grantor: owner, Admin: true, Inherit: true, Set: true},
-					Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true})
+				graph := cloneRoleFixture(e.roles)
+				setFixtureEdges(graph, append(fixtureEdges(graph),
+					authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true, Inherit: true, Set: true},
+					authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
 				graph.revision++
 				e.roles = graph
 			}
@@ -294,55 +295,56 @@ func TestDropOwnedCleanupPolicyDeletionUnion(t *testing.T) {
 }
 
 func TestDropOwnedACLGrantorSupport(t *testing.T) {
-	const both = SelectPrivilege | UpdatePrivilege
+	const both = authorization.SelectPrivilege | authorization.UpdatePrivilege
 	for _, tc := range []struct {
 		name                               string
 		inheritedOwner, independentOptions bool
-		support                            Privileges
+		support                            authorization.Privileges
 	}{
 		{name: "inherited owner", inheritedOwner: true, support: both},
 		{name: "SET-only owner"},
-		{name: "independent inherited options", independentOptions: true, support: SelectPrivilege},
+		{name: "independent inherited options", independentOptions: true, support: authorization.SelectPrivilege},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, owner, source, target, reader := ownershipUnitRoles()
-			graph := cloneRoles(e.roles)
-			graph.edges = []Membership{{Role: owner, Member: source, Grantor: owner, Inherit: tc.inheritedOwner, Set: true}}
-			old := ACLValue{Explicit: true, Entries: []ACLEntry{
-				grantUnitEntry(source, reader, both, both),
-				grantUnitEntry(reader, target, both, 0),
-				grantUnitEntry(owner, source, both, both),
+			graph := cloneRoleFixture(e.roles)
+			setFixtureEdges(graph, []authorization.Membership{{Role: owner, Member: source, Grantor: owner, Inherit: tc.inheritedOwner, Set: true}})
+			old := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+				objectACLUnitEntry(source, reader, both, both),
+				objectACLUnitEntry(reader, target, both, 0),
+				objectACLUnitEntry(owner, source, both, both),
 			}}
 			if tc.independentOptions {
-				graph.edges = append(graph.edges, Membership{Role: target, Member: source, Grantor: owner, Inherit: true, Set: false})
-				old.Entries = append(old.Entries, grantUnitEntry(owner, target, SelectPrivilege, SelectPrivilege))
+				setFixtureEdges(graph, append(fixtureEdges(graph), authorization.Membership{Role: target, Member: source, Grantor: owner, Inherit: true, Set: false}))
+				old.Entries = append(old.Entries, objectACLUnitEntry(owner, target, authorization.SelectPrivilege, authorization.SelectPrivilege))
 			}
-			retained := append([]ACLEntry(nil), old.Entries...)
-			edges := append([]Membership(nil), graph.edges...)
-			roles := RoleRead{e, graph, e.CatalogRead()}
-			got, changed, err := ownedACL(context.Background(), roles, old, owner, map[PrincipalRef]bool{source: true})
-			expected := ACLValue{Explicit: true}
+			retained := append([]authorization.ACLEntry(nil), old.Entries...)
+			edges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
+			catalog := e.CatalogRead()
+			roles := e.roleRead(catalog, graph)
+			got, changed, err := authorization.OwnedACL(context.Background(), roles, old, owner, map[authorization.PrincipalRef]bool{source: true})
+			expected := authorization.ACLValue{Explicit: true}
 			if tc.support != 0 {
-				expected.Entries = []ACLEntry{
-					grantUnitEntry(source, reader, tc.support, tc.support),
-					grantUnitEntry(reader, target, tc.support, 0),
+				expected.Entries = []authorization.ACLEntry{
+					objectACLUnitEntry(source, reader, tc.support, tc.support),
+					objectACLUnitEntry(reader, target, tc.support, 0),
 				}
 			}
 			if tc.independentOptions {
-				expected.Entries = append(expected.Entries, grantUnitEntry(owner, target, SelectPrivilege, SelectPrivilege))
+				expected.Entries = append(expected.Entries, objectACLUnitEntry(owner, target, authorization.SelectPrivilege, authorization.SelectPrivilege))
 			}
 			if err != nil || !changed || got.Explicit != expected.Explicit || !slices.Equal(got.Entries, expected.Entries) {
 				t.Fatal("received-first selective grantor support", got, err, "want", expected)
 			}
-			if !reflect.DeepEqual(old.Entries, retained) || !reflect.DeepEqual(graph.edges, edges) {
+			if !reflect.DeepEqual(old.Entries, retained) || !reflect.DeepEqual(fixtureEdges(graph), edges) {
 				t.Fatal("cleanup mutated captured ACL or membership graph")
 			}
 			if tc.inheritedOwner {
-				withoutOwner := cloneRoles(graph)
-				withoutOwner.edges = nil
-				regranted := ACLValue{Explicit: true, Entries: append(append([]ACLEntry(nil), got.Entries...), grantUnitEntry(owner, source, both, both))}
-				retainedSupported := append([]ACLEntry(nil), got.Entries...)
-				lost, different, err := ownedACL(context.Background(), RoleRead{e, withoutOwner, roles.catalog}, regranted, owner, map[PrincipalRef]bool{source: true})
+				withoutOwner := cloneRoleFixture(graph)
+				setFixtureEdges(withoutOwner, nil)
+				regranted := authorization.ACLValue{Explicit: true, Entries: append(append([]authorization.ACLEntry(nil), got.Entries...), objectACLUnitEntry(owner, source, both, both))}
+				retainedSupported := append([]authorization.ACLEntry(nil), got.Entries...)
+				lost, different, err := authorization.OwnedACL(context.Background(), e.roleRead(catalog, withoutOwner), regranted, owner, map[authorization.PrincipalRef]bool{source: true})
 				if err != nil || !different || len(lost.Entries) != 0 || !reflect.DeepEqual(got.Entries, retainedSupported) {
 					t.Fatal("unsupported provenance after membership loss", lost, err)
 				}
@@ -392,17 +394,17 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	} {
 		roleExecute(t, e, op, q)
 	}
-	owner := e.roles.names["ownership_sql_owner"]
-	source := e.roles.names["ownership_sql_source"]
-	downstream := e.roles.names["ownership_sql_downstream"]
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_owner")
+	source := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_source")
+	downstream := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_downstream")
 	address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "ownership_sql_support"}]
 	original := e.state.descriptors[address].(*relationDescriptor)
-	received := grantUnitEntry(owner, source, SelectPrivilege, SelectPrivilege)
-	delegated := grantUnitEntry(source, downstream, SelectPrivilege, 0)
+	received := objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege)
+	delegated := objectACLUnitEntry(source, downstream, authorization.SelectPrivilege, 0)
 	if original.owner != owner || !slices.Contains(original.acl.Entries, received) || !slices.Contains(original.acl.Entries, delegated) {
 		t.Fatal("actual SQL GRANT lost current-role provenance", original.acl)
 	}
-	retained := append([]ACLEntry(nil), original.acl.Entries...)
+	retained := append([]authorization.ACLEntry(nil), original.acl.Entries...)
 	store := e.storage[address]
 	roleExecute(t, e, op, "DROP OWNED BY ownership_sql_source RESTRICT")
 	current := e.state.descriptors[address].(*relationDescriptor)

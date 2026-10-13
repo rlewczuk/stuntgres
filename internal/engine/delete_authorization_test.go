@@ -3,10 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestDeleteCoreAuthorization(t *testing.T) {
@@ -21,17 +21,17 @@ func TestDeleteCoreAuthorization(t *testing.T) {
 	owner := op.RoleState().CurrentUser
 	reader, _ := e.Roles().Lookup("reader")
 	selector, _ := e.Roles().Lookup("selector")
-	grant := func(mask Privileges) {
+	grant := func(mask authorization.Privileges) {
 		t.Helper()
-		acl := ACLValue{Explicit: true, Entries: []ACLEntry{
-			{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: mask},
-			{Grantor: owner, Grantee: ACLGrantee{Role: selector.Ref}, Privileges: SelectPrivilege},
+		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask},
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: selector.Ref}, Privileges: authorization.SelectPrivilege},
 		}}
 		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
-	grant(DeletePrivilege)
+	grant(authorization.DeletePrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, query := range []string{"DELETE FROM t WHERE FALSE", "DELETE FROM t WHERE NULL"} {
 		roleExecute(t, e, op, query)
@@ -44,10 +44,10 @@ func TestDeleteCoreAuthorization(t *testing.T) {
 	roleError(t, e, op, "DELETE FROM t WHERE a=1", "42501", "permission denied for table t", "")
 	column := ref
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: DeletePrivilege}}}); err == nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.DeletePrivilege}}}); err == nil {
 		t.Fatal("column DELETE accepted")
 	}
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	scope, err := e.StartStatement(op)
@@ -65,13 +65,13 @@ func TestDeleteCoreAuthorization(t *testing.T) {
 	roleError(t, e, op, "DELETE FROM t", "42501", "permission denied for table t", "")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	roleExecute(t, e, op, "DELETE FROM t") // no fabricated SELECT requirement
-	grant(DeletePrivilege | SelectPrivilege)
+	grant(authorization.DeletePrivilege | authorization.SelectPrivilege)
 	ast = statement(t, "DELETE FROM t WHERE a=1")
 	prepared, err = e.Describe(op, ast)
 	if err != nil {
 		t.Fatal(err)
 	}
-	grant(SelectPrivilege) // revocation must invalidate allowance, not the handle
+	grant(authorization.SelectPrivilege) // revocation must invalidate allowance, not the handle
 	scope, err = e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ func TestDeleteCoreAuthorization(t *testing.T) {
 	if _, err := view.Effective(column, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Check(AccessRequirement{Object: column, Privileges: DeletePrivilege}); err == nil {
+	if err := view.Check(AccessRequirement{Object: column, Privileges: authorization.DeletePrivilege}); err == nil {
 		t.Fatal("column DELETE requirement accepted")
 	}
 	lockEmpty(t, e)

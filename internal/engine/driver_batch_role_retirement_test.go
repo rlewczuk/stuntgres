@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
@@ -80,7 +81,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}
 				case "registered":
-					if err := e.SetRoleReferences(context.Background(), "retirement guard", []PrincipalRef{role.Ref}); err != nil {
+					if err := e.SetRoleReferences(context.Background(), "retirement guard", []authorization.PrincipalRef{role.Ref}); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -123,7 +124,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {
 					t.Fatal("rejected retirement orphaned the canonical peer principal")
 				}
-				if dependency == "registered" && !reflect.DeepEqual(e.roleReferences["retirement guard"], []PrincipalRef{role.Ref}) {
+				if dependency == "registered" && !reflect.DeepEqual(e.roleReferences["retirement guard"], []authorization.PrincipalRef{role.Ref}) {
 					t.Fatal("rejected retirement changed registered principal dependencies")
 				}
 				if carrier == "prepared" {
@@ -164,7 +165,7 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 	}
 	a.transactions.catalog = cloneCatalogChanges(before)
 	sessionSQL(t, b, "CREATE SCHEMA restoration_peer AUTHORIZATION restored")
-	if retirement.roles == nil || retirement.roles.names["restored"] != (PrincipalRef{}) {
+	if retirement.roles == nil || retirement.roles.root.Read(authorization.PrincipalRef{}).LookupRef("restored") != (authorization.PrincipalRef{}) {
 		t.Fatal("retirement fork did not carry the private deletion")
 	}
 	if err := m.end(nil); err != nil {
@@ -191,7 +192,7 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			grantor, _ := e.Roles().Lookup("grantor")
 			role, _ := e.Roles().Lookup("endpoint")
 			member, _ := e.Roles().Lookup("member")
-			edge := Membership{Role: role.Ref, Member: member.Ref, Grantor: grantor.Ref, Inherit: true, Set: true}
+			edge := authorization.Membership{Role: role.Ref, Member: member.Ref, Grantor: grantor.Ref, Inherit: true, Set: true}
 			if err := grantMembership(t, e, edge); err != nil {
 				t.Fatal(err)
 			}
@@ -218,12 +219,12 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if _, ok := e.Roles().Lookup("grantor"); ok {
 				t.Fatal("completed endpoint cleanup did not retire the principal")
 			}
-			for _, retained := range e.roles.edges {
+			for _, retained := range fixtureEdges(e.roles) {
 				if retained == edge {
 					t.Fatal("retired endpoint retained its membership dependency")
 				}
 			}
-			if !reflect.DeepEqual(base.edges, before) {
+			if !reflect.DeepEqual(fixtureEdges(base), before) {
 				t.Fatal("publication mutated the immutable entry membership root")
 			}
 		})

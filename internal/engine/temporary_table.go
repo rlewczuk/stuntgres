@@ -23,7 +23,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, creationError(err, s.Name)
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	if op.restoreTableDestination {
 		bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
 		if er != nil || !bootstrap.Superuser || e.importTargets == nil {
@@ -53,7 +53,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		// Permanent CREATE does not need the TEMP namespace overlay. Preserve
 		// its admitted catalog identity for the existing importer/publication fences.
 		auth.catalog = originalCatalog
-		auth.roles.catalog = auth.catalog
+		auth.recaptureCatalog(auth.catalog)
 	}
 	if !temporary && s.OnCommit != parser.OnCommitUnspecified {
 		e.mu.Unlock()

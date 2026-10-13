@@ -3,89 +3,23 @@ package engine
 import (
 	"context"
 	"fmt"
-	"slices"
+	"stuntgres/internal/engine/authorization"
 )
 
-func ownedMembershipCandidate(ctx context.Context, roles RoleRead, sources map[PrincipalRef]bool) (*roleCatalog, error) {
-	needed := false
-	for _, edge := range roles.state.edges {
-		if sources[edge.Grantor] {
-			needed = true
-			break
-		}
-	}
-	if !needed {
+func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, revision uint64, sources map[authorization.PrincipalRef]bool) (*roleCatalog, error) {
+	if !authorization.OwnedMembershipNeeded(roles, sources) {
 		return nil, ctx.Err()
 	}
-	if roles.state.revision == ^uint64(0) {
+	if revision == ^uint64(0) {
 		return nil, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	actions := make([]membershipRevokeAction, len(roles.state.edges))
-	for i, edge := range roles.state.edges {
-		if sources[edge.Grantor] {
-			if err := planMembershipRevoke(ctx, roles.state.edges, actions, edge.Role, i, false, true); err != nil {
-				return nil, err
-			}
-		}
+	root, err := authorization.OwnedMembershipCandidate(ctx, roles, sources)
+	if err != nil {
+		return nil, err
 	}
-	edges := make([]Membership, 0, len(roles.state.edges))
-	for i, edge := range roles.state.edges {
-		if actions[i] != membershipRevokeDelete {
-			edges = append(edges, edge)
-		}
-	}
-	next := advanceRoleRevision(roles.state)
-	next.edges = edges
-	return next, nil
+	return &roleCatalog{root: root, revision: revision + 1}, nil
 }
-
-// ALL/CASCADE revokes every selected grantee and grantor provenance using the
-// ordinary selective ACL planner, preserving independently supported grants.
-func ownedACL(ctx context.Context, roles RoleRead, acl ACLValue, owner PrincipalRef, sources map[PrincipalRef]bool) (ACLValue, bool, error) {
-	next := acl
-	changed := false
-	for _, entry := range acl.Entries {
-		if err := ctx.Err(); err != nil {
-			return acl, false, err
-		}
-		// Retire received rights first. Recursive revocation can still find
-		// inherited owner or independently inherited grant-option support.
-		if entry.Grantee.Public || !sources[entry.Grantee.Role] {
-			continue
-		}
-		candidate, different, err := changeObjectACL(ctx, roles, next, owner, entry.Grantor, []ACLGrantee{entry.Grantee}, entry.Privileges|entry.GrantOptions, false, true, false, true)
-		if err != nil {
-			return acl, false, err
-		}
-		next = candidate
-		changed = changed || different
-	}
-	for _, entry := range next.Entries {
-		if err := ctx.Err(); err != nil {
-			return acl, false, err
-		}
-		if !sources[entry.Grantor] || !entry.Grantee.Public && sources[entry.Grantee.Role] {
-			continue
-		}
-		mask := entry.Privileges | entry.GrantOptions
-		supported, err := scopedACLGrantOptions(ctx, roles, next, owner, entry.Grantor, mask)
-		if err != nil {
-			return acl, false, err
-		}
-		mask &^= supported
-		if mask == 0 {
-			continue
-		}
-		candidate, different, err := changeObjectACL(ctx, roles, next, owner, entry.Grantor, []ACLGrantee{entry.Grantee}, mask, false, true, false, true)
-		if err != nil {
-			return acl, false, err
-		}
-		next = candidate
-		changed = changed || different
-	}
-	return next, changed, nil
-}
-func ownedPolicies(policies []policyDefinition, sources map[PrincipalRef]bool) ([]policyDefinition, bool) {
+func ownedPolicies(policies []policyDefinition, sources map[authorization.PrincipalRef]bool) ([]policyDefinition, bool) {
 	needed := false
 	for _, policy := range policies {
 		for _, role := range policy.roles {
@@ -121,13 +55,13 @@ func ownedPolicies(policies []policyDefinition, sources map[PrincipalRef]bool) (
 	}
 	return out, true
 }
-func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles RoleRead, sources map[PrincipalRef]bool) error {
-	candidate, err := ownedMembershipCandidate(ctx, roles, sources)
+func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authorization.Read, publication *roleCatalog, sources map[authorization.PrincipalRef]bool) error {
+	candidate, err := ownedMembershipCandidate(ctx, roles, publication.revision, sources)
 	if err != nil {
 		return err
 	}
 	stage.roleCandidate = candidate
-	roles = stage.roleRead(roles.state, stage.owner.stageRead(stage))
+	roles = stage.roleRead(publication, stage.owner.stageRead(stage))
 	for address, descriptor := range stage.base.state.descriptors {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -139,19 +73,19 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles RoleRead,
 			descriptor = replacement
 		}
 		owner, acl, columns := descriptorACL(descriptor)
-		nextACL, changed, err := ownedACL(ctx, roles, acl, owner, sources)
+		nextACL, changed, err := authorization.OwnedACL(ctx, roles, acl, owner, sources)
 		if err != nil {
 			return err
 		}
-		var nextColumns map[int32]ACLValue
+		var nextColumns map[int32]authorization.ACLValue
 		for sub, column := range columns {
-			next, different, err := ownedACL(ctx, roles, column, owner, sources)
+			next, different, err := authorization.OwnedACL(ctx, roles, column, owner, sources)
 			if err != nil {
 				return err
 			}
 			if different {
 				if nextColumns == nil {
-					nextColumns = make(map[int32]ACLValue, len(columns))
+					nextColumns = make(map[int32]authorization.ACLValue, len(columns))
 					for key, value := range columns {
 						nextColumns[key] = value
 					}
@@ -217,14 +151,14 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles RoleRead,
 		}
 		var next *defaultACLRecord
 		if !sources[key.creator] {
-			acl, changed, err := ownedACL(ctx, roles, record.acl, key.creator, sources)
+			acl, changed, err := authorization.OwnedACL(ctx, roles, record.acl, key.creator, sources)
 			if err != nil {
 				return err
 			}
 			if !changed {
 				continue
 			}
-			if !matchesDefaultBaseline(acl, key.creator, key.class, key.schema != (ObjectAddress{})) {
+			if !authorization.MatchesDefaultBaseline(acl, key.creator, key.class, key.schema != (ObjectAddress{})) {
 				next = &defaultACLRecord{acl: acl}
 			}
 		}
@@ -247,7 +181,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles RoleRead,
 // collected object, even when its enclosing relation is already an owner root.
 // ACL row edits are not deletion roots and automatic parent associations do not
 // contribute an invented object count.
-func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[PrincipalRef]bool) bool {
+func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization.PrincipalRef]bool) bool {
 	if stage.roleCandidate != nil {
 		return true
 	}
@@ -311,37 +245,14 @@ func (s *CatalogStage) validateRoleCandidate(current *roleCatalog) error {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	next := s.roleCandidate
-	if next.revision != current.revision+1 || len(next.roles) != len(current.roles) || len(next.names) != len(current.names) {
+	if next.revision != current.revision+1 {
 		return fmt.Errorf("stuntgres: invalid ownership role candidate")
 	}
-	for ref, role := range current.roles {
-		if next.roles[ref] != role {
-			return fmt.Errorf("stuntgres: invalid ownership role descriptors")
-		}
-	}
-	for name, ref := range current.names {
-		if next.names[name] != ref {
-			return fmt.Errorf("stuntgres: invalid ownership role names")
-		}
-	}
-	index := 0
-	for _, edge := range next.edges {
-		for index < len(current.edges) && current.edges[index] != edge {
-			index++
-		}
-		if index == len(current.edges) {
-			return fmt.Errorf("stuntgres: invalid ownership membership candidate")
-		}
-		index++
-	}
-	if slices.Equal(next.edges, current.edges) {
-		return fmt.Errorf("stuntgres: unchanged ownership role candidate")
-	}
-	return nil
+	return current.root.ValidateDeletionCandidate(&next.root)
 }
-func (s *CatalogStage) roleRead(current *roleCatalog, catalog CatalogRead) RoleRead {
+func (s *CatalogStage) roleRead(current *roleCatalog, catalog CatalogRead) authorization.Read {
 	if s.roleCandidate != nil {
-		return RoleRead{s.owner, s.roleCandidate, catalog}
+		return s.owner.roleRead(catalog, s.roleCandidate)
 	}
-	return RoleRead{s.owner, current, catalog}
+	return s.owner.roleRead(catalog, current)
 }

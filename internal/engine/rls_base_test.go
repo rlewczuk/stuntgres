@@ -3,9 +3,9 @@ package engine
 import (
 	"context"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
+	"testing"
 )
 
 func TestRLSBaseDecision(t *testing.T) {
@@ -22,14 +22,14 @@ func TestRLSBaseDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner, reader, bypass, member := e.roles.names["rls_unit_owner"], e.roles.names["rls_unit_reader"], e.roles.names["rls_unit_bypass"], e.roles.names["rls_unit_member"]
+	owner, reader, bypass, member := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_owner"), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_reader"), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_bypass"), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_member")
 	using, err := policyUnitBind(t, e, op, d, "TRUE")
 	if err != nil {
 		t.Fatal(err)
 	}
 	next := *d
 	next.owner = owner
-	check := func(label string, p PrincipalRef, command policyCommand, proposed bool, want rlsDisposition) {
+	check := func(label string, p authorization.PrincipalRef, command policyCommand, proposed bool, want rlsDisposition) {
 		t.Helper()
 		got, err := rowSecurityDecision(auth, &next, p, command, proposed)
 		if err != nil || got != want {
@@ -214,7 +214,7 @@ func TestRLSBaseControls(t *testing.T) {
 		next.rlsEnabled, next.rlsForced = state.enabled, state.forced
 		catalog := cloneCatalog(base.state)
 		catalog.descriptors[d.address] = &next
-		groups, err := rowSecurityDumpGroups(context.Background(), CatalogRead{owner: e, state: catalog}, RoleRead{e, e.roles, CatalogRead{e, catalog}})
+		groups, err := rowSecurityDumpGroups(context.Background(), CatalogRead{owner: e, state: catalog}, e.roleRead(CatalogRead{e, catalog}, e.roles))
 		if err != nil {
 			t.Fatal(err)
 		}

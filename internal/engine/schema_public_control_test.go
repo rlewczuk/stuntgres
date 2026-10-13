@@ -7,11 +7,12 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"testing"
 )
 
 func TestSchemaPublicLifecycleControls(t *testing.T) {
-	sameACL := func(a, b ACLValue) bool {
+	sameACL := func(a, b authorization.ACLValue) bool {
 		return a.Explicit == b.Explicit && slices.Equal(a.Entries, b.Entries)
 	}
 	for _, tc := range []struct {
@@ -42,13 +43,13 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			for _, q := range tc.setup {
 				run(t, e, q)
 			}
-			var acl ACLValue
+			var acl authorization.ACLValue
 			if tc.namespace != "" {
 				acl = e.CatalogRead().state.descriptors[schemaRef(t, e, tc.namespace).Address].(*namespaceDescriptor).acl
 			}
 			before := e.CatalogRead()
-			names := make(map[string]ACLValue)
-			owners := make(map[string]PrincipalRef)
+			names := make(map[string]authorization.ACLValue)
+			owners := make(map[string]authorization.PrincipalRef)
 			for _, descriptor := range before.state.descriptors {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
 					names[ns.name], owners[ns.name] = ns.acl, ns.owner
@@ -68,7 +69,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 			if after.Epoch() == before.Epoch() {
 				t.Fatal("Restore reused catalog epoch")
 			}
-			gotNames := make(map[string]ACLValue)
+			gotNames := make(map[string]authorization.ACLValue)
 			for _, descriptor := range after.state.descriptors {
 				if ns, ok := descriptor.(*namespaceDescriptor); ok {
 					gotNames[ns.name] = ns.acl
@@ -148,11 +149,11 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				owner, _ := e.Roles().Lookup("ordinary")
 				for _, name := range []string{"restored_a", "restored_b", "restored_data", "retained_public"} {
 					ns := before.state.descriptors[schemaRef(t, e, name).Address].(*namespaceDescriptor)
-					wantACL := ACLValue{}
+					wantACL := authorization.ACLValue{}
 					if name == "retained_public" {
-						wantACL = ACLValue{Explicit: true, Entries: []ACLEntry{
-							{Grantor: owner.Ref, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege | CreatePrivilege},
-							{Grantor: owner.Ref, Grantee: ACLGrantee{Role: owner.Ref}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege},
+						wantACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+							{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
+							{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege, GrantOptions: authorization.UsagePrivilege | authorization.CreatePrivilege},
 						}}
 					}
 					if ns.owner != owner.Ref || !sameACL(ns.acl, wantACL) {

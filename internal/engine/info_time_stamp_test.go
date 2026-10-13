@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -21,7 +22,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	d := infoTimeStampCatalogType(t, view)
 	base, ok := view.LookupType(sqltype.Timestamptz)
-	if !ok || d.typ.DomainBase().Type != base || d.typ.DomainBase().Typmod != 2 || d.typ.ID() == base.ID() || d.revision != 1 || d.owner != (PrincipalRef{}) || !d.typ.IsBuiltin() || d.typ.IsUserDefined() {
+	if !ok || d.typ.DomainBase().Type != base || d.typ.DomainBase().Typmod != 2 || d.typ.ID() == base.ID() || d.revision != 1 || d.owner != (authorization.PrincipalRef{}) || !d.typ.IsBuiltin() || d.typ.IsUserDefined() {
 		t.Fatal("builtin catalog authority", d)
 	}
 	array, ok := view.LookupType(d.array)
@@ -79,7 +80,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	view := CatalogRead{owner: source, state: next}
 	rebound := infoTimeStampCatalogType(t, view)
 	base, _ := view.LookupType(sqltype.Timestamptz)
-	if rebound.typ == d.typ || rebound.typ.DomainBase().Type != base || base == d.typ.DomainBase().Type || rebound.typ.DomainBase().Typmod != 2 || !rebound.typ.IsBuiltin() || rebound.typ.IsUserDefined() || rebound.owner != (PrincipalRef{}) || rebound.revision != 1 || rebound.typ.AssociatedArray() != d.array || rebound.typ.NamespaceName() != "information_schema" {
+	if rebound.typ == d.typ || rebound.typ.DomainBase().Type != base || base == d.typ.DomainBase().Type || rebound.typ.DomainBase().Typmod != 2 || !rebound.typ.IsBuiltin() || rebound.typ.IsUserDefined() || rebound.owner != (authorization.PrincipalRef{}) || rebound.revision != 1 || rebound.typ.AssociatedArray() != d.array || rebound.typ.NamespaceName() != "information_schema" {
 		t.Fatal("reowned builtin provenance", rebound)
 	}
 	declaration, err := catalogTypeDeclaration(view, rebound.typ.Usage())
@@ -101,7 +102,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := remapped.descriptors[d.Address()].(*typeDescriptor)
-	if retained.owner != (PrincipalRef{}) || !retained.typ.IsBuiltin() || retained.typ.IsUserDefined() {
+	if retained.owner != (authorization.PrincipalRef{}) || !retained.typ.IsBuiltin() || retained.typ.IsUserDefined() {
 		t.Fatal("principal remap lost builtin exemption")
 	}
 	invalid := cloneCatalog(original.state)

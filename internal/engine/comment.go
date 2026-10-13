@@ -80,18 +80,20 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 			}
 			return nil, roleDiagnostic("42501", "permission denied", "The current user must have the "+attribute+" attribute.")
 		}
-		if auth.roles.state.revision == ^uint64(0) {
+		if auth.roleRecord.revision == ^uint64(0) {
 			return nil, fmt.Errorf("stuntgres: authorization revision exhausted")
 		}
-		next := cloneRoles(auth.roles.state)
 		target.Comment = text
-		next.roles[target.Ref] = target
+		next, err := auth.roleRecord.root.PutDescriptor(target)
+		if err != nil {
+			return nil, err
+		}
 		op.session.mu.Lock()
 		defer op.session.mu.Unlock()
 		if err := publicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}
-		e.installOperationRolesLocked(op, next)
+		e.installOperationRolesLocked(op, &roleCatalog{root: next, revision: auth.roleRecord.revision + 1})
 		return nil, nil
 	}
 	var ref ObjectRef

@@ -4,25 +4,26 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool) (map[PrincipalRef]bool, PrincipalRef, error) {
-	refs := make(map[PrincipalRef]bool, len(specs))
-	protected := PrincipalRef{}
+func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool) (map[authorization.PrincipalRef]bool, authorization.PrincipalRef, error) {
+	refs := make(map[authorization.PrincipalRef]bool, len(specs))
+	protected := authorization.PrincipalRef{}
 	for _, spec := range specs {
-		ref, err := membershipRole(auth.roles, auth.state, spec)
+		ref, err := authorization.MembershipRole(auth.roles, auth.state, spec)
 		if err != nil {
-			return nil, PrincipalRef{}, err
+			return nil, authorization.PrincipalRef{}, err
 		}
 		role, err := auth.roles.Descriptor(ref)
 		if err != nil {
-			return nil, PrincipalRef{}, err
+			return nil, authorization.PrincipalRef{}, err
 		}
-		allowed, err := auth.roles.inheritsRole(auth.state.CurrentUser, ref)
+		allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ref)
 		if err != nil {
-			return nil, PrincipalRef{}, err
+			return nil, authorization.PrincipalRef{}, err
 		}
 		if !allowed {
 			message := "permission denied to drop objects"
@@ -31,16 +32,16 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 				message = "permission denied to reassign objects"
 				detail = "Only roles with privileges of role \"" + role.Name + "\" may reassign objects owned by it."
 			}
-			return nil, PrincipalRef{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: message, Detail: detail}
+			return nil, authorization.PrincipalRef{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: message, Detail: detail}
 		}
-		if (role.predefined || ref == (PrincipalRef{auth.roles.owner, bootstrapPrincipalID})) && protected == (PrincipalRef{}) {
+		if (role.Predefined() || ref == auth.engine.authorizationDomain.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
 			protected = ref
 		}
 		refs[ref] = true
 	}
 	return refs, protected, nil
 }
-func ownedRoots(catalog CatalogRead, sources map[PrincipalRef]bool) []ObjectAddress {
+func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool) []ObjectAddress {
 	var roots []ObjectAddress
 	for a, d := range catalog.state.descriptors {
 		owner, _, _ := descriptorACL(d)
@@ -105,7 +106,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		return fail(err)
 	}
 	var specs []parser.RoleSpec
-	reassign, target, mode := false, PrincipalRef{}, parser.DropRestrict
+	reassign, target, mode := false, authorization.PrincipalRef{}, parser.DropRestrict
 	switch s := stmt.(type) {
 	case *parser.ReassignOwned:
 		reassign = true
@@ -120,11 +121,11 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	}
 	if reassign {
 		s := stmt.(*parser.ReassignOwned)
-		target, err = membershipRole(auth.roles, auth.state, s.Target)
+		target, err = authorization.MembershipRole(auth.roles, auth.state, s.Target)
 		if err != nil {
 			return fail(err)
 		}
-		allowed, err := auth.roles.inheritsRole(auth.state.CurrentUser, target)
+		allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, target)
 		if err != nil {
 			return fail(err)
 		}
@@ -135,7 +136,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	}
 	// PostgreSQL resolves and authorizes utility operands before entering the
 	// shared-dependency handler that refuses protected sources.
-	if protected != (PrincipalRef{}) {
+	if protected != (authorization.PrincipalRef{}) {
 		role, _ := auth.roles.Descriptor(protected)
 		noun := "drop objects owned by"
 		if reassign {
@@ -275,7 +276,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		// PostgreSQL collects actual policy and grantor-membership deletions
 		// alongside ownership roots. Prepare cleanup once, still entirely private,
 		// before discovering consumers of the complete pending deletion union.
-		if err = stageOwnedCleanup(scope.op.Context(), stage, auth.roles, sources); err != nil {
+		if err = stageOwnedCleanup(scope.op.Context(), stage, auth.roles, auth.roleRecord, sources); err != nil {
 			return Result{}, err
 		}
 		if primaryRoot != (ObjectAddress{}) && ownedCleanupAddsDeletionRoot(stage, sources) {

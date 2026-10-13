@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -79,8 +80,8 @@ type namespaceDescriptor struct {
 	address   ObjectAddress
 	name      string
 	revision  DefinitionRevision
-	owner     PrincipalRef
-	acl       ACLValue
+	owner     authorization.PrincipalRef
+	acl       authorization.ACLValue
 	comment   string
 	temporary SessionToken
 }
@@ -100,9 +101,9 @@ type relationDescriptor struct {
 	index                map[string]int
 	attributes           []int32
 	attributeHighWater   int32
-	owner                PrincipalRef
-	acl                  ACLValue
-	columnACL            map[int32]ACLValue
+	owner                authorization.PrincipalRef
+	acl                  authorization.ACLValue
+	columnACL            map[int32]authorization.ACLValue
 	comment              string
 	columnComments       map[int32]string
 	notNullConstraints   []notNullConstraint
@@ -586,7 +587,7 @@ func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
 // Retain selected private authority separately from the committed predecessor
 // already captured by authorizationLocked; building a stage needs no live read.
 func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *Session) {
-	s.authSession, s.authRevision, s.roleRevision = session, auth.revision, auth.roles.state.revision
+	s.authSession, s.authRevision, s.roleRevision = session, auth.revision, auth.roleRecord.revision
 	s.databaseAuthority = auth.catalog.state.descriptors[currentDatabaseAddress]
 	s.databasePredecessor = auth.databasePredecessor
 }
@@ -1359,8 +1360,8 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{engine: e, catalog: CatalogRead{e, e.state}, roles: RoleRead{e, e.roles, CatalogRead{e, e.state}}, state: s.authSession.authorization.state}
-			err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: s.materializedReplacement.original.address}, Privileges: MaintainPrivilege})
+			auth := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, e.state}, roleRecord: e.roles, catalog: CatalogRead{e, e.state}, roles: e.roleRead(CatalogRead{e, e.state}, e.roles), state: s.authSession.authorization.state}
+			err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: s.materializedReplacement.original.address}, Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1579,12 +1580,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 			return ChangeSet{}, err
 		}
-		if err := validateDefaultACLs(RoleRead{e, e.roles, CatalogRead{e, next}}, CatalogRead{e, next}); err != nil {
+		if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision := e.nextRevision
 		for _, d := range next.descriptors {
-			if err := validateACL(RoleRead{e, e.roles, CatalogRead{e, next}}, d); err != nil {
+			if err := validateACL(e.roleRead(CatalogRead{e, next}, e.roles), d); err != nil {
 				return ChangeSet{}, err
 			}
 			if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
@@ -1651,7 +1652,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err == nil {
 		sequences, err = copySequenceState(replacement.owner, replacement)
 	}
-	sourceRoles := RoleRead{replacement.owner, replacement.owner.roles, replacement}
+	sourceRoles := replacement.owner.roleRead(replacement, replacement.owner.roles)
 	replacement.owner.mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -1692,12 +1693,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := validateDefaultACLs(RoleRead{e, e.roles, CatalogRead{e, next}}, CatalogRead{e, next}); err != nil {
+	if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision := e.nextRevision
 	for _, d := range next.descriptors {
-		if err := validateACL(RoleRead{e, e.roles, CatalogRead{e, next}}, d); err != nil {
+		if err := validateACL(e.roleRead(CatalogRead{e, next}, e.roles), d); err != nil {
 			return ChangeSet{}, err
 		}
 		if revision := descriptorRevisionFrontier(d); revision >= nextRevision {

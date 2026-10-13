@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 )
 
@@ -20,7 +21,7 @@ type foreignActionAdmission struct {
 type foreignActionTransition struct {
 	relation  ObjectAddress
 	old, next rowVersion
-	owner     PrincipalRef // zero means the initiating statement's actor
+	owner     authorization.PrincipalRef // zero means the initiating statement's actor
 }
 
 func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ObjectRef) error {
@@ -54,7 +55,7 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 	}
 	if s.foreignActionAuth != nil {
 		auth.state.CurrentUser = s.foreignActionAuth.state.CurrentUser
-		if err = auth.roles.validatePrincipal(auth.state.CurrentUser); err != nil {
+		if err = auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
@@ -186,8 +187,8 @@ func (s *StatementScope) recordForeignActionReplacement(ref ObjectRef, old, next
 	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.owner})
 }
 
-func foreignActionOwner(auth AuthorizationView, owner PrincipalRef) AuthorizationView {
-	if owner != (PrincipalRef{}) {
+func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {
+	if owner != (authorization.PrincipalRef{}) {
 		auth.state.CurrentUser = owner
 	}
 	return auth

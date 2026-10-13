@@ -3,11 +3,11 @@ package engine
 import (
 	"context"
 	"reflect"
-	"testing"
-	"time"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"testing"
+	"time"
 )
 
 func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
@@ -129,7 +129,7 @@ func TestCompareOpsRightOnlyAuthorization(t *testing.T) {
 	reader, _ := e.Roles().Lookup("reader")
 	column := ref
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")

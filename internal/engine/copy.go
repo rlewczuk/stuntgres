@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -163,7 +164,7 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 		auth, err = e.statementAuthorizationLocked(s.op, syntax)
 	}
 	if err == nil {
-		err = auth.checkColumns(b, InsertPrivilege, b.targets)
+		err = auth.checkColumns(b, authorization.InsertPrivilege, b.targets)
 	}
 	if err == nil {
 		err = e.visibilityWriteLocked(s.txRef)
@@ -230,9 +231,9 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 	if err != nil {
 		return
 	}
-	privilege := SelectPrivilege
+	privilege := authorization.SelectPrivilege
 	if syntax.From {
-		privilege = InsertPrivilege
+		privilege = authorization.InsertPrivilege
 	}
 	err = auth.checkColumns(b, privilege, b.targets)
 	return

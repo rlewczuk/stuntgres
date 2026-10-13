@@ -164,7 +164,8 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if e.kind == sharedDescription {
 			if name == "pg_authid" {
 				r := scope.commentRoles
-				text = r.state.roles[PrincipalRef{owner: r.owner, id: uint64(oid)}].Comment
+				role, _ := r.Find(scope.commentCatalog.owner.authorizationDomain.Principal(uint64(oid)))
+				text = role.Comment
 			}
 		} else {
 			var class OID

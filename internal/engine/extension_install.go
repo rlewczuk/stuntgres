@@ -3,12 +3,13 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type extensionProvider interface {
-	stage(*Engine, *CatalogStage, *extensionDescriptor, PrincipalRef, AuthorizationView) error
+	stage(*Engine, *CatalogStage, *extensionDescriptor, authorization.PrincipalRef, AuthorizationView) error
 }
 type registeredExtension struct {
 	version                         string
@@ -159,13 +160,13 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		if err != nil {
 			return nil, err
 		}
-		if rights&CreatePrivilege == 0 {
+		if rights&authorization.CreatePrivilege == 0 {
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text), Hint: "Must have CREATE privilege on current database to create this extension."}
 		}
 	}
 	memberOwner := actor.Ref
 	if registration.superuser && !actor.Superuser {
-		memberOwner = PrincipalRef{e, 10}
+		memberOwner = e.authorizationDomain.Principal(10)
 	}
 	oid, err := e.allocateOIDLocked()
 	if err != nil {
@@ -188,7 +189,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	return stage, nil
 }
 
-func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner PrincipalRef, auth AuthorizationView) error {
+func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	for i, class := range [6]OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
@@ -233,7 +234,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	// search path, under the actual script execution principal. In particular,
 	// unqualified function lookup excludes the installer's own TEMP namespace.
 	auth.catalog = e.stageRead(stage)
-	auth.roles.catalog = auth.catalog
+	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = owner
 	if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ext.targetNamespace}); err != nil {
 		return err

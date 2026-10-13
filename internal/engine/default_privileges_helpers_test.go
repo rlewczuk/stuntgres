@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -12,22 +13,22 @@ import (
 type defaultUnitFixture struct {
 	e                     *Engine
 	op                    *Operation
-	owner, reader, member PrincipalRef
+	owner, reader, member authorization.PrincipalRef
 	schema                ObjectAddress
 }
 
 func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	t.Helper()
 	e := New()
-	roles := cloneRoles(e.roles)
-	refs := make([]PrincipalRef, 3)
+	roles := cloneRoleFixture(e.roles)
+	refs := make([]authorization.PrincipalRef, 3)
 	for i, name := range []string{"default_owner", "default_reader", "default_member"} {
-		ref := PrincipalRef{owner: e, id: uint64(20001 + i)}
+		ref := e.authorizationDomain.Principal(uint64(20001 + i))
 		refs[i] = ref
-		roles.roles[ref] = RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1}
-		roles.names[name] = ref
+		putFixtureRole(roles, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
+
 	}
-	roles.edges = append(append([]Membership(nil), roles.edges...), Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.names["postgres"], Inherit: true, Set: true})
+	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
 	e.roles = roles
 	schema := ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20010}
 	next := cloneCatalog(e.state)
@@ -79,7 +80,7 @@ func (f defaultUnitFixture) grant(t *testing.T, class, privilege string, schemas
 	}
 	return s
 }
-func (f defaultUnitFixture) actor(ref PrincipalRef) {
+func (f defaultUnitFixture) actor(ref authorization.PrincipalRef) {
 	f.e.mu.Lock()
 	f.op.session.mu.Lock()
 	f.op.session.authorization.state.CurrentUser = ref
@@ -94,13 +95,13 @@ func defaultUnitDiagnostic(t *testing.T, err error, code, message string) {
 		t.Fatalf("diagnostic = %#v; want %s %q", err, code, message)
 	}
 }
-func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options Privileges) ACLEntry {
-	return ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Role: f.reader}, Privileges: privileges, GrantOptions: options}
+func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorization.Privileges) authorization.ACLEntry {
+	return authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: privileges, GrantOptions: options}
 }
 
 // defaultUnitTable owns Engine.mu; callers must not hold it. Resolve the
 // immutable stage-base carrier first, without a locking Engine.CatalogRead.
-func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner PrincipalRef) *relationDescriptor {
+func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *relationDescriptor {
 	t.Helper()
 	typ, ok := stage.base.LookupType(sqltype.Int4)
 	if !ok {
@@ -109,7 +110,7 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, n
 	f.e.mu.Lock()
 	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []ColumnDescriptor{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
-		d.acl = stage.creationACL(owner, f.schema, defaultTables)
+		d.acl = stage.creationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.stageRowTypeLocked(stage, d)
 	}
 	f.e.mu.Unlock()

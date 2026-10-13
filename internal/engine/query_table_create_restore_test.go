@@ -5,11 +5,11 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
@@ -24,7 +24,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 			op.restoreTableDestination = true
 		}
 		if mode == "isolated" {
-			e.importTargets = make(map[PrincipalRef]PrincipalRef)
+			e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 		}
 		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}} {
 			e.mu.Lock()

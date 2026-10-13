@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/authorization"
 )
 
 // Seed identity/provider/pins survive SQL metadata ALTER. Reconstruct metadata
 // before user FROM definitions, using collision-free intermediate names for swaps.
-func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead) ([]string, error) {
+func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
 	catalogNamespace := view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap collation namespace")
@@ -53,7 +54,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles Ro
 			}
 			occupied[change.temporary] = true
 		}
-		if change.temporary != "" || change.owner != "postgres" || d.owner != (PrincipalRef{roles.owner, 10}) {
+		if change.temporary != "" || change.owner != "postgres" || d.owner.ID() != authorization.BootstrapPrincipalID {
 			changes = append(changes, change)
 		}
 	}
@@ -76,7 +77,7 @@ func collationSeedDumpStatements(ctx context.Context, view CatalogRead, roles Ro
 		statements = append(statements, "ALTER COLLATION "+from+" RENAME TO "+quoteIdentifier(change.d.name)+";\n")
 	}
 	for _, change := range changes {
-		if change.owner != "postgres" || change.d.owner != (PrincipalRef{roles.owner, 10}) {
+		if change.owner != "postgres" || change.d.owner.ID() != authorization.BootstrapPrincipalID {
 			statements = append(statements, "ALTER COLLATION "+collationSQLName(view, uint32(change.d.oid))+" OWNER TO "+quoteIdentifier(change.owner)+";\n")
 		}
 	}

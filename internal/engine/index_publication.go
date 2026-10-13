@@ -292,7 +292,7 @@ func (e *Engine) prepareIndexPublication(ctx context.Context, current, next *cat
 	} else {
 		disclosure := *auth
 		disclosure.catalog = catalog
-		disclosure.roles.catalog = disclosure.catalog
+		disclosure.recaptureCatalog(disclosure.catalog)
 		auth = &disclosure
 	}
 	for a, descriptor := range next.descriptors {

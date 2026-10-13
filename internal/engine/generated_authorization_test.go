@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 // The fixture publishes a normally cooked generation through the catalog stage,
@@ -56,17 +56,17 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	ref := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: d.address}
 	actor, actorDone := roleOperation(t, e, "generated_actor")
 	t.Cleanup(actorDone)
-	generatedAuthorizationGrant(t, e, admin, actor, ref, 1, InsertPrivilege|UpdatePrivilege)
-	generatedAuthorizationGrant(t, e, admin, actor, ref, 2, SelectPrivilege)
+	generatedAuthorizationGrant(t, e, admin, actor, ref, 1, authorization.InsertPrivilege|authorization.UpdatePrivilege)
+	generatedAuthorizationGrant(t, e, admin, actor, ref, 2, authorization.SelectPrivilege)
 	return e, admin, actor, ref
 }
 
-func generatedAuthorizationGrant(t *testing.T, e *Engine, admin, actor *Operation, ref ObjectRef, attribute int32, privileges Privileges) {
+func generatedAuthorizationGrant(t *testing.T, e *Engine, admin, actor *Operation, ref ObjectRef, attribute int32, privileges authorization.Privileges) {
 	t.Helper()
 	ref.Address.SubID = attribute
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{
 		Grantor:    admin.RoleState().CurrentUser,
-		Grantee:    ACLGrantee{Role: actor.RoleState().CurrentUser},
+		Grantee:    authorization.ACLGrantee{Role: actor.RoleState().CurrentUser},
 		Privileges: privileges,
 	}}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
@@ -98,15 +98,15 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 		sourceUses [][]int
 		denied     bool
 		grantOn    int32
-		grant      Privileges
+		grant      authorization.Privileges
 	}{
 		{name: "select_stored_b_without_select_a", stmt: selectColumn("b"), sourceUses: [][]int{{1}}},
-		{name: "select_input_a_requires_select_a", stmt: selectColumn("a"), sourceUses: [][]int{{0}}, denied: true, grantOn: 1, grant: InsertPrivilege | UpdatePrivilege | SelectPrivilege},
+		{name: "select_input_a_requires_select_a", stmt: selectColumn("a"), sourceUses: [][]int{{0}}, denied: true, grantOn: 1, grant: authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.SelectPrivilege},
 		{name: "insert_literal_a_without_hidden_select", stmt: &parser.Insert{Name: name, Targets: []parser.InsertTarget{{Name: "a"}}, Rows: [][]parser.Expr{{literal}}}, targets: []int{0}},
 		{name: "update_literal_a_without_hidden_select", stmt: update("a", literal, nil), targets: []int{0}},
-		{name: "update_rhs_a_requires_select_a", stmt: update("a", column("a"), nil), targets: []int{0}, reads: []int{0}, denied: true, grantOn: 1, grant: InsertPrivilege | UpdatePrivilege | SelectPrivilege},
-		{name: "update_where_a_requires_select_a", stmt: update("a", literal, readPredicate), targets: []int{0}, reads: []int{0}, denied: true, grantOn: 1, grant: InsertPrivilege | UpdatePrivilege | SelectPrivilege},
-		{name: "generated_default_requires_update_b", stmt: update("b", parser.DefaultExpr{}, nil), targets: []int{1}, denied: true, grantOn: 2, grant: SelectPrivilege | UpdatePrivilege},
+		{name: "update_rhs_a_requires_select_a", stmt: update("a", column("a"), nil), targets: []int{0}, reads: []int{0}, denied: true, grantOn: 1, grant: authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.SelectPrivilege},
+		{name: "update_where_a_requires_select_a", stmt: update("a", literal, readPredicate), targets: []int{0}, reads: []int{0}, denied: true, grantOn: 1, grant: authorization.InsertPrivilege | authorization.UpdatePrivilege | authorization.SelectPrivilege},
+		{name: "generated_default_requires_update_b", stmt: update("b", parser.DefaultExpr{}, nil), targets: []int{1}, denied: true, grantOn: 2, grant: authorization.SelectPrivilege | authorization.UpdatePrivilege},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, admin, actor, ref := generatedAuthorizationFixture(t)

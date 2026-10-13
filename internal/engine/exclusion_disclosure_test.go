@@ -3,10 +3,10 @@ package engine
 import (
 	"context"
 	"strings"
-	"testing"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestExclusionDisclosure(t *testing.T) {
@@ -30,24 +30,24 @@ func TestExclusionDisclosure(t *testing.T) {
 				if !ok || actor.Superuser {
 					t.Fatal("disclosure fixture requires an actual nonsuperuser")
 				}
-				grant := func(attribute int32, rights Privileges) {
+				grant := func(attribute int32, rights authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
+					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
 					if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 						t.Fatal(err)
 					}
 				}
-				rights := InsertPrivilege
+				rights := authorization.InsertPrivilege
 				if disclosure == "table" {
-					rights |= SelectPrivilege
+					rights |= authorization.SelectPrivilege
 				}
 				grant(0, rights)
 				if disclosure == "partial" || disclosure == "columns" {
-					grant(1, SelectPrivilege)
+					grant(1, authorization.SelectPrivilege)
 				}
 				if disclosure == "columns" {
-					grant(2, SelectPrivilege)
+					grant(2, authorization.SelectPrivilege)
 				}
 				auth, err := owner.Authorization()
 				if err != nil {

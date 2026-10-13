@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"sync"
 	"testing"
 	"time"
@@ -285,7 +286,7 @@ func TestConstraintRenameAuthorization(t *testing.T) {
 			e, admin, owner, ns, acl := renameAuthorityFixture(t)
 			sessionSQL(t, owner, "DROP TABLE protected.t")
 			sessionSQL(t, owner, "CREATE TABLE protected.t("+declaration+")")
-			acl.Entries[0].Privileges = UsagePrivilege
+			acl.Entries[0].Privileges = authorization.UsagePrivilege
 			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 				t.Fatal(err)
 			}

@@ -7,11 +7,11 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"stuntgres/internal/sqltype"
 )
 
 // Structural snapshots complement the shared public SQL schedules: immutable
@@ -332,7 +332,7 @@ func TestSerializablePublicationCatalogChangeSetVetoWithLiveGraph(t *testing.T) 
 	peer := serializableUnitCycle(t, e, node)
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	descriptor := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, owner: e.roles.names["postgres"], name: "unpublished", revision: 1}
+	descriptor := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), name: "unpublished", revision: 1}
 	if err := stage.Create(descriptor); err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -208,7 +209,7 @@ func TestNotNullOwnerOnlyACLAndNamespace(t *testing.T) {
 	old := e.state.descriptors[ref.Address]
 	owner := op.RoleState().CurrentUser
 	reader, _ := e.Roles().Lookup("reader")
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	old = e.state.descriptors[ref.Address]
@@ -230,7 +231,7 @@ func TestNotNullOwnerOnlyACLAndNamespace(t *testing.T) {
 	// Public grants give DML authority, never ALTER ownership.
 	roleExecute(t, e, op, "CREATE TABLE public.t(a INT)")
 	ref = roleTableRef(t, e, "public.t")
-	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")

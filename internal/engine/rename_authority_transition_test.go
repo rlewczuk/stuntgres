@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"sync"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 // Ordinary table owner in a separately owned namespace: USAGE and CREATE are
 // independent host grants, so CREATE can be revoked without hiding the source.
-func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ObjectRef, ACLValue) {
+func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ObjectRef, authorization.ACLValue) {
 	t.Helper()
 	e := New()
 	admin, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -21,7 +22,7 @@ func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ObjectRe
 	view := e.CatalogRead()
 	address := view.state.names[NameKey{ClassID: NamespaceClassID, Name: "protected"}]
 	ns := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: address}
-	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: view.state.descriptors[address].(*namespaceDescriptor).owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: UsagePrivilege | CreatePrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.state.descriptors[address].(*namespaceDescriptor).owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func TestAlterRenameAuthorityWaitTransition(t *testing.T) {
 	defer cancel()
 	done := lockAsync(e, owner, ctx, "ALTER TABLE protected.t RENAME TO renamed", false)
 	lockPending(t, e, 1)
-	acl.Entries[0].Privileges = UsagePrivilege
+	acl.Entries[0].Privileges = authorization.UsagePrivilege
 	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +77,7 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	old := e.state.descriptors[ref.Address]
 	storage := e.storage[ref.Address]
 	oldNamespace := e.state.descriptors[ns.Address]
-	acl.Entries[0].Privileges = UsagePrivilege
+	acl.Entries[0].Privileges = authorization.UsagePrivilege
 	var once sync.Once
 	provider := e.providers[RelationClassID]
 	var frontier DefinitionRevision
@@ -108,7 +109,7 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 
 func TestAlterRenameIfExistsUnauthorizedNamespace(t *testing.T) {
 	e, _, owner, ns, _ := renameAuthorityFixture(t)
-	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	ref := roleTableRef(t, e, "protected.t")

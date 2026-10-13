@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -27,24 +28,24 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				if !ok || actor.Superuser {
 					t.Fatal("owner fixture must be nonsuperuser", actor, ok)
 				}
-				grant := func(attribute int32, privileges Privileges) {
+				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: actor.Ref, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}
+					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}
 					if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 						t.Fatal(err)
 					}
 				}
-				tableRights := InsertPrivilege
+				tableRights := authorization.InsertPrivilege
 				if mode == "table" {
-					tableRights |= SelectPrivilege
+					tableRights |= authorization.SelectPrivilege
 				}
 				grant(0, tableRights)
 				if mode == "partial" || mode == "all" {
-					grant(1, SelectPrivilege)
+					grant(1, authorization.SelectPrivilege)
 				}
 				if mode == "all" {
-					grant(2, SelectPrivilege)
+					grant(2, authorization.SelectPrivilege)
 				}
 				before := e.state
 				parent := before.descriptors[ref.Address].(*relationDescriptor)

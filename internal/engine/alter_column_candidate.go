@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -221,7 +222,7 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 				continue
 			}
 			if next.columnACL == nil {
-				next.columnACL = make(map[int32]ACLValue, len(old.columnACL)-1)
+				next.columnACL = make(map[int32]authorization.ACLValue, len(old.columnACL)-1)
 			}
 			next.columnACL[sub] = acl
 		}

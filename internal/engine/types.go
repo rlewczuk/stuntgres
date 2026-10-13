@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-
-	"stuntgres/internal/sqlstate"
-
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -77,8 +76,8 @@ type typeDescriptor struct {
 	comment        string
 	namespace      ObjectAddress
 	revision       DefinitionRevision
-	owner          PrincipalRef
-	acl            ACLValue
+	owner          authorization.PrincipalRef
+	acl            authorization.ACLValue
 	dimensions     int32
 	array          sqltype.ID
 	owningRelation ObjectAddress

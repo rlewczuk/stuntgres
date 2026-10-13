@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -98,13 +99,13 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	public := ObjectRef{stage.owner, stage.CatalogRead().Epoch(), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := stage.SetObjectACL(context.Background(), public, ACLValue{Explicit: true}); err != nil {
+	if err := stage.SetObjectACL(context.Background(), public, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := stage.partitionParentAuthorization(op, grantFrontier, create); err == nil || partitionDefaultReplayAllowed(stage, op, grantFrontier, alter) {
 		t.Fatal("stale grant frontier retained private parent/default authority", err)
 	}
-	if err := stage.SetObjectACL(context.Background(), public, ACLValue{}); err != nil {
+	if err := stage.SetObjectACL(context.Background(), public, authorization.ACLValue{}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, stage, op, "CREATE TABLE public.changed(k INT)")
