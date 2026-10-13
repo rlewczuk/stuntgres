@@ -28,6 +28,20 @@ checkpoint service. Native sequence `log_cnt` is always zero; cache state does
 not promise crash durability. Native controls are logical fixture replacement,
 not arbitrary `pg_dump` import or PostgreSQL physical backup.
 
+`CREATE TABLESPACE name [OWNER role] LOCATION 'directory' [WITH (...)]` supports
+syntax and PostgreSQL 18 ordered validation, not physical creation. Direct
+effective superuser authority precedes OWNER lookup, then canonical POSIX path
+quote/absolute/970-byte checks, reserved lowercase `pg_` names and existing-name
+validation. OWNER identity keywords retain current/session identity semantics.
+Every otherwise admissible native location, even an existing directory, returns
+0A000 `CREATE TABLESPACE physical locations are unsupported in embedded mode`.
+No filesystem probes, directories, symlinks, user tablespace rows or OIDs are
+created. WITH is structurally recognized, but option-value validation/application
+is unavailable. SQL cannot reach a native nonreserved duplicate because native
+creation never succeeds; internal validation and genuine PostgreSQL creation
+cover 42710. Builtin names fail reserved-prefix validation before duplicate.
+Reset/Restore retain builtin identity metadata; Dump never emits physical creation.
+
 Dump excludes temporary objects, session settings, prepared names, cursors,
 role creation, passwords and membership. Arbitrary explicit ACLs and invalid
 indexes cannot be serialized and are rejected rather than silently discarded.
@@ -57,6 +71,9 @@ are bounded exceptions, not general transactional DDL. Role, policy, domain and
 collation utilities retain their explicit-transaction exclusions. Query-created
 tables, materialized refresh and ordinary index creation also retain native
 explicit-block boundaries; concurrent index creation rejects explicit blocks.
+`CREATE TABLESPACE` rejects explicit and implicit multi-statement blocks with
+25001; read-only admission returns 25006 first. Driver preparation of valid
+utility syntax defers these runtime checks and rechecks effective authority on Exec.
 
 Native catalog replacement and changed name resolution during an admitted lock
 wait fence retained owners with `ErrCatalogReplaced`; they do not retry, retarget
@@ -131,6 +148,14 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   `pg_attribute`, `pg_index`, `information_schema` or authentication catalogs.
   Native virtual catalog mutation and row locking are unavailable. Installed
   extension metadata does not provide arbitrary loading, installation or updates.
+- `pg_tablespace` is a public readonly builtin-only projection:
+  `(1663,pg_default,10,NULL)` and `(1664,pg_global,10,NULL)` for named columns
+  `oid,spcname,spcowner,spcoptions` (OID/NAME/OID/TEXT[]). Owner 10 is the canonical
+  Engine principal, independent of bootstrap role renaming. `spcacl` is omitted,
+  not misrepresented as TEXT[]: native ACL item carriers are unavailable.
+  Supported wire origins retain relation 1213 and attributes 1,2,3,5.
+  `pg_tables` presents this shared catalog in `pg_global`; that metadata is not
+  a physical storage mechanism.
 
 ## Collation, encoding and indexes
 

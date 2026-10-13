@@ -358,6 +358,10 @@ package parser
 %type <collationOption> collation_option
 %type <tok> collation_name_word
 %type <stmt> create_extension
+%type <stmt> create_tablespace
+%type <grantor> tablespace_owner
+%type <tok> tablespace_location
+%type <indexOptions> tablespace_options
 %type <extensionOptions> extension_options extension_option_list
 %type <extensionOption> extension_option
 %type <tok> extension_version
@@ -636,6 +640,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql | discard
  | create_extension
+ | create_tablespace
  | alter_collation | drop_collation | alter_enum
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
@@ -644,6 +649,14 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
+create_tablespace: CREATE TABLESPACE name tablespace_owner tablespace_location STRING tablespace_options {
+ $$=&CreateTablespace{Name:Identifier{Text:$3.text,Pos:$3.pos},Owner:$4,Location:$6.text,LocationPos:$6.pos,Options:$7,Pos:$1.pos}
+} ;
+tablespace_owner: /* empty */ {$$=nil}
+ | OWNER membership_role_spec {owner:=$2;$$=&owner} ;
+tablespace_location: KW_U {if $1.text!="location" {sqllex.(*lexer).syntax($1);return 1}} ;
+tablespace_options: /* empty */ {$$=nil}
+ | WITH '(' maintenance_index_option_list ')' {$$=$3} ;
 create_policy: CREATE POLICY name ON relation_name policy_permissive policy_command policy_roles policy_using policy_check {
  $$=&CreatePolicy{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Permissive:$6,Command:$7.text,Roles:$8,Using:$9,Check:$10,Pos:$1.pos}
 } ;

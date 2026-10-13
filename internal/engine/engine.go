@@ -302,6 +302,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.CreateTablespace:
+		return StatementDescription{}, nil
 	case *parser.Truncate:
 		return StatementDescription{}, nil
 	case *parser.RefreshMaterializedView:

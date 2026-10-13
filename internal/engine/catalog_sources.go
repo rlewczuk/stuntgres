@@ -16,6 +16,10 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{1213, "pg_tablespace", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"spcname", sqltype.Name}, {"spcowner", sqltype.Oid}, {"spcoptions", sqltype.ID(1009)}}},
 		{1255, "pg_proc", []struct {
 			name string
 			typ  sqltype.ID
@@ -132,6 +136,11 @@ func (e *Engine) initializeCatalogSources() error {
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
+		if spec.oid == 1213 {
+			d.owner = PrincipalRef{e, bootstrapPrincipalID}
+			d.acl.Entries[0].Grantor = d.owner
+			d.attributeHighWater = 5
+		}
 		d.virtualView = spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
@@ -170,6 +179,15 @@ func (e *Engine) initializeCatalogSources() error {
 				d.columns[i].Usage.Collation.ID = 950
 			}
 			d.attributes[i] = int32(i + 1)
+			if spec.oid == 1213 {
+				d.columns[i].Nullable = i == 3
+				if i == 3 {
+					// spcacl (attribute 4) has no concrete native carrier.
+					d.columns[i].OriginAttribute = 5
+					d.attributes[i] = 5
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
 			d.index[column.name] = i
 		}
 		e.registerCatalogSource(d)
@@ -197,6 +215,9 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles RoleRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == 1213 {
+		return capturePGTablespace(ctx, ref, source)
+	}
 	if source.address.ObjectID == 3079 || source.address.ObjectID == 1255 || source.address.ObjectID == 3764 || source.address.ObjectID == 3600 {
 		return captureExtensionCatalog(ctx, catalog, ref, source)
 	}

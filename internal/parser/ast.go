@@ -5,6 +5,18 @@ import "strings"
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
+// CreateTablespace retains SQL validation inputs; physical creation is external.
+type CreateTablespace struct {
+	Name        Identifier
+	Owner       *RoleSpec
+	Location    string
+	LocationPos Position
+	Options     []IndexOption
+	Pos         Position
+}
+
+func (*CreateTablespace) statement() {}
+
 // Policy conditions are optional definitions, not enforcement-time fallbacks.
 type CreatePolicy struct {
 	Name         Identifier

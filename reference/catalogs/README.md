@@ -6,6 +6,42 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### CREATE TABLESPACE selected proof
+
+The shared `tablespace_*_test.go` scenarios independently specify builtin
+`pg_tablespace` rows and ownership, named projection types, direct/prepared
+syntax and diagnostics, owner/path/name precedence, fresh effective authority,
+read-only/explicit/implicit transaction admission and failed-state recovery.
+Real PostgreSQL creates a nonreserved tablespace in an actual container-owned
+directory before asserting duplicate 42710, and explicitly drops its cluster
+objects. Embedded creation must instead refuse physical locations with 0A000,
+including repeated attempts, without publishing a user row or changing sentinels.
+Reserved builtin names are not mislabeled as duplicates.
+
+The native projection deliberately omits unsupported `spcacl`; supported
+columns are `oid,spcname,spcowner,spcoptions`. Native Reset/Dump/Restore and
+retained-row witnesses are explicit control phases in the shared scenario,
+not fictitious PostgreSQL controls. Valid WITH syntax reaches the physical
+boundary after earlier validation; option-value compatibility is not claimed.
+Canonical path byte boundaries are 970 accepted lexically and 971 rejected;
+short-component and multibyte witnesses distinguish filesystem component limits
+and rune counts from the SQL validation contract. The public OID codec outcomes
+are independently specified (pq normalized strings, native int64), not compared
+as if the drivers had identical raw carriers. These instructions are not evidence.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceTablespace'
+make check RUN='^TestReferenceTablespace'
+make check RUN='^Test(Tablespace|CreateTablespace|PGTablespace)'
+make check RUN='^TestReferenceTablespaceFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceTablespaceFeatureSmoke$'
+```
+
+The durable smoke checks builtin rows/types, owner and superuser errors,
+relative and reserved-name errors, transaction admission, physical refusal
+and unchanged sentinel/no user rows. The real-directory duplicate is covered
+by the selected family, not by reserved-name smoke assertions.
+
 ### Registered extension selected proof
 
 The untagged shared `reference/catalogs/extension_*_test.go` scenarios independently

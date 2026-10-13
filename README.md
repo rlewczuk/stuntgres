@@ -127,6 +127,17 @@ TEMP excluded. Every qualifier-admitted row takes transaction-owned sequence RX,
 even definition/count/stored/join reads; FALSE/name-rejected rows do not.
 See [sequence view contract](https://www.postgresql.org/docs/18/catalogs.html).
 
+Change note: `CREATE TABLESPACE name [OWNER role] LOCATION 'path'` now parses
+and validates live direct-superuser authority, owner, canonical POSIX path and
+reserved name in PostgreSQL 18 order. Physical creation always fails explicitly
+with 0A000; no directory probes, data placement or user catalog row are performed.
+Read-only `pg_tablespace` exposes builtin identities and canonical owner OID 10
+through `oid,spcname,spcowner,spcoptions`; unsupported `spcacl` is omitted.
+WITH is recognized but cannot apply or validate options without physical creation.
+See [storage and catalog limits](docs/DIALECT.md#storage-and-native-controls).
+Feature smoke: `make check RUN='^TestReferenceTablespaceFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTablespaceFeatureSmoke$'`.
+
 Change note: individual `ALTER ... OWNER TO`, `REASSIGN OWNED` and
 `DROP OWNED` now operate on represented schemas, relations, user types,
 collations, the attached database and registered extension/function/dictionary

@@ -678,6 +678,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
+	case *parser.CreateTablespace:
+		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.Truncate:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.RefreshMaterializedView:
@@ -811,6 +813,12 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 		if err := s.readOnlyUtilityEligibility(stmt); err != nil {
 			return Result{}, err
 		}
+	}
+	if _, ok := stmt.(*parser.CreateTablespace); ok {
+		if err := s.executionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+		return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
 	}
 	indexBuild := earlyIndexUtility(stmt)
 	_, refreshing := stmt.(*parser.RefreshMaterializedView)
