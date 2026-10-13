@@ -11,11 +11,38 @@ import (
 
 // Engine.mu owns allocation. Aborted reservations are never recycled.
 func (e *Engine) allocateEnumMemberLocked() (int64, error) {
-	if e.nextEnumMember == math.MaxInt64 {
+	if e.nextEnumMember > math.MaxUint32-2 {
 		return 0, fmt.Errorf("stuntgres: enum member identity exhausted")
 	}
-	e.nextEnumMember++
+	if e.nextEnumMember == 0 {
+		e.nextEnumMember = 1
+	} else {
+		e.nextEnumMember += 2
+	}
 	return e.nextEnumMember, nil
+}
+
+// Members are an owned mutation copy. Renumber only when an interior midpoint
+// collapses in binary32; existing datum identities are never rewritten.
+func enumInsertionOrder(members []sqltype.EnumMember, at int) float32 {
+	if len(members) == 0 {
+		return 1
+	}
+	if at == 0 {
+		return members[0].SortOrder - 1
+	}
+	if at == len(members) {
+		return members[at-1].SortOrder + 1
+	}
+	left, right := members[at-1].SortOrder, members[at].SortOrder
+	midpoint := float32((float64(left) + float64(right)) / 2)
+	if midpoint == left || midpoint == right {
+		for i := range members {
+			members[i].SortOrder = float32(i + 1)
+		}
+		midpoint = float32((float64(members[at-1].SortOrder) + float64(members[at].SortOrder)) / 2)
+	}
+	return midpoint
 }
 
 func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ObjectRef, error) {
@@ -167,7 +194,8 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			if err != nil {
 				return Result{}, err
 			}
-			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text})
+			order := enumInsertionOrder(members, at)
+			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
 			if !changes.enumCreated[ref.Address] || len(scope.owner.savepoints) != 0 {
 				if changes.enumUnsafe == nil {
 					changes.enumUnsafe = make(map[int64]bool)

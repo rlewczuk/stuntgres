@@ -9,13 +9,13 @@ import (
 
 func TestEnumMemberEvolution(t *testing.T) {
 	ctx := context.Background()
-	members := []EnumMember{{ID: 90, Label: "z"}, {ID: 20, Label: "q"}}
+	members := []EnumMember{{ID: 91, Label: "z", SortOrder: 1}, {ID: 21, Label: "q", SortOrder: 2}}
 	old, err := EnumWithMembers(45000, "mood", "public.mood", members)
 	if err != nil {
 		t.Fatal(err)
 	}
 	members[0].Label = "mutated"
-	next, err := EnumWithMembers(old.ID(), "mood", "public.mood", []EnumMember{{ID: 90, Label: "z"}, {ID: 100, Label: "a"}, {ID: 20, Label: "end"}})
+	next, err := EnumWithMembers(old.ID(), "mood", "public.mood", []EnumMember{{ID: 91, Label: "z", SortOrder: 1}, {ID: 101, Label: "a", SortOrder: 1.5}, {ID: 21, Label: "end", SortOrder: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,10 +45,10 @@ func TestEnumMemberEvolution(t *testing.T) {
 	}
 	copy := next.EnumMembers()
 	copy[0].ID = 999
-	if !reflect.DeepEqual(next.EnumMembers(), []EnumMember{{ID: 90, Label: "z"}, {ID: 100, Label: "a"}, {ID: 20, Label: "end"}}) {
+	if !reflect.DeepEqual(next.EnumMembers(), []EnumMember{{ID: 91, Label: "z", SortOrder: 1}, {ID: 101, Label: "a", SortOrder: 1.5}, {ID: 21, Label: "end", SortOrder: 2}}) {
 		t.Fatal("mutable members escaped")
 	}
-	for _, invalid := range [][]EnumMember{{{ID: 0, Label: "z"}}, {{ID: 1, Label: "z"}, {ID: 1, Label: "q"}}, {{ID: 1, Label: "z"}, {ID: 2, Label: "z"}}} {
+	for _, invalid := range [][]EnumMember{{{ID: 0, Label: "z", SortOrder: 1}}, {{ID: 1, Label: "z", SortOrder: 1}, {ID: 1, Label: "q", SortOrder: 2}}, {{ID: 1, Label: "z", SortOrder: 1}, {ID: 2, Label: "z", SortOrder: 2}}} {
 		if _, err := EnumWithMembers(45001, "bad", "public.bad", invalid); err == nil {
 			t.Fatal("invalid member set admitted", invalid)
 		}
@@ -57,10 +57,10 @@ func TestEnumMemberEvolution(t *testing.T) {
 
 func TestEnumMemberRetagImport(t *testing.T) {
 	ctx := context.Background()
-	source, _ := EnumWithMembers(45000, "mood", "public.mood", []EnumMember{{ID: 77, Label: "old"}})
-	renamed, _ := EnumWithMembers(source.ID(), "mood", "public.mood", []EnumMember{{ID: 77, Label: "new"}})
-	foreign, _ := EnumWithMembers(source.ID(), "mood", "public.mood", []EnumMember{{ID: 88, Label: "old"}})
-	imported, _ := EnumWithMembers(45001, "mood", "public.mood", []EnumMember{{ID: 99, Label: "old"}})
+	source, _ := EnumWithMembers(45000, "mood", "public.mood", []EnumMember{{ID: 77, Label: "old", SortOrder: 1}})
+	renamed, _ := EnumWithMembers(source.ID(), "mood", "public.mood", []EnumMember{{ID: 77, Label: "new", SortOrder: 1}})
+	foreign, _ := EnumWithMembers(source.ID(), "mood", "public.mood", []EnumMember{{ID: 88, Label: "old", SortOrder: 1}})
+	imported, _ := EnumWithMembers(45001, "mood", "public.mood", []EnumMember{{ID: 99, Label: "old", SortOrder: 1}})
 	v, _ := source.Input(ctx, "old", -1)
 	if _, err := v.Retag(renamed); err != nil {
 		t.Fatal(err)
@@ -85,12 +85,14 @@ func TestEnumMemberRetagImport(t *testing.T) {
 
 func TestEnumProducerSafety(t *testing.T) {
 	ctx := context.Background()
-	mood, _ := EnumWithMembers(45000, "mood", "public.mood", []EnumMember{{ID: 90, Label: "old"}, {ID: 10, Label: "new"}})
+	mood, _ := EnumWithMembers(45000, "mood", "public.mood", []EnumMember{{ID: 91, Label: "old", SortOrder: 1}, {ID: 11, Label: "new", SortOrder: 2}})
 	array, _ := Array(45001, "_mood", mood)
 	env := InputEnvironment{
-		EnumMemberSafe: func(id ID, member int64) bool { return id == mood.ID() && member != 10 },
+		EnumMemberSafe: func(id ID, member int64) bool { return id == mood.ID() && member != 11 },
 		TypeDiagnosticName: func(id ID) string {
-			if id == mood.ID() { return "mood" }
+			if id == mood.ID() {
+				return "mood"
+			}
 			return ""
 		},
 	}

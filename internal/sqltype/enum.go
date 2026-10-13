@@ -2,15 +2,17 @@ package sqltype
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"stuntgres/internal/sqlstate"
 )
 
-// EnumMember separates a datum's stable identity from its declaration rank.
+// EnumMember keeps datum identity and catalog sort position independent of rank.
 // Definitions are immutable; callers receive owned copies of the member slice.
 type EnumMember struct {
-	ID    int64
-	Label string
+	ID        int64
+	Label     string
+	SortOrder float32
 }
 type enumDefinition struct {
 	members []EnumMember
@@ -21,7 +23,7 @@ type enumDefinition struct {
 func Enum(id ID, name, declaration string, labels []string) (*Descriptor, error) {
 	members := make([]EnumMember, len(labels))
 	for i, label := range labels {
-		members[i] = EnumMember{ID: int64(i) + 1, Label: label}
+		members[i] = EnumMember{ID: int64(i)*2 + 1, Label: label, SortOrder: float32(i + 1)}
 	}
 	return EnumWithMembers(id, name, declaration, members)
 }
@@ -31,9 +33,19 @@ func EnumWithMembers(id ID, name, declaration string, members []EnumMember) (*De
 		return nil, fmt.Errorf("invalid enum descriptor")
 	}
 	definition := &enumDefinition{members: slices.Clone(members), byLabel: make(map[string]int64, len(members)), ranks: make(map[int64]int, len(members))}
+	var lastEven int64
 	for i, member := range definition.members {
-		if member.ID <= 0 || len(member.Label) > 63 {
+		if member.ID <= 0 || member.ID > math.MaxUint32 || len(member.Label) > 63 {
 			return nil, fmt.Errorf("invalid enum member")
+		}
+		if math.IsNaN(float64(member.SortOrder)) || math.IsInf(float64(member.SortOrder), 0) || i > 0 && definition.members[i-1].SortOrder >= member.SortOrder {
+			return nil, fmt.Errorf("invalid enum sort position")
+		}
+		if member.ID%2 == 0 {
+			if member.ID <= lastEven {
+				return nil, fmt.Errorf("invalid even enum member order")
+			}
+			lastEven = member.ID
 		}
 		if err := ValidateTextInput(member.Label); err != nil {
 			return nil, err
@@ -68,6 +80,20 @@ func (d *Descriptor) EnumMembers() []EnumMember {
 		return nil
 	}
 	return slices.Clone(d.enum.members)
+}
+
+// EnumMemberCount and EnumMemberAt permit allocation-free immutable inspection.
+func (d *Descriptor) EnumMemberCount() int {
+	if !d.IsEnum() {
+		return 0
+	}
+	return len(d.enum.members)
+}
+func (d *Descriptor) EnumMemberAt(index int) (EnumMember, bool) {
+	if !d.IsEnum() || index < 0 || index >= len(d.enum.members) {
+		return EnumMember{}, false
+	}
+	return d.enum.members[index], true
 }
 func (d *Descriptor) EnumMemberID(label string) (int64, bool) {
 	if !d.IsEnum() {

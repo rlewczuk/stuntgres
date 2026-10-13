@@ -62,6 +62,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"castsource", sqltype.Oid}, {"casttarget", sqltype.Oid}, {"castfunc", sqltype.Oid}, {"castcontext", sqltype.Char}, {"castmethod", sqltype.Char}}},
+		{3501, "pg_enum", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"enumtypid", sqltype.Oid}, {"enumsortorder", sqltype.Float4}, {"enumlabel", sqltype.Name}}},
 		{3079, "pg_extension", []struct {
 			name string
 			typ  sqltype.ID
@@ -151,7 +155,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 3456 {
 				d.columns[i].Nullable = i >= 7
 			}
-			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2610 || spec.oid == 2606 && i >= 5 || spec.oid == 1259 && i >= 8 {
+			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 3501 || spec.oid == 2610 || spec.oid == 2606 && i >= 5 || spec.oid == 1259 && i >= 8 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -226,6 +230,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == 3501 {
+		return capturePGEnum(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 2224 {
 		return capturePGSequence(ctx, catalog.state, nil, ref, source)

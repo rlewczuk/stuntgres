@@ -63,7 +63,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	otherStore := e.storage[other.Address]
 	members := mood.typ.EnumMembers()
 	members[1].Label = "end"
-	members = append(members, sqltype.EnumMember{ID: 100000, Label: "last"})
+	members = append(members, sqltype.EnumMember{ID: 100000, Label: "last", SortOrder: 3})
 	typ, err := sqltype.EnumWithMembers(mood.typ.ID(), mood.Name(), mood.typ.SQLName(), members)
 	if err != nil {
 		t.Fatal(err)
@@ -107,8 +107,8 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 
 func TestEnumImportSameIDMembership(t *testing.T) {
 	ctx := context.Background()
-	source, _ := sqltype.EnumWithMembers(45000, "mood", "public.mood", []sqltype.EnumMember{{ID: 8, Label: "old"}})
-	target, _ := sqltype.EnumWithMembers(source.ID(), "mood", "public.mood", []sqltype.EnumMember{{ID: 80, Label: "old"}})
+	source, _ := sqltype.EnumWithMembers(45000, "mood", "public.mood", []sqltype.EnumMember{{ID: 8, Label: "old", SortOrder: 1}})
+	target, _ := sqltype.EnumWithMembers(source.ID(), "mood", "public.mood", []sqltype.EnumMember{{ID: 80, Label: "old", SortOrder: 1}})
 	v, _ := source.Input(ctx, "old", -1)
 	imports := map[*sqltype.Descriptor]*sqltype.Descriptor{source: target}
 	if _, err := reownDomainDatum(v, target, nil, nil); err == nil {

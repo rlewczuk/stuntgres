@@ -3,8 +3,9 @@ package engine
 import "stuntgres/internal/sqltype"
 
 // Candidate belongs to a different catalog lifetime. Reserve members from the
-// destination engine, retaining an exact source-codec translation for the whole
-// established nested datum/expression remapping pass. Engine.mu is held.
+// destination engine, preserving source labels and exact binary32 sort positions,
+// and retain source-codec translation for the established nested datum/expression
+// remapping pass. Engine.mu is held.
 func (e *Engine) importEnumMembersLocked(next *catalogState, mapping map[ObjectAddress]ObjectAddress) error {
 	for address, descriptor := range next.descriptors {
 		d, ok := descriptor.(*typeDescriptor)

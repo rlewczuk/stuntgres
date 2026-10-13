@@ -87,7 +87,7 @@ func TestEnumIdentityCoercionAndGeneration(t *testing.T) {
 	a, _ := Enum(45000, "a", "public.a", []string{"z", "a"})
 	b, _ := Enum(45001, "b", "public.b", []string{"z", "a"})
 	generation, _ := Enum(a.ID(), "a", "renamed.a", []string{"z", "a"})
-	foreignMembers, _ := EnumWithMembers(a.ID(), "a", "public.a", []EnumMember{{ID: 100, Label: "a"}, {ID: 101, Label: "z"}})
+	foreignMembers, _ := EnumWithMembers(a.ID(), "a", "public.a", []EnumMember{{ID: 100, Label: "a", SortOrder: 1}, {ID: 101, Label: "z", SortOrder: 2}})
 	value, _ := a.Input(ctx, "z", -1)
 	if _, err := BindComparison(a, b, CollationRef{}, false); err == nil {
 		t.Fatal("distinct enums compare")

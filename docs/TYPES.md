@@ -173,8 +173,21 @@ locks serialize mutations with the existing cancellation/deadlock authority.
 New members added to an existing type retain unsafe-member provenance until
 outer commit; every demanded producer recaptures that provenance. Savepoint
 release cannot upgrade child-created/child-added members to the outermost
-creation exemption. General enum-array storage and `pg_enum` queries remain
-excluded.
+creation exemption. General enum-array storage remains excluded.
+
+`pg_catalog.pg_enum` exposes each actual enum definition's member OID, owning
+type OID, binary32 sort position and exact NAME label, even without stored enum
+values. Domains and associated arrays are not additional enum definitions.
+Initial positions are 1..n; ADD may create negative, zero or fractional positions
+and renumbers dense gaps without changing existing member identities. RENAME
+changes only the label. Native member OIDs are unique nonzero uint32-valued odd
+identities; no cross-server allocator sequence or parity equality is promised.
+Catalog discovery is PUBLIC SELECT metadata, not a grant to execute the enum.
+Owner-private changes and peer-committed visibility follow the ordinary catalog
+authority; reading an unsafe new label is not producing its enum datum.
+The source is readonly under the documented native catalog mutation/locking
+boundaries. Logical Dump/Reset/Restore recreates positions 1..n and remints member
+identities, while retained eager results preserve their captured metadata/data.
 
 Domains retain logical identity while transport and metadata describe their
 ultimate base. They are not per-value boxes. Column assignment publishes exact

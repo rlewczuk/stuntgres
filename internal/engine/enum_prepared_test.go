@@ -82,7 +82,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	typ, err := sqltype.EnumWithMembers(old.typ.ID(), old.Name(), old.typ.SQLName(),
-		append(old.typ.EnumMembers(), sqltype.EnumMember{ID: 100000, Label: "pending"}))
+		append(old.typ.EnumMembers(), sqltype.EnumMember{ID: 100000, Label: "pending", SortOrder: 2}))
 	if err != nil {
 		t.Fatal(err)
 	}

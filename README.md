@@ -1782,13 +1782,27 @@ CREATE/ALTER enum utilities are transactional/savepoint-aware; demanded new
 members on existing types fail55P04 until top-level commit. Same-type mutations
 use actual catalog type locks; peers see committed generations only.
 Dump/Restore remaps fresh imported member identities, including same-OID nested
-values and stored literals. DROP TYPE, other ALTER TYPE forms, pg_enum and
-general direct enum[] syntax/storage remain excluded.
+values and stored literals. DROP TYPE, other ALTER TYPE forms and general direct
+enum[] syntax/storage remain excluded.
 See [enum types](https://www.postgresql.org/docs/18/datatype-enum.html).
 Feature smoke: `make check RUN='^TestReferenceEnumSmoke$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceEnumSmoke$'`.
 Enum alteration proof: `make check RUN='^TestReferenceEnumAlter.*$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceEnumAlter.*$'`.
+
+Change note: `pg_catalog.pg_enum` exposes readonly typed member definitions as
+`oid OID, enumtypid OID, enumsortorder FLOAT4, enumlabel NAME`. Owner IDs come from
+the actual enum type; empty enums, domains and associated arrays add no rows.
+Initial positions are 1..n; ADD supports negative/zero/fractional metadata and
+dense-gap renumbering, preserving existing member OIDs. RENAME preserves owner,
+OID and position. PUBLIC metadata discovery does not grant enum execution.
+Native generated member OIDs are unique nonzero uint32-valued odd IDs, not a
+promise to reproduce PostgreSQL's allocator numbers/parity. Ordinary catalog
+transaction, prepared-query, view and retained-result authorities apply.
+Logical recreation remints IDs and normalizes positions to 1..n.
+See [pg_enum](https://www.postgresql.org/docs/18/catalog-pg-enum.html).
+Feature smoke: `make check RUN='^TestReferencePGEnumFeatureSmoke$'`;
+pinned oracle: `make check REFERENCE=1 RUN='^TestReferencePGEnumFeatureSmoke$'`.
 
 Change note: `enum_first`, `enum_last` and both `enum_range` overloads use the
 actual enum descriptor and declaration order. Unary calls ignore the datum,

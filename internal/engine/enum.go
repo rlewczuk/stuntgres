@@ -51,7 +51,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 		if err != nil {
 			return err
 		}
-		members[i] = sqltype.EnumMember{ID: member, Label: label.Text}
+		members[i] = sqltype.EnumMember{ID: member, Label: label.Text, SortOrder: float32(i + 1)}
 	}
 	revision, err := e.revisionLocked()
 	if err != nil {

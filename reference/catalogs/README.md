@@ -42,6 +42,71 @@ relative and reserved-name errors, transaction admission, physical refusal
 and unchanged sentinel/no user rows. The real-directory duplicate is covered
 by the selected family, not by reserved-name smoke assertions.
 
+### pg_enum selected proof
+
+The shared `TestReferencePGEnum` family specifies the four-column
+`pg_catalog.pg_enum` contract independently of native output: raw metadata,
+actual owning regtype identities, definition-only labels, generated member OID
+relationships, initial/negative/fractional positions, stable ALTER identities,
+dense-gap renumbering, ordinary query consumers, transaction publication and
+retained Rows, logical controls, exact diagnostics and PUBLIC metadata access.
+`FeatureSmoke` creates and evolves an actual enum and compares stored enum order
+with catalog order; it is not a baseline catalog-registration test.
+
+```sh
+make check RUN='^TestReferencePGEnum(Shape|DefinitionsAndQueries|AlterPositions|Renumber)$' REFERENCE=1
+make check RUN='^TestReferencePGEnum(VisibilityAndLifetime|Controls|DiagnosticsAndPrivileges|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferencePGEnum(Shape|DefinitionsAndQueries|AlterPositions|Renumber)$'
+make check RUN='^TestReferencePGEnum(VisibilityAndLifetime|Controls|DiagnosticsAndPrivileges|FeatureSmoke)$'
+make check RUN='^TestReferencePGEnumFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferencePGEnumFeatureSmoke$'
+```
+
+Logical Reset/Restore and native readonly mutation/locking boundaries are explicit
+native-only phases within the shared scenarios. `Controls` produces a real native
+logical dump using delivered enum DDL in an independent fixture-owned Driver for
+PostgreSQL replay, avoiding state left by the preceding native backend.
+PG-only pg_attribute shape inspection supplements the oracle without requiring
+an adjacent catalog implementation. Raw FLOAT4 cells remain checked as float64;
+logical position comparisons explicitly round through binary32 because pq parses
+PostgreSQL's shortest decimal FLOAT4 text into float64.
+Direct catalog origins retain the NOT NULL metadata contract; stored view
+consumers use the existing native nullable projection metadata while asserting
+the same exact column types, raw codecs and rows. Native schema/type privilege
+SQL is outside scope: PostgreSQL alone performs the schema/type REVOKE setup and
+supplemental privilege predicates. Both backends prove denied private-schema
+type resolution followed by successful PUBLIC catalog metadata discovery.
+Catalog-source SQL GRANT/REVOKE is also outside the delivered native privilege
+syntax. PostgreSQL retains the complete SQL revocation diagnostic witness;
+`TestPGEnumShapeAndCapture` exercises actual native PUBLIC access, explicit ACL
+revocation/restoration through SetObjectACL, and retained authorization lifetime.
+
+Private metadata/allocator/capture/import proof and affected enum callers:
+
+```sh
+make check RUN='^TestPGEnum(DefinitionMetadata|AllocatorBounds|SortInsertion|ShapeAndCapture|ImportMetadata)$'
+make check RUN='^TestEnum'
+make check RUN='^TestQueryFilterProvenEmptyDemand$'
+make check RUN='^TestReferenceEnumAlter(Order|Controls|SavepointProvenance|VisibilityLocks|PreparedIdentity)$' REFERENCE=1
+make check RUN='^TestReferenceEnumAlter(Order|Controls|SavepointProvenance|VisibilityLocks|PreparedIdentity)$'
+make check RUN='^TestReferenceEnum(Controls|RestoreAtomicity|OwnerAndTemporaryRemapping|Diagnostics|PreparedLifecycle)$' REFERENCE=1
+make check RUN='^TestReferenceEnum(Controls|RestoreAtomicity|OwnerAndTemporaryRemapping|Diagnostics|PreparedLifecycle)$'
+```
+
+During part verification, the root additionally runs the supplied standalone
+public-API smoke from an external session temporary file:
+`timeout 900s go run "$SESSION_TMP/pg-enum-smoke.go"`. It creates an independent
+Driver/database, checks raw metadata and actual owner/member identities, holds
+old Rows and a prepared catalog query, evolves z/q into first/z/a/end with
+positions 0/1/1.5/2, and checks stored enum order. Dump/Reset/Restore must recreate
+positions 1/2/3/4 with fresh member identities while old eager Rows remain
+unchanged. A failed catalog mutation must return the full native 0A000 record
+and leave rows unchanged. Success is quiet exit 0; any failed assertion exits
+nonzero. This standalone observation supplements, not replaces, selected
+dual-mode proof and whole-project quickcheck.
+
+
+
 ### Registered extension selected proof
 
 The untagged shared `reference/catalogs/extension_*_test.go` scenarios independently
