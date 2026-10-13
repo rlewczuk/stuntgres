@@ -43,6 +43,10 @@ func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound BoundExpr,
 }
 
 func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundExpr, path viewLiteralPath, ordinal *int) error {
+	return b.captureNormalizedViewLiteralTree(b.normalizeStoredExpression(raw), bound, path, ordinal)
+}
+
+func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bound BoundExpr, path viewLiteralPath, ordinal *int) error {
 	if raw == nil {
 		return nil
 	}
@@ -56,7 +60,7 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		bound = coercion.child
 	}
 	child := func(raw parser.Expr, bound BoundExpr) error {
-		return b.captureViewLiteralTree(raw, bound, path, ordinal)
+		return b.captureNormalizedViewLiteralTree(raw, bound, path, ordinal)
 	}
 	children := func(raw []parser.Expr, bound []BoundExpr) error {
 		if len(raw) != len(bound) {
@@ -75,6 +79,18 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		// definition can publish; leave this occurrence to the later 0A000.
 		if parameter, ok := bound.(parameterExpression); b.materializedDefinition && ok && parameter.number == r.Number {
 			return nil
+		}
+	case parser.ArrayComparisonExpr:
+		if n, ok := bound.(scalarArrayComparisonExpression); ok {
+			if err := child(r.Left, n.left); err != nil {
+				return err
+			}
+			if n.array == nil {
+				// A homogeneous IN batch has synthetic frozen ARRAY syntax,
+				// but no array construction in its executable representation.
+				return child(r.Right, arrayExpression{elements: n.items})
+			}
+			return child(r.Right, n.array)
 		}
 	case parser.SubqueryExpr:
 		if n, ok := bound.(subqueryExpression); ok {
@@ -833,6 +849,16 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 	switch r := raw.(type) {
 	case parser.GroupingExpr:
 		return args(r.Args)
+	case parser.InListExpr:
+		if err := child(r.Left); err != nil {
+			return err
+		}
+		return args(r.Items)
+	case parser.ArrayComparisonExpr:
+		if err := child(r.Left); err != nil {
+			return err
+		}
+		return child(r.Right)
 	case parser.SubqueryExpr:
 		if v.queries[r.Query] == nil {
 			return fmt.Errorf("stuntgres: missing frozen subquery syntax")

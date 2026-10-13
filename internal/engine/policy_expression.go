@@ -29,6 +29,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if err != nil {
 		return nil, alterCookingError(err)
 	}
+	raw = b.normalizeStoredExpression(raw)
 	if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 		return nil, err
 	}

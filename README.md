@@ -92,6 +92,19 @@ Dual-mode `TestReferenceServer*` definitions use real subprocesses, actual psql
 and sqlmw-wrapped pq alongside pinned PostgreSQL18.0; see
 [server verification](reference/sessions/README.md#phase-1-server-selected-proof).
 
+Change note: scalar `IN`/`NOT IN` lists and scalar comparison operators with
+array-valued `ANY`/`SOME`/`ALL` use the existing typed comparison and array
+providers; array forms require an executable associated array/codec, not just a
+scalar comparator. Results preserve SQL NULL semantics: empty arrays yield false for
+ANY/SOME and true for ALL, even with a NULL left operand; a NULL array yields
+NULL. Direct/prepared queries and supported stored-expression consumers retain
+Boolean metadata and all-child authorization/dependencies. This is PostgreSQL
+§9.25 scalar reduction, distinct from existing §9.24 subquery membership; it
+does not add ordinary array-to-array comparison/order or the §9.19 inventory.
+See [selected array comparison proof](reference/binary_json_arrays/README.md#scalar-list-and-array-comparisons).
+Feature smoke: `make check RUN='^TestReferenceArrayCompareFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceArrayCompareFeatureSmoke$'`.
+
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,
 `RESTRICT`/`CASCADE` and unchanged `CONTINUE IDENTITY` state. It uses exact

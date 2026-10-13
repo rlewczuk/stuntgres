@@ -166,6 +166,15 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case regexpSetExpression:
 		fmt.Fprintf(out, "RegexpSet %s", n.plan.Name())
 		err = args(n.args)
+	case scalarArrayComparisonExpression:
+		fmt.Fprintf(out, "ScalarArrayCompare %s namespace %q all %t", n.operator, n.namespace, n.all)
+		err = child(n.left)
+		if err == nil && n.array != nil {
+			err = child(n.array)
+		}
+		if err == nil {
+			err = args(n.items)
+		}
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)

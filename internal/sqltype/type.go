@@ -1617,6 +1617,14 @@ func (p Comparison) SessionDependent() bool {
 	return p.left != nil && p.right != nil && p.left.BaseType().id != p.right.BaseType().id && (p.left.BaseType().id == Timestamptz || p.right.BaseType().id == Timestamptz)
 }
 
+// CheckComparisonTypes validates scalar provider compatibility during analysis,
+// before contextual input conversion. Collation and executable descriptor
+// identity remain the responsibility of the final BindComparison call.
+func CheckComparisonTypes(left, right *Descriptor) error {
+	_, err := bindComparisonTypes(left, right)
+	return err
+}
+
 func BindComparison(left, right *Descriptor, collation CollationRef, indeterminate bool) (Comparison, error) {
 	p, err := bindComparisonTypes(left, right)
 	if err != nil {

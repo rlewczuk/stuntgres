@@ -147,6 +147,8 @@ func mergeExpressionProperties(a, b ExprProperties) ExprProperties {
 
 // commonExpressionUsage is also the VALUES authority. The caller supplies the
 // release candidate order; unknown remains analysis state, never runtime data.
+// An empty label requests PostgreSQL's nonthrowing common-type probe: a category
+// mismatch returns an empty Usage, so IN can retain ordinary pairwise resolution.
 func commonExpressionUsage(operands []comparisonOperand, text sqltype.Usage, label string) (sqltype.Usage, error) {
 	return selectCommonUsage(len(operands), func(i int) comparisonOperand { return operands[i] }, text, label, (*sqltype.Descriptor).DiagnosticName)
 }
@@ -191,6 +193,9 @@ func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqlt
 			continue
 		}
 		if typeCategory(candidate.Type) != typeCategory(u.Type) {
+			if label == "" {
+				return sqltype.Usage{}, nil
+			}
 			return sqltype.Usage{}, expressionError("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, typeName(candidate.Type), typeName(u.Type)), commonOperandStart(o))
 		}
 		if !preferredType(candidate.Type) {
@@ -522,6 +527,20 @@ func qualifiedCastChild(raw parser.Expr) error {
 				return err
 			}
 		}
+	case parser.InListExpr:
+		if err := qualifiedCastChild(e.Left); err != nil {
+			return err
+		}
+		for _, item := range e.Items {
+			if err := qualifiedCastChild(item); err != nil {
+				return err
+			}
+		}
+	case parser.ArrayComparisonExpr:
+		if err := qualifiedCastChild(e.Left); err != nil {
+			return err
+		}
+		return qualifiedCastChild(e.Right)
 	case parser.ArrayExpr:
 		for _, element := range e.Elements {
 			if err := qualifiedCastChild(element); err != nil {

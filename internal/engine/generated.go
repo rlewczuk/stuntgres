@@ -218,6 +218,8 @@ func generationImmutable(node BoundExpr) bool {
 			}
 		}
 		return true
+	case scalarArrayComparisonExpression:
+		return !n.predicate.SessionDependent() && one(n.left) && (n.array == nil || one(n.array)) && args(n.items)
 	case comparisonExpression:
 		return !n.predicate.SessionDependent() && both(n.left, n.right)
 	case logicalExpression:
@@ -375,6 +377,8 @@ func generationHasTableOID(node BoundExpr) bool {
 			}
 		}
 		return false
+	case scalarArrayComparisonExpression:
+		return one(n.left) || n.array != nil && one(n.array) || args(n.items)
 	case comparisonExpression:
 		return both(n.left, n.right)
 	case logicalExpression:
@@ -664,6 +668,16 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			}
 		}
 		return nil
+	case scalarArrayComparisonExpression:
+		if err := child(n.left); err != nil {
+			return err
+		}
+		if n.array != nil {
+			if err := child(n.array); err != nil {
+				return err
+			}
+		}
+		return args(n.items)
 	case comparisonExpression:
 		return pair(n.left, n.right)
 	case logicalExpression:

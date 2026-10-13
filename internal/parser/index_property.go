@@ -48,6 +48,12 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 		child(e.Base)
 	case RowExpr:
 		args = e.Fields
+	case InListExpr:
+		child(e.Left)
+		args = e.Items
+	case ArrayComparisonExpr:
+		child(e.Left)
+		child(e.Right)
 	case ArrayExpr:
 		args = e.Elements
 	case SubscriptExpr:

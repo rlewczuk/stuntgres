@@ -47,6 +47,13 @@ func plannedVolatility(node BoundExpr) Volatility {
 			v = merge(v, plannedVolatility(pair))
 		}
 		return v
+	case scalarArrayComparisonExpression:
+		v := plannedVolatility(n.left)
+		if n.array != nil {
+			v = merge(v, plannedVolatility(n.array))
+		}
+		v = merge(v, children(n.items...))
+		return session(v, n.predicate.SessionDependent())
 	case comparisonExpression:
 		return session(children(n.left, n.right), n.predicate.SessionDependent())
 	case arithmeticExpression:

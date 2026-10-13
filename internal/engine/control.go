@@ -1554,6 +1554,21 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 			}
 		}
 		return nil
+	case parser.InListExpr:
+		if err := restoreScalar(r.Left, stored); err != nil {
+			return err
+		}
+		for _, item := range r.Items {
+			if err := restoreScalar(item, stored); err != nil {
+				return err
+			}
+		}
+		return nil
+	case parser.ArrayComparisonExpr:
+		if err := restoreScalar(r.Left, stored); err != nil {
+			return err
+		}
+		return restoreScalar(r.Right, stored)
 	case parser.ArrayExpr:
 		for _, element := range r.Elements {
 			if err := restoreScalar(element, stored); err != nil {

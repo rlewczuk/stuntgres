@@ -618,6 +618,20 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return e, true, nil
 		}
 		return e, false, nil
+	case scalarArrayComparisonExpression:
+		next, changed, err := mapScalarArrayChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		if decisiveDefaults && conditionalConstantInputs(next) {
+			value, err := next.Eval(c)
+			return preflightValue(c, next.expressionInfo, value, err)
+		}
+		if changed {
+			return next, true, nil
+		}
 	case comparisonExpression:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -1361,7 +1375,10 @@ type expressionBinder struct {
 	materializedDefinition bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
-	checkLiterals         []literalExpression
+	checkLiterals []literalExpression
+	// Frozen IN syntax duplicates the lhs per actual independently typed branch.
+	// Analysis-only templates never enter executable nodes or prepared frames.
+	inListSyntax          map[inListSyntaxKey]parser.Expr
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
 	viewComposites        map[viewLiteralPath]compositeOccurrence
@@ -2106,6 +2123,18 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if err != nil {
 				return nil, err
 			}
+		case parser.InListExpr:
+			var err error
+			node, err = b.bindInList(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.ArrayComparisonExpr:
+			var err error
+			node, err = b.bindArrayComparison(r)
+			if err != nil {
+				return nil, err
+			}
 		case parser.OperatorExpr:
 			var err error
 			if r.SQLSimilar {
@@ -2791,6 +2820,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
+	case parser.InListExpr, parser.ArrayComparisonExpr:
 	case parser.RowExpr, parser.FieldExpr, parser.StarExpr, parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
 	case parser.MergeActionExpr:
 	default:
@@ -2828,24 +2858,14 @@ func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Des
 // semantics and volatility; the comparison provider remains homogeneous.
 func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (BoundExpr, BoundExpr, error) {
 	lt, rt := left.ResultUsage().Type, right.ResultUsage().Type
-	integer := func(t *sqltype.Descriptor) bool {
-		return t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8
-	}
+	wantLeft, wantRight := comparisonCoercionTypes(lt, rt)
 	var child BoundExpr
 	var target sqltype.Usage
 	switch {
-	case lt.ID() == sqltype.Inet && rt.ID() == sqltype.Cidr:
-		child, target = right, lt.Usage()
-	case rt.ID() == sqltype.Inet && lt.ID() == sqltype.Cidr:
-		child, target = left, rt.Usage()
-	case lt.ID() == sqltype.Oid && integer(rt):
-		child, target = right, lt.Usage()
-	case rt.ID() == sqltype.Oid && integer(lt):
-		child, target = left, rt.Usage()
-	case lt.ID() == sqltype.Timetz && rt.ID() == sqltype.Time:
-		child, target = right, lt.Usage()
-	case rt.ID() == sqltype.Timetz && lt.ID() == sqltype.Time:
-		child, target = left, rt.Usage()
+	case wantLeft != lt:
+		child, target = left, wantLeft.Usage()
+	case wantRight != rt:
+		child, target = right, wantRight.Usage()
 	default:
 		return left, right, nil
 	}
@@ -2854,7 +2874,7 @@ func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (Boun
 		return nil, nil, err
 	}
 	converted := coercionExpression{b.info(target, child.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Implicit}
-	if lt.ID() == sqltype.Oid || lt.ID() == sqltype.Timetz || lt.ID() == sqltype.Inet {
+	if wantRight != rt {
 		right = converted
 	} else {
 		left = converted
@@ -2866,21 +2886,8 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	if len(raw.Args) != 2 || len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid comparison expression")
 	}
-	var operator sqltype.ComparisonOperator
-	switch raw.Name.Parts[len(raw.Name.Parts)-1].Text {
-	case "=":
-		operator = sqltype.CompareEqual
-	case "<>":
-		operator = sqltype.CompareNotEqual
-	case "<":
-		operator = sqltype.CompareLess
-	case "<=":
-		operator = sqltype.CompareLessEqual
-	case ">":
-		operator = sqltype.CompareGreater
-	case ">=":
-		operator = sqltype.CompareGreaterEqual
-	default:
+	operator, ok := comparisonOperator(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	if !ok {
 		return nil, fmt.Errorf("stuntgres: invalid comparison operator")
 	}
 	if left, ok := raw.Args[0].(parser.RowExpr); ok {
@@ -2901,38 +2908,9 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 }
 
 func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right comparisonOperand) (BoundExpr, error) {
-	lt, rt := left.descriptor(), right.descriptor()
-	if lt != nil && lt.BaseType().IsComposite() || rt != nil && rt.BaseType().IsComposite() {
-		return nil, expressionError("0A000", "composite comparison is unsupported", raw.Pos)
-	}
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	lt, rt, err := b.resolveComparisonTypes(raw, left.descriptor(), right.descriptor())
 	if err != nil {
 		return nil, err
-	}
-	if !visible {
-		return nil, b.comparisonError(sqlError("42883", "operator does not exist"), lt, rt, raw)
-	}
-	// Admit enum operators against the actual operands before conditional
-	// coercion erases domain identity. Unknown operands retain normal inference.
-	if lt != nil && rt != nil && (lt.BaseType().IsEnum() || rt.BaseType().IsEnum()) {
-		if _, err := sqltype.BindComparison(lt, rt, sqltype.CollationRef{}, false); err != nil {
-			return nil, b.comparisonError(err, lt, rt, raw)
-		}
-	}
-	if lt != nil {
-		lt = lt.BaseType()
-	}
-	if rt != nil {
-		rt = rt.BaseType()
-	}
-	if lt == nil {
-		lt = rt
-	}
-	if rt == nil {
-		rt = lt
-	}
-	if lt == nil {
-		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
 	}
 	l, err := b.coerceConditional(left, lt.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	if err != nil {
@@ -3037,19 +3015,7 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			}
 		}
 	}
-	operator := sqltype.ArithmeticAdd
-	switch name {
-	case "-":
-		operator = sqltype.ArithmeticSubtract
-	case "*":
-		operator = sqltype.ArithmeticMultiply
-	case "/":
-		operator = sqltype.ArithmeticDivide
-	case "%":
-		operator = sqltype.ArithmeticRemainder
-	case "^":
-		operator = sqltype.ArithmeticPower
-	}
+	operator := arithmeticOperator(name)
 	left, err := b.comparisonOperand(raw.Args[0])
 	if err != nil {
 		return nil, err

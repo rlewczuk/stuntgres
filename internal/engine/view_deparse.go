@@ -668,6 +668,38 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "ROW(" + text + ")", nil
 		}
 		return "(" + text + ")", nil
+	case parser.InListExpr:
+		left, err := operand(e.Left, pgRenderParent{precedence: 5})
+		if err != nil {
+			return "", err
+		}
+		items, err := args(e.Items)
+		if err != nil {
+			return "", err
+		}
+		op := "IN"
+		if e.Negate {
+			op = "NOT IN"
+		}
+		return "(" + left + " " + op + " (" + items + "))", nil
+	case parser.ArrayComparisonExpr:
+		left, err := operand(e.Left, pgRenderParent{precedence: 5})
+		if err != nil {
+			return "", err
+		}
+		right, err := child(e.Right)
+		if err != nil {
+			return "", err
+		}
+		op := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if len(e.Name.Parts) == 2 {
+			op = "OPERATOR(" + quoteIdentifier(e.Name.Parts[0].Text) + "." + op + ")"
+		}
+		quantifier := "ANY"
+		if e.All {
+			quantifier = "ALL"
+		}
+		return "(" + left + " " + op + " " + quantifier + " (" + right + "))", nil
 	case parser.SubqueryExpr:
 		left := ""
 		var err error

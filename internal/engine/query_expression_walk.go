@@ -69,6 +69,12 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 			walk(pair.left)
 			walk(pair.right)
 		}
+	case scalarArrayComparisonExpression:
+		walk(e.left)
+		if e.array != nil {
+			walk(e.array)
+		}
+		args(e.items)
 	case comparisonExpression:
 		walk(e.left)
 		walk(e.right)

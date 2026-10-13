@@ -1552,6 +1552,28 @@ type OperatorExpr struct {
 	SQLSimilar bool
 }
 
+// InListExpr is scalar membership, not a query-bearing subquery.
+type InListExpr struct {
+	Left   Expr
+	Items  []Expr
+	Negate bool
+	Pos    Position
+}
+
+// ArrayComparisonExpr compares a scalar with the flat elements of an array.
+// SOME is normalized to ANY (All=false) during parsing.
+type ArrayComparisonExpr struct {
+	Left, Right Expr
+	Name        ObjectName
+	All         bool
+	Pos         Position
+}
+
+func (InListExpr) expression()                         {}
+func (e InListExpr) SourcePosition() Position          { return e.Pos }
+func (ArrayComparisonExpr) expression()                {}
+func (e ArrayComparisonExpr) SourcePosition() Position { return e.Pos }
+
 type LogicalOperator uint8
 
 const (
@@ -1752,6 +1774,12 @@ func (e FunctionExpr) SourcePosition() Position     { return e.Pos }
 // Grouping is transparent; folded literals already retain their sign location.
 func ExpressionStart(expr Expr) Position {
 	pos := expr.SourcePosition()
+	switch e := expr.(type) {
+	case InListExpr:
+		return ExpressionStart(e.Left)
+	case ArrayComparisonExpr:
+		return ExpressionStart(e.Left)
+	}
 	if subscript, ok := expr.(SubscriptExpr); ok {
 		return ExpressionStart(subscript.Base)
 	}

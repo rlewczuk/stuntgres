@@ -954,6 +954,26 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.expressionInfo = info
 		rebound = n
+	case scalarArrayComparisonExpression:
+		ref, conflict := n.predicate.InputCollation()
+		ref = comparisonCollation(ref)
+		var replaced bool
+		n, replaced, err = mapScalarArrayChildren(n, func(old BoundExpr) (BoundExpr, bool, error) {
+			return mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
+		})
+		changed = changed || replaced
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			operator, ok := comparisonOperator(n.operator)
+			if !ok {
+				return nil, false, fmt.Errorf("stuntgres: invalid array comparison operator")
+			}
+			n.predicate, err = sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.elementType(), typ, ref, conflict)
+		}
+		n.expressionInfo = info
+		rebound = n
 	case comparisonExpression:
 		ref, conflict := n.predicate.InputCollation()
 		ref = comparisonCollation(ref)

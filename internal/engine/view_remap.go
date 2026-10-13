@@ -230,6 +230,16 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.comparisons[i] = child(pair).(comparisonExpression)
 		}
 		next = n
+	case scalarArrayComparisonExpression:
+		n.left = child(n.left)
+		if n.array != nil {
+			n.array = child(n.array)
+		}
+		n.items = append([]BoundExpr(nil), n.items...)
+		for i := range n.items {
+			n.items[i] = child(n.items[i])
+		}
+		next = n
 	case comparisonExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n

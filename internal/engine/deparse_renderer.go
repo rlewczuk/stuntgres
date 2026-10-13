@@ -644,6 +644,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
+	case scalarArrayComparisonExpression:
+		return renderScalarArrayComparison(n, child, r.identifier)
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:

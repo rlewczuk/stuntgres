@@ -42,6 +42,63 @@ and native replacement with emitted-SQL replay. SQL/JSON constructor syntax,
 JSONB constructors, JSON comparison and generic builtin catalog enumeration are
 not capabilities asserted by this family.
 
+### Scalar list and array comparisons
+
+The shared `TestReferenceArrayCompare*` scenarios cover §9.25 scalar
+`IN`/`NOT IN` lists and comparison-operator `ANY`/`SOME`/`ALL` over an array
+expression. Independently specified rows/types/full diagnostics cover NULL,
+empty arrays, comparable scalar elements, direct and prepared routes, metadata,
+held frames and recovery. There is no backend discovery filter. Ordinary
+array-to-array comparison/order and new §9.19 functions/operators remain excluded.
+Array forms require both a scalar comparator and an existing concrete associated
+array/codec. MONEY/INET/CIDR scalar-list positives retain their explicit native
+array-element capability failures; catalog association alone is not execution.
+
+StoredConsumers exercises views and repeated held reads, defaults, generated
+columns, CHECK constraints, expression indexes, mutation RETURNING, aggregate
+arguments/filters/group keys, joins and correlated children. AuthorityAndControls
+uses actual column GRANT for late-list/array children, empty-source and decisive
+expressions, missing children, dependency rename/DROP, staged-write atomicity and
+precanceled queries. Explicit native phases exercise emitted SQL replay on
+PostgreSQL when available, Reset/Restore with retained cursor metadata/results,
+domain/collation captures, RHS-only tableoid generated-owner remapping and rejected
+or canceled Restore without changing stored data.
+Frozen IN/NOT IN regressions also preserve independently typed copies of an
+unknown left literal: enum label `'1'` and integer `1` remain distinct comparison
+inputs through views, defaults, generated columns and actual replay/Restore.
+The bounded VALUES scalar-input path uses existing qualified
+`OPERATOR(pg_catalog.=) ANY(...)` syntax; ordinary comparison spellings are
+exercised by INSERT SELECT and the other expression consumers. Malformed
+prepared array input retains the same slot-specific portal Context in both modes.
+
+Diagnostics also exercises competing invalid IN/NOT IN inputs and unsupported
+JSON comparators with malformed unknown ANY/SOME/ALL input. Full records prove
+RHS-before-LHS batch conversion and operator-before-codec analysis precedence,
+with populated/empty sources, direct/Prepare failure phases and same-route
+recovery; this does not promise runtime operand evaluation order.
+
+Run the selected completed definitions in both modes, with an external
+900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceArrayCompare(ListTruth|QuantifiedTruth)$'
+make check REFERENCE=1 RUN='^TestReferenceArrayCompare(ListTruth|QuantifiedTruth)$'
+make check RUN='^TestReferenceArrayCompare(TypesAndFrames|Metadata|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceArrayCompare(TypesAndFrames|Metadata|Diagnostics)$'
+make check RUN='^TestReferenceArrayCompare(StoredConsumers|AuthorityAndControls)$'
+make check REFERENCE=1 RUN='^TestReferenceArrayCompare(StoredConsumers|AuthorityAndControls)$'
+make check RUN='^TestReferenceArrayCompareFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceArrayCompareFeatureSmoke$'
+```
+
+The feature smoke expects seven stored input rows with fixed IN/NOT IN and
+ANY/SOME/ALL Boolean/NULL results, filtered IDs 1 and 7, empty-result BOOL metadata,
+held frames with empty/NULL arrays, left-inclusive integer widening, non-1 rank-2
+reduction, complete shape/operator diagnostics and valid recovery. These commands
+describe required proof, not a claim that the definitions have been verified.
+Whole-project verification remains `make quickcheck`; selected race proof may
+add `RACE=1` to AuthorityAndControls. Native controls are not PostgreSQL APIs.
+
 ### Array aggregation
 
 Array aggregation uses `RUN='^TestReferenceArrayAgg'` with both
@@ -77,7 +134,8 @@ JSONPath fixture IDs are unconstrained INT values made unique by the scenarios;
 these tests do not exercise primary-key syntax or constraint enforcement.
 Scalar/array catalog and attribute identities use separate equality-filtered
 queries on PostgreSQL, retaining every independently expected OID, typmod,
-collation and domain-base field without relying on unsupported IN expressions.
+collation and domain-base field. Their equality filters are inquiry witnesses,
+not a restriction on scalar IN-list expression support.
 Native explicitly asserts that the two named relations `pg_catalog.pg_type` and
 `pg_catalog.pg_attribute` remain absent (42P01, exact English message and original
 relation Position), in both direct and prepared representation setup. Other

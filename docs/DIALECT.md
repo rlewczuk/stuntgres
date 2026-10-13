@@ -134,6 +134,15 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   remain excluded even where real catalog/query-derived values have codecs.
 - JSONPath storage does not implement SQL/JSON query execution or GIN. JSON has
   no equality provider. Catalog type identities do not imply executable codecs.
+- Scalar `IN`/`NOT IN` lists and scalar operators with array-expression
+  `ANY`/`SOME`/`ALL` reuse existing scalar comparison providers; array forms
+  additionally require a concrete associated array and executable array codec.
+  SOME is ANY; every form returns BOOL with SQL NULL semantics.
+  Empty lists are syntax errors, unlike empty-array ANY/ALL reductions.
+  This does not introduce ordinary array-to-array comparison/order, custom
+  operators, new element providers or general §9.19 array operators/functions.
+  MONEY/INET/CIDR scalar-list comparisons do not enable their currently
+  unsupported array elements or declarations.
 - General array operators/functions and NAME-array comparison/order remain
   bounded. Aggregate DISTINCT/order on arrays and private `pg_node_tree`, and
   NAME-array/private-tree extrema, retain native capability exclusions.

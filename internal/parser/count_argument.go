@@ -4,7 +4,7 @@ package parser
 // casts keep their previous scalar (rather than predicate) argument boundary.
 func scalarCastArgument(expr Expr) bool {
 	switch e := expr.(type) {
-	case PredicateExpr, LogicalExpr:
+	case PredicateExpr, LogicalExpr, InListExpr, ArrayComparisonExpr:
 		return false
 	case OperatorExpr:
 		if len(e.Name.Parts) == 1 {

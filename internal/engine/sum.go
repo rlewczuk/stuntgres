@@ -145,6 +145,13 @@ func containsValuesAggregateAnalysis(raw parser.Expr) bool {
 		children = e.Args
 	case parser.CallExpr:
 		children = e.Args
+	case parser.InListExpr:
+		if containsValuesAggregateAnalysis(e.Left) {
+			return true
+		}
+		children = e.Items
+	case parser.ArrayComparisonExpr:
+		return containsValuesAggregateAnalysis(e.Left) || containsValuesAggregateAnalysis(e.Right)
 	case parser.ArrayExpr:
 		children = e.Elements
 	case parser.SubscriptExpr:

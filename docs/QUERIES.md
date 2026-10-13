@@ -65,7 +65,25 @@ empty input. Cross-input join equality initializes its provider at execution,
 including empty inputs. Index eligibility and predicate implication use full
 resolved authority and cannot optimize away incompatible comparison demand.
 
-Hashable uncorrelated membership builds provider-bound RHS buckets before LHS
+Scalar `IN`/`NOT IN` lists and array-expression `ANY`/`SOME`/`ALL` resolve
+comparison authority against scalar elements, not the array descriptor. IN
+common-type analysis includes the left operand and batches eligible non-column
+items; column-containing items retain pairwise comparison analysis. All children
+are analyzed and retain their authorization/dependencies even after a decisive
+match. Array reductions use the existing immutable flat elements; dimensions and
+lower bounds do not change truth. A whole NULL array yields NULL; empty arrays
+yield ANY/SOME false and ALL true, including a NULL left operand. Other reductions
+remember unknown comparisons unless a decisive true/false is reached. These
+scalar forms create no query source owner or membership hash table and do not
+promise operand evaluation order or new optimizer short-circuit behavior.
+Binding diagnostic precedence is distinct from runtime evaluation order:
+selected IN-batch right inputs are converted in source order before the left
+input is finalized. Quantified comparisons establish the scalar operator's type
+compatibility before converting contextual unknown literals or parameters, so a
+missing operator is not hidden by an unrelated malformed array input. The final
+predicate still retains the actual coerced descriptors and input collation.
+
+Hashable uncorrelated **subquery** membership builds provider-bound RHS buckets before LHS
 projection. Empty membership avoids LHS effects and probe scratch. Successful
 buckets belong to the execution owner for the actual RHS plan and captured source
 occurrence, not frozen expressions, views, prepared handles or a global cache.

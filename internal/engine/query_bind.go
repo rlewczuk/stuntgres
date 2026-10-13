@@ -51,6 +51,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	restore := b.enterQuery(disallowParent)
 	defer restore()
+	defer func() {
+		if failure == nil && query != nil && (b.noParameters || b.materializedDefinition) {
+			b.normalizeStoredQuerySyntax(s)
+		}
+	}()
 	oldCTEs := len(b.cteBindings)
 	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()
 	definitions, err := b.bindCTEDefinitions(s)

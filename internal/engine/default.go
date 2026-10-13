@@ -724,6 +724,20 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return renderRowComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, n.operator)
 	case regexpExpression:
 		return n.sql("pg_catalog."+n.plan.Name(), func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
+	case scalarArrayComparisonExpression:
+		if u.Type.ID() != sqltype.Bool || n.left == nil || (n.array == nil) == (len(n.items) == 0) {
+			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate")
+		}
+		operator, ok := comparisonOperator(n.operator)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: invalid scalar-array operator")
+		}
+		ref, conflict := n.predicate.InputCollation()
+		predicate, err := sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.elementType(), u.Type, ref, conflict)
+		if err != nil || predicate != n.predicate {
+			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate binding")
+		}
+		return renderScalarArrayComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")

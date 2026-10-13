@@ -9,7 +9,7 @@ func ordinaryCall(l sqlLexer, typ TypeName, args []Expr, callee lexeme) Expr {
 	if ordinaryCastFunction(callee) && len(args) == 1 {
 		excluded := false
 		switch child := args[0].(type) {
-		case PredicateExpr, LogicalExpr:
+		case PredicateExpr, LogicalExpr, InListExpr, ArrayComparisonExpr:
 			excluded = true
 		case OperatorExpr:
 			if len(child.Name.Parts) == 1 {

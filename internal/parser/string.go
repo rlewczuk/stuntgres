@@ -123,6 +123,17 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 			found = found || has
 		}
 		return true, found
+	case InListExpr:
+		valid, found := stringSingletonFamily(e.Left, datetimeOnly)
+		for _, item := range e.Items {
+			ok, has := stringSingletonFamily(item, datetimeOnly)
+			valid, found = valid && ok, found || has
+		}
+		return valid, found
+	case ArrayComparisonExpr:
+		a, b := stringSingletonFamily(e.Left, datetimeOnly)
+		c, d := stringSingletonFamily(e.Right, datetimeOnly)
+		return a && c, b || d
 	case LogicalExpr:
 		a, b := stringSingletonFamily(e.Left, datetimeOnly)
 		if e.Right == nil {

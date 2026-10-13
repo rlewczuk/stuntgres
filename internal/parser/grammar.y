@@ -1703,6 +1703,7 @@ scalar: scalar_atom { $$=$1 }
  | function SYMBOLIC_OPERATOR scalar { if $2.text!="||" && $2.text!="~" && $2.text!="~*" && $2.text!="!~" && $2.text!="!~*" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
  | scalar qualified_operator quantifier select_with_parens %prec OPERATOR {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,$2,kind,$4.Query,false,$2.Parts[0].Pos)}
+ | scalar qualified_operator quantifier '(' scalar_projection ')' %prec OPERATOR { $$=ArrayComparisonExpr{Left:$1,Right:$5,Name:$2,All:$3.text=="all",Pos:$2.Parts[0].Pos} }
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
 field_value: '(' scalar ')' '.' col_label { $$=FieldExpr{Base:groupedQualification($2),Field:Identifier{Text:$5.text,Pos:$5.pos},Pos:$2.SourcePosition(),OpenPos:$1.pos} }
  | '(' scalar ')' '.' '*' { $$=FieldExpr{Base:groupedQualification($2),Expansion:true,Pos:$2.SourcePosition(),OpenPos:$1.pos} }
@@ -1953,7 +1954,10 @@ target_comparison: target_between %prec NAME_LIST { $$=$1 }
  | target_between comparison_operator target_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
  | target_between IN select_with_parens %prec NAME_LIST { $$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$3.Query,false,$2.pos) }
  | target_between NOT_IN_LA IN select_with_parens %prec NAME_LIST { $$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$4.Query,true,$2.pos) }
- | target_between comparison_operator quantifier select_with_parens %prec NAME_LIST {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},kind,$4.Query,false,$2.pos)} ;
+ | target_between IN '(' row_fields ')' %prec NAME_LIST { $$=InListExpr{Left:$1,Items:$4,Pos:$2.pos} }
+ | target_between NOT_IN_LA IN '(' row_fields ')' %prec NAME_LIST { $$=InListExpr{Left:$1,Items:$5,Negate:true,Pos:$2.pos} }
+ | target_between comparison_operator quantifier select_with_parens %prec NAME_LIST {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},kind,$4.Query,false,$2.pos)}
+ | target_between comparison_operator quantifier '(' scalar_projection ')' %prec NAME_LIST { $$=ArrayComparisonExpr{Left:$1,Right:$5,Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},All:$3.text=="all",Pos:$2.pos} } ;
 target: target_comparison { $$=$1 }
  | target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
  | target IS NOT NULL %prec IS { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }

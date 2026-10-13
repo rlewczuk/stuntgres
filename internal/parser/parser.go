@@ -543,6 +543,18 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 			}
 		}
 		return true
+	case InListExpr:
+		if !l.scalarInputTree(r.Left) {
+			return false
+		}
+		for _, item := range r.Items {
+			if !l.scalarInputTree(item) {
+				return false
+			}
+		}
+		return true
+	case ArrayComparisonExpr:
+		return l.scalarInputTree(r.Left) && l.scalarInputTree(r.Right)
 	case LogicalExpr:
 		return l.scalarInputTree(r.Left) && (r.Right == nil || l.scalarInputTree(r.Right))
 	case PredicateExpr:

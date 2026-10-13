@@ -560,6 +560,26 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 			sides |= left | right
 		}
 		return sides, nil
+	case scalarArrayComparisonExpression:
+		sides, err := joinExpressionSides(e.left, leftWidth, rightWidth)
+		if err != nil {
+			return 0, err
+		}
+		if e.array != nil {
+			side, err := joinExpressionSides(e.array, leftWidth, rightWidth)
+			if err != nil {
+				return 0, err
+			}
+			sides |= side
+		}
+		for _, item := range e.items {
+			side, err := joinExpressionSides(item, leftWidth, rightWidth)
+			if err != nil {
+				return 0, err
+			}
+			sides |= side
+		}
+		return sides, nil
 	case comparisonExpression:
 		children = []BoundExpr{e.left, e.right}
 	case logicalExpression:

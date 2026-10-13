@@ -35,6 +35,12 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 	var children []Expr
 	hideQualification := false
 	switch e := expr.(type) {
+	case InListExpr:
+		absorb(e.Left)
+		children = e.Items
+	case ArrayComparisonExpr:
+		absorb(e.Left)
+		absorb(e.Right)
 	case SubqueryExpr:
 		absorb(e.Left) // Child queries own their qualification policy.
 	case FieldExpr:
@@ -171,6 +177,16 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	var children []Expr
 	switch e := expr.(type) {
+	case InListExpr:
+		if token, reject := nonqueryQualification(e.Left, assignment); token != nil {
+			return token, reject
+		}
+		children = e.Items
+	case ArrayComparisonExpr:
+		if token, reject := nonqueryQualification(e.Left, assignment); token != nil {
+			return token, reject
+		}
+		return nonqueryQualification(e.Right, assignment)
 	case SubqueryExpr:
 		return nonqueryQualification(e.Left, assignment)
 	case FieldExpr:
@@ -306,6 +322,33 @@ func groupedQualification(expr Expr) Expr {
 
 func markGroupedQualification(expr Expr) (Expr, bool) {
 	switch e := expr.(type) {
+	case InListExpr:
+		left, changed := markGroupedQualification(e.Left)
+		e.Left = left
+		var items []Expr
+		for i, item := range e.Items {
+			next, did := markGroupedQualification(item)
+			if did {
+				if items == nil {
+					items = append([]Expr(nil), e.Items...)
+				}
+				items[i] = next
+				changed = true
+			}
+		}
+		if items != nil {
+			e.Items = items
+		}
+		if changed {
+			return e, true
+		}
+	case ArrayComparisonExpr:
+		left, lc := markGroupedQualification(e.Left)
+		right, rc := markGroupedQualification(e.Right)
+		if lc || rc {
+			e.Left, e.Right = left, right
+			return e, true
+		}
 	case SubqueryExpr:
 		left, changed := markGroupedQualification(e.Left)
 		if changed {

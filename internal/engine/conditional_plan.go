@@ -320,6 +320,13 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		return e, changed, err // Sets are never constant-folded without an input row.
+	case scalarArrayComparisonExpression:
+		var replaced bool
+		e, replaced, err = mapScalarArrayChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, old, decisiveDefaults)
+		})
+		changed = changed || replaced
+		expression = e
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {
@@ -884,6 +891,16 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	case regexpExpression:
 		for _, arg := range e.args {
 			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case scalarArrayComparisonExpression:
+		if !literal(e.left) || e.array != nil && !literal(e.array) {
+			return false
+		}
+		for _, item := range e.items {
+			if !literal(item) {
 				return false
 			}
 		}

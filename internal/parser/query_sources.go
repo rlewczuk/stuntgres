@@ -80,6 +80,16 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		switch e := raw.(type) {
 		case GroupingExpr:
 			return expressions(e.Args)
+		case InListExpr:
+			if err := expression(e.Left); err != nil {
+				return err
+			}
+			return expressions(e.Items)
+		case ArrayComparisonExpr:
+			if err := expression(e.Left); err != nil {
+				return err
+			}
+			return expression(e.Right)
 		case SubqueryExpr:
 			if err := expression(e.Left); err != nil {
 				return err
