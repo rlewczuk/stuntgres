@@ -391,6 +391,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case arraySearchExpression:
+		o, ok := other.(arraySearchExpression)
+		if !ok || e.plan != o.plan || e.namespace != o.namespace || len(e.args) != len(o.args) {
+			return false
+		}
+		for i := range e.args {
+			if !same(e.args[i], o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case enumFunctionExpression:
 		o, ok := other.(enumFunctionExpression)
 		if !ok || e.plan != o.plan || len(e.args) != len(o.args) {
@@ -870,6 +881,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case arraySearchExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case enumFunctionExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
@@ -1135,6 +1153,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case stringExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
+	case arraySearchExpression:
 		for _, arg := range e.args {
 			walk(arg)
 		}

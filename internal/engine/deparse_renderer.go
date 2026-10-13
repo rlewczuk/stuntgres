@@ -536,8 +536,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		_, simpleColumn := n.child.(columnExpression)
 		_, simpleLiteral := n.child.(literalExpression)
 		_, castChild := n.child.(coercionExpression)
-		_, simpleSleepCall := n.child.(datetimeSleepExpression)
-		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleSleepCall || r.pretty && parent.functionArgument && castChild)
+		simpleFunctionCall := false
+		switch call := n.child.(type) {
+		case datetimeSleepExpression:
+			simpleFunctionCall = true
+		case arraySearchExpression:
+			simpleFunctionCall = !call.plan.Membership()
+		}
+		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
 	case arithmeticExpression:
 		ops := [...]string{"+", "-", "*", "/", "%", "^"}
 		if int(n.operator) >= len(ops) {
@@ -730,6 +736,26 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
+	case arraySearchExpression:
+		if n.plan.Membership() {
+			inputRenderer := r
+			inputRenderer.showImplicit = true
+			left, err := inputRenderer.sql(ctx, n.args[0], pgRenderParent{})
+			if err != nil {
+				return "", err
+			}
+			inputRenderer.showImplicit = true
+			right, err := inputRenderer.sql(ctx, n.args[1], pgRenderParent{})
+			if err != nil {
+				return "", err
+			}
+			text := left + " " + operator(n.namespace, n.plan.Name()) + " " + right
+			if pgOperatorGrouped(n.plan.Name(), true, parent) {
+				text = "(" + text + ")"
+			}
+			return text, nil
+		}
+		return function(n.plan.Name(), n.args, true)
 	case enumFunctionExpression:
 		return function(n.plan.Name(), n.args, true)
 	case mathExpression:

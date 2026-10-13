@@ -34,6 +34,9 @@ type viewLiteralPath struct {
 	target      int
 	node        int
 	source, row int
+	// Zero names the raw occurrence; positive values name retained implicit
+	// coercions of a selected parent's arguments without consuming raw ordinals.
+	argument int
 }
 
 func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound BoundExpr, clause viewLiteralClause, target int) error {
@@ -60,7 +63,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		bound = coercion.child
 	}
 	child := func(raw parser.Expr, bound BoundExpr) error {
-		return b.captureNormalizedViewLiteralTree(raw, bound, path, ordinal)
+		childPath := path
+		childPath.argument = 0
+		return b.captureNormalizedViewLiteralTree(raw, bound, childPath, ordinal)
 	}
 	children := func(raw []parser.Expr, bound []BoundExpr) error {
 		if len(raw) != len(bound) {
@@ -68,6 +73,25 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		for i := range raw {
 			if err := child(raw[i], bound[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	arraySearchArguments := func(raw []parser.Expr, bound []BoundExpr) error {
+		if len(raw) != len(bound) {
+			return fmt.Errorf("stuntgres: mismatched array search arguments")
+		}
+		for i, arg := range bound {
+			if coercion, ok := arg.(coercionExpression); ok && coercion.mode == sqltype.Implicit {
+				if b.viewCastUsages == nil {
+					b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+				}
+				key := path
+				key.argument = i + 1
+				b.viewCastUsages[key] = coercion.usage
+			}
+			if err := child(raw[i], arg); err != nil {
 				return err
 			}
 		}
@@ -315,6 +339,8 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
+		case arraySearchExpression:
+			return arraySearchArguments(r.Args, n.args)
 		case rowComparisonExpression:
 			for side, arg := range r.Args {
 				row, ok := arg.(parser.RowExpr)
@@ -607,6 +633,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		if n, ok := bound.(stringExpression); ok {
 			return children(r.Args, n.args)
+		}
+		if n, ok := bound.(arraySearchExpression); ok {
+			return arraySearchArguments(r.Args, n.args)
 		}
 		if n, ok := bound.(enumFunctionExpression); ok {
 			return children(r.Args, n.args)

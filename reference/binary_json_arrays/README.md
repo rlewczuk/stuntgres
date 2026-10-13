@@ -223,6 +223,72 @@ and native replacement with emitted-SQL replay. SQL/JSON constructor syntax,
 JSONB constructors, JSON comparison and generic builtin catalog enumeration are
 not capabilities asserted by this family.
 
+### Array search and membership
+
+The shared `TestReferenceArraySearch*` scenarios cover only `array_position`,
+`array_positions`, `array_remove`, `array_replace`, `@>`, `<@` and `&&`.
+Expectations were independently reasoned and resolved against pinned PostgreSQL
+18.0 before production work; the completed scenarios contain no discovery filter
+or observation recorder. Exact rows, raw array families, type names and complete
+diagnostics are asserted independently on every backend before parity.
+
+Search/removal/replacement match NULL elements. Position returns actual
+subscripts with an inclusive optional INT4 start; positions distinguishes a NULL
+array from an empty result. Removal keeps surviving order/lower bound and makes
+all-removed results canonical empty arrays. Search/removal reject multiple
+dimensions; replacement retains shape. Membership ignores shape/bounds/order/
+duplicate multiplicity, never matches NULL elements and is strict for whole NULL
+arrays. Compatible function leaves can widen; independently different operator
+array types do not. Equality-provider lookup and actual collation comparison
+have distinct demand boundaries, including JSON empty/NULL and NULL-only strings.
+When a domain element is itself array-valued, reached equality retains native
+`0A000: unsupported array element type`, independently of PostgreSQL's supported
+result. Earlier NULL/empty/search fast paths remain usable. This does not invent
+missing PostgreSQL equality or add an ordinary native array comparator.
+
+TypesAndFrames exercises actual held Prepare handles across varied parameters,
+execution error and same-handle recovery. StoredConsumers covers defaults,
+generated/CHECK/index/view expressions, held reads, scalar aggregate/group/filter,
+join/CTE/correlation, mutation RETURNING and exact renamed-view deparse.
+AuthorityAndControls covers all-child column privileges, revocation/regrant,
+tuple atomicity, ordinary cancellation, actual emitted-SQL PostgreSQL replay,
+native Reset/Restore, retained rows and failed later import preserving prior data.
+Native controls are explicit native-only phases, not invented PostgreSQL APIs.
+FilterDiagnostics preserves ordinary-child → FILTER Boolean analysis → signature/
+nonaggregate diagnostic order, with full character positions and Prepare stages.
+NestedViews covers explicit source casts, nested INT→BIGINT→NUMERIC argument
+widening, text-collation authority, exact initial/renamed definitions and actual
+safe Dump replay/catalog replacement. Safe replay's frozen source aliases are
+distinct from the original source spelling; exact post-replay definitions use
+the renderer's independently specified representation, not allocator goldens.
+The private ViewCoercions regression renders and evaluates both original and
+remapped frozen trees across distinct type generations and collation identities,
+then re-renders the original to assert retained ownership. Immutability also
+requires canonical all-removed results to retain no survivor backing storage.
+
+Select each bounded set in both modes with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceArraySearch(Values|Membership)$'
+make check REFERENCE=1 RUN='^TestReferenceArraySearch(Values|Membership)$'
+make check RUN='^TestReferenceArraySearch(TypesAndFrames|Metadata|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceArraySearch(TypesAndFrames|Metadata|Diagnostics)$'
+make check RUN='^TestReferenceArraySearch(StoredConsumers|AuthorityAndControls)$'
+make check REFERENCE=1 RUN='^TestReferenceArraySearch(StoredConsumers|AuthorityAndControls)$'
+make check RUN='^TestReferenceArraySearch(FilterDiagnostics|NestedViews)$'
+make check REFERENCE=1 RUN='^TestReferenceArraySearch(FilterDiagnostics|NestedViews)$'
+make check RUN='^TestReferenceArraySearchFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceArraySearchFeatureSmoke$'
+```
+
+FeatureSmoke expects negative-bound position/positions/removal/replacement,
+duplicate containment and flattened multidimensional overlap, NULL/empty
+metadata, exact rank/NULL-start diagnostics, same-held-statement recovery and
+stored/native-control round trips. Component proof supplements public scenarios:
+`make check RUN='^TestArraySearch(Values|Demand|Immutability|Cancellation|Parser|ViewCoercions)$'`.
+Ordinary array comparison/order/hash, adjacent array functions, new element
+codecs/equality providers and unsupported collation backends remain excluded.
+
 ### Scalar list and array comparisons
 
 The shared `TestReferenceArrayCompare*` scenarios cover §9.25 scalar
@@ -230,7 +296,7 @@ The shared `TestReferenceArrayCompare*` scenarios cover §9.25 scalar
 expression. Independently specified rows/types/full diagnostics cover NULL,
 empty arrays, comparable scalar elements, direct and prepared routes, metadata,
 held frames and recovery. There is no backend discovery filter. Ordinary
-array-to-array comparison/order and new §9.19 functions/operators remain excluded.
+array-to-array comparison/order and other §9.19 functions/operators remain excluded.
 Array forms require both a scalar comparator and an existing concrete associated
 array/codec. MONEY/INET/CIDR scalar-list positives retain their explicit native
 array-element capability failures; catalog association alone is not execution.

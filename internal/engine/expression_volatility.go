@@ -116,6 +116,12 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return session(children(n.args...), n.plan.SessionDependent())
 	case timeZoneExpression:
 		return merge(children(n.value, n.zone), n.intrinsicVolatility())
+	case arraySearchExpression:
+		v := children(n.args...)
+		if n.plan.SessionDependent() {
+			v = merge(v, Stable)
+		}
+		return v
 	case enumFunctionExpression:
 		return merge(children(n.args...), Stable)
 	case mathExpression:

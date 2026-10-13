@@ -212,6 +212,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		if err == nil {
 			err = child(n.otherwise)
 		}
+	case arraySearchExpression:
+		out.WriteString("ArraySearch " + n.plan.Name() + " namespace " + n.namespace)
+		err = args(n.args)
 	case enumFunctionExpression:
 		out.WriteString("Enum " + n.plan.Name())
 		err = args(n.args)

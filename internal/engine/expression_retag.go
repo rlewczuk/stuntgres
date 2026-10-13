@@ -615,6 +615,21 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.plan, err = sqltype.BindString(n.plan.Name(), info.usage, text, usages[:len(n.args)], n.textual, n.plan.CollationIndeterminate())
 		n.expressionInfo = info
 		rebound = n
+	case arraySearchExpression:
+		ref, conflict := n.plan.InputCollation()
+		ref = comparisonCollation(ref)
+		n.args = children(n.args)
+		array, integer := retainedType(n.plan.Array()), retainedType(n.plan.Integer())
+		changed = changed || array != n.plan.Array() || integer != n.plan.Integer()
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, err = sqltype.BindArraySearch(n.plan.Name(), array, info.usage.Type, integer, ref, conflict)
+		n.expressionInfo = info
+		rebound = n
 	case enumFunctionExpression:
 		n.args = children(n.args)
 		if err != nil {

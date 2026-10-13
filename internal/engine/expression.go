@@ -1018,6 +1018,15 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
+	case arraySearchExpression:
+		next, changed, err := mapArraySearchChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
+		return folded, changed || replaced, err
 	case enumFunctionExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
@@ -2183,6 +2192,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindLike(r)
 			} else if len(r.Args) == 2 && len(r.Name.Parts) > 0 && posixName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindPosix(r)
+			} else if len(r.Name.Parts) > 0 && arrayMembershipName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+				node, err = b.bindArrayMembership(r)
 			} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindBitwise(r)
 			} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {

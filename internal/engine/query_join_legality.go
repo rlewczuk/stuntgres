@@ -638,6 +638,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args[:]
 	case stringExpression:
 		children = e.args
+	case arraySearchExpression:
+		children = e.args
 	case enumFunctionExpression:
 		children = e.args
 	case mathExpression:

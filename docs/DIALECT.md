@@ -156,6 +156,21 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   scalar stored consumers and query key views retain symbolic calls on replay.
   Adjacent operators/functions/constructors, generic JSON equality and SQL/JSON
   execution remain excluded.
+- Selected §9.19 functions `array_position`, `array_positions`, `array_remove`,
+  `array_replace` and operators `@>`, `<@`, `&&` consume existing array codecs
+  and leaf equality providers. Functions are NULL-aware; membership is strict
+  for whole arrays and does not match NULL elements. Search/removal require
+  one dimension; replacement/membership accept multiple dimensions. Membership
+  ignores bounds, shape, order and duplicate multiplicity. Function arguments
+  select a common compatible leaf; operators require the same actual array type
+  after outer-domain unwrapping. JSON has no equality provider: fast paths can
+  avoid that demand, but non-NULL membership demands equality even for empties.
+  An element that is itself array-valued through a domain retains the native
+  `0A000: unsupported array element type` boundary at reached equality demand;
+  PostgreSQL supports that equality, but native ordinary array comparison is
+  excluded. Earlier NULL/empty function fast paths remain available.
+  Other array operators/functions, ordinary array equality/order/hash, custom
+  overloads and new element providers remain excluded.
 - General array operators/functions and NAME-array comparison/order remain
   bounded. Aggregate DISTINCT/order on arrays and private `pg_node_tree`, and
   NAME-array/private-tree extrema, retain native capability exclusions.

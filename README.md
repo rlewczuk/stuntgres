@@ -92,6 +92,22 @@ Dual-mode `TestReferenceServer*` definitions use real subprocesses, actual psql
 and sqlmw-wrapped pq alongside pinned PostgreSQL18.0; see
 [server verification](reference/sessions/README.md#phase-1-server-selected-proof).
 
+Change note: the selected §9.19 array functions `array_position`,
+`array_positions`, `array_remove`, `array_replace` and membership operators
+`@>`, `<@`, `&&` reuse the existing typed array and leaf equality providers.
+Search/removal/replacement match NULL elements; membership never matches them.
+Position uses actual subscripts and an inclusive optional start. Search/removal
+require one dimension, while replacement/membership accept rectangular arrays;
+containment ignores dimensions, ordering and duplicate multiplicity.
+Direct/prepared/held and supported stored-expression routes preserve metadata,
+all-child privileges and demand-driven provider/collation errors. This does not
+enable general array comparison/order, other §9.19 functions or new leaf providers.
+Array-valued domain elements retain an explicit native `0A000` boundary when
+equality is demanded; earlier NULL/empty/search fast paths are preserved.
+See [array search testing](reference/binary_json_arrays/README.md#array-search-and-membership).
+Feature smoke: `make check RUN='^TestReferenceArraySearchFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceArraySearchFeatureSmoke$'`.
+
 Change note: scalar `IN`/`NOT IN` lists and scalar comparison operators with
 array-valued `ANY`/`SOME`/`ALL` use the existing typed comparison and array
 providers; array forms require an executable associated array/codec, not just a

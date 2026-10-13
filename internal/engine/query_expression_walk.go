@@ -153,6 +153,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args[:])
 	case numericFormattingExpression:
 		args(e.args[:])
+	case arraySearchExpression:
+		args(e.args)
 	case enumFunctionExpression:
 		args(e.args)
 	case mathExpression:

@@ -581,6 +581,16 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		expression = e
+	case arraySearchExpression:
+		var did bool
+		e, did, err = mapArraySearchChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, old, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || did
+		expression = e
 	case enumFunctionExpression:
 		var args []BoundExpr
 		for i, old := range e.args {
@@ -1012,6 +1022,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		if e.plan.Name() == "string_to_table" {
 			return false
 		}
+		for _, arg := range e.args {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case arraySearchExpression:
 		for _, arg := range e.args {
 			if !literal(arg) {
 				return false

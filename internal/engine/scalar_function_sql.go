@@ -162,6 +162,21 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return n.specialSQL(parts)
 		}
 		return "pg_catalog." + n.plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
+	case arraySearchExpression:
+		if len(n.args) < 2 || len(n.args) > 3 {
+			return "", fmt.Errorf("stuntgres: invalid stored array search arity")
+		}
+		ref, conflict := n.plan.InputCollation()
+		plan, err := sqltype.BindArraySearch(n.plan.Name(), n.args[0].ResultUsage().Type, u.Type, n.plan.Integer(), ref, conflict)
+		if err != nil || plan != n.plan {
+			return "", fmt.Errorf("stuntgres: invalid stored array search provider")
+		}
+		return n.sql(func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+			if namespace != "" {
+				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
+			}
+			return name
+		})
 	case enumFunctionExpression:
 		if len(n.args) < 1 || len(n.args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored enum arity")

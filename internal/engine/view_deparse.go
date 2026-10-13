@@ -596,7 +596,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 	}
 	operand := func(expr parser.Expr, parent pgRenderParent) (string, error) {
-		return v.expressionSQLAt(ctx, catalog, expr, path, ordinal, parent)
+		childPath := path
+		childPath.argument = 0
+		return v.expressionSQLAt(ctx, catalog, expr, childPath, ordinal, parent)
 	}
 	child := func(expr parser.Expr) (string, error) { return operand(expr, pgRenderParent{}) }
 	args := func(expressions []parser.Expr) (string, error) {
@@ -611,6 +613,37 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 		}
 		return strings.Join(parts, ", "), nil
+	}
+	selectedOperand := func(index int, expr parser.Expr, parent pgRenderParent) (string, error) {
+		text, err := operand(expr, parent)
+		if err != nil {
+			return "", err
+		}
+		key := path
+		key.argument = index + 1
+		usage, captured := v.castUsages[key]
+		if !captured {
+			return text, nil
+		}
+		if v.presentation.deparse {
+			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty, output: v.presentation.output}
+			simple := false
+			switch expr.(type) {
+			case parser.ColumnExpr, parser.LiteralExpr, parser.TypedLiteralExpr:
+				simple = true
+			case parser.CastExpr:
+				simple = v.presentation.pretty && parent.functionArgument
+			case parser.FunctionExpr:
+				call := expr.(parser.FunctionExpr)
+				simple = len(call.Name.Parts) != 0 && parser.ArraySearchFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text)
+			}
+			return r.cast(text, usage, simple)
+		}
+		declaration, err := catalogTypeDeclaration(catalog, usage)
+		if err != nil {
+			return "", err
+		}
+		return "CAST(" + text + " AS " + declaration + ")", nil
 	}
 	switch e := raw.(type) {
 	case parser.GroupingExpr:
@@ -829,7 +862,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			simpleSleepCall := false
 			if call, ok := e.Child.(parser.FunctionExpr); ok {
 				name := call.Name.Parts[len(call.Name.Parts)-1].Text
-				simpleSleepCall = name == "pg_sleep" || name == "pg_sleep_for" || name == "pg_sleep_until"
+				simpleSleepCall = name == "pg_sleep" || name == "pg_sleep_for" || name == "pg_sleep_until" || parser.ArraySearchFunctionName(name)
 			}
 			return r.cast(text, usage, simpleColumn || simpleLiteral || simpleSleepCall || v.presentation.pretty && parent.functionArgument && nestedCast)
 		}
@@ -870,7 +903,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			leftParent = pgRenderParent{precedence: 5}
 		}
 		leftParent.unary = len(e.Args) == 1
-		left, err := operand(e.Args[0], leftParent)
+		operatorOperand := func(index int, parent pgRenderParent) (string, error) {
+			if arrayMembershipName(spelling) {
+				return selectedOperand(index, e.Args[index], parent)
+			}
+			return operand(e.Args[index], parent)
+		}
+		left, err := operatorOperand(0, leftParent)
 		if err != nil {
 			return "", err
 		}
@@ -883,7 +922,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		rightParent := leftParent
 		rightParent.right = true
-		right, err := operand(e.Args[1], rightParent)
+		right, err := operatorOperand(1, rightParent)
 		if err != nil {
 			return "", err
 		}
@@ -1054,6 +1093,21 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return fields[0], nil
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if parser.ArraySearchFunctionName(name) {
+			parts := make([]string, len(e.Args))
+			for i, arg := range e.Args {
+				text, err := selectedOperand(i, arg, pgRenderParent{functionArgument: true})
+				if err != nil {
+					return "", err
+				}
+				parts[i] = text
+			}
+			functionName := "pg_catalog." + name
+			if v.presentation.deparse {
+				functionName = v.presentation.identifier(name)
+			}
+			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
+		}
 		if e.Syntax == parser.SimilarEscapeFunctionSyntax {
 			if len(e.Args) < 1 || len(e.Args) > 2 {
 				return "", fmt.Errorf("stuntgres: invalid stored SIMILAR normalizer arity")
