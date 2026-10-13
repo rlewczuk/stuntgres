@@ -121,6 +121,26 @@ array syntax uses the same two nonvariadic signatures, not argument expansion.
 SQL/JSON object syntax, JSONB constructors and builtin catalog enumeration remain
 outside this feature.
 
+`json_array_length(json)` and `jsonb_array_length(jsonb)` count top-level array
+elements and return INT4 (native ScanType and raw integer cells are int64).
+Empty arrays return zero; nested containers and JSON null each count as one
+element. SQL NULL returns a typed INT4 NULL. Object roots produce `22023`
+`cannot get array length of a non-array`; scalar roots, including JSON null,
+produce `22023` `cannot get array length of a scalar`, with no error Position.
+Unknown strings/NULL/parameters infer the function's own input family; typed
+TEXT, integers, arrays and the opposite JSON family do not implicitly match.
+Explicit JSON/JSONB casts and own-family domains use existing coercion.
+JSON counting scans validated retained text without decoding or conversion;
+JSONB reads its immutable root array size. Both honor cancellation.
+
+Demand boundary: on the first held `SELECT json_array_length($1) AS n WHERE
+FALSE` (or JSONB counterpart) with `{}`, pinned PostgreSQL folds its bound
+immutable call and raises the non-array `22023`. Native retains runtime-owned
+parameters and returns zero rows with INT4 metadata instead. Native does not
+implement PostgreSQL custom/generic optimizer-plan switching. This does not
+change demanded held-call errors, constant wrong-root preflight errors, or
+filtered column no-demand behavior.
+
 Range and multirange datums own canonical endpoints/members and subtype
 descriptors from their generation. Native exports string with no Length or
 DecimalSize, despite numeric subtypes. Nil/typed-nil bytes are NULL; nonnil empty

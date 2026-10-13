@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// BinaryPlan implements the selected raw-octet and text conversion signatures.
+// BinaryPlan implements selected octet, text conversion and JSON signatures.
 type BinaryPlan struct {
 	name   string
 	args   [4]Usage
@@ -25,6 +25,10 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		if arity < 1 || arity > 2 {
 			return p, fmt.Errorf("invalid JSON object arity")
 		}
+	case "json_array_length":
+		ids, arity, id = [4]ID{JSON}, 1, Int4
+	case "jsonb_array_length":
+		ids, arity, id = [4]ID{JSONB}, 1, Int4
 	case "length", "octet_length", "bit_length":
 		arity, id = 1, Int4
 	case "crc32", "crc32c":
@@ -134,6 +138,26 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	switch p.name {
 	case "json_object":
 		return p.jsonObject(ctx, values)
+	case "json_array_length":
+		count, err := jsonArrayLength(ctx, a.text)
+		if err != nil {
+			return Value{}, err
+		}
+		return Integer(p.result.Type, count)
+	case "jsonb_array_length":
+		if a.jsonb == nil {
+			return Value{}, fmt.Errorf("invalid JSONB payload")
+		}
+		switch a.jsonb.root.kind {
+		case jsonbObject:
+			return Value{}, failure("22023", "cannot get array length of a non-array")
+		case jsonbArray:
+			return Integer(p.result.Type, int64(len(a.jsonb.root.items)))
+		case jsonbNull, jsonbString, jsonbNumber, jsonbBoolean:
+			return Value{}, failure("22023", "cannot get array length of a scalar")
+		default:
+			return Value{}, fmt.Errorf("invalid JSONB root kind")
+		}
 	case "bit_count":
 		var count int64
 		for i := range len(a.text) {

@@ -6,6 +6,61 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSON array length
+
+`TestReferenceJSONArrayLength` covers exactly `json_array_length(json)` and
+`jsonb_array_length(jsonb)`: INTEGER top-level counts, strict SQL NULL, JSON null
+as a scalar error, own-family inference/domains and explicit cross-family casts.
+Wrong object roots assert complete `22023` non-array diagnostics; other roots
+assert scalar diagnostics, including absent Position. Invalid signatures/input,
+character positions and source-column/schema authorization remain exact.
+
+Direct/prepared/held routes independently assert INT4 metadata, raw int64 cells,
+specialized Scan, parameter recovery and constant/bound-parameter versus column
+demand. Stored consumers include default/generated/CHECK/view definitions, both
+JSON and JSONB length expression indexes, grouping/aggregates and returning
+writes. Late failures preserve the original rows. Cancellation observes actual
+stored-JSON provider/server admission, joins the worker and proves SAME-owner
+held read/write recovery; it does not substitute pg_sleep or timing sleeps.
+
+Explicit native demand boundary: the first held `SELECT f($1) AS n WHERE FALSE`
+with `{}` raises PostgreSQL's complete non-array `22023` (ERROR/ERROR, no optional
+fields), while native returns zero rows and checks the complete `n`/INT4 metadata.
+Both functions execute the same held SQL route with independent backend
+expectations; neither route is skipped and no parity suppression is used.
+PostgreSQL folds the bound immutable call in its custom plan; native parameters
+remain runtime-owned under the existing [optimizer boundary](../../docs/DIALECT.md).
+This does not broaden native custom/generic planning or special-case function
+timing. Demanded held errors, constant wrong-root `WHERE FALSE` errors and
+filtered column no-demand outcomes retain their shared contracts.
+
+Native-only phases exercise actual Dump/Reset/Restore, retained integer cursors,
+failed-Restore atomicity and nested-parameter rejection. In real mode, emitted
+native dump SQL is replayed on PostgreSQL and independently checked; PostgreSQL
+has no simulated native control API. Calls remain symbolic in stored definitions.
+These tests do not imply adjacent JSON operators, extraction, constructors or
+scalar-function FROM support.
+
+Run the completed shared family in both modes under external 900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceJSONArrayLength(Values|Diagnostics|Typing|Parameters|Metadata|ACL|Consumers|Controls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONArrayLength(Values|Diagnostics|Typing|Parameters|Metadata|ACL|Consumers|Controls|Cancellation|FeatureSmoke)$' REFERENCE=1
+```
+
+Feature smoke:
+
+```sh
+make check RUN='^TestReferenceJSONArrayLengthFeatureSmoke$'
+make check RUN='^TestReferenceJSONArrayLengthFeatureSmoke$' REFERENCE=1
+```
+
+Smoke expects literal counts0/5, held []/NULL/object/malformed/recovery frames,
+typed projection/predicate/default/generated/view rows, late-write22023 with
+unchanged sentinels, and native replacement plus actual emitted-SQL replay.
+Whole-project Docker-free verification remains `make quickcheck`.
+
+
 ### JSON text-array object construction
 
 The `TestReferenceJSONObject` families cover exactly the one- and two-text-array

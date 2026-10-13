@@ -252,7 +252,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			return quote(text), nil
 		}
 		return quote(text) + "::" + typ, nil
-	case sqltype.Inet, sqltype.Cidr, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
+	case sqltype.Inet, sqltype.Cidr, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.JSON, sqltype.JSONB, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
 		return quote(text) + "::" + typ, nil
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse constant type %d", u.Type.ID())

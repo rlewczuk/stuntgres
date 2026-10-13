@@ -105,6 +105,20 @@ See [selected array comparison proof](reference/binary_json_arrays/README.md#sca
 Feature smoke: `make check RUN='^TestReferenceArrayCompareFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceArrayCompareFeatureSmoke$'`.
 
+Change note: `json_array_length(json)` and `jsonb_array_length(jsonb)` return
+the top-level array element count as INTEGER. Nested arrays/objects count as
+one element, JSON null elements count, and SQL NULL inputs produce SQL NULL.
+Object roots fail with `22023` / `cannot get array length of a non-array`;
+other non-array roots fail with `22023` / `cannot get array length of a scalar`,
+without an invented SQL error position. Each function accepts its own typed JSON
+family or contextually inferred input; the opposite family requires an explicit
+cast. Projection, predicates, aggregate consumers and stored default/generated/
+CHECK/view/expression-index definitions reuse the ordinary expression pipeline.
+Native Dump/Reset/Restore preserves symbolic calls and retained integer cursors.
+This does not add extraction, operators, constructors or scalar-function FROM.
+Feature smoke: `make check RUN='^TestReferenceJSONArrayLengthFeatureSmoke$'`
+and `make check RUN='^TestReferenceJSONArrayLengthFeatureSmoke$' REFERENCE=1`.
+
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,
 `RESTRICT`/`CASCADE` and unchanged `CONTINUE IDENTITY` state. It uses exact

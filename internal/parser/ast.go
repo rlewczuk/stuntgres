@@ -1319,7 +1319,7 @@ func singletonArgument(expr Expr) bool {
 			case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
-				if !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !jsonArrayLengthFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}

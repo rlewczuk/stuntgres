@@ -846,6 +846,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && enumFunctionName(token.lexeme.text) {
 		token.code = SELECTED_FUNC
 	}
+	if token.code == IDENT && jsonArrayLengthFunction(token.lexeme.text) {
+		token.code = SELECTED_FUNC
+	}
 	if token.lexeme.text == "lateral" && token.lexeme.keyword != nil {
 		token.code = LATERAL
 	}
@@ -1456,6 +1459,9 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // Selected string/raw-octet calls and LIKE escape normalization use the existing
 // scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
+	if jsonArrayLengthFunction(name) {
+		return true
+	}
 	switch name {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object":
 		return true
@@ -1517,6 +1523,11 @@ func binaryHashFunction(name string) bool {
 			strings.EqualFold(name, "sha256") || strings.EqualFold(name, "sha384") || strings.EqualFold(name, "sha512")
 	}
 	return false
+}
+
+// Admission preserves quoted spelling; resolution remains exact.
+func jsonArrayLengthFunction(name string) bool {
+	return strings.EqualFold(name, "json_array_length") || strings.EqualFold(name, "jsonb_array_length")
 }
 
 func binaryAccessFunction(name string) bool {
