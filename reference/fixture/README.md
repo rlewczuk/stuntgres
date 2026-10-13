@@ -67,3 +67,23 @@ verification or post-merge `make finalcheck`. Use `RACE=1` on a selected
 `make check` command for bounded race proof, and `REFERENCE=1 RACE=1` for the
 same definitions against pinned PostgreSQL. Reduced engine retention is an
 ownership correction, not evidence of a measured performance improvement.
+
+### Regtype displacement schema teardown
+
+`RegtypeDisplacementScenario` registers `SchemaReferenceCleanup` before creating
+its scenario. PostgreSQL schema teardown runs after borrowed handles and pools
+close, under the existing independent 15-second cleanup context. Native catalogs
+are fixture-isolated and need no cross-case SQL teardown. Cleanup never borrows
+the scenario's 30-second work context, including after foreign replay.
+
+Run each affected selector in quick mode and with `REFERENCE=1`, using an
+external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Collisions|Atomicity)?$'
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|Executable)$'
+make check RUN='^TestReferenceRegtypeArrayDisplacement(MixedReplay|NamedDomainReplay)$'
+make check RUN='^TestReferencePartialIndexTypeGeneration$'
+```
+
+Selected proof does not replace `make quickcheck` or post-merge `make finalcheck`.

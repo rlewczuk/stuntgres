@@ -12,16 +12,12 @@ import (
 // https://github.com/postgres/postgres/blob/REL_18_0/src/backend/catalog/pg_type.c
 func RegtypeDisplacementScenario(t *testing.T, body func(*testing.T, *Pair, Backend, *sql.Conn, *Recorder)) {
 	t.Helper()
+	SchemaReferenceCleanup(t, "regtype_displacement")
 	p := NewScenario(t)
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
 			var notices []Diagnostic
 			_, conn, recorder := NoticeReferencePool(t, p, backend.PG, &notices)
-			t.Cleanup(func() {
-				if _, err := backend.DB.ExecContext(p.Ctx, "DROP SCHEMA IF EXISTS regtype_displacement CASCADE"); err != nil {
-					t.Error(err)
-				}
-			})
 			for _, q := range []string{"CREATE SCHEMA regtype_displacement", "SET search_path TO regtype_displacement,public"} {
 				RunStep(t, p.Ctx, conn, recorder, Exec(q, 0))
 			}
