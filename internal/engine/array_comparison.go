@@ -144,6 +144,16 @@ func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, r
 		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
 	}
 	wantLeft, wantRight := b.comparisonCoercionTypes(lt, rt)
+	// ACL has an equality provider, not the total-order provider probed below.
+	// Resolve unsupported scalar operators before converting contextual text.
+	if wantLeft == wantRight && wantLeft.ContainsACLItem() {
+		scalar := wantLeft.ID() == sqltype.ACLItem
+		array := wantLeft.IsArray() && wantLeft.Element().BaseType().ID() == sqltype.ACLItem
+		if scalar && raw.Name.Parts[len(raw.Name.Parts)-1].Text != "=" || !scalar && !array {
+			return nil, nil, b.comparisonError(sqlError("42883", "operator does not exist"), originalLeft, originalRight, raw)
+		}
+		return lt, rt, nil
+	}
 	if err := sqltype.CheckComparisonOperator(operator, wantLeft, wantRight); err != nil {
 		return nil, nil, b.comparisonError(err, originalLeft, originalRight, raw)
 	}

@@ -176,7 +176,8 @@ type catalogState struct {
 	dumpPriorities map[ObjectAddress]OID
 	// Replacement-candidate-only translation, cleared before publication.
 	// Keys are exact source codecs, never numeric identity coincidences.
-	enumImports map[*sqltype.Descriptor]*sqltype.Descriptor
+	enumImports   map[*sqltype.Descriptor]*sqltype.Descriptor
+	aclItemImport func(sqltype.Value) (sqltype.Value, error)
 }
 type CatalogRead struct {
 	owner *Engine
@@ -422,7 +423,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		var dependencies []ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{provenance: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
+		_, err := (scalarRenderer{validation: true, provenance: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
 		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
@@ -459,7 +460,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		var dependencies []ObjectRef
 		catalogSnapshot := false
-		_, err := (scalarRenderer{owner: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
+		_, err := (scalarRenderer{validation: true, owner: r, capturedManifest: definition.dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
 		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot {
 			return fmt.Errorf("stuntgres: invalid column generation expression")
 		}
@@ -1709,6 +1710,8 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if e.commitSeq == CommitSeq(^uint64(0)) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 	}
+	replacement.state.aclItemImport = e.aclItemImporter(replacement.owner, sourceRoles, targetRoles, replacement.owner.importTargets)
+	defer func() { replacement.state.aclItemImport = nil }()
 	next, err = e.remapPreparedCatalog(replacement.state, sourceRoles, targetRoles, replacement.owner.importTargets)
 	if err != nil {
 		return ChangeSet{}, err
@@ -1731,6 +1734,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			}
 		}
 	}
+	next.aclItemImport = nil
 	if err := e.installForeignCatalogLocked(ctx, next, storage, sequences, nextRevision); err != nil {
 		return ChangeSet{}, err
 	}

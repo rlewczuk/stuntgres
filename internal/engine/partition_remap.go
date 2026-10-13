@@ -74,7 +74,7 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 				if datum.kind != 0 {
 					continue
 				}
-				value, err := reownDomainDatum(datum.value, typ(datum.value.Type()), collation, view.state.enumImports)
+				value, err := reownDomainDatum(datum.value, typ(datum.value.Type()), collation, view.state.enumImports, view.state.aclItemImport)
 				if err != nil {
 					return nil, err
 				}

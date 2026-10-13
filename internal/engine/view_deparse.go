@@ -852,6 +852,14 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				return text, nil
 			}
 		}
+		if usage.Type.ContainsACLItem() {
+			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage &&
+				(v.presentation.deparse || !literal.value.IsNull() || usage.Type.IsArray() || usage.Type.IsDomain() || usage.Type.IsComposite()) {
+				// Public typed constants already own their annotation, including
+				// NULL. Replay scalar NULL is untyped and retains its source cast.
+				return text, nil
+			}
+		}
 		if v.presentation.deparse {
 			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty, output: v.presentation.output}
 			_, simpleColumn := e.Child.(parser.ColumnExpr)
@@ -997,7 +1005,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				text = "DISTINCT " + text
 			}
 		}
-		if e.JSON!=nil {text+=jsonAggregateFormatSQL(e.JSON.Input)}
+		if e.JSON != nil {
+			text += jsonAggregateFormatSQL(e.JSON.Input)
+		}
 		if len(e.Order) > 0 {
 			text += " ORDER BY "
 			for i, key := range e.Order {
@@ -1021,16 +1031,24 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				}
 			}
 		}
-		if e.JSON!=nil {
-			if e.JSON.NullPos.Character>0 {
-				if e.JSON.Absent {text+=" ABSENT ON NULL"} else {text+=" NULL ON NULL"}
+		if e.JSON != nil {
+			if e.JSON.NullPos.Character > 0 {
+				if e.JSON.Absent {
+					text += " ABSENT ON NULL"
+				} else {
+					text += " NULL ON NULL"
+				}
 			}
-			if e.JSON.Returning!=nil {
-				usage,ok:=v.castUsages[path]
-				if !ok {return "",fmt.Errorf("stuntgres: missing SQL/JSON returning usage")}
-				declaration,err:=catalogTypeDeclaration(catalog,usage)
-				if err!=nil {return "",err}
-				text+=" RETURNING "+declaration+jsonAggregateFormatSQL(e.JSON.Output)
+			if e.JSON.Returning != nil {
+				usage, ok := v.castUsages[path]
+				if !ok {
+					return "", fmt.Errorf("stuntgres: missing SQL/JSON returning usage")
+				}
+				declaration, err := catalogTypeDeclaration(catalog, usage)
+				if err != nil {
+					return "", err
+				}
+				text += " RETURNING " + declaration + jsonAggregateFormatSQL(e.JSON.Output)
 			}
 		}
 		text = name + "(" + text + ")"

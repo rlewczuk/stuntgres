@@ -1273,6 +1273,8 @@ type finalRows struct {
 	regclassOutput    map[string]string
 	regtypeOutput     map[uint32]string
 	regprocOutput     map[uint32]string
+	aclAuthority      *sqltype.ACLAuthority
+	aclitemOutput     map[uint32]string
 	anonymous         [][]sqltype.Value
 	count, position   int
 	terminal          error
@@ -1318,6 +1320,8 @@ func (r *finalRows) release() {
 	r.regclassOutput = nil
 	r.regtypeOutput = nil
 	r.regprocOutput = nil
+	r.aclitemOutput = nil
+	r.aclAuthority = nil
 }
 func (r *finalRows) fail(err error) (bool, error) {
 	r.terminal = err

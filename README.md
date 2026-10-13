@@ -292,6 +292,21 @@ outside this scalar feature. See [network types](https://www.postgresql.org/docs
 Feature smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$'`.
 
+Change note: `aclitem` and `aclitem[]` now use checked typed storage, ordinary
+direct/prepared textual binds and captured canonical string results. PUBLIC,
+SQL NULL, zero rights and grant options remain distinct data. All fifteen
+PostgreSQL18 privilege letters are preserved; stars apply to the preceding
+letter (`wr**` becomes `r*w`). Missing grantors default to bootstrap identity10
+with PostgreSQL warnings. Scalar comparison supplies only equality; ACL-array
+equality/inequality retain bounds, dimensions and NULL elements without adding
+ordering or scalar binary I/O. Prepared literals retain role identity, while
+returned rows retain captured spelling through replacement. Native Dump/Restore
+remaps live grantee/grantor names into preexisting target roles; stale identities
+reject Dump before writer I/O rather than being retargeted.
+See [ACL item transport and limits](docs/TYPES.md#acl-items).
+Feature smoke: `make check RUN='^TestReferenceACLItemSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceACLItemSmoke$'`.
+
 Change note: all sixteen PostgreSQL18 predefined role identities are seeded.
 Live INHERIT membership supplies real read/write/schema/sequence capabilities;
 `pg_maintain` uses substantive REINDEX and transaction-owned LOCK exclusion.

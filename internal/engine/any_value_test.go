@@ -17,6 +17,7 @@ func (anyValueUnitTree) StructuralOutput(context.Context) (string, error) {
 
 func TestAnyValueProviderDatums(t *testing.T) {
 	ctx := context.Background()
+	aclAuthority := &sqltype.ACLAuthority{}
 	inputs := map[sqltype.ID][]string{
 		sqltype.Bool: {"false", "true"}, sqltype.Bytea: {`\x`, `\x00ff5c`}, sqltype.Char: {"x", "é"}, sqltype.Name: {"", "MiXeDé"},
 		sqltype.Int2: {"-32768", "32767"}, sqltype.Int4: {"-2147483648", "2147483647"}, sqltype.Int8: {"-9223372036854775808", "9223372036854775807"}, sqltype.Text: {"", "x'y"},
@@ -54,6 +55,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 				var err error
 				if d.Element().ID() == sqltype.Regtype {
 					element, err = sqltype.RegtypeValue(d.Element(), 42)
+				} else if d.Element().ID() == sqltype.ACLItem {
+					element, err = sqltype.ACLItemValue(d.Element(), aclAuthority, 20, 30, sqltype.ACLPrivilegeMask, sqltype.ACLPrivilegeMask)
 				} else {
 					element, err = d.Element().Input(ctx, inputs[d.Element().ID()][0], -1)
 				}
@@ -67,6 +70,14 @@ func TestAnyValueProviderDatums(t *testing.T) {
 				values = append(values, value)
 			} else {
 				switch d.ID() {
+				case sqltype.ACLItem:
+					for _, grantee := range []uint32{0, 20} {
+						value, err := sqltype.ACLItemValue(d, aclAuthority, grantee, 30, sqltype.ACLPrivilegeMask, sqltype.ACLPrivilegeMask)
+						if err != nil {
+							t.Fatal(err)
+						}
+						values = append(values, value)
+					}
 				case sqltype.Regtype:
 					for _, id := range []uint32{0, math.MaxUint32} {
 						value, err := sqltype.RegtypeValue(d, id)

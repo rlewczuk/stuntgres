@@ -79,7 +79,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 					return err
 				}
 				derived := &derivedIndexKey{definition: node, execution: execution, attributes: destination.attributes}
-				if _, err := (scalarRenderer{owner: destination, dependencies: &derived.dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &derived.dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
 				key.derived = derived
@@ -96,7 +96,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				predicate := &indexPredicate{definition: node, execution: execution, attributes: destination.attributes}
 				// The analyzed tree retains external dependencies even when the
 				// execution tree has folded their containing arm away.
-				if _, err := (scalarRenderer{owner: destination, dependencies: &predicate.dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &predicate.dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
 				definition.predicate = predicate

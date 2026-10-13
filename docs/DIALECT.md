@@ -43,8 +43,8 @@ cover 42710. Builtin names fail reserved-prefix validation before duplicate.
 Reset/Restore retain builtin identity metadata; Dump never emits physical creation.
 
 Dump excludes temporary objects, session settings, prepared names, cursors,
-role creation, passwords and membership. Arbitrary explicit ACLs and invalid
-indexes cannot be serialized and are rejected rather than silently discarded.
+role creation, passwords and membership. Arbitrary explicit authorization ACLs
+and invalid indexes cannot be serialized and are rejected rather than silently discarded.
 Restore has a restricted parameter-free replay boundary, not general script
 execution. It does not import temporary objects, transaction controls or shared
 role effects. See [fixture contracts](FIXTURES.md).
@@ -139,6 +139,15 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
 - Domain constraints, inherited domain defaults and domain alteration are
   unavailable. Composite arrays, constrained composite domains, builtin/catalog
   row execution and composite comparison/hash/key providers remain excluded.
+- `aclitem` and `aclitem[]` are ordinary stored values, not authorization grants.
+  Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
+  with shape, lower-bound and NULL-element semantics, but not ordering.
+  ACL binary receive/send, additional catalog ACL columns, GRANT extensions,
+  role-rename SQL and new generic grouping/search/hash providers are not added.
+  Native Dump requires live identities for every emitted ACL datum or definition
+  literal and rejects stale identities before writer I/O. Restore remaps both
+  principals to preexisting target roles; ordinary dropped-identity output and
+  equality remain available. See [ACL transport](TYPES.md#acl-items).
 - Range/multirange storage does not imply general constructors, casts,
   comparison/order/index providers, temporal range storage, range arrays or
   user-defined range creation. Temporal multiranges and multirange arrays remain
@@ -199,8 +208,8 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   `0A000: unsupported array element type` boundary at reached equality demand;
   PostgreSQL supports that equality, but native ordinary array comparison is
   excluded. Earlier NULL/empty function fast paths remain available.
-  Other array operators/functions, ordinary array equality/order/hash, custom
-  overloads and new element providers remain excluded.
+  Other array operators/functions, ordinary equality outside ACL arrays,
+  array ordering/hash, custom overloads and new element providers remain excluded.
 - General array operators/functions and NAME-array comparison/order remain
   bounded. Aggregate DISTINCT/order on arrays and private `pg_node_tree`, and
   NAME-array/private-tree extrema, retain native capability exclusions.
@@ -234,7 +243,8 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   `(1663,pg_default,10,NULL)` and `(1664,pg_global,10,NULL)` for named columns
   `oid,spcname,spcowner,spcoptions` (OID/NAME/OID/TEXT[]). Owner 10 is the canonical
   Engine principal, independent of bootstrap role renaming. `spcacl` is omitted,
-  not misrepresented as TEXT[]: native ACL item carriers are unavailable.
+  not misrepresented as TEXT[]: the additional catalog ACL column/provider is
+  outside the ACL item value scope.
   Supported wire origins retain relation 1213 and attributes 1,2,3,5.
   `pg_tables` presents this shared catalog in `pg_global`; that metadata is not
   a physical storage mechanism.

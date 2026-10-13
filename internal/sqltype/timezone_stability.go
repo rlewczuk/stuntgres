@@ -14,7 +14,7 @@ func (p CoercionPlan) SessionDependent() bool {
 	if p.method == viaIO {
 		// CoerceViaIO invokes both the source output and target input procedure.
 		// array_in and interval_in are STABLE even for immutable TEXT input.
-		return p.source.Type.OutputSessionDependent() || p.target.Type.BaseType().IsArray() || target == Money || target == Regclass || target == Regtype || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
+		return p.source.Type.OutputSessionDependent() || p.target.Type.BaseType().IsArray() || target == ACLItem || target == Money || target == Regclass || target == Regtype || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
 	}
 	return false
 }
@@ -27,7 +27,7 @@ func (d *Descriptor) OutputSessionDependent() bool {
 		return true
 	}
 	switch d.BaseType().ID() {
-	case Money, Regclass, Regtype, Regproc, Date, Timestamp, Timestamptz, Interval, Float4, Float8:
+	case ACLItem, Money, Regclass, Regtype, Regproc, Date, Timestamp, Timestamptz, Interval, Float4, Float8:
 		return true
 	default:
 		return false

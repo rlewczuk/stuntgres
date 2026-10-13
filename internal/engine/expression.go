@@ -245,6 +245,7 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output.Regclass = c.liveScope()
 	output.Regtype = c.liveScope()
 	output.Regproc = c.liveScope()
+	output.ACLItem = c.liveScope()
 	return e.plan.Apply(c.Context, v, c.Input, output)
 }
 func coercionProperties(child BoundExpr, plan sqltype.CoercionPlan) ExprProperties {
@@ -2235,7 +2236,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if err := b.captureTypeDiagnosticInput(policy.expected.Type); err != nil {
 			return nil, err
 		}
-		if policy.expected.Type.ContainsCatalogIdentifier() {
+		if policy.expected.Type.ContainsRegclass() || policy.expected.Type.ContainsRegtype() {
 			if err := b.captureElementInput(); err != nil {
 				return nil, err
 			}
@@ -2363,7 +2364,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
-	if target.Type.ContainsCatalogIdentifier() {
+	if target.Type.ContainsRegclass() || target.Type.ContainsRegtype() {
 		if err := b.captureElementInput(); err != nil {
 			return nil, err
 		}
@@ -2600,7 +2601,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
-	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "55P04" || d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22000" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
+	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "42704" || d.Code == "42622" || d.Code == "55P04" || d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22000" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
 		copy := *d
 		if pos.Character > 0 {
 			copy.Position = strconv.Itoa(pos.Character)
@@ -2676,7 +2677,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		return node.(literalExpression).value, nil
 	}
-	if u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() {
+	if u.Type.ContainsACLItem() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}
@@ -2697,12 +2698,12 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			}
 			return c.value.Retag(u.Type)
 		}
-		if u.Type.ContainsCatalogIdentifier() {
+		if u.Type.ContainsRegclass() || u.Type.ContainsRegtype() {
 			if err := b.captureElementInput(); err != nil {
 				return sqltype.Value{}, err
 			}
 		}
-		value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
+		value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input.LiteralInput(pos.Character))
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && pos.Character > 0 {
 				copy := *diagnostic

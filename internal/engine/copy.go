@@ -297,6 +297,9 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 			return err
 		}
 	}
+	if binder.input.ACLItem != nil {
+		s.input.ACLItem = binder.input.ACLItem
+	}
 	if binder.input.TypeDiagnosticName != nil {
 		s.input.TypeDiagnosticName = binder.input.TypeDiagnosticName
 	}

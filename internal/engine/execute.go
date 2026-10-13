@@ -273,6 +273,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.regtypeInput != nil {
 		scope.input.Regtype = b.regtypeInput
 	}
+	if b.aclitemInput != nil {
+		scope.input.ACLItem = b.aclitemInput
+	}
 	if b.typeDiagnosticName != nil {
 		scope.input.TypeDiagnosticName = b.typeDiagnosticName
 	}
@@ -291,6 +294,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.mu.Unlock()
 				return Result{}, err
 			}
+		}
+		if usage.Type.ContainsACLItem() && scope.input.ACLItem == nil {
+			scope.input.ACLItem = e.captureACLItemInput(auth, op)
 		}
 	}
 	if err := scope.validateQuerySources(b.querySources); err != nil {

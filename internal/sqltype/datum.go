@@ -55,6 +55,8 @@ func SameDatum(a, b Value) bool {
 		return true
 	}
 	switch a.typ.BaseType().id {
+	case ACLItem:
+		return a.aclitem.valid() && b.aclitem.valid() && a.aclitem == b.aclitem
 	case Inet, Cidr:
 		return a.network.valid(a.typ.BaseType().id == Cidr) && b.network.valid(b.typ.BaseType().id == Cidr) && a.network == b.network
 	case Int4Range, Int8Range, NumRange:

@@ -59,6 +59,7 @@ func (e jsonCreateExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	output := c.Output
 	output.Regclass, output.Regtype = c.liveScope(), c.liveScope()
+	output.ACLItem = c.liveScope()
 	return e.plan.Apply(c.Context, scratch[:len(e.args)], e.variadic && e.kind.Builder(), output)
 }
 func (e *jsonCreateExpression) replan() error {

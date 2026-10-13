@@ -69,14 +69,21 @@ func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltyp
 }
 
 func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
-	if b.input.TypeDiagnosticName != nil || !hasEnumInput(typ) {
+	acl := typ.ContainsACLItem() && b.input.ACLItem == nil
+	enum := b.input.TypeDiagnosticName == nil && hasEnumInput(typ)
+	if !acl && !enum {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return err
 	}
-	b.input.TypeDiagnosticName, err = b.engine.captureTypeDiagnosticName(auth)
+	if acl {
+		b.input.ACLItem = b.engine.captureACLItemInput(auth, b.op)
+	}
+	if enum {
+		b.input.TypeDiagnosticName, err = b.engine.captureTypeDiagnosticName(auth)
+	}
 	return err
 }
 

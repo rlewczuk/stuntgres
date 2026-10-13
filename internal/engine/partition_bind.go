@@ -84,7 +84,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 				}
 			}
 			key.derived = &derivedIndexKey{definition: node, execution: planned, attributes: d.attributes}
-			text, err := (scalarRenderer{owner: d, dependencies: &key.derived.dependencies}).sql(op.Context(), auth.catalog, node)
+			text, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &key.derived.dependencies}).sql(op.Context(), auth.catalog, node)
 			if err != nil {
 				return nil, err
 			}

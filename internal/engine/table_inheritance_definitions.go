@@ -83,7 +83,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 					generationConflicts[target] = true
 				}
 				copied := columnGeneration{kind: old.kind, expression: node, planned: planned}
-				if _, err := (scalarRenderer{owner: d, dependencies: &copied.dependencies, commentSnapshot: &copied.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &copied.dependencies, commentSnapshot: &copied.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
 				if d.generations == nil {
@@ -112,7 +112,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			}
 			copied := checkConstraint{Name: old.Name, ordinal: len(d.checkConstraints), expression: node}
 			var dependencies []ObjectRef
-			if _, err := (scalarRenderer{owner: d, dependencies: &dependencies, commentSnapshot: &copied.commentSnapshot, visibilitySnapshot: &copied.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &copied.commentSnapshot, visibilitySnapshot: &copied.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {

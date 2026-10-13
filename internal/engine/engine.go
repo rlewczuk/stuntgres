@@ -45,6 +45,7 @@ type Engine struct {
 	serializable        serializableTracker
 	prepared            map[string]*preparedTransaction
 	authorizationDomain authorization.Domain
+	aclAuthority        sqltype.ACLAuthority
 	roles               *roleCatalog
 	nextPrincipal       uint64
 	importTargets       map[authorization.PrincipalRef]authorization.PrincipalRef
@@ -114,6 +115,7 @@ type binding struct {
 	regclassInput         sqltype.RegclassResolver
 	regtypeConstants      []regtypeConstant
 	regtypeInput          sqltype.RegtypeResolver
+	aclitemInput          sqltype.ACLItemResolver
 	typeDiagnosticName    func(sqltype.ID) string
 	enumMemberSafe        func(sqltype.ID, int64) bool
 }
@@ -861,6 +863,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.regclassInput = binder.input.Regclass
 	b.regtypeConstants = binder.regtypeConstants
 	b.regtypeInput = binder.input.Regtype
+	b.aclitemInput = binder.input.ACLItem
 	b.typeDiagnosticName = binder.input.TypeDiagnosticName
 	b.enumMemberSafe = binder.input.EnumMemberSafe
 	b.viewLiterals = binder.viewLiterals

@@ -68,7 +68,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		binder.defaultTemporary = auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor).temporary
 		definition.expression, err = binder.bindDefault(s.Expression, old.columns[slot])
 		if err == nil {
-			_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(op.Context(), auth.catalog, definition.expression)
+			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(op.Context(), auth.catalog, definition.expression)
 		}
 		if err != nil {
 			// PostgreSQL cooks ALTER defaults without source text. CREATE diagnostics

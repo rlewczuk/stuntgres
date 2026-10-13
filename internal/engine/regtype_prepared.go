@@ -115,7 +115,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 		resolver.qualified = &constant.qualified
 		input.Regtype = resolver
 	}
-	value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, input)
+	value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {
 		return sqltype.Value{}, regtypeInputError(err, pos)
 	}

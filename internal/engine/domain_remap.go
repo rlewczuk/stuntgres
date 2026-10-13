@@ -255,16 +255,23 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
-func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation collationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor) (sqltype.Value, error) {
+func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation collationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
 	if value.Type().BaseType().IsComposite() && target.BaseType().IsComposite() {
 		return value.MapComposite(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
-			return reownDomainDatum(v, t, collation, imports)
+			return reownDomainDatum(v, t, collation, imports, aclImport)
 		})
 	}
 	if value.Type().BaseType().IsArray() && target.BaseType().IsArray() {
 		return value.MapArray(target, func(v sqltype.Value, t *sqltype.Descriptor) (sqltype.Value, error) {
-			return reownDomainDatum(v, t, collation, imports)
+			return reownDomainDatum(v, t, collation, imports, aclImport)
 		})
+	}
+	if aclImport != nil && value.Type().ContainsACLItem() {
+		var err error
+		value, err = aclImport(value)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
 	}
 	if imported := imports[value.Type().BaseType()]; imported != nil {
 		if !target.BaseType().IsEnum() || imported != target.BaseType() {
@@ -304,7 +311,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	physical, err = reownDomainDatum(physical, to.Type, collation, imports)
+	physical, err = reownDomainDatum(physical, to.Type, collation, imports, aclImport)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -376,11 +383,12 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 				rebound := value
 				changed := target != value.Type()
 				var err error
-				if changed {
-					rebound, err = reownDomainDatum(value, target, collation, next.enumImports)
+				if changed || next.aclItemImport != nil && value.Type().ContainsACLItem() {
+					rebound, err = reownDomainDatum(value, target, collation, next.enumImports, next.aclItemImport)
 					if err != nil {
 						return err
 					}
+					changed = changed || rebound != value
 				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegclass() {
 					remapped, er := remapRegclassDatum(rebound, func(id OID) OID {

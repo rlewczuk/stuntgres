@@ -46,6 +46,7 @@ and reports `interface{}` ScanType where native exports strings.
 | BYTEA | Fresh owned `[]byte` |
 | Executable arrays, composites, ranges and multiranges | Canonical `string` |
 | REGCLASS, REGTYPE | Captured symbolic `string` |
+| ACLITEM | Captured canonical `string` |
 
 Numeric I/O never roundtrips through binary float. FLOAT4 input uses its own
 binary32 destination codec; a Go float32 has already been widened by
@@ -85,6 +86,64 @@ buffer cannot alter storage or retained rows. Native BYTEA ScanType is `[]byte`,
 with no Length or DecimalSize. Native empty output is nonnil `[]byte`; pq's
 escape decoder can instead return typed-nil bytes, distinct from NULL's nil
 interface. Metadata remains available after EOF and Close.
+
+## ACL items
+
+`aclitem` (OID 1033) and `aclitem[]` (OID 1034) use ordinary columns,
+destination-owned string/textual-byte/Valuer binds, and retained result
+descriptors. Native nonnull values and ScanType are string; SQL NULL exports
+nil, including typed-nil byte arguments. Length and DecimalSize are unknown.
+PostgreSQL's pq adapter instead exports textual bytes with an interface ScanType.
+
+An item stores engine-owned grantee/grantor identities and separate privilege
+and grant-option masks, not its original text or an authorization grant.
+PUBLIC is the empty grantee (identity zero), distinct from SQL NULL.
+Zero-rights items and PUBLIC grant options are valid data. Canonical privilege
+order is `arwdDxtXUCTcsAm`; each `*` applies to the preceding privilege letter,
+so `wr**` becomes `r*w`, not `rw*`. Duplicate letters/options merge; leading
+stars have no effect. Legacy `user`/`group` prefixes are accepted.
+
+ACL names preserve decoded case, use a 63-byte limit, and follow ACL quoting
+rules rather than SQL identifier folding. Mixed quoted/unquoted segments and
+a final unterminated quoted grantor follow PostgreSQL's input parser.
+Whitespace may surround names, but whitespace/digits/punctuation terminate
+privilege scanning rather than becoming privilege letters. Omitting `/grantor`
+defaults to bootstrap identity 10 and emits WARNING `0L000`; literal warnings
+carry the enclosing character Position, while bind warnings carry parameter
+Context. Bootstrap output uses the current identity's name, not the actor's name.
+
+Scalar SQL comparison supplies only `=`. ACL-array `=` and `<>`/`!=` preserve
+element order, dimensions and lower bounds; matching NULL elements are equal,
+and a whole-array NULL remains strict NULL. Ordering is unavailable. This does
+not admit unrelated array comparison, native grouping/search/hash providers,
+or scalar ACL binary receive/send.
+
+Explicit ACL output casts to sized `varchar`/`char` use character truncation
+semantics, including domain coercions; assignments retain overlength rejection.
+NULL casts preserve typed NULL without resolving output names.
+
+Prepared literals retain resolved identities; fresh textual binds resolve the
+current role. Rename changes new output, DROP retains ordinary decimal-identity
+output, and recreating a name does not adopt the old identity. Returned rows
+retain their captured names and metadata through role and catalog replacement.
+Stored ACL data does not prevent role DROP.
+Structural validation of stored defaults, checks and index expressions checks
+the owning authority without requiring those retained role identities to remain
+live. Actual SQL presentation requires an explicit captured role snapshot;
+structural validation never supplies a fallback for Dump or replay SQL.
+
+Native Dump uses captured live names and does not serialize role DDL. Restore
+requires preexisting target roles and remaps both identities, including nested
+arrays/domains/composites and persisted literals, into the target authority.
+Persisted literal reownership propagates through enclosing expressions even
+when type descriptors are unchanged; it never mutates the source definition.
+View replay preserves one exact owning typed literal cast rather than adding
+another on every Dump/Restore cycle; scalar NULL retains its source type cast.
+Public view deparse emits one exact same-usage typed ACL annotation, including
+NULL, while retaining actual different-usage conversions.
+Dropped ACL identities cannot be losslessly reparsed from decimal output:
+Dump rejects stale rows or definition literals before any writer call, rather
+than adopting a numeric-looking role or creating principals.
 
 ## Textual structured and network transport
 

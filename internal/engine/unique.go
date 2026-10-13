@@ -204,7 +204,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 						return err
 					}
 					derived := &derivedIndexKey{definition: node, execution: execution, attributes: d.attributes}
-					if _, err := (scalarRenderer{owner: d, dependencies: &derived.dependencies}).sql(op.Context(), stage.base, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: e, roles: e.roleRead(stage.base, e.operationRolesLocked(op))}, owner: d, dependencies: &derived.dependencies}).sql(op.Context(), stage.base, node); err != nil {
 						return err
 					}
 					key.derived = derived

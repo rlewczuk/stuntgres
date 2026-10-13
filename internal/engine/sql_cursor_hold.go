@@ -183,6 +183,9 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog Catalog
 		return err
 	}
 	for _, value := range rows.values {
+		if err := captureACLItemOutputValue(rows, capturedACLItemOutput{owner: e, roles: auth.roles}, value); err != nil {
+			return err
+		}
 		if err := captureRegclassOutputValue(rows, catalog, path, value); err != nil {
 			return err
 		}

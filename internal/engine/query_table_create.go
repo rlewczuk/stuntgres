@@ -170,7 +170,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	for _, row := range rows {
 		for i, value := range row {
 			if target := d.columns[i].Usage.Type; target != value.Type() {
-				reowned, err := reownDomainDatum(value, target, nil, nil)
+				reowned, err := reownDomainDatum(value, target, nil, nil, nil)
 				if err != nil {
 					return err
 				}

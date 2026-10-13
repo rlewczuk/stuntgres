@@ -303,7 +303,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	refreshEnumImportDestinations(next)
-	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.enumImports) != 0 {
+	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.enumImports) != 0 || next.aclItemImport != nil {
 		if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
 			return err
 		}

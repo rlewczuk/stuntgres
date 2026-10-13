@@ -36,7 +36,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ObjectRef
-	if _, err = (scalarRenderer{owner: parent, dependencies: &dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
+	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
 		return nil, err
 	}
 	// Match the analyzed catalog shape, not the execution tree after folding.

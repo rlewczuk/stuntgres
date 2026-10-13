@@ -177,7 +177,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 					definition := columnDefault{expression: node}
-					if _, err := (scalarRenderer{provenance: destination, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: destination, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
 					if destination.defaults == nil {
@@ -207,7 +207,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 					definition := columnGeneration{kind: old.kind, expression: node, planned: planned}
-					if _, err := (scalarRenderer{owner: destination, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
 					if destination.generations == nil {
@@ -259,7 +259,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 			}
 			definition := checkConstraint{Name: old.Name, NoInherit: old.NoInherit, ordinal: ordinal, expression: node}
 			var dependencies []ObjectRef
-			if _, err := (scalarRenderer{owner: destination, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {

@@ -84,7 +84,7 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *rel
 			return nil, err
 		}
 		derived := &derivedIndexKey{definition: node, execution: execution, attributes: child.attributes}
-		if _, err = (scalarRenderer{owner: child, dependencies: &derived.dependencies}).sql(ctx, view, node); err != nil {
+		if _, err = (scalarRenderer{validation: true, owner: child, dependencies: &derived.dependencies}).sql(ctx, view, node); err != nil {
 			return nil, err
 		}
 		key.derived = derived
@@ -99,7 +99,7 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *rel
 			return nil, err
 		}
 		predicate := &indexPredicate{definition: node, execution: execution, attributes: child.attributes}
-		if _, err = (scalarRenderer{owner: child, dependencies: &predicate.dependencies}).sql(ctx, view, node); err != nil {
+		if _, err = (scalarRenderer{validation: true, owner: child, dependencies: &predicate.dependencies}).sql(ctx, view, node); err != nil {
 			return nil, err
 		}
 		d.predicate = predicate
@@ -181,10 +181,11 @@ func stagePartitionDescriptor(stage *CatalogStage, d *relationDescriptor) error 
 
 func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *relationDescriptor, allowIncompleteVirtual bool) (*relationDescriptor, error) {
 	view := e.stageRead(stage)
+	ctx := aclItemOutputContext(op.Context(), capturedACLItemOutput{owner: e, roles: e.roleRead(view, e.operationRolesLocked(op))})
 	if stage.base.state.descriptors[parentIndex.address] != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}
-	mapped, err := mapPartitionIndex(op.Context(), view, table, child, parentIndex.sqlIndex)
+	mapped, err := mapPartitionIndex(ctx, view, table, child, parentIndex.sqlIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +222,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		if parentIndex.sqlIndex.constraint != nil && (candidate.sqlIndex.constraint == nil || candidate.sqlIndex.constraint.kind != uniqueBackingKind || candidate.sqlIndex.constraint.Primary != parentIndex.sqlIndex.constraint.Primary) {
 			continue
 		}
-		match, err := partitionIndexEquivalent(op.Context(), view, child, mapped, candidate.sqlIndex)
+		match, err := partitionIndexEquivalent(ctx, view, child, mapped, candidate.sqlIndex)
 		if err != nil {
 			return nil, err
 		}

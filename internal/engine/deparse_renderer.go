@@ -189,6 +189,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if v.Type().ContainsRegtype() {
 		output.Regtype = catalogRegtypeOutput{view: r.view, path: r.path}
 	}
+	if v.Type().ContainsACLItem() && output.ACLItem == nil {
+		output.ACLItem = aclItemContextFormatter(ctx)
+	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {
 		return "", err
@@ -252,7 +255,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			return quote(text), nil
 		}
 		return quote(text) + "::" + typ, nil
-	case sqltype.Inet, sqltype.Cidr, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.JSON, sqltype.JSONB, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
+	case sqltype.ACLItem, sqltype.Inet, sqltype.Cidr, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.JSON, sqltype.JSONB, sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
 		return quote(text) + "::" + typ, nil
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse constant type %d", u.Type.ID())

@@ -11,28 +11,7 @@ import (
 // maps, so principal remapping does not need another catalog clone.
 func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalogState, error) {
 	e.retainDatabaseLocked(state)
-	mapping := make(map[authorization.PrincipalRef]authorization.PrincipalRef)
-	remap := func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
-		if target, ok := mapping[ref]; ok {
-			return target, nil
-		}
-		d, err := source.Descriptor(ref)
-		if err != nil {
-			return authorization.PrincipalRef{}, err
-		}
-		target, ok := targetSnapshot.Lookup(d.Name)
-		if !ok {
-			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
-		}
-		if _, err := (e.roleRead(CatalogRead{e, e.state}, e.roles)).Descriptor(target.Ref); err != nil {
-			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
-		}
-		if expected != nil && expected[ref] != target.Ref {
-			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
-		}
-		mapping[ref] = target.Ref
-		return target.Ref, nil
-	}
+	remap := e.replacementPrincipalMapper(source, targetSnapshot, expected)
 	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {
 		n := authorization.ACLValue{Explicit: a.Explicit, Entries: make([]authorization.ACLEntry, len(a.Entries))}
 		for i, x := range a.Entries {
@@ -203,6 +182,33 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		return nil, err
 	}
 	return state, nil
+}
+
+// Both authorization ACLs and typed ACL data use the same captured name mapping
+// and target-incarnation fences. Each replacement owns its private memoization.
+func (e *Engine) replacementPrincipalMapper(source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(authorization.PrincipalRef) (authorization.PrincipalRef, error) {
+	mapping := make(map[authorization.PrincipalRef]authorization.PrincipalRef)
+	return func(ref authorization.PrincipalRef) (authorization.PrincipalRef, error) {
+		if target, ok := mapping[ref]; ok {
+			return target, nil
+		}
+		d, err := source.Descriptor(ref)
+		if err != nil {
+			return authorization.PrincipalRef{}, err
+		}
+		target, ok := targetSnapshot.Lookup(d.Name)
+		if !ok {
+			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
+		}
+		if _, err := e.roleRead(CatalogRead{e, e.state}, e.roles).Descriptor(target.Ref); err != nil {
+			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
+		}
+		if expected != nil && expected[ref] != target.Ref {
+			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
+		}
+		mapping[ref] = target.Ref
+		return target.Ref, nil
+	}
 }
 
 func (e *Engine) restoreStage() *Engine {

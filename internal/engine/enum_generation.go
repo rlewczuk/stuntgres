@@ -51,7 +51,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 			for attribute, value := range shape.fills {
 				target, _ := next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(value.Type().ID())}].(*typeDescriptor)
 				if target != nil && target.typ != value.Type() {
-					v, err := reownDomainDatum(value, target.typ, nil, nil)
+					v, err := reownDomainDatum(value, target.typ, nil, nil, nil)
 					if err != nil {
 						return err
 					}

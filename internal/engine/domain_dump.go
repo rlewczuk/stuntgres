@@ -181,6 +181,10 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorizat
 }
 
 func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpression) (string, error) {
+	return catalogLiteralWithACL(ctx, view, n, aclItemContextFormatter(ctx))
+}
+
+func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
 	u := n.ResultUsage()
 	if n.value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
@@ -207,7 +211,7 @@ func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpressio
 		}
 		n.usage = u.BaseUsage()
 		n.value = value
-		literal, err := catalogLiteralSQL(ctx, view, n)
+		literal, err := catalogLiteralWithACL(ctx, view, n, aclOutput)
 		if err != nil {
 			return "", err
 		}
@@ -220,13 +224,20 @@ func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpressio
 		}
 		literal := "NULL"
 		if !n.value.IsNull() {
-			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}})
+			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}, ACLItem: aclOutput})
 			if err != nil {
 				return "", err
 			}
 			literal = "'" + strings.ReplaceAll(text, "'", "''") + "'"
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
+	}
+	if u.Type.ID() == sqltype.ACLItem && !n.value.IsNull() {
+		text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{ACLItem: aclOutput})
+		if err != nil {
+			return "", err
+		}
+		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS ACLITEM)", nil
 	}
 	if u.Type.ID() == sqltype.Regtype && !n.value.IsNull() {
 		id, err := n.value.TypeOID()

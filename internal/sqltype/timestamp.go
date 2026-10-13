@@ -29,6 +29,7 @@ type InputEnvironment struct {
 	TimezoneAbbreviations                     TimezoneAbbreviations
 	Regclass                                  RegclassResolver
 	Regtype                                   RegtypeResolver
+	ACLItem                                   ACLItemResolver
 	NumericLocale, MonetaryLocale, TimeLocale Locale
 	// TypeDiagnosticName captures coherent catalog visibility for child input
 	// errors. A nil callback or empty spelling uses immutable descriptor naming.

@@ -100,6 +100,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	catalog := CatalogRead{owner: e, state: e.state}
 	originalCatalog := catalog
 	originalRoles := e.roleRead(originalCatalog, e.roles)
+	aclOutput := capturedACLItemOutput{owner: e, roles: originalRoles, lossless: true}
+	ctx = aclItemOutputContext(ctx, aclOutput)
+	if err := e.preflightACLItemDump(ctx, originalCatalog, aclOutput); err != nil {
+		e.mu.Unlock()
+		return err
+	}
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalog, constraintReplay := partitionConstraintDumpCatalog(catalog)

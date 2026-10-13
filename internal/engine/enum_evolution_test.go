@@ -111,10 +111,10 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	target, _ := sqltype.EnumWithMembers(source.ID(), "mood", "public.mood", []sqltype.EnumMember{{ID: 80, Label: "old", SortOrder: 1}})
 	v, _ := source.Input(ctx, "old", -1)
 	imports := map[*sqltype.Descriptor]*sqltype.Descriptor{source: target}
-	if _, err := reownDomainDatum(v, target, nil, nil); err == nil {
+	if _, err := reownDomainDatum(v, target, nil, nil, nil); err == nil {
 		t.Fatal("ordinary same-ID foreign membership admitted")
 	}
-	mapped, err := reownDomainDatum(v, target, nil, imports)
+	mapped, err := reownDomainDatum(v, target, nil, imports, nil)
 	id, _ := mapped.EnumMemberID()
 	if err != nil || id != 80 {
 		t.Fatal("same-ID import", id, err)
@@ -122,7 +122,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	oldDomain, _ := sqltype.Domain(45001, "d", "public.d", source.Usage())
 	newDomain, _ := sqltype.Domain(oldDomain.ID(), "d", "public.d", target.Usage())
 	wrapped, _ := oldDomain.Wrap(v)
-	mapped, err = reownDomainDatum(wrapped, newDomain, nil, imports)
+	mapped, err = reownDomainDatum(wrapped, newDomain, nil, imports, nil)
 	id, _ = mapped.EnumMemberID()
 	if err != nil || id != 80 || mapped.Type() != newDomain {
 		t.Fatal("domain import", mapped, err)
@@ -130,7 +130,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	oldArray, _ := sqltype.Array(45002, "_mood", source)
 	newArray, _ := sqltype.Array(oldArray.ID(), "_mood", target)
 	array, _ := sqltype.OwnedArrayValue(oldArray, []sqltype.ArrayDimension{{Lower: 1, Length: 1}}, []sqltype.Value{v})
-	mapped, err = reownDomainDatum(array, newArray, nil, imports)
+	mapped, err = reownDomainDatum(array, newArray, nil, imports, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

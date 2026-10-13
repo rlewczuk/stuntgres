@@ -170,7 +170,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 		return columnGeneration{}, err
 	}
 	definition := columnGeneration{kind: kind, expression: analyzed, planned: node}
-	_, err = (scalarRenderer{owner: d, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
+	_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
 	return definition, err
 }
 

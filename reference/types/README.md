@@ -6,6 +6,65 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### ACL item oracle-first selected proof
+
+The ACL definitions share one SQL body across native and pinned PostgreSQL,
+with backend subtests directly beneath each top-level family. Independent
+expectations cover all fifteen privilege letters and grant options, canonical
+quoting, PUBLIC versus NULL, scalar and array storage/binds/raw descriptors,
+equality-only scalar admission, array bounds/shape/NULL equality, complete
+input diagnostics and default-grantor notice phases, and retained role identity
+through DROP/recreate. Native-only control phases check live-role lossless
+Dump/Restore, independently advanced target role identities, atomic staged
+failures, retained rows, ordinary cancellation/I/O failures, and target-role
+replacement fencing. Stale ACL Dump rejects before writer I/O; ordinary stale
+output and equality remain distinct from a numeric-looking live role.
+`Definitions` exercises persisted defaults, checks, views and expression indexes,
+including prepared future writes into an independently advanced restore target.
+`StaleDefinitions` supplies no-row default/view/check/index/derived-partition
+preflight witnesses. `DumpSnapshot` blocks a real writer, changes roles after
+capture, and requires the original coherent dump followed by zero-I/O rejection
+of a later stale snapshot. Native-control branches are explicitly native-only.
+`Casts` covers explicit sized-character conversions, NULL, source/destination
+domains and assignment-length rejection without mutation. `Deparse` pins public
+scalar/NULL view definitions through direct/prepared, pretty/nonpretty and
+literal/bound lookup routes; its SQL expectations require pinned oracle proof.
+
+Completed definitions require selected pinned-oracle and native proof after
+affected edits; selected proof does not replace whole-project `quickcheck`.
+Generic component coverage retains checked ACL scalar/array carriers through
+`any_value` and explicitly rejects ACL ordering rather than assuming every
+concrete scalar is sortable. Grant options follow the preceding letter:
+`wr**` canonicalizes to `r*w`, not `rw*`. Omitted-grantor results use the
+independently specified bootstrap spelling (PostgreSQL fixture `stuntgres`,
+native fixture `postgres`), without changing either backend's role setup.
+Literal default-grantor warnings carry the enclosing literal Position;
+bound-input warnings carry parameter Context instead. With an external
+900-second deadline per command:
+
+```sh
+# Initial oracle-only discovery: /postgres selects immediate backend children.
+make check REFERENCE=1 RUN='^TestReferenceACLItem(Values|Binds|Metadata|Comparison|Diagnostics|Notices|Identity|NativeControls|StaleControls|Definitions|StaleDefinitions|DumpSnapshot|Boundaries|Casts|Deparse|Smoke)/postgres$'
+# The completed definitions must pass both modes after implementation.
+make check RUN='^TestReferenceACLItem(Values|Binds|Metadata|Comparison|Diagnostics|Notices|Identity|NativeControls|StaleControls|Definitions|StaleDefinitions|DumpSnapshot|Boundaries|Casts|Deparse|Smoke)$'
+make check REFERENCE=1 RUN='^TestReferenceACLItem(Values|Binds|Metadata|Comparison|Diagnostics|Notices|Identity|NativeControls|StaleControls|Definitions|StaleDefinitions|DumpSnapshot|Boundaries|Casts|Deparse|Smoke)$'
+make check RACE=1 RUN='^TestACLItem(Identity|Codec|Equality|Constructor|RetainedIdentity|PrincipalRemap|RestoreFence|EqualityAdmission|StaleDump|RenderingAuthority)$'
+make check RUN='^Test(AnyValueProviderDatums|OrderingUsage)$'
+# Review regressions: oracle first, then observed native regression before remedy.
+make check REFERENCE=1 RUN='^TestReferenceACLItem(Casts|Deparse)/postgres$'
+make check RUN='^TestReferenceACLItem(Casts|Deparse)$'
+# Feature smoke, not baseline-only success.
+make check RUN='^TestReferenceACLItemSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceACLItemSmoke$'
+```
+
+Smoke requires scalar/array CREATE, literal and actual prepared bound INSERT,
+canonical ordered values and metadata, scalar option-sensitive equality,
+array equality/inequality, complete unknown-role diagnostics with unchanged
+rows, and native Dump/Reset/Restore with held rows and deterministic redump.
+Success is quiet exit 0 and the ordinary package summary after those assertions.
+
+
 ### Composite expression selected proof
 
 Run each small group in native mode and with `REFERENCE=1`, using an external

@@ -42,6 +42,7 @@ type OutputEnvironment struct {
 	Regclass            RegclassFormatter
 	Regtype             RegtypeFormatter
 	Regproc             RegprocFormatter
+	ACLItem             ACLItemFormatter
 	QuoteAllIdentifiers bool
 	ClientEncoding      string
 	// An unspecified precision retains canonical shortest serialization.

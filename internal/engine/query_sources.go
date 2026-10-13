@@ -179,6 +179,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
 		scope.commentRoles = e.roleRead(scope.commentCatalog, e.operationRolesLocked(scope.op))
 	}
+	scope.output.ACLItem = scope
 	if scope.deparsePath == nil {
 		auth, err := e.authorizationLocked(scope.op)
 		if err != nil {
@@ -195,7 +196,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 
 func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
 	for _, column := range relation.columns {
-		if column.Usage.Type.ContainsRegclass() {
+		if column.Usage.Type.ContainsRegclass() || column.Usage.Type.ContainsACLItem() {
 			if err := e.captureCommentSnapshotLocked(scope); err != nil {
 				return err
 			}

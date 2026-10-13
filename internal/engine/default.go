@@ -102,7 +102,7 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 			continue
 		}
 		definition := columnDefault{expression: node}
-		_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(b.ctx, view, node)
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
@@ -118,6 +118,10 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 // DEFAULT admits closed Immutable/Stable trees, selected UUID generation trees,
 // and fixed nextval leaves with coercion wrappers. CHECK also admits its owner row.
 type scalarRenderer struct {
+	aclOutput sqltype.ACLItemFormatter
+	// Only provider validation may discard identity-only text. Real SQL output
+	// and construction labels require explicit captured role presentation.
+	validation         bool
 	owner              *relationDescriptor
 	dependencies       *[]ObjectRef
 	commentSnapshot    *bool
@@ -459,7 +463,13 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 			return "CAST(NULL AS " + declaration + ")", nil
 		}
-		return catalogLiteralSQL(ctx, view, n)
+		aclOutput := r.aclOutput
+		if r.validation {
+			aclOutput = aclItemValidationOutput{owner: view.owner}
+		} else if aclOutput == nil {
+			aclOutput = aclItemContextFormatter(ctx)
+		}
+		return catalogLiteralWithACL(ctx, view, n, aclOutput)
 	case timeZoneExpression:
 		if n.function {
 			if n.local {

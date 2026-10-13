@@ -237,7 +237,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
-	if target.Type.ContainsCatalogIdentifier() {
+	if target.Type.ContainsRegclass() || target.Type.ContainsRegtype() {
 		if err := b.captureElementInput(); err != nil {
 			return nil, err
 		}

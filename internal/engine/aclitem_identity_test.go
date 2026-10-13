@@ -1,0 +1,168 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func aclUnitRoles(e *Engine, names ...string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	next := cloneRoleFixture(e.roles)
+	for i, name := range names {
+		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.authorizationDomain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
+	}
+	e.roles = next
+	if nextID := uint64(20000 + len(names)); e.nextPrincipal < nextID {
+		e.nextPrincipal = nextID
+	}
+}
+func aclUnitType(t *testing.T, e *Engine, id sqltype.ID) *sqltype.Descriptor {
+	t.Helper()
+	d, ok := e.CatalogRead().LookupType(id)
+	if !ok {
+		t.Fatal("missing type", id)
+	}
+	return d
+}
+func aclUnitValue(t *testing.T, e *Engine, text string) sqltype.Value {
+	t.Helper()
+	d := aclUnitType(t, e, sqltype.ACLItem)
+	v, err := d.InputWithEnvironment(context.Background(), text, -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{roles: e.Roles()}, nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func TestACLItemRetainedIdentity(t *testing.T) {
+	e := New()
+	aclUnitRoles(e, "acl_unit_a", "acl_unit_b")
+	d := aclUnitType(t, e, sqltype.ACLItem)
+	array := aclUnitType(t, e, sqltype.ACLItemArray)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	position := parser.Position{Offset: 7, Character: 8}
+	value, err := b.inputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
+	if err != nil {
+		t.Fatal(err)
+	}
+	arrayValue, err := b.inputConstant("[0:1]={acl_unit_a=rw*/acl_unit_b,NULL}", array.Usage(), parser.Position{Offset: 50, Character: 51})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldRoles := e.Roles()
+	rows := newFinalRows([]ColumnDescriptor{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
+	rows.values = []sqltype.Value{value, arrayValue}
+	defer rows.Close()
+	output := capturedACLItemOutput{owner: e, roles: oldRoles}
+	for _, v := range rows.values {
+		if err := captureACLItemOutputValue(rows, output, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a, _ := oldRoles.Lookup("acl_unit_a")
+	e.mu.Lock()
+	next := cloneRoleFixture(e.roles)
+	a.Name = "acl_unit_renamed"
+	putFixtureRole(next, a)
+	e.roles = next
+	e.mu.Unlock()
+	fresh := capturedACLItemOutput{owner: e, roles: e.Roles()}
+	text, err := d.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: fresh})
+	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
+		t.Fatal("new spelling", text, err)
+	}
+	if original, ok := oldRoles.Lookup("acl_unit_a"); !ok || original.Ref != a.Ref {
+		t.Fatal("rename mutated old role root")
+	}
+	expected := &StatementDescription{temporals: append([]temporalConstant(nil), b.temporals...), catalogOwner: e, catalogEpoch: e.CatalogRead().Epoch()}
+	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	captured, err := reused.inputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
+	if err != nil || !sqltype.SameDatum(value, captured) {
+		t.Fatal("prepared literal re-resolved old spelling", err)
+	}
+	text, err = d.OutputWithEnvironment(context.Background(), captured, sqltype.OutputEnvironment{ACLItem: fresh})
+	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
+		t.Fatal("prepared current output", text, err)
+	}
+	if _, err := d.InputWithEnvironment(context.Background(), "acl_unit_a=r/acl_unit_b", -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{roles: e.Roles()}, nil)}); err == nil {
+		t.Fatal("fresh bind adopted renamed source spelling")
+	}
+	retained := make([]sqltype.Value, 2)
+	if ok, err := rows.Next(context.Background(), retained); err != nil || !ok {
+		t.Fatal(ok, err)
+	}
+	for i, v := range retained {
+		text, err := v.Type().OutputWithEnvironment(context.Background(), v, rows.OutputEnvironment())
+		want := "acl_unit_a=rw*/acl_unit_b"
+		if i == 1 {
+			want = "[0:1]={acl_unit_a=rw*/acl_unit_b,NULL}"
+		}
+		if err != nil || text != want {
+			t.Fatal("held role snapshot", text, err, want)
+		}
+	}
+	if rows.Schema()[0].Usage.Type != d || rows.Schema()[1].Usage.Type != array {
+		t.Fatal("held descriptors changed")
+	}
+	t.Run("bootstrap_default_rename", func(t *testing.T) {
+		bootstrapEngine := New()
+		typeACL := aclUnitType(t, bootstrapEngine, sqltype.ACLItem)
+		old := bootstrapEngine.Roles()
+		value, err := typeACL.InputWithEnvironment(context.Background(), "=r", -1, sqltype.InputEnvironment{ACLItem: bootstrapEngine.captureACLItemInput(AuthorizationView{roles: old}, nil)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		role, err := old.Descriptor(bootstrapEngine.authorizationDomain.Principal(10))
+		if err != nil {
+			t.Fatal(err)
+		}
+		bootstrapEngine.mu.Lock()
+		next := cloneRoleFixture(bootstrapEngine.roles)
+		role.Name = "acl_unit_bootstrap"
+		putFixtureRole(next, role)
+		bootstrapEngine.roles = next
+		bootstrapEngine.mu.Unlock()
+		output := capturedACLItemOutput{owner: bootstrapEngine, roles: bootstrapEngine.Roles()}
+		text, err := typeACL.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: output})
+		if err != nil || text != "=r/acl_unit_bootstrap" {
+			t.Fatal("default grantor followed a name rather than identity10", text, err)
+		}
+		_, _, grantor, _, _, err := value.ACLItem()
+		if err != nil || grantor != 10 {
+			t.Fatal(grantor, err)
+		}
+	})
+}
+
+func TestACLItemEqualityAdmission(t *testing.T) {
+	e := New()
+	d := aclUnitType(t, e, sqltype.ACLItem)
+	array := aclUnitType(t, e, sqltype.ACLItemArray)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	for _, operator := range []string{"<>", "!=", "<", "<=", ">", ">="} {
+		raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: operator}}}, Pos: parser.Position{Character: 29}}
+		_, _, err := b.resolveComparisonTypes(raw, d, nil)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Position != "29" {
+			t.Fatal("operator-before-input boundary", operator, err)
+		}
+	}
+	for _, typ := range []*sqltype.Descriptor{d, array} {
+		if _, err := sqltype.BindComparison(typ, typ, sqltype.CollationRef{}, false); err == nil {
+			t.Fatal("ACL gained total ordering")
+		}
+		if _, err := sqltype.BindGrouping(typ.Usage()); err == nil {
+			t.Fatal("ACL gained bounded native grouping")
+		}
+	}
+	if _, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, d, d, aclUnitType(t, e, sqltype.Bool), sqltype.CollationRef{}, false); err != nil {
+		t.Fatal("ACL equality absent", err)
+	}
+}

@@ -38,6 +38,8 @@ const (
 	Money          ID = 790
 	Inet           ID = 869
 	NameArray      ID = 1003
+	ACLItem        ID = 1033
+	ACLItemArray   ID = 1034
 	BPChar         ID = 1042
 	VarChar        ID = 1043
 	Date           ID = 1082
@@ -239,6 +241,7 @@ func Builtins() []*Descriptor {
 		{id: Money, name: "money", sql: "MONEY", database: "MONEY", associatedArray: 791},
 		{id: Cidr, name: "cidr", sql: "CIDR", database: "CIDR", associatedArray: 651},
 		{id: Inet, name: "inet", sql: "INET", database: "INET", associatedArray: 1041},
+		{id: ACLItem, name: "aclitem", sql: "ACLITEM", database: "ACLITEM", associatedArray: ACLItemArray},
 		{id: Date, name: "date", sql: "DATE", database: "DATE", associatedArray: 1182},
 		{id: Time, name: "time", sql: "TIME", database: "TIME", associatedArray: 1183},
 		{id: Timestamp, name: "timestamp", sql: "TIMESTAMP", database: "TIMESTAMP", associatedArray: 1115},
@@ -305,6 +308,7 @@ type Value struct {
 	rangeDatum      rangeDatum
 	multirange      *multirangePayload
 	network         networkDatum
+	aclitem         aclitemDatum
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -348,6 +352,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && IsNetwork(d.BaseType().id) && !v.network.valid(d.BaseType().id == Cidr) {
 		return Value{}, fmt.Errorf("invalid network datum")
+	}
+	if !v.null && d.BaseType().id == ACLItem && !v.aclitem.valid() {
+		return Value{}, fmt.Errorf("invalid aclitem datum")
 	}
 	if v.typ.BaseType().IsComposite() != d.BaseType().IsComposite() {
 		return Value{}, fmt.Errorf("incompatible composite declaration")
@@ -574,6 +581,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.enumInput(text, env)
 	}
 	switch d.id {
+	case ACLItem:
+		return d.aclitemInput(ctx, text, env)
 	case Inet, Cidr:
 		return d.networkInput(text)
 	case Int4Range, Int8Range, NumRange:
@@ -801,6 +810,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return d.enumOutput(v)
 	}
 	switch d.id {
+	case ACLItem:
+		return v.aclitemOutput(env)
 	case Inet, Cidr:
 		if !v.network.valid(d.id == Cidr) {
 			return "", fmt.Errorf("invalid network value")
@@ -1066,7 +1077,7 @@ type CoercionPlan struct {
 	context                      CoercionContext
 	logicalSource, logicalTarget *Descriptor
 	element                      *CoercionPlan
-	jsonEncoding string
+	jsonEncoding                 string
 }
 
 func (p CoercionPlan) Equal(other CoercionPlan) bool {
@@ -1209,7 +1220,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Inet, Cidr:
+		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Inet, Cidr, ACLItem:
 		return true
 	}
 	return false
@@ -1279,6 +1290,16 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 			return p, failure("42804", "incompatible source and destination types")
 		}
 		return p, nil
+	}
+	if source.Type.id == ACLItem || target.Type.id == ACLItem {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && ACLItemCastPair(source.Type.id, target.Type.id) || context == Assignment && source.Type.id == ACLItem && IsCharacter(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
 	}
 	if source.Type.id == Regproc || target.Type.id == Regproc {
 		switch {
@@ -1496,22 +1517,30 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 	case xid8Conversion:
 		return XIDValue(p.target.Type, uint32(v.integer))
 	case jsonFormattedInput:
-		text:=v.text
+		text := v.text
 		var err error
-		if p.source.Type.id==Bytea {
-			encoding:=p.jsonEncoding
-			if encoding=="" {encoding="UTF8"}
-			text,err=ConvertBinaryEncoding(ctx,text,encoding,"UTF8")
+		if p.source.Type.id == Bytea {
+			encoding := p.jsonEncoding
+			if encoding == "" {
+				encoding = "UTF8"
+			}
+			text, err = ConvertBinaryEncoding(ctx, text, encoding, "UTF8")
 		} else {
-			text,err=p.source.Type.OutputWithEnvironment(ctx,v,output)
+			text, err = p.source.Type.OutputWithEnvironment(ctx, v, output)
 		}
-		if err!=nil{return Value{},err}
-		return p.target.Type.InputWithEnvironment(ctx,text,p.target.Typmod,input)
+		if err != nil {
+			return Value{}, err
+		}
+		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
 	case jsonReturningOutput:
-		text,err:=p.source.Type.OutputWithEnvironment(ctx,v,output)
-		if err!=nil{return Value{},err}
-		if p.target.Type.id==Bytea {return Binary(p.target.Type,text)}
-		return p.target.Type.InputWithEnvironment(ctx,text,p.target.Typmod,input)
+		text, err := p.source.Type.OutputWithEnvironment(ctx, v, output)
+		if err != nil {
+			return Value{}, err
+		}
+		if p.target.Type.id == Bytea {
+			return Binary(p.target.Type, text)
+		}
+		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
 	case networkConversion:
 		v.typ = p.target.Type
 		if v.typ.id == Cidr {
@@ -1624,7 +1653,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 			// Explicit character casts size the captured output with cast semantics.
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
-		if p.source.Type.id == JSONPath && IsCharacter(p.target.Type.id) {
+		if (p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, p.context == Explicit)
 		}
 		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
@@ -1749,7 +1778,7 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || isMultirange(left.id) || isMultirange(right.id) {
+	if left.IsArray() || right.IsArray() || left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || isMultirange(left.id) || isMultirange(right.id) {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if IsTransactionIdentifier(left.id) || IsTransactionIdentifier(right.id) {
@@ -1948,9 +1977,11 @@ const (
 )
 
 type ComparisonPredicate struct {
-	operands Comparison
-	result   *Descriptor
-	operator ComparisonOperator
+	operands      Comparison
+	result        *Descriptor
+	operator      ComparisonOperator
+	aclEquality   bool
+	aclArrayOrder bool
 }
 
 func (p ComparisonPredicate) SessionDependent() bool { return p.operands.SessionDependent() }
@@ -1978,8 +2009,17 @@ func (p ComparisonPredicate) DemandCollation(ctx context.Context) error {
 }
 
 func BindComparisonPredicate(operator ComparisonOperator, left, right, result *Descriptor, collation CollationRef, indeterminate bool) (ComparisonPredicate, error) {
-	if operator > CompareGreaterEqual || result == nil || result.id != Bool || !result.Concrete() {
+	if operator > CompareGreaterEqual || !left.Concrete() || !right.Concrete() || result == nil || result.id != Bool || !result.Concrete() {
 		return ComparisonPredicate{}, fmt.Errorf("invalid comparison predicate")
+	}
+	if left.ContainsACLItem() || right.ContainsACLItem() {
+		scalar := left.BaseType().ID() == ACLItem && right.BaseType().ID() == ACLItem
+		array := left.BaseType().IsArray() && right.BaseType().IsArray() && left.BaseType().Element().BaseType().ID() == ACLItem && right.BaseType().Element().BaseType().ID() == ACLItem
+		if left.BaseType() != right.BaseType() || collation != (CollationRef{}) || indeterminate || !scalar && !array || scalar && operator != CompareEqual {
+			return ComparisonPredicate{}, failure("42883", "incompatible comparison operands")
+		}
+		ordering := array && operator != CompareEqual && operator != CompareNotEqual
+		return ComparisonPredicate{operands: Comparison{left: left, right: right}, result: result, operator: operator, aclEquality: !ordering, aclArrayOrder: ordering}, nil
 	}
 	if err := CheckComparisonOperator(operator, left, right); err != nil {
 		return ComparisonPredicate{}, err
@@ -2000,6 +2040,19 @@ func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value, input Inp
 	}
 	if a.null || b.null {
 		return Null(p.result), nil
+	}
+	if p.aclArrayOrder {
+		return Value{}, failure("42883", "could not identify a comparison function for type aclitem")
+	}
+	if p.aclEquality {
+		equal, err := aclEquality(ctx, a, b)
+		if err != nil {
+			return Value{}, err
+		}
+		if p.operator == CompareNotEqual {
+			equal = !equal
+		}
+		return Boolean(p.result, equal), nil
 	}
 	sign, err := p.operands.Compare(ctx, a, b, input)
 	if err != nil {

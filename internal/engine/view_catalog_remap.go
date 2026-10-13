@@ -37,7 +37,7 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 		if !ok {
 			continue
 		}
-		if typesOnly && !catalogExpressionTypesChanged(d, typ) {
+		if typesOnly && next.aclItemImport == nil && !catalogExpressionTypesChanged(d, typ) {
 			continue
 		}
 		if len(d.defaults) != 0 {

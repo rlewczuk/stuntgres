@@ -150,7 +150,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				return nil, err
 			}
 			var refs []ObjectRef
-			_, err = (scalarRenderer{owner: d, dependencies: &refs, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, definition.expression)
+			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, definition.expression)
 			if err != nil {
 				return nil, err
 			}

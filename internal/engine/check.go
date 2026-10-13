@@ -159,7 +159,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		current[name], used[name] = true, true
 		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, ordinal: ordinal, expression: node}
 		var dependencies []ObjectRef
-		if _, err := (scalarRenderer{owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
@@ -401,7 +401,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 		names[c.Name], previous = true, c.Name
 		var actual []ObjectRef
 		var commentSnapshot, visibilitySnapshot bool
-		if _, err := (scalarRenderer{owner: d, capturedChecks: c.dependencies, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.expression); err != nil {
+		if _, err := (scalarRenderer{validation: true, owner: d, capturedChecks: c.dependencies, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.expression); err != nil {
 			return err
 		}
 		if commentSnapshot != c.commentSnapshot {

@@ -12,7 +12,7 @@ import (
 func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (BoundExpr, bool, error) {
 	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
-		if (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) {
+		if (view.state == nil || view.state.aclItemImport == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) {
 			return root, nil
 		}
 		return remapViewQueryMapped(view, root, func(ref ObjectRef) ObjectRef { return ref }, retainedType, collations...)
@@ -782,14 +782,22 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	case literalExpression:
 		info.unknownNull = n.unknownNull
 		info.regclassRef = n.regclassRef
-		if !changed {
+		if !changed && (view.state == nil || view.state.aclItemImport == nil || !n.value.Type().ContainsACLItem()) {
 			return node, false, nil
 		}
 		var collation collationRemapper
 		if len(collations) != 0 {
 			collation = collations[0]
 		}
-		n.value, err = reownDomainDatum(n.value, typ, collation, view.state.enumImports)
+		previous := n.value
+		n.value, err = reownDomainDatum(n.value, typ, collation, view.state.enumImports, view.state.aclItemImport)
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || n.value != previous
+		if !changed {
+			return node, false, nil
+		}
 		n.expressionInfo = info
 		rebound = n
 	case timeZoneExpression:
