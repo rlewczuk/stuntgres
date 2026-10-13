@@ -123,6 +123,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case installedFunctionExpression:
 		walk(e.arg)
+	case jsonCreateExpression:
+		args(e.args)
 	case stringVariadicExpression:
 		args(e.args)
 	case formatExpression:

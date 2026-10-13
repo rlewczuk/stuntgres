@@ -785,6 +785,28 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		e.arg = next
 		changed = changed || did
 		expression = e
+	case jsonCreateExpression:
+		var args []BoundExpr
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = node
+				changed = true
+			}
+		}
+		if args != nil {
+			e.args = args
+			if err := e.replan(); err != nil {
+				return nil, false, err
+			}
+		}
+		expression = e
 	case stringVariadicExpression:
 		var args []BoundExpr
 		for i, old := range e.args {
@@ -1012,6 +1034,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return true
 	case installedFunctionExpression:
 		return false // Installed unaccent is intrinsically STABLE.
+	case jsonCreateExpression:
+		return false // All eight JSON creation functions are intrinsically STABLE.
 	case stringVariadicExpression:
 		if e.intrinsic != Immutable {
 			return false

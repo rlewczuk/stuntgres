@@ -60,6 +60,62 @@ typed projection/predicate/default/generated/view rows, late-write22023 with
 unchanged sentinels, and native replacement plus actual emitted-SQL replay.
 Whole-project Docker-free verification remains `make quickcheck`.
 
+### JSON conversion and heterogeneous builders
+
+The `TestReferenceJSONCreate` scenarios specify exactly `to_json`, `to_jsonb`,
+`array_to_json`, `row_to_json`, `json_build_array`, `jsonb_build_array`,
+`json_build_object`, and `jsonb_build_object`. They independently assert typed
+recursive conversion, source-preserving JSON versus canonical JSONB, escaping,
+NULL and pretty formatting, heterogeneous/coerced keys and duplicates, flat
+explicit VARIADIC expansion, complete diagnostics, held parameters, live temporal
+output settings, raw/empty-result metadata and stored consumers. Native-only
+control phases retain eager rows through Reset/Restore and replay actual Dump SQL
+on PostgreSQL; they do not invent a PostgreSQL control API.
+VARBIT/range/multirange conversion witnesses obtain values through admitted typed
+column input, not additional explicit-cast capabilities. View deparse is proved
+by replaying the actual emitted definition and checking independent result values
+and types; redundant cast spelling is not a behavioral assertion. Stored replay
+must preserve explicit VARIADIC expansion, and prepared reanalysis must retain
+the occurrence-owned RECORD parameter shape rather than catalog lookup-only RECORD.
+
+Select each bounded set in both modes under an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONCreate(Conversion|Escaping|Builders|Environment)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONCreate(Conversion|Escaping|Builders|Environment)$'
+make check RUN='^TestReferenceJSONCreate(Diagnostics|Parameters|Metadata|Consumers|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONCreate(Diagnostics|Parameters|Metadata|Consumers|Controls)$'
+make check RUN='^TestReferenceJSONCreateFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceJSONCreateFeatureSmoke$'
+```
+
+Feature smoke expects all eight functions on direct and prepared routes, exact
+JSON/JSONB types and bytes, duplicate-key distinctions, pretty/multidimensional
+VARIADIC results, bound escaping, live UTC/Los_Angeles timestamp output, full
+odd-arity/NULL-key errors and held-statement recovery, stored calls and native
+retention/replay. Passing assertions and the normal package summary are the
+expected observations. Arbitrary user JSON casts, composite arrays, SQL/JSON
+constructors, processing operators and aggregates remain outside this family.
+
+The eight calls are intrinsically STABLE even with constant or empty inputs.
+Index/generated consumers must reject them rather than silently treating scalar
+conversion as immutable. Unary anyelement/anyarray calls require a resolved type;
+builders accept ordinary unknown literals but do not infer bare parameters from
+Go values. `row_to_json`'s fixed RECORD formal can contextualize an untyped
+parameter: typed SQL NULL is strict, but nonnull text fails the anonymous-record
+input boundary with the ordinary portal parameter diagnostic. This is not an
+anonymous-record text codec or a storage capability.
+
+Supplemental typed-provider, descriptor generation, subtree sharing, cancellation,
+deep traversal, binding/visitor/retag and lexer provenance units use:
+
+```sh
+make check RUN='^TestJSONCreate'
+make check RUN='^TestJSONObjectParserConsumersAndBoundaries$'
+```
+
+These component units supplement the shared public definitions; they do not
+replace either selected reference mode or the actual feature smoke.
 
 ### JSON text-array object construction
 

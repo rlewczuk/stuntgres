@@ -547,6 +547,12 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		if err := validateCompositeInput(ctx, text); err != nil {
 			return Value{}, err
 		}
+		// A negative typmod carries no anonymous record declaration. JSON's
+		// fixed RECORD formal may transport NULL on an occurrence-owned shape,
+		// but record_in cannot decode text without a named/registered layout.
+		if d.id == 2249 && typmod < 0 {
+			return Value{}, failure("0A000", "input of anonymous composite types is not implemented")
+		}
 		return d.compositeInput(ctx, text, env)
 	}
 	if d.id == PgNodeTree {

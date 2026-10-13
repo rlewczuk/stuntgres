@@ -653,6 +653,13 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
+	case jsonCreateExpression:
+		n.args = children(n.args)
+		n.expressionInfo = info
+		if err == nil {
+			err = n.replan()
+		}
+		rebound = n
 	case stringVariadicExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
 		for i := range n.args {

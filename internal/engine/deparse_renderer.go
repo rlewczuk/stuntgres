@@ -861,6 +861,22 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []BoundExpr{n.arg}, true)
+	case jsonCreateExpression:
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			argRenderer.unknownTextLiteral = n.unknownArgument(i)
+			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
+			if err != nil {
+				return "", err
+			}
+			if n.variadic && i == len(n.args)-1 {
+				text = "VARIADIC " + text
+			}
+			parts[i] = text
+		}
+		return r.identifier(n.kind.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
 	case stringVariadicExpression:
 		parts := make([]string, len(n.args))
 		for i, arg := range n.args {

@@ -88,6 +88,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if stringVariadicFunctionName(name) {
 		return b.bindStringVariadic(raw)
 	}
+	if jsonCreateKind(name) != 0 {
+		return b.bindJSONCreate(raw)
+	}
 	if sqltype.RegexpFunctionKind(name) != 0 {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

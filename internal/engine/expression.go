@@ -1183,6 +1183,27 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
+	case jsonCreateExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+			if err := e.replan(); err != nil {
+				return nil, false, err
+			}
+			return e, true, nil
+		}
 	case stringVariadicExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
@@ -1410,9 +1431,10 @@ func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvi
 
 func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
 	b.formalParameters = types
+	currentType := recordTypeMapper(func(t *sqltype.Descriptor) *sqltype.Descriptor { return b.typ(t.ID()) })
 	for i, usage := range types {
 		if usage.Type != nil {
-			usage.Type = b.typ(usage.Type.ID())
+			usage.Type = currentType(usage.Type)
 		}
 		b.parameters[i+1] = usage
 	}
@@ -1952,6 +1974,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				current, _ := catalog.LookupType(u.Type.ID())
+				if u.Type.ID() == 2249 && u.Type.IsComposite() {
+					// Anonymous shapes are formal occurrence authorities. Reuse the
+					// seeded memoized remap, never catalog's lookup-only RECORD.
+					current = b.parameters[r.Number].Type
+				}
 				if current == nil && statementCatalogType(u.Type) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}

@@ -344,6 +344,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.ref = ref(n.ref)
 		}
 		next = n
+	case jsonCreateExpression:
+		n.args = args(n.args)
+		if err == nil {
+			err = n.replan()
+		}
+		next = n
 	case stringVariadicExpression:
 		n.args = args(n.args)
 		if ref != nil && n.origin.owner != (ObjectRef{}) {

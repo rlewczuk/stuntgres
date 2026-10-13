@@ -617,6 +617,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(nullCountExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(jsonCreateExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(stringVariadicExpression); ok {
 			return children(r.Args, n.args)
 		}

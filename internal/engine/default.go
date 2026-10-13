@@ -255,7 +255,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		datetimeBinExpression, datetimeTruncExpression, datetimeAgeFiniteExpression, datetimeMakeExpression,
 		datetimeFormattingExpression, numericFormattingExpression, stringExpression,
 		enumFunctionExpression, mathExpression, nullCountExpression, formatExpression,
-		installedFunctionExpression, stringVariadicExpression:
+		installedFunctionExpression, stringVariadicExpression, jsonCreateExpression:
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case visibilityInquiryExpression:
 		if r.owner == nil {

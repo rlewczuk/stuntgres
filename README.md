@@ -1039,11 +1039,32 @@ order, values are JSON strings (or JSON null for NULL elements), and whole-array
 SQL NULL is strict. Malformed shapes/counts and NULL keys use PostgreSQL diagnostics.
 Qualified explicit final `VARIADIC` array syntax selects these same signatures;
 it does not add a variadic overload. Stored consumers and native Dump/Restore
-retain symbolic calls. JSON remains noncomparable; SQL/JSON and JSONB constructors
-and generic builtin catalog enumeration are unchanged.
+retain symbolic calls. JSON remains noncomparable; SQL/JSON constructors and
+generic builtin catalog enumeration are unchanged.
 See [JSON construction](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
 Feature smoke: `make check RUN='^TestReferenceJSONObjectFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONObjectFeatureSmoke$'`.
+
+Change note: `to_json`, `to_jsonb`, `array_to_json`, `row_to_json`,
+`json_build_array`, `jsonb_build_array`, `json_build_object`, and
+`jsonb_build_object` recursively convert admitted typed scalars, domains, arrays
+and composite rows. Unary/container conversion is strict; builder NULL arguments
+become JSON null. Container pretty flags insert only top-level line breaks.
+Ordinary builder array arguments remain nested; explicit `VARIADIC` flattens the
+array in storage order, with a whole NULL array producing SQL NULL.
+JSON retains embedded source spelling and duplicate keys; JSONB validates
+embedded JSON, canonicalizes objects and keeps the last coerced duplicate key.
+Object keys must be non-NULL scalars. Dates/timestamps use ISO/XSD spelling
+independent of DateStyle; timestamptz and ordinary scalar output use live session
+settings. All eight functions are STABLE, including empty builders: defaults,
+checks and views retain symbolic calls, while immutable-only index/generated
+consumers reject them. Native Dump/Restore preserves typed stored operands.
+Composite arrays, arbitrary user JSON casts, SQL/JSON constructors and processing
+operators/aggregates are not added by this change.
+Feature smoke (900 seconds each):
+`make check RUN='^TestReferenceJSONCreateFeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceJSONCreateFeatureSmoke$'`.
 
 Change note: JSONB storage normalizes whitespace and key order, keeps the last
 decoded duplicate key, and preserves exact finite decimals and their display

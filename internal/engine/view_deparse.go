@@ -1192,7 +1192,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text, err := args(e.Args)
 			return "pg_catalog.position(" + text + ")", err
 		}
-		if (name == "format" || stringVariadicFunctionName(name)) && e.Variadic {
+		if (name == "format" || stringVariadicFunctionName(name) || jsonCreateKind(name) != 0) && e.Variadic {
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {
 				text, err := child(arg)
@@ -1205,6 +1205,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				parts[i] = text
 			}
 			functionName := objectNameText(e.Name)
+			if jsonCreateKind(name) != 0 {
+				functionName = "pg_catalog." + name
+			}
 			if v.presentation.deparse {
 				functionName = v.presentation.identifier(name)
 			}
@@ -1255,7 +1258,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
 		}
-		if stringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "json_array_length" || name == "jsonb_array_length" {
+		if stringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "json_array_length" || name == "jsonb_array_length" || jsonCreateKind(name) != 0 {
 			functionName := "pg_catalog." + name
 			if v.presentation.deparse {
 				functionName = v.presentation.identifier(name)

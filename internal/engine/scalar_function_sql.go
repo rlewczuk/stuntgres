@@ -226,6 +226,29 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "(" + base + ")." + pgIdentifier(name), nil
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+	case jsonCreateExpression:
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
+				*r.commentSnapshot = true
+			}
+			text, err := r.sql(ctx, view, arg)
+			if err != nil {
+				return "", err
+			}
+			if literal, ok := arg.(literalExpression); ok && !literal.usage.Type.IsDomain() && r.checkLiterals == nil && !n.unknownArgument(i) {
+				declaration, err := catalogTypeDeclaration(view, literal.usage)
+				if err != nil {
+					return "", err
+				}
+				text = "CAST(" + text + " AS " + declaration + ")"
+			}
+			if n.variadic && i == len(n.args)-1 {
+				text = "VARIADIC " + text
+			}
+			parts[i] = text
+		}
+		return "pg_catalog." + n.kind.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 	case stringVariadicExpression:
 		parts := make([]string, len(n.args))
 		for i, arg := range n.args {

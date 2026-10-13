@@ -660,6 +660,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case installedFunctionExpression:
 		children = []BoundExpr{e.arg}
+	case jsonCreateExpression:
+		children = e.args
 	case stringVariadicExpression:
 		children = e.args
 	case formatExpression:

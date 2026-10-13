@@ -177,7 +177,6 @@ func TestJSONObjectBinderSignatureBoundaries(t *testing.T) {
 		{"json_object", []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: pos}}}},
 		{"json_object", []parser.Expr{unknown, unknown, unknown}},
 		{"jsonb_object", []parser.Expr{unknown}},
-		{"json_build_object", []parser.Expr{unknown, unknown}},
 	} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog", Pos: pos}, {Text: tc.name, Pos: pos}}}, Args: tc.args, Pos: pos}
 		if _, err := binder.bindFunctionProvider(raw); err == nil {
