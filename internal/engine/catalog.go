@@ -783,7 +783,14 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		if d.(*collationDescriptor).seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
 		}
+	case *conversionDescriptor:
+		if d.(*conversionDescriptor).seeded() {
+			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
+		}
 	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
+		if procedure, ok := d.(*procedureDescriptor); ok && procedure.conversion.Name() != "" {
+			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
+		}
 		provider := s.owner.providers[ref.Address.ClassID]
 		if provider == nil {
 			return fmt.Errorf("stuntgres: missing installed object provider")

@@ -113,6 +113,50 @@ func (p BinaryPlan) Immutable() bool {
 	return p.name != "convert" && p.name != "convert_from" && p.name != "convert_to"
 }
 
+// EncodingInput exposes the already typed conversion frontier without embedding
+// catalog callbacks in comparable plans or evaluating operands twice.
+func (p BinaryPlan) EncodingInput(ctx context.Context, values ...Value) (raw, source, destination string, null bool, err error) {
+	if p.Immutable() || p.result.Type == nil || len(values) != p.arity {
+		err = fmt.Errorf("invalid binary conversion values")
+		return
+	}
+	for i, value := range values {
+		if value.typ != p.args[i].Type {
+			err = fmt.Errorf("invalid binary conversion values")
+			return
+		}
+	}
+	if err = ctx.Err(); err != nil {
+		return
+	}
+	for _, value := range values {
+		if value.null {
+			null = true
+			return
+		}
+	}
+	raw = values[0].text
+	switch p.name {
+	case "convert":
+		source, destination = values[1].text, values[2].text
+	case "convert_from":
+		source, destination = values[1].text, "UTF8"
+	case "convert_to":
+		source, destination = "UTF8", values[1].text
+	}
+	return
+}
+
+func (p BinaryPlan) EncodingResult(raw string) (Value, error) {
+	if p.Immutable() || p.result.Type == nil {
+		return Value{}, fmt.Errorf("invalid binary conversion result")
+	}
+	if p.result.Type.ID() == Text {
+		return String(p.result.Type, raw), nil
+	}
+	return Binary(p.result.Type, raw)
+}
+
 func integerLength(d *Descriptor, count int64, bits bool) (Value, error) {
 	if bits {
 		if count > math.MaxInt32/8 {

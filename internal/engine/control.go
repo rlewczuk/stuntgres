@@ -110,6 +110,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	var domains []*typeDescriptor
 	var collations []*collationDescriptor
+	var conversions []*conversionDescriptor
 	type dumpSchema struct{ name, owner string }
 	var schemas []dumpSchema
 	var sequences []dumpSequence
@@ -224,7 +225,24 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			switch t := d.(type) {
 			case *databaseDescriptor:
 				continue // Destination attachment authority is never serialized.
-			case *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
+			case *procedureDescriptor:
+				if t.conversion.Name() != "" {
+					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
+						e.mu.Unlock()
+						return err
+					}
+					if t.owner != e.authorizationDomain.Principal(10) || t.acl.Explicit {
+						e.mu.Unlock()
+						return fmt.Errorf("stuntgres: dump cannot serialize altered builtin conversion routine authority")
+					}
+					continue
+				}
+				if extensionMembership(t) == (ObjectAddress{}) {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
+				}
+				continue
+			case *tsTemplateDescriptor, *tsDictionaryDescriptor:
 				if extensionMembership(t) == (ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
@@ -278,6 +296,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			case *conversionDescriptor:
+				if err := (conversionProvider{}).Validate(catalog, t); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				if !t.seeded() {
+					conversions = append(conversions, t)
+				}
 				continue
 			}
 			if d.Kind() == NamespaceObject {
@@ -666,6 +691,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
+	conversionStatements, conversionSchemas, err := conversionDumpStatements(ctx, catalog, domainRoles, conversions)
+	if err != nil {
+		return err
+	}
+	conversionSeeds, err := conversionSeedDumpStatements(ctx, catalog, domainRoles)
+	if err != nil {
+		return err
+	}
 	if deferDefaults {
 		for oid, predecessors := range inlinePredecessors {
 			viewDependencies[oid] = predecessors
@@ -721,7 +754,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	for _, line := range conversionSchemas {
+		if err := emit(line); err != nil {
+			return err
+		}
+	}
 	for _, line := range seedStatements {
+		if err := emit(line); err != nil {
+			return err
+		}
+	}
+	for _, line := range conversionSeeds {
 		if err := emit(line); err != nil {
 			return err
 		}
@@ -743,15 +786,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	currentOwner := ""
-	for _, declaration := range collationStatements {
-		if declaration.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+	for _, declarations := range [2][]dumpDomain{collationStatements, conversionStatements} {
+		for _, declaration := range declarations {
+			if declaration.owner != currentOwner {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+					return err
+				}
+				currentOwner = declaration.owner
+			}
+			if err := emit(declaration.sql); err != nil {
 				return err
 			}
-			currentOwner = declaration.owner
-		}
-		if err := emit(declaration.sql); err != nil {
-			return err
 		}
 	}
 	// The interpreter need not be logged in as the native bootstrap owner.
@@ -1271,7 +1316,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 					}
 				}
 			}
-		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation:
+		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
 		case *parser.CreateExtension:
 		case *parser.AlterView:
 			if !s.Materialized || (s.Action != "depends" && s.Action != "no_depends") || s.IfExists {
@@ -1386,6 +1431,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateCollation); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateConversion); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.AlterConversion); ok {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateExtension); ok {

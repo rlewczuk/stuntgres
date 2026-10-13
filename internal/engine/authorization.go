@@ -250,7 +250,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	case *extensionDescriptor:
 		return d.owner, authorization.ACLValue{}, nil
 	case *procedureDescriptor:
-		return d.owner, authorization.ACLValue{}, nil
+		return d.owner, d.acl, nil
 	case *tsDictionaryDescriptor:
 		return d.owner, authorization.ACLValue{}, nil
 	case *namespaceDescriptor:
@@ -261,6 +261,8 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 		return d.owner, d.acl, nil
 	case *collationDescriptor:
 		return d.owner, authorization.ACLValue{}, nil
+	case *conversionDescriptor:
+		return d.owner, authorization.ACLValue{}, nil
 	}
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
@@ -268,7 +270,13 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	if d.Kind() == DatabaseObject {
 		return authorization.CreatePrivilege
 	}
-	if d.Kind() == ExtensionObject || d.Kind() == ProcedureObject || d.Kind() == TSDictionaryObject || d.Kind() == TSTemplateObject {
+	if d.Kind() == ProcedureObject {
+		return authorization.ExecutePrivilege
+	}
+	if d.Kind() == CollationObject || d.Kind() == ConversionObject {
+		return 0
+	}
+	if d.Kind() == ExtensionObject || d.Kind() == TSDictionaryObject || d.Kind() == TSTemplateObject {
 		return 0
 	}
 	if d.Kind() == TypeObject {
@@ -345,6 +353,9 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authoriz
 		}
 	}
 	rights := authorization.ACLRights(acl, owner, principals, mask, grantOptions)
+	if d.Kind() == ProcedureObject && !acl.Explicit && !grantOptions {
+		rights |= authorization.ExecutePrivilege
+	}
 	if ref.Address.SubID > 0 {
 		rights |= authorization.ACLRights(columns[ref.Address.SubID], authorization.PrincipalRef{}, principals, mask, grantOptions)
 	}
@@ -392,6 +403,10 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			kind = "schema"
 		} else if d.Kind() == CollationObject {
 			kind = "collation"
+		} else if d.Kind() == ConversionObject {
+			kind = "conversion"
+		} else if d.Kind() == ProcedureObject {
+			kind = "function"
 		} else if d.Kind() == DatabaseObject {
 			kind = "database"
 		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
@@ -438,6 +453,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "schema"
 	} else if d.Kind() == DatabaseObject {
 		kind = "database"
+	} else if d.Kind() == ProcedureObject {
+		kind = "function"
 	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		kind = "sequence"
 	}
@@ -468,8 +485,6 @@ func validateACL(r authorization.Read, d Descriptor) error {
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return nil
 		}
-	case *conversionDescriptor:
-		return nil
 	}
 	owner, acl, cols := descriptorACL(d)
 	if _, err := r.Descriptor(owner); err != nil {
@@ -510,8 +525,6 @@ func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 			return nil
 		}
-	case *conversionDescriptor:
-		return nil
 	}
 	owner, acl, cols := descriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
@@ -723,6 +736,13 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl authorizat
 	case *namespaceDescriptor:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: namespace subobject")
+		}
+		n := *d
+		n.acl = acl
+		next = &n
+	case *procedureDescriptor:
+		if ref.Address.SubID != 0 {
+			return fmt.Errorf("stuntgres: procedure subobject")
 		}
 		n := *d
 		n.acl = acl

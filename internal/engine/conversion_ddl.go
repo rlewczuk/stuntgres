@@ -1,0 +1,224 @@
+package engine
+
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.ObjectName) (*conversionDescriptor, error) {
+	path, err := e.lookupNamespaces(auth, name, conversionLookup)
+	if err != nil {
+		return nil, err
+	}
+	object := name.Parts[len(name.Parts)-1].Text
+	for i := range path.count() {
+		address := auth.catalog.state.names[NameKey{ClassID: ConversionClassID, Namespace: path.at(i), Name: object}]
+		if d, ok := auth.catalog.state.descriptors[address].(*conversionDescriptor); ok {
+			return d, nil
+		}
+	}
+	return nil, sqlError("42704", fmt.Sprintf(`conversion "%s" does not exist`, objectNameText(name)))
+}
+
+// Rebuilding captured owners is the existing trusted native Restore boundary,
+// not a general permission bypass for user DDL or arbitrary callers.
+func (e *Engine) conversionCheckCreate(op *Operation, auth AuthorizationView, namespace ObjectRef) error {
+	err := auth.CheckCreate(namespace)
+	if err == nil {
+		return nil
+	}
+	denied, ok := err.(*sqlstate.Error)
+	if op == nil || !op.restoreTableDestination || !ok || denied.Code != "42501" {
+		return err
+	}
+	actor, actorErr := auth.roles.Descriptor(auth.state.Authenticated)
+	if actorErr != nil || !actor.Superuser || e.importTargets == nil {
+		return fmt.Errorf("stuntgres: invalid trusted restore conversion authority")
+	}
+	return nil
+}
+
+func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateConversion) error {
+	namespace, err := e.collationCreationNamespaceLocked(&auth, stage, s.Name)
+	if err != nil {
+		return err
+	}
+	if err = e.conversionCheckCreate(op, auth, namespace); err != nil {
+		return err
+	}
+	source := sqltype.EncodingID(s.Source)
+	if source < 0 {
+		return sqlError("42704", fmt.Sprintf(`source encoding "%s" does not exist`, s.Source))
+	}
+	destination := sqltype.EncodingID(s.Destination)
+	if destination < 0 {
+		return sqlError("42704", fmt.Sprintf(`destination encoding "%s" does not exist`, s.Destination))
+	}
+	if source == 0 || destination == 0 {
+		return sqlError("42P17", `encoding conversion to or from "SQL_ASCII" is not supported`)
+	}
+	path, err := e.lookupNamespaces(auth, s.Function, functionLookup)
+	if err != nil {
+		return err
+	}
+	name := s.Function.Parts[len(s.Function.Parts)-1].Text
+	procedure := procedureInNamespaces(auth.catalog, path, name, conversionSignature)
+	functionName := objectNameText(s.Function)
+	if procedure == nil {
+		return sqlError("42883", "function "+functionName+"(integer, integer, cstring, internal, integer, boolean) does not exist")
+	}
+	if procedure.result != 23 {
+		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
+	}
+	if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: procedure.address}, Privileges: authorization.ExecutePrivilege}); err != nil {
+		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42501" {
+			return sqlError("42501", "permission denied for function "+functionName)
+		}
+		return err
+	}
+	if procedure.conversion.Name() == "" {
+		return sqlError("0A000", "encoding conversion routine has no registered provider")
+	}
+	_, consumed, err := procedure.conversion.Convert(op.Context(), "", source, destination)
+	if err != nil {
+		return err
+	}
+	if err = conversionProbeResult(functionName, consumed); err != nil {
+		return err
+	}
+	object := s.Name.Parts[len(s.Name.Parts)-1].Text
+	key := NameKey{ClassID: ConversionClassID, Namespace: namespace.Address, Name: object}
+	if stage.lookupName(key) != (ObjectAddress{}) {
+		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists`, object))
+	}
+	if s.Default {
+		for _, descriptor := range e.stageRead(stage).state.descriptors {
+			if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace() == namespace.Address && d.source == source && d.destination == destination && d.defaultConversion {
+				return sqlError("42710", "default conversion for "+sqltype.EncodingName(source)+" to "+sqltype.EncodingName(destination)+" already exists")
+			}
+		}
+	}
+	oid, err := e.allocateOIDLocked()
+	if err != nil {
+		return err
+	}
+	revision, err := e.revisionLocked()
+	if err != nil {
+		return err
+	}
+	return stage.Create(&conversionDescriptor{oid: oid, name: object, namespace: namespace.Address, revision: revision, owner: auth.state.CurrentUser, source: source, destination: destination, handler: procedure.address, defaultConversion: s.Default})
+}
+
+func conversionProbeResult(name string, consumed int) error {
+	if consumed != 0 {
+		return sqlError("42P17", "encoding conversion function "+name+" returned incorrect result for empty input")
+	}
+	return nil
+}
+
+func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterConversion) error {
+	d, err := e.findUtilityConversion(auth, s.Name)
+	if err != nil {
+		return err
+	}
+	var target authorization.PrincipalRef
+	if s.Action == "owner" {
+		target, err = schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
+		if err != nil {
+			return err
+		}
+		if target == d.owner {
+			return nil
+		}
+	}
+	var destination ObjectRef
+	if s.Action == "schema" {
+		destination, err = e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}})
+		if err != nil {
+			return err
+		}
+		if destination.Address == d.Namespace() {
+			return nil
+		}
+		sourceNamespace := auth.catalog.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+		targetNamespace := auth.catalog.state.descriptors[destination.Address].(*namespaceDescriptor)
+		if sourceNamespace.temporary != (SessionToken{}) || targetNamespace.temporary != (SessionToken{}) {
+			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
+		}
+	}
+	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.Address()}
+	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		return err
+	}
+	next := *d
+	switch s.Action {
+	case "rename":
+		if err = e.conversionCheckCreate(op, auth, ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: d.Namespace()}); err != nil {
+			return err
+		}
+		next.name = s.Target.Text
+	case "schema":
+		if err = e.conversionCheckCreate(op, auth, destination); err != nil {
+			return err
+		}
+		next.namespace = destination.Address
+	case "owner":
+		if err = ownershipEligibility(auth, target, d.Namespace()); err != nil {
+			return err
+		}
+		next.owner = target
+	default:
+		return fmt.Errorf("stuntgres: invalid conversion alteration")
+	}
+	if address := stage.lookupName(descriptorNameKey(&next)); address != (ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
+		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
+	}
+	// CREATE alone checks default-pair uniqueness; legal schema moves may leave
+	// multiple defaults and must never be rejected by a universal invariant.
+	next.revision, err = e.revisionLocked()
+	if err != nil {
+		return err
+	}
+	return stage.Replace(&next)
+}
+
+func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropConversion) error {
+	seen := make(map[ObjectAddress]bool, len(s.Names))
+	for _, name := range s.Names {
+		d, err := e.findUtilityConversion(auth, name)
+		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
+				if diagnostic.Code == "3F000" {
+					schemaNotice(op, "00000", diagnostic.Message+", skipping")
+				} else {
+					schemaNotice(op, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, objectNameText(name)))
+				}
+				continue
+			}
+			return err
+		}
+		if err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.Address()}, OwnerOnly: true}); err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
+				return sqlError("42501", "must be owner of conversion "+objectNameText(name))
+			}
+			return err
+		}
+		if d.seeded() {
+			path, pathErr := e.referencePath(auth)
+			if pathErr != nil {
+				return pathErr
+			}
+			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.catalog, d.Address(), path)+" because it is required by the database system")
+		}
+		if !seen[d.Address()] {
+			seen[d.Address()] = true
+			stage.domainTargets = append(stage.domainTargets, d.Address())
+		}
+	}
+	stage.dependencyPath, _ = e.referencePath(auth)
+	return nil
+}

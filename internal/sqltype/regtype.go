@@ -53,7 +53,7 @@ func RegtypeCastPair(source, target ID) bool {
 
 // ContainsCatalogIdentifier marks recursive catalog-dependent input/output.
 func (d *Descriptor) ContainsCatalogIdentifier() bool {
-	return d.ContainsRegclass() || d.ContainsRegtype()
+	return d.ContainsRegclass() || d.ContainsRegtype() || d.ContainsRegproc()
 }
 
 // ParameterInput associates provider notices with the actual portal input slot.

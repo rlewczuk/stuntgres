@@ -2,9 +2,12 @@
 
 This package uses PostgreSQL **REL_18_0**, not the local development checkout,
 Go's Unicode tables, iconv, or an external codec dependency. The immutable
-runtime registry contains the release's 128 direct default conversion pairs.
+runtime registry contains the release's 128 direct conversion pairs and their
+actual associations to 84 routines, including grouped WIN/ISO-8859 handlers.
 Identity verification covers the 42 release encoding IDs; SQL_ASCII and identity
-shortcuts remain in the sqltype provider. No indirect conversion path is added.
+shortcuts remain in the sqltype provider. SQL default selection belongs to the
+engine's current conversion catalog, not this codec capability registry.
+No indirect conversion path is added.
 
 ## Release inputs and licensing
 
@@ -13,7 +16,7 @@ were extracted from the official [PostgreSQL 18.0 release archive](https://ftp.p
 The corresponding ordinary source references are:
 
 - [Unicode directional maps](https://github.com/postgres/postgres/tree/REL_18_0/src/backend/utils/mb/Unicode): independently generated integer radix maps in **both directions**, including the 25 combined mappings in each JIS2004 direction.
-- [pg_conversion.dat](https://github.com/postgres/postgres/blob/REL_18_0/src/include/catalog/pg_conversion.dat): direct default-pair registry.
+- [pg_conversion.dat](https://github.com/postgres/postgres/blob/REL_18_0/src/include/catalog/pg_conversion.dat): direct pair-to-real-routine registry.
 - [conv.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/utils/mb/conv.c): radix traversal, packed-word emission, combined-map precedence and MIC helpers.
 - [wchar.c](https://github.com/postgres/postgres/blob/REL_18_0/src/common/wchar.c) and [pg_wchar.h](https://github.com/postgres/postgres/blob/REL_18_0/src/include/mb/pg_wchar.h): encoding IDs, verifier/mblen semantics, MIC prefixes and maximum expansion.
 - [conversion_procs](https://github.com/postgres/postgres/tree/REL_18_0/src/backend/utils/mb/conversion_procs): dedicated Cyrillic, LATIN2/WIN1250, Japanese NEC/IBM/UDC, BIG5/CNS, MIC and JIS2004 algorithms; GB18030's 13 inclusive algorithmic ranges.
@@ -41,8 +44,11 @@ It rejects unknown integer syntax, duplicate arrays/pairs, wrong declared
 lengths and widths, missing directional trees/combined maps, invalid value or
 radix-index bounds, and a registry other than exactly 128 unique pairs. Each
 mapping direction is emitted independently; reverse maps are never synthesized
-by inversion. Runtime lookup does not parse data, allocate maps, or initialize
-mutable caches. The registry is private and exposed only through `HasPair`.
+by inversion. Runtime lookup does not parse data or allocate mutable maps/caches.
+`HasPair` and `ConversionRoutine` expose immutable pair capabilities;
+`ConversionRoutineArguments` is a generated allocation-free dispatch for fixed
+and grouped argument checks. These capabilities are separate from SQL routine
+ownership/metadata, default objects, diagnostics and portable dump definitions.
 
 The hand-ported character algorithms use fixed packed words, not rune arrays or
 an intermediate UTF8 conversion. Source validation, exact-size counting and

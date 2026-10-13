@@ -619,7 +619,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	}
 	e.mu.Lock()
 	for _, target := range targets {
-		if target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
+		if target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ConversionClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
 			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
 				break
 			}

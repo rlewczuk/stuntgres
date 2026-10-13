@@ -30,6 +30,9 @@ func (e binaryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
+	if !e.plan.Immutable() {
+		return e.evalConversion(c, values[:len(e.args)])
+	}
 	return e.plan.Evaluate(c.Context, values[:len(e.args)]...)
 }
 
@@ -248,6 +251,14 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 	info := b.info(usage, pos, properties)
 	if name == "convert" || name == "convert_from" || name == "convert_to" {
 		info.properties.Volatility = max(info.properties.Volatility, Stable)
+		demand := true
+		for _, arg := range args {
+			if randomLiteralNull(arg) {
+				demand = false
+				break
+			}
+		}
+		b.visibilitySnapshot = b.visibilitySnapshot || demand
 	}
 	inputInfo, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), pos, properties), args...)
 	if err != nil {

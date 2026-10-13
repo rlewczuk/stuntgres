@@ -32,6 +32,10 @@ func TestReferenceVisibilityInquiryBoundaries(t *testing.T) {
 					}
 					run(fixture.Exec("CREATE TABLE sentinel(id INT)", 0))
 					run(fixture.Exec("INSERT INTO sentinel VALUES(7)", 1))
+					var publicOID int64
+					if err := backend.DB.QueryRowContext(p.Ctx, "SELECT relnamespace::bigint FROM pg_catalog.pg_class WHERE oid='public.sentinel'::regclass::oid").Scan(&publicOID); err != nil {
+						t.Fatal("independent sentinel namespace", err)
+					}
 					for _, q := range []string{"CREATE TYPE widget AS ENUM ('x')", "CREATE DOMAIN d AS integer", "CREATE COLLATION c FROM pg_catalog.\"C\"", "CREATE CONVERSION c FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1", "CREATE TEMP TABLE temp_t(id INT)", "CREATE MATERIALIZED VIEW mv AS SELECT id FROM sentinel", "CREATE FOREIGN TABLE ft(id integer) SERVER unavailable"} {
 						if strings.HasPrefix(q, "CREATE TYPE") {
 							run(fixture.Select(q, nil, nil, [][]any{}))
@@ -106,6 +110,35 @@ func TestReferenceVisibilityInquiryBoundaries(t *testing.T) {
 							}
 							run(witness)
 							run(fixture.Select("SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4519)", []string{"pg_collation_is_visible", "pg_conversion_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+							run(fixture.Select("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+							continue
+						}
+						if strings.HasPrefix(q, "CREATE CONVERSION") {
+							run(fixture.Select(q, nil, nil, [][]any{}))
+							witness := fixture.Select("SELECT conname,conforencoding,contoencoding,condefault,pg_conversion_is_visible(oid) AS visible FROM pg_catalog.pg_conversion WHERE conname='c' AND connamespace=$1", []string{"conname", "conforencoding", "contoencoding", "condefault", "visible"}, []string{"NAME", "INT4", "INT4", "BOOL", "BOOL"}, [][]any{{"c", int64(6), int64(8), false, true}}, publicOID)
+							run(witness)
+							run(fixture.Exec("DROP CONVERSION c", 0))
+							var held *sql.Stmt
+							var err error
+							if source {
+								held, err = backend.DB.Prepare(q)
+							} else {
+								held, err = executor.PrepareContext(p.Ctx, q)
+							}
+							if err != nil {
+								t.Fatal(err)
+							}
+							defer held.Close()
+							run(fixture.Select("SELECT count(*)::bigint AS count FROM pg_catalog.pg_conversion WHERE conname='c' AND connamespace=$1", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, publicOID))
+							if source {
+								result, err := held.Exec()
+								fixture.DeleteReferenceCount(t, result, err, 0)
+							} else {
+								fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: executor, Statement: held, SQL: q}, backend.Recorder, fixture.Exec(q, 0))
+							}
+							run(witness)
+							run(fixture.Exec("DROP CONVERSION c", 0))
+							run(fixture.Select("SELECT count(*)::bigint AS count FROM pg_catalog.pg_conversion WHERE conname='c' AND connamespace=$1", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, publicOID))
 							run(fixture.Select("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 							continue
 						}

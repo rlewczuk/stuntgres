@@ -261,6 +261,44 @@ func main() {
 		fmt.Fprintln(&out, "},")
 	}
 	fmt.Fprintln(&out, "}")
+	fmt.Fprintln(&out, "var conversionRoutines = [42][42]string{")
+	for a := range 42 {
+		if len(rows[a]) == 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "%d:{", a)
+		for _, r := range records {
+			if id(r[1]) == a {
+				fmt.Fprintf(&out, "%d:%q,", id(r[2]), r[3])
+			}
+		}
+		fmt.Fprintln(&out, "},")
+	}
+	fmt.Fprintln(&out, "}")
+	routineArguments := map[string][2]int{}
+	for _, r := range records {
+		pair := [2]int{id(r[1]), id(r[2])}
+		if old, ok := routineArguments[r[3]]; ok {
+			if old[0] != pair[0] {
+				pair[0] = -1
+			}
+			if old[1] != pair[1] {
+				pair[1] = -1
+			}
+		}
+		routineArguments[r[3]] = pair
+	}
+	fmt.Fprintln(&out, "func ConversionRoutineArguments(name string) (source, destination int, ok bool) { switch name {")
+	emitted := map[string]bool{}
+	for _, r := range records {
+		if emitted[r[3]] {
+			continue
+		}
+		emitted[r[3]] = true
+		pair := routineArguments[r[3]]
+		fmt.Fprintf(&out, "case %q: return %d, %d, true\n", r[3], pair[0], pair[1])
+	}
+	fmt.Fprintln(&out, "}; return 0, 0, false }")
 	fmt.Fprintln(&out, "var unicodeTrees = [42][2]*radix{")
 	aliases := map[string]string{"EUC_JIS_2004": "euc_jis_2004", "SHIFT_JIS_2004": "shift_jis_2004", "ISO_8859_5": "iso8859_5", "ISO_8859_6": "iso8859_6", "ISO_8859_7": "iso8859_7", "ISO_8859_8": "iso8859_8"}
 	for i, iso := range []int{1, 2, 3, 4, 9, 10, 13, 14, 15, 16} {

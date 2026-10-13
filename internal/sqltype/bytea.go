@@ -41,6 +41,7 @@ type OutputEnvironment struct {
 	IntervalStyle       IntervalStyle
 	Regclass            RegclassFormatter
 	Regtype             RegtypeFormatter
+	Regproc             RegprocFormatter
 	QuoteAllIdentifiers bool
 	ClientEncoding      string
 	// An unspecified precision retains canonical shortest serialization.

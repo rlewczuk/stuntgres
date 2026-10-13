@@ -226,7 +226,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				if err == nil {
 					err = ownershipDatabaseCreate(auth)
 				}
-			case *collationDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
+			case *collationDescriptor, *conversionDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
 				err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())

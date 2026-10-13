@@ -11,38 +11,57 @@ import (
 // ConvertBinaryEncoding is pg_convert's raw immutable-string provider. NAME
 // coercion belongs to the caller. This layer never resolves indirect paths.
 func ConvertBinaryEncoding(ctx context.Context, raw, sourceName, destinationName string) (string, error) {
-	if err := ctx.Err(); err != nil {
+	source, destination, unchanged, err := PrepareBinaryEncoding(ctx, raw, sourceName, destinationName)
+	if err != nil {
 		return "", err
 	}
-	source := stringEncodingID(sourceName)
+	if unchanged {
+		return raw, nil
+	}
+	routine := pgencoding18.ConversionRoutine(source, destination)
+	if routine == "" {
+		return "", MissingBinaryConversion(source, destination)
+	}
+	return emitBinaryEncoding(ctx, raw, source, destination)
+}
+
+// PrepareBinaryEncoding validates the entire source before any default lookup.
+// Identity/SQL_ASCII/empty cases intentionally need no conversion object.
+func PrepareBinaryEncoding(ctx context.Context, raw, sourceName, destinationName string) (source, destination int, unchanged bool, err error) {
+	if err = ctx.Err(); err != nil {
+		return
+	}
+	source = stringEncodingID(sourceName)
 	if source < 0 {
-		return "", failure("22023", `invalid source encoding name "`+sourceName+`"`)
+		err = failure("22023", `invalid source encoding name "`+sourceName+`"`)
+		return
 	}
-	destination := stringEncodingID(destinationName)
+	destination = stringEncodingID(destinationName)
 	if destination < 0 {
-		return "", failure("22023", `invalid destination encoding name "`+destinationName+`"`)
+		err = failure("22023", `invalid destination encoding name "`+destinationName+`"`)
+		return
 	}
-	if err := binaryEncodingValidate(ctx, raw, source); err != nil {
-		return "", err
+	if err = binaryEncodingValidate(ctx, raw, source); err != nil {
+		return
 	}
 	if raw == "" || source == destination || destination == 0 {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		return raw, nil
+		unchanged = true
+		err = ctx.Err()
+		return
 	}
 	if source == 0 {
-		if err := binaryEncodingValidate(ctx, raw, destination); err != nil {
-			return "", err
-		}
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		return raw, nil
+		err = binaryEncodingValidate(ctx, raw, destination)
+		unchanged = err == nil
+		return
 	}
-	if !pgencoding18.HasPair(source, destination) {
-		return "", failure("42883", fmt.Sprintf("default conversion function for encoding %q to %q does not exist", stringEncodingNames[source], stringEncodingNames[destination]))
-	}
+	return
+}
+
+func MissingBinaryConversion(source, destination int) error {
+	return failure("42883", fmt.Sprintf("default conversion function for encoding %q to %q does not exist", stringEncodingNames[source], stringEncodingNames[destination]))
+}
+
+func emitBinaryEncoding(ctx context.Context, raw string, source, destination int) (string, error) {
 	if !binaryEncodingInputSize(len(raw)) {
 		return "", binaryEncodingSizeError(len(raw))
 	}

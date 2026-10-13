@@ -19,8 +19,14 @@ type collationDescriptor struct {
 	semantics                              uint32
 }
 type conversionDescriptor struct {
-	oid  OID
-	name string
+	oid                 OID
+	name                string
+	namespace           ObjectAddress
+	revision            DefinitionRevision
+	owner               authorization.PrincipalRef
+	source, destination int
+	handler             ObjectAddress
+	defaultConversion   bool
 }
 
 func (d *collationDescriptor) Address() ObjectAddress {
@@ -43,12 +49,10 @@ func (*collationDescriptor) Kind() ObjectKind { return CollationObject }
 func (d *conversionDescriptor) Address() ObjectAddress {
 	return ObjectAddress{ClassID: ConversionClassID, ObjectID: d.oid}
 }
-func (*conversionDescriptor) Revision() DefinitionRevision { return 1 }
-func (*conversionDescriptor) Namespace() ObjectAddress {
-	return ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-}
-func (d *conversionDescriptor) Name() string   { return d.name }
-func (*conversionDescriptor) Kind() ObjectKind { return ConversionObject }
+func (d *conversionDescriptor) Revision() DefinitionRevision { return d.revision }
+func (d *conversionDescriptor) Namespace() ObjectAddress     { return d.namespace }
+func (d *conversionDescriptor) Name() string                 { return d.name }
+func (*conversionDescriptor) Kind() ObjectKind               { return ConversionObject }
 
 func collationText(s string) *string { return &s }
 
@@ -120,19 +124,36 @@ func (conversionProvider) Validate(view CatalogRead, descriptor Descriptor) erro
 	if !ok || d == nil {
 		return fmt.Errorf("stuntgres: invalid conversion descriptor")
 	}
-	if d.oid < 4402 || d.oid > 4531 || d.oid == 4450 || d.oid == 4451 {
-		return fmt.Errorf("stuntgres: unsupported conversion identity")
+	if d.oid == 0 || d.name == "" || d.revision == 0 || d.source <= 0 || d.destination <= 0 || sqltype.EncodingName(d.source) == "" || sqltype.EncodingName(d.destination) == "" {
+		return fmt.Errorf("stuntgres: invalid conversion properties")
 	}
-	// The release inventory is in fixed OID order, with two documented holes.
-	// Validate in constant time without a secondary registry allocation.
-	index := int(d.oid - 4402)
-	if d.oid >= 4452 {
-		index -= 2
+	if fixed := conversionSeed(d.oid); fixed != nil {
+		if d.source != fixed.source || d.destination != fixed.destination || d.handler != fixed.handler || d.defaultConversion != fixed.defaultConversion {
+			return fmt.Errorf("stuntgres: unsupported seeded conversion capability")
+		}
 	}
-	if *d != builtinConversions[index] {
-		return fmt.Errorf("stuntgres: unsupported conversion identity")
+	procedure, ok := view.state.descriptors[d.handler].(*procedureDescriptor)
+	if !ok || procedure.signature != conversionSignature || procedure.result != 23 || procedure.conversion.Name() == "" {
+		return fmt.Errorf("stuntgres: unavailable conversion routine")
 	}
-	return validateInquiryIdentity(view, d)
+	registered, ok := sqltype.RegisteredEncodingConversion(procedure.name)
+	if !ok || registered != procedure.conversion {
+		return fmt.Errorf("stuntgres: invalid conversion routine capability")
+	}
+	if !registered.Supports(d.source, d.destination) {
+		return fmt.Errorf("stuntgres: conversion pair does not match real routine")
+	}
+	if err := validateInquiryIdentity(view, d); err != nil {
+		return err
+	}
+	namespace := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+	if namespace.temporary == (SessionToken{}) {
+		handlerNamespace := view.state.descriptors[procedure.Namespace()].(*namespaceDescriptor)
+		if handlerNamespace.temporary != (SessionToken{}) {
+			return fmt.Errorf("stuntgres: durable conversion has temporary routine")
+		}
+	}
+	return nil
 }
 func validateInquiryIdentity(view CatalogRead, d Descriptor) error {
 	namespace, ok := view.Descriptor(d.Namespace())

@@ -105,6 +105,76 @@ and leave rows unchanged. Success is quiet exit 0; any failed assertion exits
 nonzero. This standalone observation supplements, not replaces, selected
 dual-mode proof and whole-project quickcheck.
 
+### Encoding conversion oracle-first definitions
+
+`conversion_*_test.go` owns the shared conversion lifecycle, complete DDL
+diagnostics/Prepare phases/notices, ownership, default lookup, duplicate-default
+schema moves, actual encoding outputs, retained results, released catalog
+associations, native controls and feature smoke. The expected handler and seed
+inventory is literal REL_18_0 data, independent of the native implementation.
+REGPROC output and its OID/TEXT casts are checked separately from handler names.
+
+Initial pinned discovery is followed by native failure observation and selected
+dual-mode proof using the same definitions; no backend-discovery filter remains.
+Diagnostics encode the pinned oracle contract rather than native failure output.
+PostgreSQL schema ACL phases use actual GRANT/REVOKE. Native public setup uses
+explicit schema-owner transfers for reachability/CREATE, preserving conversion
+ownership independently; actual native ACL denial remains private-seam coverage.
+Namespace metadata uses independently captured namespace OIDs from uniquely
+named ordinary tables resolved through existing qualified REGCLASS/pg_class.
+Each witness is dropped before conversion owner/dependency assertions; no
+pg_namespace or REGNAMESPACE capability is assumed. Seed repair reads the pinned
+conversion's name and namespace ID, requiring the known hidden namespace or
+pg_catalog identity. After native Restore remints a user namespace, cleanup
+independently re-resolves only the known hidden schema under a fresh bounded
+context and requires an exact ID match before repair.
+Native private consumer units acquire real statement snapshots for conversion
+evaluation and construct catalog-derived REGPROC carriers without admitting
+generic input. Control units assert actual lossless replay and preservation of
+existing namespace collisions, not incidental temporary-helper spellings;
+the shared reference definitions separately retain exact public CREATE output.
+
+Small selected commands (repeat each with and without `REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferenceConversion(Lifecycle|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceConversion(Ownership|DefaultsAndLookup|DefaultSchemaMove)$' REFERENCE=1
+make check RUN='^TestReferenceConversion(Metadata|ExecutionAndRetained|Controls)$' REFERENCE=1
+make check RUN='^TestReferenceConversionFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceConversionCancellation$' REFERENCE=1
+make check RUN='^TestReferenceConversionCancellation$' RACE=1
+make check RUN='^TestReferenceConversion(Transactions|Temporary)$' REFERENCE=1
+make check RUN='^TestReferenceVisibilityInquiry(Boundaries|UtilityBoundaries)$' REFERENCE=1
+```
+
+The affected visibility-boundary definitions now consume accepted conversion
+CREATE through direct utility Query and genuine prepared execution. They assert
+no Prepare publication, actual user conversion metadata/visibility, DROP removal
+and unchanged sentinel rows; obsolete native conversion syntax exclusions are
+not retained as compatibility shims.
+
+Feature smoke expects raw LATIN1 `e9`, full `22P05` for Euro and SAME held
+statement recovery, stable conversion identity across rename/schema move, exact
+native quoted dump definition/replay and `42883` after dropping the reachable
+default. Native controls are explicitly native-only phases in the same shared
+body; Controls replays the actual native dump on the pinned PostgreSQL backend
+and an independent native Driver. Seed repair is registered before mutation and
+uses an independent bounded cleanup context before nonpublic schema teardown.
+
+`TestReferenceConversionCancellation` selects a real custom LATIN1-to-UTF8
+default after hiding the seed, observes actual provider/server admission for a
+32MiB stored payload, cancels active reads and staged writes, joins every worker,
+and recovers on the SAME held owner/statements with exact UTF8 bytes and no
+published write prefix. The existing real admission helper remains unchanged.
+
+`TestReferenceConversionTransactions` compares PostgreSQL transactional DDL with
+the retained native Execute-phase `0A000` boundary, including prepared statements
+and shared read-only `25006` diagnostics. `TestReferenceConversionTemporary`
+uses an actual physical-session retirement barrier and verifies TEMP conversion
+omission from portable Dump, retention across live native Reset/Restore, and
+removal when the owning physical session exits. Controls also exercise named
+owner replay, independently pre-created target principals, and missing-owner
+failure without destination replacement.
 
 
 ### Registered extension selected proof
@@ -734,3 +804,4 @@ owner planning/application in all claimed and excluded contexts and projection
 ownership/cancellation/generation retention, without issuing SQL. Selective
 runs and smoke do not replace ordinary quickcheck or the post-merge finalcheck
 under its single1800-second deadline.
+

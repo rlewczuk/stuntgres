@@ -174,7 +174,7 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 		name = "text_ops"
 	case BPChar:
 		name = "bpchar_ops"
-	case Oid, Regclass, Regtype:
+	case Oid, Regclass, Regtype, Regproc:
 		name = "oid_ops"
 	case Float4:
 		name = "float4_ops"
@@ -244,7 +244,7 @@ func (c IndexClass) AcceptsID(id ID) bool {
 	case BPChar:
 		return id == Text || id == VarChar
 	case Oid:
-		return id == Int4 || id == Regclass || id == Regtype
+		return id == Int4 || id == Regclass || id == Regtype || id == Regproc
 	}
 	return false
 }

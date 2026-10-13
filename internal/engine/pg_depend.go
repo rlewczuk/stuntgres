@@ -32,7 +32,9 @@ func pgDependPinned(catalog CatalogRead, address ObjectAddress) bool {
 	case *collationDescriptor:
 		return d.seeded()
 	case *conversionDescriptor:
-		return true
+		return d.seeded()
+	case *procedureDescriptor:
+		return d.conversion.Name() != ""
 	case *relationDescriptor:
 		return d.relationKind == catalogRelation
 	}
@@ -89,6 +91,11 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		case *collationDescriptor:
 			if !d.seeded() {
 				add(d.Address(), d.Namespace(), 'n')
+			}
+		case *conversionDescriptor:
+			if !d.seeded() {
+				add(d.Address(), d.Namespace(), 'n')
+				add(d.Address(), d.handler, 'n')
 			}
 		case *typeDescriptor:
 			if pgDependPinned(catalog, d.Address()) {

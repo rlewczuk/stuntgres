@@ -120,6 +120,8 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 			arguments = "internal"
 		case unaccentLexizeSignature:
 			arguments = "internal,internal,internal,internal"
+		case conversionSignature:
+			arguments = "integer,integer,cstring,internal,integer,boolean"
 		default:
 			panic("stuntgres: invalid installed procedure signature")
 		}
@@ -163,6 +165,25 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 			}
 		}
 		return "collation " + name
+	}
+	if d, ok := catalog.state.descriptors[base].(*conversionDescriptor); ok {
+		name := dependencyIdentifier(d.name)
+		if path != nil {
+			visible := false
+			for _, ns := range path {
+				if namespace, ok := catalog.state.descriptors[ns].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+					continue
+				}
+				if a, ok := catalog.state.names[NameKey{ClassID: ConversionClassID, Namespace: ns, Name: d.name}]; ok {
+					visible = a == d.Address()
+					break
+				}
+			}
+			if !visible {
+				name = dependencyIdentifier(catalog.state.descriptors[d.Namespace()].Name()) + "." + name
+			}
+		}
+		return "conversion " + name
 	}
 	d := catalog.state.descriptors[base].(*relationDescriptor)
 	if d.sqlIndex != nil && d.sqlIndex.constraint != nil {

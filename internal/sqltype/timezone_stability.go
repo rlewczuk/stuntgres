@@ -27,7 +27,7 @@ func (d *Descriptor) OutputSessionDependent() bool {
 		return true
 	}
 	switch d.BaseType().ID() {
-	case Money, Regclass, Regtype, Date, Timestamp, Timestamptz, Interval, Float4, Float8:
+	case Money, Regclass, Regtype, Regproc, Date, Timestamp, Timestamptz, Interval, Float4, Float8:
 		return true
 	default:
 		return false

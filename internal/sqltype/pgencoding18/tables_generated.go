@@ -223,6 +223,224 @@ var pairs = [42][42]bool{
 	40: {6: true},
 	41: {5: true, 6: true},
 }
+var conversionRoutines = [42][42]string{
+	1:  {35: "euc_jp_to_sjis", 7: "euc_jp_to_mic", 6: "euc_jp_to_utf8"},
+	2:  {7: "euc_cn_to_mic", 6: "euc_cn_to_utf8"},
+	3:  {7: "euc_kr_to_mic", 6: "euc_kr_to_utf8"},
+	4:  {36: "euc_tw_to_big5", 7: "euc_tw_to_mic", 6: "euc_tw_to_utf8"},
+	5:  {6: "euc_jis_2004_to_utf8", 41: "euc_jis_2004_to_shift_jis_2004"},
+	6:  {36: "utf8_to_big5", 22: "utf8_to_koi8r", 34: "utf8_to_koi8u", 20: "utf8_to_win", 21: "utf8_to_win", 29: "utf8_to_win", 23: "utf8_to_win", 24: "utf8_to_win", 30: "utf8_to_win", 31: "utf8_to_win", 32: "utf8_to_win", 18: "utf8_to_win", 33: "utf8_to_win", 19: "utf8_to_win", 2: "utf8_to_euc_cn", 1: "utf8_to_euc_jp", 3: "utf8_to_euc_kr", 4: "utf8_to_euc_tw", 39: "utf8_to_gb18030", 37: "utf8_to_gbk", 9: "utf8_to_iso8859", 10: "utf8_to_iso8859", 11: "utf8_to_iso8859", 12: "utf8_to_iso8859", 13: "utf8_to_iso8859", 14: "utf8_to_iso8859", 15: "utf8_to_iso8859", 16: "utf8_to_iso8859", 17: "utf8_to_iso8859", 25: "utf8_to_iso8859", 26: "utf8_to_iso8859", 27: "utf8_to_iso8859", 28: "utf8_to_iso8859", 8: "utf8_to_iso8859_1", 40: "utf8_to_johab", 35: "utf8_to_sjis", 38: "utf8_to_uhc", 5: "utf8_to_euc_jis_2004", 41: "utf8_to_shift_jis_2004"},
+	7:  {22: "mic_to_koi8r", 25: "mic_to_iso", 23: "mic_to_win1251", 20: "mic_to_win866", 2: "mic_to_euc_cn", 1: "mic_to_euc_jp", 35: "mic_to_sjis", 3: "mic_to_euc_kr", 4: "mic_to_euc_tw", 36: "mic_to_big5", 9: "mic_to_latin2", 29: "mic_to_win1250", 8: "mic_to_latin1", 10: "mic_to_latin3", 11: "mic_to_latin4"},
+	8:  {7: "latin1_to_mic", 6: "iso8859_1_to_utf8"},
+	9:  {7: "latin2_to_mic", 29: "latin2_to_win1250", 6: "iso8859_to_utf8"},
+	10: {7: "latin3_to_mic", 6: "iso8859_to_utf8"},
+	11: {7: "latin4_to_mic", 6: "iso8859_to_utf8"},
+	12: {6: "iso8859_to_utf8"},
+	13: {6: "iso8859_to_utf8"},
+	14: {6: "iso8859_to_utf8"},
+	15: {6: "iso8859_to_utf8"},
+	16: {6: "iso8859_to_utf8"},
+	17: {6: "iso8859_to_utf8"},
+	18: {6: "win_to_utf8"},
+	19: {6: "win_to_utf8"},
+	20: {7: "win866_to_mic", 22: "win866_to_koi8r", 23: "win866_to_win1251", 25: "win866_to_iso", 6: "win_to_utf8"},
+	21: {6: "win_to_utf8"},
+	22: {7: "koi8r_to_mic", 23: "koi8r_to_win1251", 20: "koi8r_to_win866", 25: "koi8r_to_iso", 6: "koi8r_to_utf8"},
+	23: {7: "win1251_to_mic", 22: "win1251_to_koi8r", 20: "win1251_to_win866", 25: "win1251_to_iso", 6: "win_to_utf8"},
+	24: {6: "win_to_utf8"},
+	25: {7: "iso_to_mic", 22: "iso_to_koi8r", 23: "iso_to_win1251", 20: "iso_to_win866", 6: "iso8859_to_utf8"},
+	26: {6: "iso8859_to_utf8"},
+	27: {6: "iso8859_to_utf8"},
+	28: {6: "iso8859_to_utf8"},
+	29: {7: "win1250_to_mic", 9: "win1250_to_latin2", 6: "win_to_utf8"},
+	30: {6: "win_to_utf8"},
+	31: {6: "win_to_utf8"},
+	32: {6: "win_to_utf8"},
+	33: {6: "win_to_utf8"},
+	34: {6: "koi8u_to_utf8"},
+	35: {1: "sjis_to_euc_jp", 7: "sjis_to_mic", 6: "sjis_to_utf8"},
+	36: {4: "big5_to_euc_tw", 7: "big5_to_mic", 6: "big5_to_utf8"},
+	37: {6: "gbk_to_utf8"},
+	38: {6: "uhc_to_utf8"},
+	39: {6: "gb18030_to_utf8"},
+	40: {6: "johab_to_utf8"},
+	41: {6: "shift_jis_2004_to_utf8", 5: "shift_jis_2004_to_euc_jis_2004"},
+}
+
+func ConversionRoutineArguments(name string) (source, destination int, ok bool) {
+	switch name {
+	case "koi8r_to_mic":
+		return 22, 7, true
+	case "mic_to_koi8r":
+		return 7, 22, true
+	case "iso_to_mic":
+		return 25, 7, true
+	case "mic_to_iso":
+		return 7, 25, true
+	case "win1251_to_mic":
+		return 23, 7, true
+	case "mic_to_win1251":
+		return 7, 23, true
+	case "win866_to_mic":
+		return 20, 7, true
+	case "mic_to_win866":
+		return 7, 20, true
+	case "koi8r_to_win1251":
+		return 22, 23, true
+	case "win1251_to_koi8r":
+		return 23, 22, true
+	case "koi8r_to_win866":
+		return 22, 20, true
+	case "win866_to_koi8r":
+		return 20, 22, true
+	case "win866_to_win1251":
+		return 20, 23, true
+	case "win1251_to_win866":
+		return 23, 20, true
+	case "iso_to_koi8r":
+		return 25, 22, true
+	case "koi8r_to_iso":
+		return 22, 25, true
+	case "iso_to_win1251":
+		return 25, 23, true
+	case "win1251_to_iso":
+		return 23, 25, true
+	case "iso_to_win866":
+		return 25, 20, true
+	case "win866_to_iso":
+		return 20, 25, true
+	case "euc_cn_to_mic":
+		return 2, 7, true
+	case "mic_to_euc_cn":
+		return 7, 2, true
+	case "euc_jp_to_sjis":
+		return 1, 35, true
+	case "sjis_to_euc_jp":
+		return 35, 1, true
+	case "euc_jp_to_mic":
+		return 1, 7, true
+	case "sjis_to_mic":
+		return 35, 7, true
+	case "mic_to_euc_jp":
+		return 7, 1, true
+	case "mic_to_sjis":
+		return 7, 35, true
+	case "euc_kr_to_mic":
+		return 3, 7, true
+	case "mic_to_euc_kr":
+		return 7, 3, true
+	case "euc_tw_to_big5":
+		return 4, 36, true
+	case "big5_to_euc_tw":
+		return 36, 4, true
+	case "euc_tw_to_mic":
+		return 4, 7, true
+	case "big5_to_mic":
+		return 36, 7, true
+	case "mic_to_euc_tw":
+		return 7, 4, true
+	case "mic_to_big5":
+		return 7, 36, true
+	case "latin2_to_mic":
+		return 9, 7, true
+	case "mic_to_latin2":
+		return 7, 9, true
+	case "win1250_to_mic":
+		return 29, 7, true
+	case "mic_to_win1250":
+		return 7, 29, true
+	case "latin2_to_win1250":
+		return 9, 29, true
+	case "win1250_to_latin2":
+		return 29, 9, true
+	case "latin1_to_mic":
+		return 8, 7, true
+	case "mic_to_latin1":
+		return 7, 8, true
+	case "latin3_to_mic":
+		return 10, 7, true
+	case "mic_to_latin3":
+		return 7, 10, true
+	case "latin4_to_mic":
+		return 11, 7, true
+	case "mic_to_latin4":
+		return 7, 11, true
+	case "big5_to_utf8":
+		return 36, 6, true
+	case "utf8_to_big5":
+		return 6, 36, true
+	case "utf8_to_koi8r":
+		return 6, 22, true
+	case "koi8r_to_utf8":
+		return 22, 6, true
+	case "utf8_to_koi8u":
+		return 6, 34, true
+	case "koi8u_to_utf8":
+		return 34, 6, true
+	case "utf8_to_win":
+		return 6, -1, true
+	case "win_to_utf8":
+		return -1, 6, true
+	case "euc_cn_to_utf8":
+		return 2, 6, true
+	case "utf8_to_euc_cn":
+		return 6, 2, true
+	case "euc_jp_to_utf8":
+		return 1, 6, true
+	case "utf8_to_euc_jp":
+		return 6, 1, true
+	case "euc_kr_to_utf8":
+		return 3, 6, true
+	case "utf8_to_euc_kr":
+		return 6, 3, true
+	case "euc_tw_to_utf8":
+		return 4, 6, true
+	case "utf8_to_euc_tw":
+		return 6, 4, true
+	case "gb18030_to_utf8":
+		return 39, 6, true
+	case "utf8_to_gb18030":
+		return 6, 39, true
+	case "gbk_to_utf8":
+		return 37, 6, true
+	case "utf8_to_gbk":
+		return 6, 37, true
+	case "utf8_to_iso8859":
+		return 6, -1, true
+	case "iso8859_to_utf8":
+		return -1, 6, true
+	case "iso8859_1_to_utf8":
+		return 8, 6, true
+	case "utf8_to_iso8859_1":
+		return 6, 8, true
+	case "johab_to_utf8":
+		return 40, 6, true
+	case "utf8_to_johab":
+		return 6, 40, true
+	case "sjis_to_utf8":
+		return 35, 6, true
+	case "utf8_to_sjis":
+		return 6, 35, true
+	case "uhc_to_utf8":
+		return 38, 6, true
+	case "utf8_to_uhc":
+		return 6, 38, true
+	case "euc_jis_2004_to_utf8":
+		return 5, 6, true
+	case "utf8_to_euc_jis_2004":
+		return 6, 5, true
+	case "shift_jis_2004_to_utf8":
+		return 41, 6, true
+	case "utf8_to_shift_jis_2004":
+		return 6, 41, true
+	case "euc_jis_2004_to_shift_jis_2004":
+		return 5, 41, true
+	case "shift_jis_2004_to_euc_jis_2004":
+		return 41, 5, true
+	}
+	return 0, 0, false
+}
+
 var unicodeTrees = [42][2]*radix{
 	1:  {&euc_jp_to_unicode_tree, &euc_jp_from_unicode_tree},
 	2:  {&euc_cn_to_unicode_tree, &euc_cn_from_unicode_tree},

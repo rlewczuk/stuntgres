@@ -199,8 +199,16 @@ Collation execution uses deterministic C/POSIX and registered fixed builtin
 providers. Arbitrary libc locale data, ICU, nondeterministic equality and fallback
 providers are unavailable. Unicode-collation ILIKE retains its native exclusion;
 ASCII behavior must not silently stand in for that provider. Encoding conversion
-uses the release registry's direct pairs, not arbitrary pathfinding or an implicit
-UTF8 pivot; the database encoding remains UTF8.
+uses registered real release routines and current catalog defaults, not arbitrary
+pathfinding or an implicit UTF8 pivot; the database encoding remains UTF8.
+CREATE/ALTER/DROP CONVERSION, ownership, schema moves and directed default lookup
+are supported. Arbitrary function definitions/external conversion ABIs and wire
+transcoding remain excluded. REGPROC is a catalog-derived identity/output carrier
+with OID/TEXT inspection casts, not generic named input or a storage declaration.
+Conversion utilities retain the native explicit-transaction DDL exclusion at
+Execute, not Prepare. Read-only execution reports `25006` before that exclusion
+or object resolution. DROP retires the actual conversion provider atomically;
+subsequent statements select fresh defaults while returned results retain theirs.
 
 Index providers are not a general PostgreSQL optimizer or physical access-method
 implementation. GiST, SP-GiST, GIN and extension-backed providers are not implied

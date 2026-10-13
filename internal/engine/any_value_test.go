@@ -73,6 +73,14 @@ func TestAnyValueProviderDatums(t *testing.T) {
 						}
 						values = append(values, value)
 					}
+				case sqltype.Regproc:
+					for _, id := range []uint32{0, math.MaxUint32} {
+						value, err := sqltype.RegprocValue(d, id)
+						if err != nil {
+							t.Fatal(err)
+						}
+						values = append(values, value)
+					}
 				case sqltype.Void:
 					values = append(values, sqltype.VoidValue(d))
 				case sqltype.PgNodeTree:

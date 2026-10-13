@@ -1,0 +1,173 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strconv"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
+)
+
+func conversionSQLName(view CatalogRead, d *conversionDescriptor) string {
+	return quoteIdentifier(view.state.descriptors[d.Namespace()].Name()) + "." + quoteIdentifier(d.name)
+}
+
+func conversionDefinition(view CatalogRead, d *conversionDescriptor, name string) (string, error) {
+	procedure, ok := view.state.descriptors[d.handler].(*procedureDescriptor)
+	if !ok || procedure.conversion.Name() == "" {
+		return "", fmt.Errorf("stuntgres: unavailable dump conversion provider")
+	}
+	prefix := "CREATE CONVERSION "
+	if d.defaultConversion {
+		prefix = "CREATE DEFAULT CONVERSION "
+	}
+	routine := quoteIdentifier(view.state.descriptors[procedure.Namespace()].Name()) + "." + quoteIdentifier(procedure.name)
+	return prefix + name + " FOR '" + sqltype.EncodingName(d.source) + "' TO '" + sqltype.EncodingName(d.destination) + "' FROM " + routine + ";\n", nil
+}
+
+// Multiple defaults in one namespace are legal after SET SCHEMA, but cannot be
+// directly CREATED there. Only additional defaults use a collision-free helper
+// schema, which is created before owner groups and removed by the same replay.
+func conversionDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read, definitions []*conversionDescriptor) (statements []dumpDomain, schemas []string, err error) {
+	if len(definitions) == 0 {
+		return
+	}
+	sort.Slice(definitions, func(i, j int) bool {
+		return conversionSQLName(view, definitions[i]) < conversionSQLName(view, definitions[j])
+	})
+	type pair struct {
+		namespace           ObjectAddress
+		source, destination int
+	}
+	occupiedPairs := make(map[pair]bool)
+	for _, descriptor := range view.state.descriptors {
+		if d, ok := descriptor.(*conversionDescriptor); ok && d.seeded() && d.defaultConversion {
+			occupiedPairs[pair{d.Namespace(), d.source, d.destination}] = true
+		}
+	}
+	occupiedSchemas := make(map[string]bool)
+	for key := range view.state.names {
+		if key.ClassID == NamespaceClassID {
+			occupiedSchemas[key.Name] = true
+		}
+	}
+	for i, d := range definitions {
+		if err = ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		if err = (conversionProvider{}).Validate(view, d); err != nil {
+			return nil, nil, err
+		}
+		owner, ownerErr := roles.Descriptor(d.owner)
+		if ownerErr != nil {
+			return nil, nil, ownerErr
+		}
+		name := conversionSQLName(view, d)
+		key := pair{d.Namespace(), d.source, d.destination}
+		helper := ""
+		if d.defaultConversion && occupiedPairs[key] {
+			base := "__stuntgres_conversion_" + strconv.Itoa(i)
+			helper = base
+			for n := 0; occupiedSchemas[helper]; n++ {
+				helper = base + "_" + strconv.Itoa(n)
+			}
+			occupiedSchemas[helper] = true
+			schemas = append(schemas, "CREATE SCHEMA "+quoteIdentifier(helper)+" AUTHORIZATION "+quoteIdentifier(owner.Name)+";\n")
+			name = quoteIdentifier(helper) + "." + quoteIdentifier(d.name)
+		}
+		definition, definitionErr := conversionDefinition(view, d, name)
+		if definitionErr != nil {
+			return nil, nil, definitionErr
+		}
+		if helper != "" {
+			definition += "ALTER CONVERSION " + name + " SET SCHEMA " + quoteIdentifier(view.state.descriptors[d.Namespace()].Name()) + ";\nDROP SCHEMA " + quoteIdentifier(helper) + ";\n"
+		}
+		if d.defaultConversion {
+			occupiedPairs[key] = true
+		}
+		statements = append(statements, dumpDomain{owner: owner.Name, sql: definition})
+	}
+	return
+}
+
+// All moving/renamed seeds first receive intermediate names, avoiding swaps and
+// collisions with both canonical seed names and current user-object names.
+func conversionSeedDumpStatements(ctx context.Context, view CatalogRead, roles authorization.Read) ([]string, error) {
+	catalogNamespace := view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}]
+	if catalogNamespace == nil {
+		return nil, fmt.Errorf("stuntgres: missing bootstrap conversion namespace")
+	}
+	initial := quoteIdentifier(catalogNamespace.Name())
+	type delta struct {
+		d                       *conversionDescriptor
+		fixed, temporary, owner string
+	}
+	var changes []delta
+	var occupied map[string]bool
+	for i := range builtinConversions {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		fixed := &builtinConversions[i]
+		d, ok := view.state.descriptors[fixed.Address()].(*conversionDescriptor)
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing pinned conversion")
+		}
+		if err := (conversionProvider{}).Validate(view, d); err != nil {
+			return nil, err
+		}
+		owner, err := roles.Descriptor(d.owner)
+		if err != nil {
+			return nil, err
+		}
+		change := delta{d: d, fixed: fixed.name, owner: owner.Name}
+		if d.name != fixed.name || d.Namespace().ObjectID != PGCatalogNamespaceOID {
+			if occupied == nil {
+				occupied = make(map[string]bool)
+				for _, descriptor := range view.state.descriptors {
+					if descriptor.Kind() == ConversionObject {
+						occupied[descriptor.Name()] = true
+					}
+				}
+				for _, seed := range builtinConversions {
+					occupied[seed.name] = true
+				}
+			}
+			base := "__stuntgres_conversion_seed_" + strconv.FormatUint(uint64(d.oid), 10)
+			change.temporary = base
+			for n := 0; occupied[change.temporary]; n++ {
+				change.temporary = base + "_" + strconv.Itoa(n)
+			}
+			occupied[change.temporary] = true
+		}
+		if change.temporary != "" || change.owner != "postgres" || d.owner.ID() != authorization.BootstrapPrincipalID {
+			changes = append(changes, change)
+		}
+	}
+	var statements []string
+	for _, change := range changes {
+		if change.temporary != "" {
+			statements = append(statements, "ALTER CONVERSION "+initial+"."+quoteIdentifier(change.fixed)+" RENAME TO "+quoteIdentifier(change.temporary)+";\n")
+		}
+	}
+	for _, change := range changes {
+		if change.temporary == "" {
+			continue
+		}
+		from := initial + "." + quoteIdentifier(change.temporary)
+		if change.d.Namespace().ObjectID != PGCatalogNamespaceOID {
+			namespace := quoteIdentifier(view.state.descriptors[change.d.Namespace()].Name())
+			statements = append(statements, "ALTER CONVERSION "+from+" SET SCHEMA "+namespace+";\n")
+			from = namespace + "." + quoteIdentifier(change.temporary)
+		}
+		statements = append(statements, "ALTER CONVERSION "+from+" RENAME TO "+quoteIdentifier(change.d.name)+";\n")
+	}
+	for _, change := range changes {
+		if change.owner != "postgres" || change.d.owner.ID() != authorization.BootstrapPrincipalID {
+			statements = append(statements, "ALTER CONVERSION "+conversionSQLName(view, change.d)+" OWNER TO "+quoteIdentifier(change.owner)+";\n")
+		}
+	}
+	return statements, nil
+}

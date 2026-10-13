@@ -270,6 +270,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	case *parser.DropCollation:
 		domainMode = s.Mode
 		cascade = s.Mode == parser.DropCascade
+	case *parser.DropConversion:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropSchema:
 		cascade = s.Cascade
 	}
@@ -381,6 +383,18 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		}
 	case *parser.DropCollation:
 		if err = e.stageDropCollationLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.CreateConversion:
+		if err = e.stageCreateConversionLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterConversion:
+		if err = e.stageAlterConversionLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropConversion:
+		if err = e.stageDropConversionLocked(op, auth, stage, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateDomain:
@@ -545,6 +559,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() && (t.owningRelation == (ObjectAddress{}) || t.typ.IsComposite() && auth.catalog.state.descriptors[t.owningRelation].(*relationDescriptor).relationKind == compositeRelation) {
 				domains = append(domains, t)
 			} else if c, ok := d.(*collationDescriptor); ok {
+				domains = append(domains, c)
+			} else if c, ok := d.(*conversionDescriptor); ok {
 				domains = append(domains, c)
 			} else if extension, ok := d.(*extensionDescriptor); ok {
 				domains = append(domains, extension)

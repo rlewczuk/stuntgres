@@ -254,6 +254,9 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 // Concrete catalog carriers are not necessarily physical SQL storage values.
 // Resolve existing domain/array wrappers without adding a public type framework.
 func validateQueryTableOutputType(typ *sqltype.Descriptor) error {
+	if typ.ContainsRegproc() {
+		return sqlError("0A000", "query table output type regproc is unsupported")
+	}
 	for {
 		physical := typ.BaseType()
 		if !physical.IsArray() {

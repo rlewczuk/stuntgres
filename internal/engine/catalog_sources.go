@@ -59,6 +59,10 @@ func (e *Engine) initializeCatalogSources() error {
 		}{
 			{"oid", sqltype.Oid}, {"collname", sqltype.Name}, {"collnamespace", sqltype.Oid}, {"collowner", sqltype.Oid}, {"collprovider", sqltype.Char}, {"collisdeterministic", sqltype.Bool}, {"collencoding", sqltype.Int4}, {"collcollate", sqltype.Text}, {"collctype", sqltype.Text}, {"colllocale", sqltype.Text}, {"collicurules", sqltype.Text}, {"collversion", sqltype.Text},
 		}},
+		{2607, "pg_conversion", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"conname", sqltype.Name}, {"connamespace", sqltype.Oid}, {"conowner", sqltype.Oid}, {"conforencoding", sqltype.Int4}, {"contoencoding", sqltype.Int4}, {"conproc", sqltype.Regproc}, {"condefault", sqltype.Bool}}},
 		{2605, "pg_cast", []struct {
 			name string
 			typ  sqltype.ID
@@ -228,6 +232,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 3456 {
 		return capturePGCollation(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == 2607 {
+		return capturePGConversion(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)

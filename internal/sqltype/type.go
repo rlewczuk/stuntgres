@@ -23,6 +23,7 @@ const (
 	Int8           ID = 20
 	Int2           ID = 21
 	Int4           ID = 23
+	Regproc        ID = 24
 	Text           ID = 25
 	Oid            ID = 26
 	Xid            ID = 28
@@ -127,8 +128,8 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 		return 1
 	case Int2:
 		return 2
-	case Int4, Oid, Xid, Regclass, Regtype, Date, Float4, Void,
-		24, 29, // regproc, cid
+	case Int4, Oid, Xid, Regclass, Regtype, Regproc, Date, Float4, Void,
+		29,       // cid
 		269, 325, // table_am_handler, index_am_handler
 		2202, 2203, 2204, // regprocedure, regoper, regoperator
 		2276, 2279, 2280, 2283, // any, trigger, language_handler, anyelement
@@ -247,6 +248,7 @@ func Builtins() []*Descriptor {
 		{id: UUID, name: "uuid", sql: "UUID", database: "UUID", associatedArray: 2951},
 		{id: Regclass, name: "regclass", sql: "REGCLASS", database: "REGCLASS", associatedArray: 2210},
 		{id: Regtype, name: "regtype", sql: "REGTYPE", database: "REGTYPE", associatedArray: 2211},
+		{id: Regproc, name: "regproc", sql: "REGPROC", database: "REGPROC", associatedArray: 1008},
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
@@ -617,6 +619,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.civilInput(text, typmod, env)
 	case Text, BPChar, VarChar:
 		return sizeCharacter(String(d, text), typmod, false)
+	case Regproc:
+		return Value{}, failure("0A000", "regproc input is unsupported")
 	case Regtype:
 		if env.Regtype == nil {
 			return Value{}, fmt.Errorf("regtype input lacks catalog authority")
@@ -855,6 +859,15 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return env.Regtype.FormatRegtype(id)
 		}
 		return strconv.FormatUint(uint64(id), 10), nil
+	case Regproc:
+		id, err := v.ProcedureOID()
+		if err != nil {
+			return "", err
+		}
+		if env.Regproc == nil {
+			return "", fmt.Errorf("missing regproc output snapshot")
+		}
+		return env.Regproc.FormatRegproc(id)
 	case Regclass:
 		if env.Regclass != nil {
 			n, err := strconv.ParseUint(v.text, 10, 32)
@@ -1243,6 +1256,19 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.id == Regproc || target.Type.id == Regproc {
+		switch {
+		case source.Type == target.Type:
+			return p, nil
+		case source.Type.id == Regproc && target.Type.id == Oid:
+			p.method = oidConversion
+		case source.Type.id == Regproc && target.Type.id == Text && context >= Assignment:
+			p.method = viaIO
+		default:
+			return p, failure("42804", "incompatible source and destination types")
+		}
+		return p, nil
+	}
 	if IsNetwork(source.Type.id) || IsNetwork(target.Type.id) {
 		switch {
 		case source.Type == target.Type:
@@ -1599,7 +1625,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.Type.BaseType().IsEnum() {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
-			Interval, Name, Numeric, Oid, Regclass, Regtype, Text, VarChar, Time,
+			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Text, VarChar, Time,
 			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr:
 		case Void:
 			message := "could not identify an ordering operator for type void"
@@ -1775,7 +1801,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	switch p.left.id {
 	case Inet, Cidr:
 		return compareNetwork(a.network, b.network), nil
-	case Regclass, Regtype:
+	case Regclass, Regtype, Regproc:
 		if a.integer != 1 || b.integer != 1 {
 			return 0, fmt.Errorf("invalid regclass comparison value")
 		}

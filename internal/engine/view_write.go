@@ -383,6 +383,18 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				b.subqueryDemand = true
 			case visibilityInquiryExpression:
 				b.visibilitySnapshot = true
+			case binaryExpression:
+				node := n.(binaryExpression)
+				if !node.plan.Immutable() {
+					demand := true
+					for _, arg := range node.args {
+						if randomLiteralNull(arg) {
+							demand = false
+							break
+						}
+					}
+					b.visibilitySnapshot = b.visibilitySnapshot || demand
+				}
 			}
 			old, absent := false, false
 			var c columnExpression

@@ -203,7 +203,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 	switch v.Type().ID() {
 	case sqltype.Inet, sqltype.Cidr:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
-	case sqltype.Regtype:
+	case sqltype.Regtype, sqltype.Regproc:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Xid:
 		text, err := v.Type().Output(ctx, v)
@@ -270,7 +270,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Char:
+	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

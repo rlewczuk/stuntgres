@@ -51,6 +51,22 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		}
 		return n, nil
 	}
+	seedOwner := func(ref authorization.PrincipalRef, seeded bool) (authorization.PrincipalRef, error) {
+		if !seeded || ref.ID() != authorization.BootstrapPrincipalID {
+			return remap(ref)
+		}
+		if _, err := source.Descriptor(ref); err != nil {
+			return authorization.PrincipalRef{}, err
+		}
+		target := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+		if _, err := targetSnapshot.Descriptor(target); err != nil {
+			return authorization.PrincipalRef{}, err
+		}
+		if _, err := e.roleRead(CatalogRead{e, e.state}, e.roles).Descriptor(target); err != nil {
+			return authorization.PrincipalRef{}, err
+		}
+		return target, nil
+	}
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
 		case *databaseDescriptor, *tsTemplateDescriptor:
@@ -66,7 +82,11 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *procedureDescriptor:
 			n := *d
 			var err error
-			n.owner, err = remap(d.owner)
+			n.owner, err = seedOwner(d.owner, d.conversion.Name() != "")
+			if err != nil {
+				return nil, err
+			}
+			n.acl, err = acl(d.acl)
 			if err != nil {
 				return nil, err
 			}
@@ -97,26 +117,19 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *collationDescriptor:
 			n := *d
 			var err error
-			if d.seeded() && d.owner.ID() == authorization.BootstrapPrincipalID {
-				if _, err = source.Descriptor(d.owner); err != nil {
-					return nil, err
-				}
-				n.owner = e.authorizationDomain.Principal(10)
-				if _, err = targetSnapshot.Descriptor(n.owner); err != nil {
-					return nil, err
-				}
-				if _, err = (e.roleRead(CatalogRead{e, e.state}, e.roles)).Descriptor(n.owner); err != nil {
-					return nil, err
-				}
-			} else {
-				n.owner, err = remap(d.owner)
-			}
+			n.owner, err = seedOwner(d.owner, d.seeded())
 			if err != nil {
 				return nil, err
 			}
 			state.descriptors[addr] = &n
 		case *conversionDescriptor:
-			// Immutable builtin identities have no principal references to remap.
+			n := *d
+			var err error
+			n.owner, err = seedOwner(d.owner, d.seeded())
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
 		case *namespaceDescriptor:
 			n := *d
 			var err error

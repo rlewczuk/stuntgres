@@ -55,7 +55,22 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				t.Fatal(err)
 			}
 			expr := binaryExpression{expressionInfo: expressionInfo{usage: usage}, plan: plan, args: args}
-			got, err := expr.Eval(&EvalContext{Context: context.Background()})
+			e := New()
+			op, done := roleOperation(t, e, "postgres")
+			defer done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(context.Canceled)
+			e.mu.Lock()
+			err = e.captureVisibilitySnapshotLocked(scope)
+			e.mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			eval := &EvalContext{Context: context.Background(), statementScope: scope}
+			got, err := expr.Eval(eval)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -90,7 +105,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				t.Fatal(changed, err)
 			}
 			next := rebound.(binaryExpression)
-			result, err := next.Eval(&EvalContext{Context: context.Background()})
+			result, err := next.Eval(eval)
 			want, retagErr := got.Retag(replacement[tc.result])
 			if err != nil || retagErr != nil || result != want {
 				t.Fatal(result, want, err, retagErr)

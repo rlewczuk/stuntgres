@@ -250,7 +250,19 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
 	case datetimeZoneCalendarExpression:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.children())
-	case uuidGenerationExpression, randomExpression, binaryExpression,
+	case binaryExpression:
+		if !n.plan.Immutable() && r.visibilitySnapshot != nil {
+			demand := true
+			for _, arg := range n.args {
+				if randomLiteralNull(arg) {
+					demand = false
+					break
+				}
+			}
+			*r.visibilitySnapshot = *r.visibilitySnapshot || demand
+		}
+		return r.scalarFunctionSQL(ctx, view, node, u)
+	case uuidGenerationExpression, randomExpression,
 		datetimeJustifyExpression, datetimeExtractExpression, datetimeOverlapsExpression,
 		datetimeBinExpression, datetimeTruncExpression, datetimeAgeFiniteExpression, datetimeMakeExpression,
 		datetimeFormattingExpression, numericFormattingExpression, stringExpression,

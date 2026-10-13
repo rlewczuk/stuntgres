@@ -72,6 +72,8 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref Objec
 			vol := "v"
 			if d.volatility == Stable {
 				vol = "s"
+			} else if d.volatility == Immutable {
+				vol = "i"
 			}
 			text(6, vol)
 			boolean(7, d.strict)

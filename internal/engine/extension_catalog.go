@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	unaccentDictionarySignature procedureSignature = "3769,25"
 	unaccentInitSignature       procedureSignature = "2281"
 	unaccentLexizeSignature     procedureSignature = "2281,2281,2281,2281"
+	conversionSignature         procedureSignature = "23,23,2275,2281,23,16"
 )
 
 type extensionDescriptor struct {
@@ -51,6 +53,8 @@ type procedureDescriptor struct {
 	volatility                    Volatility
 	strict                        bool
 	provider                      *unaccentProvider
+	conversion                    sqltype.EncodingConversionHandler
+	acl                           authorization.ACLValue
 	dictionary                    ObjectAddress
 }
 
@@ -147,6 +151,13 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return invalid()
 		}
 	case *procedureDescriptor:
+		if d.conversion.Name() != "" {
+			registered, ok := sqltype.RegisteredEncodingConversion(d.name)
+			if !ok || d.conversion != registered || d.provider != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != Immutable || !d.strict || d.extension != (ObjectAddress{}) || d.dictionary != (ObjectAddress{}) || d.namespace != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
+				return invalid()
+			}
+			break
+		}
 		if d.provider != stockUnaccent {
 			return invalid()
 		}

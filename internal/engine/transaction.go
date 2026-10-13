@@ -361,6 +361,8 @@ type StatementScope struct {
 	visibilityDemand            bool
 	visibilityRelationPath      []ObjectAddress
 	visibilityOtherPath         []ObjectAddress
+	conversionDefaults          map[[2]int]conversionDefault
+	regprocOutput               map[uint32]string
 	identity                    identitySnapshot
 	currentSchemaResult         sqltype.Value
 	deparsePath                 []ObjectAddress
@@ -686,6 +688,10 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	case *parser.RefreshMaterializedView:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
+		return s.op.session.Engine().describeOperation(s, stmt)
+	case *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+		// Conversion utilities have no result signature. Admission, read-only
+		// precedence and the explicit-transaction boundary belong to Execute.
 		return s.op.session.Engine().describeOperation(s, stmt)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)

@@ -343,6 +343,23 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					n.namespace = dest
 				}
 				d = &n
+			case *conversionDescriptor:
+				namespace, handler := r.Namespace(), r.handler
+				if dest, ok := mapping[namespace]; ok {
+					namespace = dest
+				}
+				if dest, ok := mapping[handler]; ok {
+					handler = dest
+				}
+				if target == a && namespace == r.Namespace() && handler == r.handler {
+					break
+				}
+				if r.seeded() && target != a {
+					return fmt.Errorf("stuntgres: pinned conversion identity collision")
+				}
+				n := *r
+				n.oid, n.namespace, n.handler = target.ObjectID, namespace, handler
+				d = &n
 			case *relationDescriptor:
 				if target == a && r.relationKind == catalogRelation && d == e.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.state}, a) {
 					if _, moved := mapping[r.namespace]; !moved {

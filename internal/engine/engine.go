@@ -217,8 +217,13 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
+	e.initializeConversionRoutines()
 	for i := range builtinConversions {
-		d := &builtinConversions[i]
+		d := new(conversionDescriptor)
+		*d = builtinConversions[i]
+		d.owner = e.authorizationDomain.Principal(10)
+		d.namespace = ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		d.revision = 1
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
@@ -330,7 +335,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
-	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
+	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return StatementDescription{}, nil
 	case *parser.CreateExtension:
 		return StatementDescription{}, nil
@@ -590,6 +595,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return strings.Compare(a.Name, b.Name)
 				})
 				for _, c := range source.columns {
+					if c.Usage.Type.ContainsRegproc() {
+						return b, sqlError("0A000", "unsupported column type")
+					}
 					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
 					declarations = append(declarations, createColumnDeclaration{})
 				}

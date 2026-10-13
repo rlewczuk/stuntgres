@@ -164,7 +164,7 @@ var keywords = [...]keyword{
 	{"constraints", Unreserved, true, 0},
 	{"content", Unreserved, true, 0},
 	{"continue", Unreserved, true, CONTINUE},
-	{"conversion", Unreserved, true, 0},
+	{"conversion", Unreserved, true, CONVERSION},
 	{"copy", Unreserved, true, COPY},
 	{"cost", Unreserved, true, 0},
 	{"create", Reserved, false, CREATE},

@@ -89,7 +89,7 @@ func oidCoercion(v Value, target *Descriptor) (Value, error) {
 		return Value{typ: target, text: strconv.FormatUint(uint64(oid), 10), oid: oid, integer: 1}, nil
 	}
 	if target.id == Oid {
-		if v.typ.id == Regclass || v.typ.id == Regtype {
+		if v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regproc {
 			if v.integer != 1 {
 				return Value{}, fmt.Errorf("unresolved regclass value")
 			}

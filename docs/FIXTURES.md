@@ -18,6 +18,21 @@ are rejected before output. Recreated public is an ordinary namespace with absen
 ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
+Conversion controls serialize real qualified CREATE [DEFAULT] CONVERSION
+definitions, canonical encoding strings and actual registered routine names.
+Pinned seed rename/schema/owner deltas precede user definitions. Legal duplicate
+defaults are replayed through collision-free helper schemas that are removed
+within the stream; no provider tables, library paths or arbitrary function
+definitions are serialized. Canonical unchanged seeds preserve legacy dump
+bytes. Temporary definitions are omitted; live target TEMP and user OID
+collisions use the existing replacement remapping frontier. Failed readers,
+late bad conversion statements, cancellation and captured-principal changes
+leave the destination catalog/data and returned metadata intact.
+Conversion replay is part of the same bounded Restore allowlist, not a generic
+script interpreter. Smoke: `make check RUN='^TestReferenceConversionFeatureSmoke$'`
+and the same command with `REFERENCE=1`.
+
+
 Enum declarations are emitted before dependent domains and relations, with exact
 declaration-order labels, qualified current schema names and owner directives.
 Dependent defaults/CHECKs/views render their captured logical type authority,

@@ -128,6 +128,26 @@ Catalog namespaces retain bootstrap ownership. Reset restores canonical local
 metadata but retains the shared role graph; validated imports remap predefined
 owner/ACL identities without importing memberships.
 
+Conversions have real creating-user ownership and normal schema/role
+dependencies. CREATE requires schema CREATE and the registered conversion
+routine's EXECUTE privilege; registered routines have genuine PUBLIC EXECUTE
+defaults through the same native ACL hook. ALTER/DROP check conversion ownership;
+owner transfer uses current SET eligibility and target-owner schema CREATE.
+
+Conversion and routine owners use the extracted authorization domain's opaque
+principal references. Catalog `conowner` exposes only their numeric IDs; those
+IDs cannot establish ownership or authorize replacement. Restore validates
+captured and live principal authority, and ACL publication uses the same paired
+catalog/role read as other installed objects.
+
+Pinned seeds retain immutable routine/pair/default capability through legal
+metadata changes. SQL schema/routine GRANT/REVOKE surfaces remain bounded:
+reference PostgreSQL ACL setup is real, while native public schema setup uses
+explicit schema-owner transfers and private ACL units exercise the real hook.
+Catalog `conowner`/`proowner` describe actual principals, not provider data or
+successful-execution authority cached by Prepare.
+
+
 ## Membership provenance and publication
 
 Membership identity is `(role, member, grantor)`. Independent origins survive

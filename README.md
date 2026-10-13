@@ -719,6 +719,24 @@ See [binary conversion](https://www.postgresql.org/docs/18/functions-binarystrin
 Smoke: `make check RUN='^TestReferenceBinaryConversionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceBinaryConversionFeatureSmoke$'`.
 
+Change note: CREATE [DEFAULT], ALTER and DROP CONVERSION manage independently
+owned conversion objects backed by PostgreSQL18's 84 registered real routines.
+CREATE validates raw encoding names, the exact six-argument integer-result
+signature, EXECUTE authority and a real empty-input probe before publishing.
+Nonempty conversion uses the current statement-owned default catalog/search
+path; nondefaults never repair missing dispatch. CREATE checks one default per
+schema/directed pair, while legal SET SCHEMA moves may leave multiple defaults.
+Rename, move and ownership changes retain identity; system seeds retain pins.
+Read-only `pg_conversion` exposes its eight actual columns, including derived
+REGPROC `conproc` output and OID/TEXT inspection casts. This does not add general
+REGPROC input/storage, CREATE FUNCTION, external ABI loading or wire transcoding.
+Dump emits exact quoted definitions and collision-safe seed metadata deltas,
+including legal duplicate-default replay. Reset restores canonical seeds and
+Restore remaps actual owners/providers while preserving live target TEMP.
+Conversion DDL retains the native autocommit-only explicit-transaction boundary.
+Smoke: `make check RUN='^TestReferenceConversionFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceConversionFeatureSmoke$' REFERENCE=1`.
+
 Change note: SQL `(start,end) OVERLAPS (start,end)` and start-plus-INTERVAL
 pairs normalize reversed endpoints and use half-open periods, with equal
 endpoints representing a single instant. Thirteen TIME/TIMESTAMP/TIMESTAMPTZ/
@@ -2356,10 +2374,10 @@ Argument analysis precedes the 100-argument guard, then namespace/signature
 lookup and OID inference/coercion. Missing child columns therefore take precedence
 over missing explicit schemas, including in over-limit direct/prepared calls.
 Native inquiries cover all25 seeded types, seven fixed PostgreSQL18 collations
-and all128 fixed conversions. Comparison supports default/C/POSIX plus
+and all128 seeded conversions. Comparison supports default/C/POSIX plus
 `pg_c_utf8`/`pg_unicode_fast` and independently owned user collations backed by
 the same registered libc/builtin semantics. Raw `ucs_basic`/`unicode` seeds remain
-inquiry-only; no encoding conversion executes. CREATE/ALTER/DROP COLLATION,
+inquiry-only. CREATE/ALTER/DROP COLLATION,
 read-only pg_collation and pg_collation_actual_version expose truthful metadata.
 Dump emits legal pinned-seed metadata deltas and lossless user definitions;
 Reset restores canonical seed metadata and genuine bootstrap ownership. Restore

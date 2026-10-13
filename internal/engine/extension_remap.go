@@ -42,6 +42,9 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		n.namespace = address(n.namespace)
 		n.extension = address(n.extension)
 		n.dictionary = address(n.dictionary)
+		if n.address == d.address && n.namespace == d.namespace && n.extension == d.extension && n.dictionary == d.dictionary {
+			return d
+		}
 		return &n
 	case *tsTemplateDescriptor:
 		n := *d

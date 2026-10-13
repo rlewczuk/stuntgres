@@ -254,7 +254,7 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return binary32(binary64(dst, uint64(v.integer)), uint32(v.west)), nil
 	case Interval:
 		return binary32(binary32(binary64(dst, uint64(v.integer)), uint32(v.days)), uint32(v.months)), nil
-	case Oid, Xid, Regtype:
+	case Oid, Xid, Regtype, Regproc:
 		return binary32(dst, v.oid), nil
 	case Regclass:
 		n, err := strconv.ParseUint(v.text, 10, 32)

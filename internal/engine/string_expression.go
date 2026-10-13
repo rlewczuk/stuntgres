@@ -40,6 +40,7 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output := c.Output
 	output.Regclass = c.liveScope()
 	output.Regtype = c.liveScope()
+	output.Regproc = c.liveScope()
 	return e.plan.Evaluate(c.Context, values, c.Input, output)
 }
 func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [4]bool, syntax parser.StringSyntax) (BoundExpr, error) {

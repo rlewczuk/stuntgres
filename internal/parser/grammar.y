@@ -145,6 +145,7 @@ package parser
  cursorFetch *FetchCursor
  createCollation *CreateCollation
  alterCollation *AlterCollation
+ alterConversion *AlterConversion
  collationOptions []CollationOption
  collationOption CollationOption
  partitionKey *PartitionKey
@@ -215,6 +216,7 @@ package parser
 %token <tok> COMMENT COLUMN IS
 %token <tok> COLLATE
 %token <tok> COLLATION
+%token <tok> CONVERSION
 %token <tok> REFRESH VERSION
 %token <tok> EXTENSION DATABASE
 %token <tok> ISNULL NOTNULL DISTINCT UNKNOWN
@@ -280,7 +282,8 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
+/* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U KW_C CONVERSION ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -353,6 +356,8 @@ package parser
 %type <elements> typed_options typed_elements
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
+%type <stmt> create_conversion alter_conversion drop_conversion
+%type <alterConversion> conversion_alter_head
 %type <createCollation> collation_create_head
 %type <alterCollation> collation_alter_head
 %type <collationOptions> collation_options
@@ -642,11 +647,12 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | create_extension
  | create_tablespace
  | alter_collation | drop_collation | alter_enum
+ | alter_conversion | drop_conversion
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
  | alter_composite | drop_composite | alter_table_of
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
+ | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
 create_tablespace: CREATE TABLESPACE name tablespace_owner tablespace_location STRING tablespace_options {
@@ -1105,6 +1111,7 @@ create: create_table { $$=$1 }
  | create_index { $$=$1 }
  | create_domain { $$=$1 }
  | create_collation { $$=$1 }
+ | create_conversion { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
@@ -1188,6 +1195,15 @@ alter_collation: collation_alter_head RENAME TO name {$1.Action="rename";$1.Targ
 collation_name_word: REFRESH | VERSION | EXTENSION | DATABASE ;
 drop_collation: DROP COLLATION relation_names drop_mode {$$=&DropCollation{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP COLLATION IF EXISTS relation_names drop_mode {$$=&DropCollation{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
+create_conversion: CREATE CONVERSION relation_name FOR STRING TO STRING FROM relation_name {$$=&CreateConversion{Name:$3,Source:$5.text,Destination:$7.text,Function:$9,Pos:$1.pos}}
+ | CREATE DEFAULT CONVERSION relation_name FOR STRING TO STRING FROM relation_name {$$=&CreateConversion{Name:$4,Source:$6.text,Destination:$8.text,Function:$10,Default:true,Pos:$1.pos}} ;
+conversion_alter_head: ALTER CONVERSION relation_name {$$=&AlterConversion{Name:$3,Pos:$1.pos}} ;
+alter_conversion: conversion_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | conversion_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | conversion_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1} ;
+drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP CONVERSION IF EXISTS relation_names drop_mode {$$=&DropConversion{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
+ | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
 /* Index reloptions use '='; REINDEX controls use whitespace. Keep them separate
  * so malformed option syntax fails before any earlier statement can execute. */
 maintenance_concurrent: /* empty */ {$$=lexeme{}} | CONCURRENTLY ;
@@ -2186,6 +2202,7 @@ conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+ | CONVERSION
  | string_word
  | TRUNCATE | CONTINUE
  | COPY
@@ -2218,6 +2235,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
+ | CONVERSION
  | string_word
  | TRUNCATE | CONTINUE
  | COPY
@@ -2241,6 +2259,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
+ | CONVERSION
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | COPY
  | ORDINALITY | LATERAL
