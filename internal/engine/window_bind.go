@@ -219,7 +219,7 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 		if operands != nil {
 			operands[i] = operand
 			types[i] = "unknown"
-			if raw.Name == "sum" || raw.Name == "array_agg" {
+			if raw.Name == "sum" || raw.Name == "array_agg" || raw.Name == "bit_and" || raw.Name == "bit_or" || raw.Name == "bit_xor" {
 				types[i] = b.diagnosticTypeName(operand.descriptor())
 			} else if typ := operand.descriptor(); typ != nil {
 				types[i] = typ.DiagnosticName()
@@ -295,6 +295,11 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 			if err == nil {
 				usage = bound.ResultUsage()
 			}
+		}
+	case "bit_and", "bit_or", "bit_xor":
+		arg, err = b.resolveBitwiseAggregateSignature(raw, name, operand, types)
+		if err == nil {
+			usage = arg.ResultUsage().Type.Usage()
 		}
 	case "sum":
 		arg, err = b.resolveSumSignature(raw, name, operand, types)

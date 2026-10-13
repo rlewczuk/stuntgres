@@ -6,6 +6,98 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Bitwise aggregate selected proof
+
+The untagged `bitwise_aggregate_*_test.go` scenarios use one shared backend
+body and existing fixture raw-cell, middleware, metadata and diagnostic checks.
+Independent expectations cover `bit_and`, `bit_or`, and `bit_xor` over SMALLINT,
+INTEGER, BIGINT and BIT, including implicit VARBIT input and base-domain results.
+Root observed all seven scenarios passing the initial pinned PostgreSQL oracle
+round before removing the temporary discovery gate. The completed shared loop
+now visits both available backends. That oracle checkpoint does not establish
+native support or final dual-mode verification.
+
+| Scenario | Independent contract and actual consumers |
+| --- | --- |
+| `Values` | All five input carriers, fold/singleton/NULL/empty, grouped bags/HAVING, ALL/FILTER/integer-key ordering, DISTINCT multiplicity and repeated operation slots; direct and prepared Query. |
+| `Metadata` | Base and domain SMALLINT/INTEGER/BIGINT/BIT/VARBIT, NOT NULL input, empty global/keyed and filtered output; before-iteration names/types/ScanType/Length/DecimalSize/Nullable, including source widths5/9 versus result-1. |
+| `Diagnostics` | Complete portable fields/empty fields, exact English/SQLSTATE/character positions, invalid and unknown signatures, schemas/visible and hidden domain names, ORDER BY Hint, children/FILTER/nesting/clause/window precedence; direct/prepared Exec and Query, successful width Prepare followed by SAME held failure/recovery; generated-column42803/no table creation; INSERT VALUES42803, child/signature/FILTER precedence, Unicode positions and no prefix effects/unchanged target. |
+| `Boundaries` | Signed minima/maxima, B'' non-NULL,9/65-bit preservation, absorbing-state width errors and FILTER/NULL exclusion; PG positive BIT/VARBIT DISTINCT/order/window results versus explicit native equality42883/order0A000/window0A000 boundaries, including DISTINCT+order precedence. |
+| `Callers` | CTE/derived queries and multi-key integer ordering, actual plain and Context direct/prepared methods, SAME held typed7/NULL/9 and input-failure recovery, destination-bound BIT/VARBIT input, INSERT SELECT affected counts/empty keyed and late-group atomicity with exact unchanged bags; live source-column ACL checks even WHERE FALSE and SAME held revoke/grant recovery. |
+| `Controls` | Integer/BIT/VARBIT stored view after ordinary catalog publication; native actual Dump/Reset/Restore, failed replacement/no effects, old cursor values/metadata, held statement reuse, independent Driver restore, ordinary precancellation and actual emitted SQL replay on PG. |
+| `FeatureSmoke` | Reuses all the above witnesses and consumers, controls first to admit actual emitted replay; no reduced smoke goldens. |
+
+Root runs the same selected definitions in both modes from this checkout, with an
+external900-second deadline for each invocation:
+
+```sh
+make check RUN='^TestReferenceBitwiseAggregate(Values|Metadata|Diagnostics|Boundaries)$'
+make check RUN='^TestReferenceBitwiseAggregate(Callers|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceBitwiseAggregate(Values|Metadata|Diagnostics|Boundaries)$'
+make check REFERENCE=1 RUN='^TestReferenceBitwiseAggregate(Callers|Controls|FeatureSmoke)$'
+```
+
+Root recorded native missing-function red before authorizing production. The
+additional generated-column witness independently passed pinned PostgreSQL and
+exposed native0A000 before the narrow lexer classification fix. Those checkpoints
+do not establish final verification: both selected modes must pass again after
+affected edits, followed by whole-project `make quickcheck`.
+
+The INSERT VALUES review remedy preserves child42703 and FILTER42804 diagnostics
+before the valid-signature VALUES42803 restriction, including original Unicode
+positions, empty fields and unchanged destinations. Its witnesses are shared by
+Diagnostics and FeatureSmoke. Supplemental SUM analysis consumers retain their
+existing signatures and ordinary resolved-source assignment diagnostics:
+
+```sh
+make check RUN='^TestSumAnalysis'
+make check RUN='^TestReferenceNumericSumReview'
+make check REFERENCE=1 RUN='^TestReferenceNumericSumReview'
+```
+
+
+Feature smoke (each with an external900-second deadline):
+
+```sh
+make check RUN='^TestReferenceBitwiseAggregateFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBitwiseAggregateFeatureSmoke$'
+```
+
+Expected quiet success requires exact folds0/15/5 and00000/11111/01010,
+base nullable result metadata, preserved9/65-bit and empty strings, NULL versus
+empty keyed output, full diagnostics, held argument/failure recovery, INSERT
+atomicity and stored view replay/retained native readers. The initial oracle-only
+round could not exercise native controls or replay native output; their final
+execution is required after implementation, not replaced by PG setup.
+
+Private provider, binding/remapping and parser provenance units share this
+bounded selector. They supplement, never replace, the public acceptance proofs.
+Units exercise zero-allocation integral transitions, BIT truth tables/owned
+sealed payloads, distinct operation IDs, generation rebinding, ordinary invalid
+state/datum errors and cancellation inside the actual BIT fold and eager runner.
+
+```sh
+make check RUN='^TestBitwiseAggregate'
+make check RUN='^TestReferenceBooleanAggregate'
+make check REFERENCE=1 RUN='^TestReferenceBooleanAggregate'
+make check RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'
+make check REFERENCE=1 RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'
+make check RUN='^TestReferenceBitwise'
+make check REFERENCE=1 RUN='^TestReferenceBitwise'
+make check RACE=1 RUN='^TestReferenceBitwiseAggregate(Controls|Callers)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceBitwiseAggregate(Controls|Callers)$'
+make quickcheck
+```
+
+The separate public-only source `local://bitwise-agg-feature-smoke.go` remains
+in the OMP session. Root materializes `.bitwise-agg-feature-smoke/main.go`,
+runs `timeout 60s go run ./.bitwise-agg-feature-smoke`, and removes only that
+temporary materialization before review. Quiet exit0 requires the exact native
+folds/types/width/NULL/B''/full diagnostics, actual held recovery, INSERT affected1,
+integer/BIT/VARBIT stored view replacement, old live cursor metadata/values and
+independent Driver restore. This program does not claim a PostgreSQL oracle.
+
+
 ### Range aggregate selected proof
 
 Permanent untagged `reference/aggregates/range_aggregate_*_test.go` definitions

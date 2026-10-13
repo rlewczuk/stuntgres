@@ -125,8 +125,12 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   comparison/order/index providers, temporal range storage, range arrays or
   user-defined range creation. Temporal multiranges and multirange arrays remain
   lookup-only.
-- Bit storage does not provide general bit casts, operators, functions,
-  comparison/index providers or bit arrays. Raw internal CHAR/XID declarations
+- Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates, including
+  implicit VARBIT inputs, but does not provide general bit casts, scalar
+  operators/functions, comparison/index providers or bit arrays. Unordered BIT
+  aggregate DISTINCT retains the absent equality-provider error; BIT/VARBIT
+  local ordering and bitwise windows remain excluded. Ordering by an independent
+  integer key does not require bit comparison. Raw internal CHAR/XID declarations
   remain excluded even where real catalog/query-derived values have codecs.
 - JSONPath storage does not implement SQL/JSON query execution or GIN. JSON has
   no equality provider. Catalog type identities do not imply executable codecs.

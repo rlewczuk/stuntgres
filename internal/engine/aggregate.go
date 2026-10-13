@@ -36,6 +36,9 @@ const (
 	aggregateArrayArray
 	aggregateRangeUnion
 	aggregateRangeIntersection
+	aggregateBitAnd
+	aggregateBitOr
+	aggregateBitXor
 )
 
 type aggregateCall struct {

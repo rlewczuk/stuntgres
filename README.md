@@ -1047,6 +1047,29 @@ See [range aggregates](https://www.postgresql.org/docs/18/functions-aggregate.ht
 Feature smoke: `make check RUN='^TestReferenceRangeAggregateFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
+Change note: `bit_and`, `bit_or`, and `bit_xor` now fold non-NULL SMALLINT,
+INTEGER, BIGINT and BIT inputs through the shared eager aggregate pipeline.
+Integer results retain their signed input width; implicit VARBIT and domain
+inputs resolve to the corresponding base overload. Aggregate BIT metadata has
+unspecified width while the actual contents preserve leading zeroes and any
+admitted length, including non-NULL `B''`. Singleton input is returned unchanged;
+empty/all-NULL input produces typed NULL rather than an identity value.
+For inputs12,10,3 the three results are0,15,5; for10101,11000,00111 they are
+00000,11111,01010. Unequal bit lengths fail with22026 and operation-specific
+English diagnostics, even after AND reaches zero or OR reaches all ones.
+Direct/prepared/held queries, groups/HAVING, integer DISTINCT/ALL/FILTER/local
+ordering, INSERT SELECT atomicity and stored-view native replacement share the
+existing typed paths. BIT ordering by an independent integer key is admitted;
+BIT DISTINCT retains42883, BIT/VARBIT local ordering and bitwise windows retain
+explicit capability boundaries. No general bit casts, operators, scalar
+functions, comparison/index providers or arrays are added.
+INSERT VALUES still forbids these aggregates with42803 after child, FILTER and
+signature analysis; invalid statements publish no rows, including a valid first
+row followed by a forbidden aggregate.
+See [bitwise aggregates](https://www.postgresql.org/docs/18/functions-aggregate.html).
+Feature smoke: `make check RUN='^TestReferenceBitwiseAggregateFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
 Change note: int4range/int8range columns now use typed integer endpoints and
 bound flags with discrete canonical text: `[1,4]` becomes `[1,5)`.
 Empty, unbounded and SQL NULL remain distinct; malformed bounds, endpoint/

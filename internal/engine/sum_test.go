@@ -454,8 +454,8 @@ func TestSumAnalysisStructure(t *testing.T) {
 		{"outer_left_non_sum", parser.SubqueryExpr{Left: one, Query: &parser.Select{Targets: []parser.Expr{sum}}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := containsSumAnalysis(tc.raw); got != tc.want {
-				t.Fatalf("structural SUM containment = %v, want %v", got, tc.want)
+			if got := containsValuesAggregateAnalysis(tc.raw); got != tc.want {
+				t.Fatalf("structural VALUES aggregate containment = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -536,11 +536,11 @@ func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	policy := expressionPolicy{context: assignmentContext, expected: integer.Usage(), mode: sqltype.Assignment, column: column.Name}
 	node, err := b.bind(wrapped, policy)
 	wantAnalysis := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of FILTER must be type boolean, not type integer", Position: "30"}
-	if node != nil || !containsSumAnalysis(wrapped) || !reflect.DeepEqual(err, wantAnalysis) {
+	if node != nil || !containsValuesAggregateAnalysis(wrapped) || !reflect.DeepEqual(err, wantAnalysis) {
 		t.Fatalf("wrapped nil-source analysis = %v / %#v, want %#v", node, err, wantAnalysis)
 	}
 	node, err = b.bind(boolean, policy)
-	if node == nil || err == nil || node.ResultUsage().Type.ID() != sqltype.Bool || containsSumAnalysis(boolean) {
+	if node == nil || err == nil || node.ResultUsage().Type.ID() != sqltype.Bool || containsValuesAggregateAnalysis(boolean) {
 		t.Fatal("genuine assignment must retain its resolved source", node, err)
 	}
 	diagnostic := insertValueError(e.CatalogRead(), err, column, boolean, node.ResultUsage().Type)

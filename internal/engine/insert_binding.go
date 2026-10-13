@@ -185,7 +185,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					}
 					return partial.diagnostic(binder, err, source)
 				}
-				if plan == nil && containsSumAnalysis(v) {
+				if plan == nil && containsValuesAggregateAnalysis(v) {
 					return err
 				}
 				var source *sqltype.Descriptor

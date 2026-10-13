@@ -114,33 +114,33 @@ func sumSignatureError(name parser.ObjectName, pos parser.Position, types []stri
 	return d
 }
 
-// Inspect admitted scalar composition without crossing a child query's frame.
+// Inspect SUM/bitwise scalar composition without crossing a child query's frame.
 // Only failed analysis (nil bound source) uses this check; assignment failures
 // with an actual source retain the destination's ordinary diagnostic.
-func containsSumAnalysis(raw parser.Expr) bool {
+func containsValuesAggregateAnalysis(raw parser.Expr) bool {
 	var children []parser.Expr
 	switch e := raw.(type) {
 	case parser.AggregateExpr:
-		if e.Name == "sum" {
+		if e.Name == "sum" || e.Name == "bit_and" || e.Name == "bit_or" || e.Name == "bit_xor" {
 			return true
 		}
 		for _, key := range e.Order {
-			if containsSumAnalysis(key.Expr) {
+			if containsValuesAggregateAnalysis(key.Expr) {
 				return true
 			}
 		}
-		if containsSumAnalysis(e.Filter) {
+		if containsValuesAggregateAnalysis(e.Filter) {
 			return true
 		}
 		children = e.Args
 	case parser.CastExpr:
-		return containsSumAnalysis(e.Child)
+		return containsValuesAggregateAnalysis(e.Child)
 	case parser.CollateExpr:
-		return containsSumAnalysis(e.Child)
+		return containsValuesAggregateAnalysis(e.Child)
 	case parser.RegclassExpr:
-		return containsSumAnalysis(e.Child)
+		return containsValuesAggregateAnalysis(e.Child)
 	case parser.TimeZoneExpr:
-		return containsSumAnalysis(e.Value) || !e.Local && containsSumAnalysis(e.Zone)
+		return containsValuesAggregateAnalysis(e.Value) || !e.Local && containsValuesAggregateAnalysis(e.Zone)
 	case parser.FunctionExpr:
 		children = e.Args
 	case parser.CallExpr:
@@ -150,37 +150,37 @@ func containsSumAnalysis(raw parser.Expr) bool {
 	case parser.SubscriptExpr:
 		var storage [13]parser.Expr
 		for _, child := range e.Children(&storage) {
-			if containsSumAnalysis(child) {
+			if containsValuesAggregateAnalysis(child) {
 				return true
 			}
 		}
 		return false
 	case parser.FieldExpr:
-		return containsSumAnalysis(e.Base)
+		return containsValuesAggregateAnalysis(e.Base)
 	case parser.RowExpr:
 		children = e.Fields
 	case parser.SubqueryExpr:
-		return containsSumAnalysis(e.Left)
+		return containsValuesAggregateAnalysis(e.Left)
 	case parser.OperatorExpr:
 		children = e.Args
 	case parser.ConditionalExpr:
 		children = e.Args
 	case parser.LogicalExpr:
-		return containsSumAnalysis(e.Left) || containsSumAnalysis(e.Right)
+		return containsValuesAggregateAnalysis(e.Left) || containsValuesAggregateAnalysis(e.Right)
 	case parser.PredicateExpr:
-		return containsSumAnalysis(e.Left) || containsSumAnalysis(e.Right)
+		return containsValuesAggregateAnalysis(e.Left) || containsValuesAggregateAnalysis(e.Right)
 	case parser.CaseExpr:
-		if containsSumAnalysis(e.Test) || containsSumAnalysis(e.Else) {
+		if containsValuesAggregateAnalysis(e.Test) || containsValuesAggregateAnalysis(e.Else) {
 			return true
 		}
 		for _, arm := range e.Arms {
-			if containsSumAnalysis(arm.Condition) || containsSumAnalysis(arm.Result) {
+			if containsValuesAggregateAnalysis(arm.Condition) || containsValuesAggregateAnalysis(arm.Result) {
 				return true
 			}
 		}
 	}
 	for _, child := range children {
-		if containsSumAnalysis(child) {
+		if containsValuesAggregateAnalysis(child) {
 			return true
 		}
 	}

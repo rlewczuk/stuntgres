@@ -1798,6 +1798,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindArrayAggregate(r, name)
 			} else if r.Name == "range_agg" || r.Name == "range_intersect_agg" {
 				node, err = b.bindRangeAggregate(r, name)
+			} else if r.Name == "bit_and" || r.Name == "bit_or" || r.Name == "bit_xor" {
+				node, err = b.bindBitwiseAggregate(r, name)
 			} else {
 				node, err = b.bindCount(r, name)
 			}

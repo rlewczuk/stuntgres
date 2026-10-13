@@ -202,11 +202,12 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	if nested != nil {
 		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
-	// SUM resolves its children and signature before the INSERT VALUES restriction.
-	// Keep other aggregates' incumbent clause handling unchanged.
+	// SUM and bitwise providers resolve children, FILTER and signatures before
+	// the INSERT VALUES restriction. Other aggregates keep their clause handling.
 	if clause == "INSERT VALUES" {
 		switch call.operation {
-		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum:
+		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum,
+			aggregateBitAnd, aggregateBitOr, aggregateBitXor:
 			clause = "VALUES"
 		}
 	}

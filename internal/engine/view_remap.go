@@ -682,6 +682,19 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				p.input = typ(p.input)
 				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
+			case integralBitwiseAggregateProvider:
+				p.usage = usage(p.usage)
+				if err == nil {
+					var operator sqltype.BitwiseOperator
+					operator, err = bitwiseAggregateOperator(p.operation)
+					if err == nil {
+						p.bound, err = sqltype.BindBitwise(operator, p.usage.Type, p.usage.Type)
+					}
+				}
+				copy.calls[i].provider = p
+			case bitStringAggregateProvider:
+				p.usage = usage(p.usage)
+				copy.calls[i].provider = p
 			case integralSumProvider:
 				p.input = typ(p.input)
 				p.usage = usage(p.usage)
