@@ -133,13 +133,17 @@ func TestReferenceDatetimeSleepCancellation(t *testing.T) {
 				t.Run(fmt.Sprintf("%s/prepared=%t", expr, prepared), func(t *testing.T) { datetimeSleepFailure(t, p, b, c, "SELECT "+expr, d, prepared, false) })
 			}
 		}
+		// Keep fixture setup outside the short timeout used by sleep witnesses.
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET statement_timeout=0", 0))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT 1 AS healthy", []string{"healthy"}, []string{"INT4"}, [][]any{{int64(1)}}))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE sleep_cancel_probe(id integer)", 0))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("BEGIN", 0))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO sleep_cancel_probe VALUES(1)", 1))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET statement_timeout='100ms'", 0))
 		datetimeSleepFailure(t, p, b, c, "SELECT pg_sleep(10)", d, false, false)
 		datetimeSleepFailure(t, p, b, c, "SELECT count(*) FROM sleep_cancel_probe", datetimeSleepError("25P02", "current transaction is aborted, commands ignored until end of transaction block"), false, false)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("ROLLBACK", 0))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET statement_timeout=0", 0))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) AS n FROM sleep_cancel_probe", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		datetimeSleepOwners(t, p, b, c)
 		datetimeSleepActiveCancellation(t, p, b, c)
@@ -225,7 +229,6 @@ func TestReferenceDatetimeSleepFeatureSmoke(t *testing.T) {
 		datetimeSleepValue(t, p, b, c, "SELECT pg_sleep(-0.1) AS result", false)
 		datetimeSleepValue(t, p, b, c, "SELECT pg_sleep('NaN'::float8) AS result", false)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE sleep_cancel_probe(id integer)", 0))
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET statement_timeout='100ms'", 0))
 		datetimeSleepOwners(t, p, b, c)
 		datetimeSleepActiveCancellation(t, p, b, c)
 	})

@@ -273,6 +273,20 @@ behavior. Ownership witnesses use existing relation LOCK/NOWAIT admission for
 transaction holds and existing session advisory try/unlock for physical-session
 holds; they do not require unsupported transaction advisory functions.
 
+The cancellation and owner/savepoint fixtures disable `statement_timeout` for
+unrelated setup, lock probes and recovery work. They enable the unchanged100ms
+timeout only for intentional timeout witnesses, retaining exact57014 timeout,
+25P02 transaction-abort, rollback, lock ownership and healthy-session assertions.
+Active and atomic-write cancellation helpers keep timeout disabled so observed
+admission and explicit cancellation, not a statement deadline, end those waits.
+Selected fixture-isolation proof covers both callers of the owner helper:
+
+```sh
+make check RUN='^TestReferenceDatetimeSleep(Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceDatetimeSleep(Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceDatetimeSleep(Cancellation|FeatureSmoke)$' RACE=1
+```
+
 Root runs these selected commands from the assigned worktree, each with an
 external900-second deadline:
 

@@ -17,6 +17,7 @@ func datetimeSleepOwners(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 	}
 	defer peer.Close()
 	run := func(q string) { fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0)) }
+	run("SET statement_timeout=0")
 	run("CREATE TABLE sleep_owner_earlier(id integer)")
 	run("CREATE TABLE sleep_owner_later(id integer)")
 	relationGrant := func(t *testing.T, table string, want bool) {
@@ -73,9 +74,12 @@ func datetimeSleepOwners(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sq
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO sleep_cancel_probe VALUES(2)", 1))
 	datetimeSleepValue(t, p, b, c, "SELECT pg_sleep(0) AS result", false)
 	probe("successful-sleep-retains-all-holds", false, false, false)
+	// Only the failing sleep witnesses the short timeout, not lock/setup work.
+	run("SET statement_timeout='100ms'")
 	datetimeSleepFailure(t, p, b, c, "SELECT pg_sleep(10)", datetimeSleepError("57014", "canceling statement due to statement timeout"), false, false)
 	probe("after-timeout-before-recovery", false, true, false)
 	run("ROLLBACK TO SAVEPOINT sleep_before")
+	run("SET statement_timeout=0")
 	probe("after-rollback-to", false, true, false)
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT id FROM sleep_cancel_probe ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 	run("ROLLBACK")
