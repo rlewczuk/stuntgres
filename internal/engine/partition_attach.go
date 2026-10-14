@@ -202,7 +202,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		}
 	}
 	if err == nil {
-		err = e.stagePartitionIndexValidity(stage)
+		err = e.stagePartitionIndexValidity(stage, ObjectAddress{})
 	}
 	e.mu.Unlock()
 	if err != nil {

@@ -381,7 +381,7 @@ func modifyingTag(stmt parser.Statement) string {
 		return "ALTER CONVERSION"
 	case *parser.DropConversion:
 		return "DROP CONVERSION"
-	case *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.AlterTable:
+	case *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.AlterTable:
 		return "ALTER TABLE"
 	case *parser.CreateExtension:
 		return "CREATE EXTENSION"
@@ -436,8 +436,8 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 		return nil
 	}
 	switch stmt.(type) {
-	case *parser.AlterTableAttachPartition:
-		// Attachment uses the canonical catalog overlay in every owner mode.
+	case *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition:
+		// Partition edge changes use the canonical catalog overlay in every owner mode.
 		return nil
 	case *parser.CreateTable, *parser.DropTable, *parser.AlterTableRenameConstraint:
 		// Resolved destinations are checked by the existing table executor,
@@ -477,7 +477,7 @@ func explicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
-	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

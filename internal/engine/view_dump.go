@@ -69,7 +69,9 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 		if !backingConstraintPresent(parent, source) {
 			return 0, fmt.Errorf("stuntgres: orphan unique index dump dependency")
 		}
-		if !usingIndexDump(source) {
+		if root := partitionReplayVirtualUniqueRoot(view, source); root != nil {
+			source = root
+		} else if !partitionReplayUsingIndex(view, source) {
 			source = parent
 		}
 	}
@@ -110,6 +112,8 @@ const (
 	dumpIndexAttachment
 	dumpTableAttachment
 	dumpTableCompletion
+	dumpInvalidIndexPreparation
+	dumpInvalidIndexCompletion
 )
 
 type dumpEventKey struct {

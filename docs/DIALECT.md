@@ -143,8 +143,11 @@ sibling execution order is promised. See [query ownership](QUERIES.md) and
 
 RANGE `ALTER TABLE ... ATTACH PARTITION` accepts an existing ordinary or
 partitioned relation, with `FOR VALUES` or `DEFAULT`, including explicit
-transactions and savepoints. Other partition hierarchy alteration, update,
-delete, row locking and explicit hierarchy locking remain excluded.
+transactions and savepoints. Ordinary `DETACH PARTITION` retains the child as a
+standalone table or virtual root, including transactions/savepoints.
+CONCURRENTLY/FINALIZE, other partition hierarchy alterations, update/delete,
+row locking and explicit hierarchy locking remain excluded. Foreign keys
+involving partition hierarchies retain their existing unsupported boundary.
 Conflict arbitration and MERGE cannot target partition
 hierarchies. Temporary partition definitions and partition definitions nested in
 schema creation are unavailable. Nonunique virtual partition indexes and partition
@@ -153,17 +156,22 @@ RANGE keys require an admitted btree ordering provider. Native integer-array
 keys currently retain the existing missing-default-operator-class boundary;
 ordinary array storage does not add a partition ordering provider.
 SQL tableoid reads retain the existing native missing-column boundary; physical
-identity remains represented by catalog relations and capture provenance. The
-private logical importer can replay NOT VALID CHECK on an exact captured physical
-member when dependency ordering requires it; public hierarchy ADD CHECK remains
-excluded, and other hierarchy alteration is not enabled by that capability.
+identity remains represented by catalog relations and capture provenance.
+The private logical importer can replay NOT VALID CHECK or local UNIQUE/PRIMARY
+ADD USING INDEX on an exact captured physical member when dependency ordering
+requires it. A deferred virtual local UNIQUE/PRIMARY tree instead uses a captured
+conventional constraint definition after its intended plain tree is attached.
+Exact operation/definition/table/subtree origins fence this private replay;
+PRIMARY replay retains already-present NOT NULL facts. Public hierarchy ADD and
+other hierarchy alterations remain excluded; these origins do not authorize user SQL.
 A permanent partitioned parent cannot attach an ordinary temporary candidate;
 existing temporary namespace/session authority remains the persistence boundary.
 A NOT VALID child NOT NULL constraint cannot satisfy a validated parent
 requirement, regardless of constraint names or whether the candidate has rows.
 ATTACH rejects the mismatch rather than validating or replacing the child fact.
-Recursive inheritance update/delete/locking and graph-shape alterations remain
-excluded. Copying a temporary-sequence default into a permanent table is unavailable.
+Recursive inheritance update/delete/locking and graph-shape alterations other
+than ordinary partition attachment/detachment remain excluded.
+Copying a temporary-sequence default into a permanent table is unavailable.
 
 Materialized views support logical indexes and autocommit concurrent refresh.
 Explicit transaction refresh and refresh as Restore input remain excluded.

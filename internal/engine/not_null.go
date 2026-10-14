@@ -42,6 +42,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
+	if partitionUniqueReplayAllowed(op, auth, s, old) {
+		return e.executePartitionUniqueReplayLocked(scope, op, auth, s, old)
+	}
 	if hierarchyRelation(old) && partitionConstraintDropActions(old, s.Actions) {
 		return e.executePartitionConstraintDropLocked(scope, auth, old, s)
 	}

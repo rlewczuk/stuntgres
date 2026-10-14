@@ -324,7 +324,7 @@ func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage,
 		}
 	}
 	view := e.stageRead(stage)
-	valid := partitionIndexValid(view, index)
+	valid := partitionIndexCoverageComplete(view, index)
 	if index.sqlIndex.valid != valid {
 		next, definition := *index, *index.sqlIndex
 		definition.valid = valid

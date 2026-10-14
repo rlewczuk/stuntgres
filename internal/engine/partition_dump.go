@@ -254,6 +254,10 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		if constraint.Parent != 0 {
 			continue
 		}
+		index := catalog.state.descriptors[constraint.Index].(*relationDescriptor)
+		if partitionReplaySeparateConstraint(catalog, index) {
+			continue
+		}
 		definition, err := (pgRenderer{view: catalog}).uniqueConstraintSQL(d, &constraint)
 		if err != nil {
 			return "", err

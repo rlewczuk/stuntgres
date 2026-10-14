@@ -22,7 +22,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 	if err != nil {
 		return err
 	}
-	if !partitionCheckReplayImport(e, op, auth) {
+	if !partitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK authority")
 	}
 	if err := restoreAlterConstraints(raw); err != nil {
@@ -55,7 +55,7 @@ func partitionCheckReplayActions(raw *parser.AlterTable) bool {
 }
 
 // Callers hold Engine.mu, as do the existing hierarchy admission guards.
-func partitionCheckReplayImport(e *Engine, op *Operation, auth AuthorizationView) bool {
+func partitionConstraintReplayImport(e *Engine, op *Operation, auth AuthorizationView) bool {
 	if e == nil || op == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles || auth.catalog.owner == nil || auth.catalog.owner.owner != e.owner || auth.catalog.state != e.state || auth.catalog.Epoch() != e.state.epoch {
 		return false
 	}
@@ -67,5 +67,5 @@ func partitionCheckReplayImport(e *Engine, op *Operation, auth AuthorizationView
 }
 
 func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *relationDescriptor) bool {
-	return op != nil && op.restorePartitionCheck == d && d != nil && d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil && auth.catalog.state.descriptors[d.address] == d && partitionCheckReplayActions(raw) && partitionCheckReplayImport(auth.engine, op, auth)
+	return op != nil && op.restorePartitionCheck == d && d != nil && d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil && auth.catalog.state.descriptors[d.address] == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

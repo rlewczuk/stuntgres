@@ -18,6 +18,79 @@ make check RUN='^TestReferenceSeriesCheckRestrictions$'
 make check REFERENCE=1 RUN='^TestReferenceSeriesCheckRestrictions$'
 ```
 
+### Ordinary DETACH — oracle-first scenarios
+
+The untagged `partition_detach_*_test.go` scenarios specify ordinary DETACH
+independently: direct and held utility/reader/writer routes, retained reordered
+child data/defaults, DEFAULT and nested roots, complete represented dependency
+edge removal, stable relation/constraint/index identities, independent ownership,
+full diagnostics, transactional writes/savepoints, actual queued AX admission,
+cancellation, native catalog replacement, and canonical Dump/Restore.
+
+All discovery filters are removed. `TestReferencePartitionDetachReplay` retains
+the independently asserting pinned-oracle constructions as dual-mode coverage:
+childless ONLY is valid, explicit index completion promotes, table reattachment
+preserves invalidity, complete-invalid replay uses a real valid child, and nested
+invalid ancestry uses bottom-up explicit index attachment without duplicate
+backings. Controls test actual emitted streams, helper-name collision reservation,
+no residual replay objects, failed/canceled replacement and bounded teardown
+refusal. Nonowner ordinary-parent admission precedes kind rejection; schema and
+DETACH timeout Positions are absent; late SELECT/INSERT observer Positions are
+20/13 respectively. These contracts require completed-mode verification.
+
+`TestReferencePartitionDetachReplayLocal` adds older equivalent local UNIQUE and
+PRIMARY backings, native Dump/fresh Restore/replacement, unchanged PostgreSQL
+replay, exact own constraint/index relationships, regclass/default/view consumers,
+and independently expected duplicate-error winners before and after replay.
+
+`TestReferencePartitionDetachReplayVirtual` covers UNIQUE/PRIMARY local virtual
+trees competing with an attached plain tree: exact five-index inventory, real
+constraint/backing ancestry, regclass default/view consumers and independent
+future enforcing providers. Native controls use actual Dump/fresh and repeated
+Restore, byte-stable redump and unchanged PostgreSQL replay. The nested replay
+case now also exports its same combined six-index/valid-PK/invalid-extra state.
+The temporary virtual recipe discovery file is removed after PostgreSQL40's
+observed conventional-ADD outcomes; these completed definitions have no filters.
+
+Dependency producers stay inside the admitted prerequisites: local exclusion is
+created on the standalone child before ATTACH, and an unconstrained domain still
+supplies real type/default/collation/rowtype dependencies. No hierarchy ADD or
+domain-constraint capability is added. The dependent-abort transaction scenario
+asserts native explicit-transaction DROP0A000 versus PostgreSQL2BP01 at execution,
+including prepared DROP, then proves DETACH rollback and shared standalone
+RESTRICT2BP01 protection. Private queued
+replacement units use a real explicit holder and DDL worker, not an implicit
+reader admission retained across Reset or a manually cleared admission flag.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePartitionDetach(Diagnostics|Indexes)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionDetach(Values|NestedDefault|Dependencies)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionDetach(Transactions|Locks|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionDetach(Replay|ReplayLocal|ReplayVirtual)$'
+make check RUN='^TestPartitionDetach(Descriptor|Dependencies|Publication|TransactionOverlay|LockFences|VirtualRoots|ReplayEvents|ReplayLocalEvents|UsingIndexReplayAuthority|UniqueReplayAuthority|UniqueReplayPublication|UniqueReplayEvents|AST|ExcludedSyntax)$'
+```
+
+Repeat all reference selectors without `REFERENCE=1`; every new/changed definition
+requires both completed modes before review/integration. Selected concurrency proof:
+`make check RACE=1 RUN='^TestReferencePartitionDetachLocks$'`.
+Use an external900-second deadline; quickcheck remains whole-project proof.
+
+Feature smoke argv: `make check RUN='^TestReferencePartitionDetachFeatureSmoke$'`,
+then the same with `REFERENCE=1`. Expected: detach0, parent `(3,c)`, child
+`(1,a),(2,b)`, exact INT4/TEXT metadata, retained standalone uniqueness and OIDs,
+child outside-old-range insert4, rollback restores attachment, and dropping the
+former parent leaves child1,2,4. Native controls replay actual unchanged emitted
+SQL on PostgreSQL, including invalid-but-complete virtual index flags; no
+handwritten export substitute. Native Reset/Restore and eager retained cursors
+have no PostgreSQL API counterpart. PostgreSQL-only late lock introspection
+observes real default/candidate/descendant waits; native late-stage proof belongs
+in actual private manager units, not fabricated SQL locks.
+
+Hierarchy FKs, CONCURRENTLY/FINALIZE, trigger clones and inherited identity
+capability remain outside this ordinary-detach feature. Supported views,
+REGCLASS, sequence ownership, local checks/NN/exclusion and logical indexes are
+real dependency witnesses, not a replacement claim of hierarchy-FK parity.
+
 ### RANGE table ATTACH — selected proof
 
 The untagged `partition_attach_*_test.go` definitions share direct/prepared bodies

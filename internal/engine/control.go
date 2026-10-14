@@ -85,7 +85,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		parent, ok := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-		if ok && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live && index.sqlIndex.valid == partitionIndexValid(CatalogRead{owner: e, state: e.state}, index) {
+		if ok && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live {
 			continue
 		}
 		if invalid == nil || namespace.name < invalidSchema || namespace.name == invalidSchema && index.name < invalid.name {
@@ -380,16 +380,29 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if r.sqlIndex != nil {
-			if r.sqlIndex.constraint != nil && !usingIndexDump(r) {
+			// Key declarations and their table constraints must use the same
+			// captured private-name projection, including deferred local keys.
+			r = catalog.state.descriptors[r.address].(*relationDescriptor)
+			virtual := partitionReplayVirtualUniqueRoot(catalog, r)
+			if virtual != nil && virtual.address != r.address {
 				continue
 			}
-			sql, err := indexDefinitionSQL(ctx, catalog, r, indexPresentation{dump: true})
+			if r.sqlIndex.constraint != nil && !partitionReplaySeparateConstraint(catalog, r) {
+				continue
+			}
+			var sql string
+			var err error
+			if virtual != nil {
+				sql, err = partitionVirtualUniqueDefinitionSQL(catalog, r)
+			} else {
+				sql, err = indexDefinitionSQL(ctx, catalog, r, indexPresentation{dump: true})
+			}
 			if err != nil {
 				e.mu.Unlock()
 				return err
 			}
 			oid := r.address.ObjectID
-			if usingIndexDump(r) {
+			if partitionReplayUsingIndex(catalog, r) {
 				parent := catalog.state.descriptors[r.sqlIndex.parent].(*relationDescriptor)
 				kind := "UNIQUE"
 				if r.sqlIndex.constraint.Primary {
@@ -763,6 +776,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err := partitionDumpEvents(ctx, originalCatalog, viewDependencies, declarationOrder, tables, indexIndices, constraintReplay, deferDefaults); err != nil {
 		return err
 	}
+	invalidReplay := partitionInvalidDumpEvents(originalCatalog, viewDependencies, indexIndices)
 	eventOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil {
 		return err
@@ -858,6 +872,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if event.phase == dumpTableCompletion {
 				continue
 			}
+			if event.phase == dumpInvalidIndexPreparation || event.phase == dumpInvalidIndexCompletion {
+				if err := setOwner("postgres"); err != nil {
+					return err
+				}
+				text, err := invalidReplay[oid].sql(ctx, originalCatalog, event.phase)
+				if err != nil {
+					return err
+				}
+				if err := emit(text); err != nil {
+					return err
+				}
+				continue
+			}
 			if event.phase == dumpRename || event.phase == dumpIndexAttachment || event.phase == dumpTableAttachment {
 				if err := setOwner("postgres"); err != nil {
 					return err
@@ -919,6 +946,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			if err := emit(index.sql); err != nil {
 				return err
+			}
+			original := originalCatalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+			if partitionReplayVirtualUniqueRoot(originalCatalog, original) != nil {
+				if err := emit(constraintReplay.virtualUniqueRenames(originalCatalog, original)); err != nil {
+					return err
+				}
 			}
 			descriptor := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}]
 			if constraintReplay.occupied[descriptor.Namespace()] == nil {
@@ -1076,7 +1109,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if !ok {
 					return fmt.Errorf("stuntgres: missing unique dump index")
 				}
-				if usingIndexDump(index) {
+				if partitionReplaySeparateConstraint(catalog, index) {
 					continue
 				}
 				text, err := (pgRenderer{view: catalog}).uniqueConstraintSQL(t.descriptor, &c)
@@ -1290,8 +1323,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		op.restoreDefaultReplay = false
 		op.restorePartitionAttach = false
 		op.restorePartitionCheck = nil
+		op.restorePartitionUsingIndex = nil
+		op.restorePartitionUnique = nil
 	}()
 	var pendingForeignKeys []restoredForeignKeys
+	partitionTeardowns := make(map[ObjectAddress]partitionReplayTeardown)
 	for _, stmt := range statements {
 		var pending restoredForeignKeys
 		switch s := stmt.(type) {
@@ -1370,6 +1406,24 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.AlterTableOf:
 			if s.Type == nil {
 				return sqlError("0A000", "restore accepts only typed-table attachments")
+			}
+		case *parser.AlterTableDetachPartition:
+			if s.IfExists || s.Only || len(s.Name.Parts) != 2 || len(s.Partition.Parts) != 2 {
+				return sqlError("0A000", "restore accepts only unconditional qualified partition detachments")
+			}
+			record, captureErr := stage.capturePartitionReplayTeardown(op, s)
+			if captureErr != nil {
+				return captureErr
+			}
+			if record.child.owner != nil {
+				partitionTeardowns[record.child.Address] = record
+			}
+		case *parser.DropTable:
+			if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partitionReplayStem) {
+				return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
+			}
+			if err := stage.validatePartitionReplayTeardown(op, s.Names[0], partitionTeardowns); err != nil {
+				return err
 			}
 		case *parser.AlterTableAttachPartition:
 			if s.IfExists {
@@ -1497,12 +1551,23 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if err := stage.beginPartitionCheckReplay(op, alteration); err != nil {
 				return err
 			}
+			if err := stage.beginPartitionUsingIndexReplay(op, alteration); err != nil {
+				return err
+			}
+			if err := stage.beginPartitionUniqueReplay(op, alteration); err != nil {
+				return err
+			}
+			if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && op.restorePartitionUnique == nil {
+				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
+			}
 		}
 		var result Result
 		result, err = stage.Execute(op, stmt, 0, nil)
 		op.restoreDefaultReplay = false
 		op.restorePartitionAttach = false
 		op.restorePartitionCheck = nil
+		op.restorePartitionUsingIndex = nil
+		op.restorePartitionUnique = nil
 		if result.Rows != nil {
 			closeErr := result.Rows.Close()
 			if err == nil {

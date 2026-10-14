@@ -866,10 +866,35 @@ current committed rows without advancing a transaction's ordinary stable snapsho
 an already admitted waiting SELECT keeps its old branch topology.
 Native controls preserve mapped layouts and provenance through ordinary CREATE
 plus genuine ATTACH when PARTITION OF is insufficient, with unchanged logical
-SQL replay on PostgreSQL. Other hierarchy mutation and external storage mechanisms
-remain excluded. See [partition graphs](docs/TABLES.md#inheritance-typed-attachments-and-partition-graphs).
+SQL replay on PostgreSQL. Other hierarchy mutation except ordinary DETACH and
+external storage mechanisms remain excluded. See
+[partition graphs](docs/TABLES.md#inheritance-typed-attachments-and-partition-graphs).
 Feature smoke: `make check RUN='^TestReferencePartitionAttachFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePartitionAttachFeatureSmoke$'`.
+
+Change note: ordinary `ALTER TABLE ... DETACH PARTITION` removes an immediate
+partition edge without moving or deleting child rows, row types, defaults, local
+constraints, indexes, ownership or privileges. Detached virtual intermediates
+retain their own subtrees. Parent scans and held statements rebind to the reduced
+tree; detached child scans remain readable. Parent ACCESS EXCLUSIVE, incumbent
+DEFAULT and candidate/descendant admission use the existing lock authority.
+Transactions and savepoints restore topology, inherited index/constraint edges
+and private writes together. Cancellation and native replacement do not retarget
+or partially publish an admitted detach.
+
+Stored invalid virtual-index flags survive DETACH and table reattachment; only
+genuine index attachment completion promotes validity. Native Dump/Restore
+reconstructs standalone children and preserves invalid-but-complete virtual
+indexes through executable ordinary SQL, including collision-safe empty replay
+partitions only for childless invalid indexes. CONCURRENTLY/FINALIZE and hierarchy
+foreign keys retain explicit native boundaries.
+
+Physical and virtual local UNIQUE/PRIMARY backings retain distinct captured trees:
+private replay uses physical USING INDEX or a conventional virtual definition
+after the intended plain tree is attached, without enabling public hierarchy ADD.
+
+Feature smoke: `make check RUN='^TestReferencePartitionDetachFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePartitionDetachFeatureSmoke$'`.
 
 Change note: RANGE UNIQUE/PRIMARY KEY constraints cover every simple partition key;
 real immediate-parent constraint/index ancestry connects virtual, storage-free
@@ -1347,7 +1372,7 @@ Captured writer cohorts and database-wide endangered snapshot owners use the
 existing lock/deadlock authority; later ordinary writers remain admissible.
 Ready unique indexes enforce full computed/provider-aware tuples before Valid.
 Failed/canceled builds retain their last phase; ordinary REINDEX repairs only
-on successful atomic rebuild. Dump refuses persistent invalid indexes before
+on successful atomic rebuild. Dump refuses persistent invalid physical indexes before
 writing, and valid standalone UNIQUE definitions replay through the normal parser
 and existing isolated Restore authority, including NULLS NOT DISTINCT.
 Explicit concurrent blocks fail25001; ordinary public standalone UNIQUE remains

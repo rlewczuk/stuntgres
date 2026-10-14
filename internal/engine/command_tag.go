@@ -44,7 +44,7 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "CREATE TABLE"
 	case *parser.DropTable:
 		base = "DROP TABLE"
-	case *parser.AlterTable, *parser.AlterTableDefault, *parser.AlterTableOf, *parser.AlterTableAttachPartition,
+	case *parser.AlterTable, *parser.AlterTableDefault, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition,
 		*parser.AlterTableRenameColumn, *parser.AlterTableRenameTable,
 		*parser.AlterTableSetSchema, *parser.AlterTableRenameConstraint:
 		base = "ALTER TABLE"

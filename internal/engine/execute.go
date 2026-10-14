@@ -163,6 +163,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.alterTableOfLocked(scope, op, auth, s, count)
 	case *parser.AlterTableAttachPartition:
 		return e.attachPartitionLocked(scope, op, auth, s, count)
+	case *parser.AlterTableDetachPartition:
+		return e.detachPartitionLocked(scope, op, auth, s, count)
 	case *parser.AlterTableRenameConstraint:
 		return e.renameConstraintLocked(scope, op, auth, s, count)
 	case *parser.AlterTableSetSchema:

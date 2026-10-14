@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"stuntgres/internal/parser"
 )
 
@@ -75,6 +76,10 @@ func restoreAlterConstraints(raw *parser.AlterTable) error {
 	for _, action := range raw.Actions {
 		switch action.Action {
 		case parser.AddUsingIndex:
+		case parser.AddUnique:
+			if action.Unique == nil || len(raw.Actions) != 1 || raw.Only || raw.IfExists || !strings.HasPrefix(action.Unique.Name.Text, "__stuntgres_partition_key_") {
+				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
+			}
 		case parser.AddNotNull:
 			if !action.NotValid {
 				return sqlError("0A000", "restore accepts only existing-index or NOT VALID constraint attachments")

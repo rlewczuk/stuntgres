@@ -368,10 +368,24 @@ An already admitted SELECT waiting on an old descendant retains its captured
 branch topology across compatible ATTACH growth. A fresh SELECT sees the new
 member. This is not a general INSERT, COPY or index-admission snapshot policy.
 
+Ordinary DETACH removes only the selected immediate relation/index/constraint
+ancestry. Child data, stable attributes, own row type, defaults, local definitions,
+owners/ACLs, independent view/type/collation/REGCLASS/sequence dependencies and
+logical index roots remain. Matched inherited CHECK/NOT NULL/unique facts become
+local without new identities; descendants of a detached virtual root retain
+their own ancestry. No replacement bound CHECK is added. Parent AX precedes
+incumbent DEFAULT AX, candidate AX and descendant AX; real waits run without
+Engine.mu. Canonical catalog overlays and Finish/COMMIT/savepoints own publication
+and release. Decreased topology invalidates held query analysis normally, while
+already returned eager rows remain snapshots.
+
+
 Partition key constraints/indexes form real immediate-parent ancestry. Virtual
-indexes have no storage; attachment preserves identities and propagates validity
-only through complete valid immediate membership. Transaction-private attachments
-and removals restore through savepoints; independent leaf groups remain independent.
+indexes have no storage. Explicit ALTER INDEX attachment promotes validity only
+through complete valid immediate membership. Ordinary table attachment and
+detachment preserve stored invalidity even when coverage becomes complete;
+valid-but-incomplete descriptors remain invalid catalog state. Transaction-private
+attachments/removals restore through savepoints; independent leaf groups remain independent.
 Dump/Restore remaps actual ancestry, partial attachments, provenance and retained
 TEMP collisions, not assumed numeric OID relationships. When PARTITION OF cannot
 preserve physical column order, distinct NOT NULL names, default absence or NOT
@@ -382,9 +396,32 @@ dependencies, not a second synthetic graph. When a late index referenced by row
 data requires membership first, the leased private importer may replay NOT VALID
 CHECK on the exact captured physical member through the ordinary ALTER validators
 and publication authority. Public hierarchy ADD CHECK remains excluded.
+Preserved invalid-complete virtual indexes use the same event scheduler: a real
+valid child can be detached, have its manual index declared, and be reattached as
+a table without promoting its parent's flag. An invalid child instead attaches
+explicitly as an index, bottom-up; attaching a table with an invalid intermediate
+index would create an unwanted duplicate tree and is not that replay recipe.
+An older equivalent unattached local UNIQUE/PRIMARY backing must not be stolen
+by that table reattachment: declare the captured attached backing first, then
+declare a physical local index and restore its constraint with ADD USING INDEX.
+A virtual local constraint instead follows as one conventional UNIQUE/PRIMARY
+definition, recursively constructing its own distinct subordinate backing tree.
+The existing name-reservation authority maps generated subordinate names to
+captured private names, then terminal renames serve original-name consumers.
+Initial virtual membership waits for subtree topology/data readiness, not deferred
+full index completion; final table completion still includes every captured index.
+Private origins capture the exact operation, definition, target/subtree and
+intended attached plain tree under its invalid-complete parent. Existing binders,
+recursive producers, validators and publication own the effects; PK replay
+requires already-present NOT NULL facts. Public hierarchy ADD remains excluded.
+A childless invalid index alone uses a collision-reserved empty DEFAULT before
+ONLY declaration, then ordinary DETACH/DROP teardown. The isolated importer
+admits qualified unconditional DETACH and only exact captured empty DEFAULT
+teardown identities, not arbitrary DROP scripts. Actual unchanged emitted SQL,
+not catalog flag writes, is the persistent-state representation.
 Gaps are logically reminted, not a physical backup. Unchanged SQL replays on PostgreSQL.
-LIST/HASH partitions, row movement, hierarchy mutation/conflict DML, TEMP partition
-construction and nested schema partition construction remain explicit native limits.
+LIST/HASH partitions, row movement, other hierarchy mutations/conflict DML, TEMP
+partition construction and nested schema partition construction remain native limits.
 
 ## Logical indexes and copied definitions
 

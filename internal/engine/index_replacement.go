@@ -19,7 +19,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 		}
 		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && (!index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live) {
 			parent, exists := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-			if exists && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live && index.sqlIndex.valid == partitionIndexValid(CatalogRead{owner: e, state: next}, index) {
+			if exists && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live {
 				continue
 			}
 			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.name))

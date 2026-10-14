@@ -189,7 +189,7 @@ func TestPartitionConstraintsDescriptor(t *testing.T) {
 			case "nnd":
 				f.child.sqlIndex.nullsNotDistinct = true
 			case "validity":
-				f.parent.sqlIndex.valid = false
+				f.child.sqlIndex.valid = false
 			}
 			err := validateIndexDefinition(f.view, f.child)
 			if err == nil {

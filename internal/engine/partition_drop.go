@@ -42,7 +42,7 @@ func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDesc
 	if err := stage.Replace(&next); err != nil {
 		return err
 	}
-	return stage.owner.stagePartitionIndexValidity(stage)
+	return stage.owner.stagePartitionIndexValidity(stage, ObjectAddress{})
 }
 
 func (s *StatementScope) acquirePartitionDropLocks(ref ObjectRef) error {

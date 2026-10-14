@@ -238,6 +238,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		name, mode, ownerOnly = v.Name, shareUpdateExclusive, true
 		rename, ifExists = true, v.IfExists
+	case *parser.AlterTableDetachPartition:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
+		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableOf:
 		if !execute {
 			return nil
@@ -384,7 +390,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			materializedAlterAuthority = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		}
 		_, attaching := stmt.(*parser.AlterTableAttachPartition)
-		if source || preparableBody(stmt) || attaching {
+		_, detaching := stmt.(*parser.AlterTableDetachPartition)
+		if source || preparableBody(stmt) || attaching || detaching {
 			lexical := ref
 			if retained {
 				lexical, err = e.admissionNameReference(auth, name)

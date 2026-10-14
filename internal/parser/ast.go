@@ -438,6 +438,15 @@ type AlterTableAttachPartition struct {
 
 func (*AlterTableAttachPartition) statement() {}
 
+// DETACH removes only an existing immediate partition edge.
+type AlterTableDetachPartition struct {
+	Name, Partition ObjectName
+	IfExists, Only  bool
+	Pos, DetachPos  Position
+}
+
+func (*AlterTableDetachPartition) statement() {}
+
 func (*CreateTable) statement() {}
 
 type QueryTableForm uint8

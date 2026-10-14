@@ -34,9 +34,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 		}
 	}
 	slices.SortFunc(tables, func(a, b *relationDescriptor) int {
-		left := view.state.descriptors[a.namespace].Name() + "." + a.name
-		right := view.state.descriptors[b.namespace].Name() + "." + b.name
-		return strings.Compare(left, right)
+		return partitionReplayNameCompare(view, a, b)
 	})
 	if len(tables) == 0 {
 		return view, replay
@@ -89,7 +87,8 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 		used[c.Name] = true
 	}
 	for _, c := range table.uniqueConstraints {
-		if c.Parent == 0 {
+		index := view.state.descriptors[c.Index].(*relationDescriptor)
+		if c.Parent == 0 && partitionReplayVirtualUniqueRoot(view, index) == nil {
 			used[c.Name] = true
 		}
 	}
@@ -103,6 +102,9 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 	}
 	var renames []rename
 	for _, index := range partitionIndexDeclarationOrder(r.original, parent) {
+		if partitionReplayVirtualUniqueRoot(r.original, index) != nil {
+			continue
+		}
 		backing := index.sqlIndex.constraint
 		if backing == nil || backing.kind != uniqueBackingKind {
 			continue
@@ -147,7 +149,7 @@ func (r *partitionConstraintReplay) finalRenameOrder() []*relationDescriptor {
 		indexes = append(indexes, r.original.state.descriptors[address].(*relationDescriptor))
 	}
 	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
-		return strings.Compare(r.original.state.descriptors[a.namespace].Name()+"."+a.name, r.original.state.descriptors[b.namespace].Name()+"."+b.name)
+		return partitionReplayNameCompare(r.original, a, b)
 	})
 	return indexes
 }

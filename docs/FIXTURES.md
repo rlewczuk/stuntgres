@@ -18,6 +18,47 @@ are rejected before output. Recreated public is an ordinary namespace with absen
 ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
+Ordinary partition detachment exports final standalone relation/constraint/index
+state, including detached virtual subtrees, not a log of the original command.
+Ready/live virtual indexes may legitimately remain invalid despite complete or
+empty coverage; invalid physical indexes remain excluded. Replay classifies each
+virtual tree bottom-up: incomplete/invalid-child coverage uses explicit index
+attachments, complete-invalid coverage uses a real valid child's table
+detach/reattach, and childless invalid coverage uses a collision-safe empty
+DEFAULT that is detached and dropped within the stream. No helper object survives
+successful Restore or PostgreSQL replay. Equivalent older unattached local
+UNIQUE/PRIMARY providers follow reattachment. Physical backings use ADD USING
+INDEX; virtual local definitions use conventional UNIQUE/PRIMARY and the existing
+recursive constraint/index producer. Their generated subordinate names are
+reserved and renamed to captured private identities before terminal final names.
+Consumer identities remain bound to the distinct owned local tree.
+Key declarations and their owning table constraints use the same captured
+private-name projection, with terminal renames restoring the original names;
+deferred local keys do not render an original backing against a renamed owner.
+Initial table membership must not wait for a deferred local key's terminal rename:
+the preserving reattachment precedes that local declaration. Original-name
+REGCLASS row consumers still wait for the completed local declaration and rename.
+Late dependent declarations bind against the captured private spelling before its
+terminal rename; otherwise a default or view could reference a spelling already
+removed. Stored original-name data follows the rename, without aliases or rebinding.
+Deferred virtual-tree terminal names complete as a component-wise schema/name-ordered
+group. Original-name consumers of any member wait for the whole group's tail,
+so reminted root/leaf OIDs cannot move subordinate renames across data/defaults.
+Decoded schema names compare first, then object names; quoted dots never merge components.
+The private allowlist admits qualified unconditional ordinary DETACH, exact
+captured empty DEFAULT teardown, leased ADD USING INDEX on the exact captured
+physical member/index, and exact conventional virtual definition/table/subtree
+origins after the intended plain tree is attached. PRIMARY replay retains existing
+NOT NULL facts. Public hierarchy ADD, general DROP, CONCURRENTLY/FINALIZE and
+hierarchy-FK scripts remain excluded.
+Failed readers, malformed replay, cancellation or final publication fences retain
+destination catalogs, data, logical roots and eager snapshots.
+
+Feature smoke: `make check RUN='^TestReferencePartitionDetachFeatureSmoke$'` and
+the same selector with `REFERENCE=1`; full controls/replay:
+`make check RUN='^TestReferencePartitionDetach(Controls|Replay|ReplayLocal|ReplayVirtual)$'` in both modes.
+
+
 Conversion controls serialize real qualified CREATE [DEFAULT] CONVERSION
 definitions, canonical encoding strings and actual registered routine names.
 Pinned seed rename/schema/owner deltas precede user definitions. Legal duplicate

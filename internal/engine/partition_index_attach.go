@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionIndexValid(view CatalogRead, index *relationDescriptor) bool {
+func partitionIndexCoverageComplete(view CatalogRead, index *relationDescriptor) bool {
 	table, ok := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	if !ok || table.partition == nil {
 		return index.sqlIndex.valid
@@ -29,7 +29,9 @@ func partitionIndexValid(view CatalogRead, index *relationDescriptor) bool {
 	return true
 }
 
-func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage) error {
+func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote ObjectAddress) error {
+	// Only explicit ATTACH INDEX can promote that index and its ancestors.
+	// Table edge changes preserve invalidity even when coverage becomes complete.
 	// Each pass resolves another level; the catalog validator rejects cycles.
 	view := e.stageRead(stage)
 	for range len(view.state.descriptors) {
@@ -43,9 +45,15 @@ func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage) error {
 			if !ok || table.partition == nil {
 				continue
 			}
-			valid := partitionIndexValid(view, index)
+			valid := partitionIndexCoverageComplete(view, index)
+			if valid && !index.sqlIndex.valid && !partitionIndexPromotionPath(view, promote, index.address) {
+				continue
+			}
 			if index.sqlIndex.valid == valid {
 				continue
+			}
+			if index.revision == DefinitionRevision(^uint64(0)) {
+				return fmt.Errorf("stuntgres: definition revision exhausted")
 			}
 			next, definition := *index, *index.sqlIndex
 			definition.valid = valid
@@ -62,6 +70,20 @@ func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage) error {
 		view = e.stageRead(stage)
 	}
 	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
+}
+
+func partitionIndexPromotionPath(view CatalogRead, start, target ObjectAddress) bool {
+	for remaining := len(view.state.descriptors); start != (ObjectAddress{}) && remaining > 0; remaining-- {
+		if start == target {
+			return true
+		}
+		index, ok := view.state.descriptors[start].(*relationDescriptor)
+		if !ok || index.sqlIndex == nil {
+			return false
+		}
+		start = index.sqlIndex.partitionParent
+	}
+	return false
 }
 
 func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *relationDescriptor) error {
@@ -141,12 +163,12 @@ func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, p
 			}
 		}
 	}
-	return e.stagePartitionIndexValidity(stage)
+	return e.stagePartitionIndexValidity(stage, parent.address)
 }
 
 func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) error {
 	d := index.sqlIndex
-	if table.partition != nil && d.valid != partitionIndexValid(view, index) {
+	if table.partition != nil && d.valid && !partitionIndexCoverageComplete(view, index) {
 		return fmt.Errorf("stuntgres: inconsistent virtual index validity")
 	}
 	if err := partitionUniqueCoverage(table, d); err != nil {

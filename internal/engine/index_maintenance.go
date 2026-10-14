@@ -112,7 +112,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 	}
 	if _, ok := stmt.(*parser.DropIndex); ok {
-		if err := e.stagePartitionIndexValidity(stage); err != nil {
+		if err := e.stagePartitionIndexValidity(stage, ObjectAddress{}); err != nil {
 			return Result{}, err
 		}
 	}
