@@ -1,0 +1,65 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"strings"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func TestStatisticalAggregateWindowSignatures(t *testing.T) {
+	for _, name := range []string{"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy"} {
+		valid, unknown, invalid := "1", "NULL", "TRUE"
+		if strings.HasPrefix(name, "regr_") {
+			valid, unknown, invalid = "2,1", "NULL,NULL", "1,TRUE"
+		}
+		for _, tc := range []struct {
+			args, code string
+			result     sqltype.ID
+		}{
+			{valid, "", sqltype.Numeric},
+			{unknown, "", sqltype.Float8},
+			{invalid, "42883", 0},
+			{"", "42883", 0},
+			{"1,2,3", "42883", 0},
+		} {
+			t.Run(name+"("+tc.args+")", func(t *testing.T) {
+				raw := statement(t, "SELECT "+name+"("+tc.args+") OVER ()").(*parser.Select).Targets[0].(parser.AggregateExpr)
+				e := New()
+				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+				b.aggregateClause = "SELECT"
+				e.mu.Lock()
+				defer e.mu.Unlock()
+				seed := statement(t, "SELECT count(*)").(*parser.Select).Targets[0]
+				if _, err := b.bind(seed, expressionPolicy{context: projectionContext}); err != nil {
+					t.Fatal(err)
+				}
+				before := append([]aggregateCall(nil), b.aggregates...)
+				callee := parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}
+				var argument BoundExpr
+				usage, err := b.resolveWindowAggregateSignature(raw, callee, &argument)
+				if tc.code == "" {
+					want := tc.result
+					if strings.HasPrefix(name, "regr_") {
+						want = sqltype.Float8
+					}
+					if err != nil || usage.Type == nil || usage.Type.ID() != want || usage.Typmod != -1 || argument == nil {
+						t.Fatal(usage, argument, err)
+					}
+				} else {
+					var d *sqlstate.Error
+					if !errors.As(err, &d) || d.Code != tc.code {
+						t.Fatal(err)
+					}
+				}
+				if !reflect.DeepEqual(before, b.aggregates) || len(b.windowCalls) != 0 || b.argumentOwner != (argumentWindowOwner{}) {
+					t.Fatal("excluded signature analysis registered group/window state or retained argument ownership")
+				}
+			})
+		}
+	}
+}

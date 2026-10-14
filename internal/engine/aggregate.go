@@ -55,6 +55,14 @@ const (
 	aggregatePercentileCont
 	aggregatePercentileDisc
 	aggregateMode
+	aggregateVarPop
+	aggregateVarSamp
+	aggregateStddevPop
+	aggregateStddevSamp
+	aggregateRegrSlope
+	aggregateRegrSxx
+	aggregateRegrSxy
+	aggregateRegrSyy
 )
 
 type aggregateCall struct {

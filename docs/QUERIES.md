@@ -368,6 +368,28 @@ return a typed NULL for global empty/all-NULL input, and return base-family
 nullable results with typmod -1. Views re-own the MONEY arithmetic binding and
 both provider descriptors. Neither overload is admitted to native windows.
 
+Ordinary statistical aggregates share the same blocking pipeline:
+`var_pop`, `var_samp`, `variance`, `stddev_pop`, `stddev_samp`, `stddev`
+have six numeric input overloads. Integer/NUMERIC inputs produce exact-decimal
+NUMERIC moments; REAL/DOUBLE PRECISION produce FLOAT8, widening actual binary32
+REAL data before accumulation. `variance=var_samp`, `stddev=stddev_samp`.
+Unknown inputs resolve to the preferred FLOAT8 overload. Numeric sums/squares
+are unpacked until the final result; division uses up to 1000 fractional digits,
+and stddev rounds the square root of the rounded variance at that same scale.
+Zero finite numeric variance has display scale zero.
+The four `regr_slope/regr_sxx/regr_sxy/regr_syy(Y,X)` calls coerce both
+arguments to DOUBLE PRECISION and omit any pair with either argument NULL,
+after evaluating both expressions on FILTER-admitted rows. DISTINCT uses the
+whole pair. Released six-field Youngs–Cramer arithmetic retains input-order
+roundoff and checks unused axes for overflow. Empty moments are NULL; finite
+singleton population moments and regression sums are zero, sample moments and
+slope are NULL. Slope is NULL for zero X variance; otherwise it uses raw IEEE
+division. Sample cardinality is checked before special-value finalization.
+Results are nullable with typmod -1 and no physical origin. Native Dump persists
+tables, SQL views and materialized results, never live moment state; restored
+providers own destination descriptors. No statistical window provider is added.
+
+
 ### Ordered-set aggregates
 
 `percentile_cont(fraction) WITHIN GROUP (ORDER BY input)` returns FLOAT8 or

@@ -381,6 +381,8 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
+	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy":
+		return true
 	case "date", "timestamptz", "timetz", "oid", "xid", "cid", "xid8", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "array_agg", "min", "max", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "row_number", "percentile_cont", "percentile_disc", "mode":
 		return true
 	case "integer", "bigint", "boolean", "int":
@@ -405,7 +407,10 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 }
 
 func ordinaryAggregate(name string) bool {
-	if name == "first_value" || name == "last_value" || name == "nth_value" {
+	switch name {
+	case "first_value", "last_value", "nth_value":
+		return true
+	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy":
 		return true
 	}
 	return name == "count" || name == "sum" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "array_agg" || name == "min" || name == "max" || name == "range_agg" || name == "range_intersect_agg" || name == "bit_and" || name == "bit_or" || name == "bit_xor" || name == "json_agg" || name == "jsonb_agg" || name == "json_agg_strict" || name == "jsonb_agg_strict" || name == "json_object_agg" || name == "jsonb_object_agg" || name == "json_object_agg_strict" || name == "jsonb_object_agg_strict" || name == "row_number" || name == "percentile_cont" || name == "percentile_disc" || name == "mode"

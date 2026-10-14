@@ -790,6 +790,10 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.FloatAvg:
 				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.StatisticalAggregate:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.RegressionAggregate:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			case functions.IntegralBitwiseAggregateProvider:
 				u := usage(p.ResultUsage())
 				if err == nil {

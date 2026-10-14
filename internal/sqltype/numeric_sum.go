@@ -29,37 +29,50 @@ func (s *NumericSumState) pow10(n int64) *big.Int {
 }
 
 func (s *NumericSumState) Add(v Value) error {
+	finite, err := s.prepareDatum(v)
+	if err != nil || !finite {
+		return err
+	}
+	exponent := int64(0)
+	if v.typ.id == Numeric {
+		exponent = v.exponent
+	}
+	s.addDatum(exponent)
+	return nil
+}
+
+// prepareDatum tracks admission and parses one signed finite coefficient.
+// Consumers must use the original coefficient before addDatum aligns scratch.
+func (s *NumericSumState) prepareDatum(v Value) (bool, error) {
 	if s == nil || v.typ == nil || !exactNumber(v.typ.id) {
-		return fmt.Errorf("invalid numeric sum datum or state")
+		return false, fmt.Errorf("invalid numeric sum datum or state")
 	}
 	if v.null {
-		return nil
+		return false, nil
 	}
 	if v.typ.id == Numeric {
 		switch v.special {
 		case numericNaN:
 			s.nan = true
-			return nil
+			return false, nil
 		case numericInfinity:
 			s.positiveInfinity = true
-			return nil
+			return false, nil
 		case numericNegativeInfinity:
 			s.negativeInfinity = true
-			return nil
+			return false, nil
 		}
 	}
 	s.seen = true
-	exponent := int64(0)
 	if v.typ.id == Numeric {
 		if v.scale > s.scale {
 			s.scale = v.scale
 		}
-		exponent = v.exponent
 		if v.text == "" {
-			return nil
+			return false, nil
 		}
 		if _, ok := s.datum.SetString(v.text, 10); !ok {
-			return fmt.Errorf("invalid numeric sum coefficient")
+			return false, fmt.Errorf("invalid numeric sum coefficient")
 		}
 		if v.negative {
 			s.datum.Neg(&s.datum)
@@ -67,13 +80,17 @@ func (s *NumericSumState) Add(v Value) error {
 	} else {
 		s.datum.SetInt64(v.integer)
 		if v.integer == 0 {
-			return nil
+			return false, nil
 		}
 	}
+	return true, nil
+}
+
+func (s *NumericSumState) addDatum(exponent int64) {
 	if s.sum.Sign() == 0 {
 		s.sum.Set(&s.datum)
 		s.exponent = exponent
-		return nil
+		return
 	}
 	if exponent < s.exponent {
 		s.sum.Mul(&s.sum, s.pow10(s.exponent-exponent))
@@ -82,7 +99,6 @@ func (s *NumericSumState) Add(v Value) error {
 		s.datum.Mul(&s.datum, s.pow10(exponent-s.exponent))
 	}
 	s.sum.Add(&s.sum, &s.datum)
-	return nil
 }
 
 func (s *NumericSumState) Result(d *Descriptor) (Value, error) {

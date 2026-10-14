@@ -112,6 +112,24 @@ Native eager rows, early result-set skipping, metadata and context cancellation
 are not promises about lib/pq streaming or transport disposal. Adapter differences
 remain explicit in [driver contracts](DRIVER.md).
 
+## Statistical aggregates
+
+The six variance/stddev names and four selected regression names are ordinary
+aggregates; see [query execution](QUERIES.md#blocking-stages-bounds-and-shared-producers).
+Integer/NUMERIC unary moments use exact sums and squares, released decimal
+division precision and same-scale square-root rounding, not binary64 conversion.
+Floating unary and bivariate moments follow REL_18_0 Youngs–Cramer evaluation
+order; this does not import newer constant-axis corrections or promise an
+unordered floating accumulation order. Finite float overflow raises22003
+`value out of range: overflow`; an unrepresentable final NUMERIC raises22003
+`value overflows numeric format`. Admitted nonfinite inputs yield NaN moments,
+subject to empty/sample-singleton and axis-specific regression rules.
+Regression inputs are Y first, X second, one DOUBLE PRECISION signature.
+`stddev` and `variance` are sample aliases with their own labels. All result
+metadata is nullable and unconstrained; native restoration remaps provider
+ownership. Statistical grouping remains serial and statistical windows remain
+outside the existing native window capability.
+
 ## Parallel execution
 
 Parallel work is limited to eager top-level read-only SELECT over one persistent

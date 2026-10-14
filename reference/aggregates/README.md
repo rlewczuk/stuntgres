@@ -6,6 +6,58 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Regression moments, variance and standard deviation
+
+The untagged `statistical_aggregate*_test.go` scenarios independently specify
+`regr_slope`, `regr_sxx`, `regr_sxy`, `regr_syy` (Y first, both inputs coerced
+to FLOAT8), and the six unary names `var_pop`, `var_samp`, `variance`,
+`stddev_pop`, `stddev_samp`, `stddev`. Each unary name admits SMALLINT, INTEGER,
+BIGINT, NUMERIC, REAL and DOUBLE PRECISION; exact inputs return NUMERIC and
+floating inputs return FLOAT8. `variance` and `stddev` retain their own labels
+while aliasing the sample operations.
+
+| Scenario suffix | Independent contract |
+| --- | --- |
+| `Regression` | Acceptance slope/Sxx/Sxy/Syy = 2/2/4/8, negative relation, symmetric pair-NULL exclusion and full-pair DISTINCT. |
+| `Overloads` | All 36 unary signatures, alias labels, populated/global-NULL/grouped-empty results and metadata before Next. |
+| `Boundaries` | Empty/singleton/constant axes, numeric scale and huge intermediate cancellation, special cardinality, released FLOAT8 transition and whole-axis overflow. |
+| `Binding` / `Diagnostics` | Unknown and held typed parameters, modifiers/grouping/consumers, full portable diagnostic fields and direct-execute versus prepared-prepare staging. |
+| `Coercion` | Nonexact stored binary32 REAL widened without decimal reconstruction; BIGINT beyond 2^53 and large NUMERIC regression conversion/roundoff; range failure in either argument. |
+| `ArgumentEvaluation` | Row-dependent division errors in either argument even when its sibling is NULL; FALSE/NULL/row-rejected FILTER companions avoid evaluation. |
+| `ParserWindow` | All ten quoted-qualified PostgreSQL window results beside the explicit native unsupported-provider boundary, invalid window signatures and plain/quoted/qualified generated-column rejection. |
+| `Lifecycle` / `Smoke` | SAME-held freshness, persistent source/view/result ownership, retained output/metadata, cancellation and late-error publication atomicity. |
+
+Empty input and excluded pairs yield typed NULL; finite population singleton is
+zero and sample singleton is NULL. Regression sums are zero for finite singleton
+inputs, and slope is NULL when X has zero variance. Exact numeric accumulation
+does not pack intermediate sums/squares; regression intentionally retains the
+released FLOAT8 rounding, not exact NUMERIC regression or newer constant-axis
+corrections. Native window execution and parallel grouping remain excluded.
+Dump/Reset/Restore and canceled replacement witnesses are explicit native-only
+phases in the shared scenarios, not fabricated PostgreSQL controls.
+
+Follow the shared oracle-first workflow above. Root runs each selected command
+under an external 900-second deadline; completed definitions require both modes:
+
+```sh
+make check RUN='^TestReferenceStatisticalAggregate(Regression|Overloads|Boundaries|Binding|Diagnostics|Lifecycle|Smoke|Coercion|ArgumentEvaluation|ParserWindow)$'
+make check RUN='^TestReferenceStatisticalAggregate(Regression|Overloads|Boundaries|Binding|Diagnostics|Lifecycle|Smoke|Coercion|ArgumentEvaluation|ParserWindow)$' REFERENCE=1
+make check RUN='^TestStatisticalAggregate'
+make check RUN='^TestNumeric(Sum|Avg)'
+make check RUN='^TestStatisticalAggregate|^TestReferenceStatisticalAggregateLifecycle$' RACE=1
+make check RUN='^TestReferenceStatisticalAggregateSmoke$'
+make check RUN='^TestReferenceStatisticalAggregateSmoke$' REFERENCE=1
+```
+
+Private units supplement public proof: `WindowSignatures` checks result types
+without registering group/window state; `NumericCoefficientReuse` checks signed
+finite coefficient reuse, both exponent-alignment directions, zero/NULL scale
+tracking and retained immutable results. Existing SUM/AVG units protect the
+private accumulation seam. Smoke exercises selected values/metadata, changing
+held inputs, native symbolic-view restoration and overflow INSERT atomicity.
+Selected proof is not whole-project verification: root also runs `make quickcheck`
+and post-integration `make finalcheck` under the shared guide.
+
 ### Ordered-set aggregates
 
 The untagged `ordered_set_*_test.go` scenarios specify all seven percentile/mode

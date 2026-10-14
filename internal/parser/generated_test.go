@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestGeneratedStoredGrammar(t *testing.T) {
 	statements, err := Parse(`/*é*/ CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(a+1) STORED)`)
@@ -56,5 +59,33 @@ func TestGeneratedRestrictionsRemainPositionedSyntax(t *testing.T) {
 	}
 	if _, err := Parse(`CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(row_number() OVER (garbage nonsense)) STORED)`); err == nil {
 		t.Fatal("window syntax failure masked")
+	}
+}
+
+func TestStatisticalAggregateGeneratedCallPosition(t *testing.T) {
+	for _, expression := range []string{
+		`var_pop(a)`,
+		`"var_pop"(a)`,
+		`pg_catalog.var_pop(a)`,
+		`pg_catalog."var_pop"(a)`,
+		`pg_catalog.abs(pg_catalog."var_pop"(a))`,
+		`pg_catalog."regr_sxx"(a,a)`,
+	} {
+		q := `CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(` + expression + `) STORED)`
+		statements, err := Parse(q)
+		if err != nil {
+			t.Fatal(expression, err)
+		}
+		raw := statements[0].(*CreateTable).Elements[1].Column.Constraints[0].Generation.Expression
+		restriction, ok := raw.(ForbiddenGenerationExpr)
+		callee := expression
+		if strings.HasPrefix(expression, "pg_catalog.abs(") {
+			callee = `pg_catalog."var_pop"(a)`
+		}
+		if !ok || restriction.Code != "42803" ||
+			restriction.Message != "aggregate functions are not allowed in column generation expressions" ||
+			restriction.Pos.Offset != strings.Index(q, callee) {
+			t.Fatal("generation restriction does not own the aggregate call position", expression, raw)
+		}
 	}
 }

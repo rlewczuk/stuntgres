@@ -53,3 +53,23 @@ func (s *FloatAvgState) Result(d *Descriptor) (Value, error) {
 	// The final division deliberately permits IEEE underflow and signed zero.
 	return Float(d, s.sx/s.n)
 }
+
+// MomentsResult uses the released variance finalizers without changing AVG's
+// transition or mean. Final arithmetic deliberately permits IEEE underflow.
+func (s *FloatAvgState) MomentsResult(d *Descriptor, sample, stddev bool) (Value, error) {
+	if s == nil || d == nil || d.id != Float8 {
+		return Value{}, fmt.Errorf("invalid float moments descriptor or state")
+	}
+	if s.n == 0 || sample && s.n <= 1 {
+		return Null(d), nil
+	}
+	denominator := s.n
+	if sample {
+		denominator--
+	}
+	result := s.sxx / denominator
+	if stddev {
+		result = math.Sqrt(result)
+	}
+	return Float(d, result)
+}

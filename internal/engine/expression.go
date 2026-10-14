@@ -2089,6 +2089,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindBooleanAggregate(r, name)
 			} else if r.Name == "avg" {
 				node, err = b.bindAvg(r, name)
+			} else if statisticalAggregateName(r.Name) {
+				node, err = b.bindStatisticalAggregate(r, name)
 			} else if r.Name == "sum" {
 				node, err = b.bindSum(r, name)
 			} else if r.Name == "any_value" {

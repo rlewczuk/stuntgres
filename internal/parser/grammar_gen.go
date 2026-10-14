@@ -16448,6 +16448,10 @@ sqldefault:
 	case 1263:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
+			l := sqllex.(*lexer)
+			if restriction := l.generationRestriction; restriction != nil && restriction.Pos == sqlDollar[3].tok.pos {
+				restriction.Pos = sqlDollar[1].tok.pos
+			}
 			sqlVAL.expr = FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, {Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}}}, Args: sqlDollar[4].call.Args, ArgNames: sqlDollar[4].call.ArgNames, Variadic: sqlDollar[4].call.Variadic, ResolutionOnly: sqlDollar[3].tok.resolutionOnly, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1264:

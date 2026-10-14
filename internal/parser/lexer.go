@@ -1122,7 +1122,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.generationDepth > 0 && !extractFieldIdentifier {
 		forbiddenCall := false
 		switch token.lexeme.text {
-		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "generate_subscripts", "unnest":
+		case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "generate_subscripts", "unnest":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
 			forbiddenCall = next.code == int('(')
@@ -1135,7 +1135,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 			code, message := "", ""
 			switch token.lexeme.text {
-			case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg":
+			case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg":
 				code, message = "42803", "aggregate functions are not allowed in column generation expressions"
 			case "grouping":
 				code, message = "42803", "grouping operations are not allowed in column generation expressions"

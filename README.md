@@ -3847,6 +3847,33 @@ NULL for empty/all-NULL input. For `1,NULL,3`, the mean is numeric
 is promised. Public AVG feature checks use independent assertions in both modes:
 `make check RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$'`
 and `make check REFERENCE=1 RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$'`.
+
+Change note: `var_pop`, `var_samp`, `variance`, `stddev_pop`, `stddev_samp`
+and `stddev` accept SMALLINT, INTEGER, BIGINT, NUMERIC, REAL and DOUBLE PRECISION.
+The first four input types return unrestricted NUMERIC; the floating inputs
+return FLOAT8. `variance` is `var_samp` and `stddev` is `stddev_samp`, retaining
+their own output labels. NULLs are omitted. Empty input returns typed NULL;
+population moments of a finite singleton are zero, sample moments are NULL.
+Exact numeric moments retain unpacked sums and squares until finalization,
+choose PostgreSQL's division scale (up to 1000 fractional digits), and take
+standard deviation from that rounded variance at the same scale. Equal finite
+numeric inputs return plain `0`. Floating moments retain the released
+Youngs–Cramer transition and finite-overflow checks rather than naive squares.
+`regr_slope(Y,X)`, `regr_sxx(Y,X)`, `regr_sxy(Y,X)` and `regr_syy(Y,X)`
+have one DOUBLE PRECISION signature and return FLOAT8; other numeric inputs
+coerce to that signature. A pair is omitted if either axis is NULL. For
+X=1,2,3 and Y=2,4,6 the results are respectively 2,2,4,8. Empty input returns
+NULL; a finite singleton has zero sums and NULL slope. Zero X variance gives
+NULL slope; zero Y variance with varying X gives zero slope. Floating roundoff
+is not clamped, and the six-field REL_18_0 transition checks both axes even if
+only one component is requested. All ten names use ordinary grouping,
+FILTER/DISTINCT/ALL/in-call ordering, direct/prepared execution and stored-view
+restoration, with nullable typmod -1 metadata and atomic eager publication.
+They do not add native window or parallel aggregate execution.
+Feature smoke: `make check RUN='^TestReferenceStatisticalAggregateSmoke$'`
+and `make check RUN='^TestReferenceStatisticalAggregateSmoke$' REFERENCE=1`;
+these assert moments, prepared inputs, metadata, native restore and atomic errors.
+
 Change note: `sum(SMALLINT/INTEGER)` returns INT8; `sum(BIGINT/NUMERIC)`
 returns unrestricted NUMERIC; `sum(REAL)` returns FLOAT4 and
 `sum(DOUBLE PRECISION)` returns FLOAT8. All six ignore NULL, return typed NULL
