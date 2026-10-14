@@ -46,6 +46,10 @@ func (e *Engine) initializeCatalogSources() error {
 			{"datlocale", sqltype.Text}, {"daticurules", sqltype.Text}, {"datcollversion", sqltype.Text},
 			{"datacl", sqltype.ID(1034)},
 		}},
+		{2964, "pg_db_role_setting", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"setdatabase", sqltype.Oid}, {"setrole", sqltype.Oid}, {"setconfig", sqltype.ID(1009)}}},
 		{1255, "pg_proc", []struct {
 			name string
 			typ  sqltype.ID
@@ -219,6 +223,12 @@ func (e *Engine) initializeCatalogSources() error {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
+			if spec.oid == 2964 {
+				d.columns[i].Nullable = i == 2
+				if column.typ == sqltype.ID(1009) {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
 			if spec.oid == 1259 {
 				d.columns[i].Nullable = i >= 31
 				if column.typ == sqltype.ID(1009) {
@@ -295,6 +305,14 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if source.address.ObjectID == pgAttributeOID {
 		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
+	}
+	if source.address.ObjectID == 2964 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		// Persistent role/database defaults have no population owner yet.
+		// Session defaults and overrides are not stored catalog rows.
+		return &querySource{ref: ref, anonymous: [][]sqltype.Value{}}, nil
 	}
 	if source.address.ObjectID == 1262 {
 		return e.capturePGDatabase(ctx, catalog, roles, ref, source)

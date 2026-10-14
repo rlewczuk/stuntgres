@@ -88,6 +88,8 @@ func initializeCatalogAttributes(d *relationDescriptor) {
 				fact.notNull = column.Name != "spcoptions"
 			case 1262:
 				fact.notNull = i < 14
+			case 2964:
+				fact.notNull = i < 2
 			case 3456:
 				fact.notNull = i < 7
 			case 3079:

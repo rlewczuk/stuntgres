@@ -1951,6 +1951,24 @@ See the [precise field boundaries](docs/DIALECT.md#pg_database-current-attachmen
 Feature smoke: `make check RUN='^TestReferencePGDatabaseSmoke$'` and the same
 command with `REFERENCE=1` for pinned PostgreSQL18.0.
 
+Change note: [`pg_catalog.pg_db_role_setting`](https://www.postgresql.org/docs/18/catalog-pg-db-role-setting.html)
+is readable through ordinary direct and prepared queries with the exact
+three-column schema: NOT NULL `setdatabase OID`, NOT NULL `setrole OID`, and
+nullable `setconfig TEXT[]`. Relation2964 is an indexed, cluster-shared catalog
+table in `pg_global`, not a view; it has no row `oid` column. PUBLIC SELECT uses
+the normal authorization checks even when no rows are present.
+
+The native catalog is currently empty because no persistent per-role/per-database
+settings owner exists. Session SET/SET LOCAL, custom placeholders, registered
+defaults and connection defaults never manufacture stored settings rows.
+ALTER ROLE/DATABASE SET and RESET population, stored scope arrays and login
+application remain settings/command-feature work; this read capability does not
+claim those effects. Reset/Restore retain catalog availability and typing, held
+statements recapture the empty source, and Dump omits catalog rows/default commands.
+Feature smoke: `make check RUN='^TestReferencePGDBRoleSettingSmoke$'`; repeat with
+`REFERENCE=1` for pinned PostgreSQL18.0. See the
+[selected proof and owner boundary](reference/catalogs/README.md#pg_db_role_setting-selected-proof).
+
 Change note: table/column GRANT and REVOKE now retain independent grantor
 origins, owner implicit options, PUBLIC and inherited role authority. All eight
 table privileges and four column privileges are represented; real supported
@@ -2029,8 +2047,10 @@ and member identities, never credentials. Fresh held executions observe role/edg
 changes while already-open native rows remain captured. Native controls preserve
 roles/membership and omit them from Dump; group writes remain native0A000 catalog
 mutation exclusions, not PostgreSQL55000 non-updatable-view claims.
-Membership never synthesizes summary flags. Rename, role settings and
-`pg_authid`/`pg_shadow` remain excluded. Object GRANT/REVOKE supports the selected
+Membership never synthesizes summary flags. Rename, role-setting population
+commands and `pg_authid`/`pg_shadow` remain excluded. Reading `pg_db_role_setting`
+is supported with the empty-owner boundary described above.
+Object GRANT/REVOKE supports the selected
 table/column privileges through the existing ACL authority. Native DROP and
 COMMENT retain their existing actual-SUPERUSER gates; broader PostgreSQL DROP
 authority stays a backend-specific diagnostic supplement, not a native permission
@@ -2740,9 +2760,10 @@ rows, including actual automatic sequences and backing indexes. Identity,
 namespace, ownership, kind, row-type/typed-table links, attribute high-water,
 CHECK counts, RLS and population come from installed descriptors, not row counts.
 Represented builtin view classification does not change their execution sources.
-All nineteen represented table catalogs own audited indexed-table metadata,
+All twenty represented table catalogs own audited indexed-table metadata,
 including `pg_proc`, `pg_collation`, `pg_enum`, `pg_conversion`, `pg_ts_dict`
-and `pg_ts_template`, together with shared `pg_database`; represented views report no indexes. These facts survive
+and `pg_ts_template`, together with shared `pg_database` and
+`pg_db_role_setting`; represented views report no indexes. These facts survive
 Reset/Restore without inventing missing native backing-index rows.
 
 Stored `relacl` preserves grantor/grantee identities, PUBLIC, privilege/grant-option

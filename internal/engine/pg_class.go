@@ -15,7 +15,7 @@ import (
 func representedCatalogHasIndexes(oid OID) bool {
 	switch oid {
 	case 1213, 1249, 1255, 1259, 1262, 2224, 2396, 2604, 2605, 2606, 2607,
-		2608, 2609, 2610, 2618, 3079, 3456, 3501, 3600, 3764:
+		2608, 2609, 2610, 2618, 2964, 3079, 3456, 3501, 3600, 3764:
 		return true
 	}
 	return false
@@ -91,7 +91,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 			method = 405
 		}
 	}
-	shared := relation.relationKind == catalogRelation && (relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2396)
+	shared := relation.relationKind == catalogRelation && (relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2396 || relation.address.ObjectID == 2964)
 	tablespace := uint32(0)
 	if shared {
 		tablespace = 1664

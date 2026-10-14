@@ -6,6 +6,77 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_db_role_setting selected proof
+
+`TestReferencePGDBRoleSetting` independently specifies relation2964 and its
+exact three columns: NOT NULL OID `setdatabase` and `setrole`, nullable TEXT[]
+`setconfig`, attribute origins1–3, typmods-1 and array collation C950.
+The catalog is an indexed, cluster-shared table in `pg_global`, not a view,
+with linked row/array type identities and no fourth row `oid` column.
+Direct Context/plain calls, newly prepared calls and repeated held executions
+check exact empty metadata and OID0/4294967295/NULL binds; retained ColumnTypes
+remain inspectable after EOF/Close. ScanTypes/nullability intentionally distinguish
+native adapters from pq, rather than pretending pq exposes native-only metadata.
+Shared public identity witnesses compare `pg_class.reltype` with the resolved
+row REGTYPE, require positive distinct row/array identities, and equate bracket
+array lookup with the initialized `_pg_db_role_setting` array name. They prescribe
+relationships, not PostgreSQL's allocated OID sequence.
+Exact `pg_attribute` rows now run on both backends through the existing native
+attribute catalog. The actual `pg_type` reciprocal row/array catalog remains an
+explicit PostgreSQL-only phase because pg_type is not a native provider.
+Native component coverage independently asserts the exact descriptor attributes,
+row/array owner and owning-relation links, associated array and element reciprocity.
+Public native Rows metadata remains checked exactly in the shared shape scenario.
+This distinction does not narrow the new readable `pg_db_role_setting` catalog.
+
+
+There is no native persistent scoped-settings owner. Empty results are the
+current real projection, not synthesized session defaults. Registered and
+connection defaults, SET/custom placeholders, SET LOCAL, commit/rollback/savepoint
+changes and ordinary-role switching must leave it empty on both physical owners.
+ALTER ROLE/DATABASE SET/RESET population, nonempty scope keys/ordered stored arrays
+and new-login application belong to future settings/command owners and are not
+claimed by these tests. Future rows must represent actual stored defaults, never
+effective SHOW values or a filter to only the current role/database.
+
+OID parameter-input failures have the same full unnamed-portal Context on
+both adapters: nonempty input is redacted as `'...'`, empty input as `''`.
+Row-type relationship queries explicitly convert REGTYPE to OID before
+comparison; they do not require an additional mixed-type operator.
+
+Full diagnostics cover missing columns/relation, literal and parameter OID errors,
+analysis before empty execution and successful held retries. PostgreSQL-only
+catalog ACL revocation asserts42501 even for an empty source; native component
+coverage publishes actual relation ACLs through CatalogStage. Both witnesses
+grant SELECT on only stable attribute1 (`setdatabase`) with table SELECT absent:
+that typed empty projection succeeds, another column and star fail42501, and
+the same held column analysis observes grant/revoke/regrant. PostgreSQL catalog
+column and table ACLs are restored on success and failure cleanup.
+Public native catalog ACL SQL is not added.
+Pre-canceled QueryContext, PrepareContext and held QueryContext run in the shared
+body on both backends, require ordinary context.Canceled with no SQLSTATE or
+published Rows/Stmt, and then reuse the same held statement successfully.
+Native-only mutation/locking guards and acquired-Rows cancellation remain
+explicitly distinct from PostgreSQL catalog DML/server cancellation.
+Reset/Dump/Restore witnesses check failed/canceled replacement atomicity,
+sentinel18 preservation, held recapture, retained empty metadata, deterministic
+round trips and destination attachment isolation. No backing index/TOAST
+relations or scoped-default serialization are fabricated.
+
+```sh
+make check RUN='^TestReference(PGDBRoleSetting(Shape|Metadata|SessionVisibility|Diagnostics|Controls|Smoke)|PGTableViewsBuiltins)$' REFERENCE=1
+make check RUN='^TestReference(PGDBRoleSetting(Shape|Metadata|SessionVisibility|Diagnostics|Controls|Smoke)|PGTableViewsBuiltins)$'
+make check RUN='^TestPGDBRoleSetting(ShapeAndOwnership|Capture|SessionDefaultsExcluded|Authorization)$'
+# Permanent feature smoke, reusing the full scenario bodies:
+make check RUN='^TestReferencePGDBRoleSettingSmoke$'
+make check RUN='^TestReferencePGDBRoleSettingSmoke$' REFERENCE=1
+```
+
+Smoke expects exact typed empty reads/count0, shared table discovery, repeated
+held execution, session/ordinary-reader exclusion, and native replacement
+preserving catalog metadata and sentinel atomicity. Selected native and pinned
+real proof are both required; smoke does not replace whole-project quickcheck.
+
 ### pg_collation selected proof
 
 `TestReferencePGCollation` specifies the complete PostgreSQL18 twelve-column

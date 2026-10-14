@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var pgTableBuiltinNames = []string{"pg_attrdef", "pg_attribute", "pg_cast", "pg_class", "pg_constraint", "pg_database", "pg_depend", "pg_description", "pg_index", "pg_rewrite", "pg_sequence", "pg_shdescription"}
+var pgTableBuiltinNames = []string{"pg_attrdef", "pg_attribute", "pg_cast", "pg_class", "pg_constraint", "pg_database", "pg_db_role_setting", "pg_depend", "pg_description", "pg_index", "pg_rewrite", "pg_sequence", "pg_shdescription"}
 var pgViewBuiltinNames = []string{"pg_group", "pg_indexes", "pg_prepared_xacts", "pg_roles", "pg_tables", "pg_views"}
 
 func pgTableViewsNames(column string, names []string) string {
@@ -24,7 +24,7 @@ func TestReferencePGTableViewsBuiltins(t *testing.T) {
 			var expected [][]any
 			for _, name := range pgTableBuiltinNames {
 				row := pgTableRow("pg_catalog", name, pgTableViewsOwner(b), true)
-				if name == "pg_database" || name == "pg_shdescription" {
+				if name == "pg_database" || name == "pg_db_role_setting" || name == "pg_shdescription" {
 					row[3] = "pg_global"
 				}
 				expected = append(expected, row)
