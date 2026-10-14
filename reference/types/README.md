@@ -741,3 +741,55 @@ errors, nested-domain metadata and actual nonUTC control lifecycle. Pinned18.0
 initial discovery passed before implementation; native/final dual-mode proof is
 root-owned and is not implied by these commands or readiness.
 
+
+### Composite attribute evolution selected proof
+
+Run each selected group without and with `REFERENCE=1` (external 900-second
+deadline); real mode also executes unchanged actual native Dump bytes on PostgreSQL:
+
+```sh
+make check RUN='^TestReferenceCompositeAlter(Values|Arrays|Descriptor)$'
+make check RUN='^TestReferenceCompositeAlter(StoredDependencies|Diagnostics|Authorization)$'
+make check RUN='^TestReferenceCompositeAlter(Prepared|Atomicity|Controls|DumpReplay)$'
+make check RUN='^TestReferenceCompositeAlter(FunctionalPrepared|MaterializedDependencies|DomainChecks|InheritedChecks)'
+make check RUN='^TestCompositeAlter(FunctionalRetainedFields|MaterializedStoredGuard|DomainCheckPruning|InheritedCheckStageAuthority)'
+make check RUN='^TestReferenceTypedTableCompositeAlter(Conversions|Modes)$'
+make check RUN='^TestReferenceCompositeExprBoundaries$'
+make check RUN='^TestReferenceTypedTableNestedStoredBoundary$'
+make check RUN='^TestComposite(ArrayEvolution|ArrayCodec|ArrayStorageAdmission|DomainArrayGenerationOwnership|AlterDescriptorCandidate|AlterCancellationAndReplacement)$'
+make check RACE=1 RUN='^TestCompositeAlterCancellationAndReplacement$'
+```
+
+Independent observations: appended scalar/array members are NULL, rename retains
+identity, drop/re-add never revives a value, dimensions/lower bounds and NULL
+elements survive nested/domain generation mapping. Domain-array units stage and
+publish actual declarations/holder rows, then verify stable identities and
+reciprocal codecs through evolution and catalog replacement. Malformed bound array
+input asserts the exact portal parameter Context in both modes. Storage-free
+descriptor TYPE does not require Assignment, but actual typed roots/descendants still do.
+RESTRICT and stored TYPE fences preserve the entire old state; actual dependent
+field CHECKs are diagnosed or removed by CASCADE. Held field/expanded queries keep
+original slots/names and return NULL for a dropped slot; named outputs use the
+current descriptor, held literals retain original input shape and current binds
+decode freshly. Eager rows remain immutable. Native controls retain final fields,
+arrays, constraints, typed attachment and future writes; malformed/canceled imports
+cannot publish a prefix. Composite comparison/hash/index providers remain absent.
+The index-consumer native phase asserts the existing qualified type-name provider
+boundary, while PostgreSQL creates a real dependent expression index.
+
+Review-regression feature smoke uses the FunctionalPrepared, MaterializedDependencies,
+DomainChecks and InheritedChecks selector above in both native and `REFERENCE=1`
+modes. Expected observations: original held dot/functional TEXT slots become NULL
+after DROP and stay NULL after re-add, including zero-member composites; actual
+materialized scalar/array/domain/nested storage rejects explicit identity/widening
+TYPE even empty/all-NULL and with CASCADE. Domain field CHECK RESTRICT diagnostics
+and CASCADE notices name the actual constraint; unrelated CHECK enforcement and
+outermost nested-domain diagnostics survive. PostgreSQL asserts its exact domain
+constraint catalog bag; native independently asserts the documented absent domain
+projection and real before/after enforcement. Internal units prove actual OID
+pruning and immutable descriptors, not an empty-catalog proxy. Typed child/diamond
+CHECK removal survives later propagation, fresh/Reset Restore and actual unchanged
+native Dump replay on pinned PostgreSQL, with future accepted/rejected writes.
+Ordinary inherited ALTER and absent comparison/index providers remain unchanged.
+
+

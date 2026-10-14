@@ -205,6 +205,16 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	if err != nil {
 		return fail(err)
 	}
+	if original.relationKind == compositeRelation {
+		if usage == current && next.columns[slot].DeclaredDimensions == int16(len(a.TypeName.ArrayBounds)) {
+			return next, columnTransformation{}, nil
+		}
+		replacement := *next
+		replacement.columns = append([]ColumnDescriptor(nil), next.columns...)
+		replacement.columns[slot].Usage = usage
+		replacement.columns[slot].DeclaredDimensions = int16(len(a.TypeName.ArrayBounds))
+		return &replacement, columnTransformation{}, nil
+	}
 	var node BoundExpr
 	if prepared != nil {
 		node = prepared.expression

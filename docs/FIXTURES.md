@@ -135,8 +135,8 @@ Native replacement remints/reowns reciprocal descriptors, stable member usages,
 nested stored/default values and live REGCLASS/REGTYPE children together, while
 held snapshots remain immutable. Plain domains over rows/composites and mixed
 source-row→named-wrapper→domain→holder/view dependencies replay as ordinary SQL
-on PostgreSQL. No new harness, physical ABI, constrained-domain feature or
-composite-array storage is implied. Composite controls:
+on PostgreSQL. Executable composite arrays use the same logical replay path;
+no new harness, physical ABI or constrained-domain feature is implied. Composite controls:
 `make check RUN='^TestReferenceComposite(MixedControls|ControlLifetime)$'`
 and the same command with `REFERENCE=1` (900 seconds each).
 Composite expressions additionally retain occurrence-owned constructor shapes,
@@ -233,6 +233,14 @@ objects are reminted in the private candidate before installation.
 Dump/Restore preserves CHECK casts/names/NO INHERIT, NOT NULL and explicit
 defaults through canonical SQL replay, not raw definition OID directives.
 Restored IDs may differ; current owner/attribute relationships and behavior persist.
+Inherited and partition-member row exports use explicit named INSERT targets
+in captured live-column order, so reconstructed hierarchy declarations cannot
+redirect a stored value into a different column. Replay still uses ordinary
+INSERT binding and CHECK enforcement, not import-only expression admission.
+Canonical inheritance declarations place current inherited columns before local
+columns. After an inherited column was added later, this can differ from the
+source's live column order. Named row targets preserve values; reconstructed
+`SELECT *` metadata and CHECK failing-row details follow the reconstructed order.
 Structural unknown-NULL provenance and raw temporal precision survive replay;
 destination sizing remains an executable coercion rather than a deparse-time value.
 Installed supported view options retain presence, lexical value and order through

@@ -30,11 +30,18 @@ func CompositeReferenceSetup(t *testing.T, p *Pair, b Backend, c *sql.Conn, quer
 	}
 }
 
-func CompositeReferenceRows(t *testing.T, p *Pair, b Backend, c Executor, query string, expected [][]any, prepared bool, args ...any) {
+// nativeType optionally declares the existing custom-array metadata spelling;
+// scalar/nested composites keep the default empty name. These queries have no binds.
+func CompositeReferenceRows(t *testing.T, p *Pair, b Backend, c Executor, query string, expected [][]any, prepared bool, nativeType ...string) {
 	t.Helper()
-	s := Select(query, []string{"v"}, []string{""}, expected, args...)
+	name := ""
+	if !b.PG && len(nativeType) != 0 {
+		name = nativeType[0]
+	}
+	s := Select(query, []string{"v"}, []string{name}, expected)
 	s.Prepared = prepared
-	s.CheckMetadata = EnumReferenceMetadata(b.PG, true)
+	s.RawTypes = []string{""}
+	s.CheckMetadata = EnumReferenceMetadata(b.PG, true, nativeType...)
 	EnumReferenceRunStep(t, p.Ctx, c, b.Recorder, s)
 }
 

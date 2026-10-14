@@ -517,6 +517,12 @@ DecimalSize. NULL is nil; a zero-member nonNULL value is `()`. Domains retain th
 logical wrapper and expose the same physical composite metadata. Native nullable
 columns report true/known; pinned pq returns raw []byte/interface{} ScanType and
 unknown Nullable. Metadata is available before iteration and for empty results.
+Executable composite arrays retain the existing custom-array metadata convention:
+native DatabaseTypeName is the uppercase associated catalog name (for example
+`_PAIR`), while pq exposes an empty name for the custom OID. Both export canonical
+array text; native ScanType is string and pq ScanType is interface{} with raw bytes.
+Domains over arrays expose the physical array metadata; scalar/nested composites
+retain the empty DatabaseTypeName described above.
 
 Anonymous ROW outputs instead report DatabaseTypeName `RECORD`, unknown Nullable/
 Length/DecimalSize, native raw strings/string ScanType and pinned pq raw []byte/
@@ -524,6 +530,10 @@ interface{} ScanType. Constructor/field/expanded-member metadata is available
 before iteration and for empty outputs. Prepared execution imports fresh
 parameter frames, preserving full member usage; stable captured field attributes
 survive permitted preceding-member removal and rename without slot/name retarget.
+Held prepared field selections and expansions retain their original stable slots
+and output names across ADD/RENAME/DROP; a dropped selected slot returns typed NULL.
+Named composite/array outputs instead use the current descriptor. Newly bound
+inputs decode against it, while held analyzed literals retain their original shape.
 Whole NULL, present all-NULL and present zero-field records remain distinct.
 
 Inferred bound parameters and unknown literals use the shared record codec;

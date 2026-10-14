@@ -59,6 +59,30 @@ See [window contracts](docs/QUERIES.md) and
 Feature smoke: `make check RUN='^TestReferenceQueryWindowValueFeatureSmoke$'`
 and `make check RUN='^TestReferenceQueryWindowValueFeatureSmoke$' REFERENCE=1`.
 
+## Composite attribute evolution — change note
+
+`ALTER TYPE` supports ADD/DROP/RENAME ATTRIBUTE and ALTER ATTRIBUTE
+`[SET DATA] TYPE`, including COLLATE and typed-table CASCADE/RESTRICT.
+Existing composite scalar/array values map stable attributes: additions are NULL,
+renames preserve identity, and dropped/re-added names never resurrect old values.
+Executable composite arrays retain bounds, NULL elements and nested/domain codecs.
+Descriptor-only TYPE needs no assignment cast; actual typed-table rows still do.
+Stored scalar/array/domain/nested consumers, including materialized views, block
+explicit TYPE even for identity changes or empty/all-NULL storage. Nonstored views
+are not physical consumers. Relation and domain field CHECKs obey real DROP
+RESTRICT/CASCADE; typed descendant pruning preserves unrelated inherited CHECKs.
+Held dot/functional field and expanded statements retain original slots/names;
+dropped slots return typed NULL, including after same-name re-add. Named results
+use current shape; eager cursors retain their captured shape.
+Native Dump/Restore emits the final live declarations and actual data.
+Catalog replacement mints destination composite codecs and remaps reciprocal
+arrays/domains and payloads, preserving stable attributes, bounds, NULLs and
+retained source roots.
+Comparison/hash/key providers and lookup-only builtin/catalog rows remain excluded.
+Selected proof: `make check RUN='^TestReference(CompositeAlter|TypedTableCompositeAlter)'`,
+and the same command with `REFERENCE=1` for pinned PostgreSQL and unchanged
+native-dump replay. See [types](docs/TYPES.md#arrays-composites-enums-and-domains).
+
 ## Namespace catalog metadata — change note
 
 `pg_catalog.pg_namespace` exposes the PostgreSQL 18 four-column schema:
@@ -726,8 +750,8 @@ executing an unused volatile sibling; whole-constructor analysis and immutable
 preflight remain required. Correlated RETURNING whole rows retain their lexical
 OLD/NEW owner and nearer-name shadowing. Admitted scalar function-source aliases
 remain scalar; ordinality/multiple-call aliases retain genuine tuple presence.
-Anonymous constructed results report RECORD; composite arrays and comparisons
-remain unsupported.
+Anonymous constructed results report RECORD; composite comparisons remain
+unsupported. Executable named-composite arrays support storage and textual I/O.
 Named assignments preserve descriptor identity: equal-shaped distinct named
 types are not interchangeable. Direct UPDATE/INSERT VALUES may contextually
 construct anonymous ROW values; projected RECORD in INSERT SELECT requires an
@@ -1584,8 +1608,9 @@ independent of DateStyle; timestamptz and ordinary scalar output use live sessio
 settings. All eight functions are STABLE, including empty builders: defaults,
 checks and views retain symbolic calls, while immutable-only index/generated
 consumers reject them. Native Dump/Restore preserves typed stored operands.
-Composite arrays, arbitrary user JSON casts, SQL/JSON constructors and processing
-operators/aggregates are not added by this change.
+Arbitrary user JSON casts, SQL/JSON constructors and processing
+operators/aggregates are not added by this change. Composite arrays use the
+existing recursive conversion providers.
 Feature smoke (900 seconds each):
 `make check RUN='^TestReferenceJSONCreateFeatureSmoke$'`;
 pinned counterpart:
@@ -2653,8 +2678,8 @@ For a view, `ALTER TABLE view SET SCHEMA` aliases `ALTER VIEW SET SCHEMA` and
 moves only the view's namespace, leaving its sources and dependents in place.
 Explicit-transaction SET SCHEMA, generic standalone sequence/index moves and
 TEMP/system destinations remain bounded native exclusions. Automatic table/view
-row and associated-array catalog identities are supported; composite value
-execution remains excluded.
+row and associated-array catalog identities are supported; executable user
+row/composite values use the existing logical codecs.
 Feature smoke: `make check RUN='^TestAlterSchemaSmoke$'`.
 
 Change note: ordinary `CREATE INDEX ... USING hash` supports one simple or

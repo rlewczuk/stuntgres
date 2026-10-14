@@ -60,16 +60,6 @@ func TestReferenceTypedTableNestedStoredBoundary(t *testing.T) {
 				run(fixture.Exec("CREATE DOMAIN wrapped AS pair", 0))
 				run(fixture.Exec("CREATE TYPE typed_box AS (v pair)", 0))
 				run(fixture.Exec("CREATE TABLE t OF pair", 0))
-				if declaration == "pair[]" && !b.PG {
-					// SQL storage of composite arrays remains outside the admitted
-					// transport boundary; the real array-provider guard has package proof.
-					d := typedTableError("0A000", "unsupported column type")
-					d.Position = "23"
-					fixture.CompositeReferenceError(t, p, c, "CREATE TABLE holder(v pair[])", "execute", d)
-					run(typedTableAttachment("t", "pair", true))
-					fixture.TableDDLMetadata(t, p.Ctx, c, false, prepared, "SELECT * FROM t", []string{"id"}, []string{"INT4"}, []bool{true}, 0)
-					return
-				}
 				run(fixture.Exec("CREATE TABLE holder(v "+declaration+")", 0))
 				fixture.CompositeReferenceError(t, p, c, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE bigint CASCADE", "execute", typedTableError("0A000", `cannot alter type "pair" because column "holder.v" uses it`))
 				fixture.TableDDLMetadata(t, p.Ctx, c, b.PG, prepared, "SELECT * FROM t", []string{"id"}, []string{"INT4"}, []bool{true}, 0)

@@ -130,7 +130,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	builtin := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Numeric)}
 	next.descriptors[builtin] = &typeDescriptor{typ: physical}
 	mapping := map[ObjectAddress]ObjectAddress{a.Address(): {ClassID: TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: TypeClassID, ObjectID: 60002}}
-	changed, err := reownDomainTypes(next, mapping)
+	changed, err := reownDomainTypes(next, mapping, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

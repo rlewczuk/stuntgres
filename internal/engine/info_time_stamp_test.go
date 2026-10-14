@@ -73,7 +73,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	namespace.name = "renamed_info"
 	next.names[NameKey{ClassID: NamespaceClassID, Name: namespace.name}] = namespace.address
 	next.descriptors[namespace.address] = &namespace
-	changed, err := reownDomainTypes(next, nil)
+	changed, err := reownDomainTypes(next, nil, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -106,7 +106,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 		t.Fatal("principal remap lost builtin exemption")
 	}
 	invalid := cloneCatalog(original.state)
-	if _, err := reownDomainTypes(invalid, map[ObjectAddress]ObjectAddress{d.Address(): {ClassID: TypeClassID, ObjectID: 60000}}); err == nil {
+	if _, err := reownDomainTypes(invalid, map[ObjectAddress]ObjectAddress{d.Address(): {ClassID: TypeClassID, ObjectID: 60000}}, false); err == nil {
 		t.Fatal("builtin domain reminted")
 	}
 }

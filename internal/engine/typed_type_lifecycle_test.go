@@ -90,6 +90,15 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	if row.owningRelation != imported.address || row.typ.CompositeMember(1).Attribute != 7 || row.typ.CompositeMember(1).Name != "note" {
 		t.Fatal("imported own-row codec lost reciprocity", row)
 	}
+	array, ok := view.LookupArray(row.typ)
+	if !ok || !array.Concrete() || array.Element() != row.typ {
+		t.Fatal("imported executable array lost reciprocal generation", array)
+	}
+	oldRow, _ := before.LookupType(table.rowType)
+	oldArray, _ := before.LookupArray(oldRow)
+	if !oldArray.Concrete() || array == oldArray || row.typ == oldRow {
+		t.Fatal("imported composite/array borrowed foreign codec")
+	}
 	if source.CatalogRead().state != before.state || before.state.descriptors[original.address] != original || before.state.descriptors[table.address] != table {
 		t.Fatal("foreign import mutated source capture")
 	}

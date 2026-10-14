@@ -15,13 +15,15 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	var typ *typeDescriptor
 	var source *relationDescriptor
 	if err == nil {
-		typ, err = e.namedType(auth, s.Name)
-	}
-	if err == nil {
-		var path []ObjectAddress
-		path, err = e.referencePath(auth)
+		var ref ObjectRef
+		ref, err = e.resolveRelationReference(auth, s.Name, true)
 		if err == nil {
-			source, err = standaloneComposite(auth.catalog, typ, path)
+			source = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			if source.relationKind != compositeRelation {
+				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.name))
+			} else {
+				typ = auth.catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.rowType)}].(*typeDescriptor)
+			}
 		}
 	}
 	if err == nil {
@@ -119,16 +121,23 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	if err := stage.Replace(sourceMutation.next); err != nil {
 		return Result{}, err
 	}
-	var forced map[ObjectAddress]map[int32]bool
-	if len(sourceMutation.transforms) != 0 {
-		forced = make(map[ObjectAddress]map[int32]bool, len(targets)+1)
-		forced[source.address] = typedTransformAttributes(sourceMutation.transforms)
+	forced := make(map[ObjectAddress]map[int32]bool, len(targets)+1)
+	for _, action := range s.Actions {
+		if action.Action == parser.AlterColumnType {
+			if slot, ok := source.index[action.Column.Text]; ok {
+				if forced[source.address] == nil {
+					forced[source.address] = make(map[int32]bool)
+				}
+				forced[source.address][source.attributes[slot]] = true
+			}
+		}
 	}
 	for _, table := range targets {
 		var actions []typedColumnAction
 		var renames map[int32]string
 		var graph *tableInheritance
 		view := e.stageRead(stage)
+		table = view.state.descriptors[table.address].(*relationDescriptor)
 		if table.ofType == typ.Address() {
 			actions, renames = typedShapeActions(source, sourceMutation.next, table, forced[source.address])
 		} else {

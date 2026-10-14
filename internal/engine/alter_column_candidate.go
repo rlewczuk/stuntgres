@@ -71,6 +71,11 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 	if err := stage.Replace(old); err != nil {
 		return nil, err
 	}
+	if old.relationKind == compositeRelation {
+		if err := stageCompositeFieldChecks(stage, old, target.SubID, a.Mode, scope); err != nil {
+			return nil, err
+		}
+	}
 	foreign, err := foreignKeyColumnDependencies(ctx, stage, target, a.Mode, scope)
 	if err != nil {
 		return nil, err

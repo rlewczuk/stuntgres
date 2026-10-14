@@ -294,7 +294,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	defer func() { next.scalarImports = nil }()
-	domainsChanged, err := reownDomainTypes(next, mapping)
+	domainsChanged, err := reownDomainTypes(next, mapping, true)
 	if err != nil {
 		return err
 	}

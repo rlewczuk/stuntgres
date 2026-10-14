@@ -309,11 +309,32 @@ Stored scalar and native replacement routes preserve mapped descriptor ownership
 without introducing array comparison, leaf equality or additional codecs.
 
 Named composites atomically publish their type, nonstorage backing relation,
-stable attributes and lookup-only associated array. Native output and ScanType
+stable attributes and executable associated array. Native output and ScanType
 are string with an empty DatabaseTypeName and no Length/DecimalSize. Stable
-attributes project supported shape changes; held results keep the old shape.
-Distinct named types are not interchangeable by shape. Composite arrays,
-comparison/hash/key providers and enum/base-type deletion remain excluded.
+attributes project supported shape changes; eager results keep the old shape.
+Distinct named types are not interchangeable by shape. Composite arrays preserve
+shape, bounds, NULL elements and nested/domain member generations through evolution.
+Domains over executable composites publish executable reciprocal arrays too;
+catalog replacement reowns their domain, element and member codecs together.
+Comparison/hash/key providers and enum/base-type deletion remain excluded.
+
+`ALTER TYPE name ADD ATTRIBUTE name type [CASCADE|RESTRICT]`,
+`DROP ATTRIBUTE [IF EXISTS] name [CASCADE|RESTRICT]`,
+`RENAME ATTRIBUTE name TO name [CASCADE|RESTRICT]` and
+`ALTER ATTRIBUTE name [SET DATA] TYPE type [COLLATE collation] [CASCADE|RESTRICT]`
+reuse the typed-table mutation authority. ADD/DROP/TYPE lists are atomic.
+ADD fills old values with typed NULL; rename retains stable identity; DROP removes
+the live field and never reuses its identity. Storage-free descriptor TYPE changes
+do not require assignment casts. Actual typed rows do; stored composite consumers
+(including materialized views, arrays/domains/nested values and empty/all-NULL
+holders) prohibit explicit TYPE, even identity TYPE. Nonstored views alone do not.
+CASCADE propagates to typed tables, not arbitrary stored composite rewrites.
+Relation and domain field CHECK dependencies block DROP RESTRICT and are removed
+by CASCADE. Typed child/diamond propagation retains privately pruned constraints
+and unrelated local/inherited CHECKs. Domain identity, ancestry and surviving
+CHECK enforcement remain intact; native pg_constraint still does not project domain
+constraints. Held dot and functional field selection retain original stable
+attributes and return the original typed NULL after retirement or same-name re-add.
 
 Enums retain stable member identities across label changes. Held analyzed
 literals keep their member; fresh textual parameters use current labels. Native
@@ -504,8 +525,8 @@ Native metadata exposes REGCOLLATION/REGNAMESPACE with string ScanType; pinned p
 reports an empty type name for REGCOLLATION and REGNAMESPACE for namespaces.
 
 Mixed routine/object composites and unconstrained composite domains preserve
-each alias family's captured symbolic output during logical replay. Composite
-arrays remain excluded. Live collation and
+each alias family's captured symbolic output during logical replay, including
+executable composite arrays. Live collation and
 namespace identities must resolve to the restored named referents even when
 their allocator OIDs are displaced.
 

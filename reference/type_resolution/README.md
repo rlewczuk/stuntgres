@@ -65,7 +65,7 @@ name syntax. Completed post-remedy proof is still required in both modes.
 
 MixedRoutinePersistence exercises the shared routine-container consumer with
 REGPROCEDURE, REGCOLLATION and REGNAMESPACE in composites and unconstrained
-composite domains. Composite arrays remain excluded. Independent named-OID
+composite domains. Executable composite arrays share the logical codecs. Independent named-OID
 equalities cover saved rows, a constant view and replayed defaults. Native replay
 uses a fresh target's retained TEMP namespace/relation/rowtype allocations to
 displace both imported object classes; permanent spacers alone are replaced.
@@ -401,7 +401,8 @@ whole REGTYPE/REGPROC/REGPROCEDURE numeric and dash shortcuts remain valid.
 named REGROLE, preserving symbolic role serialization in rows/defaults/views,
 displaced native Restore and exact emitted-stream PostgreSQL replay. Its role OID
 must resolve to the receiving catalog's named role, not retain the source OID.
-Native arrays of composites and scalar REGROLE stored constants remain unsupported.
+Scalar REGROLE stored constants remain unsupported; executable composite arrays
+use the same recursive logical replay path.
 
 Review2's distinct mixed routine/operator capture coverage gap is addressed by
 `reference/type_resolution/regproc_mixed_operator_test.go` /

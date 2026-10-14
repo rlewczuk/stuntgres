@@ -20,6 +20,21 @@ func LockPID(t *testing.T, ctx context.Context, conn *sql.Conn) int {
 	return pid
 }
 
+// RelationLockActiveCancel observes this owner's actual queued operation before
+// cancellation, retaining the connection for complete post-failure assertions.
+func RelationLockActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, operation func(context.Context) RelationOutcome) {
+	t.Helper()
+	pid := 0
+	if b.PG {
+		pid = LockPID(t, p.Ctx, c)
+	}
+	activeProviderCancel(t, p, b, c, query, "(*relationRequest).wait", "", func(ctx context.Context) {
+		if b.PG {
+			LockWait(t, ctx, pid)
+		}
+	}, operation)
+}
+
 func LockOID(t *testing.T, ctx context.Context, name string) int64 {
 	t.Helper()
 	var oid int64

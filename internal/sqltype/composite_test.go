@@ -243,8 +243,8 @@ func TestCompositeRecursiveRetagAndAdmission(t *testing.T) {
 		t.Fatal("source mutated or datum lost")
 	}
 	for _, d := range []*Descriptor{sourceDomain, sourceDomain.BaseType()} {
-		if _, err := Array(60000, "excluded", d); err == nil {
-			t.Fatal("composite array executable")
+		if _, err := Array(60000, "records", d); err != nil {
+			t.Fatal("executable composite array rejected", err)
 		}
 	}
 	lookup := LookupOnly(60000, "_d", 0)

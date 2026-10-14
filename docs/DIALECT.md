@@ -411,8 +411,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   are rejected. TRUE/UNKNOWN pass, FALSE reports domain 23514. Fresh NULL is
   checked, while already-domain NULL can bypass conversion in the documented
   outer-join/scalar-subquery contexts. Domain NOT NULL, inherited domain defaults
-  and domain alteration remain unavailable. Composite arrays, builtin/catalog
-  row execution and composite comparison/hash/key providers remain excluded.
+  and domain alteration remain unavailable. Executable composite arrays support
+  storage and textual I/O; builtin/catalog row execution and composite
+  comparison/hash/key providers remain excluded.
   Pending conversions are not evaluated by JOIN/MERGE capability proofs or
   conflict inference. Retained expression recipes still initialize before rows
   are demanded; existing ADD COLUMN uses real per-row conversion, and existing

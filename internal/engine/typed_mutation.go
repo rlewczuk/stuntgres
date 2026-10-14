@@ -82,7 +82,9 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				if err != nil {
 					return mutation, err
 				}
-				mutation.transforms = append(mutation.transforms, transform)
+				if old.relationKind != compositeRelation {
+					mutation.transforms = append(mutation.transforms, transform)
+				}
 			}
 			mutation.next, mutation.checks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, mutation.next, checks)
 			if err == nil {

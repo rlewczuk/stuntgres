@@ -120,7 +120,10 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	if err != nil {
 		return err
 	}
-	array := sqltype.LookupArray(sqltype.ID(arrayID), associatedArrayName(stage, relation.namespace, relation.name), typ)
+	array, err := sqltype.Array(sqltype.ID(arrayID), associatedArrayName(stage, relation.namespace, relation.name), typ)
+	if err != nil {
+		return err
+	}
 	relation.rowType = typ.ID()
 	baseline := authorization.DefaultBaseline(relation.owner, authorization.DefaultTypes, false)
 	acl := baseline
@@ -200,7 +203,15 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 			arrayName = associatedArrayName(stage, relation.namespace, relation.name)
 		}
 		if !same {
-			copy.typ = sqltype.LookupArray(array.typ.ID(), arrayName, next.typ)
+			if next.typ.IsComposite() {
+				var err error
+				copy.typ, err = sqltype.Array(array.typ.ID(), arrayName, next.typ)
+				if err != nil {
+					return err
+				}
+			} else {
+				copy.typ = sqltype.LookupArray(array.typ.ID(), arrayName, next.typ)
+			}
 		}
 		return stage.Replace(&copy)
 	}

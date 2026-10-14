@@ -181,8 +181,9 @@ JSON/JSONB types and bytes, duplicate-key distinctions, pretty/multidimensional
 VARIADIC results, bound escaping, live UTC/Los_Angeles timestamp output, full
 odd-arity/NULL-key errors and held-statement recovery, stored calls and native
 retention/replay. Passing assertions and the normal package summary are the
-expected observations. Arbitrary user JSON casts, composite arrays, SQL/JSON
-constructors, processing operators and aggregates remain outside this family.
+expected observations. Arbitrary user JSON casts, SQL/JSON constructors,
+processing operators and aggregates remain outside this family. Executable
+composite arrays use the existing recursive conversion path.
 
 The eight calls are intrinsically STABLE even with constant or empty inputs.
 Index/generated consumers must reject them rather than silently treating scalar

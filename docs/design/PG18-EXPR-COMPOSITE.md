@@ -4,8 +4,9 @@
 
 This design extends the existing concrete named-composite codec and scalar/query
 architecture. It supersedes earlier notes excluding ROW construction and field
-operations, but not their composite-array, comparison/key, generic RECORD storage,
-constrained-domain or new composite-DDL exclusions. MERGE RETURNING, MERGE partial
+operations, but not their comparison/key, generic RECORD storage,
+constrained-domain or new composite-DDL exclusions. Composite-array and attribute-DDL
+exclusions are superseded by the current TYPES.md evolution contract. MERGE RETURNING, MERGE partial
 INSERT and generic multi-column SET retain existing boundaries. Upstream INSERT
 RETURNING is preserved, not implemented here: its side-aware column/named-row
 provider remains the authority for potentially absent OLD tuples. No routine

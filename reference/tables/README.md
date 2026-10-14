@@ -298,7 +298,7 @@ retains native recursive-parent0A000 observations and PG ONLY supplements.
 `TestTypedInheritedParentAttributePublication` executes the real source lifecycle
 and checks source/root/child names, concrete types and independent stable attributes.
 `TestTypedStoredAssociatedCompositeArrayGuard` uses the actual associated provider;
-public composite-array column creation retains its known native capability error.
+`TestReferenceTypedTableNestedStoredBoundary` also checks executable array holders.
 `TestTypedAttributeDependencyModeTerminators` checks generic type names and grouped
 CASCADE/RESTRICT grammar without consuming dependency modes as a second type word.
 

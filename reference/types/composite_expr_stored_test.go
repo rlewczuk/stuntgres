@@ -200,13 +200,13 @@ func TestReferenceCompositeExprBoundaries(t *testing.T) {
 		compositeExprSetup(t, p, b, c)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`INSERT INTO holder VALUES(1,'(7,z)',NULL)`, 1))
 		fixture.CompositeReferenceSetup(t, p, b, c, `CREATE DOMAIN domain_pair AS pair`)
+		compositeExprBoth(t, p, b, c, `SELECT ARRAY[ROW(1,'x')::pair]::text AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{`{"(1,x)"}`}})
 		for _, x := range []struct {
 			q      string
 			pg     fixture.Step
 			native fixture.Diagnostic
 			base   string
 		}{
-			{`SELECT ARRAY[ROW(1,'x')::pair]::text AS v`, fixture.Select(`SELECT ARRAY[ROW(1,'x')::pair]::text AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{`{"(1,x)"}`}}), fixture.CompositeReferenceDiagnostic("0A000", "unsupported array element type"), "ARRAY"},
 			{`SELECT ARRAY[ROW(1,2)]::text AS v`, fixture.Select(`SELECT ARRAY[ROW(1,2)]::text AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{`{"(1,2)"}`}}), fixture.CompositeReferenceDiagnostic("0A000", "unsupported array element type"), "ARRAY"},
 			{`SELECT ROW(1,'x')::pair=ROW(1,'x')::pair AS same`, fixture.Select(`SELECT ROW(1,'x')::pair=ROW(1,'x')::pair AS same`, []string{"same"}, []string{"BOOL"}, [][]any{{true}}), fixture.CompositeReferenceDiagnostic("0A000", "composite comparison is unsupported"), "="},
 			{`SELECT NULL::pair=NULL::pair AS same`, fixture.Select(`SELECT NULL::pair=NULL::pair AS same`, []string{"same"}, []string{"BOOL"}, [][]any{{nil}}), fixture.CompositeReferenceDiagnostic("0A000", "composite comparison is unsupported"), "="},

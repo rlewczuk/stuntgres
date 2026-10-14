@@ -1183,7 +1183,7 @@ composite_actions: composite_action {$$=[]AlterTableAction{*$1}}
  | composite_actions ',' composite_action {$$=append($1,*$3)} ;
 composite_action: ADD attribute_word composite_member drop_mode {c:=$3;$$=&AlterTableAction{Action:AddColumn,Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Mode:$4,Pos:$1.pos}}
  | DROP attribute_word drop_target drop_mode {$$=&AlterTableAction{Action:DropColumn,Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Pos:$1.pos}}
- | ALTER attribute_word name TYPE type column_collation drop_mode {$$=&AlterTableAction{Action:AlterColumnType,Column:Identifier{Text:$3.text,Pos:$3.pos},TypeName:$5,Collation:$6,Mode:$7,Pos:$1.pos}} ;
+ | ALTER attribute_word name alter_type_keyword type column_collation drop_mode {$$=&AlterTableAction{Action:AlterColumnType,Column:Identifier{Text:$3.text,Pos:$3.pos},TypeName:$5,Collation:$6,Mode:$7,Pos:$1.pos}} ;
 alter_table_of: ALTER TABLE alter_target OF relation_name {source:=$5;$$=&AlterTableOf{Name:$3.Name,Only:$3.Only,Type:&source,Pos:$1.pos}}
  | ALTER TABLE alter_target NOT OF {$$=&AlterTableOf{Name:$3.Name,Only:$3.Only,Pos:$1.pos}} ;
 collation_create_head: CREATE COLLATION relation_name {$$=&CreateCollation{Name:$3,Pos:$1.pos}}

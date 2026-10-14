@@ -42,7 +42,7 @@ func EnumReferenceRunStep(t *testing.T, ctx context.Context, db Executor, record
 	t.Helper()
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 		t.Helper()
-		if s.Types[column] != "" {
+		if s.Types[column] != "" && (len(s.RawTypes) == 0 || s.RawTypes[column] != "") {
 			return false
 		}
 		if s.Bag || row >= len(s.Rows) {
@@ -74,7 +74,9 @@ func EnumReferenceRunStep(t *testing.T, ctx context.Context, db Executor, record
 
 // Pinned PostgreSQL18/pq exposes unknown enum OIDs as interface{} with
 // unknown flags. Native exposes string and preserves stored-column nullability.
-func EnumReferenceMetadata(pg, stored bool) func(*testing.T, *sql.Rows) {
+// Optional nativeType retains custom-array catalog names without weakening the
+// scalar default or pq's unknown-OID metadata and raw transport assertions.
+func EnumReferenceMetadata(pg, stored bool, nativeType ...string) func(*testing.T, *sql.Rows) {
 	return func(t *testing.T, rows *sql.Rows) {
 		t.Helper()
 		types, err := rows.ColumnTypes()
@@ -92,9 +94,13 @@ func EnumReferenceMetadata(pg, stored bool) func(*testing.T, *sql.Rows) {
 		if pg {
 			scan = reflect.TypeFor[any]()
 		}
+		name := ""
+		if !pg && len(nativeType) != 0 {
+			name = nativeType[0]
+		}
 		wantNullable := !pg && stored
-		if typ.Name() != "v" || typ.DatabaseTypeName() != "" || typ.ScanType() != scan || length != 0 || lengthKnown || precision != 0 || scale != 0 || decimalKnown || nullable != wantNullable || nullableKnown != wantNullable {
-			t.Fatalf("enum metadata got name=%q type=%q scan=%v length=%d/%t decimal=%d,%d/%t nullable=%t/%t; want v/empty/%v/0,false/0,0,false/%t,%t", typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), length, lengthKnown, precision, scale, decimalKnown, nullable, nullableKnown, scan, wantNullable, wantNullable)
+		if typ.Name() != "v" || typ.DatabaseTypeName() != name || typ.ScanType() != scan || length != 0 || lengthKnown || precision != 0 || scale != 0 || decimalKnown || nullable != wantNullable || nullableKnown != wantNullable {
+			t.Fatalf("enum metadata got name=%q type=%q scan=%v length=%d/%t decimal=%d,%d/%t nullable=%t/%t; want v/%q/%v/0,false/0,0,false/%t,%t", typ.Name(), typ.DatabaseTypeName(), typ.ScanType(), length, lengthKnown, precision, scale, decimalKnown, nullable, nullableKnown, name, scan, wantNullable, wantNullable)
 		}
 	}
 }

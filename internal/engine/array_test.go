@@ -217,7 +217,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	for i, typ := range []*sqltype.Descriptor{rc.typ, rcArray, whole.typ, wholeArray, nested.typ, nestedArray} {
 		mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}] = ObjectAddress{ClassID: TypeClassID, ObjectID: OID(60001 + i)}
 	}
-	changed, err := reownDomainTypes(next, mapping)
+	changed, err := reownDomainTypes(next, mapping, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

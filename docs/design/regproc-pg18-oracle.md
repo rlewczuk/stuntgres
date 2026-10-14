@@ -164,7 +164,8 @@ role formatter for non-routine leaves, so names resolve against the receiving
 role catalog rather than preserving backend-local source OIDs. The new
 `TestReferenceRegProcMixedRolePersistence` targets the supported composite shape,
 row/default/view output, displaced native Restore and actual emitted-stream replay.
-Native arrays of composites and scalar REGROLE stored constants remain unsupported.
+Scalar REGROLE stored constants remain unsupported. Composite-array exclusions
+are superseded by the current TYPES.md evolution contract.
 
 Restored container DEFAULTs can retain character-to-container coercions rather
 than a pre-evaluated datum. Their consuming write captures recursive catalog
@@ -196,7 +197,7 @@ invalidation/recapture, and qualified operand-authority denial/recovery.
 metadata and member identities, explicit row/default/view replay, restored-default
 evaluation and unread retained native output/metadata across Reset/Restore.
 It replays actual native Dump bytes on PostgreSQL without adding operator SQL
-functionality or composite arrays. Completed root native and pinned-reference
+functionality. Composite arrays now use the shared logical codecs. Completed root native and pinned-reference
 checks now confirm the public scenario; the private lifecycle selector also passes.
 
 The first root-owned R4 execution reached native Reset/Restore and then failed

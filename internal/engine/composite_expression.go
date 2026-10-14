@@ -259,6 +259,17 @@ func (b *expressionBinder) compositeFieldAt(base BoundExpr, index int, pos parse
 	}
 	return fieldExpression{b.info(member.Usage, pos, base.Properties()), base, member.Attribute, index}
 }
+func (b *expressionBinder) retainedCompositeField(base BoundExpr, key preparedCompositeKey, captured compositeOccurrence, pos parser.Position) BoundExpr {
+	index, exists := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
+	b.captureComposite(key, captured.base, captured.attributes)
+	if !exists {
+		oldIndex, _ := captured.base.Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
+		usage := captured.base.Type.BaseType().CompositeMember(oldIndex).Usage
+		return literalExpression{b.info(usage, pos, ExprProperties{}), sqltype.Null(usage.Type)}
+	}
+	return b.compositeFieldAt(base, index, pos)
+}
+
 func (b *expressionBinder) bindField(raw parser.FieldExpr) (BoundExpr, error) {
 	if raw.Expansion {
 		return nil, expressionError("0A000", `row expansion via "*" is not supported here`, raw.Pos)
@@ -274,9 +285,7 @@ func (b *expressionBinder) bindField(raw parser.FieldExpr) (BoundExpr, error) {
 		if captured.kind == compositeDotBuiltin {
 			return b.bindDotBuiltin(raw, key)
 		}
-		index, _ := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
-		b.captureComposite(key, base.ResultUsage(), captured.attributes)
-		return b.compositeFieldAt(base, index, raw.Pos), nil
+		return b.retainedCompositeField(base, key, captured, raw.Pos), nil
 	}
 	node, err := b.selectCompositeField(base, raw.Field.Text, raw.Pos)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42703" || diagnostic.Code == "42809") && functions.NullCountFunctionKind(raw.Field.Text) != 0 {
@@ -321,12 +330,26 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (compositeExpan
 			attributes[i] = shape.CompositeMember(i).Attribute
 		}
 	}
-	b.captureComposite(key, base.ResultUsage(), attributes)
+	if found {
+		b.captureComposite(key, captured.base, attributes)
+	} else {
+		b.captureComposite(key, base.ResultUsage(), attributes)
+	}
 	result := compositeExpansionBinding{base: base, fields: make([]BoundExpr, len(attributes)), names: make([]string, len(attributes)), attributes: attributes}
 	for i, attribute := range attributes {
-		index, _ := shape.CompositeAttributeIndex(attribute)
+		index, exists := shape.CompositeAttributeIndex(attribute)
+		if found {
+			oldIndex, _ := captured.base.Type.BaseType().CompositeAttributeIndex(attribute)
+			member := captured.base.Type.BaseType().CompositeMember(oldIndex)
+			result.names[i] = member.Name
+			if !exists {
+				result.fields[i] = literalExpression{b.info(member.Usage, raw.Pos, ExprProperties{}), sqltype.Null(member.Usage.Type)}
+				continue
+			}
+		} else {
+			result.names[i] = shape.CompositeMember(index).Name
+		}
 		result.fields[i] = b.compositeFieldAt(base, index, raw.Pos)
-		result.names[i] = shape.CompositeMember(index).Name
 		if row, ok := base.(rowExpression); ok && row.wholeNames != nil {
 			result.names[i] = row.wholeNames[index]
 		}
@@ -656,9 +679,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result BoundEx
 	}
 	shape := base.ResultUsage().Type.BaseType()
 	if retained {
-		index, _ := shape.CompositeAttributeIndex(captured.attributes[0])
-		b.captureComposite(key, base.ResultUsage(), captured.attributes)
-		return b.compositeFieldAt(base, index, raw.Pos), nil
+		return b.retainedCompositeField(base, key, captured, raw.Pos), nil
 	}
 	index, found, failure := compositeFieldIndex(base, raw.Name.Parts[0].Text, raw.Pos)
 	if failure != nil {

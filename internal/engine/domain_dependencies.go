@@ -638,26 +638,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		if _, removed := stage.removals[edge.domain.Address()]; removed {
 			continue
 		}
-		d := edge.domain
-		if replacement, ok := stage.descriptors[d.Address()].(*typeDescriptor); ok {
-			d = replacement
-		}
-		copy := *d
-		copy.domainChecks = make([]domainCheckConstraint, 0, len(d.domainChecks))
-		for _, check := range d.domainChecks {
-			if check.OID != edge.address.ObjectID {
-				copy.domainChecks = append(copy.domainChecks, check)
-			}
-		}
-		copy.typ, err = sqltype.Domain(d.typ.ID(), d.Name(), d.typ.SQLName(), d.typ.DomainBase(), len(copy.domainChecks) != 0)
-		if err != nil {
-			return err
-		}
-		copy.revision, err = stage.cascadeMetadataRevision(d.revision)
-		if err != nil {
-			return err
-		}
-		if err := stage.Replace(&copy); err != nil {
+		if err := stage.removeDomainCheck(edge.domain, edge.address.ObjectID); err != nil {
 			return err
 		}
 	}
@@ -754,4 +735,27 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 
 func usageDependsOn(u sqltype.Usage, target ObjectAddress) bool {
 	return target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}) || target == (ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)})
+}
+
+func (stage *CatalogStage) removeDomainCheck(d *typeDescriptor, oid OID) error {
+	if replacement, ok := stage.descriptors[d.Address()].(*typeDescriptor); ok {
+		d = replacement
+	}
+	next := *d
+	next.domainChecks = make([]domainCheckConstraint, 0, len(d.domainChecks))
+	for _, check := range d.domainChecks {
+		if check.OID != oid {
+			next.domainChecks = append(next.domainChecks, check)
+		}
+	}
+	var err error
+	next.typ, err = sqltype.Domain(d.typ.ID(), d.Name(), d.typ.SQLName(), d.typ.DomainBase(), len(next.domainChecks) != 0)
+	if err != nil {
+		return err
+	}
+	next.revision, err = stage.cascadeMetadataRevision(d.revision)
+	if err != nil {
+		return err
+	}
+	return stage.Replace(&next)
 }

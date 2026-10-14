@@ -6,7 +6,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddress) (bool, error) {
+// Importing mints destination composite codecs even when logical identities and
+// members are unchanged. Visiting their children first then rebuilds dependent
+// domains and arrays against those codecs; staged evolution remains copy-on-change.
+func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddress, importing bool) (bool, error) {
 	visited := make(map[ObjectAddress]bool)
 	active := make(map[ObjectAddress]bool)
 	changed := false
@@ -112,7 +115,7 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 				return fmt.Errorf("stuntgres: missing composite namespace")
 			}
 			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.name)
-			rebuild := identity != address || namespace != d.namespace || owner != d.owningRelation || associated != d.array || declaration != d.typ.SQLName() || d.typ.CompositeLen() != len(relation.columns)
+			rebuild := importing || identity != address || namespace != d.namespace || owner != d.owningRelation || associated != d.array || declaration != d.typ.SQLName() || d.typ.CompositeLen() != len(relation.columns)
 			var members []sqltype.CompositeMember
 			for i, c := range relation.columns {
 				child := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(c.Usage.Type.ID())}

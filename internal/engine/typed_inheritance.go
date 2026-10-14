@@ -35,7 +35,7 @@ func typedClosure(catalog CatalogRead, source ObjectAddress) map[ObjectAddress]D
 	}
 	for _, descriptor := range catalog.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || table.relationKind != tableRelation || result[table.address] != nil {
+		if !ok || !table.relationKind.stored() || result[table.address] != nil {
 			continue
 		}
 		for _, column := range table.columns {

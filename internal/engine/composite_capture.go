@@ -47,11 +47,6 @@ func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqlt
 	if (captured.kind != key.kind && !(key.kind == compositeSelection && captured.kind == compositeDotBuiltin)) || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function == 0) || base.Type == nil || captured.base.Type == nil || base.Type.ID() != captured.base.Type.ID() || captured.kind != compositeDotBuiltin && !base.Type.BaseType().IsComposite() {
 		return compositeOccurrence{}, false, fmt.Errorf("stuntgres: incompatible retained composite occurrence")
 	}
-	for _, attribute := range captured.attributes {
-		if _, ok := base.Type.BaseType().CompositeAttributeIndex(attribute); !ok {
-			return compositeOccurrence{}, false, fmt.Errorf("stuntgres: retired retained composite member")
-		}
-	}
 	return captured, true, nil
 }
 func (b *expressionBinder) captureComposite(key preparedCompositeKey, base sqltype.Usage, attributes []int32) {

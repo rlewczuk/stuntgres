@@ -5,7 +5,7 @@ package engine
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.stageRead(stage)
 	next := view.state
-	if _, err := reownDomainTypes(next, nil); err != nil {
+	if _, err := reownDomainTypes(next, nil, false); err != nil {
 		return err
 	}
 	if err := reownCatalogScalarTypes(next, nil, nil); err != nil {

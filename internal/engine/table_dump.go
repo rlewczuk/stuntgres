@@ -62,7 +62,9 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 			continue
 		}
 		line.WriteString("INSERT INTO " + qualified)
-		if t.descriptor.membership != nil {
+		// Hierarchy reconstruction can place inherited columns before local
+		// columns added earlier. Address captured values by name, not replay slot.
+		if t.descriptor.membership != nil || t.descriptor.inheritance != nil {
 			line.WriteString(" (")
 			for i, column := range t.columns {
 				if i != 0 {

@@ -276,12 +276,18 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 }
 
 func storedArrayElement(typ *sqltype.Descriptor) bool {
+	if !typ.Concrete() {
+		return false
+	}
 	physical := typ.BaseType()
 	if sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
 		return false
 	}
 	if physical.IsArray() {
 		return storedArrayElement(physical.Element())
+	}
+	if physical.IsComposite() {
+		return physical.Concrete()
 	}
 	return sqltype.StoredScalarCastType(physical.ID()) || physical.ID() == sqltype.Regclass
 }

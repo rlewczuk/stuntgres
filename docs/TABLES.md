@@ -389,6 +389,11 @@ propagates through real origins, not names, with one source/table/inheritance/co
 storage publication. Stored consumers of every propagated own-row provider remain
 guards even for identical-usage actions. Surviving origin-backed definitions become
 independently replayable local declarations when dead provider edges disappear.
+Source ADD/DROP/RENAME and TYPE/COLLATION default to RESTRICT when typed tables
+exist; CASCADE propagates atomically through roots and descendants. Scalar
+storage-free source TYPE is descriptor-only, whereas propagated table TYPE uses
+assignment coercions and enforces defaults/CHECKs and stored own-row guards.
+Composite-array holders are executable and remain genuine stored TYPE consumers.
 
 Typed lifecycle preparation releases incidental replacement-read admission outside
 the mutex while preserving genuine provider holds and exact descriptor fences.
