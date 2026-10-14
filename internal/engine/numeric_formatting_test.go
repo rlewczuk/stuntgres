@@ -2,8 +2,7 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -29,8 +28,8 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(c, err)
 		}
-		n, ok := bound.(numericFormattingExpression)
-		if !ok || n.args[0].ResultUsage().Type.ID() != c.id || n.ResultUsage().Type.ID() != sqltype.Text || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
+		n, ok := bound.(functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || n.Args[0].ResultUsage().Type.ID() != c.id || n.ResultUsage().Type.ID() != sqltype.Text || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
 			t.Fatal("overload authority", c, bound)
 		}
 	}
@@ -38,7 +37,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, ok := bound.(numericFormattingExpression); !ok || n.ResultUsage().Type.ID() != sqltype.Numeric || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
+	if n, ok := bound.(functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]); !ok || n.ResultUsage().Type.ID() != sqltype.Numeric || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
 		t.Fatal(bound)
 	}
 	// An invalid constant mask belongs to demanded execution, not binding.
@@ -55,35 +54,24 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var order []int
-	n := numericFormattingExpression{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable}}, plan: plan, args: [2]BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: numeric.Usage()}, value: sqltype.Null(numeric), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, mask), order: &order, index: 1},
+	// Pure NULL/sibling-error runtime demand is exercised locally. Retain
+	// genuine STABLE/group/retag owner invariants with executable literals.
+	n := functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
+		literalExpression{expressionInfo: expressionInfo{usage: numeric.Usage()}, value: sqltype.Null(numeric)},
+		literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, mask)},
 	}}
-	value, err := n.Eval(&EvalContext{Context: ctx})
-	if err != nil || !value.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(value, order, err)
-	}
-	failure := errors.New("demanded template sibling")
-	n.args[0] = literalExpression{expressionInfo: expressionInfo{usage: numeric.Usage()}, value: sqltype.Null(numeric)}
-	n.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	if _, err := n.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{1}) {
-		t.Fatal("literal NULL bypassed sibling", order, err)
-	}
-	n.args[1] = literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, mask)}
 	simplified, _, err := simplifyConditional(&EvalContext{Context: ctx}, n, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := simplified.(numericFormattingExpression); !ok {
+	if _, ok := simplified.(functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]); !ok {
 		t.Fatal("STABLE demand lost through NULL folding", simplified)
 	}
 	if plannedVolatility(n) != Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
 		t.Fatal("intrinsic STABLE/semantic identity")
 	}
 	other := n
-	other.args[1] = literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "FM99")}
+	other.Args[1] = literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "FM99")}
 	if b.sameGroupExpression(n, other) {
 		t.Fatal("mask omitted from group identity")
 	}
@@ -95,7 +83,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	value, err = rebound.Eval(&EvalContext{Context: ctx})
+	value, err := rebound.Eval(&EvalContext{Context: ctx})
 	if err != nil || value.Type() != replacements[sqltype.Text] || n.ResultUsage().Type != text {
 		t.Fatal("retained descriptor ownership", value, err)
 	}
@@ -119,11 +107,11 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		numeric, ok := node.(numericFormattingExpression)
+		numeric, ok := node.(functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || numeric.Properties().Volatility != Volatile {
 			t.Fatal("numeric wrapper lost UUID child volatility", node)
 		}
-		if !closedUUIDDefault(numeric.args[0]) {
+		if !closedUUIDDefault(numeric.Args[0]) {
 			t.Fatal("existing closed UUID source composition was rejected")
 		}
 		if !closedUUIDDefault(numeric) {
@@ -135,7 +123,7 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 			{Volatility: Volatile, StageDependent: true},
 		} {
 			dependent := numeric
-			dependent.expressionInfo.properties = property
+			dependent.Property = property
 			if closedUUIDDefault(dependent) {
 				t.Fatal("dependent numeric DEFAULT admitted", property)
 			}

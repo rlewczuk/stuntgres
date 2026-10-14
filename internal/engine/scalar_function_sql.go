@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -22,135 +23,129 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []BoundExpr{n.arg})
-	case uuidGenerationExpression:
-		if u.Type.ID() != sqltype.UUID || (n.name != "uuidv7" && n.name != "uuidv4" && n.name != "gen_random_uuid") || len(n.args) > 1 || len(n.args) != 0 && n.name != "uuidv7" {
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		if u.Type.ID() != sqltype.UUID || (n.Name != "uuidv7" && n.Name != "uuidv4" && n.Name != "gen_random_uuid") || len(n.Args) > 1 || len(n.Args) != 0 && n.Name != "uuidv7" {
 			return "", fmt.Errorf("stuntgres: invalid stored UUID generation signature")
 		}
-		if len(n.args) != 0 && n.args[0].ResultUsage().Type.ID() != sqltype.Interval {
+		if len(n.Args) != 0 && n.Args[0].ResultUsage().Type.ID() != sqltype.Interval {
 			return "", fmt.Errorf("stuntgres: invalid stored UUID shift")
 		}
-		r.uuidShiftIntervalNulls = len(n.args) != 0
-		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
-	case randomExpression:
+		r.uuidShiftIntervalNulls = len(n.Args) != 0
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Name, n.Args)
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")
 		}
 		argumentType := sqltype.Float8
 		valid := false
-		switch n.name {
+		switch n.Name {
 		case "random":
-			if len(n.args) == 0 {
+			if len(n.Args) == 0 {
 				valid = u.Type.ID() == sqltype.Float8
 			}
-			if len(n.args) == 2 {
+			if len(n.Args) == 2 {
 				argumentType = u.Type.ID()
 				valid = argumentType == sqltype.Int4 || argumentType == sqltype.Int8 || argumentType == sqltype.Numeric
 			}
 		case "random_normal":
-			valid = len(n.args) <= 2 && u.Type.ID() == sqltype.Float8
+			valid = len(n.Args) <= 2 && u.Type.ID() == sqltype.Float8
 		case "setseed":
-			valid = len(n.args) == 1 && u.Type.ID() == sqltype.Void
+			valid = len(n.Args) == 1 && u.Type.ID() == sqltype.Void
 		}
 		if !valid {
 			return "", fmt.Errorf("stuntgres: invalid stored random signature")
 		}
-		for _, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage().Type.ID() != argumentType {
 				return "", fmt.Errorf("stuntgres: invalid stored random argument")
 			}
 		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
-	case binaryExpression:
-		if len(n.args) < 1 || len(n.args) > 4 {
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Name, n.Args)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		if len(n.Args) < 1 || len(n.Args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored binary arity")
 		}
-		if err := n.validateSyntax(); err != nil {
+		if err := n.ValidateSyntax(); err != nil {
 			return "", err
 		}
-		var usages [4]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return "", fmt.Errorf("stuntgres: missing binary operand")
 			}
-			usages[i] = arg.ResultUsage()
 		}
-		plan, err := sqltype.BindBinary(n.plan.Name(), u, usages[:len(n.args)]...)
-		if err != nil || plan != n.plan {
-			return "", fmt.Errorf("stuntgres: invalid stored binary provider")
+		if err := n.Validate(); err != nil {
+			return "", err
 		}
-		if n.plan.Name() != "||" {
-			return renderBinaryCall(n.plan.Name(), n.syntax, n.args, "pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+		if n.Plan.Name() != "||" {
+			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 		}
-		left, err := r.sql(ctx, view, n.args[0])
+		left, err := r.sql(ctx, view, n.Args[0])
 		if err != nil {
 			return "", err
 		}
-		right, err := r.sql(ctx, view, n.args[1])
+		right, err := r.sql(ctx, view, n.Args[1])
 		if err != nil {
 			return "", err
 		}
 		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
-	case datetimeJustifyExpression:
-		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.children())
-	case datetimeExtractExpression:
-		return n.logicalSQL("pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
-	case datetimeOverlapsExpression:
-		return n.logicalSQL(func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
-	case datetimeBinExpression:
-		return r.functionSQL(ctx, view, "pg_catalog.date_bin", n.children())
-	case datetimeTruncExpression:
-		return r.functionSQL(ctx, view, "pg_catalog.date_trunc", n.children())
-	case datetimeAgeFiniteExpression:
-		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.children())
-	case datetimeMakeExpression:
-		return n.sql("pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case datetimeFormattingExpression:
-		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args[:])
-	case numericFormattingExpression:
-		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args[:])
-	case stringExpression:
-		if len(n.args) < 1 || len(n.args) > 4 {
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return datetimeExtractLogicalSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		return datetimeOverlapsLogicalSQL(n, func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		return r.functionSQL(ctx, view, "pg_catalog.date_bin", n.Arguments())
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		return r.functionSQL(ctx, view, "pg_catalog.date_trunc", n.Arguments())
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		return datetimeMakeSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args[:])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args[:])
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		if len(n.Args) < 1 || len(n.Args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored string arity")
 		}
-		var usages [4]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return "", fmt.Errorf("stuntgres: missing string operand")
 			}
-			usages[i] = arg.ResultUsage()
 		}
-		plan, err := sqltype.BindString(n.plan.Name(), u, n.plan.TextUsage(), usages[:len(n.args)], n.textual, n.plan.CollationIndeterminate())
-		if err != nil || plan != n.plan {
-			return "", fmt.Errorf("stuntgres: invalid stored string provider")
+		if err := n.Validate(); err != nil {
+			return "", err
 		}
 		if r.commentSnapshot != nil {
-			for i, arg := range n.args {
-				if !n.textual[i] && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
+			for i, arg := range n.Args {
+				if !n.Textual[i] && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 					*r.commentSnapshot = true
 				}
 			}
 		}
-		if n.plan.Name() == "||" {
-			left, err := r.stringArgumentSQL(ctx, view, n.args[0])
+		if n.Plan.Name() == "||" {
+			left, err := r.stringArgumentSQL(ctx, view, n.Args[0])
 			if err != nil {
 				return "", err
 			}
-			right, err := r.stringArgumentSQL(ctx, view, n.args[1])
+			right, err := r.stringArgumentSQL(ctx, view, n.Args[1])
 			if err != nil {
 				return "", err
 			}
 			return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
 		}
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			text, err := r.stringArgumentSQL(ctx, view, arg)
 			if err != nil {
 				return "", err
 			}
-			if sqltype.StringBaseConversion(n.plan.Name()) {
+			if sqltype.StringBaseConversion(n.Plan.Name()) {
 				// Replay must select the stored integer overload, including
 				// small BIGINT values and typed NULLs.
-				declaration, err := catalogTypeDeclaration(view, n.plan.ArgumentUsage(i))
+				declaration, err := catalogTypeDeclaration(view, n.Plan.ArgumentUsage(i))
 				if err != nil {
 					return "", err
 				}
@@ -158,92 +153,79 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			parts[i] = text
 		}
-		if n.syntax != parser.OrdinaryStringSyntax {
-			return n.specialSQL(parts)
+		if n.Syntax != parser.OrdinaryStringSyntax {
+			return stringSpecialSQL(n, parts)
 		}
-		return "pg_catalog." + n.plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
-	case arraySearchExpression:
-		if len(n.args) < 2 || len(n.args) > 3 {
-			return "", fmt.Errorf("stuntgres: invalid stored array search arity")
+		return "pg_catalog." + n.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.Validate(); err != nil {
+			return "", err
 		}
-		ref, conflict := n.plan.InputCollation()
-		plan, err := sqltype.BindArraySearch(n.plan.Name(), n.args[0].ResultUsage().Type, u.Type, n.plan.Integer(), ref, conflict)
-		if err != nil || plan != n.plan {
-			return "", fmt.Errorf("stuntgres: invalid stored array search provider")
-		}
-		return n.sql(func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+		return arraySearchSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
 			if namespace != "" {
 				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
 			}
 			return name
 		})
-	case enumFunctionExpression:
-		if len(n.args) < 1 || len(n.args) > 2 {
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		if len(n.Args) < 1 || len(n.Args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored enum arity")
 		}
-		var usages [2]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return "", fmt.Errorf("stuntgres: missing enum operand")
 			}
-			usages[i] = arg.ResultUsage()
 		}
-		plan, err := sqltype.BindEnumSupport(n.plan.Name(), u, usages[:len(n.args)]...)
-		if err != nil || plan != n.plan {
-			return "", fmt.Errorf("stuntgres: invalid stored enum provider")
+		if err := n.Validate(); err != nil {
+			return "", err
 		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args)
-	case mathExpression:
-		if len(n.args) > 2 {
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		if len(n.Args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored math arity")
 		}
-		var usages [2]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return "", fmt.Errorf("stuntgres: missing math operand")
 			}
-			usages[i] = arg.ResultUsage()
 		}
-		plan, err := sqltype.BindMath(n.plan.Name(), u, usages[:len(n.args)]...)
-		if err != nil || plan != n.plan {
-			return "", fmt.Errorf("stuntgres: invalid stored math provider")
+		if err := n.Validate(); err != nil {
+			return "", err
 		}
-		if n.plan.Name() == "pg_size_pretty" {
-			text, err := r.sql(ctx, view, n.args[0])
+		if n.Plan.Name() == "pg_size_pretty" {
+			text, err := r.sql(ctx, view, n.Args[0])
 			if err != nil {
 				return "", err
 			}
-			declaration, err := catalogTypeDeclaration(view, usages[0])
+			declaration, err := catalogTypeDeclaration(view, n.Args[0].ResultUsage())
 			if err != nil {
 				return "", err
 			}
 			return "pg_catalog.pg_size_pretty(CAST(" + text + " AS " + declaration + "))", nil
 		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args)
-	case nullCountExpression:
-		if len(n.args) == 0 || len(n.args) > 100 || u.Type.ID() != sqltype.Int4 {
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		if !n.ValidSignature() {
 			return "", fmt.Errorf("stuntgres: invalid stored null count signature")
 		}
-		name := "num_nulls"
-		if n.kind == countNonnulls {
-			name = "num_nonnulls"
-		} else if n.kind != countNulls {
+		name := n.Name()
+		if name == "" {
 			return "", fmt.Errorf("stuntgres: invalid stored null count")
 		}
-		if n.dotBuiltin {
-			if len(n.args) != 1 {
+		if n.DotBuiltin {
+			if len(n.Args) != 1 {
 				return "", fmt.Errorf("stuntgres: invalid stored dot builtin signature")
 			}
-			base, err := r.sql(ctx, view, n.args[0])
+			base, err := r.sql(ctx, view, n.Args[0])
 			if err != nil {
 				return "", err
 			}
 			return "(" + base + ")." + pgIdentifier(name), nil
 		}
-		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
-	case jsonCreateExpression:
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+		return r.functionSQL(ctx, view, "pg_catalog."+name, n.Args)
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 				*r.commentSnapshot = true
 			}
@@ -251,22 +233,22 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			if err != nil {
 				return "", err
 			}
-			if literal, ok := arg.(literalExpression); ok && !literal.usage.Type.IsDomain() && r.checkLiterals == nil && !n.unknownArgument(i) {
+			if literal, ok := arg.(literalExpression); ok && !literal.usage.Type.IsDomain() && r.checkLiterals == nil && !n.UnknownArgument(i) {
 				declaration, err := catalogTypeDeclaration(view, literal.usage)
 				if err != nil {
 					return "", err
 				}
 				text = "CAST(" + text + " AS " + declaration + ")"
 			}
-			if n.variadic && i == len(n.args)-1 {
+			if n.Variadic && i == len(n.Args)-1 {
 				text = "VARIADIC " + text
 			}
 			parts[i] = text
 		}
-		return "pg_catalog." + n.kind.Name() + "(" + strings.Join(parts, ", ") + ")", nil
-	case stringVariadicExpression:
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+		return "pg_catalog." + n.Kind.Name() + "(" + strings.Join(parts, ", ") + ")", nil
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 				*r.commentSnapshot = true
 			}
@@ -284,18 +266,18 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 					text = "CAST(" + text + " AS " + declaration + ")"
 				}
 			}
-			if n.variadic && i == len(n.args)-1 {
+			if n.Variadic && i == len(n.Args)-1 {
 				text = "VARIADIC " + text
 			}
 			parts[i] = text
 		}
-		return "pg_catalog." + n.name + "(" + strings.Join(parts, ", ") + ")", nil
-	case formatExpression:
-		if len(n.args) < 1 || len(n.args) > 100 || u.Type.ID() != sqltype.Text || n.args[0].ResultUsage().Type.ID() != sqltype.Text || n.int4 == nil || n.int4.ID() != sqltype.Int4 || n.variadic && (len(n.args) != 2 || !n.args[1].ResultUsage().Type.BaseType().IsArray()) {
-			return "", fmt.Errorf("stuntgres: invalid stored format signature")
+		return "pg_catalog." + n.Name + "(" + strings.Join(parts, ", ") + ")", nil
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.Validate(); err != nil {
+			return "", err
 		}
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 				*r.commentSnapshot = true
 			}
@@ -307,7 +289,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			// literal syntax already preserves it (including canonical B literals).
 			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
 				id := literal.usage.Type.ID()
-				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && !sqltype.IsOperatorAlias(id) && !sqltype.IsRegTS(id) && id != sqltype.Bit || id == sqltype.Text && i > 0 && n.rawUnknown[i/64]&(uint64(1)<<uint(i%64)) == 0 {
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && !sqltype.IsOperatorAlias(id) && !sqltype.IsRegTS(id) && id != sqltype.Bit || id == sqltype.Text && i > 0 && n.RawUnknown[i/64]&(uint64(1)<<uint(i%64)) == 0 {
 					declaration, err := catalogTypeDeclaration(view, literal.usage)
 					if err != nil {
 						return "", err
@@ -315,7 +297,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 					text = "CAST(" + text + " AS " + declaration + ")"
 				}
 			}
-			if n.variadic && i == len(n.args)-1 {
+			if n.Variadic && i == len(n.Args)-1 {
 				text = "VARIADIC " + text
 			}
 			parts[i] = text

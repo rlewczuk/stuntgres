@@ -36,38 +36,8 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 	defer source.close()
 	node := query.Root.(*projectNode).child.(*aggregateNode)
 	p := node.calls[0].provider
-	a, err := p.Init(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err := p.Init(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	v, err := p.Finalize(context.Background(), a)
-	n, _ := v.Integer()
-	if err != nil || n != 0 {
-		t.Fatal(n, err)
-	}
-	for range 2 {
-		if err := p.Advance(context.Background(), a, sqltype.Value{}, sqltype.Value{}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	v, err = p.Finalize(context.Background(), a)
-	n, _ = v.Integer()
-	if err != nil || n != 2 {
-		t.Fatal(n, err)
-	}
-	v, err = p.Finalize(context.Background(), b)
-	n, _ = v.Integer()
-	if err != nil || n != 0 {
-		t.Fatal("state leaked", n, err)
-	}
-	a.(*countState).count = math.MaxInt64
-	var diagnostic *sqlstate.Error
-	if err := p.Advance(context.Background(), a, sqltype.Value{}, sqltype.Value{}); !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "bigint out of range" {
-		t.Fatal(err)
+	if p.ResultUsage() != query.Root.Schema()[0].Usage {
+		t.Fatal("count provider/result usage", p.ResultUsage(), query.Root.Schema())
 	}
 }
 func TestQueryAggregateEagerOwnershipAndMetadata(t *testing.T) {
@@ -373,5 +343,24 @@ func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
 	if !probe.comparisonEntered || ctx.Err() != context.Canceled ||
 		!errors.Is(err, context.Canceled) || rows != nil || count != 0 {
 		t.Fatal(probe.comparisonEntered, rows, count, err)
+	}
+}
+
+// A real bounded provider proves reached Advance failure stops later arguments
+// and publishes no rows. Count's unreachable practical maximum remains covered
+// in the child's private state unit; NULL filtering is tested with real COUNT.
+func TestQueryAggregateRealAdvanceFailure(t *testing.T) {
+	_, query, source := queryCoreFixture(t, "SELECT sum(1::real) FROM t")
+	node := query.Root.(*projectNode).child.(*aggregateNode)
+	usage := node.calls[0].argument.ResultUsage()
+	argumentEffects := 0
+	node.calls[0].argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+		argumentEffects++
+		return sqltype.Float(usage.Type, math.MaxFloat32)
+	})
+	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	var diagnostic *sqlstate.Error
+	if rows != nil || count != 0 || !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "value out of range: overflow"}) || argumentEffects != 2 || source.view != nil || source.anonymous != nil {
+		t.Fatal(rows, count, err, argumentEffects, source)
 	}
 }

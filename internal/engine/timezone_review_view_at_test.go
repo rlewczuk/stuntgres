@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"testing"
 )
 
@@ -58,7 +59,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	definition := source.state.descriptors[ref.Address].(*relationDescriptor).view
 	project := definition.query.Root.(*projectNode)
 	for _, expression := range project.expressions {
-		original := expression.(timeZoneExpression)
+		original := expression.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
 		before := original
 		mapped, err := remapBoundExpression(original, func(ref ObjectRef) ObjectRef {
 			if ref != (ObjectRef{}) {
@@ -69,17 +70,17 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(timeZoneExpression)
-		if next.expressionInfo != original.expressionInfo || next.local != original.local {
+		next := mapped.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
+		if next.Info != original.Info || next.Local != original.Local {
 			t.Fatal("remap changed usage, position, properties or local flag")
 		}
 		if !reflect.DeepEqual(original, before) {
 			t.Fatal("remap mutated original expression")
 		}
-		if next.value.(columnExpression).origin == original.value.(columnExpression).origin {
+		if next.Value.(columnExpression).origin == original.Value.(columnExpression).origin {
 			t.Fatal("value identity was not remapped")
 		}
-		if !original.local && next.zone.(columnExpression).origin == original.zone.(columnExpression).origin {
+		if !original.Local && next.Zone.(columnExpression).origin == original.Zone.(columnExpression).origin {
 			t.Fatal("zone identity was not remapped")
 		}
 	}

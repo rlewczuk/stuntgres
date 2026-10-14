@@ -1,0 +1,106 @@
+package functions
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+type FormatContext interface {
+	Context
+	FunctionFormatOutput() sqltype.OutputEnvironment
+}
+
+// Format retains ANY operands in their original types: OUTPUT is not the
+// implicit TEXT conversion used by strict string functions or concatenation.
+type Format[E Expression[C], C FormatContext, P any] struct {
+	Info[P]
+	Args       []E
+	Variadic   bool
+	Int4       *sqltype.Descriptor
+	RawUnknown [2]uint64
+}
+
+func (e Format[E, C, P]) Eval(c C) (sqltype.Value, error) {
+	ctx, err := evaluationContext(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if len(e.Args) < 1 || len(e.Args) > 100 || e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Text || e.Int4 == nil || e.Int4.ID() != sqltype.Int4 {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid format expression")
+	}
+	var scratch [100]sqltype.Value
+	for i, arg := range e.Args {
+		value, err := arg.Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if value.Type() != arg.ResultUsage().Type {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid format argument type")
+		}
+		scratch[i] = value
+	}
+	// NONSTRICT does not suppress evaluation of NULL-format or unused children.
+	if scratch[0].IsNull() {
+		return sqltype.Null(e.Usage.Type), nil
+	}
+	pattern, err := scratch[0].Text()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	values := FormatValues{Ordinary: scratch[1:len(e.Args)]}
+	if e.Variadic {
+		if len(e.Args) != 2 {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid variadic format arity")
+		}
+		values = FormatValues{Array: scratch[1]}
+	}
+	text, err := FormatText(ctx, pattern, values, e.Int4, c.FunctionFormatOutput())
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return sqltype.String(e.Usage.Type, text), nil
+}
+func (e Format[E, C, P]) Validate() error {
+	if len(e.Args) < 1 || len(e.Args) > 100 || e.Usage.Type.ID() != sqltype.Text || e.Args[0].ResultUsage().Type.ID() != sqltype.Text || e.Int4 == nil || e.Int4.ID() != sqltype.Int4 || e.Variadic && (len(e.Args) != 2 || !e.Args[1].ResultUsage().Type.BaseType().IsArray()) {
+		return fmt.Errorf("stuntgres: invalid stored format signature")
+	}
+	return nil
+}
+func FormatArgumentAnalysis(index int) AnalysisRequest {
+	if index == 0 {
+		return AnalysisRequest{Intent: StringTextArgument}
+	}
+	return AnalysisRequest{Intent: ProjectionArgument}
+}
+func FormatUnknownArgument(raw parser.Expr, index int) bool {
+	literal, ok := raw.(parser.LiteralExpr)
+	return index > 0 && index < 100 && ok && literal.Value.Kind == parser.StringValue
+}
+func ResolveFormat(visible, variadic bool, count int, first sqltype.Usage) Resolution {
+	valid := visible && count > 0 && (!variadic || count == 2)
+	if count > 0 && first.Type != nil {
+		valid = valid && sqltype.StringTextInput(first.Type.BaseType().ID())
+	}
+	if valid {
+		return Resolved
+	}
+	return Missing
+}
+func CoerceFormatFirst[E any, B ArgumentCoercer[E]](b B, first Argument[E], text sqltype.Usage) (E, error) {
+	if first.Usage.Type == nil {
+		return b.CoerceArgument(first, CoercionRequest{Intent: FinalizeArgument, Target: text})
+	}
+	return first.Expression, nil
+}
+func FormatFirstCoercion(source, text sqltype.Usage) (CoercionRequest, bool) {
+	if source.Type == text.Type {
+		return CoercionRequest{}, false
+	}
+	target := text
+	if source.Collation.ID != 0 {
+		target.Collation = source.Collation
+	}
+	return CoercionRequest{Intent: TextFormalArgument, Target: target}, true
+}
+func FormatIntrinsicRule() IntrinsicPropertyRule { return ExactStable }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -97,7 +98,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 		t.Fatal(call, expr.Properties())
 	}
 	altered := call
-	altered.provider = countProvider{b.typ(sqltype.Int4).Usage()}
+	altered.provider = functions.NewCountProvider(b.typ(sqltype.Int4).Usage())
 	if b.sameAggregateCall(call, altered) {
 		t.Fatal("result Usage omitted from identity")
 	}

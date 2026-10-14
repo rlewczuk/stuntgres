@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -96,7 +97,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	oid, _ := view.LookupType(sqltype.Oid)
 	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: d.address}
 	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
-	volatile := randomExpression{expressionInfo: expressionInfo{usage: oid.Usage(), properties: ExprProperties{Volatility: Volatile}}, name: "random"}
+	volatile := functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: oid.Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	if generationImmutable(volatile) {
 		t.Fatal("volatile accepted")
 	}

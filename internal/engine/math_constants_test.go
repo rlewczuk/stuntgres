@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -23,8 +24,8 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		return x
 	}
 	node := bind("pi()")
-	original, ok := node.(mathExpression)
-	if !ok || len(original.args) != 0 || original.plan.Name() != "pi" || plannedVolatility(node) != Immutable {
+	original, ok := node.(functions.Math[BoundExpr, *EvalContext, ExprProperties])
+	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || plannedVolatility(node) != Immutable {
 		t.Fatal(node)
 	}
 	if !b.sameGroupExpression(node, bind("pg_catalog.pi()")) {
@@ -50,7 +51,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 			t.Fatal(text, err)
 		}
 	}
-	assert(node, original.usage.Type)
+	assert(node, original.Usage.Type)
 	next, changed, err := retagBoundTypes(target.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
@@ -58,35 +59,35 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		d, _ := target.CatalogRead().LookupType(old.ID())
 		return d
 	})
-	if err != nil || !changed || next.ResultUsage().Type == original.usage.Type {
+	if err != nil || !changed || next.ResultUsage().Type == original.Usage.Type {
 		t.Fatal("pi result owner retag", next, changed, err)
 	}
-	reminted := next.(mathExpression)
-	if reminted.plan.ResultUsage() != reminted.usage || original.plan.ResultUsage() != original.usage {
+	reminted := next.(functions.Math[BoundExpr, *EvalContext, ExprProperties])
+	if reminted.Plan.ResultUsage() != reminted.Usage || original.Plan.ResultUsage() != original.Usage {
 		t.Fatal("retag mutated or retained old provider")
 	}
-	assert(next, reminted.usage.Type)
-	assert(node, original.usage.Type)
+	assert(next, reminted.Usage.Type)
+	assert(node, original.Usage.Type)
 	rendered, err := defaultSQL(ctx, target.CatalogRead(), next)
 	if err != nil || rendered != "pg_catalog.pi()" {
 		t.Fatal("stored zero-child rendering", rendered, err)
 	}
 	foreign := reminted
-	foreign.plan = original.plan
+	foreign.Plan = original.Plan
 	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored foreign provider accepted")
 	}
 	foreign = reminted
-	foreign.args = []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: reminted.usage}, value: sqltype.Null(reminted.usage.Type)}}
+	foreign.Args = []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: reminted.Usage}, value: sqltype.Null(reminted.Usage.Type)}}
 	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored pi argument accepted")
 	}
-	invalidPlan, err := sqltype.BindMath("cbrt", reminted.usage, reminted.usage)
+	invalidPlan, err := sqltype.BindMath("cbrt", reminted.Usage, reminted.Usage)
 	if err != nil {
 		t.Fatal(err)
 	}
 	foreign = reminted
-	foreign.plan = invalidPlan
+	foreign.Plan = invalidPlan
 	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored unary with no child accepted")
 	}

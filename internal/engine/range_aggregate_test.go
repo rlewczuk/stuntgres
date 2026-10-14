@@ -5,19 +5,20 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func rangeAggregateUnitProvider(t *testing.T, d *sqltype.Descriptor, operation sqltype.RangeAggregateOperation) rangeAggregateProvider {
+func rangeAggregateUnitProvider(t *testing.T, d *sqltype.Descriptor, operation sqltype.RangeAggregateOperation) functions.RangeAggregateProvider {
 	t.Helper()
 	bound, err := sqltype.BindRangeAggregate(d, operation)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return rangeAggregateProvider{input: d.Usage(), usage: bound.ResultUsage(), operation: operation, bound: bound}
+	return functions.NewRangeAggregateProvider(d.Usage(), bound.ResultUsage(), operation, bound)
 }
 
 func TestRangeAggregateProvider(t *testing.T) {
@@ -25,47 +26,6 @@ func TestRangeAggregateProvider(t *testing.T) {
 	e := New()
 	for _, id := range []sqltype.ID{sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange} {
 		d, _ := e.CatalogRead().LookupType(id)
-		for _, operation := range []sqltype.RangeAggregateOperation{sqltype.RangeAggregateUnion, sqltype.RangeAggregateIntersection} {
-			p := rangeAggregateUnitProvider(t, d, operation)
-			s, err := p.Init(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			isolated, err := p.Init(ctx)
-			if err != nil || s == isolated {
-				t.Fatal("shared state", err)
-			}
-			text := "[1,4)"
-			if id == sqltype.Int4Multirange || id == sqltype.Int8Multirange || id == sqltype.NumMultirange {
-				text = "{[1,4)}"
-			}
-			v, err := d.Input(ctx, text, -1)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err = p.Advance(ctx, s, v, sqltype.Value{}); err != nil {
-				t.Fatal(err)
-			}
-			result, err := p.Finalize(ctx, s)
-			if err != nil || result.Type() != p.usage.Type || result.IsNull() {
-				t.Fatal(result, err)
-			}
-			out, err := result.Type().Output(ctx, result)
-			want := text
-			if operation == sqltype.RangeAggregateUnion {
-				want = "{[1,4)}"
-			}
-			if err != nil || out != want {
-				t.Fatal(out, want, err)
-			}
-			result, err = p.Finalize(ctx, isolated)
-			if err != nil || !result.IsNull() || result.Type() != p.usage.Type {
-				t.Fatal("group leak", result, err)
-			}
-			if _, err = p.Finalize(ctx, &countState{}); err == nil {
-				t.Fatal("foreign provider state accepted")
-			}
-		}
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		b.aggregateClause = "SELECT"
 		b.parameters[1] = d.Usage()
@@ -132,9 +92,9 @@ func rangeAggregateEagerUnit(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		schema := querySchema{{Name: "i", Usage: p.usage, Nullable: true, NullabilityKnown: true}}
+		schema := querySchema{{Name: "i", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}
 		node := &aggregateNode{querySchema: schema, child: child, calls: []aggregateCall{{provider: p, argument: argument, operation: aggregateRangeIntersection}}}
-		project := &projectNode{querySchema: schema, child: node, expressions: []BoundExpr{queryProbe(p.usage, func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })}}
+		project := &projectNode{querySchema: schema, child: node, expressions: []BoundExpr{queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })}}
 		return project, &querySource{}, calls
 	}
 	root, source, calls := build(nil)
@@ -163,9 +123,9 @@ func rangeAggregateEagerUnit(t *testing.T) {
 			n := root.child.(*aggregateNode)
 			n.calls[0].provider = union
 			n.calls[0].operation = aggregateRangeUnion
-			n.querySchema[0].Usage = union.usage
-			root.querySchema[0].Usage = union.usage
-			root.expressions[0] = queryProbe(union.usage, func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })
+			n.querySchema[0].Usage = union.ResultUsage()
+			root.querySchema[0].Usage = union.ResultUsage()
+			root.expressions[0] = queryProbe(union.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &rangeAggregateCancelContext{Context: ctx, cancel: cancel, target: target}
@@ -213,7 +173,7 @@ func TestRangeAggregateRemap(t *testing.T) {
 			if operation == sqltype.RangeAggregateIntersection {
 				identity = aggregateRangeIntersection
 			}
-			root := &aggregateNode{querySchema: querySchema{{Name: "set", Usage: p.usage, Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: identity}}}
+			root := &aggregateNode{querySchema: querySchema{{Name: "set", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}, child: &valuesNode{}, calls: []aggregateCall{{provider: p, operation: identity}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next
@@ -222,13 +182,13 @@ func TestRangeAggregateRemap(t *testing.T) {
 				t.Fatal(err)
 			}
 			call := mapped.(*aggregateNode).calls[0]
-			provider := call.provider.(rangeAggregateProvider)
+			provider := call.provider.(functions.RangeAggregateProvider)
 			newInput, _ := destination.CatalogRead().LookupType(id)
-			newResult, _ := destination.CatalogRead().LookupType(p.usage.Type.ID())
-			if provider.input.Type != newInput || provider.usage.Type != newResult || mapped.Schema()[0].Usage.Type != newResult || call.operation != identity || provider.operation != operation {
+			newResult, _ := destination.CatalogRead().LookupType(p.ResultUsage().Type.ID())
+			if provider.InputUsage().Type != newInput || provider.ResultUsage().Type != newResult || mapped.Schema()[0].Usage.Type != newResult || call.operation != identity || provider.Operation() != operation {
 				t.Fatal("incomplete input/result remap")
 			}
-			if p.input.Type != input || p.usage.Type == newResult {
+			if p.InputUsage().Type != input || p.ResultUsage().Type == newResult {
 				t.Fatal("retained provider mutated")
 			}
 			state, err := provider.Init(context.Background())

@@ -2,30 +2,48 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/sqltype"
 )
 
+func arrayAggregateUnitProvider(t *testing.T, arrays bool) *functions.ArrayAggregateProvider {
+	t.Helper()
+	e := New()
+	element, ok := e.CatalogRead().LookupType(sqltype.Int4)
+	if !ok {
+		t.Fatal("integer type")
+	}
+	array, ok := e.CatalogRead().LookupArray(element)
+	if !ok {
+		t.Fatal("integer array")
+	}
+	arg := element
+	if arrays {
+		arg = array
+	}
+	return functions.NewArrayAggregateProvider(arg, array.Usage(), arrays)
+}
 func TestArrayAggregateViewRemap(t *testing.T) {
 	e := New()
 	for _, arrays := range []bool{false, true} {
 		p := arrayAggregateUnitProvider(t, arrays)
-		element := *p.usage.Type.Element()
-		array, err := sqltype.Array(p.usage.Type.ID(), p.usage.Type.Name(), &element)
+		element := *p.ResultUsage().Type.Element()
+		array, err := sqltype.Array(p.ResultUsage().Type.ID(), p.ResultUsage().Type.Name(), &element)
 		if err != nil {
 			t.Fatal(err)
 		}
 		root := &aggregateNode{
-			querySchema: querySchema{{Name: "array_agg", Usage: p.usage, Nullable: true, NullabilityKnown: true}},
+			querySchema: querySchema{{Name: "array_agg", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
 			child:       &valuesNode{},
 			calls:       []aggregateCall{{provider: p, includeNulls: true}},
 		}
 		mapped, err := remapViewQuery(CatalogRead{e, e.state}, root, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
-			if old == p.usage.Type {
+			if old == p.ResultUsage().Type {
 				return array
 			}
-			if old == p.usage.Type.Element() {
+			if old == p.ResultUsage().Type.Element() {
 				return &element
 			}
 			return old
@@ -34,15 +52,15 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := mapped.(*aggregateNode).calls[0]
-		provider := call.provider.(*arrayAggregateProvider)
+		provider := call.provider.(*functions.ArrayAggregateProvider)
 		argument := &element
 		if arrays {
 			argument = array
 		}
-		if provider == p || provider.argument != argument || provider.usage.Type != array || provider.arrays != arrays || !call.includeNulls || mapped.Schema()[0].Usage.Type != array {
+		if provider == p || provider.ArgumentType() != argument || provider.ResultUsage().Type != array || provider.Arrays() != arrays || !call.includeNulls || mapped.Schema()[0].Usage.Type != array {
 			t.Fatal("view provider/result remint", provider, mapped.Schema())
 		}
-		if p.usage.Type == array || p.argument == argument {
+		if p.ResultUsage().Type == array || p.ArgumentType() == argument {
 			t.Fatal("remap mutated retained source provider")
 		}
 		state, err := provider.Init(context.Background())
@@ -105,7 +123,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 		}
 		sourceUsage := sourceArray.Usage()
 		sourceUsage.Collation = sourceCapability
-		p := &arrayAggregateProvider{argument: argument, usage: sourceUsage, arrays: arrays}
+		p := functions.NewArrayAggregateProvider(argument, sourceUsage, arrays)
 		root := &aggregateNode{
 			querySchema: querySchema{{Name: "array_agg", Usage: sourceUsage, Nullable: true, NullabilityKnown: true}},
 			child:       &valuesNode{},
@@ -129,16 +147,16 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := mapped.(*aggregateNode).calls[0]
-		provider := call.provider.(*arrayAggregateProvider)
+		provider := call.provider.(*functions.ArrayAggregateProvider)
 		want := destinationArray.Usage()
 		want.Collation = destinationCapability
-		if provider == p || provider.argument != expectedArgument || provider.arrays != arrays || !call.includeNulls || mapped.Schema()[0].Usage != want || provider.ResultUsage() != want || provider.ResultUsage() != mapped.Schema()[0].Usage {
+		if provider == p || provider.ArgumentType() != expectedArgument || provider.Arrays() != arrays || !call.includeNulls || mapped.Schema()[0].Usage != want || provider.ResultUsage() != want || provider.ResultUsage() != mapped.Schema()[0].Usage {
 			t.Fatal("complete remapped array aggregate Usage", arrays, provider.ResultUsage(), mapped.Schema()[0].Usage, want)
 		}
 		if !provider.ResultUsage().Collation.Valid() || provider.ResultUsage().Collation.CaseMode() != destinationCapability.CaseMode() {
 			t.Fatal("destination provider capability is not actual registered ASCII", provider.ResultUsage())
 		}
-		if p.ResultUsage() != sourceUsage || p.argument != argument || root.Schema()[0].Usage != sourceUsage || p.ResultUsage().Collation.CaseMode() != sourceCapability.CaseMode() {
+		if p.ResultUsage() != sourceUsage || p.ArgumentType() != argument || root.Schema()[0].Usage != sourceUsage || p.ResultUsage().Collation.CaseMode() != sourceCapability.CaseMode() {
 			t.Fatal("remap mutated retained Full source authority", p.ResultUsage(), sourceUsage)
 		}
 		state, err := provider.Init(context.Background())

@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -26,8 +26,8 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := node.(stringExpression)
-		if n.ResultUsage() != integer.Usage() || n.CollationIndeterminate() || n.ExplicitCollation().Character != 0 || !n.plan.CollationIndeterminate() {
+		n := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		if n.ResultUsage() != integer.Usage() || n.CollationIndeterminate() || n.ExplicitCollation().Character != 0 || !n.Plan.CollationIndeterminate() {
 			t.Fatal("input conflict leaked onto INT4 result", n)
 		}
 		_, err = n.Eval(&EvalContext{Context: context.Background()})
@@ -38,7 +38,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		explicit := append([]BoundExpr(nil), args...)
 		explicit[0] = literalExpression{expressionInfo{usage: left, collationExplicit: parser.Position{Character: 20}}, sqltype.String(text, "abc")}
 		resolved, err := b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
-		if err != nil || resolved.(stringExpression).plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
+		if err != nil || resolved.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
 			t.Fatal(resolved, err)
 		}
 		value, err := resolved.Eval(&EvalContext{Context: context.Background()})
@@ -62,25 +62,18 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
-	var order []int
 	args := []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable, ParameterDependent: true}}, value: sqltype.Null(text), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true}}, value: sqltype.String(text, "x"), order: &order, index: 1},
+		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable, ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true}}, sqltype.String(text, "x")},
 	}
 	bound, err := b.stringNode("strpos", integer.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(stringExpression)
-	got, err := node.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) || node.Properties().Volatility != Volatile || !node.Properties().RowDependent || !node.Properties().ParameterDependent {
-		t.Fatal("child demand/properties", got, order, node.Properties(), err)
-	}
-	failure := errors.New("demanded search sibling")
-	node.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	if _, err := node.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(order, err)
+	node := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	// Pure child demand/error order is local; retain genuine owner property merge.
+	if node.Properties().Volatility != Volatile || !node.Properties().RowDependent || !node.Properties().ParameterDependent {
+		t.Fatal("child properties", node.Properties())
 	}
 	bpchar := b.typ(sqltype.BPChar)
 	fixed := bpchar.Usage()
@@ -97,11 +90,11 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	retained := rebound.(stringExpression)
-	if retained.plan.ArgumentUsage(0).Type != replacements[sqltype.BPChar] || retained.plan.TextUsage().Type != replacements[sqltype.Text] || retained.ResultUsage().Type != replacements[sqltype.Int4] || count.(stringExpression).plan.ArgumentUsage(0).Type != bpchar {
+	retained := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	if retained.Plan.ArgumentUsage(0).Type != replacements[sqltype.BPChar] || retained.Plan.TextUsage().Type != replacements[sqltype.Text] || retained.ResultUsage().Type != replacements[sqltype.Int4] || count.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Plan.ArgumentUsage(0).Type != bpchar {
 		t.Fatal("retag mutated source or lost formal ownership", retained)
 	}
-	got, err = retained.Eval(&EvalContext{Context: context.Background()})
+	got, err := retained.Eval(&EvalContext{Context: context.Background()})
 	n, _ := got.Integer()
 	if err != nil || n != 8 || got.Type() != replacements[sqltype.Int4] {
 		t.Fatal(got, err)

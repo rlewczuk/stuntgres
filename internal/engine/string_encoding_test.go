@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -31,22 +31,22 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		n, ok := node.(stringExpression)
+		n, ok := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
 		if !ok {
 			t.Fatalf("wrong node %T", node)
 		}
 		slot := 0
-		if n.plan.Name() == "to_ascii" {
+		if n.Plan.Name() == "to_ascii" {
 			slot = 1
 		}
-		if n.plan.ArgumentUsage(slot).Type.ID() != tc.formal || n.ResultUsage().Type.ID() != tc.result || n.Properties().Volatility != Immutable || n.plan.SessionDependent() {
+		if n.Plan.ArgumentUsage(slot).Type.ID() != tc.formal || n.ResultUsage().Type.ID() != tc.result || n.Properties().Volatility != Immutable || n.Plan.SessionDependent() {
 			t.Fatal("formal role/properties", tc, n)
 		}
 		if tc.parameter != 0 && (b.parameters[tc.parameter].Type.ID() != tc.formal || !n.Properties().ParameterDependent) {
 			t.Fatal("parameter source contract", tc, b.parameters)
 		}
-		if slot == 1 && n.args[slot].ResultUsage().Type.ID() != tc.formal {
-			t.Fatal("formal conversion was not bound", tc, n.args[slot])
+		if slot == 1 && n.Args[slot].ResultUsage().Type.ID() != tc.formal {
+			t.Fatal("formal conversion was not bound", tc, n.Args[slot])
 		}
 	}
 	for _, query := range []string{"SELECT chr(65::bigint)", "SELECT chr('65'::text)", "SELECT to_ascii('é',true)"} {
@@ -66,7 +66,7 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := node.(stringExpression)
+		original := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
 		replacements := map[sqltype.ID]*sqltype.Descriptor{}
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -75,13 +75,13 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("retag", query, changed, err)
 		}
-		retained := rebound.(stringExpression)
-		if retained.ResultUsage().Type != replacements[original.ResultUsage().Type.ID()] || retained.plan.TextUsage().Type != replacements[sqltype.Text] {
+		retained := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		if retained.ResultUsage().Type != replacements[original.ResultUsage().Type.ID()] || retained.Plan.TextUsage().Type != replacements[sqltype.Text] {
 			t.Fatal("result/text owner", query)
 		}
-		for i := range original.args {
-			id := original.plan.ArgumentUsage(i).Type.ID()
-			if retained.plan.ArgumentUsage(i).Type != replacements[id] || original.plan.ArgumentUsage(i).Type == retained.plan.ArgumentUsage(i).Type {
+		for i := range original.Args {
+			id := original.Plan.ArgumentUsage(i).Type.ID()
+			if retained.Plan.ArgumentUsage(i).Type != replacements[id] || original.Plan.ArgumentUsage(i).Type == retained.Plan.ArgumentUsage(i).Type {
 				t.Fatal("formal ownership", query, i)
 			}
 		}
@@ -95,26 +95,18 @@ func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, name := b.typ(sqltype.Text), b.typ(sqltype.Name)
-	var order []int
 	args := []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable, ParameterDependent: true}}, value: sqltype.Null(text), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: name.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true}}, value: sqltype.String(name, "nope"), order: &order, index: 1},
+		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable, ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expressionInfo{usage: name.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true}}, sqltype.String(name, "nope")},
 	}
 	node, err := b.stringNode("to_ascii", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || !value.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) || node.Properties().Volatility != Volatile || !node.Properties().ParameterDependent || !node.Properties().RowDependent {
-		t.Fatal("once-analyzed children/properties", value, order, err)
-	}
-	failure := errors.New("demanded encoding child")
-	n := node.(stringExpression)
-	n.args = append([]BoundExpr(nil), n.args...)
-	n.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: name.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	if _, err := n.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("NULL suppressed child error", order, err)
+	// Keep generic property/group identity/preflight integration here. The
+	// actual carrier's NULL/error runtime demand lives in its local unit.
+	if node.Properties().Volatility != Volatile || !node.Properties().ParameterDependent || !node.Properties().RowDependent {
+		t.Fatal("once-analyzed child properties", node.Properties())
 	}
 	bind := func(query string) BoundExpr {
 		t.Helper()

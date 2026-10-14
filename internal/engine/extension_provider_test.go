@@ -125,37 +125,6 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		t.Fatal("duplicate members accepted")
 	}
 }
-func TestExtensionRules(t *testing.T) {
-	ctx := context.Background()
-	for _, tc := range []struct{ input, want string }{{"Hôtel", "Hotel"}, {"Æsir Straße Œuf ﬃ", "AEsir Strasse OEuf ffi"}, {"À", "A"}, {"1½", "1 1/2"}, {"℃℉", "°C°F"}, {"℗", "(P)"}, {"ёлка", "елка"}, {"ЁЖИК", "ЕЖИК"}, {"ℌ", "H"}, {"〝", "\""}, {"東京🙂", "東京🙂"}, {"foobar", "foobar"}, {"", ""}} {
-		got, err := stockUnaccent.text(ctx, tc.input)
-		if err != nil || got != tc.want {
-			t.Fatalf("%q => %q want %q: %v", tc.input, got, tc.want, err)
-		}
-	}
-	if allocs := testing.AllocsPerRun(100, func() {
-		_, err := stockUnaccent.text(ctx, "unchanged 東京🙂")
-		if err != nil {
-			panic(err)
-		}
-	}); allocs != 0 {
-		t.Fatal("unchanged output allocated", allocs)
-	}
-	matcher := compileUnaccent("a\tx\nab\ty\n")
-	got, changed, err := matcher.lexize(ctx, matcher.init(), "abc")
-	if err != nil || !changed || got != "yc" {
-		t.Fatal("longest match", got, changed, err)
-	}
-	_, changed, err = stockUnaccent.lexize(ctx, stockUnaccent.init(), "foobar")
-	if err != nil || changed {
-		t.Fatal("unchanged lexize", changed, err)
-	}
-	canceled, cancel := context.WithCancel(ctx)
-	cancel()
-	if _, err := stockUnaccent.text(canceled, "Hôtel"); !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
-	}
-}
 func TestExtensionExpressionIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)

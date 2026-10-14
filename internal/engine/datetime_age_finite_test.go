@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,6 +17,10 @@ func ageFiniteTyped(typ, value string) parser.Expr {
 
 func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	zone, err := sqltype.ResolveZone("UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name       string
 		args       []parser.Expr
@@ -32,7 +37,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		e := node.(datetimeAgeFiniteExpression)
+		e := node.(functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties])
 		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == Immutable) {
 			t.Fatal(tc, e.Properties())
 		}
@@ -47,22 +52,33 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(datetimeAgeFiniteExpression)
+		rebound := next.(functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties])
 		if rebound.ResultUsage().Type != replacements[tc.result] || rebound.ResultUsage().Type == e.ResultUsage().Type {
 			t.Fatal("retained result authority")
 		}
-		for i, arg := range rebound.children() {
-			if arg.ResultUsage().Type == e.args[i].ResultUsage().Type {
+		for i, arg := range rebound.Arguments() {
+			if arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 				t.Fatal("retained child authority")
 			}
 		}
-		zone, err := sqltype.ResolveZone("UTC")
-		if err != nil {
-			t.Fatal(err)
+		value, err := rebound.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}})
+		if err != nil || value.Type() != replacements[tc.result] || value.IsNull() {
+			t.Fatal("retagged evaluation", tc, value, err)
 		}
-		_, err = rebound.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}})
-		if err != nil {
-			t.Fatal("retagged evaluation", err)
+		if tc.name == "age" {
+			wantMonths, wantDays := int32(0), int32(0)
+			if len(tc.args) == 2 {
+				wantMonths, wantDays = 1, 1
+			}
+			months, days, clock, err := value.Interval()
+			if err != nil || months != wantMonths || days != wantDays || clock != 0 {
+				t.Fatal(tc, value, err)
+			}
+		} else {
+			finite, err := value.Boolean()
+			if err != nil || finite {
+				t.Fatal(tc, value, err)
+			}
 		}
 	}
 	parameter := parser.ParameterExpr{Number: 1}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -54,7 +55,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := binaryExpression{expressionInfo: expressionInfo{usage: usage}, plan: plan, args: args}
+			expr := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Plan: plan, Args: args}
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
@@ -104,13 +105,13 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			next := rebound.(binaryExpression)
+			next := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
 			result, err := next.Eval(eval)
 			want, retagErr := got.Retag(replacement[tc.result])
 			if err != nil || retagErr != nil || result != want {
 				t.Fatal(result, want, err, retagErr)
 			}
-			if expr.plan.ResultUsage().Type != types[tc.result] || next.plan.ResultUsage().Type != replacement[tc.result] {
+			if expr.Plan.ResultUsage().Type != types[tc.result] || next.Plan.ResultUsage().Type != replacement[tc.result] {
 				t.Fatal("descriptor ownership")
 			}
 		})

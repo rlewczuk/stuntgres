@@ -8,18 +8,19 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind transactionTimeKind) transactionTimeExpression {
+func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind functions.TransactionTimeKind) functions.TransactionTime[*EvalContext, ExprProperties] {
 	t.Helper()
-	name := transactionTimeName(kind)
+	name := kind.Name()
 	bound, err := b.bindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Offset: 7, Character: 8}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, ok := bound.(transactionTimeExpression)
+	leaf, ok := bound.(functions.TransactionTime[*EvalContext, ExprProperties])
 	if !ok {
 		t.Fatalf("producer=%T", bound)
 	}
@@ -63,15 +64,15 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	transaction := time.Date(2000, 1, 1, 12, 0, 0, 123456789, time.UTC)
 	statement := time.Date(2000, 1, 1, 12, 0, 1, 654321987, time.UTC)
 	c := &EvalContext{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, statementScope: &StatementScope{statementStart: statement}}
-	for _, kind := range []transactionTimeKind{transactionTimeNow, transactionTimeTransaction, transactionTimeStatement, transactionTimeClock, transactionTimeOfDay} {
+	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeTransaction, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, binder, kind)
-		if leaf.usage.Type.ID() != transactionTimeType(kind) || leaf.usage.Typmod != -1 || leaf.Properties() != transactionTimeProperties(kind) || plannedVolatility(leaf) != leaf.properties.Volatility || generationImmutable(leaf) {
+		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != functionIntrinsicProperties(kind.IntrinsicRule()) || plannedVolatility(leaf) != leaf.Property.Volatility || generationImmutable(leaf) {
 			t.Fatal("type/volatility", leaf)
 		}
 		if _, err := leaf.Eval(nil); err == nil {
 			t.Error("missing context accepted")
 		}
-		if kind <= transactionTimeStatement {
+		if kind <= functions.TransactionTimeStatement {
 			value, err := leaf.Eval(c)
 			if err != nil {
 				t.Fatal(err)
@@ -81,15 +82,15 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 				t.Fatal(err)
 			}
 			expected := time.Date(2000, 1, 1, 12, 0, 0, 123456000, time.UTC)
-			if kind == transactionTimeStatement {
+			if kind == functions.TransactionTimeStatement {
 				expected = time.Date(2000, 1, 1, 12, 0, 1, 654321000, time.UTC)
 			}
-			if !instant.Equal(expected) || value.Type() != leaf.usage.Type {
+			if !instant.Equal(expected) || value.Type() != leaf.Usage.Type {
 				t.Error("fixed instant", instant, expected)
 			}
 		}
-		sql, err := leaf.sql()
-		if err != nil || sql != transactionTimeName(kind)+"()" {
+		sql, err := transactionTimeSQL(leaf)
+		if err != nil || sql != kind.Name()+"()" {
 			t.Fatal(sql, err)
 		}
 		rendered, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), leaf)
@@ -116,8 +117,8 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copy := remapped.(transactionTimeExpression)
-		if copy.kind != kind || copy.usage.Type == leaf.usage.Type || copy.pos != leaf.pos || validateTransactionTime(copy) != nil {
+		copy := remapped.(functions.TransactionTime[*EvalContext, ExprProperties])
+		if copy.Kind != kind || copy.Usage.Type == leaf.Usage.Type || copy.Pos != leaf.Pos || copy.Validate(functionPropertiesMatch(copy.Property, copy.Kind.IntrinsicRule())) != nil {
 			t.Fatal(leaf, copy)
 		}
 		if sides, err := joinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
@@ -127,8 +128,8 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 			t.Error("leaf not equivalent to itself")
 		}
 		other := leaf
-		other.kind = transactionTimeTransaction
-		if kind == transactionTimeNow && binder.sameGroupExpression(leaf, other) {
+		other.Kind = functions.TransactionTimeTransaction
+		if kind == functions.TransactionTimeNow && binder.sameGroupExpression(leaf, other) {
 			t.Error("alias spelling merged")
 		}
 		if !closedTransactionTimeDefault(leaf) {
@@ -136,29 +137,29 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		}
 		for _, properties := range []ExprProperties{{Volatility: Volatile, RowDependent: true}, {Volatility: Volatile, ParameterDependent: true}, {Volatility: Volatile, StageDependent: true}} {
 			bad := leaf
-			bad.properties = properties
+			bad.Property = properties
 			if closedTransactionTimeDefault(bad) {
 				t.Error("dependent leaf admitted")
 			}
 		}
 	}
-	clock := transactionTimeUnitLeaf(t, binder, transactionTimeClock)
+	clock := transactionTimeUnitLeaf(t, binder, functions.TransactionTimeClock)
 	invalid := clock
-	invalid.kind = 0
-	if validateTransactionTime(invalid) == nil {
+	invalid.Kind = 0
+	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("unknown kind admitted")
 	}
 	invalid = clock
-	invalid.usage = binder.typ(sqltype.Text).Usage()
-	if validateTransactionTime(invalid) == nil {
+	invalid.Usage = binder.typ(sqltype.Text).Usage()
+	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("wrong result type admitted")
 	}
 	invalid = clock
-	invalid.properties.Volatility = Stable
-	if validateTransactionTime(invalid) == nil {
+	invalid.Property.Volatility = Stable
+	if invalid.Validate(functionPropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("demoted clock admitted")
 	}
-	random := randomExpression{expressionInfo: expressionInfo{usage: binder.typ(sqltype.Float8).Usage(), properties: ExprProperties{Volatility: Volatile}}, name: "random"}
+	random := functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: binder.typ(sqltype.Float8).Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	if closedTransactionTimeDefault(random) {
 		t.Error("unrelated volatile default admitted")
 	}
@@ -179,45 +180,13 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	}
 }
 
-func TestTransactionTimeOfDayFormatting(t *testing.T) {
-	stamp := time.Date(2000, 1, 1, 12, 0, 0, 123456789, time.UTC)
-	ny, err := sqltype.ResolveZone("America/New_York")
-	if err != nil {
-		t.Fatal(err)
-	}
-	numeric, _, err := sqltype.ParseSessionZone("5.5")
-	if err != nil {
-		t.Fatal(err)
-	}
-	posix, err := sqltype.ResolveZone("+05:30")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, item := range []struct {
-		stamp time.Time
-		zone  *sqltype.Zone
-		want  string
-	}{
-		{stamp, nil, "Sat Jan 01 12:00:00.123456 2000 UTC"},
-		{stamp, ny, "Sat Jan 01 07:00:00.123456 2000 EST"},
-		{time.Date(2000, 7, 1, 12, 0, 0, 123456789, time.UTC), ny, "Sat Jul 01 08:00:00.123456 2000 EDT"},
-		{stamp, numeric, "Sat Jan 01 17:30:00.123456 2000 +05:30"},
-		{stamp, posix, "Sat Jan 01 06:30:00.123456 2000 "},
-		{time.Date(1999, 12, 31, 23, 0, 0, 1000, time.UTC), numeric, "Sat Jan 01 04:30:00.000001 2000 +05:30"},
-	} {
-		if got := transactionTimeOfDayText(item.stamp, item.zone); got != item.want {
-			t.Errorf("text=%q want=%q", got, item.want)
-		}
-	}
-}
-
 func TestTransactionTimeWallDemand(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	stamp := time.Now().UTC().Truncate(time.Microsecond)
 	c := &EvalContext{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}, statementScope: &StatementScope{statementStart: stamp}}
-	for _, kind := range []transactionTimeKind{transactionTimeNow, transactionTimeStatement, transactionTimeClock, transactionTimeOfDay} {
+	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, b, kind)
 		first, err := leaf.Eval(c)
 		if err != nil {
@@ -229,10 +198,10 @@ func TestTransactionTimeWallDemand(t *testing.T) {
 			t.Fatal(err)
 		}
 		same := first == second
-		if same != (kind == transactionTimeNow || kind == transactionTimeStatement) {
+		if same != (kind == functions.TransactionTimeNow || kind == functions.TransactionTimeStatement) {
 			t.Error("demand ownership", kind, first, second)
 		}
-		if kind != transactionTimeOfDay {
+		if kind != functions.TransactionTimeOfDay {
 			instant, err := second.TimestampTime()
 			if err != nil || instant.Nanosecond()%1000 != 0 {
 				t.Fatal(instant, err)

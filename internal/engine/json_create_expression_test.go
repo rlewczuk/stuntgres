@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,8 +20,8 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound := node.(jsonCreateExpression)
-	if bound.Properties().Volatility != Stable || bound.ResultUsage().Type.ID() != sqltype.JSON || bound.ResultUsage().Typmod != -1 || !bound.unknownArgument(0) {
+	bound := node.(functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties])
+	if bound.Properties().Volatility != Stable || bound.ResultUsage().Type.ID() != sqltype.JSON || bound.ResultUsage().Typmod != -1 || !bound.UnknownArgument(0) {
 		t.Fatal("signature/provenance lost", bound)
 	}
 	if _, err := binder.bindJSONCreate(nullCountRaw("to_json", literal)); err == nil {
@@ -44,8 +45,8 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	reminted := fresh.(jsonCreateExpression)
-	if reminted.args[0].ResultUsage().Type != types[sqltype.Text] || reminted.usage.Type != types[sqltype.JSON] || bound.args[0].ResultUsage().Type == reminted.args[0].ResultUsage().Type {
+	reminted := fresh.(functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties])
+	if reminted.Args[0].ResultUsage().Type != types[sqltype.Text] || reminted.Usage.Type != types[sqltype.JSON] || bound.Args[0].ResultUsage().Type == reminted.Args[0].ResultUsage().Type {
 		t.Fatal("retag mutated source or lost authority")
 	}
 	got, err := reminted.Eval(&EvalContext{Context: ctx})
@@ -58,37 +59,6 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	}
 	if !sameGroupExpression(node, node) {
 		t.Fatal("expression identity not reflexive")
-	}
-}
-
-type jsonCreateCountingExpression struct {
-	expressionInfo
-	value   sqltype.Value
-	count   *int
-	failure error
-}
-
-func (e jsonCreateCountingExpression) Eval(*EvalContext) (sqltype.Value, error) {
-	*e.count++
-	return e.value, e.failure
-}
-func TestJSONCreateEvaluatesChildrenOnceInOrder(t *testing.T) {
-	types := formatUnitTypes()
-	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
-	counts := [3]int{}
-	failure := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}
-	args := []BoundExpr{
-		jsonCreateCountingExpression{expressionInfo: expressionInfo{usage: one.Type().Usage()}, value: one, count: &counts[0]},
-		jsonCreateCountingExpression{expressionInfo: expressionInfo{usage: one.Type().Usage()}, count: &counts[1], failure: failure},
-		jsonCreateCountingExpression{expressionInfo: expressionInfo{usage: one.Type().Usage()}, value: one, count: &counts[2]},
-	}
-	node := jsonCreateExpression{expressionInfo: expressionInfo{usage: types[sqltype.JSON].Usage(), properties: ExprProperties{Volatility: Stable}}, kind: sqltype.JSONBuildObject, args: args}
-	if err := node.replan(); err != nil {
-		t.Fatal(err)
-	}
-	_, err := node.Eval(&EvalContext{Context: context.Background()})
-	if !errors.Is(err, failure) || counts != [3]int{1, 1, 0} {
-		t.Fatal("arity validation hid child evaluation", err, counts)
 	}
 }
 
@@ -109,10 +79,10 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 	if err != nil || signature.Count != 1 || signature.Types[0].Type.ID() != 2249 || !signature.Types[0].Type.IsComposite() {
 		t.Fatal("RECORD formal lost occurrence-owned shape", signature, err)
 	}
-	if first.(jsonCreateExpression).args[0].ResultUsage().Type != second.(jsonCreateExpression).args[0].ResultUsage().Type {
+	if first.(functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]).Args[0].ResultUsage().Type != second.(functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]).Args[0].ResultUsage().Type {
 		t.Fatal("repeated RECORD formal minted incompatible identity")
 	}
-	node := first.(jsonCreateExpression)
+	node := first.(functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties])
 	eval := &EvalContext{Context: ctx, Parameters: []sqltype.Value{sqltype.Null(signature.Types[0].Type)}}
 	got, err := node.Eval(eval)
 	if err != nil || !got.IsNull() || got.Type().ID() != sqltype.JSON {

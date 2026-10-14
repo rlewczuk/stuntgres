@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -23,14 +23,14 @@ func TestStringReplacementFormalInference(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := node.(stringExpression)
+		n := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
 		for i := range args {
 			id := sqltype.Text
 			if i >= 2 {
 				id = sqltype.Int4
 			}
-			if b.parameters[i+1].Type != b.typ(id) || n.plan.ArgumentUsage(i).Type != b.typ(id) || n.textual[i] != (i < 2) {
-				t.Fatal(i, b.parameters, n.plan.ArgumentUsage(i))
+			if b.parameters[i+1].Type != b.typ(id) || n.Plan.ArgumentUsage(i).Type != b.typ(id) || n.Textual[i] != (i < 2) {
+				t.Fatal(i, b.parameters, n.Plan.ArgumentUsage(i))
 			}
 		}
 		if !n.Properties().ParameterDependent || n.ResultUsage() != b.typ(sqltype.Text).Usage() {
@@ -47,7 +47,7 @@ func TestStringReplacementFormalInference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := node.(stringExpression).args[2].(coercionExpression); !ok || node.(stringExpression).plan.ArgumentUsage(2).Type != b.typ(sqltype.Int4) {
+	if _, ok := node.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Args[2].(coercionExpression); !ok || node.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Plan.ArgumentUsage(2).Type != b.typ(sqltype.Int4) {
 		t.Fatal("INT2 implicit formal", node)
 	}
 }
@@ -57,32 +57,25 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
 	one, _ := sqltype.Integer(integer, 1)
-	var order []int
 	args := []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{ParameterDependent: true}}, value: sqltype.Null(text), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{RowDependent: true}}, value: sqltype.String(text, "X"), order: &order, index: 1},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{Volatility: Stable}}, value: two, order: &order, index: 2},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{Volatility: Volatile, StageDependent: true}}, value: one, order: &order, index: 3},
+		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{RowDependent: true}}, sqltype.String(text, "X")},
+		literalExpression{expressionInfo{usage: integer.Usage(), properties: ExprProperties{Volatility: Stable}}, two},
+		literalExpression{expressionInfo{usage: integer.Usage(), properties: ExprProperties{Volatility: Volatile, StageDependent: true}}, one},
 	}
 	bound, err := b.stringNode("overlay", text.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OverlayStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := bound.(stringExpression)
-	got, err := n.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) || n.Properties() != (ExprProperties{Volatility: Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}) {
-		t.Fatal(got, order, n.Properties(), err)
-	}
-	failure := errors.New("fourth child demanded")
-	n.args = append([]BoundExpr(nil), n.args...)
-	n.args[3] = mathObservedArgument{expressionInfo: expressionInfo{usage: integer.Usage()}, order: &order, index: 3, err: failure}
-	order = nil
-	if _, err := n.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
-		t.Fatal(order, err)
+	n := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	// Keep owner property merging and descriptor retag integration. Four-child
+	// runtime NULL/error demand is exercised locally by the extracted carrier.
+	if n.Properties() != (ExprProperties{Volatility: Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}) {
+		t.Fatal(n.Properties())
 	}
 	// Retag executable literal children, retaining all four formal owners.
-	original := bound.(stringExpression)
-	original.args = []BoundExpr{literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "X")}, literalExpression{expressionInfo{usage: integer.Usage()}, two}, literalExpression{expressionInfo{usage: integer.Usage()}, one}}
+	original := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	original.Args = []BoundExpr{literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "X")}, literalExpression{expressionInfo{usage: integer.Usage()}, two}, literalExpression{expressionInfo{usage: integer.Usage()}, one}}
 	fresh := map[sqltype.ID]*sqltype.Descriptor{}
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
@@ -91,17 +84,17 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	retained := rebound.(stringExpression)
-	for i := range retained.args {
+	retained := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	for i := range retained.Args {
 		id := sqltype.Text
 		if i >= 2 {
 			id = sqltype.Int4
 		}
-		if retained.plan.ArgumentUsage(i).Type != fresh[id] || original.plan.ArgumentUsage(i).Type == fresh[id] {
+		if retained.Plan.ArgumentUsage(i).Type != fresh[id] || original.Plan.ArgumentUsage(i).Type == fresh[id] {
 			t.Fatal("formal owner mutation", i)
 		}
 	}
-	got, err = retained.Eval(&EvalContext{Context: context.Background()})
+	got, err := retained.Eval(&EvalContext{Context: context.Background()})
 	s, _ := got.Text()
 	if err != nil || s != "aXc" || got.Type() != fresh[sqltype.Text] {
 		t.Fatal(got, err)
@@ -127,8 +120,8 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := conflict.(stringExpression)
-	if n.ResultUsage() != boolean.Usage() || n.CollationIndeterminate() || !n.plan.CollationIndeterminate() {
+	n := conflict.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	if n.ResultUsage() != boolean.Usage() || n.CollationIndeterminate() || !n.Plan.CollationIndeterminate() {
 		t.Fatal("input conflict leaked to BOOL", n)
 	}
 	_, err = n.Eval(&EvalContext{Context: context.Background()})

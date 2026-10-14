@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -60,7 +61,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 		{"absent_regclass", literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}}, nil},
 		{"regclass_array", literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}}, nil},
 		{"runtime_numeric_cast", coercionExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}, child: literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}}, nil},
-		{"repeated_var", binaryExpression{expressionInfo: expressionInfo{usage: domain.Usage()}, args: []BoundExpr{variable, variable}}, []ObjectAddress{column}},
+		{"repeated_var", functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: domain.Usage()}), Args: []BoundExpr{variable, variable}}, []ObjectAddress{column}},
 		{"dead_case", caseExpression{arms: []caseBranch{{condition: literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}, result: variable}}, otherwise: scalar}, []ObjectAddress{column, provider}},
 		{"tableoid", tableOIDExpression{owner: ref(parent)}, []ObjectAddress{pgDependUnitAddress(1259, 48001, -6)}},
 	}

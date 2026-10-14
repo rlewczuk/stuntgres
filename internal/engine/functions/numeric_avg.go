@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -6,13 +6,21 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type numericAvgProvider struct {
+type NumericAvg struct {
 	input *sqltype.Descriptor
 	usage sqltype.Usage
 }
 
-func (p numericAvgProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p numericAvgProvider) Init(ctx context.Context) (any, error) {
+func NewNumericAvg(input *sqltype.Descriptor, usage sqltype.Usage) NumericAvg {
+	return NumericAvg{input, usage}
+}
+func (p NumericAvg) InputType() *sqltype.Descriptor { return p.input }
+func (p NumericAvg) Reconstruct(input *sqltype.Descriptor, usage sqltype.Usage) NumericAvg {
+	return NumericAvg{input, usage}
+}
+
+func (p NumericAvg) ResultUsage() sqltype.Usage { return p.usage }
+func (p NumericAvg) Init(ctx context.Context) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -22,7 +30,7 @@ func (p numericAvgProvider) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p numericAvgProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p NumericAvg) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -38,7 +46,7 @@ func (p numericAvgProvider) Advance(ctx context.Context, state any, value, _ sql
 	}
 	return ctx.Err()
 }
-func (p numericAvgProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
+func (p NumericAvg) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}

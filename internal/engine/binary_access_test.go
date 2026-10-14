@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -25,21 +26,16 @@ func TestBinaryAccessResolution(t *testing.T) {
 		{"set_byte", []sqltype.ID{sqltype.Bytea, sqltype.Int2, sqltype.Int2}, "", sqltype.Bytea},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		operands := make([]comparisonOperand, len(tc.ids))
-		names := make([]string, len(tc.ids))
+		args := make([]parser.Expr, len(tc.ids))
 		for i, id := range tc.ids {
-			names[i] = "unknown"
-			if id == 0 {
-				operands[i] = comparisonOperand{raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
-				continue
+			null := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
+			args[i] = null
+			if id != 0 {
+				args[i] = parser.CastExpr{Child: null, TypeName: parser.TypeName{Name: b.typ(id).DiagnosticName()}}
 			}
-			d := b.typ(id)
-			value := sqltype.Null(d)
-			operands[i] = comparisonOperand{node: literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: value}}
-			names[i] = d.DiagnosticName()
 		}
-		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Pos: parser.Position{Character: 8}, Args: make([]parser.Expr, len(tc.ids))}
-		got, err := b.bindBinaryAccess(raw, true, operands, names)
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Pos: parser.Position{Character: 8}, Args: args}
+		got, err := b.bindBinaryFunction(raw, true)
 		if tc.code != "" {
 			var state interface{ SQLState() string }
 			if !errors.As(err, &state) || state.SQLState() != tc.code {
@@ -73,7 +69,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 		args := make([]BoundExpr, arity)
 		usages := make([]sqltype.Usage, arity)
 		for i := range args {
-			d := types[binaryArgumentID(name, i)]
+			d := types[functions.BinaryArgumentID(name, i)]
 			usages[i] = d.Usage()
 			value := sqltype.Null(d)
 			if i == 0 {
@@ -87,12 +83,12 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := binaryExpression{expressionInfo: expressionInfo{usage: types[result].Usage()}, plan: p, args: args}
+		original := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[result].Usage()}), Plan: p, Args: args}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, changed, err)
 		}
-		next := rebound.(binaryExpression)
+		next := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
 		got, err := next.Eval(&EvalContext{Context: context.Background()})
 		before, oldErr := original.Eval(&EvalContext{Context: context.Background()})
 		want, retagErr := before.Retag(replacement[result])

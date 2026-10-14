@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -219,35 +220,35 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 // Inquiry and original TYPE buffers share this rule; canonical Dump does not.
 func pgIndexFunctionExpression(node BoundExpr) bool {
 	switch n := node.(type) {
-	case stringExpression:
-		return n.plan.Name() != "||"
-	case stringVariadicExpression, jsonCreateExpression:
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return n.Plan.Name() != "||"
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case indexPropertyExpression:
 		return true
-	case datetimeJustifyExpression:
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case datetimeExtractExpression:
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case datetimeOverlapsExpression:
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case datetimeTruncExpression, datetimeBinExpression:
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case datetimeZoneCalendarExpression:
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case timeZoneExpression:
-		return n.function
-	case datetimeAgeFiniteExpression:
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		return n.Function
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case datetimeMakeExpression:
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case arraySearchExpression:
-		return !n.plan.Membership()
-	case enumFunctionExpression, posixSubstringExpression, regexpExpression:
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.Membership()
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties], functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case datetimeSleepExpression:
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case mathExpression, binaryExpression, randomExpression, advisoryExpression, uuidGenerationExpression, nullCountExpression, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.Binary[BoundExpr, *EvalContext, ExprProperties], functions.Random[BoundExpr, *EvalContext, ExprProperties], advisoryExpression, functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		return true
 	default:
 		return false

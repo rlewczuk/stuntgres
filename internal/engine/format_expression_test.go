@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/sqlstate"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -21,7 +22,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, ok := bound.(formatExpression)
+	node, ok := bound.(functions.Format[BoundExpr, *EvalContext, ExprProperties])
 	if !ok || node.ResultUsage().Type.ID() != sqltype.Text || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != Stable || plannedVolatility(node) != Stable {
 		t.Fatalf("format metadata: %#v", bound)
 	}
@@ -36,7 +37,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 		if err != nil || changed {
 			t.Fatalf("%s consumed runtime format: %v/%v", rewrite.name, changed, err)
 		}
-		if _, ok := got.(formatExpression); !ok {
+		if _, ok := got.(functions.Format[BoundExpr, *EvalContext, ExprProperties]); !ok {
 			t.Fatalf("lost format node: %T", got)
 		}
 	}
@@ -178,14 +179,14 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(formatExpression)
+	node := bound.(functions.Format[BoundExpr, *EvalContext, ExprProperties])
 	other := node
-	other.variadic = true
+	other.Variadic = true
 	if !b.sameGroupExpression(node, node) || b.sameGroupExpression(node, other) {
 		t.Fatal("VARIADIC participates in grouping identity")
 	}
 	other = node
-	other.args = []BoundExpr{node.args[1], node.args[0]}
+	other.Args = []BoundExpr{node.Args[1], node.Args[0]}
 	if b.sameGroupExpression(node, other) {
 		t.Fatal("ordered argument identity")
 	}
@@ -194,8 +195,8 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	fresh := retained.(formatExpression)
-	if fresh.rawUnknown != node.rawUnknown || fresh.int4 != types[sqltype.Int4] || fresh.ResultUsage().Type != types[sqltype.Text] || fresh.args[0].ResultUsage().Type != types[sqltype.Text] || node.int4 == fresh.int4 || node.args[0].ResultUsage().Type == fresh.args[0].ResultUsage().Type {
+	fresh := retained.(functions.Format[BoundExpr, *EvalContext, ExprProperties])
+	if fresh.RawUnknown != node.RawUnknown || fresh.Int4 != types[sqltype.Int4] || fresh.ResultUsage().Type != types[sqltype.Text] || fresh.Args[0].ResultUsage().Type != types[sqltype.Text] || node.Int4 == fresh.Int4 || node.Args[0].ResultUsage().Type == fresh.Args[0].ResultUsage().Type {
 		t.Fatal("retag must own a new immutable descriptor generation")
 	}
 	value, err := fresh.Eval(&EvalContext{Context: ctx})
@@ -217,14 +218,14 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(formatExpression)
+	node := bound.(functions.Format[BoundExpr, *EvalContext, ExprProperties])
 	types := formatUnitTypes()
 	retained, changed, err := retagBoundTypes(b.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	fresh := retained.(formatExpression)
-	if fresh.args[1].ResultUsage().Type.BaseType().Element() != types[sqltype.Name] || node.args[1].ResultUsage().Type == fresh.args[1].ResultUsage().Type || fresh.args[1].ResultUsage().Type != types[sqltype.NameArray] {
+	fresh := retained.(functions.Format[BoundExpr, *EvalContext, ExprProperties])
+	if fresh.Args[1].ResultUsage().Type.BaseType().Element() != types[sqltype.Name] || node.Args[1].ResultUsage().Type == fresh.Args[1].ResultUsage().Type || fresh.Args[1].ResultUsage().Type != types[sqltype.NameArray] {
 		t.Fatal("VARIADIC descriptors not retained")
 	}
 	value, err := fresh.Eval(&EvalContext{Context: ctx})
@@ -236,9 +237,9 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	column := columnExpression{expressionInfo: expressionInfo{usage: node.ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID()}
-	node.variadic = false
-	node.args = []BoundExpr{node.args[0], column}
-	node.properties.RowDependent = true
+	node.Variadic = false
+	node.Args = []BoundExpr{node.Args[0], column}
+	node.Property.RowDependent = true
 	if generationImmutable(node) || firstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
 		t.Fatal("stable/variable descendants must remain visible")
 	}
@@ -246,15 +247,15 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	grouped := rebound.(formatExpression)
-	if _, ok := grouped.args[1].(groupExpression); !ok {
-		t.Fatalf("group descendant not rewritten: %T", grouped.args[1])
+	grouped := rebound.(functions.Format[BoundExpr, *EvalContext, ExprProperties])
+	if _, ok := grouped.Args[1].(groupExpression); !ok {
+		t.Fatalf("group descendant not rewritten: %T", grouped.Args[1])
 	}
-	if _, ok := node.args[1].(columnExpression); !ok {
+	if _, ok := node.Args[1].(columnExpression); !ok {
 		t.Fatal("group rewrite mutated shared children")
 	}
 	aggregate := aggregateExpression{expressionInfo: expressionInfo{usage: node.ResultUsage(), properties: ExprProperties{StageDependent: true}}, slot: 7}
-	node.args = []BoundExpr{node.args[0], column, aggregate}
+	node.Args = []BoundExpr{node.Args[0], column, aggregate}
 	if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
 		t.Fatal("all arguments must participate in aggregate traversal")
 	}

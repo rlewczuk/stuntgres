@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := stringExpression{expressionInfo: column.expressionInfo, plan: plan, args: []BoundExpr{column}, textual: [4]bool{true}}
+	node := functions.String[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(column.expressionInfo), Plan: plan, Args: []BoundExpr{column}, Textual: [4]bool{true}}
 	d := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node}}}, ready: true, valid: true, live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}

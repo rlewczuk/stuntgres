@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -278,7 +279,7 @@ func (b *expressionBinder) bindField(raw parser.FieldExpr) (BoundExpr, error) {
 		return b.compositeFieldAt(base, index, raw.Pos), nil
 	}
 	node, err := b.selectCompositeField(base, raw.Field.Text, raw.Pos)
-	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42703" || diagnostic.Code == "42809") && nullCountFunctionKind(raw.Field.Text) != 0 {
+	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42703" || diagnostic.Code == "42809") && functions.NullCountFunctionKind(raw.Field.Text) != 0 {
 		return b.bindDotBuiltin(raw, key)
 	}
 	if field, ok := node.(fieldExpression); err == nil && ok {

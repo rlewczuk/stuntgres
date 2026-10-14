@@ -1,25 +1,8 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
-
-// A set call is analyzed as an expression, but only a cardinality-changing
-// query stage may execute it. Scalar evaluation cannot consume a first item.
-type regexpSetExpression struct{ regexpCall }
-
-func newRegexpSetExpression(call regexpCall) BoundExpr { return regexpSetExpression{call} }
-func (e regexpSetExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted regular expression set call")
-}
-func (e regexpSetExpression) EvalSet(c *EvalContext) ([]sqltype.Value, error) {
-	return e.evaluateSet(c)
-}
 
 // Placement checks run on analyzed expressions, even inside dead branches.
 // Nested subqueries own their own placement checks and are not entered here.

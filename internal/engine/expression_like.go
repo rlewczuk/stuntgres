@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,30 +25,6 @@ func (e likeExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	return e.provider.Evaluate(c.Context, a, b)
-}
-
-type likeEscapeExpression struct {
-	expressionInfo
-	pattern, escape BoundExpr
-	provider        sqltype.LikeEscapePlan
-}
-
-func (e likeEscapeExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if randomLiteralNull(e.pattern) || randomLiteralNull(e.escape) {
-		return sqltype.Null(e.usage.Type), nil
-	}
-	pattern, err := e.pattern.Eval(c)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	escape, err := e.escape.Eval(c)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return e.provider.Evaluate(c.Context, pattern, escape)
 }
 
 func likeName(name string) bool {
@@ -271,45 +248,27 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	if len(raw.Args) != 2 {
 		return nil, b.functionSignatureError(raw)
 	}
-	var operands [2]comparisonOperand
+	var operands [2]functions.Argument[BoundExpr]
 	var names []string
 	for i, arg := range raw.Args {
-		o, err := b.comparisonOperand(arg)
+		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
 		operands[i] = o
 		name := "unknown"
-		if o.descriptor() != nil {
-			name = o.descriptor().DiagnosticName()
+		if o.Usage.Type != nil {
+			name = o.Usage.Type.DiagnosticName()
 		}
 		names = append(names, name)
 	}
 	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	if !visible || raw.Variadic {
+	targetID := functions.LikeEscapeTarget(operands)
+	if !functions.LikeEscapeAllowed(visible, raw.Variadic, operands, targetID) {
 		return missing()
 	}
-	target := b.typ(sqltype.Text)
-	for _, o := range operands {
-		if d := o.descriptor(); d != nil && d.BaseType().ID() == sqltype.Bytea {
-			target = b.typ(sqltype.Bytea)
-		}
-	}
-	for _, o := range operands {
-		if d := o.descriptor(); d != nil {
-			if target.ID() == sqltype.Bytea && d.BaseType().ID() != sqltype.Bytea {
-				return missing()
-			}
-			if target.ID() == sqltype.Text && d.BaseType().ID() != sqltype.Text && d.BaseType().ID() != sqltype.VarChar && d.BaseType().ID() != sqltype.BPChar && d.BaseType().ID() != sqltype.Name {
-				return missing()
-			}
-		}
-	}
-	pattern, err := b.likeOperand(operands[0], target)
-	if err != nil {
-		return nil, err
-	}
-	escape, err := b.likeOperand(operands[1], target)
+	target := b.typ(targetID)
+	pattern, escape, err := functions.CoerceLikeEscapeArguments(b, operands, target.Usage())
 	if err != nil {
 		return nil, err
 	}
@@ -318,10 +277,5 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	u = info.usage
-	provider, err := sqltype.BindLikeEscape(pattern.ResultUsage(), escape.ResultUsage(), u)
-	if err != nil {
-		return nil, err
-	}
-	return likeEscapeExpression{info, pattern, escape, provider}, nil
+	return functions.NewLikeEscape[BoundExpr, *EvalContext](functionInfo(info), pattern, escape)
 }

@@ -2,13 +2,13 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"math"
+	"runtime"
+	"strings"
+	"stuntgres/internal/engine/functions"
 	"testing"
 	"time"
 
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,8 +22,8 @@ func TestDatetimeSleepBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := x.(datetimeSleepExpression)
-		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != Volatile || !n.Properties().ParameterDependent || b.parameters[1].Type.ID() != tc.id || !n.validStored() {
+		n := x.(functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties])
+		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != Volatile || !n.Properties().ParameterDependent || b.parameters[1].Type.ID() != tc.id || !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			t.Fatalf("binding %s: %#v", tc.name, n)
 		}
 		if generationImmutable(n) {
@@ -45,129 +45,13 @@ func TestDatetimeSleepBinding(t *testing.T) {
 	}
 }
 
-func TestDatetimeSleepWait(t *testing.T) {
-	for _, seconds := range []float64{0, -0.1, math.NaN(), math.Inf(-1)} {
-		if err := datetimeSleepWait(context.Background(), seconds); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, tc := range []struct {
-		seconds float64
-		want    time.Duration
-	}{{1e-12, time.Nanosecond}, {0.075, 75 * time.Millisecond}, {599.5, 599500 * time.Millisecond}, {600, 600 * time.Second}, {math.MaxFloat64, 600 * time.Second}, {math.Inf(1), 600 * time.Second}} {
-		if got := datetimeSleepChunk(tc.seconds); got != tc.want {
-			t.Fatalf("chunk %g: %s want %s", tc.seconds, got, tc.want)
-		}
-	}
-	start := time.Now()
-	if err := datetimeSleepWait(context.Background(), 0.015); err != nil || time.Since(start) < 15*time.Millisecond {
-		t.Fatal("early wait", time.Since(start), err)
-	}
-	for _, seconds := range []float64{10, math.MaxFloat64, math.Inf(1)} {
-		ctx, cancel := context.WithCancel(context.Background())
-		entered := make(chan struct{})
-		done := make(chan error, 1)
-		go func() {
-			first := true
-			done <- datetimeSleepWaitRemaining(ctx, func() (float64, error) {
-				if first {
-					close(entered)
-					first = false
-				}
-				return seconds, nil
-			})
-		}()
-		<-entered
-		cancel()
-		select {
-		case err := <-done:
-			if err != context.Canceled {
-				t.Fatal("cancel identity", err)
-			}
-		case <-time.After(time.Second):
-			t.Fatal("active wait did not join")
-		}
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := datetimeSleepWait(ctx, 0); err != context.Canceled {
-		t.Fatal("precancel identity", err)
-	}
-	ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
-	defer cancel()
-	if err := datetimeSleepWait(ctx, 1); err != context.DeadlineExceeded {
-		t.Fatal("deadline identity", err)
-	}
-	for _, tc := range []struct {
-		target, now int64
-		want        float64
-	}{{1000001, 1000000, 0.000001}, {-1000000, -1000001, 0.000001}, {math.MaxInt64 - 1, math.MinInt64 + 1, 18446744073709.55}} {
-		got := datetimeSleepDifference(tc.target, tc.now)
-		if math.Abs(got-tc.want) > math.Max(1e-12, math.Abs(tc.want)*1e-15) {
-			t.Fatalf("wide difference: %.18g want %.18g", got, tc.want)
-		}
-	}
-	if !math.IsInf(datetimeSleepDifference(sqltype.TimestampPositiveInfinity, 0), 1) || !math.IsInf(datetimeSleepDifference(sqltype.TimestampNegativeInfinity, 0), -1) {
-		t.Fatal("infinity arithmetic")
-	}
-}
-
-func TestDatetimeSleepCalendar(t *testing.T) {
+func TestDatetimeSleepClockOwner(t *testing.T) {
 	e := New()
 	stamp, _ := e.CatalogRead().LookupType(sqltype.Timestamptz)
-	span, _ := e.CatalogRead().LookupType(sqltype.Interval)
-	calendar, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, stamp, span, stamp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct {
-		zone, start, interval, want string
-		seconds                     float64
-	}{
-		{"UTC", "2025-01-31 12:00+00", "1 month", "2025-02-28T12:00:00Z", 28 * 86400},
-		{"UTC", "2024-01-31 12:00+00", "1 month", "2024-02-29T12:00:00Z", 29 * 86400},
-		{"America/New_York", "2025-03-08 12:00-05", "1 day", "2025-03-09T16:00:00Z", 23 * 3600},
-		{"America/New_York", "2025-03-08 12:00-05", "24 hours", "2025-03-09T17:00:00Z", 24 * 3600},
-		{"America/New_York", "2025-11-01 12:00-04", "1 day", "2025-11-02T17:00:00Z", 25 * 3600},
-		{"America/New_York", "2025-03-08 12:00-05", "1 day -24 hours", "2025-03-08T16:00:00Z", -3600},
-		{"America/New_York", "2025-11-01 12:00-04", "1 day -24 hours", "2025-11-01T17:00:00Z", 3600},
-	} {
-		zone, err := sqltype.ResolveZone(tc.zone)
-		if err != nil {
-			t.Fatal(err)
-		}
-		c := &EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone}}
-		start, err := stamp.InputWithEnvironment(c.Context, tc.start, -1, c.Input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		interval, err := span.Input(c.Context, tc.interval, -1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		end, err := calendar.Binary(c.Context, start, interval, c.Input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := end.TimestampTime()
-		want, parseErr := time.Parse(time.RFC3339, tc.want)
-		if err != nil || parseErr != nil || !got.Equal(want) {
-			t.Fatal(tc, got, err, parseErr)
-		}
-		a, _ := start.Timestamp()
-		z, _ := end.Timestamp()
-		if seconds := datetimeSleepDifference(z, a); seconds != tc.seconds {
-			t.Fatal(tc, "elapsed", seconds)
-		}
-		// The wrapper subtracts a second clock sample, not the first sample.
-		if seconds := datetimeSleepDifference(z, a+250000); seconds != tc.seconds-0.25 {
-			t.Fatal("fresh sample", seconds)
-		}
-	}
 	oldTransaction := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := &EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{TransactionStart: oldTransaction}}
 	before := time.Now().UTC().Truncate(time.Microsecond)
-	current, err := datetimeSleepClock(c, stamp.Usage())
+	current, err := c.FunctionSleepClock(stamp.Usage())
 	after := time.Now().UTC()
 	if err != nil {
 		t.Fatal(err)
@@ -175,13 +59,6 @@ func TestDatetimeSleepCalendar(t *testing.T) {
 	instant, err := current.TimestampTime()
 	if err != nil || instant.Before(before) || instant.After(after) || c.Input.TransactionStart != oldTransaction {
 		t.Fatal("clock used/mutated transaction start", instant, err)
-	}
-	start, _ := stamp.Input(context.Background(), "2025-01-01+00", -1)
-	interval, _ := span.Input(context.Background(), "2147483647 months", -1)
-	_, err = calendar.Binary(context.Background(), start, interval, sqltype.InputEnvironment{})
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "22008" || diagnostic.Message != "timestamp out of range" {
-		t.Fatal("calendar overflow", err)
 	}
 }
 
@@ -211,19 +88,17 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		entered := make(chan struct{})
+		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+		wait, err := binder.bindFunction(datetimeMakeRaw("pg_sleep", ageFiniteTyped("float8", "Infinity")))
+		if err != nil {
+			t.Fatal(err)
+		}
 		done := make(chan error, 1)
 		go func() {
-			first := true
-			done <- datetimeSleepWaitRemaining(ctx, func() (float64, error) {
-				if first {
-					close(entered)
-					first = false
-				}
-				return math.Inf(1), nil
-			})
+			_, err := wait.Eval(&EvalContext{Context: ctx, statementScope: scope})
+			done <- err
 		}()
-		<-entered
+		datetimeSleepCleanupAdmission(t, done)
 		cancel()
 		select {
 		case err = <-done:
@@ -264,7 +139,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(datetimeSleepExpression)
+	n := node.(functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties])
 	if !closedTransactionTimeDefault(n) {
 		t.Fatal("closed sleep default rejected")
 	}
@@ -276,7 +151,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil {
 		t.Fatal("retag", err)
 	}
-	copy := rebound.(datetimeSleepExpression)
+	copy := rebound.(functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties])
 	value, err := copy.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || value.IsNull() || value.Type().ID() != sqltype.Void {
 		t.Fatal("reminted zero delay", value, err)
@@ -285,7 +160,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 		t.Fatal("foreign generation accepted")
 	}
 	bad := n
-	bad.properties.ParameterDependent = true
+	bad.Property.ParameterDependent = true
 	if closedTransactionTimeDefault(bad) {
 		t.Fatal("dependent default accepted")
 	}
@@ -304,4 +179,42 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil || value.IsNull() || value.Type().ID() != sqltype.Void {
 		t.Fatal("reminted calendar zero delay", value, err)
 	}
+}
+
+// Use the established native active-provider profile witness: this retained
+// integration exercises the real carrier and admitted statement, not a callback
+// or a test-only access path into the child's private wait implementation.
+func datetimeSleepCleanupAdmission(t *testing.T, done <-chan error) {
+	t.Helper()
+	profiles := make([]runtime.StackRecord, 128)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-done:
+			t.Fatal("admitted wait completed before active admission", err)
+		default:
+		}
+		n, ok := runtime.GoroutineProfile(profiles)
+		if !ok {
+			profiles = make([]runtime.StackRecord, n)
+			continue
+		}
+		for _, profile := range profiles[:n] {
+			frames := runtime.CallersFrames(profile.Stack())
+			providerFrame, workerFrame := false, false
+			for {
+				frame, more := frames.Next()
+				providerFrame = providerFrame || strings.Contains(frame.Function, "datetimeSleepWaitRemaining")
+				workerFrame = workerFrame || strings.Contains(frame.Function, "TestDatetimeSleepCleanup")
+				if !more {
+					break
+				}
+			}
+			if providerFrame && workerFrame {
+				return
+			}
+		}
+		runtime.Gosched()
+	}
+	t.Fatal("admitted wait admission deadline")
 }

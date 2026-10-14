@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -37,29 +37,46 @@ func formatDigits(ctx context.Context, pattern string, at int) (int, int, error)
 	return n, at, nil
 }
 
-// formatValues borrows immutable array payloads without flattening or copying.
-type formatValues struct {
-	ordinary []sqltype.Value
-	array    sqltype.Value
+// FormatValues borrows immutable array payloads without flattening or copying.
+type FormatValues struct {
+	Ordinary []sqltype.Value
+	Array    sqltype.Value
 }
 
-func (v formatValues) len() int {
-	if v.array.Type() != nil {
-		return v.array.ArrayLen()
+func (v *FormatValues) Len() int {
+	if v.Array.Type() != nil {
+		return v.Array.ArrayLen()
 	}
-	return len(v.ordinary)
+	return len(v.Ordinary)
 }
 
-func (v formatValues) at(i int) sqltype.Value {
-	if v.array.Type() != nil {
-		return v.array.ArrayElement(i)
+func (v *FormatValues) At(i int) sqltype.Value {
+	if v.Array.Type() != nil {
+		return v.Array.ArrayElement(i)
 	}
-	return v.ordinary[i]
+	return v.Ordinary[i]
+}
+
+type formatCursor struct {
+	values *FormatValues
+	next   int
+}
+
+func (c *formatCursor) argument(position int) (sqltype.Value, error) {
+	index := c.next
+	if position > 0 {
+		index = position - 1
+	}
+	if index >= c.values.Len() {
+		return sqltype.Value{}, sqlError("22023", "too few arguments for format()")
+	}
+	c.next = index + 1
+	return c.values.At(index), nil
 }
 
 // Format grammar is runtime data. Positions are one-based; the cursor tracks
 // the last consumed argument, not the highest explicit position seen.
-func formatText(ctx context.Context, pattern string, values formatValues, int4 *sqltype.Descriptor, output sqltype.OutputEnvironment) (string, error) {
+func FormatText(ctx context.Context, pattern string, values FormatValues, int4 *sqltype.Descriptor, output sqltype.OutputEnvironment) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -67,18 +84,8 @@ func formatText(ctx context.Context, pattern string, values formatValues, int4 *
 		return "", fmt.Errorf("stuntgres: invalid format width descriptor")
 	}
 	var out strings.Builder
-	next, start, at := 0, 0, 0
-	argument := func(position int) (sqltype.Value, error) {
-		index := next
-		if position > 0 {
-			index = position - 1
-		}
-		if index >= values.len() {
-			return sqltype.Value{}, sqlError("22023", "too few arguments for format()")
-		}
-		next = index + 1
-		return values.at(index), nil
-	}
+	start, at := 0, 0
+	cursor := formatCursor{values: &values}
 	for at < len(pattern) {
 		if at&255 == 0 {
 			if err := ctx.Err(); err != nil {
@@ -171,7 +178,7 @@ func formatText(ctx context.Context, pattern string, values formatValues, int4 *
 		at += size
 		// Validate the verb before width conversion or argument access.
 		if dynamic {
-			value, err := argument(widthPosition)
+			value, err := cursor.argument(widthPosition)
 			if err != nil {
 				return "", err
 			}
@@ -180,7 +187,7 @@ func formatText(ctx context.Context, pattern string, values formatValues, int4 *
 				return "", err
 			}
 		}
-		value, err := argument(valuePosition)
+		value, err := cursor.argument(valuePosition)
 		if err != nil {
 			return "", err
 		}

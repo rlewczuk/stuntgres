@@ -1,0 +1,135 @@
+package functions
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"time"
+)
+
+type TransactionTimeKind uint8
+
+const (
+	TransactionTimeNow TransactionTimeKind = iota + 1
+	TransactionTimeTransaction
+	TransactionTimeStatement
+	TransactionTimeClock
+	TransactionTimeOfDay
+)
+
+func (kind TransactionTimeKind) Name() string {
+	switch kind {
+	case TransactionTimeNow:
+		return "now"
+	case TransactionTimeTransaction:
+		return "transaction_timestamp"
+	case TransactionTimeStatement:
+		return "statement_timestamp"
+	case TransactionTimeClock:
+		return "clock_timestamp"
+	case TransactionTimeOfDay:
+		return "timeofday"
+	}
+	return ""
+}
+func TransactionTimeKindForName(name string) TransactionTimeKind {
+	switch name {
+	case "now":
+		return TransactionTimeNow
+	case "transaction_timestamp":
+		return TransactionTimeTransaction
+	case "statement_timestamp":
+		return TransactionTimeStatement
+	case "clock_timestamp":
+		return TransactionTimeClock
+	case "timeofday":
+		return TransactionTimeOfDay
+	}
+	return 0
+}
+func (kind TransactionTimeKind) IntrinsicRule() IntrinsicPropertyRule {
+	if kind == TransactionTimeClock || kind == TransactionTimeOfDay {
+		return ExactVolatile
+	}
+	return ExactStable
+}
+func (kind TransactionTimeKind) Type() sqltype.ID {
+	if kind == TransactionTimeOfDay {
+		return sqltype.Text
+	}
+	return sqltype.Timestamptz
+}
+
+type TransactionTimeContext[P any] interface {
+	Context
+	FunctionInput() sqltype.InputEnvironment
+	FunctionPropertiesMatch(P, IntrinsicPropertyRule) bool
+	FunctionStatementTime() (time.Time, error)
+	FunctionWallTime() time.Time
+	FunctionTimeOfDayZone() *sqltype.Zone
+}
+type TransactionTime[C TransactionTimeContext[P], P any] struct {
+	Info[P]
+	Kind TransactionTimeKind
+}
+
+func (e TransactionTime[C, P]) Validate(intrinsicMatch bool) error {
+	if e.Kind.Name() == "" || e.Usage.Type == nil || !e.Usage.Valid() || e.Usage.Type.ID() != e.Kind.Type() || e.Usage.Typmod != -1 || !intrinsicMatch {
+		return fmt.Errorf("stuntgres: invalid transaction time expression")
+	}
+	return nil
+}
+func (e TransactionTime[C, P]) Eval(c C) (sqltype.Value, error) {
+	if _, err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	if err := e.Validate(c.FunctionPropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.Kind == TransactionTimeOfDay {
+		return sqltype.String(e.Usage.Type, transactionTimeOfDayText(c.FunctionWallTime(), c.FunctionTimeOfDayZone())), nil
+	}
+	input := c.FunctionInput()
+	stamp := input.TransactionStart
+	switch e.Kind {
+	case TransactionTimeStatement:
+		var err error
+		stamp, err = c.FunctionStatementTime()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+	case TransactionTimeClock:
+		stamp = c.FunctionWallTime()
+	}
+	input.TransactionStart = stamp
+	return sqltype.CurrentDateTime(e.Usage, input)
+}
+
+// OffsetAt owns both the civil offset and abbreviation. In particular, a POSIX
+// offset zone may have an empty abbreviation, leaving the final space intact.
+func transactionTimeOfDayText(stamp time.Time, zone *sqltype.Zone) string {
+	east, abbreviation := zone.OffsetAt(stamp.Unix())
+	local := stamp.UTC().Add(time.Duration(east) * time.Second)
+	var buffer [96]byte
+	text := local.AppendFormat(buffer[:0], "Mon Jan 02 15:04:05.000000 2006 ")
+	text = append(text, abbreviation...)
+	return string(text)
+}
+func TransactionTimeAllowed(raw parser.FunctionExpr, visible bool, kind TransactionTimeKind) bool {
+	return visible && kind != 0 && len(raw.Args) == 0 && !raw.Variadic && len(raw.ArgNames) == 0
+}
+func TransactionTimeDecoration(raw parser.FunctionExpr) string {
+	switch {
+	case raw.Star:
+		return "(*)"
+	case raw.Distinct:
+		return "DISTINCT"
+	case len(raw.Order) != 0:
+		return "ORDER BY"
+	case raw.Filter != nil:
+		return "FILTER"
+	case raw.Window != nil:
+		return "OVER"
+	}
+	return ""
+}

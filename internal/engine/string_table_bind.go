@@ -2,34 +2,35 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 func isStringSet(expr BoundExpr) bool {
-	e, ok := expr.(stringExpression)
-	return ok && e.plan.Name() == "string_to_table"
+	e, ok := expr.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	return ok && e.Plan.Name() == "string_to_table"
 }
 func isQuerySet(expr BoundExpr) bool {
 	switch expr.(type) {
-	case regexpSetExpression, jsonKeysExpression, seriesExpression, subscriptsExpression:
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
 		return true
 	}
 	return isStringSet(expr)
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
-	case stringExpression:
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		return isStringSet(call)
-	case regexpSetExpression:
-		return call.plan.ReturnsSet()
-	case jsonKeysExpression, seriesExpression, subscriptsExpression:
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Plan.ReturnsSet()
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
 		return true
-	case binaryExpression:
-		return parser.JSONFunctionName(call.plan.Name())
-	case regexpExpression:
-		return !call.plan.ReturnsSet()
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		return parser.JSONFunctionName(call.Plan.Name())
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		return !call.Plan.ReturnsSet()
 	default:
 		return false
 	}
@@ -70,16 +71,16 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.args
 	case subscriptsExpression:
 		return call.args
-	case stringExpression:
-		return call.args
-	case regexpSetExpression:
-		return call.args
-	case jsonKeysExpression:
-		return call.args
-	case binaryExpression:
-		return call.args
-	case regexpExpression:
-		return call.args
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
 	default:
 		return nil
 	}
@@ -98,23 +99,23 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		}
 		call.args = args
 		return call, nil
-	case stringExpression:
-		call.args = args
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		call.Args = args
 		return call, nil
-	case regexpSetExpression:
-		call.args = args
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		call.Args = args
 		return call, nil
-	case jsonKeysExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid JSON keys arguments")
 		}
-		call.args = args
+		call.Args = args
 		return call, nil
-	case binaryExpression:
-		call.args = args
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		call.Args = args
 		return call, nil
-	case regexpExpression:
-		call.args = args
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		call.Args = args
 		return call, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid closed function call")

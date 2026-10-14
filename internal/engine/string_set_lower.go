@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -34,11 +35,11 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 	case subscriptsExpression:
 		second, ok := b.(subscriptsExpression)
 		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)
-	case jsonKeysExpression:
-		second, ok := b.(jsonKeysExpression)
-		return ok && first.plan.Name() == second.plan.Name()
-	case regexpSetExpression:
-		_, ok := b.(regexpSetExpression)
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		second, ok := b.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])
+		return ok && first.Plan.Name() == second.Plan.Name()
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		_, ok := b.(functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties])
 		return ok
 	default:
 		return isStringSet(a) && isStringSet(b)

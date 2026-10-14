@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -30,7 +30,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := datetimeFormattingExpression{expressionInfo: expressionInfo{usage: result.Usage(), properties: ExprProperties{Volatility: Stable}}, plan: plan, args: [2]BoundExpr{
+		node := functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: result.Usage(), properties: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
 			literalExpression{expressionInfo{usage: source.Usage()}, sqltype.Null(source)},
 			literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, template)},
 		}}
@@ -41,7 +41,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			t.Fatal("semantic identity lost", signature)
 		}
 		other := node
-		other.args[1] = literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "MM")}
+		other.Args[1] = literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "MM")}
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("template omitted from semantic identity", signature)
 		}
@@ -57,38 +57,11 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("provider rebind", rebound, changed, err)
 		}
-		retained := rebound.(datetimeFormattingExpression)
+		retained := rebound.(functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties])
 		value, err = retained.Eval(&EvalContext{Context: ctx})
 		if err != nil || value.Type() != replacements[signature.result] || node.ResultUsage().Type != result {
 			t.Fatal("rebind changed source authority or retained obsolete result", value, err)
 		}
-	}
-}
-
-func TestDatetimeFormattingChildDemand(t *testing.T) {
-	e := New()
-	ctx := context.Background()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	source, text := b.typ(sqltype.Timestamp), b.typ(sqltype.Text)
-	template := "YYYY"
-	plan, err := sqltype.BindDatetimeFormat(ctx, "to_char", text.Usage(), source.Usage(), &template)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var order []int
-	node := datetimeFormattingExpression{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true, ParameterDependent: true}}, plan: plan, args: [2]BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: source.Usage()}, value: sqltype.Null(source), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, template), order: &order, index: 1},
-	}}
-	value, err := node.Eval(&EvalContext{Context: ctx})
-	if err != nil || !value.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("row NULL suppressed demanded sibling", value, order, err)
-	}
-	failure := errors.New("demanded formatting sibling")
-	node.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	if _, err := node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(order, err)
 	}
 }
 
@@ -124,7 +97,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(signature, err)
 		}
-		node, ok := bound.(datetimeFormattingExpression)
+		node, ok := bound.(functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != Stable {
 			t.Fatal("signature authority", signature, bound)
 		}
@@ -134,7 +107,7 @@ func TestDatetimeFormattingBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := bound.(numericFormattingExpression); !ok {
+	if _, ok := bound.(functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]); !ok {
 		t.Fatal("numeric overload did not route to its owner", bound)
 	}
 	for _, c := range []struct {

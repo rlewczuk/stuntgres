@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -202,7 +203,7 @@ func generationImmutable(node BoundExpr) bool {
 		return args(subscriptChildren(n, &storage))
 	case literalExpression, columnExpression, tableOIDExpression:
 		return true
-	case uuidGenerationExpression:
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
 		return false
 	case collationExpression:
 		return one(n.child)
@@ -233,20 +234,20 @@ func generationImmutable(node BoundExpr) bool {
 		return one(n.child)
 	case likeExpression:
 		return both(n.left, n.right)
-	case likeEscapeExpression:
-		return both(n.pattern, n.escape)
-	case posixExpression:
-		return both(n.left, n.right)
-	case similarExpression:
-		return both(n.left, n.right)
-	case similarEscapeExpression:
-		return both(n.pattern, n.escape)
-	case posixSubstringExpression:
-		return args(n.args[:])
-	case similarSubstringExpression:
-		return args(n.args[:])
-	case regexpExpression:
-		return args(n.args)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Pattern, n.Escape)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Left, n.Right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Left, n.Right)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Pattern, n.Escape)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	case conditionalExpression:
 		return !n.comparison.SessionDependent() && args(n.args)
 	case caseExpression:
@@ -259,47 +260,47 @@ func generationImmutable(node BoundExpr) bool {
 			}
 		}
 		return true
-	case binaryExpression:
-		return n.plan.Immutable() && args(n.args)
-	case datetimeJustifyExpression:
-		return args(n.children())
-	case datetimeExtractExpression:
-		return !n.plan.SessionDependent() && args(n.children())
-	case datetimeOverlapsExpression:
-		return !n.plan.SessionDependent() && args(n.children())
-	case datetimeBinExpression:
-		return args(n.children())
-	case datetimeTruncExpression:
-		return !n.plan.SessionDependent() && args(n.children())
-	case datetimeZoneCalendarExpression:
-		return n.intrinsicVolatility() == Immutable && args(n.children())
-	case timeZoneExpression:
-		return n.intrinsicVolatility() == Immutable && both(n.value, n.zone)
-	case datetimeAgeFiniteExpression:
-		return !n.plan.SessionDependent() && args(n.children())
-	case datetimeMakeExpression:
-		return !n.plan.SessionDependent() && args(n.children())
-	case datetimeFormattingExpression:
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		return n.Plan.Immutable() && args(n.Args)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.SessionDependent() && args(n.Arguments())
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.SessionDependent() && args(n.Arguments())
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.SessionDependent() && args(n.Arguments())
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.IntrinsicStable() && args(n.Arguments())
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.IntrinsicStable() && both(n.Value, n.Zone)
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.SessionDependent() && args(n.Arguments())
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.SessionDependent() && args(n.Arguments())
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		return false
-	case numericFormattingExpression:
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		return false
-	case stringExpression:
-		return !n.plan.SessionDependent() && args(n.args)
-	case arraySearchExpression:
-		return !n.plan.SessionDependent() && args(n.args)
-	case enumFunctionExpression:
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.SessionDependent() && args(n.Args)
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		return !n.Plan.SessionDependent() && args(n.Args)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		return false
-	case mathExpression:
-		return args(n.args)
-	case nullCountExpression:
-		return args(n.args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	case installedFunctionExpression:
 		return false
-	case jsonCreateExpression:
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return false
-	case stringVariadicExpression:
-		return n.intrinsic == Immutable && args(n.args)
-	case formatExpression:
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		return !n.IntrinsicStable() && args(n.Args)
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
 		return false
 	default:
 		return node.Properties().Volatility == Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
@@ -396,20 +397,20 @@ func generationHasTableOID(node BoundExpr) bool {
 		return one(n.child)
 	case likeExpression:
 		return both(n.left, n.right)
-	case likeEscapeExpression:
-		return both(n.pattern, n.escape)
-	case posixExpression:
-		return both(n.left, n.right)
-	case similarExpression:
-		return both(n.left, n.right)
-	case similarEscapeExpression:
-		return both(n.pattern, n.escape)
-	case posixSubstringExpression:
-		return args(n.args[:])
-	case similarSubstringExpression:
-		return args(n.args[:])
-	case regexpExpression:
-		return args(n.args)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Pattern, n.Escape)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Left, n.Right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Left, n.Right)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Pattern, n.Escape)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	case conditionalExpression:
 		return args(n.args)
 	case caseExpression:
@@ -422,50 +423,50 @@ func generationHasTableOID(node BoundExpr) bool {
 			}
 		}
 		return false
-	case binaryExpression:
-		return args(n.args)
-	case datetimeJustifyExpression:
-		return args(n.children())
-	case datetimeExtractExpression:
-		return args(n.children())
-	case datetimeOverlapsExpression:
-		return args(n.children())
-	case datetimeBinExpression:
-		return args(n.children())
-	case datetimeTruncExpression:
-		return args(n.children())
-	case datetimeZoneCalendarExpression:
-		return args(n.children())
-	case datetimeAgeFiniteExpression:
-		return args(n.children())
-	case datetimeMakeExpression:
-		return args(n.children())
-	case datetimeFormattingExpression:
-		return args(n.args[:])
-	case numericFormattingExpression:
-		return args(n.args[:])
-	case stringExpression:
-		return args(n.args)
-	case arraySearchExpression:
-		return args(n.args)
-	case enumFunctionExpression:
-		return args(n.args)
-	case mathExpression:
-		return args(n.args)
-	case nullCountExpression:
-		return args(n.args)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]BoundExpr{n.arg})
-	case jsonCreateExpression:
-		return args(n.args)
-	case stringVariadicExpression:
-		return args(n.args)
-	case formatExpression:
-		return args(n.args)
-	case uuidGenerationExpression:
-		return args(n.args)
-	case timeZoneExpression:
-		return both(n.value, n.zone)
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		return args(n.Args)
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		return both(n.Value, n.Zone)
 	default:
 		return false
 	}
@@ -699,8 +700,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return child(n.child)
 	case coercionExpression:
 		return child(n.child)
-	case timeZoneExpression:
-		return pair(n.value, n.zone)
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		return pair(n.Value, n.Zone)
 	case arithmeticExpression:
 		return pair(n.left, n.right)
 	case bitwiseExpression:
@@ -734,20 +735,20 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return child(n.child)
 	case likeExpression:
 		return pair(n.left, n.right)
-	case likeEscapeExpression:
-		return pair(n.pattern, n.escape)
-	case posixExpression:
-		return pair(n.left, n.right)
-	case similarExpression:
-		return pair(n.left, n.right)
-	case similarEscapeExpression:
-		return pair(n.pattern, n.escape)
-	case posixSubstringExpression:
-		return args(n.args[:])
-	case similarSubstringExpression:
-		return args(n.args[:])
-	case regexpExpression:
-		return args(n.args)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return pair(n.Pattern, n.Escape)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		return pair(n.Left, n.Right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		return pair(n.Left, n.Right)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return pair(n.Pattern, n.Escape)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	case conditionalExpression:
 		return args(n.args)
 	case caseExpression:
@@ -760,46 +761,46 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			}
 		}
 		return nil
-	case binaryExpression:
-		return args(n.args)
-	case datetimeJustifyExpression:
-		return args(n.children())
-	case datetimeExtractExpression:
-		return args(n.children())
-	case datetimeOverlapsExpression:
-		return args(n.children())
-	case datetimeBinExpression:
-		return args(n.children())
-	case datetimeTruncExpression:
-		return args(n.children())
-	case datetimeZoneCalendarExpression:
-		return args(n.children())
-	case datetimeAgeFiniteExpression:
-		return args(n.children())
-	case datetimeMakeExpression:
-		return args(n.children())
-	case datetimeFormattingExpression:
-		return args(n.args[:])
-	case numericFormattingExpression:
-		return args(n.args[:])
-	case stringExpression:
-		return args(n.args)
-	case arraySearchExpression:
-		return args(n.args)
-	case enumFunctionExpression:
-		return args(n.args)
-	case mathExpression:
-		return args(n.args)
-	case nullCountExpression:
-		return args(n.args)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:])
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]BoundExpr{n.arg})
-	case jsonCreateExpression:
-		return args(n.args)
-	case stringVariadicExpression:
-		return args(n.args)
-	case formatExpression:
-		return args(n.args)
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		return args(n.Args)
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	default:
 		return fmt.Errorf("stuntgres: unsupported generation plan provider %T", node)
 	}

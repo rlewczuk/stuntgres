@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -6,10 +6,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type intervalAvgProvider struct{ usage sqltype.Usage }
+type IntervalAvg struct{ usage sqltype.Usage }
 
-func (p intervalAvgProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p intervalAvgProvider) Init(ctx context.Context) (any, error) {
+func NewIntervalAvg(usage sqltype.Usage) IntervalAvg              { return IntervalAvg{usage} }
+func (p IntervalAvg) Reconstruct(usage sqltype.Usage) IntervalAvg { return IntervalAvg{usage} }
+
+func (p IntervalAvg) ResultUsage() sqltype.Usage { return p.usage }
+func (p IntervalAvg) Init(ctx context.Context) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -19,7 +22,7 @@ func (p intervalAvgProvider) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p intervalAvgProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p IntervalAvg) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -35,7 +38,7 @@ func (p intervalAvgProvider) Advance(ctx context.Context, state any, value, _ sq
 	}
 	return ctx.Err()
 }
-func (p intervalAvgProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
+func (p IntervalAvg) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}

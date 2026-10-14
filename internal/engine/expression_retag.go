@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -111,11 +112,11 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
-	case regexpExpression:
-		n.regexpCall, err = n.regexpCall.mapChildren(view, info, child)
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
 		rebound = n
-	case regexpSetExpression:
-		n.regexpCall, err = n.regexpCall.mapChildren(view, info, child)
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
 		rebound = n
 	case seriesExpression:
 		n.args = children(n.args)
@@ -125,15 +126,15 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case jsonKeysExpression:
-		n.args = children(n.args)
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
 		if changed {
-			n.plan, err = sqltype.BindJSONKeys(n.plan.Name(), n.args[0].ResultUsage(), info.usage)
+			n, err = n.Reconstruct(functionInfo(info), n.Args)
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
 		rebound = n
 	case installedFunctionExpression:
 		n.arg = child(n.arg)
@@ -288,34 +289,35 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case uuidGenerationExpression:
-		if len(n.args) != 0 {
-			next := child(n.args[0])
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		if len(n.Args) != 0 {
+			next := child(n.Args[0])
 			if changed {
-				n.args = []BoundExpr{next}
+				n.Args = []BoundExpr{next}
 			}
-			nextType := retainedType(n.timestamp)
-			changed = changed || nextType != n.timestamp
-			n.timestamp = nextType
+			nextType := retainedType(n.Timestamp)
+			changed = changed || nextType != n.Timestamp
+			n.Timestamp = nextType
 			if err == nil {
-				n.addition, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, n.timestamp, n.args[0].ResultUsage().Type, n.timestamp)
+				n, err = n.Reconstruct(functionInfo(info), n.Args, n.Timestamp)
 			}
+		} else {
+			n.Info = functionInfo(info)
 		}
-		n.expressionInfo = info
 		rebound = n
-	case randomExpression:
-		n.args = children(n.args)
-		n.expressionInfo = info
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		n.Info = functionInfo(info)
 		rebound = n
-	case datetimeSleepExpression:
-		n.arg = child(n.arg)
-		clockType := retainedType(n.clockUsage.Type)
-		changed = changed || clockType != n.clockUsage.Type
-		n.clockUsage.Type = clockType
-		if err == nil && changed && n.kind == datetimeSleepInterval {
-			n.calendar, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, clockType, n.arg.ResultUsage().Type, clockType)
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		n.Arg = child(n.Arg)
+		clockType := retainedType(n.ClockUsage.Type)
+		changed = changed || clockType != n.ClockUsage.Type
+		n.ClockUsage.Type = clockType
+		if err == nil && changed {
+			n, err = n.Reconstruct(functionInfo(info), n.Arg, n.ClockUsage)
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
 		rebound = n
 	case advisoryExpression:
 		n.args = children(n.args)
@@ -408,159 +410,134 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case binaryExpression:
-		n.args = children(n.args)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
-		var usages [4]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return node, false, fmt.Errorf("stuntgres: invalid remapped binary argument")
 			}
-			usages[i] = arg.ResultUsage()
 		}
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, err = sqltype.BindBinary(n.plan.Name(), info.usage, usages[:len(n.args)]...)
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case datetimeJustifyExpression:
-		n.arg = child(n.arg)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		n.Arg = child(n.Arg)
 		if err != nil {
 			return node, false, err
 		}
-		plan, failure := n.plan.Retag(retainedType)
+		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Arg, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
-		changed = changed || plan != n.plan
+		changed = changed || planChanged
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, n.expressionInfo = plan, info
-		rebound = n
-	case datetimeExtractExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+		rebound = mapped
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
 		}
-		plan, failure := n.plan.Retag(retainedType)
+		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
-		changed = changed || plan != n.plan
+		changed = changed || planChanged
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, n.expressionInfo = plan, info
-		rebound = n
-	case datetimeOverlapsExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+		rebound = mapped
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
 		}
-		plan, failure := n.plan.Retag(retainedType)
+		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType, sqltype.Value.Retag)
 		if failure != nil {
 			return node, false, failure
 		}
-		for pair, value := range n.folded {
-			if value.Type() == nil {
-				continue
-			}
-			retagged, failure := value.Retag(plan.ArgumentType(pair * 2))
-			if failure != nil {
-				return node, false, failure
-			}
-			n.folded[pair], changed = retagged, changed || retagged != value
-		}
-		changed = changed || plan != n.plan
+		changed = changed || planChanged
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, n.expressionInfo = plan, info
-		rebound = n
-	case datetimeBinExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+		rebound = mapped
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
 		}
-		plan, failure := n.plan.Retag(retainedType)
+		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
-		changed = changed || plan != n.plan
+		changed = changed || planChanged
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, n.expressionInfo = plan, info
-		rebound = n
-	case datetimeTruncExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+		rebound = mapped
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
 		}
-		plan, failure := n.plan.Retag(retainedType)
+		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
-		changed = changed || plan != n.plan
+		changed = changed || planChanged
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, n.expressionInfo = plan, info
-		rebound = n
-	case datetimeZoneCalendarExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+		rebound = mapped
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
 		}
-		op := sqltype.ArithmeticAdd
-		if n.name == "date_subtract" {
-			op = sqltype.ArithmeticSubtract
-		}
-		provider, failure := sqltype.BindArithmetic(op, n.args[0].ResultUsage().Type, n.args[1].ResultUsage().Type, info.usage.Type)
+		mapped, providerChanged, failure := n.Reconstruct(functionInfo(info), n.Args)
 		if failure != nil {
 			return node, false, failure
 		}
-		changed = changed || provider != n.provider
+		changed = changed || providerChanged
 		if !changed {
 			return node, false, nil
 		}
-		n.provider, n.expressionInfo = provider, info
-		rebound = n
-	case datetimeAgeFiniteExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+		rebound = mapped
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
 		}
-		plan, failure := n.plan.Retag(retainedType)
+		mapped, planChanged, failure := n.Reconstruct(functionInfo(info), n.Args, retainedType)
 		if failure != nil {
 			return node, false, failure
 		}
-		changed = changed || plan != n.plan
+		changed = changed || planChanged
 		if !changed {
 			return node, false, nil
 		}
-		n.plan = plan
-		n.expressionInfo = info
-		rebound = n
-	case datetimeMakeExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+		rebound = mapped
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
@@ -568,12 +545,11 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, err = sqltype.BindDatetimeMake(n.plan.Name(), info.usage.Type, n.count)
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case datetimeFormattingExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
@@ -581,12 +557,11 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, err = n.plan.Retag(info.usage, n.args[0].ResultUsage())
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case numericFormattingExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		if err != nil {
 			return node, false, err
@@ -594,22 +569,19 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, err = n.plan.Retag(info.usage, n.args[0].ResultUsage())
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case stringExpression:
-		n.args = children(n.args)
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
-		var usages [4]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return node, false, fmt.Errorf("stuntgres: invalid remapped string argument")
 			}
-			usages[i] = arg.ResultUsage()
 		}
-		text := n.plan.TextUsage()
+		text := n.Plan.TextUsage()
 		text.Type = retainedType(text.Type)
 		if len(collations) != 0 && collations[0] != nil {
 			text.Collation, err = collations[0](text.Collation)
@@ -617,62 +589,54 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 				return nil, false, err
 			}
 		}
-		if !changed && text == n.plan.TextUsage() {
+		if !changed && text == n.Plan.TextUsage() {
 			return node, false, nil
 		}
-		n.plan, err = sqltype.BindString(n.plan.Name(), info.usage, text, usages[:len(n.args)], n.textual, n.plan.CollationIndeterminate())
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args, text)
 		rebound = n
-	case arraySearchExpression:
-		ref, conflict := n.plan.InputCollation()
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		ref, conflict := n.Plan.InputCollation()
 		ref = comparisonCollation(ref)
-		n.args = children(n.args)
-		array, integer := retainedType(n.plan.Array()), retainedType(n.plan.Integer())
-		changed = changed || array != n.plan.Array() || integer != n.plan.Integer()
+		n.Args = children(n.Args)
+		array, integer := retainedType(n.Plan.Array()), retainedType(n.Plan.Integer())
+		changed = changed || array != n.Plan.Array() || integer != n.Plan.Integer()
 		if err != nil {
 			return node, false, err
 		}
 		if !changed {
 			return node, false, nil
 		}
-		n.plan, err = sqltype.BindArraySearch(n.plan.Name(), array, info.usage.Type, integer, ref, conflict)
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args, array, info.usage.Type, integer, ref, conflict)
 		rebound = n
-	case enumFunctionExpression:
-		n.args = children(n.args)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
 		if !changed {
 			return node, false, nil
 		}
-		var usages [2]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return node, false, fmt.Errorf("stuntgres: invalid remapped enum argument")
 			}
-			usages[i] = arg.ResultUsage()
 		}
-		n.plan, err = sqltype.BindEnumSupport(n.plan.Name(), info.usage, usages[:len(n.args)]...)
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
-	case mathExpression:
-		n.args = children(n.args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
 		if !changed {
 			return node, false, nil
 		}
-		var usages [2]sqltype.Usage
-		for i, arg := range n.args {
+		for _, arg := range n.Args {
 			if arg == nil {
 				return node, false, fmt.Errorf("stuntgres: invalid remapped math argument")
 			}
-			usages[i] = arg.ResultUsage()
 		}
-		n.plan, err = sqltype.BindMath(n.plan.Name(), info.usage, usages[:len(n.args)]...)
-		n.expressionInfo = info
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
 	case visibilityInquiryExpression:
 		n.arg = child(n.arg)
@@ -682,33 +646,31 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case nullCountExpression:
-		n.args = children(n.args)
-		n.expressionInfo = info
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		n.Info = functionInfo(info)
 		rebound = n
-	case jsonCreateExpression:
-		n.args = children(n.args)
-		n.expressionInfo = info
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
 		if err == nil {
-			err = n.replan()
+			n, err = n.Reconstruct(functionInfo(info), n.Args)
 		}
 		rebound = n
-	case stringVariadicExpression:
-		n.args = append([]BoundExpr(nil), n.args...)
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		n.Args = append([]BoundExpr(nil), n.Args...)
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
-		if n.castPlanned && err == nil {
-			n.cast, err = sqltype.PlanCoercion(n.args[0].ResultUsage(), info.usage, sqltype.Explicit)
+		if err == nil {
+			n, err = n.Reconstruct(functionInfo(info), n.Args)
 		}
-		n.expressionInfo = info
 		rebound = n
-	case formatExpression:
-		n.args = children(n.args)
-		int4 := retainedType(n.int4)
-		changed = changed || int4 != n.int4
-		n.int4 = int4
-		n.expressionInfo = info
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		int4 := retainedType(n.Int4)
+		changed = changed || int4 != n.Int4
+		n.Int4 = int4
+		n.Info = functionInfo(info)
 		rebound = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)
@@ -781,11 +743,11 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	case identityExpression:
 		n.expressionInfo = info
 		rebound = n
-	case currentDateTimeExpression:
-		n.expressionInfo = info
+	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
+		n.Info = functionInfo(info)
 		rebound = n
-	case transactionTimeExpression:
-		n.expressionInfo = info
+	case functions.TransactionTime[*EvalContext, ExprProperties]:
+		n.Info = functionInfo(info)
 		rebound = n
 	case domainValueExpression:
 		if !changed {
@@ -814,15 +776,15 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.expressionInfo = info
 		rebound = n
-	case timeZoneExpression:
-		n.value = child(n.value)
-		if !n.local {
-			n.zone = child(n.zone)
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		n.Value = child(n.Value)
+		if !n.Local {
+			n.Zone = child(n.Zone)
 		}
 		if !changed {
 			return node, false, err
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
 		rebound = n
 	case collationExpression:
 		n.child = child(n.child)
@@ -890,91 +852,89 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.expressionInfo = info
 		rebound = n
-	case likeEscapeExpression:
-		n.pattern, n.escape = child(n.pattern), child(n.escape)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
-			info, err = collatedInfo(view, info, n.pattern, n.escape)
+			info, err = collatedInfo(view, info, n.Pattern, n.Escape)
 			if err == nil {
-				n.provider, err = sqltype.BindLikeEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), info.usage)
+				n, err = n.Reconstruct(functionInfo(info), n.Pattern, n.Escape)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
 		rebound = n
-	case posixExpression:
-		n.left, n.right = child(n.left), child(n.right)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
 			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{usage: n.left.ResultUsage(), pos: info.pos}, n.left, n.right)
+			collation, err = collatedInfo(view, expressionInfo{usage: n.Left.ResultUsage(), pos: info.pos}, n.Left, n.Right)
 			if err == nil {
-				n.provider, err = sqltype.BindPosix(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.usage, collation.usage.Collation, collation.collationConflict)
+				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.usage.Collation, collation.collationConflict)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
 		rebound = n
-	case similarExpression:
-		n.left, n.right = child(n.left), child(n.right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
 			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{usage: n.left.ResultUsage(), pos: info.pos}, n.left, n.right)
+			collation, err = collatedInfo(view, expressionInfo{usage: n.Left.ResultUsage(), pos: info.pos}, n.Left, n.Right)
 			if err == nil {
-				n.provider, err = sqltype.BindSimilar(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.usage, collation.usage.Collation, collation.collationConflict)
+				n, err = n.Reconstruct(functionInfo(info), n.Left, n.Right, collation.usage.Collation, collation.collationConflict)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
 		rebound = n
-	case similarEscapeExpression:
-		n.pattern, n.escape = child(n.pattern), child(n.escape)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
-			info, err = collatedInfo(view, info, n.pattern, n.escape)
+			info, err = collatedInfo(view, info, n.Pattern, n.Escape)
 			if err == nil {
-				n.provider, err = sqltype.BindSimilarEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), info.usage)
+				n, err = n.Reconstruct(functionInfo(info), n.Pattern, n.Escape)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
 		rebound = n
-	case posixSubstringExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
-		if !changed {
-			return node, false, err
-		}
-		if err == nil {
-			info, err = collatedInfo(view, info, n.args[:]...)
-			if err == nil {
-				usages := [2]sqltype.Usage{n.args[0].ResultUsage(), n.args[1].ResultUsage()}
-				n.provider, err = sqltype.BindPosixSubstring(usages, info.usage, info.usage.Collation, info.collationConflict)
-			}
-		}
-		n.expressionInfo = info
-		rebound = n
-	case similarSubstringExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		if !changed {
 			return node, false, err
 		}
 		if err == nil {
-			info, err = collatedInfo(view, info, n.args[:]...)
+			info, err = collatedInfo(view, info, n.Args[:]...)
 			if err == nil {
-				usages := [3]sqltype.Usage{n.args[0].ResultUsage(), n.args[1].ResultUsage(), n.args[2].ResultUsage()}
-				n.provider, err = sqltype.BindSimilarSubstring(usages, info.usage, n.provider.WrapperContext())
+				n, err = n.Reconstruct(functionInfo(info), n.Args)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = functionInfo(info)
+		rebound = n
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
+		}
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			info, err = collatedInfo(view, info, n.Args[:]...)
+			if err == nil {
+				n, err = n.Reconstruct(functionInfo(info), n.Args)
+			}
+		}
+		n.Info = functionInfo(info)
 		rebound = n
 	case rowComparisonExpression:
 		var pairs []comparisonExpression

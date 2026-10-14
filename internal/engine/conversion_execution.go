@@ -2,8 +2,6 @@ package engine
 
 import (
 	"fmt"
-
-	"stuntgres/internal/sqltype"
 )
 
 // Namespace order wins first, then the released default-index OID order within
@@ -41,37 +39,4 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*procedur
 		s.conversionDefaults = defaults
 	}
 	return s.conversionDefaults[[2]int{source, destination}].procedure, nil
-}
-
-func (e binaryExpression) evalConversion(c *EvalContext, values []sqltype.Value) (sqltype.Value, error) {
-	raw, sourceName, destinationName, null, err := e.plan.EncodingInput(c.Context, values...)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if null {
-		return sqltype.Null(e.usage.Type), nil
-	}
-	source, destination, unchanged, err := sqltype.PrepareBinaryEncoding(c.Context, raw, sourceName, destinationName)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if !unchanged {
-		procedure, err := c.liveScope().conversionProcedure(source, destination)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if procedure == nil {
-			return sqltype.Value{}, sqltype.MissingBinaryConversion(source, destination)
-		}
-		var consumed int
-		output, consumed, err := procedure.conversion.ConvertValidated(c.Context, raw, source, destination)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if consumed != len(raw) {
-			return sqltype.Value{}, sqlError("XX000", "encoding conversion function returned incorrect result")
-		}
-		raw = output
-	}
-	return e.plan.EncodingResult(raw)
 }

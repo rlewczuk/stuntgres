@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -81,7 +82,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := node.(datetimeBinExpression)
+		e := node.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
 		replacements := map[sqltype.ID]*sqltype.Descriptor{}
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -90,20 +91,23 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(datetimeBinExpression)
-		for i, arg := range rebound.args {
-			if arg.ResultUsage().Type == e.args[i].ResultUsage().Type {
+		rebound := next.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
+		for i, arg := range rebound.Args {
+			if arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 				t.Fatal("retained child authority")
 			}
 		}
 		v, err := rebound.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}})
-		n, failure := v.Timestamp()
-		if err != nil || failure != nil || n != -750000000 || v.Type() != replacements[e.usage.Type.ID()] {
-			t.Fatal(v, err, failure)
+		if err != nil || v.Type() != replacements[e.Usage.Type.ID()] {
+			t.Fatal(v, err)
 		}
-		for i := range e.args {
+		number, failure := v.Timestamp()
+		if failure != nil || number != -750000000 {
+			t.Fatal(id, v, failure)
+		}
+		for i := range e.Args {
 			null := e
-			null.args[i] = literalExpression{expressionInfo: b.info(e.args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(e.args[i].ResultUsage().Type)}
+			null.Args[i] = literalExpression{expressionInfo: b.info(e.Args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(e.Args[i].ResultUsage().Type)}
 			simplified, changed, err := simplifyConditional(&EvalContext{Context: context.Background()}, null, false)
 			if err != nil || !changed || !generationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
@@ -138,17 +142,17 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := node.(datetimeBinExpression)
+	e := node.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties])
 	column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
-	e.args[1] = column
-	e.properties.RowDependent = true
+	e.Args[1] = column
+	e.Property.RowDependent = true
 	var children []BoundExpr
 	boundExpressionChildren(e, func(arg BoundExpr) { children = append(children, arg) })
 	if len(children) != 3 || children[1] != column || !b.sameGroupExpression(e, e) {
 		t.Fatal(children)
 	}
 	different := e
-	different.args[1] = e.args[2]
+	different.Args[1] = e.Args[2]
 	if b.sameGroupExpression(e, different) {
 		t.Fatal("distinct children treated as equal")
 	}
@@ -156,14 +160,14 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil || !rewritten.Properties().StageDependent {
 		t.Fatal(rewritten, err)
 	}
-	if _, ok := rewritten.(datetimeBinExpression).args[1].(groupExpression); !ok {
+	if _, ok := rewritten.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]).Args[1].(groupExpression); !ok {
 		t.Fatal("group child not rewritten")
 	}
 	mapped, err := remapBoundExpression(e, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := mapped.(datetimeBinExpression).args[1].(columnExpression)
+	remapped := mapped.(functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]).Args[1].(columnExpression)
 	if remapped.origin.Address.ObjectID != 456 || remapped.slot != 2 {
 		t.Fatal(remapped)
 	}
@@ -174,7 +178,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), text, plan, sqltype.Explicit}
+	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), text, plan, sqltype.Explicit}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 )
 
@@ -81,9 +82,9 @@ func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog Catalo
 func frozenDotBuiltinSQL(captured compositeOccurrence, base string) (string, error) {
 	name := ""
 	switch captured.function {
-	case countNulls:
+	case functions.CountNulls:
 		name = "num_nulls"
-	case countNonnulls:
+	case functions.CountNonnulls:
 		name = "num_nonnulls"
 	default:
 		return "", fmt.Errorf("stuntgres: invalid rendered dot provider")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -191,23 +192,23 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		}
 		cursor.exhausted = dim.Length == 0
 		return cursor, nil
-	case jsonKeysExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
 		}
-		if len(call.args) != 1 {
+		if len(call.Args) != 1 {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSON keys arguments")
 		}
-		value, err := call.args[0].Eval(c)
+		value, err := call.Args[0].Eval(c)
 		if err != nil {
 			return functionSetCursor{}, err
 		}
-		cursor, err := call.plan.Open(c.Context, value)
+		cursor, err := call.Plan.Open(c.Context, value)
 		if err != nil {
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{keys: cursor, kind: functionJSONKeysCursor, initialized: true}, nil
-	case binaryExpression:
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		if !validFunctionSourceCall(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 		}
@@ -216,24 +217,24 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case regexpSetExpression:
-		values, err := call.evaluateSet(c)
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		values, err := call.EvalSet(c)
 		if err != nil {
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
-	case regexpExpression:
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
 		value, err := call.Eval(c)
 		if err != nil {
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case stringExpression:
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		if !isStringSet(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 		}
 		var values [4]sqltype.Value
-		for j, arg := range call.args {
+		for j, arg := range call.Args {
 			v, err := arg.Eval(c)
 			if err != nil {
 				return functionSetCursor{}, err
@@ -248,7 +249,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		output.Regproc = scope
 		output.Operator = scope
 		output.RegTS = scope
-		cursor, err := call.plan.OpenStringTable(c.Context, values, c.Input, output)
+		cursor, err := call.Plan.OpenStringTable(c.Context, values, c.Input, output)
 		if err != nil {
 			return functionSetCursor{}, err
 		}

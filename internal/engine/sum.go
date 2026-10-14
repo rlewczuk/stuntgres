@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -65,11 +66,11 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 func (b *expressionBinder) sumProvider(typ *sqltype.Descriptor) (aggregateProvider, aggregateOperation, error) {
 	switch typ.ID() {
 	case sqltype.Int2, sqltype.Int4:
-		return integralSumProvider{typ, b.typ(sqltype.Int8).Usage()}, aggregateIntegralSum, nil
+		return functions.NewIntegralSum(typ, b.typ(sqltype.Int8).Usage()), aggregateIntegralSum, nil
 	case sqltype.Int8, sqltype.Numeric:
-		return numericSumProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericSum, nil
+		return functions.NewNumericSum(typ, b.typ(sqltype.Numeric).Usage()), aggregateNumericSum, nil
 	case sqltype.Float4, sqltype.Float8:
-		return floatSumProvider{typ, typ.Usage()}, aggregateFloatSum, nil
+		return functions.NewFloatSum(typ, typ.Usage()), aggregateFloatSum, nil
 	case sqltype.Money:
 		bound, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, typ, typ, typ)
 		if err != nil {

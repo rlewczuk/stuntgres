@@ -38,6 +38,16 @@ See [namespace metadata](docs/TABLES.md#namespace-catalog-projection) and
 Feature smoke: `make check RUN='^TestReferencePGNamespaceFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGNamespaceFeatureSmoke$'`.
 
+## Builtin function package split — change note
+
+`internal/engine/functions` owns builtin-specific signature and argument rules,
+immutable scalar call carriers, evaluation semantics and aggregate provider state
+algorithms. It reuses `internal/sqltype` plans, codecs and values.
+The engine retains generic binding, catalog/ACL/dependency and parameter/result
+contracts, physical-session state, transactions and relational execution.
+This is a package cutover, not a SQL compatibility expansion; see the
+[functions package boundary and testing notes](internal/engine/functions/README.md).
+
 ## Constraint catalog metadata — change note
 
 `pg_catalog.pg_constraint` exposes the PostgreSQL 18 28-column catalog shape for

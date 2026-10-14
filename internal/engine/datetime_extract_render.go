@@ -1,19 +1,22 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/parser"
+)
 
 // Logical replay uses the existing SQL literal encoder for the field. Public
 // PG deparse intentionally uses raw field text instead, matching ruleutils.
-func (e datetimeExtractExpression) logicalSQL(ordinary string, child func(BoundExpr) (string, error)) (string, error) {
-	field, err := child(e.args[0])
+func datetimeExtractLogicalSQL(e functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties], ordinary string, child func(BoundExpr) (string, error)) (string, error) {
+	field, err := child(e.Args[0])
 	if err != nil {
 		return "", err
 	}
-	source, err := child(e.args[1])
+	source, err := child(e.Args[1])
 	if err != nil {
 		return "", err
 	}
-	if e.syntax == parser.SQLFunctionSyntax {
+	if e.Syntax == parser.SQLFunctionSyntax {
 		return "EXTRACT(" + field + " FROM " + source + ")", nil
 	}
 	return ordinary + "(" + field + ", " + source + ")", nil

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 )
 
@@ -26,14 +27,14 @@ func renderOverlapsCall[T any](syntax parser.FunctionSyntax, args []T, ordinary 
 	return ordinary + "(" + parts[0] + ", " + parts[1] + ", " + parts[2] + ", " + parts[3] + ")", nil
 }
 
-func (e datetimeOverlapsExpression) logicalSQL(child func(BoundExpr) (string, error)) (string, error) {
-	return renderOverlapsCall(e.syntax, e.args[:], "pg_catalog.overlaps", func(_ int, arg BoundExpr) (string, error) { return child(arg) })
+func datetimeOverlapsLogicalSQL(e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (string, error)) (string, error) {
+	return renderOverlapsCall(e.Syntax, e.Args[:], "pg_catalog.overlaps", func(_ int, arg BoundExpr) (string, error) { return child(arg) })
 }
 
-func (e datetimeOverlapsExpression) publicSQL(ctx context.Context, r pgRenderer, child func(BoundExpr) (string, error)) (string, error) {
-	local := e.plan.LocalClock()
-	return renderOverlapsCall(e.syntax, e.args[:], quoteIdentifier("overlaps"), func(i int, arg BoundExpr) (string, error) {
-		if e.syntax == parser.SQLFunctionSyntax {
+func datetimeOverlapsPublicSQL(e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties], ctx context.Context, r pgRenderer, child func(BoundExpr) (string, error)) (string, error) {
+	local := e.Plan.LocalClock()
+	return renderOverlapsCall(e.Syntax, e.Args[:], quoteIdentifier("overlaps"), func(i int, arg BoundExpr) (string, error) {
+		if e.Syntax == parser.SQLFunctionSyntax {
 			return child(arg)
 		}
 		argRenderer := r
@@ -45,7 +46,7 @@ func (e datetimeOverlapsExpression) publicSQL(ctx context.Context, r pgRenderer,
 		if local[i] {
 			_, column := arg.(columnExpression)
 			_, literal := arg.(literalExpression)
-			return r.cast(text, e.plan.SignatureType(i).Usage(), column || literal)
+			return r.cast(text, e.Plan.SignatureType(i).Usage(), column || literal)
 		}
 		return text, nil
 	})

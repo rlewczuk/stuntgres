@@ -1,28 +1,13 @@
 package engine
 
 import (
-	"fmt"
-
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
-
-type jsonKeysExpression struct {
-	expressionInfo
-	plan sqltype.JSONKeysPlan
-	args []BoundExpr // Exactly one analyzed child; reused by the closed SRF lane.
-}
-
-func (e jsonKeysExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSON keys set call")
-}
 
 func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var operand comparisonOperand
+	var operand functions.Argument[BoundExpr]
 	var singleName [1]string
 	var names []string
 	if len(raw.Args) <= 1 {
@@ -31,13 +16,13 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		names = make([]string, len(raw.Args))
 	}
 	for i, r := range raw.Args {
-		o, err := b.stringOperand(r, false)
+		o, err := b.AnalyzeArgument(r, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
 		if err != nil {
 			return nil, err
 		}
 		if names != nil {
 			names[i] = "unknown"
-			if d := o.descriptor(); d != nil {
+			if d := o.Usage.Type; d != nil {
 				names[i] = b.diagnosticTypeName(d)
 			}
 			names[i] = functionNamedType(raw, i, names[i])
@@ -55,32 +40,15 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	if !visible || len(raw.Args) != 1 || len(raw.ArgNames) != 0 {
+	definition, resolution := functions.JSONFunctionCall(name, visible, len(raw.Args), len(raw.ArgNames))
+	if resolution != functions.Resolved {
 		return missing()
 	}
-	id, result, keys := sqltype.JSON, sqltype.Text, false
-	switch name {
-	case "json_typeof":
-	case "jsonb_typeof":
-		id = sqltype.JSONB
-	case "json_array_length":
-		result = sqltype.Int4
-	case "jsonb_array_length":
-		id, result = sqltype.JSONB, sqltype.Int4
-	case "json_object_keys":
-		keys = true
-	case "jsonb_object_keys":
-		id, keys = sqltype.JSONB, true
-	default:
+	input := b.typ(definition.Input)
+	if functions.ResolveJSONArgument(operand.Usage, input.Usage()) != functions.Resolved {
 		return missing()
 	}
-	input := b.typ(id)
-	if operand.descriptor() != nil {
-		if _, err := sqltype.PlanCoercion(operand.node.ResultUsage(), input.Usage(), sqltype.Implicit); err != nil {
-			return missing()
-		}
-	}
-	arg, err := b.likeOperand(operand, input)
+	arg, err := b.CoerceArgument(operand, functions.CoercionRequest{Intent: definition.ArgumentIntent, Target: input.Usage()})
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +71,8 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		return nil, expressionError("42809", decoration+" specified, but "+diagnosticName+" is "+message, raw.Pos)
 	}
 	properties := arg.Properties()
-	usage := b.typ(result).Usage()
-	if keys {
+	usage := b.typ(definition.Result).Usage()
+	if definition.Keys {
 		if err := b.stringSetAllowed(raw.Pos); err != nil {
 			return nil, err
 		}
@@ -113,15 +81,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
-		plan, err := sqltype.BindJSONKeys(name, arg.ResultUsage(), usage)
-		if err != nil {
-			return nil, err
-		}
-		return jsonKeysExpression{expressionInfo: b.info(usage, raw.Pos, properties), plan: plan, args: []BoundExpr{arg}}, nil
+		return functions.NewJSONKeys[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
 	}
-	plan, err := sqltype.BindBinary(name, usage, arg.ResultUsage())
-	if err != nil {
-		return nil, err
-	}
-	return binaryExpression{expressionInfo: b.info(usage, raw.Pos, properties), plan: plan, args: []BoundExpr{arg}}, nil
+	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)
 }

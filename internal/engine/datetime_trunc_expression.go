@@ -4,41 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type datetimeTruncExpression struct {
-	expressionInfo
-	plan  sqltype.DatetimeTruncPlan
-	args  [3]BoundExpr
-	count int
-}
-
-func (e datetimeTruncExpression) children() []BoundExpr { return e.args[:e.count] }
-func (e datetimeTruncExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	var values [3]sqltype.Value
-	for i, arg := range e.children() {
-		v, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		values[i] = v
-	}
-	return e.plan.Evaluate(c.Context, values[:e.count], c.Input)
-}
 func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [3]comparisonOperand
+	var small [3]functions.Argument[BoundExpr]
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
-		operands = make([]comparisonOperand, len(raw.Args))
+		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.comparisonOperand(arg)
+		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -52,87 +31,30 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 	names := func() []string {
 		result := make([]string, len(operands))
 		for i, o := range operands {
-			result[i] = datetimeFormattingTypeName(o)
+			result[i] = datetimeFormattingTypeName(o.Usage.Type)
 		}
 		return result
 	}
 	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names()) }
-	if !visible || raw.Variadic || (len(operands) != 2 && len(operands) != 3) {
+	prepared := functions.PrepareDatetimeTrunc(visible, raw.Variadic, operands)
+	selection := functions.ResolveDatetimeTrunc(prepared, operands, b.temporalTypesForDemand(prepared.Demand))
+	if selection.Resolution == functions.Missing {
 		return signature()
 	}
-	for _, i := range []int{0, 2} {
-		if i >= len(operands) {
-			continue
-		}
-		if d := operands[i].descriptor(); d != nil && d.BaseType().ID() != sqltype.Text {
-			if _, err := sqltype.PlanCoercion(operands[i].node.ResultUsage(), b.typ(sqltype.Text).Usage(), sqltype.Implicit); err != nil {
-				return signature()
-			}
-		}
+	if selection.Resolution == functions.Ambiguous {
+		names := names()
+		err := expressionError("42725", fmt.Sprintf("function %s(%s) is not unique", objectNameText(raw.Name), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
+		err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
+		return nil, err
 	}
-	selected := sqltype.Timestamptz
-	if len(operands) == 3 {
-		if d := operands[1].descriptor(); d != nil {
-			source := d.BaseType().ID()
-			if source == sqltype.Timestamp || source == sqltype.Date {
-				return nil, expressionError("0A000", "date_trunc with time zone requires timestamp with time zone", raw.Pos)
-			}
-			if source != sqltype.Timestamptz {
-				return signature()
-			}
-		}
-	} else {
-		candidates := [3]sqltype.ID{sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval}
-		var viable [3]bool
-		bestExact, bestPreferred := -1, -1
-		for i, id := range candidates {
-			exact, preferred := 0, 0
-			if d := operands[1].descriptor(); d != nil {
-				source := d.BaseType().ID()
-				if source == id {
-					exact = 1
-				} else {
-					if !(source == sqltype.Time && id == sqltype.Interval) {
-						if _, err := sqltype.PlanCoercion(operands[1].node.ResultUsage(), b.typ(id).Usage(), sqltype.Implicit); err != nil {
-							continue
-						}
-					}
-					if id == sqltype.Timestamptz {
-						preferred = 1
-					}
-				}
-			}
-			if exact > bestExact || exact == bestExact && preferred > bestPreferred {
-				viable = [3]bool{}
-				bestExact, bestPreferred = exact, preferred
-			}
-			if exact == bestExact && preferred == bestPreferred {
-				viable[i] = true
-			}
-		}
-		matches := 0
-		for i, id := range candidates {
-			if viable[i] {
-				selected = id
-				matches++
-			}
-		}
-		if matches == 0 {
-			return signature()
-		}
-		if matches > 1 {
-			err := expressionError("42725", fmt.Sprintf("function %s(%s) is not unique", objectNameText(raw.Name), strings.Join(names(), ", ")), raw.Pos).(*sqlstate.Error)
-			err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
-			return nil, err
-		}
+	if selection.Unsupported != "" {
+		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
-	input := selected
-	if d := operands[1].descriptor(); selected == sqltype.Interval && d != nil && d.BaseType().ID() == sqltype.Time {
-		input = sqltype.Time
-	}
-	e := datetimeTruncExpression{count: len(operands)}
+	selected := selection.Selected
+	input := selection.Input
+	e := functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]{Count: len(operands)}
 	properties := ExprProperties{Volatility: Immutable}
-	if selected == sqltype.Timestamptz && e.count == 2 {
+	if functions.DatetimeTruncIntrinsicStable(selected, e.Count) {
 		properties.Volatility = Stable
 	}
 	for i, o := range operands {
@@ -141,18 +63,11 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 			id = input
 		}
 		target := b.typ(id)
-		arg, err := b.finalizeOperand(o, target)
+		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
-		if arg.ResultUsage() != target.Usage() {
-			plan, err := sqltype.PlanCoercion(arg.ResultUsage(), target.Usage(), sqltype.Implicit)
-			if err != nil {
-				return nil, err
-			}
-			arg = coercionExpression{b.info(target.Usage(), arg.SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit}
-		}
-		e.args[i] = arg
+		e.Args[i] = arg
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
 		properties.RowDependent = properties.RowDependent || p.RowDependent
@@ -161,15 +76,15 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	e.expressionInfo = b.info(b.typ(selected).Usage(), raw.Pos, properties)
+	e.Info = functionInfo(b.info(b.typ(selected).Usage(), raw.Pos, properties))
 	var zone *sqltype.Descriptor
-	if e.count == 3 {
+	if e.Count == 3 {
 		zone = b.typ(sqltype.Text)
 	}
-	plan, err := sqltype.BindDatetimeTrunc(b.typ(sqltype.Text), b.typ(input), e.usage.Type, zone)
+	plan, err := sqltype.BindDatetimeTrunc(b.typ(sqltype.Text), b.typ(input), e.Usage.Type, zone)
 	if err != nil {
 		return nil, err
 	}
-	e.plan = plan
+	e.Plan = plan
 	return e, nil
 }

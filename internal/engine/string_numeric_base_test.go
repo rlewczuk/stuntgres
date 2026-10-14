@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -33,15 +34,15 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected, ok := node.(stringExpression)
-		if !ok || selected.plan.ArgumentUsage(0).Type.ID() != id || selected.ResultUsage().Type.ID() != sqltype.Text || selected.Properties().Volatility != Immutable {
+		selected, ok := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || selected.Plan.ArgumentUsage(0).Type.ID() != id || selected.ResultUsage().Type.ID() != sqltype.Text || selected.Properties().Volatility != Immutable {
 			t.Fatal(node)
 		}
 		v, err := sqltype.Integer(b.typ(id), -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected.args[0] = literalExpression{expressionInfo: expressionInfo{usage: b.typ(id).Usage()}, value: v}
+		selected.Args[0] = literalExpression{expressionInfo: expressionInfo{usage: b.typ(id).Usage()}, value: v}
 		replacements := make(map[sqltype.ID]*sqltype.Descriptor)
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -50,23 +51,26 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		next := rebound.(stringExpression)
-		if next.plan.ArgumentUsage(0).Type != replacements[id] || next.ResultUsage().Type != replacements[sqltype.Text] {
+		next := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		if next.Plan.ArgumentUsage(0).Type != replacements[id] || next.ResultUsage().Type != replacements[sqltype.Text] {
 			t.Fatal(next)
 		}
 		got, err := next.Eval(&EvalContext{Context: context.Background()})
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := got.Text()
+		actual, failure := got.Text()
 		want := "ffffffff"
 		if id == sqltype.Int8 {
 			want = "ffffffffffffffff"
 		}
-		if err != nil || text != want {
-			t.Fatal(text, err)
+		if failure != nil || actual != want {
+			t.Fatal(id, actual, failure)
 		}
-		if selected.plan.ArgumentUsage(0).Type != b.typ(id) {
+		if got.Type() != replacements[sqltype.Text] {
+			t.Fatal("retained result generation", got)
+		}
+		if selected.Plan.ArgumentUsage(0).Type != b.typ(id) {
 			t.Fatal("source provider mutated")
 		}
 	}
@@ -90,14 +94,14 @@ func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	next := rebound.(stringExpression)
+	next := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
 	got, err := next.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || got.Type() != replacements[sqltype.Text] {
 		t.Fatal(got, err)
 	}
-	text, err := got.Text()
-	if err != nil || text != "900150983cd24fb0d6963f7d28e17f72" {
-		t.Fatal(text, err)
+	actual, failure := got.Text()
+	if failure != nil || actual != "900150983cd24fb0d6963f7d28e17f72" {
+		t.Fatal(actual, failure)
 	}
 }
 
@@ -139,13 +143,13 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 						t.Fatal(canonical, err)
 					}
 					for _, node := range []BoundExpr{original, replayed} {
-						selected := node.(stringExpression)
+						selected := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
 						id, want := sqltype.Int4, tc.int4
 						if width == "bigint" {
 							id, want = sqltype.Int8, tc.int8
 						}
-						if selected.plan.ArgumentUsage(0).Type.ID() != id {
-							t.Fatal("replay changed selected width", canonical, selected.plan.ArgumentUsage(0))
+						if selected.Plan.ArgumentUsage(0).Type.ID() != id {
+							t.Fatal("replay changed selected width", canonical, selected.Plan.ArgumentUsage(0))
 						}
 						value, err := node.Eval(&EvalContext{Context: ctx})
 						if err != nil || value.Type() != b.typ(sqltype.Text) || value.IsNull() != (input == "NULL") {
@@ -183,12 +187,8 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		if err != nil || value.Type() != b.typ(sqltype.Text) || value.IsNull() != null {
 			t.Fatal(value, err)
 		}
-		if !null {
-			got, err := value.Text()
-			if err != nil || got != "0cc175b9c0f1b6a831c399e269772661" {
-				t.Fatal(got, err)
-			}
-		}
+		// Exact CHAR MD5/NULL vectors are local; actual special-role admission,
+		// result/NULL identity and generic CHAR rejection stay in this owner test.
 		for _, textual := range []bool{false, true} {
 			_, err := b.stringOperand(cast, textual)
 			if textual && err != nil {

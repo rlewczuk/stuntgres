@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -75,7 +76,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(expression, err)
 		}
-		leaf := node.(nullCountExpression).args[0].(literalExpression)
+		leaf := node.(functions.NullCount[BoundExpr, *EvalContext, ExprProperties]).Args[0].(literalExpression)
 		if !leaf.unknownNull || !leaf.value.IsNull() || leaf.usage.Type.ID() != sqltype.Text {
 			t.Fatal(leaf)
 		}
@@ -223,7 +224,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf := node.(nullCountExpression).args[0].(literalExpression)
+	leaf := node.(functions.NullCount[BoundExpr, *EvalContext, ExprProperties]).Args[0].(literalExpression)
 	if leaf.unknownNull || leaf.usage.Type.ID() != sqltype.Int4 || !leaf.value.IsNull() {
 		t.Fatal(leaf)
 	}
@@ -249,12 +250,12 @@ func TestDeparseConstraintsReviewTypedIntervalZoneProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conversion := node.(timeZoneExpression)
+	conversion := node.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
 	value, err := conversion.Eval(&EvalContext{Context: context.Background()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected, err := conversion.usage.Type.Input(context.Background(), "2026-10-07 22:00:00+00", -1)
+	expected, err := conversion.Usage.Type.Input(context.Background(), "2026-10-07 22:00:00+00", -1)
 	if err != nil {
 		t.Fatal(err)
 	}

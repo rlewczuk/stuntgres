@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -521,7 +522,7 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	}
 	var children []BoundExpr
 	switch e := expr.(type) {
-	case literalExpression, parameterExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
+	case literalExpression, parameterExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		return 0, nil
 	case rowExpression:
 		children = e.fields
@@ -597,74 +598,74 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = []BoundExpr{e.left, e.right}
 	case likeExpression:
 		children = []BoundExpr{e.left, e.right}
-	case likeEscapeExpression:
-		children = []BoundExpr{e.pattern, e.escape}
-	case posixExpression:
-		children = []BoundExpr{e.left, e.right}
-	case similarExpression:
-		children = []BoundExpr{e.left, e.right}
-	case similarEscapeExpression:
-		children = []BoundExpr{e.pattern, e.escape}
-	case posixSubstringExpression:
-		children = e.args[:]
-	case similarSubstringExpression:
-		children = e.args[:]
-	case regexpExpression:
-		children = e.args
-	case regexpSetExpression:
-		children = e.args
-	case jsonKeysExpression:
-		children = e.args
 	case seriesExpression:
 		children = e.args
 	case subscriptsExpression:
 		children = e.args
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		children = []BoundExpr{e.Pattern, e.Escape}
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		children = []BoundExpr{e.Left, e.Right}
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		children = []BoundExpr{e.Left, e.Right}
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		children = []BoundExpr{e.Pattern, e.Escape}
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args[:]
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args[:]
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
 	case nullTestExpression:
 		children = []BoundExpr{e.child}
 	case truthTestExpression:
 		children = []BoundExpr{e.child}
-	case timeZoneExpression:
-		children = []BoundExpr{e.value, e.zone}
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		children = []BoundExpr{e.Value, e.Zone}
 	case conditionalExpression:
 		children = e.args
-	case binaryExpression:
-		children = e.args
-	case datetimeJustifyExpression:
-		children = e.children()
-	case datetimeExtractExpression:
-		children = e.children()
-	case datetimeOverlapsExpression:
-		children = e.children()
-	case datetimeBinExpression:
-		children = e.children()
-	case datetimeTruncExpression:
-		children = e.children()
-	case datetimeZoneCalendarExpression:
-		children = e.children()
-	case datetimeAgeFiniteExpression:
-		children = e.children()
-	case datetimeMakeExpression:
-		children = e.children()
-	case datetimeFormattingExpression:
-		children = e.args[:]
-	case numericFormattingExpression:
-		children = e.args[:]
-	case stringExpression:
-		children = e.args
-	case arraySearchExpression:
-		children = e.args
-	case enumFunctionExpression:
-		children = e.args
-	case mathExpression:
-		children = e.args
-	case randomExpression:
-		children = e.args
-	case datetimeSleepExpression:
-		children = []BoundExpr{e.arg}
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args[:]
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args[:]
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		children = []BoundExpr{e.Arg}
 	case advisoryExpression:
 		children = e.args
-	case uuidGenerationExpression:
-		children = e.args
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
 	case sequenceCallExpression:
 		children = e.args
 	case indexPropertyExpression:
@@ -673,16 +674,16 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case commentInquiryExpression:
 		children = e.args
-	case nullCountExpression:
-		children = e.args
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
 	case installedFunctionExpression:
 		children = []BoundExpr{e.arg}
-	case jsonCreateExpression:
-		children = e.args
-	case stringVariadicExpression:
-		children = e.args
-	case formatExpression:
-		children = e.args
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		children = e.Args
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
 	case currentSchemasExpression:
 		children = []BoundExpr{e.arg}
 	case visibilityInquiryExpression:

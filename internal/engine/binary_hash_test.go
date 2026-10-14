@@ -2,8 +2,7 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -34,27 +33,19 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var order []int
-			expr := binaryExpression{expressionInfo: expressionInfo{usage: u}, plan: p, args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: value, order: &order, index: 0}}}
+			// Local child units own runtime order/error propagation; retain
+			// real owner remap and exact payload comparison here.
+			expr := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: u}), Plan: p, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: value}}}
 			got, err := expr.Eval(&EvalContext{Context: context.Background()})
-			if err != nil || !reflect.DeepEqual(order, []int{0}) || got.Type() != u.Type {
-				t.Fatal(got, order, err)
+			if err != nil {
+				t.Fatal(err)
 			}
-			failure := errors.New("hash child failure")
-			expr.args[0] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, err: failure, order: &order, index: 0}
-			order = nil
-			if _, err := expr.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0}) {
-				t.Fatal(order, err)
-			}
-			// Stored replay changes descriptor owners but preserves payload/properties
-			// and rebuilds the same BinaryPlan rather than another expression family.
-			expr.args[0] = literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: value}
 			rebound, changed, err := retagBoundTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			next, ok := rebound.(binaryExpression)
-			if !ok || next.plan.Name() != name || next.plan.ResultUsage().Type != replacement[id] || next.args[0].ResultUsage().Type != replacement[sqltype.Bytea] {
+			next, ok := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			if !ok || next.Plan.Name() != name || next.Plan.ResultUsage().Type != replacement[id] || next.Args[0].ResultUsage().Type != replacement[sqltype.Bytea] {
 				t.Fatal(rebound)
 			}
 			result, err := next.Eval(&EvalContext{Context: context.Background()})
@@ -65,7 +56,7 @@ func TestBinaryHashCarrierEvaluationAndRetag(t *testing.T) {
 			if err != nil || result != retagged {
 				t.Fatal(result, retagged, err)
 			}
-			if expr.plan.ResultUsage().Type != types[id] || expr.args[0].ResultUsage().Type != d {
+			if expr.Plan.ResultUsage().Type != types[id] || expr.Args[0].ResultUsage().Type != d {
 				t.Fatal("source carrier mutated")
 			}
 		})

@@ -1,88 +1,10 @@
 package engine
 
 import (
-	"context"
-	"fmt"
-	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-type stringAggregateProvider struct{ usage sqltype.Usage }
-type stringAggregateState struct {
-	typ    *sqltype.Descriptor
-	seen   bool
-	output strings.Builder
-}
-
-func (p stringAggregateProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p stringAggregateProvider) valid() bool {
-	return p.usage.Type != nil && (p.usage.Type.ID() == sqltype.Text || p.usage.Type.ID() == sqltype.Bytea)
-}
-func (p stringAggregateProvider) Init(ctx context.Context) (any, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if !p.valid() {
-		return nil, fmt.Errorf("stuntgres: invalid string aggregate descriptor")
-	}
-	return &stringAggregateState{typ: p.usage.Type}, nil
-}
-func (p stringAggregateProvider) Advance(ctx context.Context, state any, value, separator sqltype.Value) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	s, ok := state.(*stringAggregateState)
-	if !ok || s == nil || !p.valid() || s.typ != p.usage.Type {
-		return fmt.Errorf("stuntgres: invalid string aggregate state")
-	}
-	if value.Type() != p.usage.Type || separator.Type() != p.usage.Type {
-		return fmt.Errorf("stuntgres: invalid string aggregate datum")
-	}
-	if value.IsNull() {
-		return nil
-	}
-	payload := func(v sqltype.Value) (string, error) {
-		if p.usage.Type.ID() == sqltype.Bytea {
-			return v.Binary()
-		}
-		return v.Text()
-	}
-	v, err := payload(value)
-	if err != nil {
-		return err
-	}
-	var d string
-	if s.seen && !separator.IsNull() {
-		d, err = payload(separator)
-		if err != nil {
-			return err
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	s.output.WriteString(d)
-	s.output.WriteString(v)
-	s.seen = true
-	return ctx.Err()
-}
-func (p stringAggregateProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
-		return sqltype.Value{}, err
-	}
-	s, ok := state.(*stringAggregateState)
-	if !ok || s == nil || !p.valid() || s.typ != p.usage.Type {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid string aggregate state")
-	}
-	if !s.seen {
-		return sqltype.Null(p.usage.Type), nil
-	}
-	if p.usage.Type.ID() == sqltype.Bytea {
-		return sqltype.Binary(p.usage.Type, s.output.String())
-	}
-	return sqltype.String(p.usage.Type, s.output.String()), nil
-}
 
 func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
 	var small [2]comparisonOperand
@@ -123,7 +45,7 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	if err != nil {
 		return nil, err
 	}
-	call := aggregateCall{provider: stringAggregateProvider{info.usage}, argument: value, separator: separator, operation: aggregateString}
+	call := aggregateCall{provider: functions.NewStringAggregateProvider(info.usage), argument: value, separator: separator, operation: aggregateString}
 	return b.finishAggregate(raw, call, filter, info)
 }
 

@@ -4,120 +4,36 @@ import (
 	"fmt"
 	"time"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type transactionTimeKind uint8
-
-const (
-	transactionTimeNow transactionTimeKind = iota + 1
-	transactionTimeTransaction
-	transactionTimeStatement
-	transactionTimeClock
-	transactionTimeOfDay
-)
-
-func transactionTimeName(kind transactionTimeKind) string {
-	switch kind {
-	case transactionTimeNow:
-		return "now"
-	case transactionTimeTransaction:
-		return "transaction_timestamp"
-	case transactionTimeStatement:
-		return "statement_timestamp"
-	case transactionTimeClock:
-		return "clock_timestamp"
-	case transactionTimeOfDay:
-		return "timeofday"
+func (c *EvalContext) FunctionStatementTime() (time.Time, error) {
+	scope := c.liveScope()
+	if scope == nil {
+		return time.Time{}, fmt.Errorf("stuntgres: missing statement time scope")
 	}
-	return ""
+	stamp := scope.statementStart
+	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
+		stamp = c.query.source.authority.expression.statementStart
+	}
+	return stamp, nil
 }
-func transactionTimeKindForName(name string) transactionTimeKind {
-	switch name {
-	case "now":
-		return transactionTimeNow
-	case "transaction_timestamp":
-		return transactionTimeTransaction
-	case "statement_timestamp":
-		return transactionTimeStatement
-	case "clock_timestamp":
-		return transactionTimeClock
-	case "timeofday":
-		return transactionTimeOfDay
-	}
-	return 0
+func (c *EvalContext) FunctionWallTime() time.Time {
+	return time.Now().UTC().Truncate(time.Microsecond)
 }
-func transactionTimeProperties(kind transactionTimeKind) ExprProperties {
-	if kind == transactionTimeClock || kind == transactionTimeOfDay {
-		return ExprProperties{Volatility: Volatile}
-	}
-	return ExprProperties{Volatility: Stable}
+func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
+	return c.Input.Zone
 }
-func transactionTimeType(kind transactionTimeKind) sqltype.ID {
-	if kind == transactionTimeOfDay {
-		return sqltype.Text
-	}
-	return sqltype.Timestamptz
-}
-
-type transactionTimeExpression struct {
-	expressionInfo
-	kind transactionTimeKind
-}
-
-func validateTransactionTime(e transactionTimeExpression) error {
-	if transactionTimeName(e.kind) == "" || e.usage.Type == nil || !e.usage.Valid() || e.usage.Type.ID() != transactionTimeType(e.kind) || e.usage.Typmod != -1 || e.Properties() != transactionTimeProperties(e.kind) {
-		return fmt.Errorf("stuntgres: invalid transaction time expression")
-	}
-	return nil
-}
-func (e transactionTimeExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if err := validateTransactionTime(e); err != nil {
-		return sqltype.Value{}, err
-	}
-	stamp := c.Input.TransactionStart
-	switch e.kind {
-	case transactionTimeStatement:
-		if c.liveScope() == nil {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: missing statement time scope")
-		}
-		stamp = c.liveScope().statementStart
-		if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
-			stamp = c.query.source.authority.expression.statementStart
-		}
-	case transactionTimeClock, transactionTimeOfDay:
-		stamp = time.Now().UTC().Truncate(time.Microsecond)
-	}
-	if e.kind == transactionTimeOfDay {
-		return sqltype.String(e.usage.Type, transactionTimeOfDayText(stamp, c.Input.Zone)), nil
-	}
-	input := c.Input
-	input.TransactionStart = stamp
-	return sqltype.CurrentDateTime(e.usage, input)
-}
-
-// OffsetAt owns both the civil offset and abbreviation. In particular, a POSIX
-// offset zone may have an empty abbreviation, leaving the final space intact.
-func transactionTimeOfDayText(stamp time.Time, zone *sqltype.Zone) string {
-	east, abbreviation := zone.OffsetAt(stamp.Unix())
-	local := stamp.UTC().Add(time.Duration(east) * time.Second)
-	var buffer [96]byte
-	text := local.AppendFormat(buffer[:0], "Mon Jan 02 15:04:05.000000 2006 ")
-	text = append(text, abbreviation...)
-	return string(text)
-}
-func (e transactionTimeExpression) sql() (string, error) {
-	if err := validateTransactionTime(e); err != nil {
+func transactionTimeSQL(e functions.TransactionTime[*EvalContext, ExprProperties]) (string, error) {
+	if err := e.Validate(functionPropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return "", err
 	}
-	return transactionTimeName(e.kind) + "()", nil
+	return e.Kind.Name() + "()", nil
 }
 func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundExpr, error) {
-	kind := transactionTimeKindForName(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	kind := functions.TransactionTimeKindForName(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	var names []string
 	if len(raw.Args) != 0 {
 		var err error
@@ -134,45 +50,35 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
+	issue := functions.FunctionLabels(raw)
+	switch {
+	case issue.Malformed:
 		return nil, fmt.Errorf("invalid function argument labels")
-	}
-	named := false
-	for i, label := range raw.ArgNames {
-		if label.Text == "" {
-			if named {
-				return nil, expressionError("42601", "positional argument cannot follow named argument", raw.Args[i].SourcePosition())
-			}
-			continue
-		}
-		named = true
-		for _, previous := range raw.ArgNames[:i] {
-			if previous.Text == label.Text {
-				return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", label.Text), label.Pos)
-			}
-		}
+	case issue.Positional:
+		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
+	case issue.Duplicate != "":
+		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
 		return nil, err
 	}
-	if !visible || kind == 0 || len(raw.Args) != 0 || raw.Variadic || len(raw.ArgNames) != 0 {
+	if !functions.TransactionTimeAllowed(raw, visible, kind) {
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
-	name := transactionTimeName(kind)
-	switch {
-	case raw.Star:
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
-	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
-	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
-	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
-	case raw.Window != nil:
-		return nil, expressionError("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
+	name := kind.Name()
+	if decoration := functions.TransactionTimeDecoration(raw); decoration != "" {
+		if decoration == "(*)" {
+			return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		}
+		owner := "an aggregate function"
+		if decoration == "OVER" {
+			owner = "a window function nor an aggregate function"
+		}
+		return nil, expressionError("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
 	}
-	return transactionTimeExpression{expressionInfo: b.info(b.typ(transactionTimeType(kind)).Usage(), raw.Pos, transactionTimeProperties(kind)), kind: kind}, nil
+	info := b.info(b.typ(kind.Type()).Usage(), raw.Pos, functionIntrinsicProperties(kind.IntrinsicRule()))
+	return functions.TransactionTime[*EvalContext, ExprProperties]{Info: functionInfo(info), Kind: kind}, nil
 }
 
 // Only selected time leaves may introduce volatility into this closed default.
@@ -186,15 +92,15 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case transactionTimeExpression:
-		return validateTransactionTime(n) == nil
-	case datetimeSleepExpression:
-		return n.validStored() && closedTransactionTimeDefault(n.arg)
-	case rowExpression, fieldExpression, posixExpression, posixSubstringExpression, similarExpression, similarEscapeExpression, similarSubstringExpression, regexpExpression:
+	case functions.TransactionTime[*EvalContext, ExprProperties]:
+		return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())) == nil
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		return n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) && closedTransactionTimeDefault(n.Arg)
+	case rowExpression, fieldExpression, functions.Posix[BoundExpr, *EvalContext, ExprProperties], functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties], functions.Similar[BoundExpr, *EvalContext, ExprProperties], functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties], functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties], functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case enumFunctionExpression, arraySearchExpression:
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
@@ -202,7 +108,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, likeEscapeExpression, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, binaryExpression, datetimeJustifyExpression, datetimeAgeFiniteExpression, datetimeMakeExpression, datetimeFormattingExpression, numericFormattingExpression, stringExpression, timeZoneExpression, mathExpression, nullCountExpression, formatExpression, stringVariadicExpression, jsonCreateExpression, caseExpression:
+	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties], nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties], functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties], functions.String[BoundExpr, *EvalContext, ExprProperties], functions.Timezone[BoundExpr, *EvalContext, ExprProperties], functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], functions.Format[BoundExpr, *EvalContext, ExprProperties], functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties], caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

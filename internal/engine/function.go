@@ -4,72 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type nullCountKind uint8
-
-const (
-	countNulls nullCountKind = iota + 1
-	countNonnulls
-)
-
-func nullCountFunctionKind(name string) nullCountKind {
-	switch name {
-	case "num_nulls":
-		return countNulls
-	case "num_nonnulls":
-		return countNonnulls
-	default:
-		return 0
-	}
-}
-
-type nullCountExpression struct {
-	expressionInfo
-	kind       nullCountKind
-	args       []BoundExpr
-	dotBuiltin bool // Admitted field-notation fallback, retained for stored replay.
-}
-
-func (e nullCountExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if e.usage.Type == nil || e.usage.Type.ID() != sqltype.Int4 || len(e.args) == 0 || len(e.args) > 100 || (e.kind != countNulls && e.kind != countNonnulls) {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid null-count expression")
-	}
-	var count int64
-	for _, arg := range e.args {
-		if row, ok := arg.(rowExpression); ok && row.wholeNames != nil {
-			if row.usage.Type == nil || !row.usage.Type.Concrete() || !row.usage.Type.BaseType().IsComposite() || len(row.fields) != row.usage.Type.BaseType().CompositeLen() {
-				return sqltype.Value{}, fmt.Errorf("stuntgres: invalid null-count argument type")
-			}
-			absent, err := row.absent(c)
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-			if absent == (e.kind == countNulls) {
-				count++
-			}
-			continue
-		}
-		value, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		u := arg.ResultUsage()
-		if u.Type == nil || !u.Type.Concrete() || value.Type() != u.Type {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid null-count argument type")
-		}
-		if value.IsNull() == (e.kind == countNulls) {
-			count++
-		}
-	}
-	return sqltype.Integer(e.usage.Type, count)
-}
 
 func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundExpr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
@@ -85,10 +24,10 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.TransactionTimeFunctionName(name) {
 		return b.bindTransactionTime(raw)
 	}
-	if stringVariadicFunctionName(name) {
+	if functions.StringVariadicFunctionName(name) {
 		return b.bindStringVariadic(raw)
 	}
-	if jsonCreateKind(name) != 0 {
+	if functions.JSONCreateKind(name) != 0 {
 		return b.bindJSONCreate(raw)
 	}
 	if strings.EqualFold(name, "generate_series") {
@@ -121,14 +60,14 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		if err != nil {
 			return nil, err
 		}
-		if call.plan.ReturnsSet() {
+		if call.Plan.ReturnsSet() {
 			switch b.aggregateClause {
 			case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
 				b.queryHasTargetSet = true
 			}
-			return newRegexpSetExpression(call), nil
+			return functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, nil
 		}
-		return regexpExpression{call}, nil
+		return functions.Regexp[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, nil
 	}
 	if parser.ArraySearchFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -163,7 +102,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if err != nil {
 		return nil, err
 	}
-	var kind nullCountKind
+	var kind functions.NullCountKind
 	switch name {
 	case "json_object", "jsonb_object":
 		return b.bindTextObjectFunction(raw, name, visible)
@@ -227,7 +166,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared":
 		return b.bindAdvisory(raw, visible)
 	default:
-		kind = nullCountFunctionKind(name)
+		kind = functions.NullCountFunctionKind(name)
 		if kind != 0 {
 			break
 		}
@@ -241,44 +180,14 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	}
 	properties := ExprProperties{Volatility: Immutable}
 	for i, rawArg := range raw.Args {
-		// Casts remain selected arguments, but cannot hide computed arithmetic.
-		// Former signed literal input remains admitted through either spelling.
-		argument := rawArg
-		for {
-			cast, ok := argument.(parser.CastExpr)
-			if !ok {
-				break
-			}
-			argument = cast.Child
-		}
-		if operator, ok := argument.(parser.OperatorExpr); ok {
-			if len(operator.Name.Parts) == 1 && (operator.Name.Parts[0].Text == "+" || operator.Name.Parts[0].Text == "-") && len(operator.Args) == 1 {
-				child := operator.Args[0]
-				for {
-					cast, ok := child.(parser.CastExpr)
-					if !ok {
-						break
-					}
-					child = cast.Child
-				}
-				if literal, ok := child.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.IntegerValue || literal.Value.Kind == parser.NumericValue) {
-					literal.Value.Pos = operator.Pos
-					if _, direct := operator.Args[0].(parser.LiteralExpr); direct && operator.Name.Parts[0].Text == "+" {
-						if _, wrapped := rawArg.(parser.CastExpr); !wrapped {
-							rawArg = literal
-						}
-					}
-				} else {
-					return nil, expressionError("0A000", "arithmetic in null-count arguments is unsupported", operator.Pos)
-				}
-			} else {
-				return nil, expressionError("0A000", "arithmetic in null-count arguments is unsupported", operator.Pos)
-			}
-		}
-		arg, err := b.bind(rawArg, expressionPolicy{context: projectionContext})
+		analyzed, issue, err := functions.AnalyzeNullCountArgument(b, rawArg)
 		if err != nil {
 			return nil, err
 		}
+		if issue.UnsupportedArithmetic {
+			return nil, expressionError("0A000", "arithmetic in null-count arguments is unsupported", issue.Position)
+		}
+		rawArg, arg := analyzed.Raw, analyzed.Expression
 		if unknownNullSyntax(rawArg) {
 			literal, ok := arg.(literalExpression)
 			if !ok || !literal.value.IsNull() || literal.usage.Type.ID() != sqltype.Text {
@@ -306,7 +215,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if !visible || len(args) == 0 || (raw.Variadic && len(args) != 1) {
+	if !functions.NullCountAllowed(visible, raw.Variadic, len(args)) {
 		types := make([]string, len(args))
 		for i, arg := range args {
 			types[i] = "unknown"
@@ -324,12 +233,12 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	// Ordinary arguments count whole-value nullness, including arrays. Explicit
 	// VARIADIC array expansion remains outside this provider's capability.
 	if raw.Variadic {
-		if typ := args[len(args)-1].ResultUsage().Type; typ != nil && typ.BaseType().IsArray() {
+		if functions.NullCountVariadicArray(args[len(args)-1].ResultUsage()) {
 			return nil, expressionError("0A000", "VARIADIC arrays in null-count arguments are unsupported", raw.Args[len(raw.Args)-1].SourcePosition())
 		}
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
 	}
-	return nullCountExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), kind: kind, args: args}, nil
+	return functions.NullCount[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties)), Kind: kind, Args: args}, nil
 }
 
 type currentSchemasExpression struct {

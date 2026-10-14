@@ -4,19 +4,20 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
 )
 
-func stringSplitMarker(t *testing.T, b *expressionBinder, pos int, args ...BoundExpr) stringExpression {
+func stringSplitMarker(t *testing.T, b *expressionBinder, pos int, args ...BoundExpr) functions.String[BoundExpr, *EvalContext, ExprProperties] {
 	t.Helper()
 	expr, err := b.stringNode("string_to_table", b.typ(sqltype.Text).Usage(), parser.Position{Offset: pos, Character: pos + 1}, args, [4]bool{true, true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return expr.(stringExpression)
+	return expr.(functions.String[BoundExpr, *EvalContext, ExprProperties])
 }
 func stringSplitLiteral(b *expressionBinder, s string) BoundExpr {
 	text := b.typ(sqltype.Text)
@@ -414,7 +415,7 @@ func TestStringSplitExpansion(t *testing.T) {
 	if !reflect.DeepEqual(rows, [][]any{{"a", "x", "s"}, {"b", nil, "s"}}) || !reflect.DeepEqual(order, []int{0, 1, 2, 3, 3, 3}) {
 		t.Fatal(rows, order)
 	}
-	if first.plan.Name() != "string_to_table" || !first.Properties().StageDependent || conditionalConstantInputs(first) {
+	if first.Plan.Name() != "string_to_table" || !first.Properties().StageDependent || conditionalConstantInputs(first) {
 		t.Fatal("lost set marker", first.Properties())
 	}
 	if _, err := first.Eval(&EvalContext{Context: context.Background()}); err == nil {
@@ -548,8 +549,8 @@ func TestStringSplitBinding(t *testing.T) {
 		if err != nil || !changed || mapped.ResultUsage().Type == expr.ResultUsage().Type {
 			t.Fatal(q, mapped, changed, err)
 		}
-		n := mapped.(stringExpression)
-		if n.plan.Name() == "string_to_table" {
+		n := mapped.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		if n.Plan.Name() == "string_to_table" {
 			if conditionalConstantInputs(n) || !n.Properties().StageDependent {
 				t.Fatal("foldable set marker")
 			}

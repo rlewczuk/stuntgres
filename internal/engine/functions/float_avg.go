@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -6,13 +6,21 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type floatAvgProvider struct {
+type FloatAvg struct {
 	input *sqltype.Descriptor
 	usage sqltype.Usage
 }
 
-func (p floatAvgProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p floatAvgProvider) Init(ctx context.Context) (any, error) {
+func NewFloatAvg(input *sqltype.Descriptor, usage sqltype.Usage) FloatAvg {
+	return FloatAvg{input, usage}
+}
+func (p FloatAvg) InputType() *sqltype.Descriptor { return p.input }
+func (p FloatAvg) Reconstruct(input *sqltype.Descriptor, usage sqltype.Usage) FloatAvg {
+	return FloatAvg{input, usage}
+}
+
+func (p FloatAvg) ResultUsage() sqltype.Usage { return p.usage }
+func (p FloatAvg) Init(ctx context.Context) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -22,7 +30,7 @@ func (p floatAvgProvider) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p floatAvgProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p FloatAvg) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -38,7 +46,7 @@ func (p floatAvgProvider) Advance(ctx context.Context, state any, value, _ sqlty
 	}
 	return ctx.Err()
 }
-func (p floatAvgProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
+func (p FloatAvg) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}

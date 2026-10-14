@@ -2,45 +2,21 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type datetimeFormattingExpression struct {
-	expressionInfo
-	plan sqltype.DatetimeFormatPlan
-	args [2]BoundExpr
-}
-
-func (e datetimeFormattingExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	for _, arg := range e.args {
-		if randomLiteralNull(arg) {
-			return sqltype.Null(e.usage.Type), nil
-		}
-	}
-	var values [2]sqltype.Value
-	for i, arg := range e.args {
-		value, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		values[i] = value
-	}
-	return e.plan.Evaluate(c.Context, values[0], values[1], c.Input, c.Output)
-}
 func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [4]comparisonOperand
+	var small [4]functions.Argument[BoundExpr]
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]comparisonOperand, len(raw.Args))
+		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.stringOperand(arg, name != "to_char" || i > 0)
+		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.DatetimeFormattingAnalysis(name, i)})
 		if err != nil {
 			return nil, err
 		}
@@ -55,89 +31,38 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		names := make([]string, len(operands))
 		for i, o := range operands {
 			names[i] = "unknown"
-			if d := o.descriptor(); d != nil {
+			if d := o.Usage.Type; d != nil {
 				names[i] = d.DiagnosticName()
 			}
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
-	numeric := func(id sqltype.ID) bool {
-		return id == sqltype.Int2 || id == sqltype.Int4 || id == sqltype.Int8 || id == sqltype.Numeric || id == sqltype.Float4 || id == sqltype.Float8
-	}
-	if visible && !raw.Variadic && name == "to_timestamp" && len(operands) == 1 {
-		d := operands[0].descriptor()
-		if d == nil || numeric(d.BaseType().ID()) {
-			return nil, expressionError("0A000", "epoch to_timestamp is unsupported", raw.Pos)
-		}
-	}
-	if !visible || len(operands) != 2 || raw.Variadic {
+	selection := functions.ResolveDatetimeFormatting(name, visible, raw.Variadic, operands)
+	if selection.Resolution == functions.Missing {
 		return signature()
 	}
-	for i, o := range operands {
-		if name == "to_char" && i == 0 {
-			continue
-		}
-		if d := o.descriptor(); d != nil && !sqltype.StringTextInput(d.BaseType().ID()) {
-			return signature()
-		}
+	if selection.Resolution == functions.Ambiguous {
+		err := expressionError("42725", fmt.Sprintf("function %s(unknown, %s) is not unique", objectNameText(raw.Name), datetimeFormattingTypeName(operands[1].Usage.Type)), raw.Pos).(*sqlstate.Error)
+		err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
+		return nil, err
 	}
-	source := b.typ(sqltype.Text)
-	if name == "to_char" {
-		d := operands[0].descriptor()
-		if d == nil {
-			err := expressionError("42725", fmt.Sprintf("function %s(unknown, %s) is not unique", objectNameText(raw.Name), datetimeFormattingTypeName(operands[1])), raw.Pos).(*sqlstate.Error)
-			err.Hint = "Could not choose a best candidate function. You might need to add explicit type casts."
-			return nil, err
-		}
-		id := d.BaseType().ID()
-		if numeric(id) {
-			if id == sqltype.Int2 {
-				id = sqltype.Float8
-			}
-			return b.numericFormattingOperands(raw, operands, b.typ(id))
-		}
-		switch id {
-		case sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
-			source = b.typ(id)
-		case sqltype.Date:
-			source = b.typ(sqltype.Timestamptz)
-		case sqltype.Time:
-			return nil, expressionError("0A000", "time to interval conversion is unsupported", raw.Pos)
-		default:
-			return signature()
-		}
+	if selection.Unsupported != "" {
+		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
+	}
+	source := b.typ(selection.Source)
+	if selection.Numeric {
+		return b.numericFormattingOperands(raw, operands, source)
 	}
 	var args [2]BoundExpr
-	properties := ExprProperties{Volatility: Stable}
+	properties := functionIntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
 	for i, o := range operands {
 		target := b.typ(sqltype.Text)
 		if i == 0 {
 			target = source
 		}
-		argument, err := b.finalizeOperand(o, target)
+		argument, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.TextFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
-		}
-		targetUsage := target.Usage()
-		if target.ID() == sqltype.Text && argument.ResultUsage().Collation.ID != 0 {
-			targetUsage.Collation = argument.ResultUsage().Collation
-		}
-		if argument.ResultUsage() != targetUsage {
-			plan, err := sqltype.PlanCoercion(argument.ResultUsage(), targetUsage, sqltype.Implicit)
-			if argument.ResultUsage().Type.BaseType().ID() == sqltype.Char {
-				plan, err = sqltype.PlanExtremaCharText(argument.ResultUsage(), targetUsage)
-			}
-			if err != nil {
-				return nil, err
-			}
-			info := b.info(targetUsage, argument.SourcePosition(), coercionProperties(argument, plan))
-			if target.ID() == sqltype.Text {
-				info, err = b.coercionInfo(info, argument)
-				if err != nil {
-					return nil, err
-				}
-			}
-			argument = coercionExpression{info, argument, plan, sqltype.Implicit}
 		}
 		args[i] = argument
 		p := argument.Properties()
@@ -148,12 +73,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	result := b.typ(sqltype.Text).Usage()
-	if name == "to_date" {
-		result = b.typ(sqltype.Date).Usage()
-	} else if name == "to_timestamp" {
-		result = b.typ(sqltype.Timestamptz).Usage()
-	}
+	result := b.typ(functions.DatetimeFormattingResult(name)).Usage()
 	info := b.info(result, raw.Pos, properties)
 	collated, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), args[:]...)
 	if err != nil {
@@ -175,11 +95,46 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		return nil, err
 	}
 	plan = plan.WithCollationConflict(collated.collationConflict)
-	return datetimeFormattingExpression{info, plan, args}, nil
+	return functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: args}, nil
 }
-func datetimeFormattingTypeName(o comparisonOperand) string {
-	if d := o.descriptor(); d != nil {
+func datetimeFormattingTypeName(d *sqltype.Descriptor) string {
+	if d != nil {
 		return d.DiagnosticName()
 	}
 	return "unknown"
+}
+
+func (b *expressionBinder) temporalTypesForDemand(demand functions.TemporalDemand) functions.TemporalTypes {
+	var types functions.TemporalTypes
+	if demand == 0 {
+		return types
+	}
+	if demand&functions.NeedText != 0 {
+		types.Text = b.typ(sqltype.Text).Usage()
+	}
+	if demand&functions.NeedDate != 0 {
+		types.Date = b.typ(sqltype.Date).Usage()
+	}
+	if demand&functions.NeedTime != 0 {
+		types.Time = b.typ(sqltype.Time).Usage()
+	}
+	if demand&functions.NeedTimetz != 0 {
+		types.Timetz = b.typ(sqltype.Timetz).Usage()
+	}
+	if demand&functions.NeedTimestamp != 0 {
+		types.Timestamp = b.typ(sqltype.Timestamp).Usage()
+	}
+	if demand&functions.NeedTimestamptz != 0 {
+		types.Timestamptz = b.typ(sqltype.Timestamptz).Usage()
+	}
+	if demand&functions.NeedInterval != 0 {
+		types.Interval = b.typ(sqltype.Interval).Usage()
+	}
+	if demand&functions.NeedInt4 != 0 {
+		types.Int4 = b.typ(sqltype.Int4).Usage()
+	}
+	if demand&functions.NeedFloat8 != 0 {
+		types.Float8 = b.typ(sqltype.Float8).Usage()
+	}
+	return types
 }

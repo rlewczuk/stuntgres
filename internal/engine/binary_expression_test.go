@@ -2,41 +2,10 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"reflect"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
-
-func TestBinaryBasicEvaluationTraversal(t *testing.T) {
-	var d *sqltype.Descriptor
-	for _, v := range sqltype.Builtins() {
-		if v.ID() == sqltype.Bytea {
-			d = v
-		}
-	}
-	plan, err := sqltype.BindBinary("btrim", d.Usage(), d.Usage(), d.Usage())
-	if err != nil {
-		t.Fatal(err)
-	}
-	var order []int
-	set, _ := sqltype.Binary(d, "\x00")
-	expr := binaryExpression{expressionInfo: expressionInfo{usage: d.Usage()}, plan: plan, args: []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: set, order: &order, index: 1},
-	}}
-	v, err := expr.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || !v.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(v, order, err)
-	}
-	failure := errors.New("demanded binary sibling")
-	expr.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	if _, err := expr.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(order, err)
-	}
-}
 
 func TestBinaryBasicTypedMetadataAndConsumers(t *testing.T) {
 	e := New()

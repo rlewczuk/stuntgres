@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -44,7 +45,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(typ, mask, err)
 			}
-			e := node.(datetimeOverlapsExpression)
+			e := node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
 			stable := typ == "timestamptz" && mask != 0
 			if e.ResultUsage().Type.ID() != sqltype.Bool || e.ResultUsage().Typmod != -1 || (e.Properties().Volatility == Stable) != stable || (plannedVolatility(e) == Stable) != stable || generationImmutable(e) != !stable {
 				t.Fatal(typ, mask, e.Properties())
@@ -65,12 +66,12 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(rebound, changed, err)
 			}
-			next := rebound.(datetimeOverlapsExpression)
-			if next.ResultUsage().Type != replacements[sqltype.Bool] || next.plan == e.plan {
+			next := rebound.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
+			if next.ResultUsage().Type != replacements[sqltype.Bool] || next.Plan == e.Plan {
 				t.Fatal("retained plan authority")
 			}
-			for i, arg := range next.args {
-				if arg.ResultUsage().Type == e.args[i].ResultUsage().Type {
+			for i, arg := range next.Args {
+				if arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 					t.Fatal("retained child authority")
 				}
 			}
@@ -92,9 +93,9 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := node.(datetimeOverlapsExpression)
-		if e.plan.ArgumentType(0).ID() != tc.endpoint || e.plan.Duration()[0] != tc.duration {
-			t.Fatal(e.plan)
+		e := node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
+		if e.Plan.ArgumentType(0).ID() != tc.endpoint || e.Plan.Duration()[0] != tc.duration {
+			t.Fatal(e.Plan)
 		}
 	}
 }
@@ -126,54 +127,13 @@ func TestDatetimeOverlapsUnknownAndParameterOccurrences(t *testing.T) {
 	}
 }
 
-func TestDatetimeOverlapsOnceOnlyChildrenAndErrorOrder(t *testing.T) {
-	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	node, err := b.bindDatetimeOverlaps(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "2001-01-01"), ageFiniteTyped("timestamp", "2001-01-03"), ageFiniteTyped("timestamp", "2001-01-02"), ageFiniteTyped("timestamp", "2001-01-04")), true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := node.(datetimeOverlapsExpression)
-	order := []int{}
-	for i, arg := range e.args {
-		value, err := arg.Eval(&EvalContext{Context: context.Background()})
-		if err != nil {
-			t.Fatal(err)
-		}
-		e.args[i] = mathObservedArgument{expressionInfo: boundExpressionInfo(arg), value: value, order: &order, index: i}
-	}
-	first := e.args[0].(mathObservedArgument)
-	first.value = sqltype.Null(first.ResultUsage().Type)
-	e.args[0] = first
-	got, err := e.Eval(&EvalContext{Context: context.Background()})
-	truth, failure := got.Boolean()
-	if err != nil || failure != nil || !truth || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
-		t.Fatal(got, order, err, failure)
-	}
-	failure = errors.New("fourth reached child")
-	last := e.args[3].(mathObservedArgument)
-	last.err = failure
-	e.args[3] = last
-	order = nil
-	if _, err := e.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
-		t.Fatal(order, err)
-	}
-	childDiagnostic := &sqlstate.Error{Code: "22012", Message: "division by zero"}
-	last.err = childDiagnostic
-	e.args[3] = last
-	order = nil
-	e.wrapperContext = true
-	if _, err := e.Eval(&EvalContext{Context: context.Background()}); err != childDiagnostic || childDiagnostic.Context != "" || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
-		t.Fatal("child diagnostic altered", order, err)
-	}
-}
-
 func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	node, err := b.bindDatetimeOverlaps(datetimeMakeRaw("overlaps", ageFiniteTyped("timestamp", "294276-12-31"), ageFiniteTyped("interval", "1 day"), ageFiniteTyped("timestamp", "2000-01-01"), ageFiniteTyped("timestamp", "2000-01-02")), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := node.(datetimeOverlapsExpression)
+	e := node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
 	c := &EvalContext{Context: context.Background()}
 	_, err = e.Eval(c)
 	var d *sqlstate.Error
@@ -181,36 +141,36 @@ func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A nonconstant second pair makes a constant first addition fail inlining.
-	e.args[2] = columnExpression{expressionInfo: boundExpressionInfo(e.args[2])}
-	e.args[3] = columnExpression{expressionInfo: boundExpressionInfo(e.args[3])}
+	e.Args[2] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[2])}
+	e.Args[3] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[3])}
 	_, _, err = simplifyOverlapsRoute(c, e)
 	if !errors.As(err, &d) || d.Context != `SQL function "overlaps" during inlining` {
 		t.Fatal(err)
 	}
-	start := columnExpression{expressionInfo: boundExpressionInfo(e.args[0])}
-	e.args[0] = start
+	start := columnExpression{expressionInfo: boundExpressionInfo(e.Args[0])}
+	e.Args[0] = start
 	if !overlapsInlineSafe(e) {
 		t.Fatal("cheap variable cannot inline")
 	}
 	for i := range 11 {
-		e.args[0] = arithmeticExpression{expressionInfo: boundExpressionInfo(start), left: e.args[0], right: literalExpression{expressionInfo: boundExpressionInfo(e.args[1])}}
+		e.Args[0] = arithmeticExpression{expressionInfo: boundExpressionInfo(start), left: e.Args[0], right: literalExpression{expressionInfo: boundExpressionInfo(e.Args[1])}}
 		if overlapsInlineSafe(e) != (i < 10) {
 			t.Fatal("function-cost threshold", i)
 		}
 	}
-	e.args[0] = subqueryExpression{expressionInfo: boundExpressionInfo(start)}
+	e.Args[0] = subqueryExpression{expressionInfo: boundExpressionInfo(start)}
 	if overlapsInlineSafe(e) {
 		t.Fatal("duplicated subquery inlined")
 	}
 	order := []int{}
 	volatile := mathObservedArgument{expressionInfo: expressionInfo{usage: start.ResultUsage(), properties: ExprProperties{Volatility: Volatile}}, order: &order}
-	e.args[0] = volatile
+	e.Args[0] = volatile
 	if overlapsInlineSafe(e) {
 		t.Fatal("duplicated volatile start inlined")
 	}
-	volatile.usage = e.plan.ArgumentType(1).Usage()
-	e.args[0] = start
-	e.args[1] = volatile
+	volatile.usage = e.Plan.ArgumentType(1).Usage()
+	e.Args[0] = start
+	e.Args[1] = volatile
 	if !overlapsInlineSafe(e) {
 		t.Fatal("single-use volatile duration prevented inline")
 	}
@@ -227,8 +187,8 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &EvalContext{Context: ctx}
-	folded, changed, err := simplifyOverlapsRoute(c, node.(datetimeOverlapsExpression))
-	if err != nil || !changed || folded.folded[0].Type() != b.typ(sqltype.Timestamp) || folded.folded[1].Type() != nil {
+	folded, changed, err := simplifyOverlapsRoute(c, node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]))
+	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
 		t.Fatal(folded, changed, err)
 	}
 	// Parameters remain Execute-owned; persistent descriptor replacement admits
@@ -251,7 +211,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 		if err != nil || failure != nil || truth != tc.want {
 			t.Fatal(got, err, failure)
 		}
-		if folded.folded[1].Type() != nil {
+		if folded.Folded[1].Type() != nil {
 			t.Fatal("Execute-owned parameters became retained literal endpoints")
 		}
 	}
@@ -270,14 +230,14 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored := node.(datetimeOverlapsExpression)
-	stored.properties = ExprProperties{RowDependent: true}
+	stored := node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
+	stored.Property = ExprProperties{RowDependent: true}
 	for i := range 2 {
 		origin := ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
-		stored.args[i+2] = columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: i, origin: origin}
+		stored.Args[i+2] = columnExpression{expressionInfo: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: i, origin: origin}
 	}
 	folded, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, stored)
-	if err != nil || !changed || folded.folded[0].Type() != b.typ(sqltype.Timestamp) || folded.folded[1].Type() != nil {
+	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
 		t.Fatal(folded, changed, err)
 	}
 	replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -288,25 +248,25 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	retained := rebound.(datetimeOverlapsExpression)
-	if retained.folded[0].Type() != replacements[sqltype.Timestamp] || folded.folded[0].Type() != b.typ(sqltype.Timestamp) {
+	retained := rebound.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
+	if retained.Folded[0].Type() != replacements[sqltype.Timestamp] || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) {
 		t.Fatal("cached endpoint authority was not independently retagged")
 	}
 	mapped, err := remapBoundExpression(retained, func(ref ObjectRef) ObjectRef { ref.Address.ObjectID += 100; return ref }, map[int32]int{1: 1, 2: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := mapped.(datetimeOverlapsExpression)
+	next := mapped.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
 	for i := range 2 {
-		column := next.args[i+2].(columnExpression)
+		column := next.Args[i+2].(columnExpression)
 		if column.slot != 1-i || column.origin.Address.ObjectID != 9100 || column.ResultUsage().Type != replacements[sqltype.Timestamp] {
 			t.Fatal("retained column remap", column)
 		}
-		if retained.args[i+2].(columnExpression).slot != i {
+		if retained.Args[i+2].(columnExpression).slot != i {
 			t.Fatal("source stored tree mutated")
 		}
 	}
-	if next.folded != retained.folded {
+	if next.Folded != retained.Folded {
 		t.Fatal("immutable cached endpoint changed during column remap")
 	}
 	for _, tc := range []struct {
@@ -346,16 +306,16 @@ func TestDatetimeOverlapsTypedNullFoldedEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := node.(datetimeOverlapsExpression)
-	e.args[1] = literalExpression{expressionInfo: boundExpressionInfo(e.args[1]), value: sqltype.Null(b.typ(sqltype.Interval))}
-	e.args[2] = columnExpression{expressionInfo: boundExpressionInfo(e.args[2])}
-	e.args[3] = columnExpression{expressionInfo: boundExpressionInfo(e.args[3])}
+	e := node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
+	e.Args[1] = literalExpression{expressionInfo: boundExpressionInfo(e.Args[1]), value: sqltype.Null(b.typ(sqltype.Interval))}
+	e.Args[2] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[2])}
+	e.Args[3] = columnExpression{expressionInfo: boundExpressionInfo(e.Args[3])}
 	folded, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, e)
-	if err != nil || !changed || folded.folded[0].Type() != b.typ(sqltype.Timestamp) || !folded.folded[0].IsNull() {
+	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || !folded.Folded[0].IsNull() {
 		t.Fatal("typed NULL is a valid cached endpoint", folded, changed, err)
 	}
 	again, changed, err := simplifyOverlapsRoute(&EvalContext{Context: ctx}, folded)
-	if err != nil || changed || again.folded != folded.folded {
+	if err != nil || changed || again.Folded != folded.Folded {
 		t.Fatal("typed NULL cache was recomputed", changed, err)
 	}
 }
@@ -395,12 +355,12 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := node.(datetimeOverlapsExpression)
-	e.properties = ExprProperties{RowDependent: true}
+	e := node.(functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties])
+	e.Property = ExprProperties{RowDependent: true}
 	info := b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{RowDependent: true})
 	var start BoundExpr = columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 0}
 	sentinel := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}
-	e.args[2], e.args[3] = sentinel, sentinel
+	e.Args[2], e.Args[3] = sentinel, sentinel
 	comparison, err := sqltype.BindComparison(b.typ(sqltype.Timestamp), b.typ(sqltype.Timestamp), sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -416,7 +376,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	c := &EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: []sqltype.Value{high, low}}
 	for count := 1; count <= 11; count++ {
 		start = conditionalExpression{expressionInfo: info, kind: parser.NullIf, args: []BoundExpr{start, sentinel}, comparison: comparison}
-		e.args[0] = start
+		e.Args[0] = start
 		if cost := overlapsTreeCost(start); cost != count || overlapsInlineSafe(e) != (count <= 10) {
 			t.Fatal("NULLIF operator cost", count, cost)
 		}

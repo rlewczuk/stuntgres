@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -23,7 +24,7 @@ type compositeOccurrence struct {
 	kind       compositeOccurrenceKind
 	base       sqltype.Usage
 	attributes []int32
-	function   nullCountKind
+	function   functions.NullCountKind
 	source     wholeRowSource
 }
 type preparedCompositeKey struct {
@@ -73,7 +74,7 @@ func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 }
 
 func (captured compositeOccurrence) validate(catalog CatalogRead) error {
-	if captured.kind != compositeSelection && captured.kind != compositeExpansion && captured.kind != compositeDotBuiltin && captured.kind != compositeWholeRow || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeWholeRow && (len(captured.attributes) != 0 || captured.source.namespace == 0) || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function != countNulls && captured.function != countNonnulls) || captured.kind != compositeDotBuiltin && captured.function != 0 || !validExpressionUsage(catalog, captured.base) || captured.kind != compositeDotBuiltin && !captured.base.Type.BaseType().IsComposite() {
+	if captured.kind != compositeSelection && captured.kind != compositeExpansion && captured.kind != compositeDotBuiltin && captured.kind != compositeWholeRow || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeWholeRow && (len(captured.attributes) != 0 || captured.source.namespace == 0) || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function != functions.CountNulls && captured.function != functions.CountNonnulls) || captured.kind != compositeDotBuiltin && captured.function != 0 || !validExpressionUsage(catalog, captured.base) || captured.kind != compositeDotBuiltin && !captured.base.Type.BaseType().IsComposite() {
 		return fmt.Errorf("stuntgres: invalid frozen composite authority")
 	}
 	for i, attribute := range captured.attributes {
@@ -117,15 +118,15 @@ func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedComp
 	if err != nil {
 		return nil, err
 	}
-	call, ok := node.(nullCountExpression)
-	if !ok || len(call.args) != 1 {
+	call, ok := node.(functions.NullCount[BoundExpr, *EvalContext, ExprProperties])
+	if !ok || len(call.Args) != 1 {
 		return nil, fmt.Errorf("stuntgres: invalid dot builtin resolution")
 	}
-	call.dotBuiltin = true
+	call.DotBuiltin = true
 	if b.composites == nil {
 		b.composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.composites[key] = compositeOccurrence{kind: compositeDotBuiltin, base: call.args[0].ResultUsage(), function: call.kind}
+	b.composites[key] = compositeOccurrence{kind: compositeDotBuiltin, base: call.Args[0].ResultUsage(), function: call.Kind}
 	return call, nil
 }
 

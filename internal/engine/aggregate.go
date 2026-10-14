@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"math"
 	"stuntgres/internal/sqltype"
 )
 
@@ -81,41 +80,6 @@ func (call aggregateCall) expressions(visit func(BoundExpr)) {
 		visit(key.expression)
 	}
 	visit(call.filter)
-}
-
-type countProvider struct{ usage sqltype.Usage }
-type countState struct{ count int64 }
-
-func (p countProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p countProvider) Init(ctx context.Context) (any, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return &countState{}, nil
-}
-func (p countProvider) Advance(ctx context.Context, state any, _, _ sqltype.Value) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	s, ok := state.(*countState)
-	if !ok {
-		return fmt.Errorf("stuntgres: invalid count state")
-	}
-	if s.count == math.MaxInt64 {
-		return sqlError("22003", "bigint out of range")
-	}
-	s.count++
-	return ctx.Err()
-}
-func (p countProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
-		return sqltype.Value{}, err
-	}
-	s, ok := state.(*countState)
-	if !ok {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid count state")
-	}
-	return sqltype.Integer(p.usage.Type, s.count)
 }
 
 type aggregateExpression struct {

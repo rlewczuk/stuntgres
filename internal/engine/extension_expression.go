@@ -30,7 +30,7 @@ func (n installedFunctionExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	if err != nil || n.procedure == nil || n.dictionary == nil || n.template == nil || n.procedure.provider != n.dictionary.provider || n.dictionary.provider != n.template.provider {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed unaccent expression")
 	}
-	result, err := n.dictionary.provider.text(c.Context, input)
+	result, err := n.dictionary.provider.matcher.Text(c.Context, input)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

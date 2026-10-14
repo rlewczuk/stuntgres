@@ -1,0 +1,331 @@
+package functions
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+type StringContext[E any] interface {
+	LiteralContext[E]
+	FunctionInput() sqltype.InputEnvironment
+	FunctionStringOutput() sqltype.OutputEnvironment
+}
+type String[E Expression[C], C StringContext[E], P any] struct {
+	Info[P]
+	Plan    sqltype.StringPlan
+	Args    []E
+	Textual [4]bool
+	Syntax  parser.StringSyntax
+}
+
+func (e String[E, C, P]) Eval(c C) (sqltype.Value, error) {
+	ctx, err := evaluationContext(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.Plan.Name() == "string_to_table" {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: unlowered string_to_table expression")
+	}
+	if e.Plan.Strict() {
+		for _, arg := range e.Args {
+			if c.FunctionLiteralNull(arg) {
+				return sqltype.Null(e.Usage.Type), nil
+			}
+		}
+	}
+	var values [4]sqltype.Value
+	for i, arg := range e.Args {
+		value, err := arg.Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		values[i] = value
+	}
+	return e.Plan.Evaluate(ctx, values, c.FunctionInput(), c.FunctionStringOutput())
+}
+func (e String[E, C, P]) Reconstruct(info Info[P], args []E, text sqltype.Usage) (String[E, C, P], error) {
+	var usages [4]sqltype.Usage
+	for i, arg := range args {
+		usages[i] = arg.ResultUsage()
+	}
+	plan, err := sqltype.BindString(e.Plan.Name(), info.Usage, text, usages[:len(args)], e.Textual, e.Plan.CollationIndeterminate())
+	if err != nil {
+		return e, err
+	}
+	e.Info, e.Args, e.Plan = info, args, plan
+	return e, nil
+}
+func (e String[E, C, P]) Validate() error {
+	if len(e.Args) < 1 || len(e.Args) > 4 {
+		return fmt.Errorf("stuntgres: invalid stored string arity")
+	}
+	var usages [4]sqltype.Usage
+	for i, arg := range e.Args {
+		usages[i] = arg.ResultUsage()
+	}
+	plan, err := sqltype.BindString(e.Plan.Name(), e.Usage, e.Plan.TextUsage(), usages[:len(e.Args)], e.Textual, e.Plan.CollationIndeterminate())
+	if err != nil || plan != e.Plan {
+		return fmt.Errorf("stuntgres: invalid stored string provider")
+	}
+	return nil
+}
+func NewString[E Expression[C], C StringContext[E], P any](info Info[P], name string, text sqltype.Usage, args []E, textual [4]bool, syntax parser.StringSyntax, conflict bool) (String[E, C, P], error) {
+	var usages [4]sqltype.Usage
+	for i, arg := range args {
+		usages[i] = arg.ResultUsage()
+	}
+	plan, err := sqltype.BindString(name, info.Usage, text, usages[:len(args)], textual, conflict)
+	return String[E, C, P]{info, plan, args, textual, syntax}, err
+}
+func StringIntrinsic(name string, textual [4]bool) (stable, stage bool) {
+	return name == "||" && (!textual[0] || !textual[1]), name == "string_to_table"
+}
+func StringOperationCollation(name string) bool {
+	return name == "position" || name == "strpos" || name == "starts_with"
+}
+func StringCatalogOutput(name string, textual bool, usage sqltype.Usage) bool {
+	return name == "||" && !textual && usage.Type.ContainsCatalogIdentifier()
+}
+
+type StringTargets struct{ Text, Integer, Name sqltype.Usage }
+
+func (t StringTargets) usage(id sqltype.ID) sqltype.Usage {
+	switch id {
+	case sqltype.Text:
+		return t.Text
+	case sqltype.Int4:
+		return t.Integer
+	case sqltype.Name:
+		return t.Name
+	}
+	return sqltype.Usage{}
+}
+
+type StringSelection struct {
+	Arguments [4]sqltype.ID
+	Textual   [4]bool
+	Result    sqltype.ID
+	Array     bool
+}
+
+func StringEncodingLength[E any](name string, visible bool, args []Argument[E], encodingName sqltype.Usage) bool {
+	if !visible || name != "length" || len(args) != 2 {
+		return false
+	}
+	source, encoding := args[0].Usage.Type, args[1].Usage.Type
+	if source != nil && source.BaseType().ID() != sqltype.Bytea {
+		return false
+	}
+	if encoding != nil {
+		if _, err := sqltype.PlanCoercion(args[1].Usage, encodingName, sqltype.Implicit); err != nil {
+			return false
+		}
+	}
+	return true
+}
+func StringBinaryCandidate[E any](name string, variadic bool, args []Argument[E]) bool {
+	binary := (!variadic && len(args) == 2 && (name == "btrim" || name == "ltrim" || name == "rtrim")) ||
+		(!variadic && len(args) == 1 && (name == "length" || name == "octet_length" || name == "bit_length")) ||
+		(len(args) == 2 && name == "position") || ((name == "reverse" || name == "md5") && len(args) == 1) ||
+		(name == "overlay" && (len(args) == 3 || len(args) == 4))
+	known := false
+	for i, arg := range args {
+		if sqltype.StringIntegerArgument(name, i) {
+			continue
+		}
+		if d := arg.Usage.Type; d != nil {
+			binary = binary && d.BaseType().ID() == sqltype.Bytea
+			known = known || d.BaseType().ID() == sqltype.Bytea
+		}
+	}
+	return binary && known
+}
+func StringTargetDemand(name string, count int) (integer, encodingName bool) {
+	for i := range count {
+		integer = integer || sqltype.StringIntegerArgument(name, i)
+	}
+	if name == "to_ascii" && count > 1 {
+		integer, encodingName = true, true
+	}
+	if name == "length" && count == 2 {
+		encodingName = true
+	}
+	return
+}
+func SelectStringFunction[E any](name string, visible, variadic bool, args []Argument[E], targets StringTargets) (StringSelection, Resolution) {
+	encodingID := sqltype.Name
+	if name == "to_ascii" && len(args) > 1 && args[1].Usage.Type != nil {
+		if _, err := sqltype.PlanCoercion(args[1].Usage, targets.Integer, sqltype.Implicit); err == nil {
+			encodingID = sqltype.Int4
+		}
+	}
+	count := name == "length" || name == "char_length" || name == "character_length" || name == "octet_length" || name == "bit_length"
+	search := name == "position" || name == "strpos"
+	replacement := name == "replace" || name == "translate" || name == "starts_with" || name == "overlay"
+	split := name == "split_part" || name == "string_to_array" || name == "string_to_table"
+	valid := visible && (!variadic || split || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse" || name == "md5")
+	switch {
+	case name == "split_part":
+		valid = valid && len(args) == 3
+	case name == "string_to_array" || name == "string_to_table":
+		valid = valid && (len(args) == 2 || len(args) == 3)
+	case name == "ascii" || name == "chr" || name == "unistr" || name == "unicode_assigned":
+		valid = valid && len(args) == 1
+	case name == "lpad" || name == "rpad":
+		valid = valid && (len(args) == 2 || len(args) == 3)
+	case name == "repeat":
+		valid = valid && len(args) == 2
+	case name == "reverse" || name == "md5":
+		valid = valid && len(args) == 1
+	case name == "overlay":
+		valid = valid && (len(args) == 3 || len(args) == 4)
+	case name == "replace" || name == "translate":
+		valid = valid && len(args) == 3
+	case search || name == "starts_with":
+		valid = valid && len(args) == 2
+	case count || name == "lower" || name == "upper" || name == "casefold" || name == "initcap":
+		valid = valid && len(args) == 1
+	default:
+		valid = valid && len(args) >= 1 && len(args) <= 2
+	}
+	for i, arg := range args {
+		if d := arg.Usage.Type; d != nil {
+			if name == "to_ascii" && i == 1 {
+				_, err := sqltype.PlanCoercion(arg.Usage, targets.usage(encodingID), sqltype.Implicit)
+				valid = valid && err == nil
+				continue
+			}
+			if sqltype.StringIntegerArgument(name, i) {
+				_, err := sqltype.PlanCoercion(arg.Usage, targets.Integer, sqltype.Implicit)
+				valid = valid && err == nil
+			} else {
+				valid = valid && sqltype.StringTextInput(d.BaseType().ID())
+			}
+		}
+	}
+	if !valid {
+		return StringSelection{}, Missing
+	}
+	selection := StringSelection{Result: sqltype.Text}
+	for i := range args {
+		selection.Arguments[i], selection.Textual[i] = sqltype.Text, true
+		if sqltype.StringIntegerArgument(name, i) {
+			selection.Arguments[i], selection.Textual[i] = sqltype.Int4, false
+		}
+		if name == "to_ascii" && i == 1 {
+			selection.Arguments[i], selection.Textual[i] = encodingID, false
+		}
+	}
+	if name == "string_to_array" {
+		selection.Array = true
+	}
+	if name == "is_normalized" || name == "starts_with" || name == "unicode_assigned" {
+		selection.Result = sqltype.Bool
+	}
+	if count || search || name == "ascii" {
+		selection.Result = sqltype.Int4
+	}
+	return selection, Resolved
+}
+func CoerceStringArguments[E any, B ArgumentCoercer[E]](b B, arguments []Argument[E], selection StringSelection, targets StringTargets) ([]E, error) {
+	args := make([]E, len(arguments))
+	for i, argument := range arguments {
+		intent := FinalizeArgument
+		if !selection.Textual[i] {
+			intent = ExactFormalArgument
+		}
+		arg, err := b.CoerceArgument(argument, CoercionRequest{Intent: intent, Target: targets.usage(selection.Arguments[i]), PreserveProperties: true})
+		if err != nil {
+			return nil, err
+		}
+		args[i] = arg
+	}
+	return args, nil
+}
+func StringPrefixViable(visible bool, count int, types [2]*sqltype.Descriptor) bool {
+	valid := visible && count == 2
+	for _, d := range types {
+		valid = valid && (d == nil || sqltype.StringTextInput(d.BaseType().ID()))
+	}
+	return valid
+}
+func SelectStringConcat(visible bool, types [2]*sqltype.Descriptor) (textual [2]bool, binary bool, resolution Resolution) {
+	if visible && ((types[0] != nil && types[0].BaseType().ID() == sqltype.Bytea && (types[1] == nil || types[1].BaseType().ID() == sqltype.Bytea)) || (types[1] != nil && types[1].BaseType().ID() == sqltype.Bytea && types[0] == nil)) {
+		return textual, true, Resolved
+	}
+	signatures := [3][2]bool{{true, true}, {true, false}, {false, true}}
+	var candidates [3]int
+	count := 0
+	bestExact, bestPreferred := -1, -1
+	if visible {
+		for k, s := range signatures {
+			viable := true
+			exact, preferred := 0, 0
+			for i, t := range types {
+				if t == nil {
+					continue
+				}
+				id := t.BaseType().ID()
+				if s[i] {
+					if !sqltype.StringTextInput(id) {
+						viable = false
+					}
+					if id == sqltype.Text {
+						exact++
+					}
+					if sqltype.StringCategory(id) {
+						preferred++
+					}
+				} else if !sqltype.StringScalar(t) {
+					viable = false
+				}
+			}
+			if !viable {
+				continue
+			}
+			if exact > bestExact || exact == bestExact && preferred > bestPreferred {
+				count = 0
+				bestExact = exact
+				bestPreferred = preferred
+			}
+			if exact == bestExact && preferred == bestPreferred {
+				candidates[count] = k
+				count++
+			}
+		}
+	}
+	for i, t := range types {
+		if t != nil || count < 2 {
+			continue
+		}
+		preferText := false
+		for _, k := range candidates[:count] {
+			preferText = preferText || signatures[k][i]
+		}
+		if preferText {
+			n := 0
+			for _, k := range candidates[:count] {
+				if signatures[k][i] {
+					candidates[n] = k
+					n++
+				}
+			}
+			count = n
+		}
+	}
+	if count != 1 {
+		if count == 0 {
+			return textual, false, Missing
+		}
+		return textual, false, Ambiguous
+	}
+	return signatures[candidates[0]], false, Resolved
+}
+
+func StringArgumentAnalysis(name string, index int) AnalysisRequest {
+	if sqltype.StringIntegerArgument(name, index) {
+		return AnalysisRequest{Intent: StringOtherArgument}
+	}
+	return AnalysisRequest{Intent: StringTextArgument}
+}

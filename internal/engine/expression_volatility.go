@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/functions"
+
 // plannedVolatility inspects the physical surviving tree. Analysis properties
 // deliberately retain dependence from eliminated CASE/COALESCE arms.
 func plannedVolatility(node BoundExpr) Volatility {
@@ -73,28 +75,28 @@ func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
 		return children(n.left, n.right)
 	case likeExpression:
 		return children(n.left, n.right)
-	case likeEscapeExpression:
-		return children(n.pattern, n.escape)
-	case posixExpression:
-		return children(n.left, n.right)
-	case similarExpression:
-		return children(n.left, n.right)
-	case similarEscapeExpression:
-		return children(n.pattern, n.escape)
-	case posixSubstringExpression:
-		return children(n.args[:]...)
-	case similarSubstringExpression:
-		return children(n.args[:]...)
-	case regexpExpression:
-		return children(n.args...)
-	case regexpSetExpression:
-		return children(n.args...)
-	case jsonKeysExpression:
-		return children(n.args...)
 	case seriesExpression:
 		return children(n.args...)
 	case subscriptsExpression:
 		return children(n.args...)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Pattern, n.Escape)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Left, n.Right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Left, n.Right)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Pattern, n.Escape)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args[:]...)
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args[:]...)
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
 	case nullTestExpression:
 		return plannedPhysicalVolatility(n.child, copyNextval)
 	case truthTestExpression:
@@ -105,52 +107,64 @@ func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
 		return session(children(n.left, n.right), n.equality.SessionDependent())
 	case conditionalExpression:
 		return session(children(n.args...), n.comparison.SessionDependent())
-	case binaryExpression:
-		return session(children(n.args...), !n.plan.Immutable())
-	case datetimeJustifyExpression:
-		return children(n.arg)
-	case datetimeExtractExpression:
-		return session(children(n.children()...), n.plan.SessionDependent())
-	case datetimeOverlapsExpression:
-		return session(children(n.children()...), n.plan.SessionDependent())
-	case datetimeBinExpression:
-		return children(n.children()...)
-	case datetimeTruncExpression:
-		return session(children(n.children()...), n.plan.SessionDependent())
-	case datetimeZoneCalendarExpression:
-		return merge(children(n.children()...), n.intrinsicVolatility())
-	case datetimeAgeFiniteExpression:
-		return session(children(n.children()...), n.plan.SessionDependent())
-	case datetimeMakeExpression:
-		return session(children(n.children()...), n.plan.SessionDependent())
-	case datetimeFormattingExpression:
-		return session(children(n.args[:]...), true)
-	case numericFormattingExpression:
-		return session(children(n.args[:]...), true)
-	case stringExpression:
-		return session(children(n.args...), n.plan.SessionDependent())
-	case timeZoneExpression:
-		return merge(children(n.value, n.zone), n.intrinsicVolatility())
-	case arraySearchExpression:
-		v := children(n.args...)
-		if n.plan.SessionDependent() {
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Args...), !n.Plan.Immutable())
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arg)
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Arguments()...), n.Plan.SessionDependent())
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Arguments()...), n.Plan.SessionDependent())
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arguments()...)
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Arguments()...), n.Plan.SessionDependent())
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		v := Immutable
+		if n.IntrinsicStable() {
+			v = Stable
+		}
+		return merge(children(n.Arguments()...), v)
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Arguments()...), n.Plan.SessionDependent())
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Arguments()...), n.Plan.SessionDependent())
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Args[:]...), true)
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Args[:]...), true)
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return session(children(n.Args...), n.Plan.SessionDependent())
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		v := Immutable
+		if n.IntrinsicStable() {
+			v = Stable
+		}
+		return merge(children(n.Value, n.Zone), v)
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		v := children(n.Args...)
+		if n.Plan.SessionDependent() {
 			v = merge(v, Stable)
 		}
 		return v
-	case enumFunctionExpression:
-		return merge(children(n.args...), Stable)
-	case mathExpression:
-		return children(n.args...)
-	case nullCountExpression:
-		return children(n.args...)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		return merge(children(n.Args...), Stable)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
 	case installedFunctionExpression:
 		return merge(Stable, children(n.arg))
-	case jsonCreateExpression:
-		return merge(Stable, children(n.args...))
-	case stringVariadicExpression:
-		return merge(n.intrinsic, children(n.args...))
-	case formatExpression:
-		return merge(Stable, children(n.args...))
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		return merge(Stable, children(n.Args...))
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		intrinsic := Immutable
+		if n.IntrinsicStable() {
+			intrinsic = Stable
+		}
+		return merge(intrinsic, children(n.Args...))
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		return merge(Stable, children(n.Args...))
 	case caseExpression:
 		v := children(n.test, n.otherwise)
 		for _, arm := range n.arms {

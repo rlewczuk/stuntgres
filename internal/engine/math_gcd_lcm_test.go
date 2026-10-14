@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -35,14 +36,14 @@ func TestMathGcdLcmBinding(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				mathNode, ok := node.(mathExpression)
-				if !ok || mathNode.plan.Name() != name || len(mathNode.args) != 2 {
+				mathNode, ok := node.(functions.Math[BoundExpr, *EvalContext, ExprProperties])
+				if !ok || mathNode.Plan.Name() != name || len(mathNode.Args) != 2 {
 					t.Fatal("shared math plan", node)
 				}
 				if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 {
 					t.Fatal("result usage", node.ResultUsage())
 				}
-				for _, arg := range mathNode.args {
+				for _, arg := range mathNode.Args {
 					if arg.ResultUsage() != node.ResultUsage() {
 						t.Fatal("coherent signature owner", arg.ResultUsage(), node.ResultUsage())
 					}

@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/sqltype"
+)
 
 // Entries are immutable once published by Execute under Engine.mu. A candidate
 // borrows the old group and copies only when a successful fold changes it.
@@ -26,27 +29,27 @@ type quoteCaptureCandidate struct {
 	sealed  bool
 }
 
-func foldStringVariadic(c *EvalContext, e stringVariadicExpression) (BoundExpr, bool, error) {
+func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]) (BoundExpr, bool, error) {
 	p := e.Properties()
-	if e.intrinsic != Immutable || p.Volatility != Immutable || !conditionalConstantInputs(e) {
+	if e.IntrinsicStable() || p.Volatility != Immutable || !conditionalConstantInputs(e) {
 		return e, false, nil
 	}
 	retained := c.quoteCaptures != nil && !p.RowDependent && !p.ParameterDependent && !p.StageDependent
 	var entry quoteConstant
 	index := -1
 	if retained {
-		origin := e.origin
+		origin := e.Origin
 		if origin.owner == (ObjectRef{}) {
 			origin = c.quoteOrigin
 		}
-		entry = quoteConstant{offset: e.pos.Offset, origin: origin, frame: e.frame, name: e.name, anyelement: e.anyelement, source: e.args[0].ResultUsage(), result: e.usage}
+		entry = quoteConstant{offset: e.Pos.Offset, origin: origin, frame: e.Frame, name: e.Name, anyelement: e.AnyElement, source: e.Args[0].ResultUsage(), result: e.Usage}
 		for i, saved := range c.quoteCaptures.entries {
 			if saved.offset != entry.offset || saved.origin != entry.origin || saved.frame != entry.frame || saved.name != entry.name || saved.anyelement != entry.anyelement {
 				continue
 			}
 			index = i
 			if saved.source == entry.source && saved.result == entry.result {
-				return literalExpression{e.expressionInfo, saved.value}, true, nil
+				return literalExpression{boundExpressionInfo(e), saved.value}, true, nil
 			}
 			break
 		}
@@ -68,7 +71,7 @@ func foldStringVariadic(c *EvalContext, e stringVariadicExpression) (BoundExpr, 
 			group.entries = append(group.entries, entry)
 		}
 	}
-	return literalExpression{e.expressionInfo, value}, true, nil
+	return literalExpression{boundExpressionInfo(e), value}, true, nil
 }
 
 // Definition tokens, not unrelated catalog revisions, retire stored origins.

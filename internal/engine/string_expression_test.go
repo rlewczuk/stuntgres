@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func TestStringCoreBinding(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
 	}
-	if _, ok := original.(stringExpression).args[0].(stringExpression); !ok {
+	if _, ok := original.(functions.String[BoundExpr, *EvalContext, ExprProperties]).Args[0].(functions.String[BoundExpr, *EvalContext, ExprProperties]); !ok {
 		t.Fatal("preflight mutated analyzed children")
 	}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, bind("SELECT btrim(NULL,pg_catalog.normalize('x','bad'))"))
@@ -70,23 +71,12 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var order []int
-	node := stringExpression{expressionInfo: expressionInfo{usage: text.Usage()}, plan: plan, textual: [4]bool{true, true}, args: []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "x"), order: &order, index: 1},
+	// Keep genuine owner retag/walker integration here; runtime demand is
+	// exercised locally by functions.TestStringRuntimeDemand.
+	node := functions.String[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: text.Usage()}), Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
+		literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "a")},
+		literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "b")},
 	}}
-	got, err := node.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("children exactly once", got, order, err)
-	}
-	failure := errors.New("demanded sibling")
-	node.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	_, err = node.Eval(&EvalContext{Context: context.Background()})
-	if !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("strict NULL suppressed sibling", order, err)
-	}
-	node.args = []BoundExpr{literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "a")}, literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "b")}}
 	var replacement *sqltype.Descriptor
 	for _, d := range sqltype.Builtins() {
 		if d.ID() == sqltype.Text {
@@ -102,7 +92,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	got, err = rebound.Eval(&EvalContext{Context: context.Background()})
+	got, err := rebound.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || got.Type() != replacement {
 		t.Fatal("retained provider ownership", got, err)
 	}
@@ -110,14 +100,14 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	if s != "ab" {
 		t.Fatal(s)
 	}
-	if node.ResultUsage().Type != text || node.plan.TextUsage().Type != text {
+	if node.ResultUsage().Type != text || node.Plan.TextUsage().Type != text {
 		t.Fatal("retag mutated original generation")
 	}
 	nested := node
-	nested.args = append([]BoundExpr(nil), node.args...)
-	nested.args[1] = columnExpression{expressionInfo: expressionInfo{usage: text.Usage(), pos: parser.Position{Character: 17}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
-	nested.pos = parser.Position{Character: 8}
-	nested.properties.RowDependent = true
+	nested.Args = append([]BoundExpr(nil), node.Args...)
+	nested.Args[1] = columnExpression{expressionInfo: expressionInfo{usage: text.Usage(), pos: parser.Position{Character: 17}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	nested.Pos = parser.Position{Character: 8}
+	nested.Property.RowDependent = true
 	if position := firstQueryBoundFrameVariable(nested, 1); position.Character != 17 {
 		t.Fatal("nested string query-bound variable", position)
 	}
@@ -180,9 +170,9 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	run(t, e, "CREATE TABLE deparse_args(v CHAR(4),s CHAR(4),e TEXT,CHECK(btrim(v,s)=e))")
 	ref := roleTableRef(t, e, "deparse_args")
 	relation := e.state.descriptors[ref.Address].(*relationDescriptor)
-	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(stringExpression)
-	args := append([]BoundExpr(nil), node.args...)
-	plan := node.plan
+	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	args := append([]BoundExpr(nil), node.Args...)
+	plan := node.Plan
 	for _, pretty := range []bool{false, true} {
 		renderer := pgRenderer{view: e.CatalogRead(), relation: relation, pretty: pretty}
 		got, err := renderer.sql(context.Background(), node, pgRenderParent{})
@@ -195,10 +185,10 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 		}
 		// These row-dependent arguments have no evaluation frame. Rendering
 		// must only present the provider's conversion, never evaluate or wrap it.
-		if node.plan != plan || !reflect.DeepEqual(node.args, args) {
+		if node.Plan != plan || !reflect.DeepEqual(node.Args, args) {
 			t.Fatal("rendering changed the retained provider or arguments")
 		}
-		for _, arg := range node.args {
+		for _, arg := range node.Args {
 			if _, ok := arg.(columnExpression); !ok || arg.ResultUsage().Type.ID() != sqltype.BPChar {
 				t.Fatal("renderer installed a runtime conversion", arg)
 			}
@@ -211,23 +201,23 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	run(t, e, "CREATE TABLE trim_copies(v BYTEA,s BYTEA,e BYTEA,CHECK(TRIM(LEADING s FROM v)=e))")
 	ref := roleTableRef(t, e, "trim_copies")
 	relation := e.state.descriptors[ref.Address].(*relationDescriptor)
-	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(binaryExpression)
-	if node.syntax != parser.SQLFunctionSyntax {
+	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	ordinary := node
-	ordinary.syntax = parser.OrdinaryFunctionSyntax
+	ordinary.Syntax = parser.OrdinaryFunctionSyntax
 	if !binder.sameGroupExpression(node, ordinary) {
 		t.Fatal("presentation syntax changed binary semantic identity")
 	}
-	grouped, err := binder.rewriteGroup(node, node.args)
-	if err != nil || grouped.(binaryExpression).syntax != parser.SQLFunctionSyntax {
+	grouped, err := binder.rewriteGroup(node, node.Args)
+	if err != nil || grouped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("aggregate rewrite lost syntax", grouped, err)
 	}
 	remapped, err := remapBoundExpression(node, func(ref ObjectRef) ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
-	if err != nil || remapped.(binaryExpression).syntax != parser.SQLFunctionSyntax ||
-		remapped.(binaryExpression).args[0].(columnExpression).slot != 1 || node.args[0].(columnExpression).slot != 0 {
+	if err != nil || remapped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax ||
+		remapped.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Args[0].(columnExpression).slot != 1 || node.Args[0].(columnExpression).slot != 0 {
 		t.Fatal("remap lost syntax or mutated original children", remapped, err)
 	}
 	var replacement *sqltype.Descriptor
@@ -242,11 +232,11 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 		}
 		return d
 	})
-	if err != nil || !changed || rebound.(binaryExpression).syntax != parser.SQLFunctionSyntax || rebound.ResultUsage().Type != replacement {
+	if err != nil || !changed || rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax || rebound.ResultUsage().Type != replacement {
 		t.Fatal("retag lost syntax or provider ownership", rebound, changed, err)
 	}
 	folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, node)
-	if err != nil || folded.(binaryExpression).syntax != parser.SQLFunctionSyntax {
+	if err != nil || folded.(functions.Binary[BoundExpr, *EvalContext, ExprProperties]).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("preflight lost syntax", folded, err)
 	}
 	got, err := (scalarRenderer{owner: relation}).sql(context.Background(), e.CatalogRead(), node)
@@ -254,7 +244,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 		t.Fatal("canonical replay lost special binary TRIM", got, err)
 	}
 	invalid := node
-	invalid.syntax = parser.FunctionSyntax(255)
+	invalid.Syntax = parser.FunctionSyntax(255)
 	if _, err := (scalarRenderer{owner: relation}).sql(context.Background(), e.CatalogRead(), invalid); err == nil {
 		t.Fatal("stored binary node accepted unrelated special syntax")
 	}

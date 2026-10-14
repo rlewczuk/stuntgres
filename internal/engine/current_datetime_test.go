@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -24,22 +25,11 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(raw, err)
 		}
-		node, ok := bound.(currentDateTimeExpression)
-		if !ok || node.Properties() != (ExprProperties{Volatility: Stable}) || node.ResultUsage().Type.ID() != currentDateTimeType(kind) || plannedVolatility(node) != Stable || generationImmutable(node) {
+		node, ok := bound.(functions.CurrentDateTime[*EvalContext, ExprProperties])
+		if !ok || node.Properties() != (ExprProperties{Volatility: Stable}) || node.ResultUsage().Type.ID() != functions.CurrentDateTimeType(kind) || plannedVolatility(node) != Stable || generationImmutable(node) {
 			t.Fatal(raw, node)
 		}
-		if _, err := node.Eval(nil); err == nil {
-			t.Fatal("missing evaluation context accepted")
-		}
-		if _, err := node.Eval(&EvalContext{Context: ctx}); err == nil {
-			t.Fatal("missing transaction clock accepted")
-		}
-		stamp := time.Date(2000, 1, 1, 12, 0, 0, 123500000, time.UTC)
-		value, err := node.Eval(&EvalContext{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}})
-		if err != nil || value.Type() != node.ResultUsage().Type {
-			t.Fatal(value, err)
-		}
-		sql, err := node.sql()
+		sql, err := currentDateTimeSQL(node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,8 +57,8 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copy := remapped.(currentDateTimeExpression)
-		if copy.kind != node.kind || copy.precision != node.precision || copy.hasPrecision != node.hasPrecision || copy.pos != node.pos || copy.usage.Type == node.usage.Type || validateCurrentDateTime(copy) != nil {
+		copy := remapped.(functions.CurrentDateTime[*EvalContext, ExprProperties])
+		if copy.Kind != node.Kind || copy.Precision != node.Precision || copy.HasPrecision != node.HasPrecision || copy.Pos != node.Pos || copy.Usage.Type == node.Usage.Type || copy.Validate(functionPropertiesMatch(copy.Property, functions.CurrentDateTimeIntrinsicRule())) != nil {
 			t.Fatal(node, copy)
 		}
 		if sides, err := joinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
@@ -78,7 +68,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal("current leaf not semantically equal to itself")
 		}
 		other := node
-		other.kind = parser.CurrentDate
+		other.Kind = parser.CurrentDate
 		if kind != parser.CurrentDate && b.sameGroupExpression(node, other) {
 			t.Fatal("different current kinds equated")
 		}

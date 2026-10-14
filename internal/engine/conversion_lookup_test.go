@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -59,9 +60,11 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := binaryExpression{expressionInfo: expressionInfo{usage: bytea.Usage()}, plan: plan}
-	values := []sqltype.Value{sqltype.String(text, "é"), sqltype.String(name, "LATIN1")}
-	result, err := node.evalConversion(&EvalContext{Context: context.Background(), statementScope: fresh}, values)
+	node := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: bytea.Usage()}), Plan: plan, Args: []BoundExpr{
+		literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "é")},
+		literalExpression{expressionInfo: expressionInfo{usage: name.Usage()}, value: sqltype.String(name, "LATIN1")},
+	}}
+	result, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: fresh})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,11 +73,11 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal("actual selected handler output", raw, err)
 	}
 	missing := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ObjectAddress{}}
-	if _, err = node.evalConversion(&EvalContext{Context: context.Background(), statementScope: missing}, values); err == nil {
+	if _, err = node.Eval(&EvalContext{Context: context.Background(), statementScope: missing}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
-	values[0] = sqltype.String(text, "")
-	if _, err = node.evalConversion(&EvalContext{Context: context.Background()}, values); err != nil {
+	node.Args[0] = literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "")}
+	if _, err = node.Eval(&EvalContext{Context: context.Background()}); err != nil {
 		t.Fatal("empty input demanded default snapshot", err)
 	}
 }

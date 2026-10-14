@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/functions"
+
 // Query boundaries are explicit: lexical argument walking visits predicate
 // left operands but never confuses a child query's local columns with ours.
 func walkBoundExpression(node BoundExpr, visit func(BoundExpr)) {
@@ -55,10 +57,10 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.arg)
 	case visibilityInquiryExpression:
 		walk(e.arg)
-	case timeZoneExpression:
-		walk(e.value)
-		if !e.local {
-			walk(e.zone)
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Value)
+		if !e.Local {
+			walk(e.Zone)
 		}
 	case arithmeticExpression:
 		walk(e.left)
@@ -83,36 +85,36 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	case likeExpression:
 		walk(e.left)
 		walk(e.right)
-	case likeEscapeExpression:
-		walk(e.pattern)
-		walk(e.escape)
-	case posixExpression:
-		walk(e.left)
-		walk(e.right)
-	case similarExpression:
-		walk(e.left)
-		walk(e.right)
-	case similarEscapeExpression:
-		walk(e.pattern)
-		walk(e.escape)
-	case posixSubstringExpression:
-		for _, arg := range e.args {
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Pattern)
+		walk(e.Escape)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Left)
+		walk(e.Right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Left)
+		walk(e.Right)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Pattern)
+		walk(e.Escape)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case similarSubstringExpression:
-		for _, arg := range e.args {
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case regexpExpression:
-		args(e.args)
-	case regexpSetExpression:
-		args(e.args)
-	case jsonKeysExpression:
-		args(e.args)
 	case seriesExpression:
 		args(e.args)
 	case subscriptsExpression:
 		args(e.args)
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case logicalExpression:
 		walk(e.left)
 		walk(e.right)
@@ -125,60 +127,60 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.child)
 	case conditionalExpression:
 		args(e.args)
-	case binaryExpression:
-		args(e.args)
-	case stringExpression:
-		args(e.args)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case installedFunctionExpression:
 		walk(e.arg)
-	case jsonCreateExpression:
-		args(e.args)
-	case stringVariadicExpression:
-		args(e.args)
-	case formatExpression:
-		args(e.args)
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		args(e.Args)
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case indexPropertyExpression:
 		args(e.children())
-	case datetimeJustifyExpression:
-		walk(e.arg)
-	case datetimeExtractExpression:
-		args(e.children())
-	case datetimeOverlapsExpression:
-		args(e.children())
-	case datetimeBinExpression:
-		args(e.children())
-	case datetimeTruncExpression:
-		args(e.children())
-	case datetimeZoneCalendarExpression:
-		args(e.children())
-	case datetimeAgeFiniteExpression:
-		args(e.children())
-	case datetimeMakeExpression:
-		args(e.children())
-	case datetimeFormattingExpression:
-		args(e.args[:])
-	case numericFormattingExpression:
-		args(e.args[:])
-	case arraySearchExpression:
-		args(e.args)
-	case enumFunctionExpression:
-		args(e.args)
-	case mathExpression:
-		args(e.args)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Arg)
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args[:])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args[:])
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case deparseExpression:
 		args(e.args)
 	case commentInquiryExpression:
 		args(e.args)
-	case nullCountExpression:
-		args(e.args)
-	case randomExpression:
-		args(e.args)
-	case datetimeSleepExpression:
-		walk(e.arg)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Arg)
 	case advisoryExpression:
 		args(e.args)
-	case uuidGenerationExpression:
-		args(e.args)
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case sequenceCallExpression:
 		args(e.args)
 	case caseExpression:

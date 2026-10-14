@@ -1,38 +1,19 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type numericFormattingExpression struct {
-	expressionInfo
-	plan sqltype.NumericFormatPlan
-	args [2]BoundExpr
-}
-
-func (e numericFormattingExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	var values [2]sqltype.Value
-	for i, arg := range e.args {
-		value, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		values[i] = value
-	}
-	return e.plan.Evaluate(c.Context, values[0], values[1], c.Input, c.Output)
-}
 func (b *expressionBinder) bindNumericFormatting(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [4]comparisonOperand
+	var small [4]functions.Argument[BoundExpr]
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]comparisonOperand, len(raw.Args))
+		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.stringOperand(arg, true)
+		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringTextArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -43,61 +24,33 @@ func (b *expressionBinder) bindNumericFormatting(raw parser.FunctionExpr, visibl
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if !visible || len(operands) != 2 || raw.Variadic {
+	if functions.ResolveNumericFormatting(visible, raw.Variadic, operands) != functions.Resolved {
 		return nil, b.numericFormattingSignature(raw, operands)
-	}
-	for _, o := range operands {
-		if d := o.descriptor(); d != nil && !sqltype.StringTextInput(d.BaseType().ID()) {
-			return nil, b.numericFormattingSignature(raw, operands)
-		}
 	}
 	return b.numericFormattingOperands(raw, operands, b.typ(sqltype.Text))
 }
-func (b *expressionBinder) numericFormattingSignature(raw parser.FunctionExpr, operands []comparisonOperand) error {
+func (b *expressionBinder) numericFormattingSignature(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) error {
 	names := make([]string, len(operands))
 	for i, o := range operands {
-		names[i] = datetimeFormattingTypeName(o)
+		names[i] = datetimeFormattingTypeName(o.Usage.Type)
 	}
 	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }
 
 // Numeric to_char arrives with already-transformed operands from the temporal
 // resolver, retaining argument error precedence and parameter occurrences.
-func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, operands []comparisonOperand, source *sqltype.Descriptor) (BoundExpr, error) {
+func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr], source *sqltype.Descriptor) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var args [2]BoundExpr
-	properties := ExprProperties{Volatility: Stable}
-	for i, o := range operands {
-		target := b.typ(sqltype.Text)
-		if i == 0 {
-			target = source
-		}
-		argument, err := b.finalizeOperand(o, target)
-		if err != nil {
-			return nil, err
-		}
-		usage := target.Usage()
-		if target.ID() == sqltype.Text && argument.ResultUsage().Collation.ID != 0 {
-			usage.Collation = argument.ResultUsage().Collation
-		}
-		if argument.ResultUsage() != usage {
-			plan, err := sqltype.PlanCoercion(argument.ResultUsage(), usage, sqltype.Implicit)
-			if argument.ResultUsage().Type.BaseType().ID() == sqltype.Char {
-				plan, err = sqltype.PlanExtremaCharText(argument.ResultUsage(), usage)
-			}
-			if err != nil {
-				return nil, err
-			}
-			info := b.info(usage, argument.SourcePosition(), coercionProperties(argument, plan))
-			if target.ID() == sqltype.Text {
-				info, err = b.coercionInfo(info, argument)
-				if err != nil {
-					return nil, err
-				}
-			}
-			argument = coercionExpression{info, argument, plan, sqltype.Implicit}
-		}
-		args[i] = argument
+	text := source.Usage()
+	if source.ID() != sqltype.Text {
+		text = b.typ(sqltype.Text).Usage()
+	}
+	args, err := functions.CoerceNumericFormattingArguments(b, operands, source.Usage(), text)
+	if err != nil {
+		return nil, err
+	}
+	properties := functionIntrinsicProperties(functions.NumericFormattingIntrinsicRule())
+	for _, argument := range args {
 		p := argument.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
 		properties.RowDependent = properties.RowDependent || p.RowDependent
@@ -106,12 +59,12 @@ func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, op
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	result := b.typ(sqltype.Text).Usage()
-	if name == "to_number" {
-		result = b.typ(sqltype.Numeric).Usage()
+	result := text
+	if id := functions.NumericFormattingResult(name); id != sqltype.Text {
+		result = b.typ(id).Usage()
 	}
 	info := b.info(result, raw.Pos, properties)
-	collated, err := b.collatedInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), args[:]...)
+	collated, err := b.collatedInfo(b.info(text, raw.Pos, properties), args[:]...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +79,5 @@ func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, op
 		}
 		constant = &text
 	}
-	plan, err := sqltype.BindNumericFormat(b.ctx, name, info.usage, args[0].ResultUsage(), constant)
-	if err != nil {
-		return nil, err
-	}
-	return numericFormattingExpression{info, plan, args}, nil
+	return functions.NewNumericFormatting[BoundExpr, *EvalContext](b.ctx, functionInfo(info), name, args, constant)
 }

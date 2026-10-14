@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,6 @@ type ExprProperties struct {
 
 // Dependence and volatility propagate independently through bound expressions.
 type BoundExpr interface {
-	boundExpression()
 	ResultUsage() sqltype.Usage
 	CollationIndeterminate() bool
 	ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position)
@@ -89,7 +89,6 @@ type expressionInfo struct {
 	collationConflictPos          parser.Position
 }
 
-func (expressionInfo) boundExpression()                     {}
 func (e expressionInfo) ResultUsage() sqltype.Usage         { return e.usage }
 func (e expressionInfo) SourcePosition() parser.Position    { return e.pos }
 func (e expressionInfo) Properties() ExprProperties         { return e.properties }
@@ -104,6 +103,96 @@ func boundExpressionInfo(node BoundExpr) expressionInfo {
 	left, right, position := node.ImplicitCollationConflict()
 	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation(), collationLeft: left, collationRight: right, collationConflictPos: position}
 	return info
+}
+
+func functionInfo(info expressionInfo) functions.Info[ExprProperties] {
+	return functions.Info[ExprProperties]{
+		Usage: info.usage, Pos: info.pos, Property: info.properties,
+		CollationConflict: info.collationConflict, CollationExplicit: info.collationExplicit,
+		CollationLeft: info.collationLeft, CollationRight: info.collationRight,
+		CollationConflictPos: info.collationConflictPos,
+	}
+}
+func (c *EvalContext) FunctionContext() context.Context {
+	if c == nil {
+		return nil
+	}
+	return c.Context
+}
+func (c *EvalContext) FunctionInput() sqltype.InputEnvironment   { return c.Input }
+func (c *EvalContext) FunctionOutput() sqltype.OutputEnvironment { return c.Output }
+func (c *EvalContext) FunctionOverlapsConstant(node BoundExpr) bool {
+	return overlapsExecutionConstant(node, c)
+}
+func (c *EvalContext) FunctionLiteralNull(node BoundExpr) bool { return randomLiteralNull(node) }
+func (c *EvalContext) WholeRowNullPresence(node BoundExpr) (handled, absent bool, err error) {
+	row, ok := node.(rowExpression)
+	if !ok || row.wholeNames == nil {
+		return false, false, nil
+	}
+	if row.usage.Type == nil || !row.usage.Type.Concrete() || !row.usage.Type.BaseType().IsComposite() || len(row.fields) != row.usage.Type.BaseType().CompositeLen() {
+		return true, false, fmt.Errorf("stuntgres: invalid null-count argument type")
+	}
+	absent, err = row.absent(c)
+	return true, absent, err
+}
+func (c *EvalContext) FunctionJSONOutput() sqltype.OutputEnvironment {
+	output := c.Output
+	scope := c.liveScope()
+	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
+	output.Regrole, output.Regcollation, output.Regnamespace = scope, scope, scope
+	output.Operator, output.ACLItem = scope, scope
+	output.RegTS = scope
+	return output
+}
+func (c *EvalContext) FunctionStringOutput() sqltype.OutputEnvironment {
+	output := c.Output
+	scope := c.liveScope()
+	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
+	output.Regrole, output.Regcollation, output.Regnamespace = scope, scope, scope
+	output.Operator = scope
+	output.RegTS = scope
+	return output
+}
+func (c *EvalContext) FunctionFormatOutput() sqltype.OutputEnvironment {
+	output := c.Output
+	scope := c.liveScope()
+	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
+	output.Regrole, output.Regcollation, output.Regnamespace = scope, scope, scope
+	output.Operator, output.ACLItem = scope, scope
+	output.RegTS = scope
+	return output
+}
+func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {
+	procedure, err := c.liveScope().conversionProcedure(source, destination)
+	if err != nil || procedure == nil {
+		return nil, err
+	}
+	return &procedure.conversion, nil
+}
+
+func functionIntrinsicProperties(rule functions.IntrinsicPropertyRule) ExprProperties {
+	switch rule {
+	case functions.ExactStable:
+		return ExprProperties{Volatility: Stable}
+	case functions.ExactVolatile, functions.VolatileOnly:
+		return ExprProperties{Volatility: Volatile}
+	}
+	return ExprProperties{}
+}
+func functionPropertiesMatch(properties ExprProperties, rule functions.IntrinsicPropertyRule) bool {
+	switch rule {
+	case functions.ExactStable:
+		return properties == (ExprProperties{Volatility: Stable})
+	case functions.ExactVolatile:
+		return properties == (ExprProperties{Volatility: Volatile})
+	case functions.VolatileOnly:
+		return properties.Volatility == Volatile
+	}
+	return false
+}
+func (c *EvalContext) FunctionPropertiesMatch(properties ExprProperties, rule functions.IntrinsicPropertyRule) bool {
+	return functionPropertiesMatch(properties, rule)
 }
 func evaluationContext(c *EvalContext) error {
 	if c == nil || c.Context == nil {
@@ -397,23 +486,23 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case timeZoneExpression:
-		if randomLiteralNull(e.value) || !e.local && randomLiteralNull(e.zone) {
-			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		if randomLiteralNull(e.Value) || !e.Local && randomLiteralNull(e.Zone) {
+			return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		changed := false
-		if !e.local {
-			zone, did, err := preflightCoercionsWithPolicy(c, e.zone, decisiveDefaults)
+		if !e.Local {
+			zone, did, err := preflightCoercionsWithPolicy(c, e.Zone, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
-			e.zone, changed = zone, did
+			e.Zone, changed = zone, did
 		}
-		value, did, err := preflightCoercionsWithPolicy(c, e.value, decisiveDefaults)
+		value, did, err := preflightCoercionsWithPolicy(c, e.Value, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.value, changed = value, changed || did
+		e.Value, changed = value, changed || did
 		next, simplified, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || simplified, err
 	case rowExpression:
@@ -487,139 +576,139 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		if changed {
 			return e, true, nil
 		}
-	case likeEscapeExpression:
-		pattern, pc, err := preflightCoercionsWithPolicy(c, e.pattern, decisiveDefaults)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		pattern, pc, err := preflightCoercionsWithPolicy(c, e.Pattern, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		escape, ec, err := preflightCoercionsWithPolicy(c, e.escape, decisiveDefaults)
+		escape, ec, err := preflightCoercionsWithPolicy(c, e.Escape, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.pattern, e.escape = pattern, escape
+		e.Pattern, e.Escape = pattern, escape
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, pc || ec, nil
-	case similarEscapeExpression:
-		pattern, pc, err := preflightCoercionsWithPolicy(c, e.pattern, decisiveDefaults)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		pattern, pc, err := preflightCoercionsWithPolicy(c, e.Pattern, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		escape, ec, err := preflightCoercionsWithPolicy(c, e.escape, decisiveDefaults)
+		escape, ec, err := preflightCoercionsWithPolicy(c, e.Escape, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.pattern, e.escape = pattern, escape
+		e.Pattern, e.Escape = pattern, escape
 		p := e.Properties()
 		if randomLiteralNull(pattern) || randomLiteralNull(escape) {
-			pgRegexExecution(c).Reset()
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			c.FunctionRegexExecution().Reset()
+			return preflightValue(c, boundExpressionInfo(e), sqltype.Null(e.Usage.Type), nil)
 		}
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, pc || ec, nil
-	case posixExpression:
-		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rc, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		right, rc, err := preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.left, e.right = left, right
+		e.Left, e.Right = left, right
 		if randomLiteralNull(left) || randomLiteralNull(right) {
-			pgRegexExecution(c).Reset()
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			c.FunctionRegexExecution().Reset()
+			return preflightValue(c, boundExpressionInfo(e), sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, lc || rc, nil
-	case similarExpression:
-		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rc, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		right, rc, err := preflightCoercionsWithPolicy(c, e.Right, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.left, e.right = left, right
+		e.Left, e.Right = left, right
 		if randomLiteralNull(left) || randomLiteralNull(right) {
-			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+			return preflightValue(c, boundExpressionInfo(e), sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, lc || rc, nil
-	case posixSubstringExpression:
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
 		changed := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
-			e.args[i] = next
+			e.Args[i] = next
 			changed = changed || did
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				pgRegexExecution(c).Reset()
-				return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+				c.FunctionRegexExecution().Reset()
+				return preflightValue(c, boundExpressionInfo(e), sqltype.Null(e.Usage.Type), nil)
 			}
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
-	case similarSubstringExpression:
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
 		changed := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
-			e.args[i] = next
+			e.Args[i] = next
 			changed = changed || did
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+				return preflightValue(c, boundExpressionInfo(e), sqltype.Null(e.Usage.Type), nil)
 			}
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
-	case regexpExpression:
-		call, changed, err := preflightRegexpCall(c, e.regexpCall, decisiveDefaults)
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		call, changed, err := preflightRegexpCall(c, e.RegexpCall, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.regexpCall = call
+		e.RegexpCall = call
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
-			return preflightValue(c, e.expressionInfo, value, err)
+			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
-	case regexpSetExpression:
-		call, changed, err := preflightRegexpCall(c, e.regexpCall, decisiveDefaults)
-		e.regexpCall = call
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		call, changed, err := preflightRegexpCall(c, e.RegexpCall, decisiveDefaults)
+		e.RegexpCall = call
 		return e, changed, err
 	case seriesExpression:
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
@@ -629,10 +718,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
-	case jsonKeysExpression:
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.args[0], decisiveDefaults)
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {
-			e.args = []BoundExpr{arg}
+			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err
 	case likeExpression:
@@ -879,198 +968,198 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
-	case binaryExpression:
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case datetimeJustifyExpression:
-		arg, childChanged, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		arg, childChanged, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.arg = arg
+		e.Arg = arg
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || childChanged, err
-	case datetimeExtractExpression:
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i], anyChanged = folded, true
+				e.Args[i], anyChanged = folded, true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case datetimeOverlapsExpression:
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i], anyChanged = folded, true
+				e.Args[i], anyChanged = folded, true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case datetimeBinExpression:
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i], anyChanged = folded, true
+				e.Args[i], anyChanged = folded, true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case datetimeTruncExpression:
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.children() {
+		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i], anyChanged = folded, true
+				e.Args[i], anyChanged = folded, true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case datetimeZoneCalendarExpression:
-		for _, arg := range e.children() {
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		anyChanged := false
-		for i, arg := range e.children() {
+		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i], anyChanged = folded, true
+				e.Args[i], anyChanged = folded, true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case datetimeAgeFiniteExpression:
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.children() {
+		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i], anyChanged = folded, true
+				e.Args[i], anyChanged = folded, true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case datetimeMakeExpression:
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.children() {
+		for i, arg := range e.Arguments() {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i] = folded
+				e.Args[i] = folded
 				anyChanged = true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case datetimeFormattingExpression:
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i] = folded
+				e.Args[i] = folded
 				anyChanged = true
 			}
 		}
-		if template, ok := e.args[1].(literalExpression); ok {
-			plan, changed, err := e.plan.WithConstantTemplate(c.Context, template.value)
+		if template, ok := e.Args[1].(literalExpression); ok {
+			plan, changed, err := e.Plan.WithConstantTemplate(c.Context, template.value)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.plan = plan
+				e.Plan = plan
 				anyChanged = true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case numericFormattingExpression:
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args[i] = folded
+				e.Args[i] = folded
 				anyChanged = true
 			}
 		}
-		if template, ok := e.args[1].(literalExpression); ok {
-			plan, changed, err := e.plan.WithConstantTemplate(c.Context, template.value)
+		if template, ok := e.Args[1].(literalExpression); ok {
+			plan, changed, err := e.Plan.WithConstantTemplate(c.Context, template.value)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.plan = plan
+				e.Plan = plan
 				anyChanged = true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
-	case stringExpression:
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case arraySearchExpression:
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		next, changed, err := mapArraySearchChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
@@ -1079,84 +1168,84 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
-	case enumFunctionExpression:
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case mathExpression:
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case uuidGenerationExpression:
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
 		childChanged := false
-		if len(e.args) != 0 {
-			folded, changed, err := preflightCoercionsWithPolicy(c, e.args[0], decisiveDefaults)
+		if len(e.Args) != 0 {
+			folded, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
-				e.args = []BoundExpr{folded}
+				e.Args = []BoundExpr{folded}
 				childChanged = true
 			}
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || childChanged, err
-	case randomExpression:
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 			return e, true, nil
 		}
-	case datetimeSleepExpression:
-		folded, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		folded, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.arg = folded
-		if randomLiteralNull(e.arg) {
-			return literalExpression{expressionInfo: expressionInfo{usage: e.usage, pos: e.pos}, value: sqltype.Null(e.usage.Type)}, true, nil
+		e.Arg = folded
+		if randomLiteralNull(e.Arg) {
+			return literalExpression{expressionInfo: expressionInfo{usage: e.Usage, pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		return e, changed, nil
 	case advisoryExpression:
@@ -1233,80 +1322,81 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
-	case nullCountExpression:
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 			return e, true, nil
 		}
-	case jsonCreateExpression:
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
-			if err := e.replan(); err != nil {
-				return nil, false, err
+			next, failure := e.Reconstruct(e.Info, args)
+			if failure != nil {
+				return nil, false, failure
 			}
+			e = next
 			return e, true, nil
 		}
-	case stringVariadicExpression:
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case formatExpression:
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if changed {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = folded
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 			return e, true, nil
 		}
 	}
@@ -2273,7 +2363,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindStringPrefix(r)
 			} else if len(r.Name.Parts) > 0 && likeName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindLike(r)
-			} else if len(r.Args) == 2 && len(r.Name.Parts) > 0 && posixName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+			} else if len(r.Args) == 2 && len(r.Name.Parts) > 0 && functions.PosixName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindPosix(r)
 			} else if len(r.Name.Parts) > 0 && arrayMembershipName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindArrayMembership(r)
@@ -2981,6 +3071,129 @@ func (o comparisonOperand) descriptor() *sqltype.Descriptor {
 
 func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand, error) {
 	return b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext})
+}
+
+// AnalyzeArgument retains generic binding and occurrence-owned unknown inference.
+// The request is closed: children cannot invoke catalog or parameter services.
+func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.AnalysisRequest) (functions.Argument[BoundExpr], error) {
+	var operand comparisonOperand
+	var err error
+	switch request.Intent {
+	case functions.ComparisonArgument:
+		operand, err = b.comparisonOperand(raw)
+	case functions.StringTextArgument, functions.StringOtherArgument:
+		operand, err = b.stringOperand(raw, request.Intent == functions.StringTextArgument)
+	case functions.StringProjectionArgument, functions.ProjectionArgument:
+		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext, stringInput: request.Intent == functions.StringProjectionArgument})
+		operand.raw = raw
+		if err == nil && unknownNullSyntax(raw) {
+			if literal, ok := operand.node.(literalExpression); ok {
+				literal.unknownNull = true
+				operand.node = literal
+			}
+		}
+	case functions.DirectDeferredArgument:
+		if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+			operand.raw = raw
+		} else {
+			operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext})
+			operand.raw = raw
+		}
+	default:
+		return functions.Argument[BoundExpr]{}, fmt.Errorf("stuntgres: invalid function argument analysis")
+	}
+	argument := functions.Argument[BoundExpr]{Expression: operand.node, Raw: operand.raw}
+	if operand.node != nil {
+		argument.Usage = operand.node.ResultUsage()
+		if argument.Usage.Type == nil {
+			argument.Kind = functions.UnresolvedParameterArgument
+		}
+	} else if literal, ok := operand.raw.(parser.LiteralExpr); ok && literal.Value.Kind == parser.NullValue {
+		argument.Kind = functions.DeferredNullArgument
+	} else {
+		argument.Kind = functions.DeferredStringArgument
+	}
+	return argument, err
+}
+
+func (b *expressionBinder) CoerceArgument(argument functions.Argument[BoundExpr], request functions.CoercionRequest) (BoundExpr, error) {
+	operand := comparisonOperand{node: argument.Expression, raw: argument.Raw}
+	switch request.Intent {
+	case functions.FinalizeArgument:
+		return b.finalizeOperand(operand, request.Target.Type)
+	case functions.LikeArgument:
+		return b.likeOperand(operand, request.Target.Type)
+	case functions.SizeFormalArgument:
+		node, err := b.finalizeOperand(operand, request.Target.Type)
+		if err != nil {
+			return nil, err
+		}
+		if node.ResultUsage() == request.Target {
+			return node, nil
+		}
+		info, err := b.coercionInfo(b.info(request.Target, node.SourcePosition(), node.Properties()), node)
+		if err != nil {
+			return nil, err
+		}
+		plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.usage, sqltype.Implicit)
+		if err != nil {
+			return nil, err
+		}
+		info.properties = coercionProperties(node, plan)
+		return coercionExpression{info, node, plan, sqltype.Implicit}, nil
+	case functions.ConditionalArgument:
+		return b.coerceConditional(operand, request.Target, request.Label)
+	case functions.DirectFormalArgument:
+		if argument.Usage.Type == nil {
+			return b.bind(argument.Raw, expressionPolicy{context: functionArgumentContext, expected: request.Target, mode: sqltype.Implicit})
+		}
+	case functions.ExactFormalArgument, functions.TextFormalArgument, functions.CollatedTextFormalArgument:
+		node, err := b.finalizeOperand(operand, request.Target.Type)
+		if err != nil {
+			return nil, err
+		}
+		argument.Expression, argument.Usage = node, node.ResultUsage()
+		if request.Intent == functions.TextFormalArgument && request.Target.Type.ID() == sqltype.Text && argument.Usage.Collation.ID != 0 {
+			request.Target.Collation = argument.Usage.Collation
+		}
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid function argument coercion")
+	}
+	node := argument.Expression
+	if argument.Usage == request.Target {
+		return node, nil
+	}
+	plan := request.Plan
+	var err error
+	if !request.Planned {
+		if (request.Intent == functions.TextFormalArgument || request.Intent == functions.CollatedTextFormalArgument) && argument.Usage.Type.BaseType().ID() == sqltype.Char {
+			plan, err = sqltype.PlanExtremaCharText(argument.Usage, request.Target)
+		} else {
+			plan, err = sqltype.PlanCoercion(argument.Usage, request.Target, sqltype.Implicit)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	properties := node.Properties()
+	if !request.PreserveProperties {
+		properties = coercionProperties(node, plan)
+	}
+	pos := node.SourcePosition()
+	if request.AtRaw {
+		pos = argument.Raw.SourcePosition()
+	}
+	info := b.info(request.Target, pos, properties)
+	switch {
+	case request.Intent == functions.CollatedTextFormalArgument:
+		info, err = b.collatedInfo(info, node)
+	case request.Intent == functions.TextFormalArgument && request.Target.Type.ID() == sqltype.Text:
+		info, err = b.coercionInfo(info, node)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return coercionExpression{info, node, plan, sqltype.Implicit}, nil
 }
 
 func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expressionPolicy) (comparisonOperand, error) {

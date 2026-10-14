@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -111,11 +112,11 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := b.aggregates[0]
-		provider := call.provider.(*arrayAggregateProvider)
-		if result.ResultUsage().Type != tc.want || provider.usage.Type != tc.want || provider.arrays != tc.arrays || provider.argument != call.argument.ResultUsage().Type {
+		provider := call.provider.(*functions.ArrayAggregateProvider)
+		if result.ResultUsage().Type != tc.want || provider.ResultUsage().Type != tc.want || provider.Arrays() != tc.arrays || provider.ArgumentType() != call.argument.ResultUsage().Type {
 			t.Fatal("domain overload lost exact catalog generation", tc, provider)
 		}
-		if !tc.arrays && provider.usage.Type.Element() != tc.input {
+		if !tc.arrays && provider.ResultUsage().Type.Element() != tc.input {
 			t.Fatal("scalar domain was flattened")
 		}
 		found := false

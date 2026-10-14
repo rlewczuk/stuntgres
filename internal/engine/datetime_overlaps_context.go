@@ -1,19 +1,10 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-func overlapsErrorContext(err error, context string) error {
-	if d, ok := err.(*sqlstate.Error); ok && d.Context == "" {
-		copy := *d
-		copy.Context = context
-		return &copy
-	}
-	return err
-}
 
 // Imported parameters remain Execute-owned. This predicate inspects structure
 // and availability only, never evaluates a child again or freezes its value.
@@ -36,12 +27,12 @@ func overlapsExecutionConstant(node BoundExpr, c *EvalContext) bool {
 
 // Only duration starts occur twice in the SQL wrapper body. Released inline
 // safety tests apply to those slots, not volatile single-use durations/ends.
-func overlapsInlineSafe(e datetimeOverlapsExpression) bool {
-	for pair, duration := range e.plan.Duration() {
+func overlapsInlineSafe(e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]) bool {
+	for pair, duration := range e.Plan.Duration() {
 		if !duration {
 			continue
 		}
-		start := e.args[pair*2]
+		start := e.Args[pair*2]
 		if plannedVolatility(start) == Volatile {
 			return false
 		}
@@ -85,22 +76,22 @@ func overlapsNodeCost(node BoundExpr) int {
 		return 10
 	case commentInquiryExpression:
 		return 100
-	case datetimeAgeFiniteExpression:
-		if n.plan.Name() == "age" && n.count == 1 {
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Plan.Name() == "age" && n.Count == 1 {
 			return 3
 		}
 		return 1
-	case datetimeExtractExpression:
-		if n.plan.Name() == "date_part" && n.plan.InputID() == sqltype.Date {
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Plan.Name() == "date_part" && n.Plan.InputID() == sqltype.Date {
 			return 2
 		}
 		return 1
-	case datetimeOverlapsExpression:
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
 		cost := 1
-		if !n.wrapperContext {
-			for pair, duration := range n.plan.Duration() {
-				if duration && n.folded[pair].Type() == nil {
-					cost += 1 + overlapsTreeCost(n.args[pair*2])
+		if !n.WrapperContext {
+			for pair, duration := range n.Plan.Duration() {
+				if duration && n.Folded[pair].Type() == nil {
+					cost += 1 + overlapsTreeCost(n.Args[pair*2])
 				}
 			}
 		}
@@ -116,62 +107,43 @@ func overlapsTreeCost(node BoundExpr) int {
 	return cost
 }
 
-func (e datetimeOverlapsExpression) effectiveContext(c *EvalContext, pair int) string {
-	if pair < 0 {
-		return ""
-	}
-	constant := [4]bool{}
-	all := true
-	for i, arg := range e.args {
-		constant[i] = overlapsExecutionConstant(arg, c)
-		all = all && constant[i]
-	}
-	if !e.plan.SessionDependent() && all || e.wrapperContext {
-		return `SQL function "overlaps" statement 1`
-	}
-	if !e.plan.SessionDependent() && constant[pair*2] && constant[pair*2+1] {
-		return `SQL function "overlaps" during inlining`
-	}
-	return ""
-}
-
 // Simplification of caller children precedes SQL wrapper evaluation/inlining.
 // A partial constant body addition can fail during inlining even when another
 // pair uses table columns. Stable zoned addition is never ordinarily folded.
-func simplifyOverlapsRoute(c *EvalContext, e datetimeOverlapsExpression) (datetimeOverlapsExpression, bool, error) {
-	old := e.wrapperContext
-	oldFolded := e.folded
-	e.wrapperContext = !overlapsInlineSafe(e)
+func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]) (functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties], bool, error) {
+	old := e.WrapperContext
+	oldFolded := e.Folded
+	e.WrapperContext = !overlapsInlineSafe(e)
 	all := true
-	for _, arg := range e.args {
+	for _, arg := range e.Args {
 		if _, ok := arg.(literalExpression); !ok {
 			all = false
 			break
 		}
 	}
-	if all && !e.plan.SessionDependent() {
-		e.wrapperContext = true
-		return e, e.wrapperContext != old, nil
+	if all && !e.Plan.SessionDependent() {
+		e.WrapperContext = true
+		return e, e.WrapperContext != old, nil
 	}
-	if !e.wrapperContext && !e.plan.SessionDependent() {
-		for pair, duration := range e.plan.Duration() {
+	if !e.WrapperContext && !e.Plan.SessionDependent() {
+		for pair, duration := range e.Plan.Duration() {
 			if !duration {
 				continue
 			}
-			start, a := e.args[pair*2].(literalExpression)
-			interval, b := e.args[pair*2+1].(literalExpression)
+			start, a := e.Args[pair*2].(literalExpression)
+			interval, b := e.Args[pair*2+1].(literalExpression)
 			if !a || !b {
 				continue
 			}
-			if e.folded[pair].Type() != nil {
+			if e.Folded[pair].Type() != nil {
 				continue
 			}
-			end, err := e.plan.DurationEnd(c.Context, pair, start.value, interval.value, c.Input)
+			end, err := e.Plan.DurationEnd(c.Context, pair, start.value, interval.value, c.Input)
 			if err != nil {
-				return e, false, overlapsErrorContext(err, `SQL function "overlaps" during inlining`)
+				return e, false, functions.OverlapsErrorContext(err, `SQL function "overlaps" during inlining`)
 			}
-			e.folded[pair] = end
+			e.Folded[pair] = end
 		}
 	}
-	return e, e.wrapperContext != old || e.folded != oldFolded, nil
+	return e, e.WrapperContext != old || e.Folded != oldFolded, nil
 }

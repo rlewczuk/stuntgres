@@ -2,8 +2,8 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -35,14 +35,14 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	literal := func(value sqltype.Value) BoundExpr {
 		return literalExpression{expressionInfo: expressionInfo{usage: value.Type().Usage()}, value: value}
 	}
-	expr := enumFunctionExpression{expressionInfo: expressionInfo{usage: array.Usage(), properties: ExprProperties{Volatility: Stable}}, plan: plan, args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, enumName: "mood"}
+	expr := functions.Enum[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: array.Usage(), properties: ExprProperties{Volatility: Stable}}), Plan: plan, Args: []BoundExpr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
 	old, err := expr.Eval(&EvalContext{Context: ctx})
 	if err != nil {
 		t.Fatal(err)
 	}
 	identity := func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }
 	unchanged, changed, err := retagBoundTypes(sourceView, expr, identity)
-	if err != nil || changed || unchanged.(enumFunctionExpression).args[0] != expr.args[0] {
+	if err != nil || changed || unchanged.(functions.Enum[BoundExpr, *EvalContext, ExprProperties]).Args[0] != expr.Args[0] {
 		t.Fatal("unchanged mapping", changed, err)
 	}
 	mapping := func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -62,12 +62,12 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	next := mapped.(enumFunctionExpression)
+	next := mapped.(functions.Enum[BoundExpr, *EvalContext, ExprProperties])
 	value, err := next.Eval(&EvalContext{Context: ctx})
-	if err != nil || value.Type() != targetArray || value.ArrayElement(0).Type() != targetMood || next.plan.Enum() != targetMood {
+	if err != nil || value.Type() != targetArray || value.ArrayElement(0).Type() != targetMood || next.Plan.Enum() != targetMood {
 		t.Fatal(value, err)
 	}
-	if old.Type() != array || old.ArrayElement(0).Type() != mood || expr.plan.Enum() != mood || expr.args[0].ResultUsage().Type != mood {
+	if old.Type() != array || old.ArrayElement(0).Type() != mood || expr.Plan.Enum() != mood || expr.Args[0].ResultUsage().Type != mood {
 		t.Fatal("source mutated")
 	}
 	text, deps, err := renderColumnDefault(ctx, targetView, next)
@@ -75,7 +75,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(text, deps, err)
 	}
 	forged := next
-	forged.plan = plan
+	forged.Plan = plan
 	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, targetView, forged, targetArray.Usage()); err == nil {
 		t.Fatal("foreign stored provider accepted")
 	}
@@ -122,7 +122,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := enumFunctionExpression{expressionInfo: expressionInfo{usage: result}, plan: provider, args: arguments, enumName: "mood"}
+		call := functions.Enum[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: result}), Plan: provider, Args: arguments, EnumName: "mood"}
 		if generationImmutable(call) || plannedVolatility(call) != Stable {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
@@ -134,24 +134,15 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil || changed {
 		t.Fatal("STABLE call folded", changed, err)
 	}
-	if _, ok := simplified.(enumFunctionExpression); !ok {
+	if _, ok := simplified.(functions.Enum[BoundExpr, *EvalContext, ExprProperties]); !ok {
 		t.Fatal("lost STABLE call")
 	}
 	var order []int
 	first, _ := sqltype.BindEnumSupport("enum_first", mood.Usage(), mood.Usage())
-	unary := enumFunctionExpression{expressionInfo: expressionInfo{usage: mood.Usage()}, plan: first, args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, enumName: "mood"}
-	got, err := unary.Eval(&EvalContext{Context: ctx})
-	if err != nil || got.IsNull() || len(order) != 1 {
-		t.Fatal(got, order, err)
-	}
+	unary := functions.Enum[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: mood.Usage()}), Plan: first, Args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
 	volatile := unary
-	volatile.args = []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: mood.Usage(), properties: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(mood), order: &order}}
+	volatile.Args = []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: mood.Usage(), properties: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(mood), order: &order}}
 	if plannedVolatility(volatile) != Volatile {
 		t.Fatal("child volatility lost")
-	}
-	failure := errors.New("demanded enum argument")
-	unary.args[0] = mathObservedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, order: &order, index: 0, err: failure}
-	if _, err := unary.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) {
-		t.Fatal(err)
 	}
 }

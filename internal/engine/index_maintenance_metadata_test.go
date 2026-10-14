@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -50,9 +51,9 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	if !reflect.DeepEqual(expressions, expected) || names.IndexDef != "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + (2 - 1))), n DESC NULLS LAST)" {
 		t.Fatal("derived metadata lost original trees/providers", expressions, names, expected)
 	}
-	first := expressions.IndexExpressions[0].(stringExpression)
-	original := ei.sqlIndex.keys[0].derived.definition.(stringExpression)
-	if &first.args[0] != &original.args[0] {
+	first := expressions.IndexExpressions[0].(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	original := ei.sqlIndex.keys[0].derived.definition.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+	if &first.Args[0] != &original.Args[0] {
 		t.Fatal("metadata copied an immutable analyzed function tree")
 	}
 	if reflect.DeepEqual(expressions.IndexExpressions[1], ei.sqlIndex.keys[1].derived.execution) {

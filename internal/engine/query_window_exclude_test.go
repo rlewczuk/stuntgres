@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -164,8 +165,8 @@ func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := mapped.(*projectNode).child.(*windowNode).calls[0]
-	provider := call.provider.(integralSumProvider)
-	if call.argument == argument || call.argument.ResultUsage().Type != types[sqltype.Int4] || provider.input != types[sqltype.Int4] || provider.usage.Type != types[sqltype.Int8] || call.expression == node.calls[0].expression {
+	provider := call.provider.(functions.IntegralSum)
+	if call.argument == argument || call.argument.ResultUsage().Type != types[sqltype.Int4] || provider.InputType() != types[sqltype.Int4] || provider.ResultUsage().Type != types[sqltype.Int8] || call.expression == node.calls[0].expression {
 		t.Fatal("argument/provider ownership", call)
 	}
 }
@@ -194,7 +195,7 @@ func (c *excludeCancelContext) Err() error {
 			window = window || strings.HasSuffix(frame.Function, ".openWindowNode")
 			sum = sum || strings.HasSuffix(frame.Function, ".(*windowSums).evaluate")
 			hit = hit || strings.Contains(frame.Function, c.phase)
-			finalize = finalize || strings.HasSuffix(frame.Function, ".integralSumProvider.Finalize")
+			finalize = finalize || strings.HasSuffix(frame.Function, ".IntegralSum.Finalize")
 			publication = publication || strings.HasSuffix(frame.Function, ".finalizeQuery")
 			if !more {
 				break
@@ -220,7 +221,7 @@ func (c *excludeCancelContext) Err() error {
 
 func TestQueryWindowExcludeCancellation(t *testing.T) {
 	for _, exclusion := range []string{" EXCLUDE TIES", ""} {
-		for _, phase := range []string{"compareWindowRows", "windowFrameCount", "integralSumProvider.Init", "integralSumProvider.Advance", "integralSumProvider.Finalize", "columnExpression.Eval", "sum-output", "sum-publication"} {
+		for _, phase := range []string{"compareWindowRows", "windowFrameCount", "IntegralSum.Init", "IntegralSum.Advance", "IntegralSum.Finalize", "columnExpression.Eval", "sum-output", "sum-publication"} {
 			t.Run(phase+exclusion, func(t *testing.T) {
 				_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"+exclusion+")")
 				continuation, err := captureQuerySource(context.Background(), source.view, source.ref)

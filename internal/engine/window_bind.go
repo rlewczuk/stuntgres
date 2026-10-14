@@ -299,7 +299,7 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 			}
 		}
 	case "any_value":
-		arg, err = b.resolveAnyValueSignature(raw, name, operand, types)
+		arg, err = b.resolveAnyValueSignature(raw, name, operand.node, sqltype.Usage{Type: operand.descriptor()}, types)
 		if err == nil {
 			usage = arg.ResultUsage()
 			usage.Typmod = -1

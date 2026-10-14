@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -121,8 +122,8 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 // tree walker used by their consumer. Naming never suppresses catalog input.
 func captureRetainedExpressionInput(node BoundExpr, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	switch node := node.(type) {
-	case enumFunctionExpression:
-		return diagnostic(node.plan.Enum())
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		return diagnostic(node.Plan.Enum())
 	case coercionExpression:
 		target := node.ResultUsage().Type
 		characterInput := sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID())

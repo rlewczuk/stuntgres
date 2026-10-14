@@ -1,59 +1,10 @@
 package engine
 
 import (
-	"context"
-	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-type booleanAggregateProvider struct {
-	usage     sqltype.Usage
-	operation aggregateOperation
-}
-type booleanAggregateState struct{ seen, value bool }
-
-func (p booleanAggregateProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p booleanAggregateProvider) Init(ctx context.Context) (any, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return &booleanAggregateState{}, nil
-}
-func (p booleanAggregateProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	s, ok := state.(*booleanAggregateState)
-	if !ok {
-		return fmt.Errorf("stuntgres: invalid Boolean aggregate state")
-	}
-	v, err := value.Boolean()
-	if err != nil || value.Type() != p.usage.Type {
-		return fmt.Errorf("stuntgres: invalid Boolean aggregate datum")
-	}
-	if !s.seen {
-		s.seen, s.value = true, v
-	} else if p.operation == aggregateAnd {
-		s.value = s.value && v
-	} else {
-		s.value = s.value || v
-	}
-	return ctx.Err()
-}
-func (p booleanAggregateProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil {
-		return sqltype.Value{}, err
-	}
-	s, ok := state.(*booleanAggregateState)
-	if !ok {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid Boolean aggregate state")
-	}
-	if !s.seen {
-		return sqltype.Null(p.usage.Type), nil
-	}
-	return sqltype.Boolean(p.usage.Type, s.value), nil
-}
 
 func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
 	operands := make([]comparisonOperand, len(raw.Args))
@@ -82,7 +33,7 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 	if raw.Name == "bool_or" {
 		operation = aggregateOr
 	}
-	call := aggregateCall{provider: booleanAggregateProvider{typ.Usage(), operation}, argument: arg, operation: operation}
+	call := aggregateCall{provider: functions.NewBooleanAggregateProvider(typ.Usage(), operation == aggregateAnd), argument: arg, operation: operation}
 	return b.finishAggregate(raw, call, filter, b.info(typ.Usage(), raw.Pos, ExprProperties{}))
 }
 

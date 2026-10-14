@@ -3,12 +3,36 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
 )
+
+type datetimeZoneSignature struct {
+	name   string
+	args   [3]sqltype.ID
+	count  int
+	result sqltype.ID
+}
+
+var datetimeZoneSignatures = [...]datetimeZoneSignature{
+	{"timezone", [3]sqltype.ID{sqltype.Text, sqltype.Timestamp}, 2, sqltype.Timestamptz},
+	{"timezone", [3]sqltype.ID{sqltype.Interval, sqltype.Timestamp}, 2, sqltype.Timestamptz},
+	{"timezone", [3]sqltype.ID{sqltype.Text, sqltype.Timestamptz}, 2, sqltype.Timestamp},
+	{"timezone", [3]sqltype.ID{sqltype.Interval, sqltype.Timestamptz}, 2, sqltype.Timestamp},
+	{"timezone", [3]sqltype.ID{sqltype.Text, sqltype.Timetz}, 2, sqltype.Timetz},
+	{"timezone", [3]sqltype.ID{sqltype.Interval, sqltype.Timetz}, 2, sqltype.Timetz},
+	{"timezone", [3]sqltype.ID{sqltype.Timestamp}, 1, sqltype.Timestamptz},
+	{"timezone", [3]sqltype.ID{sqltype.Timestamptz}, 1, sqltype.Timestamp},
+	{"timezone", [3]sqltype.ID{sqltype.Timetz}, 1, sqltype.Timetz},
+	{"date_add", [3]sqltype.ID{sqltype.Timestamptz, sqltype.Interval}, 2, sqltype.Timestamptz},
+	{"date_add", [3]sqltype.ID{sqltype.Timestamptz, sqltype.Interval, sqltype.Text}, 3, sqltype.Timestamptz},
+	{"date_subtract", [3]sqltype.ID{sqltype.Timestamptz, sqltype.Interval}, 2, sqltype.Timestamptz},
+	{"date_subtract", [3]sqltype.ID{sqltype.Timestamptz, sqltype.Interval, sqltype.Text}, 3, sqltype.Timestamptz},
+}
 
 func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 	env := sqltype.InputEnvironment{}
@@ -100,21 +124,12 @@ func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expression := node.(datetimeZoneCalendarExpression)
-	expression.args[0] = literalExpression{boundExpressionInfo(expression.args[0]), sqltype.Null(expression.args[0].ResultUsage().Type)}
+	expression := node.(functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties])
+	expression.Args[0] = literalExpression{boundExpressionInfo(expression.Args[0]), sqltype.Null(expression.Args[0].ResultUsage().Type)}
 	ctx := &EvalContext{Context: context.Background()}
-	value, err := expression.Eval(ctx)
-	if err != nil || !value.IsNull() || value.Type() != expression.ResultUsage().Type {
-		t.Fatal(value, err)
-	}
 	simplified, changed, err := preflightCoercions(ctx, expression)
 	if err != nil || !changed {
 		t.Fatal(simplified, changed, err)
-	}
-	canceled, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, err := expression.Eval(&EvalContext{Context: canceled}); !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
 	}
 }
 

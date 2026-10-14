@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -41,11 +42,11 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 	var provider aggregateProvider
 	switch operation {
 	case aggregateIntervalAvg:
-		provider = intervalAvgProvider{typ.Usage()}
+		provider = functions.NewIntervalAvg(typ.Usage())
 	case aggregateNumericAvg:
-		provider = numericAvgProvider{typ, b.typ(sqltype.Numeric).Usage()}
+		provider = functions.NewNumericAvg(typ, b.typ(sqltype.Numeric).Usage())
 	case aggregateFloatAvg:
-		provider = floatAvgProvider{typ, b.typ(sqltype.Float8).Usage()}
+		provider = functions.NewFloatAvg(typ, b.typ(sqltype.Float8).Usage())
 	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
 	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))

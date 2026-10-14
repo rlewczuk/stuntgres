@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -38,8 +38,8 @@ func TestDatetimeMakeBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		e := node.(datetimeMakeExpression)
-		if e.count != tc.count || e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 {
+		e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+		if e.Count != tc.count || e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 {
 			t.Fatal(tc, e)
 		}
 	}
@@ -49,8 +49,8 @@ func TestDatetimeMakeBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := node.(datetimeMakeExpression)
-	if e.writtenSlots[0] != 6 || e.writtenSlots[1] != 3 || b.parameters[1].Type.ID() != sqltype.Float8 || b.parameters[2].Type.ID() != sqltype.Int4 {
+	e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+	if e.WrittenSlots[0] != 6 || e.WrittenSlots[1] != 3 || b.parameters[1].Type.ID() != sqltype.Float8 || b.parameters[2].Type.ID() != sqltype.Int4 {
 		t.Fatal(e, b.parameters)
 	}
 	for _, tc := range []struct {
@@ -73,7 +73,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"make_date", "make_time", "make_timestamp", "make_timestamptz", "make_interval"} {
-		_, _, count, _ := datetimeMakeSignature(name)
+		_, _, count, _ := functions.DatetimeMakeSignature(name)
 		if name == "make_timestamptz" {
 			count = 6
 		}
@@ -89,7 +89,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		e := node.(datetimeMakeExpression)
+		e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
 		stable := name == "make_timestamptz"
 		want := Immutable
 		if stable {
@@ -109,12 +109,12 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(name, next, changed, err)
 		}
-		rebound := next.(datetimeMakeExpression)
-		if rebound.ResultUsage().Type != replacement[e.usage.Type.ID()] || e.ResultUsage().Type == rebound.ResultUsage().Type {
+		rebound := next.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
+		if rebound.ResultUsage().Type != replacement[e.Usage.Type.ID()] || e.ResultUsage().Type == rebound.ResultUsage().Type {
 			t.Fatal("descriptor authority", name)
 		}
-		for i := range rebound.children() {
-			if rebound.args[i].ResultUsage().Type == e.args[i].ResultUsage().Type {
+		for i := range rebound.Arguments() {
+			if rebound.Args[i].ResultUsage().Type == e.Args[i].ResultUsage().Type {
 				t.Fatal("retained old child descriptor", name, i)
 			}
 		}
@@ -127,20 +127,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 	if plannedVolatility(node) != Stable || generationImmutable(node) {
 		t.Fatal("explicit UTC incorrectly immutable")
 	}
-	// Runtime NULL must not suppress a demanded sibling, and source display order
-	// never controls the declared-slot execution order.
-	interval, err := b.bindDatetimeMake(datetimeMakeRaw("make_interval"), true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := interval.(datetimeMakeExpression)
-	var order []int
-	e.args[3] = mathObservedArgument{expressionInfo: expressionInfo{usage: b.typ(sqltype.Int4).Usage()}, value: sqltype.Null(b.typ(sqltype.Int4)), order: &order, index: 3}
-	failure := errors.New("demanded seconds")
-	e.args[6] = mathObservedArgument{expressionInfo: expressionInfo{usage: b.typ(sqltype.Float8).Usage()}, order: &order, index: 6, err: failure}
-	if _, err := e.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{3, 6}) {
-		t.Fatal(order, err)
-	}
+
 }
 
 func TestDatetimeMakeArgumentAssociation(t *testing.T) {
@@ -161,10 +148,10 @@ func TestDatetimeMakeArgumentAssociation(t *testing.T) {
 	if err != nil || got != "make_interval(secs => '1.5'::double precision, days => 2)" {
 		t.Fatal("written literal association/default omission", got, err)
 	}
-	e := node.(datetimeMakeExpression)
+	e := node.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties])
 	other := e
-	other.writtenSlots[0], other.writtenSlots[1] = other.writtenSlots[1], other.writtenSlots[0]
-	other.labels[0], other.labels[1] = other.labels[1], other.labels[0]
+	other.WrittenSlots[0], other.WrittenSlots[1] = other.WrittenSlots[1], other.WrittenSlots[0]
+	other.Labels[0], other.Labels[1] = other.Labels[1], other.Labels[0]
 	if !b.sameGroupExpression(e, other) {
 		t.Fatal("display provenance changed semantic identity")
 	}

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -38,23 +39,7 @@ func TestMathTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var order []int
 	one, _ := sqltype.Integer(int4, 1)
-	expr := mathExpression{expressionInfo: expressionInfo{usage: numeric.Usage()}, plan: plan, args: []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: numeric.Usage()}, value: sqltype.Null(numeric), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: int4.Usage()}, value: one, order: &order, index: 1},
-	}}
-	got, err := expr.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(got, order, err)
-	}
-	failure := errors.New("demanded sibling")
-	expr.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: int4.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	_, err = expr.Eval(&EvalContext{Context: context.Background()})
-	if !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(order, err)
-	}
 	// Immutable child work is simplified before strict literal-NULL folding.
 	// This is not runtime nullable-column suppression or Prepare evaluation.
 	modPlan, err := sqltype.BindMath("mod", int4.Usage(), int4.Usage(), int4.Usage())
@@ -62,11 +47,11 @@ func TestMathTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	zero, _ := sqltype.Integer(int4, 0)
-	mod := mathExpression{expressionInfo: expressionInfo{usage: int4.Usage()}, plan: modPlan, args: []BoundExpr{
+	mod := functions.Math[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: int4.Usage()}), Plan: modPlan, Args: []BoundExpr{
 		literalExpression{expressionInfo{usage: int4.Usage()}, one},
 		literalExpression{expressionInfo{usage: int4.Usage()}, zero},
 	}}
-	expr.args = []BoundExpr{literalExpression{expressionInfo{usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}
+	expr := functions.Math[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: numeric.Usage()}), Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo{usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
 	_, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, expr, false)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {

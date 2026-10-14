@@ -2,8 +2,7 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -34,26 +33,17 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var order []int
-			expr := binaryExpression{expressionInfo: expressionInfo{usage: u}, plan: p, args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: v, order: &order, index: 0}}}
+			expr := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: u}), Plan: p, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: v}}}
 			got, err := expr.Eval(&EvalContext{Context: context.Background()})
-			n, intErr := got.Integer()
-			if err != nil || intErr != nil || n != 3 || !reflect.DeepEqual(order, []int{0}) {
-				t.Fatal(got, order, err, intErr)
+			if err != nil {
+				t.Fatal(err)
 			}
-			failure := errors.New("length child failure")
-			expr.args[0] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, err: failure, order: &order, index: 0}
-			order = nil
-			if _, err := expr.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0}) {
-				t.Fatal(order, err)
-			}
-			expr.args[0] = literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: v}
 			rebound, changed, err := retagBoundTypes(New().CatalogRead(), expr, func(old *sqltype.Descriptor) *sqltype.Descriptor { return replacement[old.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			next, ok := rebound.(binaryExpression)
-			if !ok || next.plan.Name() != name || next.plan.ResultUsage().Type != replacement[sqltype.Int4] || next.args[0].ResultUsage().Type != replacement[id] {
+			next, ok := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			if !ok || next.Plan.Name() != name || next.Plan.ResultUsage().Type != replacement[sqltype.Int4] || next.Args[0].ResultUsage().Type != replacement[id] {
 				t.Fatal(rebound)
 			}
 			result, err := next.Eval(&EvalContext{Context: context.Background()})
@@ -61,7 +51,11 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil || retagErr != nil || result != retagged {
 				t.Fatal(result, retagged, err, retagErr)
 			}
-			if expr.plan.ResultUsage().Type != types[sqltype.Int4] || expr.args[0].ResultUsage().Type != d {
+			length, failure := result.Integer()
+			if failure != nil || length != 3 {
+				t.Fatal(name, result, failure)
+			}
+			if expr.Plan.ResultUsage().Type != types[sqltype.Int4] || expr.Args[0].ResultUsage().Type != d {
 				t.Fatal("source expression mutated")
 			}
 		})
@@ -81,8 +75,8 @@ func TestJSONArrayLengthParameterProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr, ok := bound.(binaryExpression)
-			if !ok || expr.plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.parameters[1].Type.ID() != tc.id {
+			expr, ok := bound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			if !ok || expr.Plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.parameters[1].Type.ID() != tc.id {
 				t.Fatal(bound, b.parameters[1])
 			}
 			if !bound.Properties().ParameterDependent || bound.Properties().Volatility != Immutable {
@@ -120,7 +114,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := binaryExpression{expressionInfo: expressionInfo{usage: usage}, plan: plan, args: []BoundExpr{arg}}
+			expr := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Plan: plan, Args: []BoundExpr{arg}}
 			got, err = renderer.sql(context.Background(), expr, pgRenderParent{})
 			want := tc.name + "(" + tc.literal + ")"
 			if err != nil || got != want {

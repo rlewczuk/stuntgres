@@ -1,102 +1,29 @@
 package engine
 
 import (
-	"fmt"
-
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-// format retains ANY operands in their original types: OUTPUT is not the
-// implicit TEXT conversion used by strict string functions or concatenation.
-type formatExpression struct {
-	expressionInfo
-	args     []BoundExpr
-	variadic bool
-	int4     *sqltype.Descriptor
-	// Genuine unknown ANY string literals retain their cast-free deparse form.
-	rawUnknown [2]uint64
-}
-
-func (e formatExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	if len(e.args) < 1 || len(e.args) > 100 || e.usage.Type == nil || e.usage.Type.ID() != sqltype.Text || e.int4 == nil || e.int4.ID() != sqltype.Int4 {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid format expression")
-	}
-	var scratch [100]sqltype.Value
-	for i, arg := range e.args {
-		value, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if value.Type() != arg.ResultUsage().Type {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid format argument type")
-		}
-		scratch[i] = value
-	}
-	// NONSTRICT does not suppress evaluation of NULL-format or unused children.
-	if scratch[0].IsNull() {
-		return sqltype.Null(e.usage.Type), nil
-	}
-	pattern, err := scratch[0].Text()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	values := formatValues{ordinary: scratch[1:len(e.args)]}
-	if e.variadic {
-		if len(e.args) != 2 {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid variadic format arity")
-		}
-		values = formatValues{array: scratch[1]}
-	}
-	output := c.Output
-	output.Regclass = c.liveScope()
-	output.Regtype = c.liveScope()
-	output.Regrole = c.liveScope()
-	output.Regcollation, output.Regnamespace = c.liveScope(), c.liveScope()
-	output.Regproc = c.liveScope()
-	output.Operator = c.liveScope()
-	output.RegTS = c.liveScope()
-	output.ACLItem = c.liveScope()
-	text, err := formatText(c.Context, pattern, values, e.int4, output)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.String(e.usage.Type, text), nil
-}
 
 func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error) {
 	var args []BoundExpr
 	if len(raw.Args) <= 100 {
 		args = make([]BoundExpr, len(raw.Args))
 	}
-	var first comparisonOperand
+	var first functions.Argument[BoundExpr]
 	var rawUnknown [2]uint64
 	for i, r := range raw.Args {
-		var node BoundExpr
-		var err error
+		operand, err := b.AnalyzeArgument(r, functions.FormatArgumentAnalysis(i))
+		node := operand.Expression
 		if i == 0 {
-			first, err = b.stringOperand(r, true)
-			if err == nil {
-				node = first.node
+			first = operand
+		} else if err == nil {
+			if functions.FormatUnknownArgument(r, i) {
+				rawUnknown[i/64] |= uint64(1) << uint(i%64)
 			}
-		} else {
-			node, err = b.bind(r, expressionPolicy{context: projectionContext})
-			if err == nil {
-				if literal, ok := r.(parser.LiteralExpr); ok && literal.Value.Kind == parser.StringValue && i < 100 {
-					rawUnknown[i/64] |= uint64(1) << uint(i%64)
-				}
-				if unknownNullSyntax(r) {
-					if literal, ok := node.(literalExpression); ok {
-						literal.unknownNull = true
-						node = literal
-					}
-				}
-				if parameter, ok := node.(parameterExpression); ok && parameter.usage.Type == nil {
-					b.anyParameters = append(b.anyParameters, parameter)
-				}
+			if parameter, ok := node.(parameterExpression); ok && parameter.usage.Type == nil {
+				b.anyParameters = append(b.anyParameters, parameter)
 			}
 		}
 		if err != nil {
@@ -113,11 +40,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	if err != nil {
 		return nil, err
 	}
-	valid := visible && len(args) > 0 && (!raw.Variadic || len(args) == 2)
-	if len(args) > 0 && first.descriptor() != nil {
-		valid = valid && sqltype.StringTextInput(first.descriptor().BaseType().ID())
-	}
-	if !valid {
+	if functions.ResolveFormat(visible, raw.Variadic, len(args), first.Usage) != functions.Resolved {
 		names := make([]string, len(args))
 		for i, arg := range args {
 			names[i] = "unknown"
@@ -132,8 +55,8 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	}
 	// Retain this occurrence's unresolved type until every child has been
 	// analyzed and the signature selected; a later occurrence may constrain it.
-	if first.descriptor() == nil {
-		args[0], err = b.finalizeOperand(first, b.typ(sqltype.Text))
+	if first.Usage.Type == nil {
+		args[0], err = functions.CoerceFormatFirst(b, first, b.typ(sqltype.Text).Usage())
 		if err != nil {
 			return nil, err
 		}
@@ -142,29 +65,14 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[1].SourcePosition())
 	}
 	text := b.typ(sqltype.Text).Usage()
-	if args[0].ResultUsage().Type != text.Type {
-		source := args[0].ResultUsage()
-		target := text
-		if source.Collation.ID != 0 {
-			target.Collation = source.Collation
-		}
-		var plan sqltype.CoercionPlan
-		var err error
-		if source.Type.BaseType().ID() == sqltype.Char {
-			plan, err = sqltype.PlanExtremaCharText(source, target)
-		} else {
-			plan, err = sqltype.PlanCoercion(source, target, sqltype.Implicit)
-		}
+	if request, needed := functions.FormatFirstCoercion(args[0].ResultUsage(), text); needed {
+		first.Expression, first.Usage = args[0], args[0].ResultUsage()
+		args[0], err = b.CoerceArgument(first, request)
 		if err != nil {
 			return nil, err
 		}
-		info, err := b.coercionInfo(b.info(target, args[0].SourcePosition(), coercionProperties(args[0], plan)), args[0])
-		if err != nil {
-			return nil, err
-		}
-		args[0] = coercionExpression{info, args[0], plan, sqltype.Implicit}
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := functionIntrinsicProperties(functions.FormatIntrinsicRule())
 	for _, arg := range args {
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
@@ -183,5 +91,5 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	}
 	int4 := b.typ(sqltype.Int4)
 	b.info(int4.Usage(), raw.Pos, ExprProperties{})
-	return formatExpression{expressionInfo: info, args: args, variadic: raw.Variadic, int4: int4, rawUnknown: rawUnknown}, nil
+	return functions.Format[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil
 }

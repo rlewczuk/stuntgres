@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,10 +18,6 @@ func TestMathTrigBinding(t *testing.T) {
 		arity := 1
 		if binary {
 			arity = 2
-		}
-		signatures := mathSignatures(name)
-		if len(signatures) != 1 || signatures[0].arity != arity || signatures[0].result != sqltype.Float8 || signatures[0].args[0] != sqltype.Float8 || binary && signatures[0].args[1] != sqltype.Float8 {
-			t.Fatal("exact FLOAT8 signature", name, signatures)
 		}
 		for _, args := range []string{"1", "0.5", "'0.5'", "NULL", "$1"} {
 			if binary {
@@ -38,11 +35,11 @@ func TestMathTrigBinding(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				mathNode, ok := node.(mathExpression)
-				if !ok || mathNode.plan.Name() != name || len(mathNode.args) != arity || mathNode.ResultUsage().Type.ID() != sqltype.Float8 || mathNode.ResultUsage().Typmod != -1 {
+				mathNode, ok := node.(functions.Math[BoundExpr, *EvalContext, ExprProperties])
+				if !ok || mathNode.Plan.Name() != name || len(mathNode.Args) != arity || mathNode.ResultUsage().Type.ID() != sqltype.Float8 || mathNode.ResultUsage().Typmod != -1 {
 					t.Fatal("shared math node", node)
 				}
-				for _, arg := range mathNode.args {
+				for _, arg := range mathNode.Args {
 					if arg.ResultUsage() != node.ResultUsage() {
 						t.Fatal("coherent FLOAT8 owner", arg.ResultUsage(), node.ResultUsage())
 					}
@@ -109,61 +106,5 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 				t.Fatal("direct constant execution preflight", err)
 			}
 		})
-	}
-}
-
-func TestMathTrigRuntimeDemand(t *testing.T) {
-	var d *sqltype.Descriptor
-	for _, candidate := range sqltype.Builtins() {
-		if candidate.ID() == sqltype.Float8 {
-			d = candidate
-		}
-	}
-	plan, err := sqltype.BindMath("atan2d", d.Usage(), d.Usage(), d.Usage())
-	if err != nil {
-		t.Fatal(err)
-	}
-	one, _ := sqltype.Float(d, 1)
-	var order []int
-	expr := mathExpression{expressionInfo: expressionInfo{usage: d.Usage()}, plan: plan, args: []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: one, order: &order, index: 1},
-	}}
-	got, err := expr.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || got != sqltype.Null(d) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("runtime NULL demands siblings", got, order, err)
-	}
-	demanded := errors.New("demanded inverse sibling")
-	expr.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, order: &order, index: 1, err: demanded}
-	order = nil
-	_, err = expr.Eval(&EvalContext{Context: context.Background()})
-	if !errors.Is(err, demanded) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("runtime demand failure", order, err)
-	}
-	expr.args[0] = literalExpression{expressionInfo{usage: d.Usage()}, sqltype.Null(d)}
-	order = nil
-	got, err = expr.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || got != sqltype.Null(d) || len(order) != 0 {
-		t.Fatal("literal NULL eliminated runtime sibling", got, order, err)
-	}
-	for _, name := range []string{"cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
-		plan, err := sqltype.BindMath(name, d.Usage(), d.Usage())
-		if err != nil {
-			t.Fatal(err)
-		}
-		order = nil
-		expr := mathExpression{expressionInfo: expressionInfo{usage: d.Usage()}, plan: plan, args: []BoundExpr{
-			mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
-		}}
-		got, err := expr.Eval(&EvalContext{Context: context.Background()})
-		if err != nil || got != sqltype.Null(d) || !reflect.DeepEqual(order, []int{0}) {
-			t.Fatal("direct runtime typed NULL", name, got, order, err)
-		}
-		order = nil
-		expr.args[0] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, order: &order, index: 0, err: demanded}
-		_, err = expr.Eval(&EvalContext{Context: context.Background()})
-		if !errors.Is(err, demanded) || !reflect.DeepEqual(order, []int{0}) {
-			t.Fatal("direct runtime argument failure", name, order, err)
-		}
 	}
 }

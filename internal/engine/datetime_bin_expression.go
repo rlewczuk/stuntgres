@@ -1,40 +1,19 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type datetimeBinExpression struct {
-	expressionInfo
-	plan sqltype.DatetimeBinPlan
-	args [3]BoundExpr
-}
-
-func (e datetimeBinExpression) children() []BoundExpr { return e.args[:] }
-func (e datetimeBinExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	var values [3]sqltype.Value
-	for i, arg := range e.args {
-		v, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		values[i] = v
-	}
-	return e.plan.Evaluate(c.Context, values[:])
-}
-
 func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [3]comparisonOperand
+	var small [3]functions.Argument[BoundExpr]
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
-		operands = make([]comparisonOperand, len(raw.Args))
+		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
 	}
 	for i, arg := range raw.Args {
-		o, err := b.comparisonOperand(arg)
+		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -48,68 +27,20 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 	signature := func() (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = datetimeFormattingTypeName(o)
+			names[i] = datetimeFormattingTypeName(o.Usage.Type)
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
-	if !visible || raw.Variadic || len(operands) != 3 {
+	prepared := functions.PrepareDatetimeBin(visible, raw.Variadic, operands)
+	selection := functions.ResolveDatetimeBin(prepared, operands, b.temporalTypesForDemand(prepared.Demand))
+	if selection.Resolution == functions.Missing {
 		return signature()
 	}
-	if operands[0].descriptor() != nil {
-		if _, err := sqltype.PlanCoercion(operands[0].node.ResultUsage(), b.typ(sqltype.Interval).Usage(), sqltype.Implicit); err != nil {
-			return signature()
-		}
+	if selection.Unsupported != "" {
+		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
-	// The only candidates have the same INTERVAL first slot and datetime
-	// category. Known exact matches precede preferred conversions; unknown
-	// temporal slots break a remaining tie in favor of TIMESTAMPTZ.
-	candidates := [2]sqltype.ID{sqltype.Timestamp, sqltype.Timestamptz}
-	var viable [2]bool
-	bestExact, bestPreferred := -1, -1
-	unknown := false
-	for _, o := range operands[1:] {
-		unknown = unknown || o.descriptor() == nil
-	}
-	for j, id := range candidates {
-		ok, exact, preferred := true, 0, 0
-		for _, o := range operands[1:] {
-			d := o.descriptor()
-			if d == nil {
-				continue
-			}
-			if d.BaseType().ID() == id {
-				exact++
-				continue
-			}
-			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(id).Usage(), sqltype.Implicit); err != nil {
-				ok = false
-				break
-			}
-			if id == sqltype.Timestamptz {
-				preferred++
-			}
-		}
-		if !ok {
-			continue
-		}
-		if exact > bestExact || exact == bestExact && preferred > bestPreferred {
-			viable = [2]bool{}
-			bestExact, bestPreferred = exact, preferred
-		}
-		if exact == bestExact && preferred == bestPreferred {
-			viable[j] = true
-		}
-	}
-	if unknown && viable[1] {
-		viable[0] = false
-	}
-	selected := sqltype.Timestamp
-	if viable[1] {
-		selected = sqltype.Timestamptz
-	} else if !viable[0] {
-		return signature()
-	}
-	e := datetimeBinExpression{}
+	selected := selection.Selected
+	e := functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]{}
 	properties := ExprProperties{Volatility: Immutable}
 	for i, o := range operands {
 		id := selected
@@ -117,18 +48,11 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 			id = sqltype.Interval
 		}
 		target := b.typ(id)
-		arg, err := b.finalizeOperand(o, target)
+		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target.Usage()})
 		if err != nil {
 			return nil, err
 		}
-		if arg.ResultUsage() != target.Usage() {
-			plan, err := sqltype.PlanCoercion(arg.ResultUsage(), target.Usage(), sqltype.Implicit)
-			if err != nil {
-				return nil, err
-			}
-			arg = coercionExpression{b.info(target.Usage(), arg.SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit}
-		}
-		e.args[i] = arg
+		e.Args[i] = arg
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
 		properties.RowDependent = properties.RowDependent || p.RowDependent
@@ -137,11 +61,11 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	e.expressionInfo = b.info(b.typ(selected).Usage(), raw.Pos, properties)
-	plan, err := sqltype.BindDatetimeBin(b.typ(sqltype.Interval), b.typ(selected), e.usage.Type)
+	e.Info = functionInfo(b.info(b.typ(selected).Usage(), raw.Pos, properties))
+	plan, err := sqltype.BindDatetimeBin(b.typ(sqltype.Interval), b.typ(selected), e.Usage.Type)
 	if err != nil {
 		return nil, err
 	}
-	e.plan = plan
+	e.Plan = plan
 	return e, nil
 }

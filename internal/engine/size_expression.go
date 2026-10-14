@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -9,13 +10,13 @@ import (
 // resolving signatures, while retaining unknowns for occurrence-owned inference.
 func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var operand comparisonOperand
+	var operand functions.Argument[BoundExpr]
 	var names []string
 	if len(raw.Args) <= 100 && len(raw.Args) != 1 {
 		names = make([]string, len(raw.Args))
 	}
 	for i, child := range raw.Args {
-		o, err := b.stringOperand(child, name == "pg_size_bytes")
+		o, err := functions.AnalyzeSizeArgument(b, name, child)
 		if err != nil {
 			return nil, err
 		}
@@ -23,7 +24,7 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 			operand = o
 		} else if names != nil {
 			names[i] = "unknown"
-			if d := o.descriptor(); d != nil {
+			if d := o.Usage.Type; d != nil {
 				names[i] = d.DiagnosticName()
 			}
 		}
@@ -31,62 +32,43 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	var target *sqltype.Descriptor
-	matches := 0
-	if visible && len(raw.Args) == 1 {
-		candidates := [2]sqltype.ID{sqltype.Text}
-		count := 1
-		if name == "pg_size_pretty" {
-			candidates, count = [2]sqltype.ID{sqltype.Int8, sqltype.Numeric}, 2
-		}
-		for _, id := range candidates[:count] {
-			candidate := b.typ(id)
-			if d := operand.descriptor(); d != nil {
-				if d.BaseType().ID() == id {
-					target, matches = candidate, 1
-					break
-				}
-				if _, err := sqltype.PlanCoercion(operand.node.ResultUsage(), candidate.Usage(), sqltype.Implicit); err != nil {
-					continue
-				}
-			}
-			target = candidate
-			matches++
-		}
+	var types functions.SizeTypes
+	demand := functions.NeededSizeTypes(name, visible, len(raw.Args), operand.Usage)
+	if demand&functions.SizeText != 0 {
+		types.Text = b.typ(sqltype.Text)
 	}
-	if matches != 1 {
+	if demand&functions.SizeInt8 != 0 {
+		types.Int8 = b.typ(sqltype.Int8)
+	}
+	if demand&functions.SizeNumeric != 0 {
+		types.Numeric = b.typ(sqltype.Numeric)
+	}
+	target, resolution := functions.SelectSize(name, visible, len(raw.Args), operand.Usage, types)
+	if resolution != functions.Resolved {
 		if len(raw.Args) == 1 {
 			typ := "unknown"
-			if d := operand.descriptor(); d != nil {
+			if d := operand.Usage.Type; d != nil {
 				typ = d.DiagnosticName()
 			}
 			names = []string{typ}
 		}
-		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, matches > 1)
+		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, resolution == functions.Ambiguous)
 	}
-	arg, err := b.finalizeOperand(operand, target)
+	arg, err := functions.CoerceSizeArgument(b, operand, target.Usage())
 	if err != nil {
 		return nil, err
 	}
-	if arg.ResultUsage() != target.Usage() {
-		info, err := b.coercionInfo(b.info(target.Usage(), arg.SourcePosition(), arg.Properties()), arg)
-		if err != nil {
-			return nil, err
-		}
-		plan, err := sqltype.PlanCoercion(arg.ResultUsage(), info.usage, sqltype.Implicit)
-		if err != nil {
-			return nil, err
-		}
-		info.properties = coercionProperties(arg, plan)
-		arg = coercionExpression{info, arg, plan, sqltype.Implicit}
+	id := functions.SizeResult(name)
+	var resultType *sqltype.Descriptor
+	switch id {
+	case sqltype.Text:
+		resultType = types.Text
+	case sqltype.Int8:
+		resultType = types.Int8
 	}
-	result := b.typ(sqltype.Text).Usage()
-	if name == "pg_size_bytes" {
-		result = b.typ(sqltype.Int8).Usage()
+	if resultType == nil {
+		resultType = b.typ(id)
 	}
-	plan, err := sqltype.BindMath(name, result, target.Usage())
-	if err != nil {
-		return nil, err
-	}
-	return mathExpression{b.info(result, raw.Pos, arg.Properties()), plan, []BoundExpr{arg}}, nil
+	info := b.info(resultType.Usage(), raw.Pos, arg.Properties())
+	return functions.NewSize[BoundExpr, *EvalContext](functionInfo(info), name, arg, target.Usage())
 }

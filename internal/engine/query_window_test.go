@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"math"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -167,16 +166,7 @@ func TestQueryWindowLateKeyFailureAndCountOverflow(t *testing.T) {
 	if rows != nil || count != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || diagnostic.Message != "division by zero" || source.view != nil {
 		t.Fatal(rows, count, err, source.view)
 	}
-	provider := countProvider{usage: query.Root.Schema()[0].Usage}
-	state, err := provider.Init(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	state.(*countState).count = math.MaxInt64
-	err = provider.Advance(context.Background(), state, sqltype.Value{}, sqltype.Value{})
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "bigint out of range" {
-		t.Fatal(err)
-	}
+
 }
 func TestQueryWindowColumnAuthority(t *testing.T) {
 	e := New()

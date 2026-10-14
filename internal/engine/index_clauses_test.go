@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -390,7 +391,7 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := stringExpression{expressionInfo: column.expressionInfo, plan: plan, args: []BoundExpr{column}, textual: [4]bool{true}}
+	node := functions.String[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(column.expressionInfo), Plan: plan, Args: []BoundExpr{column}, Textual: [4]bool{true}}
 	class, _ := sqltype.LookupIndexClass("bpchar_ops")
 	definition := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node, attributes: parent.attributes}, class: class, explicitClass: true, collation: 950}}, include: []int32{10}, ready: true, valid: true, live: true}
 	store := &relationStorage{}

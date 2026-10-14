@@ -3,7 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"reflect"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -30,10 +30,10 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := stringExpression{
-			expressionInfo: expressionInfo{usage: usage, collationConflict: conflict},
-			plan:           plan, textual: [4]bool{true}, syntax: parser.OrdinaryStringSyntax,
-			args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "ß")}},
+		node := functions.String[BoundExpr, *EvalContext, ExprProperties]{
+			Info: functionInfo(expressionInfo{usage: usage, collationConflict: conflict}),
+			Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
+			Args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "ß")}},
 		}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == text {
@@ -44,11 +44,11 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("retag", changed, err)
 		}
-		retained := rebound.(stringExpression)
-		if retained.plan.CollationIndeterminate() != conflict || retained.CollationIndeterminate() != conflict || retained.ResultUsage().Collation.ID != 6411 || retained.plan.TextUsage().Type != replacement {
+		retained := rebound.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+		if retained.Plan.CollationIndeterminate() != conflict || retained.CollationIndeterminate() != conflict || retained.ResultUsage().Collation.ID != 6411 || retained.Plan.TextUsage().Type != replacement {
 			t.Fatal("retag lost authority", retained)
 		}
-		if node.plan.TextUsage().Type != text || node.args[0].ResultUsage().Type != text {
+		if node.Plan.TextUsage().Type != text || node.Args[0].ResultUsage().Type != text {
 			t.Fatal("retag mutated source")
 		}
 		got, err := retained.Eval(&EvalContext{Context: context.Background()})
@@ -79,16 +79,12 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var order []int
-	node := stringExpression{
-		expressionInfo: expressionInfo{usage: usage, properties: ExprProperties{Volatility: Immutable, RowDependent: true}},
-		plan:           plan, textual: [4]bool{true}, syntax: parser.OrdinaryStringSyntax,
-		args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "İ"), order: &order, index: 0}},
-	}
-	got, err := node.Eval(&EvalContext{Context: context.Background()})
-	s, textErr := got.Text()
-	if err != nil || textErr != nil || s != "i" || !reflect.DeepEqual(order, []int{0}) || node.ResultUsage() != usage || node.ResultUsage().Typmod != -1 {
-		t.Fatal("once-only selected case", s, order, err, textErr)
+	// Runtime once-only/Unicode assertions live in functions.TestStringCaseRuntimeDemand;
+	// this fixture retains the generic owner's nested collation authority.
+	node := functions.String[BoundExpr, *EvalContext, ExprProperties]{
+		Info: functionInfo(expressionInfo{usage: usage, properties: ExprProperties{Volatility: Immutable, RowDependent: true}}),
+		Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
+		Args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "İ")}},
 	}
 	info, err := collatedInfo(New().CatalogRead(), expressionInfo{usage: usage}, node)
 	if err != nil || info.usage.Collation.ID != 811 || info.collationConflict {
@@ -120,8 +116,8 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				bound := node.(stringExpression)
-				input := bound.args[0].(collationExpression)
+				bound := node.(functions.String[BoundExpr, *EvalContext, ExprProperties])
+				input := bound.Args[0].(collationExpression)
 				if b.parameters[1] != text.Usage() || input.child.ResultUsage() != text.Usage() ||
 					input.ResultUsage().Collation.ID != collation.id || bound.ResultUsage().Collation.ID != collation.id ||
 					!bound.Properties().ParameterDependent {

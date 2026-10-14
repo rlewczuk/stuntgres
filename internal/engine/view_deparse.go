@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -1260,7 +1261,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			// decoded quoted keyword names cannot be replayed unqualified.
 			return "pg_catalog." + name + "()", nil
 		}
-		if transactionTimeKindForName(name) != 0 && len(e.Args) == 0 {
+		if functions.TransactionTimeKindForName(name) != 0 && len(e.Args) == 0 {
 			if v.presentation.deparse {
 				return name + "()", nil
 			}
@@ -1313,7 +1314,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text, err := args(e.Args)
 			return "pg_catalog.position(" + text + ")", err
 		}
-		if (name == "format" || stringVariadicFunctionName(name) || jsonCreateKind(name) != 0) && e.Variadic {
+		if (name == "format" || functions.StringVariadicFunctionName(name) || functions.JSONCreateKind(name) != 0) && e.Variadic {
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {
 				text, err := child(arg)
@@ -1326,7 +1327,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				parts[i] = text
 			}
 			functionName := objectNameText(e.Name)
-			if jsonCreateKind(name) != 0 {
+			if functions.JSONCreateKind(name) != 0 {
 				functionName = "pg_catalog." + name
 			}
 			if v.presentation.deparse {
@@ -1379,7 +1380,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
 		}
-		if name == "generate_series" || name == "generate_subscripts" || stringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "jsonb_object" || parser.JSONFunctionName(name) || jsonCreateKind(name) != 0 {
+		if name == "generate_series" || name == "generate_subscripts" || functions.StringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "jsonb_object" || parser.JSONFunctionName(name) || functions.JSONCreateKind(name) != 0 {
 			functionName := "pg_catalog." + name
 			if v.presentation.deparse {
 				functionName = v.presentation.identifier(name)

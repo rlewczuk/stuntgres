@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -156,7 +157,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	render(targetView, mapped, 1, rawText, targetTextSQL)
 	assertValue(mappedProject.expressions[0], targetBinder.typ(wideArray.ID()), "{1,2}")
 	assertValue(mappedProject.expressions[1], targetBinder.typ(array.ID()), "{1,2}")
-	newPlan := mappedProject.expressions[1].(arraySearchExpression).plan
+	newPlan := mappedProject.expressions[1].(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]).Plan
 	newRef, conflict := newPlan.InputCollation()
 	if conflict || !newRef.Valid() || newRef.ID != uint32(targetCollation.oid) {
 		t.Fatal("retained stale comparison collation", newRef, conflict)
@@ -167,7 +168,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	render(sourceView, original, 1, rawText, sourceTextSQL)
 	assertValue(outer, wideArray, "{1,2}")
 	assertValue(positions, array, "{1,2}")
-	oldRef, conflict := positions.(arraySearchExpression).plan.InputCollation()
+	oldRef, conflict := positions.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]).Plan.InputCollation()
 	if conflict || oldRef.ID != uint32(sourceCollation.oid) || oldNumeric.Type() != wideArray || oldPositions.Type() != array || project.Schema()[0].Usage.Type != wideArray {
 		t.Fatal("remap mutated original authority or exported values")
 	}

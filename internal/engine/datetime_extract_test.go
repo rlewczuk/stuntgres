@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,6 +14,21 @@ import (
 
 func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	zone, err := sqltype.ResolveZone("UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string]struct {
+		numeric  string
+		floating float64
+	}{
+		"date":        {"946684800", 946684800},
+		"time":        {"43200.000000", 43200},
+		"timetz":      {"22500.000000", 22500},
+		"timestamp":   {"946684800.000000", 946684800},
+		"timestamptz": {"946684800.000000", 946684800},
+		"interval":    {"37015200.000000", 37015200},
+	}
 	for _, source := range []string{"date", "time", "timetz", "timestamp", "timestamptz", "interval"} {
 		value := "2000-01-01"
 		switch source {
@@ -29,7 +45,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(source, api, err)
 			}
-			e := node.(datetimeExtractExpression)
+			e := node.(functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties])
 			result := sqltype.Numeric
 			if api == "date_part" {
 				result = sqltype.Float8
@@ -49,21 +65,32 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(next, changed, err)
 			}
-			rebound := next.(datetimeExtractExpression)
+			rebound := next.(functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties])
 			if rebound.ResultUsage().Type != replacements[result] || rebound.ResultUsage().Type == e.ResultUsage().Type {
 				t.Fatal("result authority retained")
 			}
-			for i, arg := range rebound.args {
-				if arg.ResultUsage().Type == e.args[i].ResultUsage().Type {
+			for i, arg := range rebound.Args {
+				if arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 					t.Fatal("child authority retained")
 				}
 			}
-			zone, err := sqltype.ResolveZone("UTC")
+			value, err := rebound.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone}})
 			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := rebound.Eval(&EvalContext{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone}}); err != nil {
 				t.Fatal(source, api, err)
+			}
+			if value.Type() != replacements[result] || value.IsNull() {
+				t.Fatal(source, api, "remapped result authority", value)
+			}
+			if api == "extract" {
+				text, err := replacements[result].Output(context.Background(), value)
+				if err != nil || text != expected[source].numeric {
+					t.Fatal(source, api, text, err)
+				}
+			} else {
+				number, err := value.Float()
+				if err != nil || number != expected[source].floating {
+					t.Fatal(source, api, number, err)
+				}
 			}
 		}
 	}
@@ -123,9 +150,9 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e := node.(datetimeExtractExpression)
-			if e.dateWrapperContext || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) {
-				t.Fatal(e.Properties(), e.dateWrapperContext)
+			e := node.(functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties])
+			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) {
+				t.Fatal(e.Properties(), e.DateWrapperContext)
 			}
 			_, err = e.Eval(&EvalContext{Context: context.Background(), Input: input, statementScope: scope})
 			var d *sqlstate.Error

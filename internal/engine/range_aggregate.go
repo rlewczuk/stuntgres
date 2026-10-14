@@ -1,29 +1,12 @@
 package engine
 
 import (
-	"context"
+	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type rangeAggregateProvider struct {
-	input, usage sqltype.Usage
-	operation    sqltype.RangeAggregateOperation
-	bound        sqltype.RangeAggregate
-}
-
-func (p rangeAggregateProvider) ResultUsage() sqltype.Usage            { return p.usage }
-func (p rangeAggregateProvider) Init(ctx context.Context) (any, error) { return p.bound.Init(ctx) }
-func (p rangeAggregateProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
-	s, _ := state.(*sqltype.RangeAggregateState)
-	return p.bound.Advance(ctx, s, value)
-}
-func (p rangeAggregateProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
-	s, _ := state.(*sqltype.RangeAggregateState)
-	return p.bound.Finalize(ctx, s)
-}
 
 func (b *expressionBinder) bindRangeAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
 	var singleType [1]string
@@ -61,7 +44,7 @@ func (b *expressionBinder) bindRangeAggregate(raw parser.AggregateExpr, name par
 		return nil, err
 	}
 	usage := bound.ResultUsage()
-	provider := rangeAggregateProvider{input: input.Usage(), usage: usage, operation: operation, bound: bound}
+	provider := functions.NewRangeAggregateProvider(input.Usage(), usage, operation, bound)
 	call := aggregateCall{provider: provider, argument: arg, operation: identity}
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})

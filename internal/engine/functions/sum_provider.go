@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type integralSumProvider struct {
+type IntegralSum struct {
 	input *sqltype.Descriptor
 	usage sqltype.Usage
 }
@@ -16,8 +16,16 @@ type integralSumState struct {
 	seen bool
 }
 
-func (p integralSumProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p integralSumProvider) Init(ctx context.Context) (any, error) {
+func NewIntegralSum(input *sqltype.Descriptor, usage sqltype.Usage) IntegralSum {
+	return IntegralSum{input, usage}
+}
+func (p IntegralSum) InputType() *sqltype.Descriptor { return p.input }
+func (p IntegralSum) Reconstruct(input *sqltype.Descriptor, usage sqltype.Usage) IntegralSum {
+	return IntegralSum{input, usage}
+}
+
+func (p IntegralSum) ResultUsage() sqltype.Usage { return p.usage }
+func (p IntegralSum) Init(ctx context.Context) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -30,7 +38,7 @@ func (p integralSumProvider) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p integralSumProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p IntegralSum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -49,7 +57,7 @@ func (p integralSumProvider) Advance(ctx context.Context, state any, value, _ sq
 	}
 	return ctx.Err()
 }
-func (p integralSumProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
+func (p IntegralSum) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -73,13 +81,21 @@ func (p integralSumProvider) Finalize(ctx context.Context, state any) (sqltype.V
 	return value, nil
 }
 
-type numericSumProvider struct {
+type NumericSum struct {
 	input *sqltype.Descriptor
 	usage sqltype.Usage
 }
 
-func (p numericSumProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p numericSumProvider) Init(ctx context.Context) (any, error) {
+func NewNumericSum(input *sqltype.Descriptor, usage sqltype.Usage) NumericSum {
+	return NumericSum{input, usage}
+}
+func (p NumericSum) InputType() *sqltype.Descriptor { return p.input }
+func (p NumericSum) Reconstruct(input *sqltype.Descriptor, usage sqltype.Usage) NumericSum {
+	return NumericSum{input, usage}
+}
+
+func (p NumericSum) ResultUsage() sqltype.Usage { return p.usage }
+func (p NumericSum) Init(ctx context.Context) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -92,7 +108,7 @@ func (p numericSumProvider) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p numericSumProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p NumericSum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -105,7 +121,7 @@ func (p numericSumProvider) Advance(ctx context.Context, state any, value, _ sql
 	}
 	return ctx.Err()
 }
-func (p numericSumProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
+func (p NumericSum) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -123,7 +139,7 @@ func (p numericSumProvider) Finalize(ctx context.Context, state any) (sqltype.Va
 	return value, nil
 }
 
-type floatSumProvider struct {
+type FloatSum struct {
 	input *sqltype.Descriptor
 	usage sqltype.Usage
 }
@@ -132,8 +148,16 @@ type floatSumState struct {
 	seen bool
 }
 
-func (p floatSumProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p floatSumProvider) Init(ctx context.Context) (any, error) {
+func NewFloatSum(input *sqltype.Descriptor, usage sqltype.Usage) FloatSum {
+	return FloatSum{input, usage}
+}
+func (p FloatSum) InputType() *sqltype.Descriptor { return p.input }
+func (p FloatSum) Reconstruct(input *sqltype.Descriptor, usage sqltype.Usage) FloatSum {
+	return FloatSum{input, usage}
+}
+
+func (p FloatSum) ResultUsage() sqltype.Usage { return p.usage }
+func (p FloatSum) Init(ctx context.Context) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -146,7 +170,7 @@ func (p floatSumProvider) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p floatSumProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
+func (p FloatSum) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -177,7 +201,7 @@ func (p floatSumProvider) Advance(ctx context.Context, state any, value, _ sqlty
 	s.sum = sum
 	return ctx.Err()
 }
-func (p floatSumProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
+func (p FloatSum) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}

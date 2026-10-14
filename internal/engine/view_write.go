@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -247,25 +248,25 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		var lowerStored func(BoundExpr) (BoundExpr, bool, error)
 		lowerStored = func(expr BoundExpr) (BoundExpr, bool, error) {
 			return rewriteViewExpression(auth.catalog, expr, func(n BoundExpr) (BoundExpr, bool, error) {
-				if q, ok := n.(stringVariadicExpression); ok && q.origin.owner == (ObjectRef{}) {
-					q.origin = quoteOrigin{owner: ref, definition: d.view.rule, revision: d.view.quoteRevision}
+				if q, ok := n.(functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]); ok && q.Origin.owner == (ObjectRef{}) {
+					q = q.WithOrigin(quoteOrigin{owner: ref, definition: d.view.rule, revision: d.view.quoteRevision})
 					var args []BoundExpr
 					// A changed leaf exits the shared mapper before its children.
 					// Lower nested calls and columns through that same mapper first.
-					for i, arg := range q.args {
+					for i, arg := range q.Args {
 						next, did, err := lowerStored(arg)
 						if err != nil {
 							return nil, false, err
 						}
 						if did {
 							if args == nil {
-								args = append([]BoundExpr(nil), q.args...)
+								args = append([]BoundExpr(nil), q.Args...)
 							}
 							args[i] = next
 						}
 					}
 					if args != nil {
-						q.args = args
+						q.Args = args
 					}
 					return q, true, nil
 				}
@@ -383,11 +384,11 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				b.subqueryDemand = true
 			case visibilityInquiryExpression:
 				b.visibilitySnapshot = true
-			case binaryExpression:
-				node := n.(binaryExpression)
-				if !node.plan.Immutable() {
+			case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+				node := n.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+				if !node.Plan.Immutable() {
 					demand := true
-					for _, arg := range node.args {
+					for _, arg := range node.Args {
 						if randomLiteralNull(arg) {
 							demand = false
 							break

@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -65,7 +66,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
-	probe := randomExpression{expressionInfo: expressionInfo{usage: floating.Usage(), properties: ExprProperties{Volatility: Volatile}}, name: "random"}
+	probe := functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: floating.Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)

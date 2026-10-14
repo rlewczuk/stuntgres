@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -92,7 +93,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.comparisons[i] = mapped.(comparisonExpression)
 		}
 		next = n
-	case domainValueExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
+	case domainValueExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		next = n
 	case literalExpression:
 		if ref == nil {
@@ -199,10 +200,10 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case coercionExpression:
 		n.child = child(n.child)
 		next = n
-	case timeZoneExpression:
-		n.value = child(n.value)
-		if !n.local {
-			n.zone = child(n.zone)
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		n.Value = child(n.Value)
+		if !n.Local {
+			n.Zone = child(n.Zone)
 		}
 		next = n
 	case bitwiseExpression:
@@ -211,11 +212,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
-	case regexpExpression:
-		n.args = args(n.args)
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
-	case regexpSetExpression:
-		n.args = args(n.args)
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
 	case seriesExpression:
 		n.args = args(n.args)
@@ -223,32 +224,32 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case subscriptsExpression:
 		n.args = args(n.args)
 		next = n
-	case jsonKeysExpression:
-		n.args = args(n.args)
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
 	case likeExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
-	case likeEscapeExpression:
-		n.pattern, n.escape = child(n.pattern), child(n.escape)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		next = n
-	case posixExpression:
-		n.left, n.right = child(n.left), child(n.right)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case similarExpression:
-		n.left, n.right = child(n.left), child(n.right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case similarEscapeExpression:
-		n.pattern, n.escape = child(n.pattern), child(n.escape)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
 		next = n
-	case posixSubstringExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case similarSubstringExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
 	case rowComparisonExpression:
@@ -285,68 +286,68 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case conditionalExpression:
 		n.args = args(n.args)
 		next = n
-	case binaryExpression:
-		n.args = args(n.args)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
-	case datetimeJustifyExpression:
-		n.arg = child(n.arg)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		n.Arg = child(n.Arg)
 		next = n
-	case datetimeExtractExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case datetimeOverlapsExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case datetimeBinExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case datetimeTruncExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case datetimeZoneCalendarExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case datetimeAgeFiniteExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case datetimeMakeExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case datetimeFormattingExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case numericFormattingExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Args {
+			n.Args[i] = child(n.Args[i])
 		}
 		next = n
-	case stringExpression:
-		n.args = args(n.args)
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
-	case arraySearchExpression:
-		n.args = args(n.args)
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
-	case enumFunctionExpression:
-		n.args = args(n.args)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
-	case mathExpression:
-		n.args = args(n.args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
@@ -365,8 +366,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case commentInquiryExpression:
 		n.args = args(n.args)
 		next = n
-	case nullCountExpression:
-		n.args = args(n.args)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
 	case installedFunctionExpression:
 		n.arg = child(n.arg)
@@ -374,32 +375,34 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.ref = ref(n.ref)
 		}
 		next = n
-	case jsonCreateExpression:
-		n.args = args(n.args)
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		if err == nil {
-			err = n.replan()
+			n, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
-	case stringVariadicExpression:
-		n.args = args(n.args)
-		if ref != nil && n.origin.owner != (ObjectRef{}) {
-			n.origin.owner = ref(n.origin.owner)
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		n.Args = args(n.Args)
+		if ref != nil && n.Origin.owner != (ObjectRef{}) {
+			origin := n.Origin
+			origin.owner = ref(origin.owner)
+			n = n.WithOrigin(origin)
 		}
 		next = n
-	case formatExpression:
-		n.args = args(n.args)
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
-	case randomExpression:
-		n.args = args(n.args)
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
-	case datetimeSleepExpression:
-		n.arg = child(n.arg)
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		n.Arg = child(n.Arg)
 		next = n
 	case advisoryExpression:
 		n.args = args(n.args)
 		next = n
-	case uuidGenerationExpression:
-		n.args = args(n.args)
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
 		next = n
 	case sequenceCallExpression:
 		if ref != nil {
@@ -709,15 +712,12 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			copy.calls[i].expression = expression(call.expression).(*windowExpression)
 			copy.calls[i].argument = expression(call.argument)
 			switch p := call.provider.(type) {
-			case integralSumProvider:
-				p.input, p.usage = typ(p.input), usage(p.usage)
-				copy.calls[i].provider = p
-			case numericSumProvider:
-				p.input, p.usage = typ(p.input), usage(p.usage)
-				copy.calls[i].provider = p
-			case floatSumProvider:
-				p.input, p.usage = typ(p.input), usage(p.usage)
-				copy.calls[i].provider = p
+			case functions.IntegralSum:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.NumericSum:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.FloatSum:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
 			}
 		}
 		next = &copy
@@ -757,48 +757,25 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					}
 				}
 				copy.calls[i].provider = p
-			case countProvider:
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case booleanAggregateProvider:
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case intervalAvgProvider:
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case numericAvgProvider:
-				p.input = typ(p.input)
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case floatAvgProvider:
-				p.input = typ(p.input)
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case integralBitwiseAggregateProvider:
-				p.usage = usage(p.usage)
+			case functions.CountProvider:
+				copy.calls[i].provider = functions.NewCountProvider(usage(p.ResultUsage()))
+			case functions.BooleanAggregateProvider:
+				copy.calls[i].provider = functions.NewBooleanAggregateProvider(usage(p.ResultUsage()), p.Conjunction())
+			case functions.IntervalAvg:
+				copy.calls[i].provider = p.Reconstruct(usage(p.ResultUsage()))
+			case functions.NumericAvg:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.FloatAvg:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.IntegralBitwiseAggregateProvider:
+				u := usage(p.ResultUsage())
 				if err == nil {
-					var operator sqltype.BitwiseOperator
-					operator, err = bitwiseAggregateOperator(p.operation)
+					var bound sqltype.Bitwise
+					bound, err = sqltype.BindBitwise(p.Operator(), u.Type, u.Type)
 					if err == nil {
-						p.bound, err = sqltype.BindBitwise(operator, p.usage.Type, p.usage.Type)
+						copy.calls[i].provider = functions.NewIntegralBitwiseAggregateProvider(u, p.Operator(), bound)
 					}
 				}
-				copy.calls[i].provider = p
-			case bitStringAggregateProvider:
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case integralSumProvider:
-				p.input = typ(p.input)
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case numericSumProvider:
-				p.input = typ(p.input)
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case floatSumProvider:
-				p.input = typ(p.input)
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
 			case moneySumProvider:
 				p.usage = usage(p.usage)
 				if err == nil {
@@ -808,46 +785,57 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			case intervalSumProvider:
 				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
-			case anyValueProvider:
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case jsonArrayAggregateProvider:
-				p.input, p.usage = usage(p.input), usage(p.usage)
+			case functions.BitStringAggregateProvider:
+				copy.calls[i].provider = functions.NewBitStringAggregateProvider(usage(p.ResultUsage()), p.Operator())
+			case functions.IntegralSum:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.NumericSum:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.FloatSum:
+				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))
+			case functions.AnyValue:
+				copy.calls[i].provider = p.Reconstruct(usage(p.ResultUsage()))
+			case functions.JSONArrayAggregateProvider:
+				input, result := usage(p.InputUsage()), usage(p.ResultUsage())
 				if err == nil {
-					p.plan, err = sqltype.BindJSONArrayAggregate(p.input, p.usage, p.absent)
+					var plan sqltype.JSONArrayAggregatePlan
+					plan, err = sqltype.BindJSONArrayAggregate(input, result, p.Absent())
+					if err == nil {
+						copy.calls[i].provider = functions.NewJSONArrayAggregateProvider(input, result, p.Absent(), plan)
+					}
 				}
-				copy.calls[i].provider = p
 			case jsonObjectAggregateProvider:
 				p.key, p.input, p.usage = usage(p.key), usage(p.input), usage(p.usage)
 				if err == nil {
 					p.plan, err = sqltype.BindJSONObjectAggregate(p.key, p.input, p.usage, p.strict)
 				}
 				copy.calls[i].provider = p
-			case extremaProvider:
-				p.usage = usage(p.usage)
+			case functions.ExtremaProvider:
+				result := usage(p.ResultUsage())
 				if err == nil {
-					_, conflict := p.comparison.InputCollation()
-					p.comparison, err = sqltype.BindComparison(p.usage.Type, p.usage.Type, p.usage.Collation, conflict)
+					_, conflict := p.Comparison().InputCollation()
+					var comparison sqltype.Comparison
+					comparison, err = sqltype.BindComparison(result.Type, result.Type, result.Collation, conflict)
+					if err == nil {
+						copy.calls[i].provider = functions.NewExtremaProvider(result, comparison, p.Maximum())
+					}
 				}
-				copy.calls[i].provider = p
-			case stringAggregateProvider:
-				p.usage = usage(p.usage)
-				copy.calls[i].provider = p
-			case *arrayAggregateProvider:
-				provider := *p
-				provider.argument = typ(p.argument)
-				provider.usage = usage(p.usage)
-				copy.calls[i].provider = &provider
-			case rangeAggregateProvider:
-				p.input = usage(p.input)
-				p.usage = usage(p.usage)
+			case functions.StringAggregateProvider:
+				copy.calls[i].provider = functions.NewStringAggregateProvider(usage(p.ResultUsage()))
+			case *functions.ArrayAggregateProvider:
+				copy.calls[i].provider = functions.NewArrayAggregateProvider(typ(p.ArgumentType()), usage(p.ResultUsage()), p.Arrays())
+			case functions.RangeAggregateProvider:
+				input, result := usage(p.InputUsage()), usage(p.ResultUsage())
 				if err == nil {
-					p.bound, err = sqltype.BindRangeAggregate(p.input.Type, p.operation)
+					var bound sqltype.RangeAggregate
+					bound, err = sqltype.BindRangeAggregate(input.Type, p.Operation())
+					if err == nil && bound.ResultUsage() != result {
+						err = fmt.Errorf("stuntgres: inconsistent remapped range aggregate result")
+					}
+					if err == nil {
+						copy.calls[i].provider = functions.NewRangeAggregateProvider(input, result, p.Operation(), bound)
+					}
 				}
-				if err == nil && p.bound.ResultUsage() != p.usage {
-					err = fmt.Errorf("stuntgres: inconsistent remapped range aggregate result")
-				}
-				copy.calls[i].provider = p
 			default:
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}

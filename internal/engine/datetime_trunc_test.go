@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,11 +30,11 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		e := node.(datetimeTruncExpression)
+		e := node.(functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties])
 		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == Immutable) {
 			t.Fatal(tc, e.Properties(), e.ResultUsage())
 		}
-		if tc.typ == "time" && e.args[1].ResultUsage().Type.ID() != sqltype.Time {
+		if tc.typ == "time" && e.Args[1].ResultUsage().Type.ID() != sqltype.Time {
 			t.Fatal("selected TIME conversion lost")
 		}
 		var children []BoundExpr
@@ -52,7 +53,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(datetimeTruncExpression)
+		rebound := next.(functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties])
 		if rebound.ResultUsage().Type != replacements[tc.result] {
 			t.Fatal("retained result authority")
 		}
@@ -76,19 +77,14 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	if b.parameters[1].Type.ID() != sqltype.Text || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || plannedVolatility(node) != Immutable {
 		t.Fatal(node.Properties(), b.parameters)
 	}
-	e := node.(datetimeTruncExpression)
+	e := node.(functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties])
 	for _, i := range []int{0, 1, 2} {
 		n := e
-		n.args[i] = literalExpression{expressionInfo: b.info(n.args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(n.args[i].ResultUsage().Type)}
+		n.Args[i] = literalExpression{expressionInfo: b.info(n.Args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(n.Args[i].ResultUsage().Type)}
 		simplified, changed, err := simplifyConditional(&EvalContext{Context: context.Background()}, n, false)
 		if err != nil || !changed || plannedVolatility(simplified) != Immutable || !generationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
 		}
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if _, err := e.Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
 	}
 	for _, tc := range []struct {
 		source parser.Expr

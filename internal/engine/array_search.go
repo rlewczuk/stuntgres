@@ -4,47 +4,24 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type arraySearchExpression struct {
-	expressionInfo
-	plan      sqltype.ArraySearchPlan
-	args      []BoundExpr
-	namespace string
-}
-
-func (e arraySearchExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	var values [3]sqltype.Value
-	for i, arg := range e.args {
-		value, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		values[i] = value
-	}
-	return e.plan.Evaluate(c.Context, values[:len(e.args)], c.Input)
-}
-
 func arrayMembershipName(name string) bool { return name == "@>" || name == "<@" || name == "&&" }
 
 func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	operands := make([]comparisonOperand, len(raw.Args))
+	operands, err := functions.AnalyzeArraySearch[BoundExpr](b, raw.Args)
+	if err != nil {
+		return nil, err
+	}
 	names := make([]string, len(raw.Args))
-	for i, arg := range raw.Args {
-		o, err := b.comparisonOperandPolicy(arg, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return nil, err
-		}
-		operands[i] = o
+	for i, o := range operands {
 		names[i] = "unknown"
-		if d := o.descriptor(); d != nil {
+		if d := o.Usage.Type; d != nil {
 			names[i] = b.arraySearchTypeName(d)
 		}
 		names[i] = functionNamedType(raw, i, names[i])
@@ -53,22 +30,19 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 		return nil, err
 	}
 	signature := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	arity := 2
-	if name == "array_replace" {
-		arity = 3
-	}
-	if !visible || name != strings.ToLower(name) || len(raw.ArgNames) != 0 || len(operands) != arity && !(name == "array_position" && len(operands) == 3) {
+	arity, valid := functions.ArraySearchArity(name, visible, len(raw.ArgNames) != 0, len(operands))
+	if !valid {
 		return signature()
 	}
-	views := append([]comparisonOperand(nil), operands[:arity]...)
-	if d := operands[0].descriptor(); d != nil {
-		base := d.BaseType()
-		if !base.IsArray() {
+	views := make([]comparisonOperand, arity)
+	for i, argument := range operands[:arity] {
+		views[i] = comparisonOperand{node: argument.Expression, raw: argument.Raw}
+	}
+	if operands[0].Usage.Type != nil {
+		u, valid := functions.ArraySearchLeafUsage(operands[0].Usage)
+		if !valid {
 			return signature()
 		}
-		u := base.Element().Usage()
-		u.Typmod = operands[0].node.ResultUsage().Typmod
-		u.Collation = operands[0].node.ResultUsage().Collation
 		views[0].node = literalExpression{expressionInfo: expressionInfo{usage: u}}
 	}
 	// anycompatible resolution collects known leaf OIDs before selecting a
@@ -91,21 +65,13 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	if !ok || !array.Concrete() {
 		return signature()
 	}
-	targets := []sqltype.Usage{array.Usage(), common}
-	if name == "array_replace" {
-		targets = append(targets, common)
-	}
+	var integer sqltype.Usage
 	if name == "array_position" && len(operands) == 3 {
-		targets = append(targets, b.typ(sqltype.Int4).Usage())
+		integer = b.typ(sqltype.Int4).Usage()
 	}
-	// Function resolution precedes literal input conversion. Probe every known
-	// implicit edge before finalizing any unknown literal or Param occurrence.
-	for i, o := range operands {
-		if o.descriptor() != nil {
-			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), targets[i], sqltype.Implicit); err != nil {
-				return signature()
-			}
-		}
+	targets, valid := functions.SelectArraySearch(name, operands, array.Usage(), common, integer)
+	if !valid {
+		return signature()
 	}
 	switch {
 	case raw.Star:
@@ -119,12 +85,9 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	case raw.Window != nil:
 		return nil, expressionError("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
 	}
-	args := make([]BoundExpr, len(operands))
-	for i, o := range operands {
-		args[i], err = b.coerceConditional(o, targets[i], name)
-		if err != nil {
-			return nil, err
-		}
+	args, err := functions.FinishArraySearch[BoundExpr](b, name, operands, targets)
+	if err != nil {
+		return nil, err
 	}
 	result := array.Usage()
 	if name == "array_position" {
@@ -239,34 +202,34 @@ func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName
 	if len(rawName.Parts) == 2 {
 		namespace = rawName.Parts[0].Text
 	}
-	return arraySearchExpression{expressionInfo: info, plan: plan, args: args, namespace: namespace}, nil
+	return functions.NewArraySearch[BoundExpr, *EvalContext](functionInfo(info), plan, args, namespace), nil
 }
 
-func (e arraySearchExpression) sql(child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
-	parts := make([]string, len(e.args))
-	for i, arg := range e.args {
+func arraySearchSQL(e functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+	parts := make([]string, len(e.Args))
+	for i, arg := range e.Args {
 		text, err := child(arg)
 		if err != nil {
 			return "", err
 		}
 		parts[i] = text
 	}
-	if e.plan.Membership() {
-		return "(" + parts[0] + " " + operator(e.namespace, e.plan.Name()) + " " + parts[1] + ")", nil
+	if e.Plan.Membership() {
+		return "(" + parts[0] + " " + operator(e.Namespace, e.Plan.Name()) + " " + parts[1] + ")", nil
 	}
-	return "pg_catalog." + e.plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
+	return "pg_catalog." + e.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 }
 
-func mapArraySearchChildren(e arraySearchExpression, child func(BoundExpr) (BoundExpr, bool, error)) (arraySearchExpression, bool, error) {
+func mapArraySearchChildren(e functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], bool, error) {
 	var args []BoundExpr
-	for i, old := range e.args {
+	for i, old := range e.Args {
 		next, changed, err := child(old)
 		if err != nil {
 			return e, false, err
 		}
 		if changed {
 			if args == nil {
-				args = append([]BoundExpr(nil), e.args...)
+				args = append([]BoundExpr(nil), e.Args...)
 			}
 			args[i] = next
 		}
@@ -274,6 +237,6 @@ func mapArraySearchChildren(e arraySearchExpression, child func(BoundExpr) (Boun
 	if args == nil {
 		return e, false, nil
 	}
-	e.args = args
+	e.Args = args
 	return e, true, nil
 }

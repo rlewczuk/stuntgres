@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -214,15 +215,15 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
 		}
 		expression = e
-	case timeZoneExpression:
-		if randomLiteralNull(e.value) || !e.local && randomLiteralNull(e.zone) {
-			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		if randomLiteralNull(e.Value) || !e.Local && randomLiteralNull(e.Zone) {
+			return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
-		if !e.local {
-			e.zone, err = child(e.zone)
+		if !e.Local {
+			e.Zone, err = child(e.Zone)
 		}
 		if err == nil {
-			e.value, err = child(e.value)
+			e.Value, err = child(e.Value)
 		}
 		expression = e
 	case collationExpression:
@@ -258,41 +259,41 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.right, err = child(e.right)
 		}
 		expression = e
-	case likeEscapeExpression:
-		e.pattern, err = child(e.pattern)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		e.Pattern, err = child(e.Pattern)
 		if err == nil {
-			e.escape, err = child(e.escape)
+			e.Escape, err = child(e.Escape)
 		}
 		expression = e
-	case posixExpression:
-		e.left, err = child(e.left)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		e.Left, err = child(e.Left)
 		if err == nil {
-			e.right, err = child(e.right)
+			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case similarExpression:
-		e.left, err = child(e.left)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		e.Left, err = child(e.Left)
 		if err == nil {
-			e.right, err = child(e.right)
+			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case similarEscapeExpression:
-		e.pattern, err = child(e.pattern)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		e.Pattern, err = child(e.Pattern)
 		if err == nil {
-			e.escape, err = child(e.escape)
+			e.Escape, err = child(e.Escape)
 		}
 		expression = e
-	case posixSubstringExpression:
-		for i, arg := range e.args {
-			e.args[i], err = child(arg)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for i, arg := range e.Args {
+			e.Args[i], err = child(arg)
 			if err != nil {
 				break
 			}
 		}
 		expression = e
-	case similarSubstringExpression:
-		for i, arg := range e.args {
-			e.args[i], err = child(arg)
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		for i, arg := range e.Args {
+			e.Args[i], err = child(arg)
 			if err != nil {
 				break
 			}
@@ -311,19 +312,19 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.comparisons[i] = pair
 		}
 		expression = e
-	case regexpExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
-		for i, arg := range e.args {
-			e.args[i], err = child(arg)
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		e.Args = append([]BoundExpr(nil), e.Args...)
+		for i, arg := range e.Args {
+			e.Args[i], err = child(arg)
 			if err != nil {
 				break
 			}
 		}
 		expression = e
-	case regexpSetExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
-		for i, arg := range e.args {
-			e.args[i], err = child(arg)
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		e.Args = append([]BoundExpr(nil), e.Args...)
+		for i, arg := range e.Args {
+			e.Args[i], err = child(arg)
 			if err != nil {
 				break
 			}
@@ -344,11 +345,11 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
-	case jsonKeysExpression:
-		arg, failure := child(e.args[0])
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		arg, failure := child(e.Args[0])
 		err = failure
 		if changed {
-			e.args = []BoundExpr{arg}
+			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err // Cardinality belongs to its query stage.
 	case comparisonExpression:
@@ -399,61 +400,61 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
-	case binaryExpression:
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case datetimeJustifyExpression:
-		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		node, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
 		}
 		if did {
-			e.arg, changed = node, true
+			e.Arg, changed = node, true
 		}
-		if randomLiteralNull(e.arg) {
-			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+		if randomLiteralNull(e.Arg) {
+			return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
-	case datetimeExtractExpression:
-		for i, old := range e.args {
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i], changed = node, true
+				e.Args[i], changed = node, true
 			}
 		}
 		expression = e
-	case datetimeOverlapsExpression:
-		for i, old := range e.args {
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i], changed = node, true
+				e.Args[i], changed = node, true
 			}
 		}
 		next, did, failure := simplifyOverlapsRoute(c, e)
@@ -462,143 +463,143 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		e, changed = next, changed || did
 		expression = e
-	case datetimeBinExpression:
-		for i, old := range e.args {
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i], changed = node, true
+				e.Args[i], changed = node, true
 			}
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case datetimeTruncExpression:
-		for i, old := range e.children() {
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i], changed = node, true
+				e.Args[i], changed = node, true
 			}
 		}
-		for _, arg := range e.children() {
+		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case datetimeZoneCalendarExpression:
-		for _, arg := range e.children() {
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
-		for i, old := range e.children() {
+		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i], changed = node, true
+				e.Args[i], changed = node, true
 			}
 		}
 		expression = e
-	case datetimeAgeFiniteExpression:
-		for i, old := range e.children() {
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i], changed = node, true
+				e.Args[i], changed = node, true
 			}
 		}
-		for _, arg := range e.children() {
+		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case datetimeMakeExpression:
-		for i, old := range e.children() {
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i] = node
+				e.Args[i] = node
 				changed = true
 			}
 		}
-		for _, arg := range e.children() {
+		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case datetimeFormattingExpression:
-		for i, old := range e.args {
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i] = node
+				e.Args[i] = node
 				changed = true
 			}
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case numericFormattingExpression:
-		for i, old := range e.args {
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args[i] = node
+				e.Args[i] = node
 				changed = true
 			}
 		}
 		expression = e
-	case stringExpression:
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
-		if e.plan.Strict() {
-			for _, arg := range e.args {
+		if e.Plan.Strict() {
+			for _, arg := range e.Args {
 				if randomLiteralNull(arg) {
-					return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+					return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 				}
 			}
 		}
 		expression = e
-	case arraySearchExpression:
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		var did bool
 		e, did, err = mapArraySearchChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
@@ -608,93 +609,93 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		changed = changed || did
 		expression = e
-	case enumFunctionExpression:
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		expression = e
-	case mathExpression:
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case uuidGenerationExpression:
-		if len(e.args) != 0 {
-			node, did, failure := simplifyConditional(c, e.args[0], decisiveDefaults)
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		if len(e.Args) != 0 {
+			node, did, failure := simplifyConditional(c, e.Args[0], decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
-				e.args = []BoundExpr{node}
+				e.Args = []BoundExpr{node}
 				changed = true
 			}
 			if randomLiteralNull(node) {
 				// Strictness eliminates demand even for a volatile provider.
 				// Preserve analyzed metadata; the surviving literal is immutable.
-				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
-	case randomExpression:
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		expression = e
-	case datetimeSleepExpression:
-		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		node, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
 		}
-		e.arg = node
+		e.Arg = node
 		if randomLiteralNull(node) {
-			return literalExpression{expressionInfo: expressionInfo{usage: e.usage, pos: e.pos}, value: sqltype.Null(e.usage.Type)}, true, nil
+			return literalExpression{expressionInfo: expressionInfo{usage: e.Usage, pos: e.Pos}, value: sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		changed = changed || did
 		expression = e
@@ -792,23 +793,23 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
-	case nullCountExpression:
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		expression = e
 	case installedFunctionExpression:
@@ -819,65 +820,66 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		e.arg = next
 		changed = changed || did
 		expression = e
-	case jsonCreateExpression:
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
-			if err := e.replan(); err != nil {
-				return nil, false, err
+			next, failure := e.Reconstruct(e.Info, args)
+			if failure != nil {
+				return nil, false, failure
 			}
+			e = next
 		}
 		expression = e
-	case stringVariadicExpression:
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		node, folded, failure := foldStringVariadic(c, e)
 		return node, changed || folded, failure
-	case formatExpression:
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
-		for i, old := range e.args {
+		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
 			if failure != nil {
 				return nil, false, failure
 			}
 			if did {
 				if args == nil {
-					args = append([]BoundExpr(nil), e.args...)
+					args = append([]BoundExpr(nil), e.Args...)
 				}
 				args[i] = node
 				changed = true
 			}
 		}
 		if args != nil {
-			e.args = args
+			e.Args = args
 		}
 		expression = e
 	}
@@ -916,8 +918,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	}
 	literal := func(child BoundExpr) bool { _, ok := child.(literalExpression); return ok }
 	switch e := node.(type) {
-	case timeZoneExpression:
-		return literal(e.value) && (e.local || literal(e.zone))
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Value) && (e.Local || literal(e.Zone))
 	case collationExpression:
 		return literal(e.child)
 	case coercionExpression:
@@ -928,18 +930,18 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return literal(e.left) && (e.right == nil || literal(e.right))
 	case likeExpression:
 		return literal(e.left) && literal(e.right)
-	case likeEscapeExpression:
-		return literal(e.pattern) && literal(e.escape)
-	case posixExpression:
-		return literal(e.left) && literal(e.right)
-	case similarExpression:
-		return literal(e.left) && literal(e.right)
-	case similarEscapeExpression:
-		return literal(e.pattern) && literal(e.escape)
-	case posixSubstringExpression:
-		return literal(e.args[0]) && literal(e.args[1])
-	case similarSubstringExpression:
-		return literal(e.args[0]) && literal(e.args[1]) && literal(e.args[2])
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Pattern) && literal(e.Escape)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Left) && literal(e.Right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Left) && literal(e.Right)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Pattern) && literal(e.Escape)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Args[0]) && literal(e.Args[1])
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Args[0]) && literal(e.Args[1]) && literal(e.Args[2])
 	case rowComparisonExpression:
 		for _, pair := range e.comparisons {
 			if !literal(pair.left) || !literal(pair.right) {
@@ -947,8 +949,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case regexpExpression:
-		for _, arg := range e.args {
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
@@ -981,96 +983,96 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case binaryExpression:
-		for _, arg := range e.args {
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case datetimeJustifyExpression:
-		return literal(e.arg)
-	case datetimeExtractExpression:
-		return literal(e.args[0]) && literal(e.args[1])
-	case datetimeOverlapsExpression:
-		for _, arg := range e.args {
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Arg)
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Args[0]) && literal(e.Args[1])
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case datetimeBinExpression:
-		for _, arg := range e.args {
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case datetimeTruncExpression:
-		for _, arg := range e.children() {
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case datetimeZoneCalendarExpression:
-		for _, arg := range e.children() {
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case datetimeAgeFiniteExpression:
-		for _, arg := range e.children() {
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case datetimeMakeExpression:
-		for _, arg := range e.children() {
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case datetimeFormattingExpression:
-		return literal(e.args[0]) && literal(e.args[1])
-	case numericFormattingExpression:
-		return literal(e.args[0]) && literal(e.args[1])
-	case stringExpression:
-		if e.plan.Name() == "string_to_table" {
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Args[0]) && literal(e.Args[1])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Args[0]) && literal(e.Args[1])
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		if e.Plan.Name() == "string_to_table" {
 			return false
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case arraySearchExpression:
-		for _, arg := range e.args {
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case enumFunctionExpression:
-		for _, arg := range e.args {
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case mathExpression:
-		for _, arg := range e.args {
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case nullCountExpression:
-		for _, arg := range e.args {
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
@@ -1078,19 +1080,19 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return true
 	case installedFunctionExpression:
 		return false // Installed unaccent is intrinsically STABLE.
-	case jsonCreateExpression:
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return false // All eight JSON creation functions are intrinsically STABLE.
-	case stringVariadicExpression:
-		if e.intrinsic != Immutable {
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		if e.IntrinsicStable() {
 			return false
 		}
-		for _, arg := range e.args {
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case formatExpression:
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
 		return false // Intrinsically STABLE, even with literal children.
 	}
 	return false

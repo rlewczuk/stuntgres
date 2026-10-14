@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -22,7 +23,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 			calls := 0
-			producer := enumFunctionExpression{expressionInfo: expressionInfo{usage: mood.Usage()}, plan: plan, args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
+			producer := functions.Enum[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: mood.Usage()}), Plan: plan, Args: []BoundExpr{enumCapturedArgument{expressionInfo: expressionInfo{usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			project := *query.Root.(*projectNode)
 			project.querySchema = []ColumnDescriptor{{Name: "v", Usage: mood.Usage()}}
 			project.expressions = []BoundExpr{producer}

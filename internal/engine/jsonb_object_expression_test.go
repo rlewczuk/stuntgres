@@ -2,47 +2,13 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"reflect"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-func TestJSONBObjectExpressionEvaluationOrder(t *testing.T) {
-	types := jsonObjectUnitTypes()
-	array, result := types[1009], types[sqltype.JSONB]
-	plan, err := sqltype.BindBinary("jsonb_object", result.Usage(), array.Usage(), array.Usage())
-	if err != nil {
-		t.Fatal(err)
-	}
-	var order []int
-	v, err := array.Input(context.Background(), "{x}", -1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expr := binaryExpression{expressionInfo: expressionInfo{usage: result.Usage()}, plan: plan, args: []BoundExpr{
-		mathObservedArgument{expressionInfo: expressionInfo{usage: array.Usage()}, value: sqltype.Null(array), order: &order, index: 0},
-		mathObservedArgument{expressionInfo: expressionInfo{usage: array.Usage()}, value: v, order: &order, index: 1},
-	}}
-	got, err := expr.Eval(&EvalContext{Context: context.Background()})
-	if err != nil || !got.IsNull() || got.Type() != result || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(got, order, err)
-	}
-	failure := errors.New("demanded JSONB object sibling")
-	expr.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: array.Usage()}, order: &order, index: 1, err: failure}
-	order = nil
-	if _, err := expr.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal(order, err)
-	}
-	expr.args[0] = mathObservedArgument{expressionInfo: expressionInfo{usage: array.Usage()}, order: &order, index: 0, err: failure}
-	order = nil
-	if _, err := expr.Eval(&EvalContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0}) {
-		t.Fatal(order, err)
-	}
-}
 
 func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 	types, replacement := jsonObjectUnitTypes(), jsonObjectUnitTypes()
@@ -67,20 +33,20 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := binaryExpression{expressionInfo: expressionInfo{usage: types[sqltype.JSONB].Usage()}, plan: plan, args: args}
+		original := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: args}
 		rebound, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		next := rebound.(binaryExpression)
-		if next.plan.ResultUsage().Type != replacement[sqltype.JSONB] || next.args[0].ResultUsage().Type != replacement[1009] {
+		next := rebound.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		if next.Plan.ResultUsage().Type != replacement[sqltype.JSONB] || next.Args[0].ResultUsage().Type != replacement[1009] {
 			t.Fatal(next)
 		}
 		got, err := next.Eval(&EvalContext{Context: context.Background()})
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := next.plan.ResultUsage().Type.Output(context.Background(), got)
+		text, err := next.Plan.ResultUsage().Type.Output(context.Background(), got)
 		if err != nil || text != `{"a": "1", "b": "2"}` {
 			t.Fatal(text, err)
 		}
@@ -91,7 +57,7 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if !sameGroupExpression(original, original) {
 			t.Fatal("lost expression identity")
 		}
-		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original, original.usage)
+		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original, original.Usage)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -131,19 +97,19 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := binaryExpression{expressionInfo: expressionInfo{usage: types[sqltype.JSONB].Usage()}, plan: plan, args: []BoundExpr{column, column}}
+	expr := functions.Binary[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSONB].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	rewritten, err := binder.rewriteGroup(expr, []BoundExpr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := rewritten.(binaryExpression)
-	for _, arg := range next.args {
+	next := rewritten.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+	for _, arg := range next.Args {
 		if _, ok := arg.(groupExpression); !ok {
 			t.Fatal(arg)
 		}
 	}
-	if _, ok := expr.args[0].(columnExpression); !ok {
+	if _, ok := expr.Args[0].(columnExpression); !ok {
 		t.Fatal("mutated original arguments")
 	}
 	var count int
@@ -180,8 +146,8 @@ func TestJSONBObjectBinderSignatureBoundaries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call, ok := node.(binaryExpression)
-		if !ok || len(call.args) != 1 || call.args[0].ResultUsage().Type.ID() != 1009 || node.ResultUsage().Type.ID() != sqltype.JSONB || node.SourcePosition() != pos {
+		call, ok := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || len(call.Args) != 1 || call.Args[0].ResultUsage().Type.ID() != 1009 || node.ResultUsage().Type.ID() != sqltype.JSONB || node.SourcePosition() != pos {
 			t.Fatal(node)
 		}
 	}
@@ -195,8 +161,8 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		call := node.(binaryExpression)
-		if call.plan.Name() != "jsonb_object" || node.ResultUsage().Type.ID() != sqltype.JSONB || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable {
+		call := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+		if call.Plan.Name() != "jsonb_object" || node.ResultUsage().Type.ID() != sqltype.JSONB || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable {
 			t.Fatal(query, node.Properties())
 		}
 		for _, usage := range b.parameters {

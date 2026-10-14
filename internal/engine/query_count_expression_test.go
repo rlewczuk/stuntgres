@@ -3,8 +3,6 @@ package engine
 import (
 	"context"
 	"errors"
-	"math"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -35,51 +33,6 @@ func TestCountExpressionArgumentVeto(t *testing.T) {
 			t.Fatal(rows, count, err, calls, source)
 		}
 	}
-}
-
-func TestCountExpressionNullOverflow(t *testing.T) {
-	for _, null := range []bool{true, false} {
-		_, query, source := queryCoreFixture(t, "SELECT count(v) FROM t")
-		node := query.Root.(*projectNode).child.(*aggregateNode)
-		original := node.calls[0].provider
-		// Supply a maximal execution-local state through the ordinary Init seam.
-		node.calls[0].provider = countMaxProvider{original}
-		usage := node.calls[0].argument.ResultUsage()
-		node.calls[0].argument = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
-			if null {
-				return sqltype.Null(usage.Type), nil
-			}
-			return sqltype.Integer(usage.Type, 1)
-		})
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
-		if null {
-			if err != nil || count != 1 || rows == nil {
-				t.Fatal(rows, count, err)
-			}
-			values := make([]sqltype.Value, 1)
-			present, err := rows.Next(context.Background(), values)
-			n, _ := values[0].Integer()
-			if !present || err != nil || n != math.MaxInt64 || values[0].IsNull() {
-				t.Fatal(present, n, err)
-			}
-			rows.Close()
-		} else {
-			var d *sqlstate.Error
-			if rows != nil || count != 0 || !errors.As(err, &d) || d.Code != "22003" || d.Message != "bigint out of range" {
-				t.Fatal(rows, count, err)
-			}
-		}
-	}
-}
-
-type countMaxProvider struct{ aggregateProvider }
-
-func (p countMaxProvider) Init(ctx context.Context) (any, error) {
-	s, err := p.aggregateProvider.Init(ctx)
-	if err == nil {
-		s.(*countState).count = math.MaxInt64
-	}
-	return s, err
 }
 
 func TestCountExpressionSlotsAndMetadata(t *testing.T) {

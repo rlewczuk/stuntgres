@@ -2,110 +2,16 @@ package engine
 
 import (
 	"fmt"
-	"math"
-	"strconv"
-
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type randomExpression struct {
-	expressionInfo
-	name string
-	args []BoundExpr
-}
-
-func (x randomExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	var values [2]sqltype.Value
-	for i, arg := range x.args {
-		v, err := arg.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		values[i] = v
-	}
-	for i := range x.args {
-		if values[i].IsNull() {
-			return sqltype.Null(x.usage.Type), nil
-		}
-	}
+func (c *EvalContext) FunctionRandomOwner() (functions.RandomOwner, error) {
 	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing random session scope")
+		return nil, fmt.Errorf("stuntgres: missing random session scope")
 	}
-	s := &c.liveScope().op.session.random
-	if x.name == "setseed" {
-		seed, err := values[0].Float()
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if math.IsNaN(seed) || seed < -1 || seed > 1 {
-			text := strconv.FormatFloat(seed, 'g', 6, 64)
-			if math.IsInf(seed, 1) {
-				text = "Infinity"
-			}
-			if math.IsInf(seed, -1) {
-				text = "-Infinity"
-			}
-			return sqltype.Value{}, sqlError("22023", "setseed parameter "+text+" is out of allowed range [-1,1]")
-		}
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.reseed(seed)
-		return sqltype.VoidValue(x.usage.Type), nil
-	}
-	var lower, upper int64
-	if x.name == "random" && len(x.args) == 2 && x.usage.Type.ID() != sqltype.Numeric {
-		var err error
-		lower, err = values[0].Integer()
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		upper, err = values[1].Integer()
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if lower > upper {
-			return sqltype.Value{}, sqlError("22023", "lower bound must be less than or equal to upper bound")
-		}
-		if lower == upper {
-			return sqltype.Integer(x.usage.Type, lower)
-		}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.initialize(); err != nil {
-		return sqltype.Value{}, err
-	}
-	switch x.name {
-	case "random":
-		if len(x.args) == 0 {
-			return sqltype.Float(x.usage.Type, s.rand.Float64())
-		}
-		if x.usage.Type.ID() == sqltype.Numeric {
-			return sqltype.NumericRandom(c.Context, values[0], values[1], s.rand.Uint64)
-		}
-		return sqltype.Integer(x.usage.Type, randomInteger(lower, upper, s.rand.Uint64))
-	case "random_normal":
-		mean, deviation := float64(0), float64(1)
-		var err error
-		if len(x.args) > 0 {
-			mean, err = values[0].Float()
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-		}
-		if len(x.args) > 1 {
-			deviation, err = values[1].Float()
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-		}
-		return sqltype.Float(x.usage.Type, deviation*s.rand.NormFloat64()+mean)
-	}
-	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid random expression")
+	return &c.liveScope().op.session.random, nil
 }
 
 func (b *expressionBinder) randomSignature(raw parser.FunctionExpr, args []BoundExpr, unknown []bool, ambiguous bool) error {
@@ -124,111 +30,33 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var args []BoundExpr
-	var unknown []bool
-	if len(raw.Args) <= 100 {
-		args = make([]BoundExpr, len(raw.Args))
-		unknown = make([]bool, len(raw.Args))
+	args, unknown, err := functions.AnalyzeDirectArguments[BoundExpr](b, raw.Args)
+	if err != nil {
+		return nil, err
 	}
-	for i, r := range raw.Args {
-		if l, ok := r.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
-			// Leave unknown literal input uninterpreted until overload selection.
-			if args != nil {
-				unknown[i] = true
-				args[i] = literalExpression{expressionInfo: expressionInfo{pos: r.SourcePosition()}}
-			}
-			continue
-		}
-		x, err := b.bind(r, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return nil, err
-		}
-		if args != nil {
-			args[i] = x
-			unknown[i] = x.ResultUsage().Type == nil
-		}
-	}
-	// PostgreSQL's general function-call limit precedes overload lookup, but
-	// only after every child has been analyzed for its own errors/captures.
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	id := sqltype.Float8
-	valid := visible && !raw.Variadic
-	switch name {
-	case "setseed":
-		valid = valid && len(args) == 1
-		id = sqltype.Void
-	case "random_normal":
-		valid = valid && len(args) <= 2
-	case "random":
-		valid = valid && (len(args) == 0 || len(args) == 2)
+	prepared := functions.PrepareRandom(name, visible, raw.Variadic, len(args), unknown)
+	var types functions.NumericTypes
+	if prepared.Needs(sqltype.Int4) {
+		types.Int4 = b.typ(sqltype.Int4).Usage()
 	}
-	if !valid {
-		return nil, b.randomSignature(raw, args, unknown, false)
+	if prepared.Needs(sqltype.Int8) {
+		types.Int8 = b.typ(sqltype.Int8).Usage()
 	}
-	argumentID := sqltype.Float8
-	if name == "random" && len(args) == 2 {
-		bestScore := -1
-		var candidates []sqltype.ID
-		for _, candidate := range []sqltype.ID{sqltype.Int4, sqltype.Int8, sqltype.Numeric} {
-			viable, score := true, 0
-			for i, arg := range args {
-				if unknown[i] {
-					continue
-				}
-				if arg.ResultUsage().Type.BaseType().ID() == candidate {
-					score++
-				}
-				if _, err := sqltype.PlanCoercion(arg.ResultUsage(), b.typ(candidate).Usage(), sqltype.Implicit); err != nil {
-					viable = false
-					break
-				}
-			}
-			if !viable {
-				continue
-			}
-			if score > bestScore {
-				bestScore = score
-				candidates = candidates[:0]
-			}
-			if score == bestScore {
-				candidates = append(candidates, candidate)
-			}
-		}
-		if len(candidates) == 0 {
-			return nil, b.randomSignature(raw, args, unknown, false)
-		}
-		if len(candidates) != 1 {
-			return nil, b.randomSignature(raw, args, unknown, true)
-		}
-		id = candidates[0]
-		argumentID = id
+	if prepared.Needs(sqltype.Float8) {
+		types.Float8 = b.typ(sqltype.Float8).Usage()
 	}
-	// Resolve the whole signature before coercing any child, preserving the
-	// original argument types in missing-signature diagnostics.
-	var coercions [2]sqltype.CoercionPlan
-	for i, arg := range args {
-		if unknown[i] {
-			continue
-		}
-		var err error
-		coercions[i], err = sqltype.PlanCoercion(arg.ResultUsage(), b.typ(argumentID).Usage(), sqltype.Implicit)
-		if err != nil {
-			return nil, b.randomSignature(raw, args, unknown, false)
-		}
+	if prepared.Needs(sqltype.Numeric) {
+		types.Numeric = b.typ(sqltype.Numeric).Usage()
 	}
-	for i, arg := range args {
-		u := b.typ(argumentID).Usage()
-		if unknown[i] {
-			var err error
-			args[i], err = b.bind(raw.Args[i], expressionPolicy{context: functionArgumentContext, expected: u, mode: sqltype.Implicit})
-			if err != nil {
-				return nil, err
-			}
-		} else if arg.ResultUsage() != u {
-			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercions[i], sqltype.Implicit}
-		}
+	selected, resolution := functions.SelectRandom(prepared, args, unknown, types)
+	if resolution != functions.Resolved {
+		return nil, b.randomSignature(raw, args, unknown, resolution == functions.Ambiguous)
+	}
+	if err := functions.CoerceRandomArguments(b, raw.Args, args, unknown, selected); err != nil {
+		return nil, err
 	}
 	properties := ExprProperties{Volatility: Volatile}
 	for _, arg := range args {
@@ -239,13 +67,16 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	usage := b.typ(id).Usage()
+	usage := selected.Target
+	if usage.Type == nil || usage.Type.ID() != selected.Result {
+		usage = b.typ(selected.Result).Usage()
+	}
 	for _, arg := range args {
 		if randomLiteralNull(arg) {
 			return literalExpression{b.info(usage, raw.Pos, ExprProperties{}), sqltype.Null(usage.Type)}, nil
 		}
 	}
-	return randomExpression{b.info(usage, raw.Pos, properties), name, args}, nil
+	return functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(usage, raw.Pos, properties)), Name: name, Args: args}, nil
 }
 
 func randomLiteralNull(arg BoundExpr) bool {

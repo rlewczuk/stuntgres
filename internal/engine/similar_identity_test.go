@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,29 +19,29 @@ func TestSimilarSubstringPresentationIdentity(t *testing.T) {
 		literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "%")},
 		literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "#")},
 	}
-	ordinary := similarSubstringExpression{expressionInfo: expressionInfo{usage: usage}, args: args, provider: provider, syntax: parser.OrdinaryFunctionSyntax}
+	ordinary := functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Args: args, Provider: provider, Syntax: parser.OrdinaryFunctionSyntax}
 	standard := ordinary
-	standard.syntax = parser.SQLFunctionSyntax
+	standard.Syntax = parser.SQLFunctionSyntax
 	if !sameGroupExpression(ordinary, standard) || !sameGroupExpression(standard, ordinary) {
 		t.Fatal("presentation syntax changed semantic grouped identity")
 	}
 	different := standard
-	different.args[1] = literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "a%")}
+	different.Args[1] = literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "a%")}
 	if sameGroupExpression(ordinary, different) {
 		t.Fatal("different patterns compared equal")
 	}
 	different = standard
-	different.args[2] = literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "!")}
+	different.Args[2] = literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "!")}
 	if sameGroupExpression(ordinary, different) {
 		t.Fatal("different escapes compared equal")
 	}
 	different = standard
-	different.args[0] = columnExpression{expressionInfo: expressionInfo{usage: usage}, scope: 1, frame: 1, slot: 1}
+	different.Args[0] = columnExpression{expressionInfo: expressionInfo{usage: usage}, scope: 1, frame: 1, slot: 1}
 	if sameGroupExpression(ordinary, different) {
 		t.Fatal("different source children compared equal")
 	}
 	different = standard
-	different.provider, err = sqltype.BindSimilarSubstring([3]sqltype.Usage{usage, usage, usage}, usage, false)
+	different.Provider, err = sqltype.BindSimilarSubstring([3]sqltype.Usage{usage, usage, usage}, usage, false)
 	if err != nil {
 		t.Fatal(err)
 	}

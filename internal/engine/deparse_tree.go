@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -73,16 +74,16 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			return err
 		}
 		fmt.Fprintf(out, "Identity kind %d ordinaryCall %t", n.kind, n.ordinaryCall)
-	case currentDateTimeExpression:
-		if err := validateCurrentDateTime(n); err != nil {
+	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
+		if err := n.Validate(functionPropertiesMatch(n.Property, functions.CurrentDateTimeIntrinsicRule())); err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.kind, n.hasPrecision, n.precision)
-	case transactionTimeExpression:
-		if err := validateTransactionTime(n); err != nil {
+		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.Kind, n.HasPrecision, n.Precision)
+	case functions.TransactionTime[*EvalContext, ExprProperties]:
+		if err := n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "TransactionTime kind %d", n.kind)
+		fmt.Fprintf(out, "TransactionTime kind %d", n.Kind)
 	case domainValueExpression:
 		fmt.Fprint(out, "DomainValue")
 	case columnExpression:
@@ -137,24 +138,24 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case likeExpression:
 		fmt.Fprintf(out, "Like %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)
-	case likeEscapeExpression:
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
 		fmt.Fprintf(out, "LikeEscape")
-		err = pair(n.pattern, n.escape)
-	case posixExpression:
-		fmt.Fprintf(out, "Posix %s namespace %q", n.operator, n.namespace)
-		err = pair(n.left, n.right)
-	case similarExpression:
-		fmt.Fprintf(out, "Similar %s", n.operator)
-		err = pair(n.left, n.right)
-	case similarEscapeExpression:
-		fmt.Fprintf(out, "SimilarEscape omitted %t", n.omitted)
-		err = pair(n.pattern, n.escape)
-	case posixSubstringExpression:
-		fmt.Fprintf(out, "PosixSubstring syntax %d", n.syntax)
-		err = args(n.args[:])
-	case similarSubstringExpression:
-		fmt.Fprintf(out, "SimilarSubstring syntax %d", n.syntax)
-		err = args(n.args[:])
+		err = pair(n.Pattern, n.Escape)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "Posix %s namespace %q", n.Operator, n.Namespace)
+		err = pair(n.Left, n.Right)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "Similar %s", n.Operator)
+		err = pair(n.Left, n.Right)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "SimilarEscape omitted %t", n.Omitted)
+		err = pair(n.Pattern, n.Escape)
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "PosixSubstring syntax %d", n.Syntax)
+		err = args(n.Args[:])
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "SimilarSubstring syntax %d", n.Syntax)
+		err = args(n.Args[:])
 	case rowComparisonExpression:
 		fmt.Fprintf(out, "RowCompare %s", n.operator)
 		for _, comparison := range n.comparisons {
@@ -162,12 +163,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 				break
 			}
 		}
-	case regexpExpression:
-		fmt.Fprintf(out, "Regexp %s", n.plan.Name())
-		err = args(n.args)
-	case regexpSetExpression:
-		fmt.Fprintf(out, "RegexpSet %s", n.plan.Name())
-		err = args(n.args)
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "Regexp %s", n.Plan.Name())
+		err = args(n.Args)
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "RegexpSet %s", n.Plan.Name())
+		err = args(n.Args)
 	case scalarArrayComparisonExpression:
 		fmt.Fprintf(out, "ScalarArrayCompare %s namespace %q all %t", n.operator, n.namespace, n.all)
 		err = child(n.left)
@@ -177,15 +178,15 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		if err == nil {
 			err = args(n.items)
 		}
-	case jsonKeysExpression:
-		fmt.Fprintf(out, "JSONKeys %s", n.plan.Name())
-		err = args(n.args)
 	case seriesExpression:
 		fmt.Fprint(out, "Series generate_series")
 		err = args(n.args)
 	case subscriptsExpression:
 		fmt.Fprint(out, "Subscripts generate_subscripts")
 		err = args(n.args)
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "JSONKeys %s", n.Plan.Name())
+		err = args(n.Args)
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)
@@ -220,85 +221,85 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		if err == nil {
 			err = child(n.otherwise)
 		}
-	case arraySearchExpression:
-		out.WriteString("ArraySearch " + n.plan.Name() + " namespace " + n.namespace)
-		err = args(n.args)
-	case enumFunctionExpression:
-		out.WriteString("Enum " + n.plan.Name())
-		err = args(n.args)
-	case mathExpression:
-		out.WriteString("Math " + n.plan.Name())
-		err = args(n.args)
-	case datetimeJustifyExpression:
-		out.WriteString("Datetime " + n.plan.Name())
-		err = args(n.children())
-	case datetimeExtractExpression:
-		out.WriteString("Datetime extraction " + n.plan.Name())
-		err = args(n.children())
-	case datetimeOverlapsExpression:
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("ArraySearch " + n.Plan.Name() + " namespace " + n.Namespace)
+		err = args(n.Args)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Enum " + n.Plan.Name())
+		err = args(n.Args)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Math " + n.Plan.Name())
+		err = args(n.Args)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Datetime " + n.Plan.Name())
+		err = args(n.Arguments())
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Datetime extraction " + n.Plan.Name())
+		err = args(n.Arguments())
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("Datetime overlaps")
-		err = args(n.children())
-	case datetimeBinExpression:
+		err = args(n.Arguments())
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("Datetime binning")
-		err = args(n.children())
-	case datetimeTruncExpression:
+		err = args(n.Arguments())
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("Datetime truncation")
-		err = args(n.children())
-	case datetimeZoneCalendarExpression:
-		out.WriteString("Datetime " + n.name)
-		err = args(n.children())
-	case datetimeAgeFiniteExpression:
-		out.WriteString("Datetime " + n.plan.Name())
-		err = args(n.children())
-	case datetimeMakeExpression:
-		out.WriteString("Datetime constructor " + n.plan.Name())
-		err = args(n.children())
-	case datetimeFormattingExpression:
-		out.WriteString("Datetime " + n.plan.Name())
-		err = args(n.args[:])
-	case numericFormattingExpression:
-		out.WriteString("NumericFormatting " + n.plan.Name())
-		err = args(n.args[:])
-	case stringExpression:
-		out.WriteString("String " + n.plan.Name())
-		err = args(n.args)
-	case binaryExpression:
-		if err := n.validateSyntax(); err != nil {
+		err = args(n.Arguments())
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Datetime " + n.Name)
+		err = args(n.Arguments())
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Datetime " + n.Plan.Name())
+		err = args(n.Arguments())
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Datetime constructor " + n.Plan.Name())
+		err = args(n.Arguments())
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Datetime " + n.Plan.Name())
+		err = args(n.Args[:])
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("NumericFormatting " + n.Plan.Name())
+		err = args(n.Args[:])
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("String " + n.Plan.Name())
+		err = args(n.Args)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.ValidateSyntax(); err != nil {
 			return err
 		}
 		out.WriteString("Binary ")
-		out.WriteString(n.plan.Name())
-		if n.syntax == parser.SQLFunctionSyntax && (n.plan.Name() == "btrim" || n.plan.Name() == "ltrim" || n.plan.Name() == "rtrim") {
+		out.WriteString(n.Plan.Name())
+		if n.Syntax == parser.SQLFunctionSyntax && (n.Plan.Name() == "btrim" || n.Plan.Name() == "ltrim" || n.Plan.Name() == "rtrim") {
 			out.WriteString(" syntax TRIM")
 		}
-		err = args(n.args)
-	case randomExpression:
-		out.WriteString("Random " + n.name)
-		err = args(n.args)
-	case datetimeSleepExpression:
-		out.WriteString("DatetimeSleep " + datetimeSleepName(n.kind))
-		err = args([]BoundExpr{n.arg})
+		err = args(n.Args)
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("Random " + n.Name)
+		err = args(n.Args)
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("DatetimeSleep " + n.Kind.Name())
+		err = args([]BoundExpr{n.Arg})
 	case advisoryExpression:
 		out.WriteString("AdvisorySession " + n.name)
 		err = args(n.args)
-	case uuidGenerationExpression:
-		out.WriteString("UUIDGeneration " + n.name)
-		err = args(n.args)
-	case nullCountExpression:
-		fmt.Fprintf(out, "NullCount %d", n.kind)
-		err = args(n.args)
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("UUIDGeneration " + n.Name)
+		err = args(n.Args)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "NullCount %d", n.Kind)
+		err = args(n.Args)
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]BoundExpr{n.arg})
-	case jsonCreateExpression:
-		fmt.Fprintf(out, "JSONCreate %s variadic %t", n.kind.Name(), n.variadic)
-		err = args(n.args)
-	case stringVariadicExpression:
-		fmt.Fprintf(out, "StringVariadic %s variadic %t anyelement %t", n.name, n.variadic, n.anyelement)
-		err = args(n.args)
-	case formatExpression:
-		fmt.Fprintf(out, "Format variadic %t", n.variadic)
-		err = args(n.args)
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "JSONCreate %s variadic %t", n.Kind.Name(), n.Variadic)
+		err = args(n.Args)
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		fmt.Fprintf(out, "StringVariadic %s variadic %t anyelement %t", n.Name, n.Variadic, n.AnyElement)
+		err = args(n.Args)
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "Format variadic %t", n.Variadic)
+		err = args(n.Args)
 	case visibilityInquiryExpression:
 		if n.kind.class() == 0 || u != u.Type.Usage() || u.Type.ID() != sqltype.Bool || n.arg == nil {
 			return fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
@@ -323,18 +324,18 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case sequenceCallExpression:
 		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
 		err = args(n.args)
-	case timeZoneExpression:
-		if n.function {
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Function {
 			out.WriteString("Datetime timezone")
-			err = args(n.functionArguments())
+			err = args(n.Arguments())
 			break
 		}
-		if n.local {
+		if n.Local {
 			out.WriteString("AtLocal")
-			err = child(n.value)
+			err = child(n.Value)
 		} else {
 			out.WriteString("AtTimeZone")
-			err = pair(n.value, n.zone)
+			err = pair(n.Value, n.Zone)
 		}
 	case indexPropertyExpression:
 		if err := validateStoredIndexPropertyExpression(n); err != nil {

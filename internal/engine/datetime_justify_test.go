@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +18,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := node.(datetimeJustifyExpression)
+		e := node.(functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties])
 		if e.ResultUsage().Type.ID() != sqltype.Interval || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != Immutable || plannedVolatility(e) != Immutable || !generationImmutable(e) {
 			t.Fatal(e.Properties(), e.ResultUsage())
 		}
@@ -27,7 +28,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		previous = e
 		var walked []BoundExpr
 		boundExpressionChildren(e, func(child BoundExpr) { walked = append(walked, child) })
-		if len(walked) != 1 || walked[0] != e.arg {
+		if len(walked) != 1 || walked[0] != e.Arg {
 			t.Fatal("unary traversal", walked)
 		}
 		replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -38,23 +39,23 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		rebound := next.(datetimeJustifyExpression)
-		if rebound.ResultUsage().Type != replacements[sqltype.Interval] || rebound.arg.ResultUsage().Type != replacements[sqltype.Interval] {
+		rebound := next.(functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties])
+		if rebound.ResultUsage().Type != replacements[sqltype.Interval] || rebound.Arg.ResultUsage().Type != replacements[sqltype.Interval] {
 			t.Fatal("foreign retained authority")
 		}
-		v, err := rebound.Eval(&EvalContext{Context: context.Background()})
+		value, err := rebound.Eval(&EvalContext{Context: context.Background()})
 		wantMonths, wantDays := int32(1), int32(0)
 		if name == "justify_hours" {
 			wantMonths, wantDays = 0, 30
 		}
-		m, d, clock, failure := v.Interval()
-		if err != nil || failure != nil || m != wantMonths || d != wantDays || clock != 0 {
-			t.Fatal(v, err, failure)
+		months, days, clock, failure := value.Interval()
+		if err != nil || failure != nil || months != wantMonths || days != wantDays || clock != 0 || value.Type() != replacements[sqltype.Interval] {
+			t.Fatal(name, value, err, failure)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if _, err := rebound.Eval(&EvalContext{Context: ctx}); !errors.Is(err, context.Canceled) {
-			t.Fatal(err)
+			t.Fatal(name, err)
 		}
 	}
 }
@@ -73,8 +74,8 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := null.(datetimeJustifyExpression)
-		e.arg = literalExpression{e.expressionInfo, sqltype.Null(e.ResultUsage().Type)}
+		e := null.(functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties])
+		e.Arg = literalExpression{boundExpressionInfo(e), sqltype.Null(e.ResultUsage().Type)}
 		v, err := e.Eval(&EvalContext{Context: context.Background()})
 		if err != nil || !v.IsNull() || v.Type() != e.ResultUsage().Type {
 			t.Fatal(v, err)

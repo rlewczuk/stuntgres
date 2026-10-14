@@ -1,0 +1,468 @@
+package functions
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+type BinaryContext[E any] interface {
+	LiteralContext[E]
+	FunctionBinaryConversion(int, int) (*sqltype.EncodingConversionHandler, error)
+}
+type Binary[E Expression[C], C BinaryContext[E], P any] struct {
+	Info[P]
+	Plan   sqltype.BinaryPlan
+	Args   []E
+	Syntax parser.FunctionSyntax
+}
+
+func (e Binary[E, C, P]) Eval(c C) (sqltype.Value, error) {
+	ctx, err := evaluationContext(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	for _, arg := range e.Args {
+		if c.FunctionLiteralNull(arg) {
+			return sqltype.Null(e.Usage.Type), nil
+		}
+	}
+	var values [4]sqltype.Value
+	for i, arg := range e.Args {
+		value, err := arg.Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		values[i] = value
+	}
+	if !e.Plan.Immutable() {
+		return e.evalConversion(c, values[:len(e.Args)])
+	}
+	return e.Plan.Evaluate(ctx, values[:len(e.Args)]...)
+}
+func (e Binary[E, C, P]) ValidateSyntax() error {
+	if e.Syntax == parser.OrdinaryFunctionSyntax {
+		return nil
+	}
+	if e.Syntax == parser.SQLFunctionSyntax {
+		switch e.Plan.Name() {
+		case "overlay":
+			if len(e.Args) == 3 || len(e.Args) == 4 {
+				return nil
+			}
+		case "substring":
+			if len(e.Args) == 2 || len(e.Args) == 3 {
+				return nil
+			}
+		case "position", "btrim", "ltrim", "rtrim":
+			if len(e.Args) == 2 {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("stuntgres: invalid stored binary syntax")
+}
+func (e Binary[E, C, P]) Validate() error {
+	var usages [4]sqltype.Usage
+	for i, arg := range e.Args {
+		usages[i] = arg.ResultUsage()
+	}
+	plan, err := sqltype.BindBinary(e.Plan.Name(), e.Usage, usages[:len(e.Args)]...)
+	if err != nil || plan != e.Plan {
+		return fmt.Errorf("stuntgres: invalid stored binary provider")
+	}
+	return nil
+}
+func (e Binary[E, C, P]) Reconstruct(info Info[P], args []E) (Binary[E, C, P], error) {
+	var usages [4]sqltype.Usage
+	for i, arg := range args {
+		usages[i] = arg.ResultUsage()
+	}
+	plan, err := sqltype.BindBinary(e.Plan.Name(), info.Usage, usages[:len(args)]...)
+	if err != nil {
+		return e, err
+	}
+	e.Info, e.Args, e.Plan = info, args, plan
+	return e, nil
+}
+func NewBinary[E Expression[C], C BinaryContext[E], P any](info Info[P], name string, args []E, syntax parser.FunctionSyntax) (Binary[E, C, P], error) {
+	var usages [4]sqltype.Usage
+	for i, arg := range args {
+		usages[i] = arg.ResultUsage()
+	}
+	plan, err := sqltype.BindBinary(name, info.Usage, usages[:len(args)]...)
+	if err != nil {
+		return Binary[E, C, P]{}, err
+	}
+	node := Binary[E, C, P]{info, plan, args, syntax}
+	return node, node.ValidateSyntax()
+}
+func BinaryTextType(d *sqltype.Descriptor) bool {
+	if d == nil {
+		return true
+	}
+	switch d.BaseType().ID() {
+	case sqltype.Text, sqltype.VarChar, sqltype.BPChar, sqltype.Name, sqltype.Char:
+		return true
+	}
+	return false
+}
+func BinaryDefaultAllowed(name string, count int) bool {
+	return name == "substring" && (count == 2 || count == 3)
+}
+func binaryConversion(name string) bool {
+	return name == "convert" || name == "convert_from" || name == "convert_to" || name == "encode" || name == "decode"
+}
+func BinaryIntrinsicStable(name string) bool {
+	return name == "convert" || name == "convert_from" || name == "convert_to"
+}
+func BinaryArgumentAnalysis(name string, index int) AnalysisRequest {
+	if binaryConversion(name) && BinaryArgumentID(name, index) != sqltype.Bytea {
+		return AnalysisRequest{Intent: StringTextArgument}
+	}
+	return AnalysisRequest{Intent: StringOtherArgument}
+}
+func BinaryArgumentID(name string, index int) sqltype.ID {
+	switch name {
+	case "get_bit", "set_bit":
+		if index == 1 {
+			return sqltype.Int8
+		}
+		if index == 2 {
+			return sqltype.Int4
+		}
+	case "get_byte", "set_byte":
+		if index > 0 {
+			return sqltype.Int4
+		}
+	case "convert", "convert_from":
+		if index > 0 {
+			return sqltype.Name
+		}
+	case "convert_to":
+		if index == 0 {
+			return sqltype.Text
+		}
+		return sqltype.Name
+	case "encode":
+		if index > 0 {
+			return sqltype.Text
+		}
+	case "decode":
+		return sqltype.Text
+	}
+	if ((name == "substring" || name == "substr") && index >= 1) || (name == "overlay" && index >= 2) {
+		return sqltype.Int4
+	}
+	return sqltype.Bytea
+}
+func BinaryResultID(name string) sqltype.ID {
+	switch name {
+	case "length", "octet_length", "bit_length", "position", "get_bit", "get_byte":
+		return sqltype.Int4
+	case "crc32", "crc32c", "bit_count":
+		return sqltype.Int8
+	case "md5", "encode", "convert_from":
+		return sqltype.Text
+	}
+	return sqltype.Bytea
+}
+
+type BinaryDemand uint8
+
+func binaryTypeDemand(id sqltype.ID) BinaryDemand {
+	switch id {
+	case sqltype.Bytea:
+		return 1
+	case sqltype.Bit:
+		return 2
+	case sqltype.Int4:
+		return 4
+	case sqltype.Int8:
+		return 8
+	case sqltype.Name:
+		return 16
+	case sqltype.Text:
+		return 32
+	}
+	return 0
+}
+func (d BinaryDemand) Needs(id sqltype.ID) bool { return d&binaryTypeDemand(id) != 0 }
+
+type BinaryTypes struct{ Bytea, Bit, Integer, Bigint, Name, Text sqltype.Usage }
+
+func (t *BinaryTypes) Usage(id sqltype.ID) sqltype.Usage {
+	switch id {
+	case sqltype.Bytea:
+		return t.Bytea
+	case sqltype.Bit:
+		return t.Bit
+	case sqltype.Int4:
+		return t.Integer
+	case sqltype.Int8:
+		return t.Bigint
+	case sqltype.Name:
+		return t.Name
+	case sqltype.Text:
+		return t.Text
+	}
+	return sqltype.Usage{}
+}
+func BinaryArgumentDemand[E any](name string, args []Argument[E], knownOnly bool) (demand BinaryDemand) {
+	for i, arg := range args {
+		if !knownOnly || arg.Usage.Type != nil {
+			demand |= binaryTypeDemand(BinaryArgumentID(name, i))
+		}
+	}
+	return
+}
+func BinaryResultDemand(name string) BinaryDemand {
+	return binaryTypeDemand(BinaryResultID(name)) | binaryTypeDemand(sqltype.Text)
+}
+
+type BinaryRoute uint8
+
+const (
+	BinaryCall BinaryRoute = iota
+	BinaryPosixSubstring
+	BinarySimilarSubstring
+	BinaryTextUnsupported
+	BinaryFunctionsUnsupported
+	BinaryBitsUnsupported
+)
+
+type BinarySelection struct {
+	Route            BinaryRoute
+	Resolution       Resolution
+	IntegerPositions bool
+}
+type binarySelectionKind uint8
+
+const (
+	binarySelected binarySelectionKind = iota
+	binaryCoercionSelection
+	binaryAccessSelection
+)
+
+type BinaryPreparation struct {
+	Selection BinarySelection
+	Demand    BinaryDemand
+	kind      binarySelectionKind
+}
+
+func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, args []Argument[E]) BinaryPreparation {
+	selected := BinaryPreparation{}
+	missing := BinaryPreparation{Selection: BinarySelection{Resolution: Missing}}
+	if defaultConsumer {
+		textual := true
+		for _, arg := range args {
+			textual = textual && BinaryTextType(arg.Usage.Type)
+		}
+		if !textual {
+			selected.Selection.Route = BinaryFunctionsUnsupported
+			return selected
+		}
+		if !visible {
+			return missing
+		}
+		selected.Selection.Route = BinarySimilarSubstring
+		if len(args) == 2 {
+			selected.Selection.Route = BinaryPosixSubstring
+		}
+		return selected
+	}
+	switch name {
+	case "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
+		arity := 2
+		if name == "bit_count" {
+			arity = 1
+		} else if name == "set_bit" || name == "set_byte" {
+			arity = 3
+		}
+		if !visible || len(args) != arity {
+			return missing
+		}
+		selected.kind = binaryAccessSelection
+		for candidate := range 2 {
+			if candidate == 1 && name != "bit_count" && name != "get_bit" && name != "set_bit" {
+				continue
+			}
+			for i, arg := range args {
+				if arg.Usage.Type != nil {
+					selected.Demand |= binaryTypeDemand(binaryAccessArgumentID(name, i, candidate))
+				}
+			}
+		}
+		return selected
+	}
+	if binaryConversion(name) {
+		arity := 2
+		if name == "convert" {
+			arity = 3
+		}
+		if !visible || len(args) != arity {
+			return missing
+		}
+		selected.kind = binaryCoercionSelection
+		selected.Demand = BinaryArgumentDemand(name, args, true)
+		return selected
+	}
+	switch name {
+	case "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512":
+		if !visible || len(args) != 1 {
+			return missing
+		}
+		if d := args[0].Usage.Type; d != nil && d.BaseType().ID() != sqltype.Bytea {
+			return missing
+		}
+		return selected
+	}
+	sliced := name == "substring" || name == "substr"
+	if !visible || variadic && !sliced {
+		return missing
+	}
+	arity := 2
+	if sliced && len(args) == 3 {
+		arity = 3
+	}
+	textual := len(args) == arity
+	for i, arg := range args {
+		if BinaryArgumentID(name, i) == sqltype.Int4 {
+			d := arg.Usage.Type
+			textual = textual && (d == nil || d.BaseType().ID() == sqltype.Int2 || d.BaseType().ID() == sqltype.Int4)
+		} else {
+			textual = textual && BinaryTextType(arg.Usage.Type)
+		}
+	}
+	if sliced && len(args) >= 2 && len(args) <= 3 && BinaryTextType(args[0].Usage.Type) {
+		regex := name == "substring"
+		for _, arg := range args[1:] {
+			regex = regex && BinaryTextType(arg.Usage.Type)
+		}
+		if regex {
+			selected.Selection.Route = BinarySimilarSubstring
+			if len(args) == 2 {
+				selected.Selection.Route = BinaryPosixSubstring
+			}
+			return selected
+		}
+		if textual {
+			selected.Selection.IntegerPositions = true
+			selected.Demand = binaryTypeDemand(sqltype.Int4)
+		}
+		textual = textual || regex
+	}
+	if textual {
+		selected.Selection.Route = BinaryTextUnsupported
+		return selected
+	}
+	if len(args) != arity {
+		return missing
+	}
+	known := false
+	for _, arg := range args {
+		known = known || arg.Usage.Type != nil
+	}
+	if !known {
+		return missing
+	}
+	selected.kind = binaryCoercionSelection
+	selected.Demand = BinaryArgumentDemand(name, args, true)
+	return selected
+}
+func binaryAccessArgumentID(name string, index, candidate int) sqltype.ID {
+	if candidate == 1 {
+		if index == 0 {
+			return sqltype.Bit
+		}
+		return sqltype.Int4
+	}
+	return BinaryArgumentID(name, index)
+}
+func ResolveBinary[E any](prepared BinaryPreparation, name string, args []Argument[E], types *BinaryTypes) BinarySelection {
+	selection := prepared.Selection
+	if selection.Resolution != Resolved || selection.Route != BinaryCall {
+		return selection
+	}
+	switch prepared.kind {
+	case binaryCoercionSelection:
+		for i, arg := range args {
+			if arg.Usage.Type != nil {
+				if _, err := sqltype.PlanCoercion(arg.Usage, types.Usage(BinaryArgumentID(name, i)), sqltype.Implicit); err != nil {
+					selection.Resolution = Missing
+					return selection
+				}
+			}
+		}
+	case binaryAccessSelection:
+		candidates := [2]bool{true, name == "bit_count" || name == "get_bit" || name == "set_bit"}
+		exact := [2]int{}
+		for candidate := range candidates {
+			if !candidates[candidate] {
+				continue
+			}
+			for i, arg := range args {
+				d := arg.Usage.Type
+				if d == nil {
+					continue
+				}
+				target := binaryAccessArgumentID(name, i, candidate)
+				if d.BaseType().ID() == target {
+					exact[candidate]++
+				}
+				if _, err := sqltype.PlanCoercion(arg.Usage, types.Usage(target), sqltype.Implicit); err != nil {
+					candidates[candidate] = false
+					break
+				}
+			}
+		}
+		if candidates[0] && candidates[1] {
+			if exact[0] > exact[1] {
+				candidates[1] = false
+			} else if exact[1] > exact[0] {
+				candidates[0] = false
+			} else {
+				selection.Resolution = Ambiguous
+				return selection
+			}
+		}
+		if candidates[0] {
+			return selection
+		}
+		if candidates[1] {
+			selection.Route = BinaryBitsUnsupported
+			return selection
+		}
+		selection.Resolution = Missing
+	}
+	return selection
+}
+func BinaryArgumentsViable[E any](name string, args []Argument[E], types *BinaryTypes) bool {
+	valid := true
+	for i, arg := range args {
+		if arg.Usage.Type != nil {
+			_, err := sqltype.PlanCoercion(arg.Usage, types.Usage(BinaryArgumentID(name, i)), sqltype.Implicit)
+			valid = valid && err == nil
+		}
+	}
+	return valid
+}
+func CoerceBinaryArguments[E any, B ArgumentCoercer[E]](b B, name string, arguments []Argument[E], types *BinaryTypes) ([]E, error) {
+	args := make([]E, len(arguments))
+	for i, argument := range arguments {
+		arg, err := b.CoerceArgument(argument, CoercionRequest{Intent: LikeArgument, Target: types.Usage(BinaryArgumentID(name, i))})
+		if err != nil {
+			return nil, err
+		}
+		args[i] = arg
+	}
+	return args, nil
+}
+func CoerceBinaryTextPositions[E any, B ArgumentCoercer[E]](b B, arguments []Argument[E], integer sqltype.Usage) error {
+	for _, argument := range arguments[1:] {
+		if _, err := b.CoerceArgument(argument, CoercionRequest{Intent: LikeArgument, Target: integer}); err != nil {
+			return err
+		}
+	}
+	return nil
+}

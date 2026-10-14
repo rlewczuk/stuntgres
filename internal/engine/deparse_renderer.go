@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -443,11 +444,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	switch n := node.(type) {
 	case literalExpression:
 		return r.literal(ctx, n)
-	case currentDateTimeExpression:
-		text, err := n.sql()
+	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
+		text, err := currentDateTimeSQL(n)
 		return strings.ToUpper(text), err
-	case transactionTimeExpression:
-		return n.sql()
+	case functions.TransactionTime[*EvalContext, ExprProperties]:
+		return transactionTimeSQL(n)
 	case identityExpression:
 		if err := validateDeparseIdentity(n); err != nil {
 			return "", err
@@ -586,10 +587,10 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		_, castChild := n.child.(coercionExpression)
 		simpleFunctionCall := false
 		switch call := n.child.(type) {
-		case datetimeSleepExpression:
+		case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
 			simpleFunctionCall = true
-		case arraySearchExpression:
-			simpleFunctionCall = !call.plan.Membership()
+		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+			simpleFunctionCall = !call.Plan.Membership()
 		}
 		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
 	case arithmeticExpression:
@@ -622,62 +623,62 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return text, err
 		}
 		return binary(n.left, n.right, op, 5, parent)
-	case posixExpression:
-		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
+	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:
+		return binary(n.Left, n.Right, operator(n.Namespace, n.Operator), 5, parent)
 	case likeExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
-	case likeEscapeExpression:
-		pattern, err := child(n.pattern)
+	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
+		pattern, err := child(n.Pattern)
 		if err != nil {
 			return "", err
 		}
-		escape, err := child(n.escape)
+		escape, err := child(n.Escape)
 		if err != nil {
 			return "", err
 		}
 		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
-	case similarExpression:
-		return binary(n.left, n.right, n.operator, 5, parent)
-	case similarEscapeExpression:
-		pattern, err := child(n.pattern)
+	case functions.Similar[BoundExpr, *EvalContext, ExprProperties]:
+		return binary(n.Left, n.Right, n.Operator, 5, parent)
+	case functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties]:
+		pattern, err := child(n.Pattern)
 		if err != nil {
 			return "", err
 		}
-		if n.omitted {
+		if n.Omitted {
 			return "similar_to_escape(" + pattern + ")", nil
 		}
-		escape, err := child(n.escape)
+		escape, err := child(n.Escape)
 		if err != nil {
 			return "", err
 		}
 		return "similar_to_escape(" + pattern + ", " + escape + ")", nil
-	case posixSubstringExpression:
-		source, err := child(n.args[0])
+	case functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		source, err := child(n.Args[0])
 		if err != nil {
 			return "", err
 		}
-		pattern, err := child(n.args[1])
+		pattern, err := child(n.Args[1])
 		if err != nil {
 			return "", err
 		}
-		if n.syntax == parser.SQLFunctionSyntax {
+		if n.Syntax == parser.SQLFunctionSyntax {
 			return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
 		}
 		return `"substring"(` + source + ", " + pattern + ")", nil
-	case similarSubstringExpression:
-		source, err := child(n.args[0])
+	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
+		source, err := child(n.Args[0])
 		if err != nil {
 			return "", err
 		}
-		pattern, err := child(n.args[1])
+		pattern, err := child(n.Args[1])
 		if err != nil {
 			return "", err
 		}
-		escape, err := child(n.args[2])
+		escape, err := child(n.Args[2])
 		if err != nil {
 			return "", err
 		}
-		if n.syntax == parser.SQLFunctionSyntax {
+		if n.Syntax == parser.SQLFunctionSyntax {
 			return "SUBSTRING(" + source + " SIMILAR " + pattern + " ESCAPE " + escape + ")", nil
 		}
 		return `"substring"(` + source + ", " + pattern + ", " + escape + ")", nil
@@ -686,14 +687,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: invalid row comparison")
 		}
 		return renderRowComparison(n, child, operator(n.comparisons[0].namespace, n.operator))
-	case regexpExpression:
-		return n.sql(n.plan.Name(), func(arg BoundExpr) (string, error) {
+	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
+		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case regexpSetExpression:
-		return n.sql(n.plan.Name(), func(arg BoundExpr) (string, error) {
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
+		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
@@ -724,14 +725,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			}
 		}
 		return pgIdentifier("generate_subscripts") + "(" + strings.Join(args, ", ") + ")", nil
-	case jsonKeysExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true
-		arg, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})
+		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
 		if err != nil {
 			return "", err
 		}
-		return pgIdentifier(n.plan.Name()) + "(" + arg + ")", nil
+		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:
@@ -808,89 +809,89 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
-	case arraySearchExpression:
-		if n.plan.Membership() {
+	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Plan.Membership() {
 			inputRenderer := r
 			inputRenderer.showImplicit = true
-			left, err := inputRenderer.sql(ctx, n.args[0], pgRenderParent{})
+			left, err := inputRenderer.sql(ctx, n.Args[0], pgRenderParent{})
 			if err != nil {
 				return "", err
 			}
 			inputRenderer.showImplicit = true
-			right, err := inputRenderer.sql(ctx, n.args[1], pgRenderParent{})
+			right, err := inputRenderer.sql(ctx, n.Args[1], pgRenderParent{})
 			if err != nil {
 				return "", err
 			}
-			text := left + " " + operator(n.namespace, n.plan.Name()) + " " + right
-			if pgOperatorGrouped(n.plan.Name(), true, parent) {
+			text := left + " " + operator(n.Namespace, n.Plan.Name()) + " " + right
+			if pgOperatorGrouped(n.Plan.Name(), true, parent) {
 				text = "(" + text + ")"
 			}
 			return text, nil
 		}
-		return function(n.plan.Name(), n.args, true)
-	case enumFunctionExpression:
-		return function(n.plan.Name(), n.args, true)
-	case mathExpression:
-		if n.plan.Name() == "pg_size_pretty" {
-			text, err := child(n.args[0])
+		return function(n.Plan.Name(), n.Args, true)
+	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Plan.Name(), n.Args, true)
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Plan.Name() == "pg_size_pretty" {
+			text, err := child(n.Args[0])
 			if err != nil {
 				return "", err
 			}
-			text, err = r.cast(text, n.args[0].ResultUsage(), false)
+			text, err = r.cast(text, n.Args[0].ResultUsage(), false)
 			if err != nil {
 				return "", err
 			}
 			return "pg_size_pretty(" + text + ")", nil
 		}
-		return function(n.plan.Name(), n.args, true)
-	case datetimeJustifyExpression:
-		return function(n.plan.Name(), n.children(), true)
-	case datetimeExtractExpression:
-		if n.syntax != parser.SQLFunctionSyntax {
-			return function(n.plan.Name(), n.children(), true)
+		return function(n.Plan.Name(), n.Args, true)
+	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Plan.Name(), n.Arguments(), true)
+	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Syntax != parser.SQLFunctionSyntax {
+			return function(n.Plan.Name(), n.Arguments(), true)
 		}
-		source, err := child(n.args[1])
+		source, err := child(n.Args[1])
 		if err != nil {
 			return "", err
 		}
-		return "EXTRACT(" + n.field + " FROM " + source + ")", nil
-	case datetimeOverlapsExpression:
-		return n.publicSQL(ctx, r, child)
-	case datetimeBinExpression:
-		return function("date_bin", n.children(), true)
-	case datetimeTruncExpression:
-		return function("date_trunc", n.children(), true)
-	case datetimeZoneCalendarExpression:
-		return function(n.name, n.children(), true)
-	case datetimeAgeFiniteExpression:
-		return function(n.plan.Name(), n.children(), true)
-	case datetimeMakeExpression:
-		return n.sql(n.plan.Name(), func(arg BoundExpr) (string, error) {
+		return "EXTRACT(" + n.Field + " FROM " + source + ")", nil
+	case functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties]:
+		return datetimeOverlapsPublicSQL(n, ctx, r, child)
+	case functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties]:
+		return function("date_bin", n.Arguments(), true)
+	case functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties]:
+		return function("date_trunc", n.Arguments(), true)
+	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Name, n.Arguments(), true)
+	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Plan.Name(), n.Arguments(), true)
+	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
+		return datetimeMakeSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
-	case datetimeFormattingExpression:
-		return function(n.plan.Name(), n.args[:], true)
-	case numericFormattingExpression:
-		return function(n.plan.Name(), n.args[:], true)
-	case stringExpression:
-		if n.plan.Name() == "||" {
-			return binary(n.args[0], n.args[1], "||", 5, parent)
+	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Plan.Name(), n.Args[:], true)
+	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Plan.Name(), n.Args[:], true)
+	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Plan.Name() == "||" {
+			return binary(n.Args[0], n.Args[1], "||", 5, parent)
 		}
-		if n.syntax == parser.OrdinaryStringSyntax || n.syntax == parser.PrefixStringSyntax {
-			name := n.plan.Name()
+		if n.Syntax == parser.OrdinaryStringSyntax || n.Syntax == parser.PrefixStringSyntax {
+			name := n.Plan.Name()
 			if name == "normalize" || name == "overlay" {
 				name = quoteIdentifier(name)
 			} else if name == "position" {
 				name = r.identifier(name)
 			}
-			parts := make([]string, len(n.args))
-			for i, arg := range n.args {
+			parts := make([]string, len(n.Args))
+			for i, arg := range n.Args {
 				argRenderer := r
 				argRenderer.showImplicit = true
 				argParent := pgRenderParent{functionArgument: true}
-				if n.syntax == parser.PrefixStringSyntax {
+				if n.Syntax == parser.PrefixStringSyntax {
 					argParent = pgRenderParent{precedence: 5, operator: "^@", right: i == 1}
 				}
 				text, err := argRenderer.sql(ctx, arg, argParent)
@@ -899,8 +900,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 				}
 				// Present the provider's resolved formal conversion without
 				// evaluating or adding a second runtime conversion.
-				target := n.plan.ArgumentUsage(i)
-				if n.textual[i] && arg.ResultUsage().Type != target.Type {
+				target := n.Plan.ArgumentUsage(i)
+				if n.Textual[i] && arg.ResultUsage().Type != target.Type {
 					simple := false
 					switch arg.(type) {
 					case columnExpression, literalExpression, coercionExpression:
@@ -913,7 +914,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 				}
 				parts[i] = text
 			}
-			if n.syntax == parser.PrefixStringSyntax {
+			if n.Syntax == parser.PrefixStringSyntax {
 				text := parts[0] + " ^@ " + parts[1]
 				if !r.pretty || pgOperatorGrouped("^@", true, parent) {
 					text = "(" + text + ")"
@@ -924,91 +925,91 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		argRenderer := r
 		argRenderer.showImplicit = false
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
 			if err != nil {
 				return "", err
 			}
 			parts[i] = text
 		}
-		return n.specialSQL(parts)
-	case binaryExpression:
-		if err := n.validateSyntax(); err != nil {
+		return stringSpecialSQL(n, parts)
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.ValidateSyntax(); err != nil {
 			return "", err
 		}
-		if n.plan.Name() == "||" {
-			return binary(n.args[0], n.args[1], "||", 5, parent)
+		if n.Plan.Name() == "||" {
+			return binary(n.Args[0], n.Args[1], "||", 5, parent)
 		}
-		if n.syntax == parser.SQLFunctionSyntax {
-			return renderBinaryCall(n.plan.Name(), n.syntax, n.args, n.plan.Name(), child)
+		if n.Syntax == parser.SQLFunctionSyntax {
+			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, n.Plan.Name(), child)
 		}
-		return function(r.identifier(n.plan.Name()), n.args, true)
-	case randomExpression:
-		return function(n.name, n.args, true)
-	case datetimeSleepExpression:
-		if !n.validStored() {
+		return function(r.identifier(n.Plan.Name()), n.Args, true)
+	case functions.Random[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Name, n.Args, true)
+	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
+		if !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid datetime sleep signature")
 		}
-		return function(datetimeSleepName(n.kind), []BoundExpr{n.arg}, true)
+		return function(n.Kind.Name(), []BoundExpr{n.Arg}, true)
 	case advisoryExpression:
 		return function(n.name, n.args, true)
-	case uuidGenerationExpression:
-		return function(n.name, n.args, true)
-	case nullCountExpression:
+	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Name, n.Args, true)
+	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		name := "num_nulls"
-		if n.kind == countNonnulls {
+		if n.Kind == functions.CountNonnulls {
 			name = "num_nonnulls"
 		}
-		return function(name, n.args, true)
+		return function(name, n.Args, true)
 	case installedFunctionExpression:
 		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []BoundExpr{n.arg}, true)
-	case jsonCreateExpression:
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			argRenderer := r
 			argRenderer.showImplicit = true
-			argRenderer.unknownTextLiteral = n.unknownArgument(i)
+			argRenderer.unknownTextLiteral = n.UnknownArgument(i)
 			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
 			if err != nil {
 				return "", err
 			}
-			if n.variadic && i == len(n.args)-1 {
+			if n.Variadic && i == len(n.Args)-1 {
 				text = "VARIADIC " + text
 			}
 			parts[i] = text
 		}
-		return r.identifier(n.kind.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
-	case stringVariadicExpression:
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+		return r.identifier(n.Kind.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
+	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
 			if err != nil {
 				return "", err
 			}
-			if n.variadic && i == len(n.args)-1 {
+			if n.Variadic && i == len(n.Args)-1 {
 				text = "VARIADIC " + text
 			}
 			parts[i] = text
 		}
-		return r.identifier(n.name) + "(" + strings.Join(parts, ", ") + ")", nil
-	case formatExpression:
-		parts := make([]string, len(n.args))
-		for i, arg := range n.args {
+		return r.identifier(n.Name) + "(" + strings.Join(parts, ", ") + ")", nil
+	case functions.Format[BoundExpr, *EvalContext, ExprProperties]:
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
 			argRenderer := r
 			argRenderer.showImplicit = true
-			argRenderer.unknownTextLiteral = n.rawUnknown[i/64]&(uint64(1)<<uint(i%64)) != 0
+			argRenderer.unknownTextLiteral = n.RawUnknown[i/64]&(uint64(1)<<uint(i%64)) != 0
 			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
 			if err != nil {
 				return "", err
 			}
-			if n.variadic && i == len(n.args)-1 {
+			if n.Variadic && i == len(n.Args)-1 {
 				text = "VARIADIC " + text
 			}
 			parts[i] = text
@@ -1042,18 +1043,18 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return function("current_schemas", []BoundExpr{n.arg}, true)
 	case sequenceCallExpression:
 		return function(n.name, n.args, true)
-	case timeZoneExpression:
-		if n.function {
-			return function("timezone", n.functionArguments(), true)
+	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Function {
+			return function("timezone", n.Arguments(), true)
 		}
-		text, err := child(n.value)
+		text, err := child(n.Value)
 		if err != nil {
 			return "", err
 		}
-		if n.local {
+		if n.Local {
 			return "(" + text + " AT LOCAL)", nil
 		}
-		zone, err := child(n.zone)
+		zone, err := child(n.Zone)
 		if err != nil {
 			return "", err
 		}
