@@ -206,6 +206,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if v.Type().ContainsRegproc() {
 		output.Regproc = catalogRoutineOutput{view: r.view, path: r.path}
 	}
+	if v.Type().ContainsRegTS() {
+		output.RegTS = dumpRegTSOutput{view: r.view}
+	}
 	if v.Type().ContainsACLItem() && output.ACLItem == nil {
 		output.ACLItem = aclItemContextFormatter(ctx)
 	}
@@ -280,7 +283,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return quote(text) + "::regtype", nil
 	case sqltype.Regrole:
 		return quote(text) + "::regrole", nil
-	case sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace:
+	case sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary:
 		return quote(text) + "::" + typ, nil
 	case sqltype.Timetz:
 		return datetimeZoneTimetzDeparse(ctx, v, typ, text, quote)

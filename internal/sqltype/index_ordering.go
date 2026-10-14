@@ -177,7 +177,7 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 		name = "text_ops"
 	case BPChar:
 		name = "bpchar_ops"
-	case Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace:
+	case Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary:
 		name = "oid_ops"
 	case Float4:
 		name = "float4_ops"
@@ -249,7 +249,7 @@ func (c IndexClass) AcceptsID(id ID) bool {
 	case BPChar:
 		return id == Text || id == VarChar
 	case Oid:
-		return id == Int4 || id == Regclass || id == Regtype || id == Regrole || IsOperatorAlias(id) || IsRoutineAlias(id) || IsRegObjectAlias(id)
+		return id == Int4 || id == Regclass || id == Regtype || id == Regrole || IsOperatorAlias(id) || IsRoutineAlias(id) || IsRegObjectAlias(id) || IsRegTS(id)
 	}
 	return false
 }

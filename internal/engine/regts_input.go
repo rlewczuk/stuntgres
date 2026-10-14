@@ -1,0 +1,96 @@
+package engine
+
+import (
+	"context"
+	"slices"
+	"strings"
+
+	"stuntgres/internal/parser"
+)
+
+type capturedRegTSInput struct {
+	auth      AuthorizationView
+	database  string
+	temporary ObjectAddress
+	path      []ObjectAddress
+	qualified *[]ObjectAddress
+	resolved  *[]expressionDependency
+}
+
+func (e *Engine) captureRegTSInput(auth AuthorizationView) (capturedRegTSInput, error) {
+	path, err := e.lookupPath(auth, operatorLookup) // Text search, like operators, excludes TEMP.
+	if err != nil {
+		return capturedRegTSInput{}, err
+	}
+	r := capturedRegTSInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
+	if auth.session != nil {
+		r.database = auth.session.databaseName
+	}
+	r.auth.session, r.auth.settings = nil, nil
+	return r, nil
+}
+func (r capturedRegTSInput) name(ctx context.Context, text string) ([]parser.Identifier, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
+	raw, err := parser.ParseRegclassName(text)
+	if err != nil {
+		return nil, "", sqlError("42602", "invalid name syntax")
+	}
+	parts := raw.Parts
+	names := make([]string, len(parts))
+	for i, p := range parts {
+		names[i] = p.Text
+	}
+	spelling := strings.Join(names, ".")
+	if len(parts) > 3 {
+		return nil, "", sqlError("42601", "improper qualified name (too many dotted names): "+spelling)
+	}
+	if len(parts) == 3 {
+		if parts[0].Text != r.database {
+			return nil, "", sqlError("0A000", "cross-database references are not implemented: "+spelling)
+		}
+		parts = parts[1:]
+	}
+	return parts, spelling, nil
+}
+func (r capturedRegTSInput) ResolveRegconfig(ctx context.Context, text string) (uint32, error) {
+	if _, _, err := r.name(ctx, text); err != nil {
+		return 0, err
+	}
+	return 0, sqlError("0A000", "text search configuration name lookup is not supported")
+}
+func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text string) (uint32, error) {
+	parts, spelling, err := r.name(ctx, text)
+	if err != nil {
+		return 0, err
+	}
+	selection := namespaceSelection{path: r.path}
+	if len(parts) == 2 {
+		ns := r.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		if parts[0].Text == "pg_temp" {
+			ns = r.temporary
+		}
+		if ns != (ObjectAddress{}) {
+			if err := r.auth.CanUse(ObjectRef{owner: r.auth.engine.owner, Epoch: r.auth.catalog.Epoch(), Address: ns}); err != nil {
+				return 0, err
+			}
+			if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
+				*r.qualified = append(*r.qualified, ns)
+			}
+		}
+		selection = namespaceSelection{qualified: ns}
+	}
+	for i := range selection.count() {
+		ns := selection.at(i)
+		address := r.auth.catalog.state.names[NameKey{ClassID: TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text}]
+		if d, ok := r.auth.catalog.state.descriptors[address].(*tsDictionaryDescriptor); ok {
+			if r.resolved != nil {
+				ref := ObjectRef{owner: r.auth.engine.owner, Epoch: r.auth.catalog.Epoch(), Address: d.address}
+				*r.resolved = append(*r.resolved, expressionDependency{ref: ref, revision: d.revision})
+			}
+			return uint32(d.address.ObjectID), nil
+		}
+	}
+	return 0, sqlError("42704", "text search dictionary \""+spelling+"\" does not exist")
+}

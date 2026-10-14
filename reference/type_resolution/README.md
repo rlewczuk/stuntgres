@@ -108,6 +108,163 @@ identity replay and logical control
 roundtrip. Root records actual results; selected checks do not replace
 whole-project quickcheck or post-integration finalcheck.
 
+### Text-search OID aliases (RegTS)
+
+The shared `TestReferenceRegTS...` scenarios specify scalar REGCONFIG (3734)
+and REGDICTIONARY (3769), zero (`-`) versus SQL NULL, unsigned numeric input,
+octal parsing, direct/held parameters, raw strings versus pq bytes, empty
+metadata, integral carrier casts, real installed unaccent dictionary identity,
+quoted namespaces, search-path visibility, authorization, retained cursors and
+logical persistence. The companion array identities remain lookup-only natively.
+Expected rows and full English diagnostics are independent contracts, not
+values copied from native output.
+
+Pinned oracle discovery passed all seven selected scenario groups in the root's
+second discovery round. The temporary backend filter and replay early return
+have been removed. Every available backend now runs the shared scenario, and
+real-mode persistence requires nonempty actual native dump bytes for PostgreSQL
+replay. Discovery success is not native, emitted-stream replay or control proof;
+the filter-free native regression was observed before production implementation.
+The first pinned oracle run reported normalized missing configuration name
+`123` for input ` 123 ` (42704, Position 8), not a primary retaining whitespace.
+The contract now uses the parsed name for both aliases. Retained alias rows use
+a feature-local raw/metadata assertion instead of the generic fixture's closed
+type-family inventory; the shared fixture has not been expanded.
+
+Native symbolic configurations have no provider and must report 0A000
+`text search configuration name lookup is not supported`; PostgreSQL missing
+configurations report 42704. Native dictionaries use only installed real
+descriptors, never a fabricated `simple` dictionary. PostgreSQL-only custom
+dictionary DDL characterizes quoted names, first-path (not ambiguous) lookup
+and held-plan path invalidation. It does not authorize native text-search DDL,
+configuration objects, two-argument unaccent, full-text execution, filesystem
+rules, native ABI loading, or configuration DDL even in these scenarios.
+The competing-name witnesses first require distinct nonzero qualified dictionary
+OIDs, then put both schemas on the path in left/right and right/left order.
+Unqualified input must select the first dictionary without ambiguity. Numeric
+output of the winner is unqualified; the shadowed dictionary's output retains
+its schema. The held-literal and TEXT-parameter phase likewise keeps both
+candidates visible while reversing their order, preserving the literal
+invalidation assertions and independently checking each parameter's selected OID.
+Native Reset/Dump/Restore and binary COPY public controls are explicit native
+phases; common SQL independently specifies their logical rows. Persistence
+asserts qualified dump references, same-engine replay, real displaced destination
+OID allocation, default/generated/view identities, retained rows, failure/cancellation
+atomicity and stable redump. The final PostgreSQL phase replays actual emitted SQL.
+The fresh-target displacement phase reserves an actual owner-held TEMP sequence
+whose publicly observed OID equals the captured source dictionary OID, then
+requires the restored dictionary OID to differ. It also checks that the TEMP
+sequence keeps its identity and next value, while dictionary data and definition
+literals follow the new descriptor. No allocator sequence is pinned: ordinary
+target tables are discarded by Restore and cannot establish this collision.
+The mixed routine/dictionary composite scenario separately checks persistent data,
+stored DEFAULT consumption by a new INSERT, and a view literal. Every routine
+member must retain the pinned `abs(integer)` identity (1397); every live dictionary
+member must equal the actual destination installation's descriptor OID. A dropped
+source table prevents allocator parity from masking numeric container output.
+Native replay uses the same retained TEMP-collision destination, and PostgreSQL
+replays the actual native dump bytes, never a hand-authored substitute. Root's
+pinned and native failing-before runs passed source setup but observed mixed data
+retaining the source dictionary OID instead of the destination descriptor.
+The routine-container scalar leaf now uses the same qualified dictionary formatter
+as ordinary compound emission, without changing routine fragments or field quoting.
+Fresh post-remedy native and pinned proof is required. No discovery filter or
+replay skip is present in this scenario.
+The partition persistence scenario creates a range parent and matching ordinary
+child before installing unaccent, then attaches the child with the live dictionary
+as its finite exclusive upper bound. The namespace exists before the relations,
+so a missing dictionary predecessor is not confused with missing-schema ordering.
+Only a zero-valued row remains at Dump: no live dictionary data/default reference
+can mask the missing bound dependency. The actual stream must install the extension
+before the finite partition declaration, restore natively, and replay on PostgreSQL.
+Routing runs once after each destination replay, using the actual dictionary OID:
+its immediate predecessor belongs to the finite child, while the named descriptor and its successor
+belong to the default partition. Dropping that populated child avoids unsupported
+partition DELETE. Without the default partition, the named upper
+endpoint must report the full 23514 diagnostic and roll back a preceding valid
+row in the same INSERT. Root's pinned and native failing-before runs passed the
+supported zero-only source setup, then actual native Restore and PostgreSQL
+emitted-byte replay both failed with 42704 because the qualified dictionary bound
+was consumed before extension installation. The full catalog-alias reference
+walker now visits real dictionary references after the error-checked operator walk,
+adding the missing dump predecessor without changing exact-Const collation/namespace
+dependency filtering. Root then observed successful native and PostgreSQL replay;
+the remaining native endpoint Detail printed a numeric dictionary OID while the
+unchanged PostgreSQL diagnostic expectation passed with its qualified name.
+Diagnostic output demand now captures the existing coherent catalog/path environment
+for RegTS columns and typed partition keys, including derived keys over primitive
+columns. `TestReferenceRegTSPartitionDiagnostics` permanently exercises direct
+dictionary-column and derived `k::regdictionary` range keys over an OID column.
+Both direct and prepared multirow INSERTs must retain the qualified symbolic
+dictionary in the complete English 23514 diagnostic, omit unrelated logical
+fields, and publish neither row; a subsequent interior insert must still route.
+The derived case also checks the expression's REGDICTIONARY result metadata.
+No derived-key failure before the typed-output-demand fix is claimed. Root's pinned
+validation established the independently specified label `((k::regdictionary))`;
+native retained the symbolic dictionary but initially grouped the cast's operand
+instead. Partition diagnostics now use the existing pretty renderer for explicit
+RegTS cast keys and group the whole expression, without changing global cast
+deparse or relaxing the full diagnostic contract. Fresh selected native/pinned
+proof remains required. Numeric partition-bound structural output stays separate
+from SQL and diagnostics.
+Dictionary identity discovery uses the existing installation's
+`pg_catalog.pg_extension.extnamespace` and numerically filters actual
+`pg_catalog.pg_ts_dict` rows; named alias input must equal that descriptor OID.
+Scalar/companion identities are independently fixed through public REGTYPE/OID
+casts (3734/3769/3735/3770). Native pg_type and pg_namespace projections are
+absent and are not added by this feature. PostgreSQL-only pg_type metadata
+assertions retain genuine release catalog context; native units independently
+check fixed descriptors, numeric category and four-byte inline codecs.
+Stored CHECK, DEFAULT and generated-expression publication validates
+real dictionary dependencies under the existing owner/epoch fences. Integral
+carrier casts cover both implicit/assignment and explicit admission, and typed-nil
+byte parameters remain SQL NULL for both text-search aliases.
+
+Root runs each selected command from the worktree with an external 900-second
+deadline. Oracle discovery and failing-before native regression are recorded;
+the completed implementation now requires fresh native and pinned proof:
+
+```sh
+make check RUN='^TestReferenceRegTS(ValuesMetadata|Diagnostics|Namespace|NamespaceAuthorization|PreparedLifetime|RetainedRows|Persistence|MixedRoutinePersistence|PartitionPersistence|PartitionDiagnostics|FeatureSmoke)$'
+make check RUN='^TestReferenceRegTS(ValuesMetadata|Diagnostics|Namespace|NamespaceAuthorization|PreparedLifetime|RetainedRows|Persistence|MixedRoutinePersistence|PartitionPersistence|PartitionDiagnostics|FeatureSmoke)$' REFERENCE=1
+make check RUN='^Test(RegTS(ScalarCodecs|CastsDomains|ProviderResolution|PersistenceRemap|PreparedCapture|CapturedNamespaceACL|StoredDependencyProviders)|AnyValueProviderDatums)$'
+make check RUN='^Test(RegTS(PreparedCapture|CapturedNamespaceACL)|ReferenceRegTS(PreparedLifetime|RetainedRows|Persistence|MixedRoutinePersistence|PartitionPersistence))$' RACE=1
+```
+
+Root recorded F2 failures with these selected commands; rerun them after the remedy:
+
+```sh
+make check RUN='^TestReferenceRegTSMixedRoutinePersistence$' REFERENCE=1
+make check RUN='^TestReferenceRegTSMixedRoutinePersistence$'
+```
+
+Root recorded F3 failures with these selected commands; rerun them after the remedy:
+
+```sh
+make check RUN='^TestReferenceRegTSPartitionPersistence$' REFERENCE=1
+make check RUN='^TestReferenceRegTSPartitionPersistence$'
+```
+
+The supplemental diagnostic scenario requires independent pinned expectation
+proof first, followed by native proof (no pre-fix derived failure is claimed):
+
+```sh
+make check RUN='^TestReferenceRegTSPartitionDiagnostics$' REFERENCE=1
+make check RUN='^TestReferenceRegTSPartitionDiagnostics$'
+```
+
+The internal units exercise actual type codecs and captured catalog/ACL/remap
+seams, not public SQL or source-wiring counts. Algorithm-only dictionary
+snapshots are cloned from installed typed descriptors and never publish extra
+providers. Shared public scenarios remain the acceptance proof for direct/held
+driver behavior, metadata and actual native emitted-byte PostgreSQL replay.
+
+Repeat both modes after scenario/implementation changes. Feature smoke uses
+`make check RUN='^TestReferenceRegTSFeatureSmoke$'` and the same command with
+`REFERENCE=1`; expected exit zero and assertions for all named RegTS scenarios,
+not a readiness message. Whole-project `make quickcheck` remains a separate
+post-edit gate; no checks or formatters were run while writing discovery tests.
+
 ### Regrole
 
 The untagged shared scenarios independently assert role-name folding/quoting,

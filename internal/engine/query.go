@@ -1266,6 +1266,7 @@ type finalRows struct {
 	operatorOutput     map[operatorOutputKey]string
 	operatorGroups     operatorGroups
 	regobjectOutput    map[ObjectAddress]string
+	regTSOutput        map[regTSOutputKey]string
 	aclAuthority       *sqltype.ACLAuthority
 	aclitemOutput      map[uint32]string
 	anonymous          [][]sqltype.Value
@@ -1318,6 +1319,7 @@ func (r *finalRows) release() {
 	r.operatorGroups = nil
 	r.regprocedureOutput = nil
 	r.regobjectOutput = nil
+	r.regTSOutput = nil
 	r.aclitemOutput = nil
 	r.aclAuthority = nil
 }

@@ -57,7 +57,7 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 				if ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid default namespace provider")
 				}
-			} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject {
+			} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject && provider.Kind() != TSDictionaryObject {
 				return fmt.Errorf("stuntgres: invalid default provider kind")
 			}
 		}

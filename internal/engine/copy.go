@@ -307,6 +307,9 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 				s.input.Regcollation, s.input.Regnamespace = input, input
 			}
 		}
+		if err == nil && usage.Type.ContainsRegTS() && s.input.RegTS == nil {
+			s.input.RegTS, err = e.captureRegTSInput(auth)
+		}
 		if err == nil {
 			err = binder.captureTypeDiagnosticInput(usage.Type)
 		}

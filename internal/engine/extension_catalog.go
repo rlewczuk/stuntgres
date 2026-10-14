@@ -16,8 +16,8 @@ const (
 	DatabaseClassID     OID = 1262
 )
 
-// Signatures are declared identities, not runtime codec declarations. PostgreSQL
-// internal/regdictionary arguments belong to the typed provider, not public input.
+// Signatures are declared identities, not runtime overload admission. Promoting
+// regdictionary's scalar codec does not enable the two-argument unaccent overload.
 type procedureSignature string
 
 const (

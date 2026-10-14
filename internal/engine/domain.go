@@ -74,7 +74,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	}
 	arrayName := associatedArrayName(stage, ns.Address, name)
 	var array *sqltype.Descriptor
-	if typ.BaseType().IsComposite() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) {
+	if typ.BaseType().IsComposite() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) || sqltype.IsRegTS(typ.BaseType().ID()) {
 		array = sqltype.LookupArray(sqltype.ID(arrayOID), arrayName, typ)
 	} else {
 		array, err = sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)

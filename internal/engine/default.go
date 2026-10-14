@@ -446,7 +446,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err := r.recordRoutineReferences(view, n.value); err != nil {
 			return "", err
 		}
-		if r.catalogAliasReferences != nil && (n.value.Type().ContainsRegtype() || n.value.Type().ContainsRegObject()) && !n.value.IsNull() {
+		if r.catalogAliasReferences != nil && (n.value.Type().ContainsRegtype() || n.value.Type().ContainsRegObject() || n.value.Type().ContainsRegTS()) && !n.value.IsNull() {
 			*r.catalogAliasReferences = true
 		}
 		if r.checkLiterals != nil {

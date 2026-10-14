@@ -217,6 +217,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	scope.output.Regrole = scope
 	scope.output.Operator = scope
 	scope.output.Regcollation, scope.output.Regnamespace = scope, scope
+	scope.output.RegTS = scope
 	if scope.deparsePath == nil {
 		auth, err := e.authorizationLocked(scope.op)
 		if err != nil {
@@ -242,7 +243,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 
 func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
 	for _, column := range relation.columns {
-		if column.Usage.Type.ContainsRegclass() || column.Usage.Type.ContainsOperatorAlias() || column.Usage.Type.ContainsACLItem() || column.Usage.Type.ContainsRegObject() {
+		if column.Usage.Type.ContainsRegclass() || column.Usage.Type.ContainsOperatorAlias() || column.Usage.Type.ContainsACLItem() || column.Usage.Type.ContainsRegObject() || column.Usage.Type.ContainsRegTS() {
 			if err := e.captureCommentSnapshotLocked(scope); err != nil {
 				return err
 			}

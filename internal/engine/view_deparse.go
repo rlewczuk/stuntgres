@@ -834,9 +834,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
-			if literal, ok := v.literals[literalPath]; ok && (sqltype.IsOperatorAlias(literal.ResultUsage().Type.ID()) || sqltype.IsTransactionIdentifier(literal.ResultUsage().Type.ID()) || literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || (literal.ResultUsage().Type.ID() == sqltype.Regtype || sqltype.IsRegObjectAlias(literal.ResultUsage().Type.ID())) && rawLiteral.Value.Kind == parser.StringValue) {
-				// Operator aliases own their NULL/string casts. REGTYPE and the
-				// collation/namespace aliases still need the source cast for NULL.
+			if literal, ok := v.literals[literalPath]; ok && (sqltype.IsOperatorAlias(literal.ResultUsage().Type.ID()) || sqltype.IsRegTS(literal.ResultUsage().Type.ID()) || sqltype.IsTransactionIdentifier(literal.ResultUsage().Type.ID()) || literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || (literal.ResultUsage().Type.ID() == sqltype.Regtype || sqltype.IsRegObjectAlias(literal.ResultUsage().Type.ID())) && rawLiteral.Value.Kind == parser.StringValue) {
+				// Operator and text-search aliases own their NULL/string casts.
+				// REGTYPE and collation/namespace aliases need the source cast for NULL.
 				return text, nil
 			}
 		}

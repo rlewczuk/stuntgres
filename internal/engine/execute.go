@@ -297,6 +297,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.regnamespaceInput != nil {
 		scope.input.Regnamespace = b.regnamespaceInput
 	}
+	if b.regTSInput != nil {
+		scope.input.RegTS = b.regTSInput
+	}
 	if b.aclitemInput != nil {
 		scope.input.ACLItem = b.aclitemInput
 	}
@@ -343,6 +346,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, er
 			}
 			scope.input.Regcollation, scope.input.Regnamespace = input, input
+		}
+		if usage.Type.ContainsRegTS() && scope.input.RegTS == nil {
+			scope.input.RegTS, err = e.captureRegTSInput(auth)
+			if err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
 		}
 		if usage.Type.ContainsACLItem() && scope.input.ACLItem == nil {
 			scope.input.ACLItem = e.captureACLItemInput(auth, op)

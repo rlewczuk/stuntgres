@@ -34,6 +34,7 @@ type InputEnvironment struct {
 	Regproc                                   RoutineResolver
 	Regcollation                              RegcollationResolver
 	Regnamespace                              RegnamespaceResolver
+	RegTS                                     RegTSResolver
 	ACLItem                                   ACLItemResolver
 	NumericLocale, MonetaryLocale, TimeLocale Locale
 	// TypeDiagnosticName captures coherent catalog visibility for child input

@@ -160,7 +160,7 @@ func typeCategory(t *sqltype.Descriptor) byte {
 		return 'I'
 	case sqltype.Bool:
 		return 'B'
-	case sqltype.Oid, sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
+	case sqltype.Oid, sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8, sqltype.Regconfig, sqltype.Regdictionary:
 		return 'N'
 	case sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name:
 		return 'S'

@@ -53,6 +53,7 @@ func (e stringVariadicExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output.Regcollation, output.Regnamespace = c.liveScope(), c.liveScope()
 	output.Regproc = c.liveScope()
 	output.Operator = c.liveScope()
+	output.RegTS = c.liveScope()
 	if e.name == "pg_client_encoding" {
 		return sqltype.String(e.usage.Type, output.ClientEncoding), nil
 	}

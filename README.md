@@ -83,6 +83,22 @@ implying execution or custom operator DDL support. Ordinary output is symbolic;
 logical dumps use typed numeric identities to preserve overloaded and unknown
 OIDs losslessly. Companion arrays remain lookup-only.
 
+Change note: scalar REGCONFIG (3734) and REGDICTIONARY (3769) retain unsigned
+four-byte OIDs through direct/held input, distinct result metadata and native
+logical Dump/Restore. Both print zero as `-`, preserve absent numeric identities,
+and distinguish typed SQL NULL. REGDICTIONARY name lookup and symbolic output
+use actual installed unaccent dictionary descriptors, with SQL quoting, schema
+authority and non-TEMP search-path visibility; no default `simple` dictionary is
+fabricated. Native symbolic REGCONFIG lookup has no configuration provider and
+reports `0A000: text search configuration name lookup is not supported`.
+Held literals reuse occurrence-keyed catalog analysis; parameters resolve in
+each execution's captured environment, and returned rows retain their spelling.
+Logical dumps qualify live dictionary names and remap data/definition identities
+to destination allocations. Companion arrays remain lookup-only. This does not
+enable text-search DDL, full-text execution or two-argument unaccent.
+See [type contracts](docs/TYPES.md) and
+[selected proof](reference/type_resolution/README.md#text-search-oid-aliases-regts).
+
 ## Array target subscripts — change note
 
 `generate_subscripts(anyarray, integer [, boolean])` expands SELECT targets into
@@ -2741,8 +2757,8 @@ Reset/Restore preserves exact live destination TEMP installations and owned TEMP
 consumers; a conflicting imported global extension name or foreign TEMP transfer
 fails atomically rather than substituting session authority.
 PostgreSQL ignores native ownership comments and uses ordinary installation
-ownership on SQL replay. General FUNCTION/text-search DDL, regdictionary/internal
-SQL codecs, ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
+ownership on SQL replay. General FUNCTION/text-search DDL, internal SQL codecs,
+ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
 excluded. See [registered extensions](https://www.postgresql.org/docs/18/sql.html)
 and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 

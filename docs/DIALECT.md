@@ -500,6 +500,16 @@ CREATE/ALTER/DROP OPERATOR, a native pg_operator projection, to_regoper/
 to_regoperator, or arbitrary implementation-function execution. Quoted custom
 operator DDL/catalog/dependency mechanisms are explicitly PostgreSQL-only
 reference phases; native algorithm units cover quoted output and path masking.
+REGCONFIG/REGDICTIONARY scalar numeric identities are executable, with lookup-only
+companion arrays. Symbolic REGDICTIONARY resolution uses only actual installed
+unaccent objects; native does not fabricate builtin `simple`/language dictionaries.
+There is no native configuration provider: symbolic REGCONFIG input explicitly
+reports `0A000: text search configuration name lookup is not supported`, rather
+than claiming a PostgreSQL object is missing. Numeric and `-` config input bypass
+that provider boundary. General text-search DDL, full-text execution,
+to_regconfig/to_regdictionary and two-argument unaccent remain excluded. Custom
+dictionary DDL and schema-USAGE grants in reference scenarios are genuine
+PostgreSQL-only mechanisms; native tests use existing ownership/private ACL seams.
 Conversion utilities retain the native explicit-transaction DDL exclusion at
 Execute, not Prepare. Read-only execution reports `25006` before that exclusion
 or object resolution. DROP retires the actual conversion provider atomically;

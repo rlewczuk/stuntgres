@@ -45,7 +45,7 @@ and reports `interface{}` ScanType where native exports strings.
 | Timestamp infinities | Fresh owned `[]byte` |
 | BYTEA | Fresh owned `[]byte` |
 | Executable arrays, composites, ranges and multiranges | Canonical `string` |
-| REGCLASS, REGTYPE, REGROLE, REGOPER, REGOPERATOR, REGPROC, REGPROCEDURE, REGCOLLATION, REGNAMESPACE | Captured symbolic `string` |
+| REGCLASS, REGTYPE, REGROLE, REGOPER, REGOPERATOR, REGPROC, REGPROCEDURE, REGCOLLATION, REGNAMESPACE, REGCONFIG, REGDICTIONARY | Captured symbolic or absent-identity decimal `string` |
 | ACLITEM | Captured canonical `string` |
 
 Numeric I/O never roundtrips through binary float. FLOAT4 input uses its own
@@ -398,6 +398,50 @@ native CHECK expressions requiring array equality still fail42883, and domain
 CHECK/default declarations still hit their existing0A000 capability boundary.
 Those analysis errors precede the stored-Const dependency walk. The reference
 grid retains exact PostgreSQL outcomes independently from these native limits.
+
+REGCONFIG (3734) and REGDICTIONARY (3769) are concrete unsigned four-byte
+text-search object identities, exported as strings with matching database type
+names and string ScanType. Exact `-` and numeric zero output `-`, not SQL NULL;
+typed-nil bytes bind as SQL NULL. Digit-only input delegates to the OID base-zero
+scanner (`010` means 8; `08` is invalid). Unknown nonzero numeric IDs remain
+valid decimal values. Integral/OID input is implicit, INT4/INT8 output assignment;
+negative INT4 preserves its unsigned bits, but negative/overflowing INT8 reports
+`22003: OID out of range`. Explicit TEXT/VARCHAR input and character output use
+captured catalog I/O; arbitrary cross-alias casts are not admitted.
+
+Symbolic REGDICTIONARY input resolves only real installed dictionary objects.
+Quoting, schema USAGE, current-database qualification and first-match search-path
+resolution are coherent with the statement snapshot; TEMP is excluded from
+unqualified lookup. A visible dictionary prints its name, otherwise its qualified
+quoted name. Native does not seed `simple` or language dictionaries. REGCONFIG
+has no native configuration provider: valid symbolic input returns
+`0A000: text search configuration name lookup is not supported`, while numeric
+and `-` carriers remain executable. Dictionary OIDs never acquire configuration
+meaning merely because their numbers match.
+
+Held text-search literals share the existing occurrence-keyed identifier analysis
+cell, with actual dictionary and consulted namespace dependencies. Numeric input
+adds no fabricated referent dependency. Parameters resolve at each execution;
+returned values and metadata retain finalized output across schema/catalog changes.
+Scalar domains and supported composite members preserve these identities; companion
+arrays 3735/3770 and alias-domain arrays remain lookup-only. Binary COPY uses four
+network-order bytes. Logical Dump qualifies live dictionary references independently
+of search_path, installs their extension before consumers, and remaps stored data
+and expression literals to destination dictionary allocations. Zero, typed NULL
+and unmapped numeric values remain unchanged. These codecs do not enable
+configuration/dictionary DDL, lookup functions, full-text execution or the
+two-argument unaccent overload.
+
+Mixed composites containing routine aliases also qualify live dictionary members:
+routine signature reconstruction does not replace dictionary names with allocated
+source OIDs. This applies to stored data, DEFAULT values and view literals.
+
+Finite REGDICTIONARY partition bounds likewise contribute their live dictionary
+provider to the logical dump predecessor graph. A child allocated before extension
+installation and attached later still replays only after that provider is installed;
+its bound and routing follow the destination descriptor identity. This full-reference
+ordering walk does not change exact-Const dependency filtering for catalog-object
+aliases.
 
 REGOPER (2203) and REGOPERATOR (2204) are concrete unsigned four-byte operator
 identities with distinct metadata and string ScanType. REGOPER name input requires

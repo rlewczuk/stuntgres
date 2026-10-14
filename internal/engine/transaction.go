@@ -358,6 +358,7 @@ type StatementScope struct {
 	operatorOutput              map[operatorOutputKey]string
 	operatorGroups              operatorGroups
 	collationPath               []ObjectAddress
+	regTSOutput                 map[regTSOutputKey]string
 }
 
 type WriteStage struct {

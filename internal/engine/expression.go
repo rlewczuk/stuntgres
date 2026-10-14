@@ -249,6 +249,7 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output.Regnamespace = c.liveScope()
 	output.Regproc = c.liveScope()
 	output.Operator = c.liveScope()
+	output.RegTS = c.liveScope()
 	output.ACLItem = c.liveScope()
 	input := c.Input
 	if input.Regrole == nil {
@@ -2471,7 +2472,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 			return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
 		}
 		if !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
-			if !sqltype.IsOperatorAlias(source.Type.BaseType().ID()) && !sqltype.IsOperatorAlias(target.Type.BaseType().ID()) {
+			if !sqltype.IsOperatorAlias(source.Type.BaseType().ID()) && !sqltype.IsOperatorAlias(target.Type.BaseType().ID()) && !sqltype.IsRegTS(source.Type.BaseType().ID()) && !sqltype.IsRegTS(target.Type.BaseType().ID()) {
 				return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 			}
 		}
@@ -2716,6 +2717,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if u.Type.ID() == sqltype.Regtype {
 		return b.regtypeConstant(text, pos)
 	}
+	if u.Type.ContainsRegTS() {
+		return b.regTSConstant(text, u, pos)
+	}
 	if sqltype.IsOperatorAlias(u.Type.ID()) {
 		return b.operatorConstant(text, u.Type, pos)
 	}
@@ -2843,7 +2847,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 }
 
 func (b *expressionBinder) captureElementInput() error {
-	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil && b.input.Regproc != nil && b.input.Regcollation != nil && b.input.Regnamespace != nil {
+	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil && b.input.Regproc != nil && b.input.Regcollation != nil && b.input.Regnamespace != nil && b.input.RegTS != nil {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
@@ -2884,6 +2888,9 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *Operation, inpu
 		if err == nil {
 			input.Regcollation, input.Regnamespace = resolver, resolver
 		}
+	}
+	if err == nil && input.RegTS == nil {
+		input.RegTS, err = e.captureRegTSInput(auth)
 	}
 	return err
 }

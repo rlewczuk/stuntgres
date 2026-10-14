@@ -129,6 +129,15 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 				return nil, failure
 			}
 		}
+		if n.usage.Type.ContainsRegTS() && !n.value.IsNull() {
+			var failure error
+			n.value, failure = remapRegTSDatum(n.value, func(address ObjectAddress) ObjectAddress {
+				return ref(ObjectRef{Address: address}).Address
+			})
+			if failure != nil {
+				return nil, failure
+			}
+		}
 		next = n
 	case tableOIDExpression:
 		n.owner = rowRef(n.owner)

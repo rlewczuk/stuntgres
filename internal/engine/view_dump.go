@@ -34,6 +34,9 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 		}
 		return ext.address.ObjectID, nil
 	}
+	if dictionary, ok := object.(*tsDictionaryDescriptor); ok {
+		return dumpPredecessor(view, dictionary.extension, consumer)
+	}
 	if typ, ok := object.(*typeDescriptor); ok {
 		if typ.typ.IsArray() {
 			return dumpPredecessor(view, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.typ.Element().ID())}, consumer)

@@ -108,7 +108,10 @@ func (r scalarRenderer) recordCatalogAliasDependencies(view CatalogRead, value s
 	if err := walkCatalogAliasDependencies(view, value, record); err != nil {
 		return err
 	}
-	return walkOperatorReferences(view, value, record)
+	if err := walkOperatorReferences(view, value, record); err != nil {
+		return err
+	}
+	return walkRegTSReferences(view, value, record)
 }
 
 func (r scalarRenderer) recordCatalogAliasReferences(view CatalogRead, value sqltype.Value) error {
@@ -119,7 +122,10 @@ func (r scalarRenderer) recordCatalogAliasReferences(view CatalogRead, value sql
 	if err := walkCatalogAliasReferences(view, value, record); err != nil {
 		return err
 	}
-	return walkOperatorReferences(view, value, record)
+	if err := walkOperatorReferences(view, value, record); err != nil {
+		return err
+	}
+	return walkRegTSReferences(view, value, record)
 }
 
 func remapCatalogAliasDatum(value sqltype.Value, destination func(ObjectAddress) ObjectAddress) (sqltype.Value, error) {

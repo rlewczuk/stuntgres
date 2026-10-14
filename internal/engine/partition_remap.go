@@ -111,6 +111,17 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 						return nil, err
 					}
 				}
+				if !typesOnly && value.Type().ContainsRegTS() {
+					value, err = remapRegTSDatum(value, func(address ObjectAddress) ObjectAddress {
+						if target, ok := mapping[address]; ok {
+							return target
+						}
+						return address
+					})
+					if err != nil {
+						return nil, err
+					}
+				}
 				tuple[i].value = value
 			}
 		}

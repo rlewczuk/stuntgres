@@ -570,7 +570,7 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 			}
 			provider, ok := view.Descriptor(address)
 			relation, relationProvider := provider.(*relationDescriptor)
-			if !ok || provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != OperatorObject && provider.Kind() != NamespaceObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) || provider.Kind() == NamespaceObject && ref.Address.SubID != 0 {
+			if !ok || provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != OperatorObject && provider.Kind() != NamespaceObject && provider.Kind() != TSDictionaryObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) || provider.Kind() == NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
 			}
 			if provider.Kind() == CollationObject {

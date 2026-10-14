@@ -34,6 +34,16 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	state := &partitionInsertState{catalog: auth.catalog, auth: auth, target: target}
 	var captureLayouts func(*relationDescriptor) error
 	captureLayout := func(d *relationDescriptor) error {
+		if s.output.RegTS == nil && d.partition != nil {
+			for _, key := range d.partition.keys {
+				if key.usage.Type.ContainsRegTS() {
+					if err := e.captureCommentSnapshotLocked(s); err != nil {
+						return err
+					}
+					break
+				}
+			}
+		}
 		layout, err := inheritanceQueryLayout(d, target)
 		if err != nil {
 			return err
@@ -214,9 +224,20 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 				}
 				renderer.path = path
 			}
-			text, renderErr := renderer.sql(ctx, entry.derived.definition, pgRenderParent{})
+			cast, coercion := entry.derived.definition.(coercionExpression)
+			regTSCast := coercion && cast.mode == sqltype.Explicit && sqltype.IsRegTS(entry.usage.Type.BaseType().ID())
+			keyRenderer := renderer
+			if regTSCast {
+				// Partition diagnostics group the whole pretty cast expression,
+				// not its simple operand, as in PostgreSQL's partition key label.
+				keyRenderer.pretty = true
+			}
+			text, renderErr := keyRenderer.sql(ctx, entry.derived.definition, pgRenderParent{})
 			if renderErr != nil {
 				return renderErr
+			}
+			if regTSCast {
+				text = "(" + text + ")"
 			}
 			label = text
 		} else {

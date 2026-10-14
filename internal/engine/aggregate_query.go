@@ -113,6 +113,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	output.Regrole = scope
 	output.Operator = scope
 	output.Regcollation, output.Regnamespace = scope, scope
+	output.RegTS = scope
 	newGroup := func(occurrence int) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return 0, err

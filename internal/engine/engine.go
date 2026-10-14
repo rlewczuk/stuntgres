@@ -122,6 +122,7 @@ type binding struct {
 	regprocInput          sqltype.RoutineResolver
 	regcollationInput     sqltype.RegcollationResolver
 	regnamespaceInput     sqltype.RegnamespaceResolver
+	regTSInput            sqltype.RegTSResolver
 	aclitemInput          sqltype.ACLItemResolver
 	typeDiagnosticName    func(sqltype.ID) string
 	enumMemberSafe        func(sqltype.ID, int64) bool
@@ -799,6 +800,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.operatorInput = binder.input.Operator
 	b.regprocInput = binder.input.Regproc
 	b.regcollationInput, b.regnamespaceInput = binder.input.Regcollation, binder.input.Regnamespace
+	b.regTSInput = binder.input.RegTS
 	b.aclitemInput = binder.input.ACLItem
 	b.typeDiagnosticName = binder.input.TypeDiagnosticName
 	b.enumMemberSafe = binder.input.EnumMemberSafe
