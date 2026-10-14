@@ -47,3 +47,24 @@ func jsonTypeKeys(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn)
 }
 
 func TestReferenceJSONTypeKeys(t *testing.T) { jsonTypeScenario(t, jsonTypeKeys) }
+
+func TestReferenceJSONBKeysDecodedOrdering(t *testing.T) {
+	jsonTypeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		input := `{"\uD83D\uDE00":null,"\u00e9":0,"aaa":1,"\u0061":2,"a":3,"":4,"\n":5,"\"":6,"\\":7,"outer":{"hidden":8}}`
+		// Canonical order uses decoded UTF8 byte length, then binary bytes.
+		// Escaped and literal a collapse; nested hidden is not a top-level key.
+		want := [][]any{
+			{"", int64(1)},
+			{"\n", int64(2)},
+			{"\"", int64(3)},
+			{"\\", int64(4)},
+			{"a", int64(5)},
+			{"é", int64(6)},
+			{"aaa", int64(7)},
+			{"😀", int64(8)},
+			{"outer", int64(9)},
+		}
+		step := jsonTypeKeySelect("jsonb", input, want)
+		jsonTypeBoth(t, p, b, c, jsonTypeWithMetadata(step, b.PG))
+	})
+}

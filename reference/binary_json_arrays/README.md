@@ -186,6 +186,27 @@ independent assertion satisfied.
 No adjacent JSON operators, constructors or generic catalog enumeration are
 asserted by this family.
 
+`TestReferenceJSONBKeysDecodedOrdering` is a focused JSONB-only boundary and
+feature smoke. Its bound object combines escaped and literal duplicate `a`,
+escaped control/punctuation names, `é`, a supplementary Unicode key with a JSON
+null value, and a nested object. `WITH ORDINALITY` plus `ORDER BY n` exposes
+canonical decoded UTF8-byte-length/binary ordering, not escape spelling or rune
+length. Exact keys are `""`, newline, `"`, `\`, `a`, `é`, `aaa`, `😀`, `outer`,
+with ordinals 1–9; duplicate `a` collapses and nested `hidden` is absent.
+The shared direct/prepared routes assert TEXT/INT8 rows and actual-reader
+metadata before iteration.
+
+Run the completed definition in both modes under external 900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceJSONBKeysDecodedOrdering$' REFERENCE=1
+make check RUN='^TestReferenceJSONBKeysDecodedOrdering$'
+```
+
+Expected observation is quiet package success with all nine exact rows,
+ordinality and metadata assertions satisfied. This adds coverage for existing
+behavior; it does not establish a compatibility bug or production fix.
+
 Supplementary provider/engine/parser units assert concrete ownership, strict
 typed NULLs, eager key validation without JSONB numeric conversion, immutable
 payload retention, bounded token/nested-scan and prepublication cancellation,
