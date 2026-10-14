@@ -455,6 +455,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i := range e.Args {
+			if !same(e.Args[i], o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.Enum[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
@@ -1029,6 +1040,15 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		e.Args = append([]BoundExpr(nil), e.Args...)
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1341,6 +1361,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
+			walk(arg)
+		}
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)
 		}

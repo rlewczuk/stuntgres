@@ -263,6 +263,44 @@ plain/nested-domain and contextual string/NULL operands. Empty relations and
 NULL data do not bypass capability admission. Internal endpoint normalization
 does not supply a SQL comparison provider.
 
+The selected range inspectors observe canonical values, not originally written
+brackets. `lower`/`upper` return INT4, INT8, NUMERIC, DATE, TIMESTAMP or TIMESTAMPTZ
+according to the range subtype, including on empty/all-NULL/zero-row results.
+Multirange inspection uses the first and last normalized nonempty members.
+Empty ranges/multiranges have NULL bounds, `isempty=true`, and false for all
+four inclusivity/infinity predicates. Omitted endpoints have NULL bounds and
+the corresponding infinity predicate true; explicit subtype infinity and
+numeric NaN are actual nonnull bounds. Whole SQL NULL makes every inspector
+and hull result NULL. String `lower`/`upper` retain TEXT preference for unknown
+literals and unconstrained parameters.
+The text and range overloads share selected diagnostic ordering: transform
+ordinary arguments and FILTER once, validate argument counts/names, resolve
+namespace and signature, then reject scalar DISTINCT/ORDER BY/FILTER/OVER.
+Named text arguments are not silently treated as positional arguments.
+
+`range_merge(a,b)` returns the smallest enclosing range of one concrete range
+family, even across gaps. Empty is an identity, but SQL NULL remains strict.
+`range_merge(multirange)` returns its companion range; an empty multirange
+returns a nonnull empty range. Equal endpoint coordinates retain enclosing
+inclusivity; fully equal endpoint comparisons retain the second operand's
+payload, including NUMERIC scale. No output formatting, reparsing or member
+scan is needed to inspect sealed input storage.
+
+Direct inspector/hull projections have unknown nullability. Reading nullable
+stored view/generated/projection columns retains native declaration metadata
+(`true,true`), while pinned pq reports unknown nullability (`false,false`).
+Native range hulls retain
+string/ScanType string; pq uses bytes/ScanType interface{}. Bound results use
+the existing scalar adapter, including native DATE text versus pq time.Time,
+finite timestamp time.Time, and timestamp infinity bytes. Unconstrained native
+NUMERIC precision/scale is unknown; pinned pq reports65535/65531/true.
+TEXT Length is MaxInt64/true under both existing adapters.
+Stored CHECK/generated/view recipes use typed columns and survive same/fresh
+Driver Restore with reminted authority; previously returned rows and metadata
+retain their old snapshots. This adds no explicit range casts, constructors,
+temporal multiranges or new DEFAULT authoring path.
+
+
 ## Temporal transport and presentation
 
 Native DATE and TIME export strings; pq instead exports finite `time.Time`

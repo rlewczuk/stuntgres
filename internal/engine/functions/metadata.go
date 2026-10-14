@@ -67,4 +67,5 @@ const (
 	ExactStable IntrinsicPropertyRule = iota
 	ExactVolatile
 	VolatileOnly
+	ExactImmutable
 )

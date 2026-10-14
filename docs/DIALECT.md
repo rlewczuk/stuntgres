@@ -460,6 +460,17 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   equality remain available. See [ACL transport](TYPES.md#acl-items).
 - Range/multirange storage does not imply general constructors, casts,
   comparison/order/index providers, range arrays or user-defined range creation.
+  Selected scalar inspection (`lower`, `upper`, `isempty`, the four
+  inclusivity/infinity predicates) executes for int4range, int8range, numrange,
+  daterange, tsrange, tstzrange and the three integer/numeric multiranges.
+  Binary `range_merge` requires one concrete range family; unary merge accepts
+  an executable multirange and returns its companion range, filling gaps.
+  Typed columns/destination-contextual INSERT inputs and a known binary range
+  argument supply family authority. Explicit range/multirange casts remain
+  unavailable, as do constructors and operators. A selected RANGE-valued
+  DEFAULT cannot currently be authored without those excluded prerequisites:
+  default expressions do not gain column references, parameters or subqueries.
+  Carrier traversal is shared, but no default capability is fabricated.
   Daterange columns store civil DATE bounds with finite day canonicalization and
   explicit infinity distinct from omission. Tsrange columns use continuous
   TIMESTAMP WITHOUT TIME ZONE bounds without successor canonicalization; finite

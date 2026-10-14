@@ -83,6 +83,24 @@ Selected proof: `make check RUN='^TestReference(CompositeAlter|TypedTableComposi
 and the same command with `REFERENCE=1` for pinned PostgreSQL and unchanged
 native-dump replay. See [types](docs/TYPES.md#arrays-composites-enums-and-domains).
 
+## Range and multirange inspection — change note
+
+`lower`, `upper`, `isempty`, `lower_inc`, `upper_inc`, `lower_inf`, `upper_inf`
+inspect all six executable range families and the three integer/numeric
+multiranges. `range_merge` encloses two same-family ranges or all members of one
+multirange, including disconnected inputs. Bounds retain their concrete subtype;
+empty and omitted bounds return typed NULL, while explicit subtype infinity
+remains a real bound. Existing string `lower`/`upper` are unchanged.
+Use declared range columns and destination-contextual INSERT literals/binds;
+this does not add range casts, constructors, operators, arrays or temporal
+multirange execution. Stored CHECK/generated/view recipes and native
+Dump/Restore preserve typed results and held snapshots.
+See [typed range contracts](docs/TYPES.md) and
+[selected proof](reference/types/README.md#range-inspection-selected-proof).
+Feature smoke: `make check RUN='^TestReferenceRangeInspectFeatureSmoke$'`;
+pinned counterpart:
+`make check RUN='^TestReferenceRangeInspectFeatureSmoke$' REFERENCE=1`.
+
 ## Namespace catalog metadata — change note
 
 `pg_catalog.pg_namespace` exposes the PostgreSQL 18 four-column schema:

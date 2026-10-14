@@ -173,6 +173,8 @@ func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltyp
 
 func functionIntrinsicProperties(rule functions.IntrinsicPropertyRule) ExprProperties {
 	switch rule {
+	case functions.ExactImmutable:
+		return ExprProperties{Volatility: Immutable}
 	case functions.ExactStable:
 		return ExprProperties{Volatility: Stable}
 	case functions.ExactVolatile, functions.VolatileOnly:
@@ -182,6 +184,8 @@ func functionIntrinsicProperties(rule functions.IntrinsicPropertyRule) ExprPrope
 }
 func functionPropertiesMatch(properties ExprProperties, rule functions.IntrinsicPropertyRule) bool {
 	switch rule {
+	case functions.ExactImmutable:
+		return properties == (ExprProperties{Volatility: Immutable})
 	case functions.ExactStable:
 		return properties == (ExprProperties{Volatility: Stable})
 	case functions.ExactVolatile:
@@ -1216,6 +1220,25 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		var args []BoundExpr
+		for i, arg := range e.Args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.Args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.Args = args
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || args != nil, err
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
 		for i, arg := range e.Args {

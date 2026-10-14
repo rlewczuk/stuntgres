@@ -116,6 +116,7 @@ type Descriptor struct {
 	queryInt                      bool
 	composite                     *compositeDefinition
 	rangeSubtype                  *Descriptor
+	rangeBoolean                  *Descriptor
 	multirangeRange               *Descriptor
 	multirangeCompanion           *Descriptor
 	lookupOnly                    bool
@@ -294,9 +295,11 @@ func Builtins() []*Descriptor {
 		name := strings.ToUpper(family.name)
 		r := &Descriptor{id: family.rangeID, name: family.name, sql: name, database: name}
 		for _, subtype := range types {
+			if subtype.id == Bool {
+				r.rangeBoolean = subtype
+			}
 			if subtype.id == family.subtypeID {
 				r.rangeSubtype = subtype
-				break
 			}
 		}
 		types = append(types, r)

@@ -1393,6 +1393,8 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "pg_catalog." + name + "(" + text + ")", err
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
+		case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
+			return "pg_catalog." + name + "(" + text + ")", err
 		}
 		if name == "generate_series" || name == "generate_subscripts" || functions.StringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "jsonb_object" || parser.JSONFunctionName(name) || functions.JSONCreateKind(name) != 0 {
 			functionName := "pg_catalog." + name

@@ -151,6 +151,8 @@ func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
 			v = merge(v, Stable)
 		}
 		return v
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		return merge(children(n.Args...), Stable)
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:

@@ -695,6 +695,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
+		if n, ok := bound.(functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(functions.Enum[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}

@@ -833,6 +833,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return text, nil
 		}
 		return function(n.Plan.Name(), n.Args, true)
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Plan.Name(), n.Args, true)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Args, true)
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:

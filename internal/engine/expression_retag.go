@@ -653,6 +653,21 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args, array, info.usage.Type, integer, ref, conflict)
 		rebound = n
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		for _, arg := range n.Args {
+			if arg == nil {
+				return node, false, fmt.Errorf("stuntgres: invalid remapped range inspection argument")
+			}
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		rebound = n
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)
 		if err != nil {

@@ -1682,6 +1682,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 			case "split_part", "string_to_array":
 			case "array_position", "array_positions", "array_remove", "array_replace":
 			case "array_dims", "array_length", "array_lower", "array_upper", "array_ndims", "cardinality":
+			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
 			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax":
 			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length":
 			case "to_json", "to_jsonb", "array_to_json", "row_to_json", "json_build_array", "jsonb_build_array", "json_build_object", "jsonb_build_object":

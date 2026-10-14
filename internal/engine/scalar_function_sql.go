@@ -184,6 +184,16 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			return name
 		})
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range n.Args {
+			if arg == nil {
+				return "", fmt.Errorf("stuntgres: missing range inspection operand")
+			}
+		}
+		if err := n.Validate(); err != nil {
+			return "", err
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		if len(n.Args) < 1 || len(n.Args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored enum arity")

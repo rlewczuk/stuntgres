@@ -895,6 +895,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (enumFunctionName(token.lexeme.text) || jsonCreateFunction(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
+	if token.code == IDENT && RangeInspectFunctionName(token.lexeme.text) {
+		token.code = SELECTED_FUNC
+	}
 	if token.lexeme.text == "lateral" && token.lexeme.keyword != nil {
 		token.code = LATERAL
 	}
@@ -1075,6 +1078,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		if next.code == int('(') {
 			token.code = CHECK_FUNC
+		}
+	}
+	if (token.code == SELECTED_FUNC || token.code == STRING_FUNC || token.code == CHECK_FUNC) && RangeInspectFunctionName(token.lexeme.text) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = TX_TIME_FUNC
 		}
 	}
 	// Selected time, enum and delay calls reuse failure-only decorations;

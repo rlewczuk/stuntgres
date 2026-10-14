@@ -6,6 +6,51 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Range inspection selected proof
+
+The shared untagged `TestReferenceRangeInspect` definitions cover the six
+executable ranges and three integer/numeric multiranges: canonical bounds,
+empty/omitted/explicit infinity/NULL distinctions, outer normalized members,
+gap-filling hulls, numeric endpoint scale, exact scalar/range metadata,
+direct/prepared/contextual/held binds, independent complete diagnostics,
+table/column/schema authorization, ordinary cancellation and staged controls.
+Inputs use existing declared-column and INSERT-destination authority, not
+unsupported explicit range casts. Unknown string `lower`/`upper` remain TEXT;
+all selected range overloads are strict and immutable.
+`TestReferenceRangeInspectDiagnosticOrdering` pins direct/prepared lower/upper
+named-argument and scalar-decoration errors for both text and typed range
+overloads. Ordinary argument and FILTER children are transformed before
+count/label checks, namespace lookup and signature/decorator rejection.
+Malformed FILTER and child diagnostics are not discarded or rebound; ordinary
+TEXT literal/NULL/parameter preference remains unchanged.
+
+```sh
+make check RUN='^TestReferenceRangeInspect(Ranges|Multiranges|Merge|Metadata|Resolution|Diagnostics|DiagnosticOrdering|Binds|Authorization|Controls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceRangeInspect(Ranges|Multiranges|Merge|Metadata|Resolution|Diagnostics|DiagnosticOrdering|Binds|Authorization|Controls|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestRangeInspect'
+make check RUN='^TestReferenceRangeInspectFeatureSmoke$'
+make check RUN='^TestReferenceRangeInspectFeatureSmoke$' REFERENCE=1
+```
+
+Use an external900-second deadline for selected checks; reserve `make quickcheck`
+for whole-project Docker-free verification. Real mode uses the existing pinned
+PostgreSQL18.0 fixture. Native-only control phases run real Dump/Reset/Restore
+on same/fresh Drivers, hold old rows/metadata across successful/failed replacement,
+and replay the actual emitted SQL on PostgreSQL when present.
+Executable stored recipes cover CHECK/generated/views and nested inspectors.
+Range DEFAULT expressions remain unavailable under existing cast/constructor
+and default-column/parameter/subquery boundaries; no prerequisite is widened.
+Leaf units cover exact generation authority, strict literal/runtime demand,
+fresh retag/reconstruction, sealed members and allocation-free evaluation.
+Computed call targets require unknown nullability; selected stored view,
+generated and INSERT-SELECT destination columns independently require native
+known nullable metadata. Pinned pq keeps unknown nullability in both cases.
+These explicit source contracts apply during live reads and actual dump replay.
+Feature smoke completes cancellation and authorization on their actual owned
+relations before native control replacement. The ACL fixture is dropped before
+Dump; shape-changing Restore and retained-reader assertions use the control
+helper's separate target Driver, not an assumed relation in the source Driver.
+
 ### query_int selected proof
 
 The seven untagged `TestReferenceQueryInt` definitions share public SQL/API

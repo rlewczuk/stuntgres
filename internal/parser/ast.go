@@ -1348,7 +1348,7 @@ func singletonArgument(expr Expr) bool {
 		if len(e.Name.Parts) < 1 || len(e.Name.Parts) > 2 {
 			return false
 		}
-		if !e.ResolutionOnly && !e.CompositeCandidate {
+		if !e.ResolutionOnly && !e.CompositeCandidate && !RangeInspectFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) {
 			switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 			case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "format":
 			case "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
@@ -1360,6 +1360,7 @@ func singletonArgument(expr Expr) bool {
 			case "generate_series", "generate_subscripts":
 			case "unaccent":
 			case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
+			case "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
 				if !strings.EqualFold(name, "generate_series") && !strings.EqualFold(name, "generate_subscripts") && !JSONFunctionName(name) && !JSONBSetFunctionName(name) && !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.EqualFold(name, "jsonb_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {

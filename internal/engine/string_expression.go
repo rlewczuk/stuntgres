@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -83,8 +84,24 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			operands[i] = o
 		}
 	}
+	if strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
+		if err := b.validateRangeInspectSyntax(raw); err != nil {
+			return nil, err
+		}
+		return b.finishStringFunction(raw, visible, operands)
+	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	return b.finishStringFunction(raw, visible, operands)
+}
+
+// Reuse already transformed operands when selected lower/upper routing shares
+// the text provider. Other string providers retain their existing analysis.
+func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible bool, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if (name == "lower" || name == "upper") && len(operands) == 1 && sqltype.IsRangeInspectType(operands[0].Usage.Type) {
+		return b.finishRangeInspect(raw, visible, operands)
 	}
 	if sqltype.StringBaseConversion(name) {
 		return b.finishStringNumericBase(raw, visible, operands)
@@ -129,7 +146,9 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	if nameTarget && name == "to_ascii" {
 		targets.Name = b.typ(sqltype.Name).Usage()
 	}
-	selection, resolution := functions.SelectStringFunction(name, visible, raw.Variadic, operands, targets)
+	textInspection := strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper")
+	selectionVisible := visible && (!textInspection || len(raw.ArgNames) == 0)
+	selection, resolution := functions.SelectStringFunction(name, selectionVisible, raw.Variadic, operands, targets)
 	if resolution != functions.Resolved {
 		names := make([]string, len(operands))
 		for i, o := range operands {
@@ -138,7 +157,15 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 				names[i] = d.DiagnosticName()
 			}
 		}
+		for i := range names {
+			names[i] = functionNamedType(raw, i, names[i])
+		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	}
+	if textInspection {
+		if err := rangeInspectDecorationError(raw); err != nil {
+			return nil, err
+		}
 	}
 	args, err := functions.CoerceStringArguments(b, operands, selection, targets)
 	if err != nil {

@@ -18,7 +18,7 @@ type rangeStagedFailure struct {
 
 // Native control APIs have no PostgreSQL equivalent. Their actual emitted SQL
 // is replayed on the oracle with the same independent rangeSelect contracts.
-func rangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks []fixture.Step, nullable [][]bool, failures []rangeStagedFailure) {
+func rangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks []fixture.Step, nullable [][]bool, failures []rangeStagedFailure, replay ...func(fixture.Backend, fixture.Step) fixture.Step) {
 	t.Helper()
 	if b.PG {
 		return
@@ -229,6 +229,9 @@ func rangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks 
 		pg := fixture.Backend{PG: true, DB: p.Postgres, Recorder: p.PostgresRecord}
 		for i, step := range checks {
 			s := rangeSelect(pg, step.Query, step.Columns, step.Types, step.Rows, nullable[i])
+			if len(replay) != 0 {
+				s = replay[0](pg, step)
+			}
 			fixture.RunStep(t, p.Ctx, pg.DB, pg.Recorder, s)
 			fixture.RunStep(t, p.Ctx, pg.DB, pg.Recorder, fixture.Prepared(s))
 		}

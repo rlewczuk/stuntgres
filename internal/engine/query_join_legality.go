@@ -658,6 +658,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:

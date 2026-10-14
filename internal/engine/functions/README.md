@@ -54,6 +54,14 @@ make check REFERENCE=1 RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagno
 make check RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
 ```
 
+Range inspection/hull carriers retain same-generation `sqltype` plans and at
+most two operands. Literal NULL folding follows existing strict demand rules;
+a reached runtime NULL never skips a demanded sibling error/effect.
+Selected units: `make check RUN='^TestRangeInspect'`.
+Public nine-family, metadata/diagnostic/ACL, held-bind and native stored-recipe
+witnesses live under
+[range inspection selected proof](../../../reference/types/README.md#range-inspection-selected-proof).
+
 True leaf units live here; engine-integrated binding, parameter, descriptor,
 publication, native-control, grouping/window and resource-cleanup assertions stay
 with their engine owner. Borrowed array/format payload invariants accompany the
