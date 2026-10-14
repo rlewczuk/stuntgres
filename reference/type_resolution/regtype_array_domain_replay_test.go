@@ -123,16 +123,18 @@ func regtypeDisplacementForeignReplay(t *testing.T, emitted []byte, cases []regt
 	}
 	defer targetConn.Close()
 	fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
-	check := func() {
-		for _, c := range cases {
-			regtypeDisplacementLogicalCheck(t, target, target.Backends()[0], targetConn, target.MemoryRecord, c)
+	check := func() [][4]int64 {
+		identities := regtypeDisplacementIdentities(t, target, targetConn, cases)
+		for i, c := range cases {
+			regtypeDisplacementLogicalCheck(t, target, target.Backends()[0], targetConn, target.MemoryRecord, c, identities[i])
 			named := c
 			named.base = c.named
-			regtypeDisplacementReferenceCheck(t, target, targetConn, target.MemoryRecord, named, fixture.RegtypeDisplacementOID(t, target, targetConn, c.named+"[]"), 1)
+			regtypeDisplacementReferenceCheck(t, target, targetConn, target.MemoryRecord, named, identities[i][3], 1)
 		}
 		for _, name := range dataRelations {
 			fixture.RegtypeBoth(t, target, targetConn, target.MemoryRecord, fixture.Select("SELECT v FROM "+fixture.RegtypeDisplacementQualified(name), []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		}
+		return identities
 	}
 	check()
 	bad := string(emitted) + "CREATE TABLE regtype_displacement.invalid(v integer DEFAULT 'bad');"
@@ -147,13 +149,13 @@ func regtypeDisplacementForeignReplay(t *testing.T, emitted []byte, cases []regt
 	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(redump.Bytes())); err != nil {
 		t.Fatal("mixed foreign second Restore", err)
 	}
-	check()
-	for _, c := range cases {
-		for _, element := range []string{c.base, c.named} {
+	identities := check()
+	for i, c := range cases {
+		for j, element := range []string{c.base, c.named} {
 			fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("INSERT INTO "+fixture.RegtypeDisplacementQualified("w_"+element)+" DEFAULT VALUES", 1))
 			probe := c
 			probe.base = element
-			regtypeDisplacementReferenceCheck(t, target, targetConn, target.MemoryRecord, probe, fixture.RegtypeDisplacementOID(t, target, targetConn, element+"[]"), 2)
+			regtypeDisplacementReferenceCheck(t, target, targetConn, target.MemoryRecord, probe, identities[i][1+2*j], 2)
 		}
 	}
 }

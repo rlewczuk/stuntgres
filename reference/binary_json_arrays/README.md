@@ -22,6 +22,10 @@ JSON and JSONB length expression indexes, grouping/aggregates and returning
 writes. Late failures preserve the original rows. Cancellation observes actual
 stored-JSON provider/server admission, joins the worker and proves SAME-owner
 held read/write recovery; it does not substitute pg_sleep or timing sleeps.
+The cancellation fixture retains one small row and eight rows containing the
+same32MiB JSON token. Bulk parameterized updates import/validate that immutable
+token once per phase rather than eight times; row count, genuine lexer polling,
+read/write interruption, atomicity and held recovery remain unchanged.
 
 Explicit native demand boundary: the first held `SELECT f($1) AS n WHERE FALSE`
 with `{}` raises PostgreSQL's complete non-array `22023` (ERROR/ERROR, no optional
@@ -46,6 +50,15 @@ Run the completed shared family in both modes under external 900-second deadline
 ```sh
 make check RUN='^TestReferenceJSONArrayLength(Values|Diagnostics|Typing|Parameters|Metadata|ACL|Consumers|Controls|Cancellation|FeatureSmoke)$'
 make check RUN='^TestReferenceJSONArrayLength(Values|Diagnostics|Typing|Parameters|Metadata|ACL|Consumers|Controls|Cancellation|FeatureSmoke)$' REFERENCE=1
+```
+
+Selected post-merge cancellation reliability proof uses the same definition and
+unchanged fixture/provider deadlines (external900s per invocation):
+
+```sh
+make check RUN='^TestReferenceJSONArrayLengthCancellation$'
+make check RUN='^TestReferenceJSONArrayLengthCancellation$' REFERENCE=1
+make check RUN='^TestReferenceJSONArrayLengthCancellation$' RACE=1
 ```
 
 Feature smoke:

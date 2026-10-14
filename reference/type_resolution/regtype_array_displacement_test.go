@@ -155,15 +155,45 @@ func regtypeDisplacementReferenceCheck(t *testing.T, p *fixture.Pair, conn *sql.
 	}
 }
 
+// Read all expectation identities once per catalog checkpoint, not once per
+// assertion. Values remain backend-local probes, never allocator goldens, and
+// callers refresh them after Restore or a failed replacement.
+func regtypeDisplacementIdentities(t *testing.T, p *fixture.Pair, conn *sql.Conn, cases []regtypeDisplacementCase) [][4]int64 {
+	t.Helper()
+	identities := make([][4]int64, len(cases))
+	args := make([]any, 0, len(cases)*4)
+	destinations := make([]any, 0, len(cases)*4)
+	var query strings.Builder
+	query.WriteString("SELECT ")
+	for i, c := range cases {
+		for j, name := range []string{c.base, c.base + "[]", c.named, c.named + "[]"} {
+			if len(args) != 0 {
+				query.WriteByte(',')
+			}
+			query.WriteByte('$')
+			query.WriteString(strconv.Itoa(len(args) + 1))
+			query.WriteString("::regtype::bigint")
+			args = append(args, fixture.RegtypeDisplacementQualified(name))
+			destinations = append(destinations, &identities[i][j])
+		}
+	}
+	if err := conn.QueryRowContext(p.Ctx, query.String(), args...).Scan(destinations...); err != nil {
+		t.Fatal("displacement identity checkpoint", err)
+	}
+	for i, ids := range identities {
+		for _, id := range ids {
+			if id <= 0 {
+				t.Fatalf("nonpositive identity for %s: %v", cases[i].base, ids)
+			}
+		}
+	}
+	return identities
+}
+
 // Logical replay preserves named elements and their reciprocal arrays, not the
 // historical generated aliases chosen by a different declaration order.
-func regtypeDisplacementLogicalCheck(t *testing.T, p *fixture.Pair, backend fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder, c regtypeDisplacementCase) {
+func regtypeDisplacementLogicalCheck(t *testing.T, p *fixture.Pair, backend fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder, c regtypeDisplacementCase, ids [4]int64) {
 	t.Helper()
-	baseID := fixture.RegtypeDisplacementOID(t, p, conn, c.base)
-	arrayID := fixture.RegtypeDisplacementOID(t, p, conn, c.base+"[]")
-	namedID := fixture.RegtypeDisplacementOID(t, p, conn, c.named)
-	namedArrayID := fixture.RegtypeDisplacementOID(t, p, conn, c.named+"[]")
-	ids := []int64{baseID, arrayID, namedID, namedArrayID}
 	for i, id := range ids {
 		for _, other := range ids[:i] {
 			if id == other {
@@ -184,7 +214,7 @@ func regtypeDisplacementLogicalCheck(t *testing.T, p *fixture.Pair, backend fixt
 			fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select("SELECT v FROM "+fixture.RegtypeDisplacementQualified(name), []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		}
 	}
-	regtypeDisplacementReferenceCheck(t, p, conn, recorder, c, arrayID, 1)
+	regtypeDisplacementReferenceCheck(t, p, conn, recorder, c, ids[1], 1)
 }
 
 func TestReferenceRegtypeArrayDisplacement(t *testing.T) {
@@ -427,14 +457,14 @@ func TestReferenceRegtypeArrayDisplacementControls(t *testing.T) {
 			}
 		}
 		check := func(source bool) {
-			for _, c := range cases {
+			identities := regtypeDisplacementIdentities(t, p, conn, cases)
+			for i, c := range cases {
 				if source {
-					baseID := fixture.RegtypeDisplacementOID(t, p, conn, c.base)
-					arrayID := fixture.RegtypeDisplacementOID(t, p, conn, c.base+"[]")
+					baseID, arrayID := identities[i][0], identities[i][1]
 					regtypeDisplacementCheck(t, p, backend, conn, recorder, c, baseID, arrayID)
 					regtypeDisplacementReferenceCheck(t, p, conn, recorder, c, arrayID, 1)
 				} else {
-					regtypeDisplacementLogicalCheck(t, p, backend, conn, recorder, c)
+					regtypeDisplacementLogicalCheck(t, p, backend, conn, recorder, c, identities[i])
 				}
 			}
 		}
@@ -482,8 +512,9 @@ func TestReferenceRegtypeArrayDisplacementControls(t *testing.T) {
 		}
 		defer targetConn.Close()
 		fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
-		for _, c := range cases {
-			regtypeDisplacementLogicalCheck(t, target, target.Backends()[0], targetConn, target.MemoryRecord, c)
+		identities := regtypeDisplacementIdentities(t, target, targetConn, cases)
+		for i, c := range cases {
+			regtypeDisplacementLogicalCheck(t, target, target.Backends()[0], targetConn, target.MemoryRecord, c, identities[i])
 		}
 		// A late declaration after tentative displacement cannot replace the
 		// destination generation, its original array names, or its saved data.
@@ -642,18 +673,18 @@ func TestReferenceRegtypeArrayDisplacementMixedReplay(t *testing.T) {
 			}
 		}
 		check := func(source bool) {
-			for _, c := range cases {
+			identities := regtypeDisplacementIdentities(t, p, conn, cases)
+			for i, c := range cases {
 				if source {
-					baseID := fixture.RegtypeDisplacementOID(t, p, conn, c.base)
-					arrayID := fixture.RegtypeDisplacementOID(t, p, conn, c.base+"[]")
+					baseID, arrayID := identities[i][0], identities[i][1]
 					regtypeDisplacementCheck(t, p, backend, conn, recorder, c, baseID, arrayID)
 					regtypeDisplacementReferenceCheck(t, p, conn, recorder, c, arrayID, 1)
 				} else {
-					regtypeDisplacementLogicalCheck(t, p, backend, conn, recorder, c)
+					regtypeDisplacementLogicalCheck(t, p, backend, conn, recorder, c, identities[i])
 				}
 				namedReference := c
 				namedReference.base = c.named
-				regtypeDisplacementReferenceCheck(t, p, conn, recorder, namedReference, fixture.RegtypeDisplacementOID(t, p, conn, c.named+"[]"), 1)
+				regtypeDisplacementReferenceCheck(t, p, conn, recorder, namedReference, identities[i][3], 1)
 			}
 			for _, name := range dataRelations {
 				fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select("SELECT v FROM "+fixture.RegtypeDisplacementQualified(name), []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))

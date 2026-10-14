@@ -196,10 +196,10 @@ func TestReferenceJSONArrayLengthCancellation(t *testing.T) {
 		// A retained 32MiB JSON token forces genuine lexer byte polling. Repeated
 		// rows sustain server admission without sleeps, hooks or substitute SQL.
 		large := `["` + strings.Repeat("x", 32<<20) + `"]`
-		run(fixture.Exec("INSERT INTO jal_active_input VALUES(1,'[]')", 1))
-		for id := 2; id <= 9; id++ {
-			run(fixture.Exec("INSERT INTO jal_active_input VALUES($1,$2)", 1, id, large))
-		}
+		run(fixture.Exec("INSERT INTO jal_active_input VALUES(1,'[]'),(2,'[]'),(3,'[]'),(4,'[]'),(5,'[]'),(6,'[]'),(7,'[]'),(8,'[]'),(9,'[]')", 9))
+		// Import/validate the immutable token once, then share it across the
+		// same eight large rows instead of reparsing 32MiB per setup statement.
+		run(fixture.Exec("UPDATE jal_active_input SET j=$1 WHERE id>1", 8, large))
 		readSQL := "SELECT sum(json_array_length(j)) AS n FROM jal_active_input"
 		writeSQL := "INSERT INTO jal_active_out(id,n) SELECT id,json_array_length(j) FROM jal_active_input ORDER BY id"
 		read, err := c.PrepareContext(p.Ctx, readSQL)
@@ -234,9 +234,7 @@ func TestReferenceJSONArrayLengthCancellation(t *testing.T) {
 		run(fixture.Exec("UPDATE jal_active_input SET j='[]' WHERE id>1", 8))
 		heldRead := fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}
 		fixture.RunStep(t, p.Ctx, heldRead, b.Recorder, fixture.Select(readSQL, []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		for id := 2; id <= 9; id++ {
-			run(fixture.Exec("UPDATE jal_active_input SET j=$1 WHERE id=$2", 1, large, id))
-		}
+		run(fixture.Exec("UPDATE jal_active_input SET j=$1 WHERE id>1", 8, large))
 		fixture.BinaryConversionActiveCancel(t, p, b, c, writeSQL, "sqltype.jsonArrayLength", func(ctx context.Context) fixture.RelationOutcome {
 			result, err := write.ExecContext(ctx)
 			return fixture.RelationOutcome{Result: result, Err: err}

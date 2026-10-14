@@ -480,6 +480,21 @@ These selectors do not replace ordinary quickcheck or the post-merge finalcheck
 under its single 1800-second deadline. Completed definitions are not passing
 verification until the root records successful runs.
 
+Post-merge replay reliability retains all40 mixed creator/order cases in the same
+catalog, every checkpoint, late invalid Restore rollback, second Restore and
+default recovery. Expectation OID probes are batched once per catalog checkpoint;
+positivity and pairwise distinct identities, display/metadata and actual
+direct/prepared checks remain unchanged. Identity results are refreshed after
+catalog replacement, not cached across generations. Shared checker migration
+also includes ArrayDisplacementControls. Fixture deadlines are not extended.
+
+```sh
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|MixedReplay)$'
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|MixedReplay)$' REFERENCE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|MixedReplay)$' RACE=1
+```
+
+
 ### Regtype control lifetime
 
 Regtype control witnesses retain a supported TEMP SEQUENCE across Reset/Restore
