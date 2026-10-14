@@ -27,6 +27,15 @@ with incremental cancellation during scans/lookahead/expansion. Installed
 fuzzystrmatch identity, strictness, immutable binding, owned text[] construction,
 generated consumers and control remapping remain engine responsibilities.
 
+Installed pgcrypto calls reuse this package's SQL-usage overload selection,
+formal coercion hooks and immutable `Pgcrypto` carrier. The engine separately
+owns the installed procedure address, namespace/ACL, dependency and replay
+identity. `internal/sqltype/pgcrypto.go` owns raw digest/HMAC plans and shares
+bounded string streaming with builtin binary hashes. All reached children run
+once in source order before strict NULL handling; no algorithm is cached across
+parameter frames. Six standard-library hashes return raw BYTEA, distinct from
+builtin md5's hexadecimal TEXT.
+
 ## Testing
 
 Run from repository root; use `make check RUN='...'` for individual or small
@@ -36,6 +45,7 @@ cohesive selections. Focused private state/demand examples:
 make check RUN='^(TestSumProviders|TestSumIntegralTransitions|TestSumFloatingTransitions|TestSumProviderCancellation)$'
 make check RUN='^(TestRandomIntegerSampler|TestRandomRuntimeNullEvaluatesSibling|TestUUIDGenerationPacking|TestUUIDGenerationAscendingClock)$'
 make check RUN='^(TestDatetimeSleepWait|TestDatetimeSleepCleanup|TestQueryAggregateRealAdvanceFailure)$' RACE=1
+make check RUN='^TestPgcrypto(OverloadResolution|RawVectors|StrictDemand|Cancellation)$'
 ```
 
 ```sh

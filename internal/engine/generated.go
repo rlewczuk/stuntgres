@@ -298,6 +298,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case installedCryptoFunctionExpression:
+		return args(n.Args)
 	case installedFunctionExpression:
 		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.arg})
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
@@ -462,6 +464,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]BoundExpr{n.arg})
@@ -819,6 +823,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]BoundExpr{n.arg})

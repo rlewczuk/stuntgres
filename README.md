@@ -3239,14 +3239,15 @@ and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
 **Installed-extension catalog change note:** `pg_catalog.pg_extension` is readonly
 relation3079 with eight exact OID/NAME/BOOL/TEXT/OID[]/TEXT[] fields, known native
 nullability and C950 collations on collatable columns. Fresh native installed
-state is empty; actual registered `unaccent` and selected-type `intarray` installations supply descriptor-derived
+state is empty; actual registered `unaccent`, selected-type `intarray`,
+selected-function `fuzzystrmatch` and bounded `pgcrypto` installations supply descriptor-derived
 rows. No PL/pgSQL installation is fabricated. PostgreSQL18.0's default database
 independently has installed `plpgsql`1.0; available control files are not installed rows.
 Normal REGCLASS/search_path/prepared queries and native Dump/Reset/Restore use
 the existing relation authority. Fixed relation3079 differs from the reused
 allocated native rowtype10074/array10073; no cross-server type allocator promise,
 physical system index or TOAST implementation is implied.
-Registered unaccent and selected-type intarray CREATE are supported; unavailable providers fail0A000 at
+Registered unaccent, selected-type intarray, selected-function fuzzystrmatch and bounded pgcrypto CREATE are supported; unavailable providers fail0A000 at
 execution, including after successful Prepare. ALTER/DROP EXTENSION and module
 loading retain their unsupported boundaries.
 See [exact shape, installed authority and errors](https://www.postgresql.org/docs/18/catalogs.html).
@@ -3256,12 +3257,12 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatur
 **Available-extension metadata change note:** `pg_catalog.pg_available_extensions`
 and `pg_catalog.pg_available_extension_versions` are readonly PUBLIC SELECT views
 over the same immutable embedded registry used by installation. The native
-universe is genuine unaccent1.1 and selected-type intarray1.5, with their released
-control comments and superuser/trusted/relocatable flags; the intarray comment
-does not promise stock advanced-operation execution. hstore, file_fdw and plpgsql
-are not invented.
+universe is genuine unaccent1.1, selected-type intarray1.5, selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4,
+with their released control comments and superuser/trusted/relocatable flags.
+The intarray/pgcrypto comments do not promise their stock complete native object
+inventories. hstore, file_fdw and plpgsql are not invented.
 Default/available version and actual installed version are distinct. Control
-schema/dependencies remain NULL for both providers even when installed elsewhere.
+schema/dependencies remain NULL for all four providers even when installed elsewhere.
 Metadata is not filtered by member namespace privileges or TEMP ownership;
 ordinary relation admission and SQL predicates still apply.
 Both availability views and `pg_extension` share one caller-visible installed-state
@@ -3270,6 +3271,26 @@ affects the next execution, not later occurrences in the same statement.
 See [fields, visibility and controls](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned counterpart.
+
+**Pgcrypto digest/HMAC change note:** installed pgcrypto1.4 supplies exactly four
+IMMUTABLE STRICT PARALLEL SAFE scalar overloads: digest(TEXT,TEXT),
+digest(BYTEA,TEXT), hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT), all returning raw
+BYTEA. Supported algorithms are md5, sha1, sha224, sha256, sha384 and sha512,
+including observed hyphenated SHA aliases and SHA2-256. TEXT hashes exact UTF8
+octets; BYTEA hashes arbitrary raw bytes. Builtin md5 still returns hexadecimal
+TEXT. Any NULL argument skips hashing after demanded child expressions; a
+constant failing sibling is not suppressed. Unsupported algorithms report22023
+with the normalized name (ASCII case-folded, UTF8-safe63-byte truncation, no trim).
+Standard-library streaming bounds scratch memory, including oversized HMAC keys.
+Installed namespace/USAGE, exact overload identities, defaults/CHECK/generated
+columns/index/view consumers and native Dump/Reset/Restore use the existing
+catalog/control paths. Old native Rows retain their bytes and metadata; failed
+replay is atomic and named owners must exist in the destination. Selected pgcrypto
+validation rejects mixed crypto/fuzzy provider identities rather than allowing a
+different provider's dispatch branch to admit a crypto member. No arbitrary
+OpenSSL algorithms, crypt, encryption, PGP, random-byte or FIPS functions are added.
+Feature smoke: `make check RUN='^TestReferencePgcryptoFeatureSmoke$'`;
+add `REFERENCE=1` for the pinned PostgreSQL counterpart.
 
 
 LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,

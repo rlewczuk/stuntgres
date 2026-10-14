@@ -157,6 +157,8 @@ func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
 		return children(n.Args...)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
+	case installedCryptoFunctionExpression:
+		return children(n.Args...)
 	case installedFunctionExpression:
 		return merge(n.procedure.volatility, children(n.arg))
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:

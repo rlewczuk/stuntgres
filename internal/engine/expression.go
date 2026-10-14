@@ -416,6 +416,28 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 	switch e := expression.(type) {
 	case domainValueExpression:
 		return e, false, nil
+	case installedCryptoFunctionExpression:
+		var args []BoundExpr
+		for i, arg := range e.Args {
+			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.Args...)
+				}
+				args[i] = next
+			}
+		}
+		if args != nil {
+			next, err := e.Reconstruct(e.Info, args)
+			if err != nil {
+				return nil, false, err
+			}
+			e.Pgcrypto = next
+		}
+		return e, args != nil, nil
 	case installedFunctionExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
 		if changed {

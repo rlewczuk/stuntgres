@@ -377,6 +377,15 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
+	case installedCryptoFunctionExpression:
+		n.Args = args(n.Args)
+		if ref != nil {
+			n.ref = ref(n.ref)
+		}
+		if err == nil {
+			n.Pgcrypto, err = n.Reconstruct(n.Info, n.Args)
+		}
+		next = n
 	case installedFunctionExpression:
 		n.arg = child(n.arg)
 		if ref != nil {
@@ -519,16 +528,18 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		if err != nil {
 			return old
 		}
-		next := old
+		next, failure := remapBoundExpressionWithQuery(old, ref, nil, m.nested, nil)
+		if failure != nil {
+			err = failure
+			return old
+		}
 		if !m.referencesOnly {
-			var failure error
-			next, _, failure = retagBoundTypesWithQuery(m.catalog, old, typ, nil, m.collation)
+			next, _, failure = retagBoundTypesWithQuery(m.catalog, next, typ, nil, m.collation)
 			if failure != nil {
 				err = failure
 				return old
 			}
 		}
-		next, err = remapBoundExpressionWithQuery(next, ref, nil, m.nested, nil)
 		return next
 	}
 	expressions := func(old []BoundExpr) []BoundExpr {

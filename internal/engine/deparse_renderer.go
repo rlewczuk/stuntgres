@@ -975,6 +975,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			name = "num_nonnulls"
 		}
 		return function(name, n.Args, true)
+	case installedCryptoFunctionExpression:
+		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
+		}
+		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), n.Args, true)
 	case installedFunctionExpression:
 		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
 		if !ok {

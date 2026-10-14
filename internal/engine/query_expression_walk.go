@@ -131,6 +131,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
+	case installedCryptoFunctionExpression:
+		args(e.Args)
 	case installedFunctionExpression:
 		walk(e.arg)
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:

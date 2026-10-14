@@ -748,6 +748,111 @@ make check RUN='^TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataVa
 make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceAvailableExtensions(Transactions|Controls|JoinConsistency))$'
 ```
 
+### Pgcrypto digest/HMAC selected proof
+
+The native registry contains unaccent1.1, selected-type intarray1.5,
+selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs only four genuine immutable/strict/
+parallel-safe TEXT/BYTEA digest/HMAC overloads for six algorithms. Exact signatures
+are asserted using the supported public OID→REGPROCEDURE text identity, not an
+OIDVECTOR/proargtypes capability. Namespace, positive distinct IDs, owner and
+membership edges remain independently asserted; PostgreSQL's full stock member
+inventory is not equated to native's four.
+
+Fixed RFC/independently calculated digest/HMAC vectors cover empty, binary,
+UTF8, exact-block and oversized keys through direct/new/held prepared frames.
+Full logical diagnostics, NULL and demanded failing/effectful siblings are
+asserted before backend comparison. Native-only controls exercise executable
+default/CHECK/generated/index/view consumers, named owners with changed
+destination attributes, held rebinding, retained old Rows/metadata, and failed
+replay atomicity through public APIs.
+
+Stored generation dependencies admit the actual installed procedure identity,
+alongside the existing type/collation/operator/namespace providers; generated
+columns and expression indexes remain full consumer witnesses through replay.
+InstalledIdentity retains real PostgreSQL REVOKE/GRANT USAGE phases. Native SQL
+has no schema GRANT/REVOKE: the ordinary private schema initially denies the
+reader, then explicit ALTER SCHEMA OWNER enables both unqualified path lookup
+and qualified calls without changing the installed procedures' owners.
+
+Restore's strict owner manifest admits pgcrypto1.4 only with the complete four
+procedure name/signature pairs; dictionary/type members, duplicates, missing or
+extra members and foreign signatures are rejected. The existing unaccent1.1
+and intarray1.5 manifests retain their separate validation. Actual dumped
+metadata is corrupted in the native control witness to check rejection without
+changing live data, identities or executable consumers, including missing and
+inconsistent member owners. Positive replay preserves named destination
+principal identities even when role attributes differ; no provider fallback or
+owner substitution is used.
+
+Control replacement remaps source references before retagging against destination
+types/collations, exactly once each. The supplementary `TestPgcryptoControlRemap`
+component regression retains its manually mapped descriptor coverage; it is not
+evidence of actual Restore collision handling.
+
+`TestReferencePgcryptoConsumersAndControls` includes a native-only real-pipeline
+relocation phase. An ordinary independent-Driver replay establishes candidate
+procedure identities. A second identically initialized destination allocates
+live TEMP sequences until all four procedure OIDs have actual cross-class
+collisions. Public Restore must relocate every imported procedure while retaining
+the TEMP OIDs, rows and generator capture. Fixed bytes are asserted for all four
+overloads after ordinary and collision replay. Defaults, CHECKs, generated
+columns, expression indexes, stored views and a nested scalar-subquery view
+remain executable. Procedure dependencies compare complete seven-field addresses
+resolved independently from the named default/generated attrdefs, CHECKs, index
+and view/nested rewrite rules, not class totals. Attrdef owning-column edges
+also identify default column3 (`a`) and generated column4 (`i`).
+Both persistent view relation OIDs are resolved separately from their `_RETURN`
+rule OIDs, with exact internal rewrite-to-view ownership edges.
+Source identities, rows and unread result/metadata captures remain usable.
+Each independent destination has its own RawNative middleware recorder. Its SQL
+pool wraps the exact configured connector shared with the raw native-control
+pool, preserving Driver/DSN identity without recording control operations as SQL
+witnesses. The collision destination keeps its wrapped physical connection
+pinned from TEMP creation through Restore and refusal checks; source and baseline
+assertions continue to use their respective recorders.
+The collision destination captures its actual TEMP namespace/relation/rowtype,
+and every retained sequence's relation/namespace association. Native verifies
+both captured pg_class relation and reltype OIDs with REGCLASS and REGTYPE
+resolution qualified by the captured actual TEMP namespace, before and after replacement.
+Native does not expose pg_type, so this is not independent proof of its inverse
+typnamespace/typrelid fields. The PostgreSQL-only SQL phase asserts those public
+pg_type links for its TEMP table; it does not simulate native Restore. The unread
+INT4/BYTEA cursor and TEMP prepared SELECT are opened before Restore. The same
+unread cursor's current Columns/ColumnTypes are checked before replacement,
+after successful publication and after every refusal against independent names,
+both scan types and Nullable(value,known) tuples and the saved snapshot.
+Saved column metadata is rechecked after consumption without querying metadata
+on the exhausted cursor. The deliberately blocking final TEMP view adds its
+namespace/relation/rewrite identities, internal ownership edge and persistent
+projected-column dependency edges to the final refusal snapshot.
+Four held crypto statements are prepared after relocation. Every wrong-version,
+unknown-provider, malformed-manifest, late-SQL, cancellation, private-TEMP-placement
+and retained-dependent-TEMP-view refusal uses the same postcondition: unchanged
+persistent dump, procedure/consumer/owner identities, exact dependency tuples,
+TEMP identities/data/metadata, fixed held/direct results, and fresh rolled-back
+default/generated/CHECK/index/view/nested evaluation plus failed-write atomicity.
+Provider validation rejects simultaneous crypto and fuzzy markers before provider
+dispatch; the private mutation unit checks both descriptor and parent validation.
+These are source assertions requiring fresh selected native and pinned-reference
+proof; test definitions alone are not passing evidence.
+
+```sh
+make check RUN='^TestReferencePgcrypto(DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check RUN='^TestReferenceBinaryHash(Vectors|MD5Overloads|Consumers|Controls|Diagnostics|Quoted|Metadata|Inference|PreparedOwnership|Smoke)$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryHash(Vectors|MD5Overloads|Consumers|Controls|Diagnostics|Quoted|Metadata|Inference|PreparedOwnership|Smoke)$'
+make check RUN='^TestPgcrypto(ProviderIdentity|ExpressionIdentity|OwnerMetadata|ControlRemap|OverloadResolution|RawVectors|StrictDemand|Cancellation)$'
+make check RUN='^(TestExtensionOwner(Metadata|ManifestAdmission)|TestIntarrayProviderIdentity)$'
+```
+
+Selected checks use external900-second deadlines; the root alone runs these
+after edits. Whole-project Docker-free verification remains `make quickcheck`.
+The standalone public smoke source is supplied in the OMP session; it is not a
+test fixture import or a duplicate committed runner.
+
+
 Whole-project Docker-free proof uses quickcheck only after edits stop. The actual
 standalone public source `local://available-extensions-smoke.go` is an OMP session
 artifact, not a committed executable. Root materializes it outside the repository

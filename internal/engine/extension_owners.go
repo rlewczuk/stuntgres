@@ -149,6 +149,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		expectedMembers = 3
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = 1
+	case record.Name == "pgcrypto" && record.Version == "1.4":
+		expectedMembers = 4
 	default:
 		return invalid()
 	}
@@ -175,9 +177,15 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		seen[identity] = true
 		switch member.Kind {
 		case "procedure":
-			valid := member.Name == "unaccent" && (member.Signature == string(unaccentTextSignature) || member.Signature == string(unaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(unaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(unaccentLexizeSignature)
-			if record.Name == "intarray" {
+			valid := false
+			switch record.Name {
+			case "unaccent":
+				valid = member.Name == "unaccent" && (member.Signature == string(unaccentTextSignature) || member.Signature == string(unaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(unaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(unaccentLexizeSignature)
+			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
+			case "pgcrypto":
+				name := pgcryptoName(procedureSignature(member.Signature))
+				valid = name != "" && member.Name == name
 			}
 			if record.Name == "fuzzystrmatch" {
 				valid = member.Name == "daitch_mokotoff" && member.Signature == "25"

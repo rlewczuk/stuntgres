@@ -201,6 +201,10 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.registerExtension("fuzzystrmatch", registeredExtension{version: "1.2", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockFuzzystrmatch}); err != nil {
 		return nil, err
 	}
+	comment = "cryptographic functions"
+	if err := e.registerExtension("pgcrypto", registeredExtension{version: "1.4", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockPgcrypto}); err != nil {
+		return nil, err
+	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
 	for _, ns := range []struct {
 		oid  OID

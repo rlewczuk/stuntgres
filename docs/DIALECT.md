@@ -365,6 +365,28 @@ function; a volatile child is still volatile. No dictionary/helper TEMP exclusio
 is inherited from unaccent. Availability's stock comment does not promise
 Soundex/Levenshtein/Metaphone or arbitrary loaders.
 
+## Installed pgcrypto digest and HMAC
+
+Registered pgcrypto1.4 installs only digest(TEXT,TEXT), digest(BYTEA,TEXT),
+hmac(TEXT,TEXT,TEXT) and hmac(BYTEA,BYTEA,TEXT). Results are raw BYTEA for md5,
+sha1, sha224, sha256, sha384 and sha512; TEXT input is exact UTF8 octets and
+BYTEA input is arbitrary binary. Unknown data/key operands prefer TEXT; known
+mixed TEXT/BYTEA HMAC has no overload. Namespace lookup and schema USAGE are
+actual installed authority, not always-on builtins. Observed SHA hyphen aliases,
+SHA2-256 and ASCII case aliases identify only these six algorithms.
+
+Strict NULL returns typed BYTEA NULL after required child evaluation/constant
+simplification; it does not mask division-by-zero siblings. Algorithm names
+fold ASCII case and truncate at63 bytes on a UTF8 boundary without trimming or
+notices; unsupported names raise22023. HMAC streams keys larger than the hash
+block before passing a bounded effective key to the standard-library provider.
+Installed immutable consumers and native controls preserve procedure signatures,
+owners and executable expressions. Availability now includes pgcrypto beside
+unaccent, selected-type intarray and selected-function fuzzystrmatch. Full OpenSSL
+inventory, other pgcrypto functions and arbitrary shared-library loading remain excluded.
+Pgcrypto members must carry only their genuine provider identity; simultaneous
+crypto/fuzzy markers are rejected by both manifest and descriptor admission.
+
 ## query_int extension type
 
 The registered intarray provider supplies selected query_int scalar storage,

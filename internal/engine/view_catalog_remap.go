@@ -32,6 +32,8 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 		}
 		return old
 	}
+	// Retagging resolves captured provider descriptors in the destination.
+	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.descriptors {
 		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
 			if typesOnly {
@@ -47,11 +49,11 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			copy.domainChecks = append([]domainCheckConstraint(nil), domain.domainChecks...)
 			for i := range copy.domainChecks {
 				check := &copy.domainChecks[i]
-				node, _, err := retagBoundTypes(view, check.expression, typ, collation)
+				node, err := remapBoundExpression(check.expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(node, ref, nil)
+				node, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -80,11 +82,11 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			copy := *d
 			copy.defaults = make(map[int32]columnDefault, len(d.defaults))
 			for attribute, definition := range d.defaults {
-				node, _, err := retagBoundTypes(view, definition.expression, typ, collation)
+				node, err := remapBoundExpression(definition.expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(node, ref, nil)
+				node, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -102,20 +104,20 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			copy := *d
 			copy.generations = make(map[int32]columnGeneration, len(d.generations))
 			for attribute, definition := range d.generations {
-				node, _, err := retagBoundTypes(view, definition.expression, typ, collation)
+				node, err := remapBoundExpression(definition.expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(node, ref, nil)
+				node, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
 				definition.expression = node
-				planned, _, err := retagBoundTypes(view, definition.planned, typ, collation)
+				planned, err := remapBoundExpression(definition.planned, ref, nil)
 				if err != nil {
 					return err
 				}
-				planned, err = remapBoundExpression(planned, ref, nil)
+				planned, _, err = retagBoundTypes(view, planned, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -134,11 +136,11 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)
 			for i := range copy.checkConstraints {
 				c := &copy.checkConstraints[i]
-				node, _, err := retagBoundTypes(view, c.expression, typ, collation)
+				node, err := remapBoundExpression(c.expression, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(node, ref, nil)
+				node, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -173,20 +175,20 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 					continue
 				}
 				derived := *key.derived
-				node, _, err := retagBoundTypes(view, derived.definition, typ, collation)
+				node, err := remapBoundExpression(derived.definition, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(node, ref, nil)
+				node, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
 				derived.definition = node
-				node, _, err = retagBoundTypes(view, derived.execution, typ, collation)
+				node, err = remapBoundExpression(derived.execution, ref, nil)
 				if err != nil {
 					return err
 				}
-				node, err = remapBoundExpression(node, ref, nil)
+				node, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
@@ -199,19 +201,19 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 			}
 			if predicate := definition.predicate; predicate != nil {
 				p := *predicate
-				node, _, err := retagBoundTypes(view, p.definition, typ, collation)
+				node, err := remapBoundExpression(p.definition, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.definition, err = remapBoundExpression(node, ref, nil)
+				p.definition, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}
-				node, _, err = retagBoundTypes(view, p.execution, typ, collation)
+				node, err = remapBoundExpression(p.execution, ref, nil)
 				if err != nil {
 					return err
 				}
-				p.execution, err = remapBoundExpression(node, ref, nil)
+				p.execution, _, err = retagBoundTypes(view, node, typ, collation)
 				if err != nil {
 					return err
 				}

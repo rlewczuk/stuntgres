@@ -680,6 +680,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
+	case installedCryptoFunctionExpression:
+		children = e.Args
 	case installedFunctionExpression:
 		children = []BoundExpr{e.arg}
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:

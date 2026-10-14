@@ -136,6 +136,22 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n.Info = functionInfo(info)
 		rebound = n
+	case installedCryptoFunctionExpression:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)
+		if !ok || proc.crypto != stockPgcrypto {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped crypto function")
+		}
+		changed = changed || n.procedure != proc
+		n.procedure = proc
+		n.Pgcrypto, err = n.Reconstruct(functionInfo(info), n.Args)
+		if err == nil {
+			err = n.validate(view)
+		}
+		rebound = n
 	case installedFunctionExpression:
 		n.arg = child(n.arg)
 		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)

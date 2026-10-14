@@ -53,21 +53,7 @@ func binaryDigest(ctx context.Context, name string, result *Descriptor, raw stri
 	default:
 		return Value{}, fmt.Errorf("invalid binary digest")
 	}
-	// Value owns an immutable string; bounded scratch safely adapts it to the
-	// standard hash APIs without a payload-sized copy or unsafe mutable alias.
-	var scratch [4096]byte
-	for start := 0; start < len(raw); {
-		if err := ctx.Err(); err != nil {
-			return Value{}, err
-		}
-		n := min(len(scratch), len(raw)-start)
-		copy(scratch[:n], raw[start:start+n])
-		if _, err := digest.Write(scratch[:n]); err != nil {
-			return Value{}, err
-		}
-		start += n
-	}
-	if err := ctx.Err(); err != nil {
+	if err := writeHashString(ctx, digest, raw); err != nil {
 		return Value{}, err
 	}
 	var sum [sha512.Size]byte
@@ -81,4 +67,24 @@ func binaryDigest(ctx context.Context, name string, result *Descriptor, raw stri
 		return String(result, string(encoded[:])), nil
 	}
 	return Binary(result, string(bytes))
+}
+
+// Adapt immutable octets with bounded scratch shared by builtin and installed hashes.
+func writeHashString(ctx context.Context, digest hash.Hash, raw string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var scratch [4096]byte
+	for start := 0; start < len(raw); {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		n := min(len(scratch), len(raw)-start)
+		copy(scratch[:n], raw[start:start+n])
+		if _, err := digest.Write(scratch[:n]); err != nil {
+			return err
+		}
+		start += n
+	}
+	return ctx.Err()
 }
