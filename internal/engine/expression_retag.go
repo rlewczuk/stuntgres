@@ -798,7 +798,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 			collation = collations[0]
 		}
 		previous := n.value
-		n.value, err = reownDomainDatum(n.value, typ, collation, view.state.enumImports, view.state.aclItemImport)
+		n.value, err = reownDomainDatum(n.value, typ, collation, view.state.scalarImports, view.state.aclItemImport)
 		if err != nil {
 			return nil, false, err
 		}

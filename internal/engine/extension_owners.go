@@ -45,9 +45,15 @@ func extensionOwnerMetadata(catalog CatalogRead, roles authorization.Read, ext *
 		switch d := d.(type) {
 		case *procedureDescriptor:
 			member = extensionMemberOwner{Kind: "procedure", Name: d.name, Signature: string(d.signature)}
+			if d.queryCodec != nil && d.name == "bqarr_out" {
+				member.Signature = "query_int"
+			}
 			principal = d.owner
 		case *tsDictionaryDescriptor:
 			member = extensionMemberOwner{Kind: "dictionary", Name: d.name}
+			principal = d.owner
+		case *typeDescriptor:
+			member = extensionMemberOwner{Kind: "type", Name: d.Name()}
 			principal = d.owner
 		case *tsTemplateDescriptor:
 			continue
@@ -135,8 +141,17 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 			return invalid()
 		}
 	}
+	expectedMembers := 0
+	switch {
+	case record.Name == "unaccent" && record.Version == "1.1":
+		expectedMembers = 5
+	case record.Name == "intarray" && record.Version == "1.5":
+		expectedMembers = 3
+	default:
+		return invalid()
+	}
 	var members []json.RawMessage
-	if err := json.Unmarshal(fields["members"], &members); err != nil || len(members) != 5 {
+	if err := json.Unmarshal(fields["members"], &members); err != nil || len(members) != expectedMembers {
 		return invalid()
 	}
 	seen := map[string]bool{}
@@ -159,11 +174,18 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		switch member.Kind {
 		case "procedure":
 			valid := member.Name == "unaccent" && (member.Signature == string(unaccentTextSignature) || member.Signature == string(unaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(unaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(unaccentLexizeSignature)
+			if record.Name == "intarray" {
+				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
+			}
 			if !valid {
 				return invalid()
 			}
 		case "dictionary":
-			if member.Name != "unaccent" || member.Signature != "" {
+			if record.Name != "unaccent" || member.Name != "unaccent" || member.Signature != "" {
+				return invalid()
+			}
+		case "type":
+			if record.Name != "intarray" || member.Name != "query_int" || member.Signature != "" {
 				return invalid()
 			}
 		default:
@@ -216,12 +238,38 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 			if member.Kind == "dictionary" {
 				class = TSDictionaryClassID
 			}
-			a := candidate.names[NameKey{ClassID: class, Namespace: ext.targetNamespace, Name: member.Name, Signature: member.Signature}]
+			if member.Kind == "type" {
+				class = TypeClassID
+			}
+			signature := member.Signature
+			if record.Name == "intarray" && member.Kind == "procedure" && member.Name == "bqarr_out" {
+				base, ok := candidate.descriptors[ext.members[0]].(*typeDescriptor)
+				if !ok || !base.typ.IsQueryInt() {
+					return fmt.Errorf("stuntgres: missing intarray owner type")
+				}
+				signature = string(queryIntSignature(base.typ.ID()))
+			}
+			a := candidate.names[NameKey{ClassID: class, Namespace: ext.targetNamespace, Name: member.Name, Signature: signature}]
 			d := candidate.descriptors[a]
 			if d == nil || extensionMembership(d) != ext.address {
 				return fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			switch d := d.(type) {
+			case *typeDescriptor:
+				if d.owner != owner.Ref {
+					n := *d
+					n.owner = owner.Ref
+					candidate.descriptors[a] = &n
+					arrayAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.array)}
+					array, ok := candidate.descriptors[arrayAddress].(*typeDescriptor)
+					if !ok || !array.typ.IsArray() || array.typ.Element() != d.typ {
+						return fmt.Errorf("stuntgres: invalid owned intarray array")
+					}
+					mapped := *array
+					mapped.owner = owner.Ref
+					candidate.descriptors[arrayAddress] = &mapped
+					ownersChanged = true
+				}
 			case *procedureDescriptor:
 				if d.owner != owner.Ref {
 					n := *d

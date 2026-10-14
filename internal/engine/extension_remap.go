@@ -1,6 +1,11 @@
 package engine
 
-import "sort"
+import (
+	"slices"
+	"sort"
+	"strconv"
+	"stuntgres/internal/sqltype"
+)
 
 func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddress) Descriptor {
 	address := func(a ObjectAddress) ObjectAddress {
@@ -10,6 +15,14 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		return a
 	}
 	switch d := d.(type) {
+	case *typeDescriptor:
+		next := address(d.extension)
+		if next == d.extension {
+			return d
+		}
+		n := *d
+		n.extension = next
+		return &n
 	case *relationDescriptor:
 		var addresses []ObjectAddress
 		for i, a := range d.autoExtensions {
@@ -32,8 +45,21 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		n := *d
 		n.address = address(n.address)
 		n.targetNamespace = address(n.targetNamespace)
-		for i, a := range n.members {
-			n.members[i] = address(a)
+		var members []ObjectAddress
+		for i, a := range d.members {
+			mapped := address(a)
+			if mapped != a && members == nil {
+				members = slices.Clone(d.members)
+			}
+			if members != nil {
+				members[i] = mapped
+			}
+		}
+		if members != nil {
+			n.members = members
+		}
+		if n.address == d.address && n.targetNamespace == d.targetNamespace && members == nil {
+			return d
 		}
 		return &n
 	case *procedureDescriptor:
@@ -42,7 +68,19 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ObjectAddress]ObjectAddr
 		n.namespace = address(n.namespace)
 		n.extension = address(n.extension)
 		n.dictionary = address(n.dictionary)
-		if n.address == d.address && n.namespace == d.namespace && n.extension == d.extension && n.dictionary == d.dictionary {
+		if n.queryCodec != nil {
+			if n.name == "bqarr_in" {
+				n.result = address(ObjectAddress{ClassID: TypeClassID, ObjectID: n.result}).ObjectID
+			} else {
+				if oid, err := strconv.ParseUint(string(n.signature), 10, 32); err == nil {
+					next := address(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(oid)})
+					if next.ObjectID != OID(oid) {
+						n.signature = queryIntSignature(sqltype.ID(next.ObjectID))
+					}
+				}
+			}
+		}
+		if n.address == d.address && n.namespace == d.namespace && n.extension == d.extension && n.dictionary == d.dictionary && n.signature == d.signature && n.result == d.result {
 			return d
 		}
 		return &n

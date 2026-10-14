@@ -1,0 +1,125 @@
+package engine
+
+import (
+	"fmt"
+	"strconv"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+type intarrayProvider struct{ version string }
+
+var stockIntarray = &intarrayProvider{version: "1.5"}
+
+const intarrayTypeContext = "SQL statement \"CREATE TYPE query_int (\n\tINTERNALLENGTH = -1,\n\tINPUT = bqarr_in,\n\tOUTPUT = bqarr_out\n)\"\nextension script file \"intarray--1.2.sql\", near line 21"
+const intarrayInputContext = "SQL statement \"CREATE FUNCTION bqarr_in(cstring)\nRETURNS query_int\nAS '$libdir/_int'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"intarray--1.2.sql\", near line 11"
+
+func queryIntSignature(id sqltype.ID) procedureSignature {
+	return procedureSignature(strconv.FormatUint(uint64(id), 10))
+}
+
+func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+	available, err := e.displaceAssociatedArrayLocked(stage, ext.targetNamespace, "query_int")
+	if err != nil {
+		return err
+	}
+	if !available || relationTypeNameOccupied(auth.catalog, ext.targetNamespace, "query_int") {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: intarrayTypeContext}
+	}
+	ext.members = make([]ObjectAddress, 3)
+	for i, class := range [3]OID{TypeClassID, ProcedureClassID, ProcedureClassID} {
+		oid, err := e.allocateOIDLocked()
+		if err != nil {
+			return err
+		}
+		ext.members[i] = ObjectAddress{ClassID: class, ObjectID: oid}
+	}
+	ns := auth.catalog.state.descriptors[ext.targetNamespace].Name()
+	typ, err := sqltype.QueryInt(sqltype.ID(ext.members[0].ObjectID), "query_int", dependencyIdentifier(ns)+".query_int")
+	if err != nil {
+		return err
+	}
+	arrayOID, err := e.allocateOIDLocked()
+	if err != nil {
+		return err
+	}
+	array := sqltype.LookupArray(sqltype.ID(arrayOID), associatedArrayName(stage, ext.targetNamespace, typ.Name()), typ)
+	revision, err := e.revisionLocked()
+	if err != nil {
+		return err
+	}
+	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ext.targetNamespace, extension: ext.address, revision: revision, owner: owner, acl: stage.creationACL(owner, ext.targetNamespace, authorization.DefaultTypes), array: array.ID()}); err != nil {
+		return err
+	}
+	if err := stage.Create(&typeDescriptor{typ: array, namespace: ext.targetNamespace, revision: revision, owner: owner, acl: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false)}); err != nil {
+		return err
+	}
+	for i := range 2 {
+		revision, err := e.revisionLocked()
+		if err != nil {
+			return err
+		}
+		name, signature, result := "bqarr_in", procedureSignature("2275"), OID(typ.ID())
+		if i == 1 {
+			name, signature, result = "bqarr_out", queryIntSignature(typ.ID()), 2275
+		}
+		proc := &procedureDescriptor{address: ext.members[i+1], namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: name, signature: signature, owner: owner, result: result, volatility: Immutable, strict: true, queryCodec: p}
+		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
+			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
+			if i == 0 {
+				err.Context = intarrayInputContext
+			} else {
+				err.Context = "SQL statement \"CREATE FUNCTION bqarr_out(query_int)\nRETURNS cstring\nAS '$libdir/_int'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"intarray--1.2.sql\", near line 16"
+			}
+			return err
+		}
+		if err := stage.Create(proc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid intarray manifest") }
+	if p != stockIntarray || ext.name != "intarray" || ext.version != p.version || len(ext.members) != 3 {
+		return invalid()
+	}
+	if ext.members[0].ClassID != TypeClassID || ext.members[1].ClassID != ProcedureClassID || ext.members[2].ClassID != ProcedureClassID {
+		return invalid()
+	}
+	base, ok := v.state.descriptors[ext.members[0]].(*typeDescriptor)
+	if !ok || base.typ == nil || base.Address() != ext.members[0] || !base.typ.IsQueryInt() || base.Name() != "query_int" || base.extension != ext.address || base.Namespace() != ext.targetNamespace || base.revision == 0 || base.array == 0 {
+		return invalid()
+	}
+	array, ok := v.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.array)}].(*typeDescriptor)
+	if !ok || array.typ == nil || !array.typ.IsArray() || array.typ.Concrete() || array.typ.Element() != base.typ || array.Namespace() != base.Namespace() || array.owner != base.owner || array.extension != (ObjectAddress{}) {
+		return invalid()
+	}
+	if err := (typeProvider{}).Validate(v, array); err != nil {
+		return err
+	}
+	for i, address := range ext.members[1:] {
+		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
+		if !ok || proc.address != address || proc.queryCodec != p || proc.extension != ext.address || proc.namespace != ext.targetNamespace || proc.revision == 0 {
+			return invalid()
+		}
+		name, signature, result := "bqarr_in", procedureSignature("2275"), OID(base.typ.ID())
+		if i == 1 {
+			name, signature, result = "bqarr_out", queryIntSignature(base.typ.ID()), 2275
+		}
+		if proc.name != name || proc.signature != signature || proc.result != result || !proc.strict || proc.volatility != Immutable || proc.provider != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) {
+			return invalid()
+		}
+	}
+	return nil
+}
+
+func (p *intarrayProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
+	ext, ok := v.state.descriptors[proc.extension].(*extensionDescriptor)
+	if !ok {
+		return fmt.Errorf("stuntgres: missing intarray codec installation")
+	}
+	return p.validate(v, ext)
+}

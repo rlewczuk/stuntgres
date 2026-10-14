@@ -10,6 +10,7 @@ import (
 
 type extensionProvider interface {
 	stage(*Engine, *CatalogStage, *extensionDescriptor, authorization.PrincipalRef, AuthorizationView) error
+	validate(CatalogRead, *extensionDescriptor) error
 }
 type registeredExtension struct {
 	version                         string
@@ -190,6 +191,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 }
 
 func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
+	ext.members = make([]ObjectAddress, 6)
 	for i, class := range [6]OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {

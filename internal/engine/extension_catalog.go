@@ -34,7 +34,7 @@ type extensionDescriptor struct {
 	name, version   string
 	targetNamespace ObjectAddress
 	owner           authorization.PrincipalRef
-	members         [6]ObjectAddress
+	members         []ObjectAddress // immutable after detached staging
 }
 
 func (d *extensionDescriptor) Address() ObjectAddress       { return d.address }
@@ -53,6 +53,7 @@ type procedureDescriptor struct {
 	volatility                    Volatility
 	strict                        bool
 	provider                      *unaccentProvider
+	queryCodec                    *intarrayProvider
 	conversion                    sqltype.EncodingConversionHandler
 	acl                           authorization.ACLValue
 	dictionary                    ObjectAddress
@@ -120,16 +121,16 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	var ext ObjectAddress
 	switch d := d.(type) {
 	case *extensionDescriptor:
-		if d.name != "unaccent" || d.version != "1.1" || d.Namespace() != (ObjectAddress{}) {
+		registration, registered := v.owner.extensions[d.name]
+		if !registered || d.version != registration.version || d.Namespace() != (ObjectAddress{}) {
 			return invalid()
 		}
 		if _, ok := v.state.descriptors[d.targetNamespace].(*namespaceDescriptor); !ok {
 			return invalid()
 		}
 		seen := map[ObjectAddress]bool{}
-		classes := [6]OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID}
-		for i, a := range d.members {
-			if seen[a] || a.ClassID != classes[i] {
+		for _, a := range d.members {
+			if seen[a] {
 				return invalid()
 			}
 			seen[a] = true
@@ -138,22 +139,17 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 				return invalid()
 			}
 		}
-		signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
-		for i, s := range signatures {
-			proc, ok := v.state.descriptors[d.members[i]].(*procedureDescriptor)
-			if !ok || proc.signature != s {
-				return invalid()
-			}
-		}
-		tmpl, ok := v.state.descriptors[d.members[4]].(*tsTemplateDescriptor)
-		if !ok || tmpl.init != d.members[2] || tmpl.lexize != d.members[3] {
-			return invalid()
-		}
-		dict, ok := v.state.descriptors[d.members[5]].(*tsDictionaryDescriptor)
-		if !ok || dict.template != d.members[4] {
-			return invalid()
+		if err := registration.provider.validate(v, d); err != nil {
+			return err
 		}
 	case *procedureDescriptor:
+		if d.queryCodec != nil {
+			if err := d.queryCodec.validateProcedure(v, d); err != nil {
+				return err
+			}
+			ext = d.extension
+			break
+		}
 		if d.conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.name)
 			if !ok || d.conversion != registered || d.provider != nil || d.signature != conversionSignature || d.result != 23 || d.volatility != Immutable || !d.strict || d.extension != (ObjectAddress{}) || d.dictionary != (ObjectAddress{}) || d.namespace != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || conversionRoutineName(d.address.ObjectID) != d.name {
@@ -227,6 +223,8 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 }
 func extensionMembership(d Descriptor) ObjectAddress {
 	switch d := d.(type) {
+	case *typeDescriptor:
+		return d.extension
 	case *procedureDescriptor:
 		return d.extension
 	case *tsTemplateDescriptor:
@@ -279,6 +277,35 @@ func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name st
 			procedure, _ := catalog.state.descriptors[address].(*procedureDescriptor)
 			return procedure
 		}
+	}
+	return nil
+}
+
+func (p *unaccentProvider) validate(v CatalogRead, d *extensionDescriptor) error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
+	if p != stockUnaccent || len(d.members) != 6 {
+		return invalid()
+	}
+	classes := [6]OID{ProcedureClassID, ProcedureClassID, ProcedureClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID}
+	for i, member := range d.members {
+		if member.ClassID != classes[i] {
+			return invalid()
+		}
+	}
+	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
+	for i, signature := range signatures {
+		proc, ok := v.state.descriptors[d.members[i]].(*procedureDescriptor)
+		if !ok || proc.signature != signature || proc.provider != p || proc.queryCodec != nil {
+			return invalid()
+		}
+	}
+	tmpl, ok := v.state.descriptors[d.members[4]].(*tsTemplateDescriptor)
+	if !ok || tmpl.init != d.members[2] || tmpl.lexize != d.members[3] || tmpl.provider != p {
+		return invalid()
+	}
+	dict, ok := v.state.descriptors[d.members[5]].(*tsDictionaryDescriptor)
+	if !ok || dict.template != d.members[4] || dict.provider != p {
+		return invalid()
 	}
 	return nil
 }

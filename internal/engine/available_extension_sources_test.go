@@ -72,29 +72,47 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog CatalogRead, version
 	for _, oid := range []OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
 		source, err := captureAvailableExtensions(context.Background(), e.extensions, catalog, ref, d)
-		if err != nil || source == nil || source.count() != 1 || source.ref != ref {
+		if err != nil || source == nil || source.count() != 2 || source.ref != ref {
 			t.Fatal("capture", source, err)
 		}
-		want := []any{"unaccent", "1.1", version, comment}
-		if oid == 12085 {
-			want = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
+		expected := map[string][]any{
+			"unaccent": {"unaccent", "1.1", version, comment},
+			"intarray": {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
 		}
-		for i, v := range source.anonymous[0] {
-			if v.IsNull() {
-				if want[i] != nil {
-					t.Fatal("unexpected NULL", i)
+		if oid == 12085 {
+			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
+			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
+		}
+		for _, row := range source.anonymous {
+			name, err := row[0].Text()
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, ok := expected[name]
+			if !ok {
+				t.Fatal("unexpected registry row", name)
+			}
+			delete(expected, name)
+			for i, v := range row {
+				if v.IsNull() {
+					if want[i] != nil {
+						t.Fatal("unexpected NULL", name, i)
+					}
+					continue
 				}
-				continue
+				var got any
+				if d.columns[i].Usage.Type.ID() == sqltype.Bool {
+					got, err = v.Boolean()
+				} else {
+					got, err = v.Text()
+				}
+				if err != nil || got != want[i] {
+					t.Fatal("value", name, i, got, want[i], err)
+				}
 			}
-			var got any
-			if d.columns[i].Usage.Type.ID() == sqltype.Bool {
-				got, err = v.Boolean()
-			} else {
-				got, err = v.Text()
-			}
-			if err != nil || got != want[i] {
-				t.Fatal("value", i, got, want[i], err)
-			}
+		}
+		if len(expected) != 0 {
+			t.Fatal("missing registry rows", expected)
 		}
 	}
 }
@@ -206,17 +224,26 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	values := append([]sqltype.Value(nil), old.anonymous[0]...)
+	var installedRow []sqltype.Value
+	for _, row := range old.anonymous {
+		if name, err := row[0].Text(); err == nil && name == "unaccent" {
+			installedRow = row
+		}
+	}
+	if installedRow == nil {
+		t.Fatal("missing installed unaccent registry row")
+	}
+	values := append([]sqltype.Value(nil), installedRow...)
 	columns := append([]ColumnDescriptor(nil), d.columns...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	availableUnitExpected(t, e, e.CatalogRead(), nil, false)
 	fresh, _ := availableUnitSource(e, 12081)
-	if fresh.columns[0].Usage.Type == d.columns[0].Usage.Type || !reflect.DeepEqual(values, old.anonymous[0]) || !reflect.DeepEqual(columns, d.columns) {
+	if fresh.columns[0].Usage.Type == d.columns[0].Usage.Type || !reflect.DeepEqual(values, installedRow) || !reflect.DeepEqual(columns, d.columns) {
 		t.Fatal("retained generation mutated")
 	}
-	if version, err := old.anonymous[0][2].Text(); err != nil || version != "1.1" {
+	if version, err := installedRow[2].Text(); err != nil || version != "1.1" {
 		t.Fatal("retained installed state", version, err)
 	}
 	if source, err := captureAvailableExtensions(context.Background(), e.extensions, e.CatalogRead(), ref, d); source != nil || err == nil {

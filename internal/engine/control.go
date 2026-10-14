@@ -286,6 +286,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				views = append(views, dumpView{principal.Name, text})
 				continue
 			case *typeDescriptor:
+				if t.typ.IsQueryInt() || t.extension != (ObjectAddress{}) {
+					if err := (typeProvider{}).Validate(catalog, t); err != nil {
+						e.mu.Unlock()
+						return err
+					}
+					continue
+				}
 				if t.typ.IsUserDefined() && !t.typ.IsComposite() {
 					domains = append(domains, t)
 				} else if t.typ.IsArray() {

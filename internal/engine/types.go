@@ -77,6 +77,7 @@ type typeDescriptor struct {
 	namespace      ObjectAddress
 	revision       DefinitionRevision
 	owner          authorization.PrincipalRef
+	extension      ObjectAddress
 	acl            authorization.ACLValue
 	dimensions     int32
 	array          sqltype.ID
@@ -116,6 +117,17 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	found := view.Lookup(descriptorNameKey(descriptor))
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
+	}
+	if t.extension != (ObjectAddress{}) {
+		parent, ok := view.state.descriptors[t.extension].(*extensionDescriptor)
+		if !ok || parent.name != "intarray" || parent.targetNamespace != t.Namespace() || !t.typ.IsQueryInt() {
+			return fmt.Errorf("stuntgres: invalid installed type membership")
+		}
+		if err := stockIntarray.validate(view, parent); err != nil {
+			return err
+		}
+	} else if t.typ.IsQueryInt() {
+		return fmt.Errorf("stuntgres: query_int type has no installation")
 	}
 	if t.owningRelation != (ObjectAddress{}) {
 		relation, ok := view.state.descriptors[t.owningRelation].(*relationDescriptor)

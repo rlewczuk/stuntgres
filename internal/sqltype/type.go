@@ -112,6 +112,7 @@ type Descriptor struct {
 	associatedArray     ID
 	delimiter           byte
 	enum                *enumDefinition
+	queryInt            bool
 	composite           *compositeDefinition
 	rangeSubtype        *Descriptor
 	multirangeRange     *Descriptor
@@ -334,6 +335,7 @@ type Value struct {
 	multirange      *multirangePayload
 	network         networkDatum
 	aclitem         aclitemDatum
+	queryInt        *queryIntPayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -356,6 +358,12 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 		if _, ok := toEnum.enum.ranks[v.integer]; !ok {
 			return Value{}, fmt.Errorf("foreign enum member")
 		}
+	}
+	if fromEnum.IsQueryInt() != toEnum.IsQueryInt() {
+		return Value{}, fmt.Errorf("incompatible query_int declaration")
+	}
+	if fromEnum.IsQueryInt() && !v.null && !v.validQueryInt() {
+		return Value{}, fmt.Errorf("invalid query_int payload")
 	}
 	if d.IsDomain() {
 		from, to := v.typ.Usage().BaseUsage(), d.Usage().BaseUsage()
@@ -595,7 +603,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if d.IsQueryInt() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -604,6 +612,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsEnum() {
 		return d.enumInput(text, env)
+	}
+	if d.IsQueryInt() {
+		return d.queryIntInput(ctx, text)
 	}
 	switch d.id {
 	case ACLItem:
@@ -868,6 +879,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsEnum() {
 		return d.enumOutput(v)
 	}
+	if d.IsQueryInt() {
+		return d.queryIntOutput(ctx, v)
+	}
 	switch d.id {
 	case ACLItem:
 		return v.aclitemOutput(env)
@@ -1049,6 +1063,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	}
+	if d.IsQueryInt() {
+		text, err := d.queryIntOutput(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
 	}
 	switch d.id {
 	case Inet, Cidr:
@@ -1455,6 +1476,17 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.IsQueryInt() || target.Type.IsQueryInt() {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
+			context == Assignment && source.Type.IsQueryInt() && IsCharacter(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
 	if IsTransactionIdentifier(source.Type.id) || IsTransactionIdentifier(target.Type.id) {
 		switch {
 		case source.Type == target.Type:

@@ -307,6 +307,45 @@ Index partitions have NULL bounds. Additional partition strategies and hierarchy
 alterations, including member RENAME, are not enabled; native retained-bound
 witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
+## query_int extension type
+
+The registered intarray provider supplies selected query_int scalar storage,
+canonical text input/output, contextual literal/bound input, NULL, same-type
+assignment, and explicit text/varchar I/O casts. Assignment from query_int to
+admitted character targets uses canonical output, including typed NULL.
+Typed character assignment into query_int and implicit/function-argument
+character conversion remain rejected. Type identity is allocated by the installed
+extension, not a fixed builtin OID. Native controls serialize CREATE EXTENSION
+before consumers and remap actual type/codec/owner identities on restore.
+
+The automatically associated _query_int type is lookup-only. This provider does
+not add query_int array storage, integer-array storage or operations, @@/~~,
+querytree, evaluation, sorting/comparison of queries, indexes or opclasses.
+Lookup-only is a codec/storage boundary, not bootstrap pinning: the associated
+array retains its real internal pg_depend dependency on the installed element.
+The availability-view control description is PostgreSQL's stock intarray
+description; it does not promise the stock extension's complete native object
+inventory. Arbitrary internal/C function loaders remain unavailable. The real
+PostgreSQL helper-ABI collision witness is consequently PG-only; native units
+exercise genuine published type conflicts and complete provider validation.
+
+Native query_int results expose QUERY_INT, string ScanType and known declared
+nullability, including empty and NULL-only results; length/decimal precision
+remain unknown. lib/pq's static OID map does not know PostgreSQL's generated
+query_int OID: its type name is empty, ScanType is interface{}, nullability and
+length/precision are unknown, non-NULL cells are []byte and NULL cells are nil.
+SQL declaration nonnumeric modifiers retain the existing generic-type parser
+boundary: a string modifier can fail at syntax analysis earlier than PostgreSQL's
+catalog-driven “type modifier is not allowed” rejection. Numeric modifiers
+retain the PostgreSQL type-modifier diagnostic. This is separate from parsing
+the Boolean query text inside a value.
+
+Reference expectations use the pinned PostgreSQL18.0 UTF8/C oracle for unchanged
+release semantics. No newer devel overflow guard, artificial parenthesis/OR/node
+limit, PostgreSQL18.6 runtime claim, or unmeasured named-TEMP script diagnostic
+is implied. TEMP component validation/retirement units cover actual native
+session lifetimes, not fabricated PostgreSQL helper-script parity.
+
 ## Types, expressions and catalogs
 
 - Domain constraints, inherited domain defaults and domain alteration are

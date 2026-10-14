@@ -56,8 +56,10 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			if !pg {
 				// Native availability is its real embedded registry, not PostgreSQL's
 				// larger system package installation or bootstrap plpgsql descriptor.
-				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions", false, availableExtensionsRow(installedVersion), pg))
-				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions", true, availableVersionsRow(installed), pg))
+				wantAvailable := append([][]any{{"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"}}, availableExtensionsRow(installedVersion)...)
+				wantVersions := append([][]any{{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}}, availableVersionsRow(installed)...)
+				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
+				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name", true, wantVersions, pg))
 				for _, name := range []string{"hstore", "file_fdw", "plpgsql"} {
 					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name=$1", false, [][]any{}, pg, name))
 					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name=$1", true, [][]any{}, pg, name))

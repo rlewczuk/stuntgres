@@ -189,7 +189,7 @@ func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpre
 	if n.value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
 	}
-	if u.Type.IsEnum() {
+	if u.Type.IsEnum() || u.Type.IsQueryInt() {
 		declaration, err := catalogTypeDeclaration(view, u)
 		if err != nil {
 			return "", err

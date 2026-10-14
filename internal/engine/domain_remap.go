@@ -23,6 +23,39 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
+		if d.typ.IsQueryInt() {
+			target, namespace, extension := address, d.Namespace(), d.extension
+			if to, ok := mapping[address]; ok {
+				target = to
+			}
+			if to, ok := mapping[namespace]; ok {
+				namespace = to
+			}
+			if to, ok := mapping[extension]; ok {
+				extension = to
+			}
+			ns, ok := next.descriptors[d.Namespace()]
+			if !ok {
+				return fmt.Errorf("stuntgres: missing query_int namespace")
+			}
+			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
+			associated := d.array
+			if to, ok := mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(associated)}]; ok {
+				associated = sqltype.ID(to.ObjectID)
+			}
+			if target != address || namespace != d.Namespace() || extension != d.extension || associated != d.array || declaration != d.typ.SQLName() {
+				typ, err := sqltype.QueryInt(sqltype.ID(target.ObjectID), d.Name(), declaration)
+				if err != nil {
+					return err
+				}
+				copy := *d
+				copy.typ, copy.namespace, copy.extension, copy.array = typ, namespace, extension, associated
+				next.descriptors[address] = &copy
+				changed = true
+			}
+			visited[address] = true
+			return nil
+		}
 		if d.typ.IsEnum() {
 			target, namespace := address, d.Namespace()
 			if destination, ok := mapping[address]; ok {
@@ -274,14 +307,18 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 	}
 	if imported := imports[value.Type().BaseType()]; imported != nil {
-		if !target.BaseType().IsEnum() || imported != target.BaseType() {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign imported enum destination")
+		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsQueryInt() {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign imported scalar destination")
 		}
 		physical, err := value.BaseValue()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		physical, err = physical.RemapEnum(target.BaseType())
+		if physical.Type().IsQueryInt() {
+			physical, err = physical.RemapQueryInt(target.BaseType())
+		} else {
+			physical, err = physical.RemapEnum(target.BaseType())
+		}
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -304,7 +341,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 		from.Collation = mapped
 	}
-	if (!from.Type.IsEnum() && !from.Type.IsComposite() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
+	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsQueryInt() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
 	physical, err := value.BaseValue()
@@ -384,7 +421,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 				changed := target != value.Type()
 				var err error
 				if changed || next.aclItemImport != nil && value.Type().ContainsACLItem() {
-					rebound, err = reownDomainDatum(value, target, collation, next.enumImports, next.aclItemImport)
+					rebound, err = reownDomainDatum(value, target, collation, next.scalarImports, next.aclItemImport)
 					if err != nil {
 						return err
 					}

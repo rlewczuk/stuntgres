@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -118,6 +119,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		t.Fatal("membership count", n)
 	}
 	bad := *ext
+	bad.members = slices.Clone(ext.members)
 	bad.members[1] = bad.members[0]
 	if err := (extensionCatalogProvider{ExtensionClassID}).Validate(view, &bad); err == nil {
 		t.Fatal("duplicate members accepted")

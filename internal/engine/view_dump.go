@@ -41,6 +41,9 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 		if typ.typ.IsArray() {
 			return dumpPredecessor(view, ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.typ.Element().ID())}, consumer)
 		}
+		if typ.extension != (ObjectAddress{}) {
+			return dumpPredecessor(view, typ.extension, consumer)
+		}
 		if typ.owningRelation == (ObjectAddress{}) && typ.typ.IsUserDefined() {
 			return typ.Address().ObjectID, nil
 		}

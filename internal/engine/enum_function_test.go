@@ -57,7 +57,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if _, _, err := retagBoundTypes(targetView, expr, mapping); err == nil {
 		t.Fatal("cross-lifetime literal remap admitted without import authority")
 	}
-	targetView.state.enumImports = map[*sqltype.Descriptor]*sqltype.Descriptor{mood: targetMood}
+	targetView.state.scalarImports = map[*sqltype.Descriptor]*sqltype.Descriptor{mood: targetMood}
 	mapped, changed, err := retagBoundTypes(targetView, expr, mapping)
 	if err != nil || !changed {
 		t.Fatal(changed, err)

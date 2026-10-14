@@ -45,6 +45,25 @@ serial. This is not PostgreSQL background-worker scheduling or parallel
 index/join/aggregate machinery. See [query contracts](docs/QUERIES.md#parallel-select-scans)
 and [selected proof](reference/query_core/README.md#parallel-select-scan-contract).
 
+## query_int value storage — change note
+
+`CREATE EXTENSION intarray` installs the selected `query_int` base type and its
+codec identities through the existing extension registry. Declared columns,
+literal and bound values, SQL NULL, explicit text/varchar I/O casts, and
+same-type assignments retain typed integer Boolean-query values. Assignment
+from query_int to text/varchar stores canonical output; typed character values
+require an explicit cast into query_int. Stored order, duplicates and query
+structure are not simplified.
+Native Dump/Reset/Restore recreates the extension before its consumers and
+preserves pending result snapshots and their metadata.
+
+This is selected type support, **not the complete intarray extension**:
+integer-array operations, query evaluation, operators, indexes and query_int
+array storage are not added. Native query_int columns expose QUERY_INT/string
+metadata; lib/pq treats PostgreSQL's generated extension OID as an unknown type.
+See [native limits](docs/DIALECT.md#query_int-extension-type) and
+[selected proof and smoke](reference/types/README.md#query_int-selected-proof).
+
 ## Session cursor metadata — change note
 
 `pg_catalog.pg_cursors` exposes the physical session's supported SQL DECLARE
@@ -2894,14 +2913,14 @@ and the same command with `REFERENCE=1` for pinned PostgreSQL18.0.
 **Installed-extension catalog change note:** `pg_catalog.pg_extension` is readonly
 relation3079 with eight exact OID/NAME/BOOL/TEXT/OID[]/TEXT[] fields, known native
 nullability and C950 collations on collatable columns. Fresh native installed
-state is empty; actual registered `unaccent` installations supply descriptor-derived
+state is empty; actual registered `unaccent` and selected-type `intarray` installations supply descriptor-derived
 rows. No PL/pgSQL installation is fabricated. PostgreSQL18.0's default database
 independently has installed `plpgsql`1.0; available control files are not installed rows.
 Normal REGCLASS/search_path/prepared queries and native Dump/Reset/Restore use
 the existing relation authority. Fixed relation3079 differs from the reused
 allocated native rowtype10074/array10073; no cross-server type allocator promise,
 physical system index or TOAST implementation is implied.
-Registered unaccent CREATE is supported; unavailable providers fail0A000 at
+Registered unaccent and selected-type intarray CREATE are supported; unavailable providers fail0A000 at
 execution, including after successful Prepare. ALTER/DROP EXTENSION and module
 loading retain their unsupported boundaries.
 See [exact shape, installed authority and errors](https://www.postgresql.org/docs/18/catalogs.html).
@@ -2911,10 +2930,12 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatur
 **Available-extension metadata change note:** `pg_catalog.pg_available_extensions`
 and `pg_catalog.pg_available_extension_versions` are readonly PUBLIC SELECT views
 over the same immutable embedded registry used by installation. The native
-universe is exactly genuine unaccent1.1, with its released comment and
-superuser/trusted/relocatable flags; hstore, file_fdw and plpgsql are not invented.
+universe is genuine unaccent1.1 and selected-type intarray1.5, with their released
+control comments and superuser/trusted/relocatable flags; the intarray comment
+does not promise stock advanced-operation execution. hstore, file_fdw and plpgsql
+are not invented.
 Default/available version and actual installed version are distinct. Control
-schema/dependencies remain NULL for unaccent even when installed elsewhere.
+schema/dependencies remain NULL for both providers even when installed elsewhere.
 Metadata is not filtered by member namespace privileges or TEMP ownership;
 ordinary relation admission and SQL predicates still apply.
 Both availability views and `pg_extension` share one caller-visible installed-state

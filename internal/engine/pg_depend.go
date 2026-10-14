@@ -28,7 +28,9 @@ func pgDependPinned(catalog CatalogRead, address ObjectAddress) bool {
 			relation, ok := catalog.state.descriptors[d.owningRelation].(*relationDescriptor)
 			return !ok || relation.relationKind == catalogRelation
 		}
-		return !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsDomain())
+		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
+		// arrays retain their owned element's dependency even without storage.
+		return !d.typ.IsUserDefined() && !(d.typ.IsArray() && (d.typ.Element().IsDomain() || d.typ.Element().IsUserDefined()))
 	case *collationDescriptor:
 		return d.seeded()
 	case *conversionDescriptor:
@@ -81,6 +83,14 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		case *procedureDescriptor:
 			add(d.address, d.extension, 'e')
 			add(d.address, d.namespace, 'n')
+			if d.queryCodec != nil {
+				if d.name == "bqarr_in" {
+					add(d.address, ObjectAddress{ClassID: TypeClassID, ObjectID: d.result}, 'n')
+				} else {
+					ext := catalog.state.descriptors[d.extension].(*extensionDescriptor)
+					add(d.address, ext.members[0], 'n')
+				}
+			}
 		case *tsTemplateDescriptor:
 			add(d.address, d.extension, 'e')
 			add(d.address, d.namespace, 'n')
@@ -103,6 +113,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			if pgDependPinned(catalog, d.Address()) {
 				continue
 			}
+			add(d.Address(), d.extension, 'e')
 			if d.typ.IsArray() {
 				add(d.Address(), ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())}, 'i')
 			} else if d.owningRelation != (ObjectAddress{}) && !d.typ.IsComposite() {

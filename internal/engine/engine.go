@@ -193,6 +193,10 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.registerExtension("unaccent", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUnaccent}); err != nil {
 		return nil, err
 	}
+	comment = "functions, operators, and index support for 1-D arrays of integers"
+	if err := e.registerExtension("intarray", registeredExtension{version: "1.5", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockIntarray}); err != nil {
+		return nil, err
+	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
 	for _, ns := range []struct {
 		oid  OID

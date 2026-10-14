@@ -178,7 +178,7 @@ type catalogState struct {
 	dumpPriorities map[ObjectAddress]OID
 	// Replacement-candidate-only translation, cleared before publication.
 	// Keys are exact source codecs, never numeric identity coincidences.
-	enumImports   map[*sqltype.Descriptor]*sqltype.Descriptor
+	scalarImports map[*sqltype.Descriptor]*sqltype.Descriptor
 	aclItemImport func(sqltype.Value) (sqltype.Value, error)
 }
 type CatalogRead struct {

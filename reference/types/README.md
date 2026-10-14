@@ -6,6 +6,59 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### query_int selected proof
+
+The seven untagged `TestReferenceQueryInt` definitions share public SQL/API
+fixtures across native and pinned PostgreSQL. They independently assert
+installation and generated identity relationships, canonical integer Boolean
+query text, direct/prepared/held values, owned byte bindings, nil and typed-nil
+NULLs, empty-byte failures, explicit character I/O, directional query_int-to-
+TEXT/VARCHAR assignment (VALUES/SELECT/UPDATE) and rejected typed character
+assignment into query_int, full diagnostics/stages/locations, raw metadata,
+and statement atomicity.
+Controls include pending readers/metadata, committed-only dumps, atomic
+same/fresh-driver restore, SQL extension recreation and actual emitted-SQL
+oracle replay. Native controls are explicit native-only subphases.
+
+Run each selection from the repository root with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceQueryInt(Installation|Grammar|Assignment|Diagnostics|Metadata|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceQueryInt(Installation|Grammar|Assignment|Diagnostics|Metadata|Controls|FeatureSmoke)$'
+make check RUN='^(TestQueryInt(Input|Output|Identity|Coercion|Cancellation)|TestIntarrayProvider(Identity|Conflicts|Controls))$'
+make check RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check RACE=1 RUN='^(TestQueryIntCancellation|TestIntarrayProviderControls|TestReferenceQueryInt(Assignment|Controls|Metadata))$'
+```
+
+The existing availability witness now asserts both actual native registered
+providers (intarray and unaccent), not PostgreSQL's larger package inventory.
+The genuine LANGUAGE internal/cstring helper conflict remains a PG native-ABI
+witness; native provider units retain strict reciprocal membership and prove
+published type conflicts, invalid-manifest rejection, nonaliasing remapping
+and actual TEMP validation/retirement. No arbitrary SQL loader is introduced.
+The declaration string-modifier syntax boundary is documented in
+[DIALECT](../../docs/DIALECT.md#query_int-extension-type), distinct from query
+text diagnostics. Flat OR15/16/17/32 succeeds;16 NOTs succeeds and17 fails.
+Generated OIDs are checked relationally, not pinned to another allocator.
+
+The standalone public executable is transient session material
+`local://query-int-smoke.go`, not a parent deliverable or committed helper.
+The root materializes it outside the checkout and runs:
+
+```sh
+timeout 900s go run "$SESSION_TMP/query-int-smoke.go"
+```
+
+Expected quiet exit0 with no stdout/stderr. It exercises literal and held
+bindings (including buffer ownership and both NULL forms), raw direct/prepared
+metadata, complete atomic parameter diagnostics, same-type copies, directional
+TEXT/VARCHAR assignment through direct/prepared VALUES/SELECT/UPDATE (including
+typed NULL), extension dump ordering, retained readers, Reset/Restore,
+independent destination restore, failed replacement and coexistence with
+unaccent. A passing test or smoke is
+evidence only when the root records its actual execution.
+
 ### ACL item oracle-first selected proof
 
 The ACL definitions share one SQL body across native and pinned PostgreSQL,

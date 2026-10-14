@@ -72,33 +72,70 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			if !reflect.DeepEqual(retained, sources[first].anonymous) {
 				t.Fatal("publication mutated already-opened rows")
 			}
-			if sources[12081].count() != 1 || !sources[12081].anonymous[0][2].IsNull() {
-				t.Error("old statement availability must have NULL installed_version")
+			assertAvailable := func(source *querySource, oid OID, installed bool) {
+				t.Helper()
+				var unaccentVersion any
+				if installed {
+					unaccentVersion = "1.1"
+				}
+				expected := map[string][]any{
+					"unaccent": {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
+					"intarray": {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
+				}
+				if oid == 12085 {
+					expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, "text search dictionary that removes accents"}
+					expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
+				}
+				for _, row := range source.anonymous {
+					name, err := row[0].Text()
+					if err != nil {
+						t.Fatal("inventory name", oid, err)
+					}
+					want, ok := expected[name]
+					if !ok || len(row) != len(want) {
+						t.Fatal("unexpected or duplicate inventory row", oid, name, row)
+					}
+					delete(expected, name)
+					for i, value := range row {
+						if value.IsNull() {
+							if want[i] != nil {
+								t.Fatal("unexpected inventory NULL", oid, name, i, want[i])
+							}
+							continue
+						}
+						var got any
+						if value.Type().ID() == sqltype.Bool {
+							got, err = value.Boolean()
+						} else {
+							got, err = value.Text()
+						}
+						if err != nil || got != want[i] {
+							t.Fatal("inventory value", oid, name, i, got, want[i], err)
+						}
+					}
+				}
+				if len(expected) != 0 {
+					t.Fatal("missing inventory rows", oid, expected)
+				}
 			}
-			if sources[12085].count() != 1 {
-				t.Fatal("old statement version inventory changed")
-			}
-			if installed, err := sources[12085].anonymous[0][2].Boolean(); err != nil || installed {
-				t.Error("old statement version must be uninstalled", installed, err)
-			}
+			assertAvailable(sources[12081], 12081, false)
+			assertAvailable(sources[12085], 12085, false)
 			if sources[ExtensionClassID].count() != 0 {
 				t.Error("old statement pg_extension must have no installed row")
 			}
 			for _, oid := range []OID{12081, 12085, ExtensionClassID} {
 				source := open(fresh, oid)
+				if oid != ExtensionClassID {
+					assertAvailable(source, oid, true)
+					continue
+				}
 				if source.count() != 1 {
-					t.Fatal("fresh statement must see genuine installation", oid, source.count())
+					t.Fatal("fresh statement must see exactly the genuine installation", source.count())
 				}
-				index := 2
-				if oid == ExtensionClassID {
-					index = 5
-				}
-				if oid == 12085 {
-					if installed, err := source.anonymous[0][index].Boolean(); err != nil || !installed {
-						t.Fatal("fresh installed flag", installed, err)
-					}
-				} else if version, err := source.anonymous[0][index].Text(); err != nil || version != "1.1" {
-					t.Fatal("fresh installed version", oid, version, err)
+				name, nameErr := source.anonymous[0][1].Text()
+				version, versionErr := source.anonymous[0][5].Text()
+				if nameErr != nil || versionErr != nil || name != "unaccent" || version != "1.1" {
+					t.Fatal("fresh installed identity", name, version, nameErr, versionErr)
 				}
 			}
 		})

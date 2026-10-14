@@ -1,0 +1,341 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"slices"
+	"testing"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func intarrayUnitStage(t *testing.T, e *Engine, op *Operation, name, schema string) *CatalogStage {
+	t.Helper()
+	creation := &parser.CreateExtension{Name: parser.Identifier{Text: name}}
+	if schema != "" {
+		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
+	}
+	e.mu.Lock()
+	stage, err := e.stageExtensionLocked(&StatementScope{op: op}, creation)
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
+	return stage
+}
+
+func intarrayUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor, *typeDescriptor) {
+	t.Helper()
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", ""))
+	ext := e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+	return e, ext, e.state.descriptors[ext.members[0]].(*typeDescriptor)
+}
+
+func TestIntarrayProviderIdentity(t *testing.T) {
+	e, ext, base := intarrayUnitInstalled(t)
+	view := e.CatalogRead()
+	if err := (extensionCatalogProvider{ExtensionClassID}).Validate(view, ext); err != nil {
+		t.Fatal(err)
+	}
+	if ext.version != "1.5" || len(ext.members) != 3 || base.extension != ext.address || !base.typ.IsQueryInt() || base.owner != ext.owner {
+		t.Fatal("installed identity", ext, base)
+	}
+	array, ok := view.LookupArray(base.typ)
+	if !ok || array.Concrete() || array.Element() != base.typ || array.ID() == base.typ.ID() {
+		t.Fatal("lookup-only reciprocal array")
+	}
+	arrayAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(array.ID())}
+	if pgDependPinned(view, base.Address()) || pgDependPinned(view, arrayAddress) {
+		t.Fatal("installed base or automatic array classified as bootstrap-pinned")
+	}
+	if !pgDependPinned(view, ObjectAddress{ClassID: TypeClassID, ObjectID: 1007}) {
+		t.Fatal("builtin int4 array lost bootstrap pinning")
+	}
+	for i, address := range ext.members {
+		member := view.state.descriptors[address]
+		if member == nil || member.Namespace() != ext.targetNamespace || extensionMembership(member) != ext.address {
+			t.Fatal("membership", address)
+		}
+		owner, _, _ := descriptorACL(member)
+		if owner != ext.owner {
+			t.Fatal("owner", address)
+		}
+		if i == 0 {
+			if err := (typeProvider{}).Validate(view, member); err != nil {
+				t.Fatal(err)
+			}
+		} else if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, member); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edges, err := collectPGDepend(context.Background(), view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	members := map[ObjectAddress]bool{}
+	arrayInternal := false
+	for _, edge := range edges {
+		if edge.referenced == ext.address && edge.deptype == 'e' {
+			members[edge.dependent] = true
+		}
+		if edge.dependent == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(array.ID())}) && edge.referenced == base.Address() && edge.deptype == 'i' {
+			arrayInternal = true
+		}
+	}
+	if len(members) != 3 || !arrayInternal {
+		t.Fatal("dependency ownership", members, arrayInternal)
+	}
+	for _, address := range ext.members {
+		if !members[address] {
+			t.Fatal("missing extension edge", address)
+		}
+	}
+	metadata, err := extensionOwnerMetadata(view, e.roleRead(view, e.roles), ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Metadata is a complete SQL comment line; the decoder consumes the
+	// lexer-provided comment body, exactly as the Restore pipeline does.
+	var records []extensionOwnerRecord
+	_, err = parser.ParseWithOptions("CREATE EXTENSION intarray;\n"+metadata, parser.Options{
+		Context: context.Background(), StandardConformingStrings: true,
+		LineComment: func(comment string) error {
+			record, found, err := decodeExtensionOwners(comment)
+			if err == nil && found {
+				records = append(records, record)
+			}
+			return err
+		},
+	})
+	if err != nil || len(records) != 1 {
+		t.Fatal("owner metadata comments", records, err)
+	}
+	record := records[0]
+	if record.Name != "intarray" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 3 {
+		t.Fatal("owner metadata", record)
+	}
+	for _, member := range record.Members {
+		if member.Owner != "postgres" {
+			t.Fatal("member owner", member)
+		}
+	}
+}
+
+func TestIntarrayProviderConflicts(t *testing.T) {
+	t.Run("published_type_conflict", func(t *testing.T) {
+		e := New()
+		op, done := roleOperation(t, e, "postgres")
+		defer done()
+		e.mu.Lock()
+		oid, err := e.allocateOIDLocked()
+		if err != nil {
+			e.mu.Unlock()
+			t.Fatal(err)
+		}
+		arrayOID, err := e.allocateOIDLocked()
+		if err != nil {
+			e.mu.Unlock()
+			t.Fatal(err)
+		}
+		memberID, err := e.allocateEnumMemberLocked()
+		if err != nil {
+			e.mu.Unlock()
+			t.Fatal(err)
+		}
+		revision, err := e.revisionLocked()
+		e.mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		typ, err := sqltype.EnumWithMembers(sqltype.ID(oid), "query_int", "public.query_int", []sqltype.EnumMember{{ID: memberID, Label: "occupied", SortOrder: 1}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		array, err := sqltype.Array(sqltype.ID(arrayOID), "_query_int", typ)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stage := e.BeginCatalogStage(e.CatalogRead())
+		defer e.DiscardCatalogStage(stage)
+		namespace := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		owner := op.RoleState().CurrentUser
+		for _, d := range []*typeDescriptor{
+			{typ: typ, namespace: namespace, owner: owner, revision: revision, array: array.ID()},
+			{typ: array, namespace: namespace, owner: owner, revision: revision},
+		} {
+			if err := stage.Create(d); err != nil {
+				t.Fatal(err)
+			}
+		}
+		extensionUnitPublish(t, e, op, stage)
+		before := e.state
+		e.mu.Lock()
+		_, err = e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "intarray"}})
+		e.mu.Unlock()
+		var diagnostic *sqlstate.Error
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: intarrayTypeContext}
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.state != before {
+			t.Fatal("type conflict was not atomic/exact", diagnostic, err)
+		}
+	})
+	t.Run("manifest_validation_and_nonmutation", func(t *testing.T) {
+		e, ext, base := intarrayUnitInstalled(t)
+		original := slices.Clone(ext.members)
+		text, _ := e.CatalogRead().LookupType(sqltype.Text)
+		for _, corrupt := range []func(*catalogState, *extensionDescriptor){
+			func(_ *catalogState, d *extensionDescriptor) { d.members[1] = d.members[0] },
+			func(_ *catalogState, d *extensionDescriptor) { d.version = "1.2" },
+			func(state *catalogState, d *extensionDescriptor) { delete(state.descriptors, d.members[1]) },
+			func(state *catalogState, d *extensionDescriptor) {
+				proc := *state.descriptors[d.members[1]].(*procedureDescriptor)
+				proc.result++
+				state.descriptors[proc.address] = &proc
+			},
+			func(state *catalogState, d *extensionDescriptor) {
+				proc := *state.descriptors[d.members[2]].(*procedureDescriptor)
+				proc.signature = "25"
+				state.descriptors[proc.address] = &proc
+			},
+			func(state *catalogState, _ *extensionDescriptor) {
+				address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.array)}
+				array := *state.descriptors[address].(*typeDescriptor)
+				array.typ = sqltype.LookupArray(array.typ.ID(), array.Name(), text)
+				state.descriptors[address] = &array
+			},
+		} {
+			candidate := cloneCatalog(e.state)
+			bad := *ext
+			bad.members = slices.Clone(ext.members)
+			candidate.descriptors[bad.address] = &bad
+			corrupt(candidate, &bad)
+			if err := (extensionCatalogProvider{ExtensionClassID}).Validate(CatalogRead{owner: e, state: candidate}, &bad); err == nil {
+				t.Fatal("invalid manifest accepted")
+			}
+			if !slices.Equal(original, ext.members) {
+				t.Fatal("negative validation mutated original manifest")
+			}
+		}
+		mapped := remapExtensionDescriptor(ext, map[ObjectAddress]ObjectAddress{ext.members[1]: {ClassID: ProcedureClassID, ObjectID: 65000}}).(*extensionDescriptor)
+		if mapped.members[1] == ext.members[1] || !slices.Equal(original, ext.members) {
+			t.Fatal("remapping aliased source membership")
+		}
+		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
+			t.Fatal("original manifest damaged", err)
+		}
+	})
+}
+
+// Construct the namespace through the actual physical-session creation path,
+// then validate/publish it. No fabricated TEMP token or helper-script parity.
+func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *namespaceDescriptor {
+	t.Helper()
+	e.mu.Lock()
+	auth, err := e.authorizationLocked(op)
+	if err != nil {
+		e.mu.Unlock()
+		t.Fatal(err)
+	}
+	var changes catalogChanges
+	ref, err := e.creationNamespaceStagedLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "component"}}}, true, &changes, false)
+	if err != nil {
+		e.mu.Unlock()
+		t.Fatal(err)
+	}
+	stage := e.BeginCatalogStage(auth.catalog)
+	stage.authorizeLocked(auth, op.session)
+	for _, descriptor := range changes.descriptors {
+		if err := stage.Create(descriptor); err != nil {
+			e.mu.Unlock()
+			t.Fatal(err)
+		}
+	}
+	e.mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
+	extensionUnitPublish(t, e, op, stage)
+	return e.state.descriptors[ref.Address].(*namespaceDescriptor)
+}
+
+func TestIntarrayProviderControls(t *testing.T) {
+	t.Run("real_TEMP_validation_and_retirement", func(t *testing.T) {
+		e := New()
+		op, close := extensionTemporaryOperation(t, e, "postgres")
+		namespace := intarrayUnitTemporaryNamespace(t, e, op)
+		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", namespace.name))
+		ext := e.state.descriptors[e.state.names[NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		base := e.state.descriptors[ext.members[0]].(*typeDescriptor)
+		array := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.array)}
+		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
+			t.Fatal(err)
+		}
+		addresses := append([]ObjectAddress{namespace.address, ext.address, array}, ext.members...)
+		close()
+		for _, address := range addresses {
+			if e.state.descriptors[address] != nil {
+				t.Fatal("retired TEMP identity retained", address)
+			}
+		}
+		for key, address := range e.state.names {
+			if slices.Contains(addresses, address) || key.Namespace == namespace.address {
+				t.Fatal("retired TEMP name retained", key)
+			}
+		}
+	})
+	t.Run("real_import_remapping_and_retained_codec", func(t *testing.T) {
+		source, _, base := intarrayUnitInstalled(t)
+		value, err := base.typ.Input(context.Background(), "1&(2|3)", -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := New()
+		owner, closeOwner := extensionTemporaryOperation(t, target, "postgres")
+		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
+		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
+		extensionUnitPublish(t, target, installer, intarrayUnitStage(t, target, installer, "unaccent", namespace.name))
+		unaccent := target.state.descriptors[target.state.names[NameKey{ClassID: ExtensionClassID, Name: "unaccent"}]]
+		closeInstaller()
+		if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
+			t.Fatal(err)
+		}
+		ext := target.state.descriptors[target.state.names[NameKey{ClassID: ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		imported := target.state.descriptors[ext.members[0]].(*typeDescriptor)
+		if imported.typ == base.typ || imported.typ.ID() == base.typ.ID() {
+			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")
+		}
+		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
+			t.Fatal(err)
+		}
+		if target.state.descriptors[namespace.address] != namespace || target.state.descriptors[unaccent.Address()] != unaccent {
+			t.Fatal("import changed live TEMP provider authority")
+		}
+		mapped, err := reownDomainDatum(value, imported.typ, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{base.typ: imported.typ}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := value.Retag(imported.typ); err == nil {
+			t.Fatal("ordinary Retag authorized cross-OID import")
+		}
+		if text, err := imported.typ.Output(context.Background(), mapped); err != nil || text != "1 & ( 2 | 3 )" {
+			t.Fatal("imported codec", text, err)
+		}
+		if err := source.Reset(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if text, err := base.typ.Output(context.Background(), value); err != nil || text != "1 & ( 2 | 3 )" {
+			t.Fatal("retained codec", text, err)
+		}
+		closeOwner()
+		if target.state.descriptors[namespace.address] != nil || target.state.descriptors[unaccent.Address()] != nil {
+			t.Fatal("original TEMP provider failed retirement after import")
+		}
+		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
+			t.Fatal("persistent imported provider damaged by TEMP retirement", err)
+		}
+	})
+}
