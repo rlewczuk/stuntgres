@@ -24,7 +24,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 		return isStringSet(call)
 	case regexpSetExpression:
 		return call.plan.ReturnsSet()
-	case jsonKeysExpression:
+	case jsonKeysExpression, seriesExpression, subscriptsExpression:
 		return true
 	case binaryExpression:
 		return parser.JSONFunctionName(call.plan.Name())
@@ -33,6 +33,36 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 	default:
 		return false
 	}
+}
+
+// Selected rendering and binding share a lane; typed admission remains owned
+// by validFunctionSourceCall after ordinary function resolution.
+func selectedFunctionSourceName(name string) bool {
+	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
+		name == "generate_series" || name == "generate_subscripts"
+}
+
+// FROM placement follows successful call completion, not lexical offsets.
+// enterQuery isolates this observation from expression-owned child queries.
+type fromSetObservation struct {
+	generation uint64
+	pos        parser.Position
+}
+
+func nestedFromSetError(pos parser.Position) error {
+	return expressionError("0A000", "set-returning functions must appear at top level of FROM", pos)
+}
+
+func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExpr, error) {
+	before := b.fromSetObservation
+	expr, err := b.bindFunction(raw)
+	if err != nil {
+		return nil, err
+	}
+	if !isQuerySet(expr) && b.fromSetObservation != before {
+		return nil, nestedFromSetError(b.fromSetObservation.pos)
+	}
+	return expr, nil
 }
 func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
@@ -158,22 +188,11 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	ordinal := b.viewFunctionCount
 	b.viewFunctionCount += len(raw.Calls)
 	for i, call := range raw.Calls {
-		expr, err := b.bindFunction(call)
+		expr, err := b.bindFunctionSource(call)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		var nested BoundExpr
-		boundExpressionChildren(expr, func(arg BoundExpr) {
-			walkBoundExpression(arg, func(e BoundExpr) {
-				if isQuerySet(e) {
-					nested = e
-				}
-			})
-		})
-		if !isStringSet(expr) || nested != nil {
-			if nested != nil {
-				return nil, queryNamespace{}, expressionError("0A000", "set-returning functions must appear at top level of FROM", nested.SourcePosition())
-			}
+		if !isStringSet(expr) {
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", call.Pos)
 		}
 		calls[i] = expr

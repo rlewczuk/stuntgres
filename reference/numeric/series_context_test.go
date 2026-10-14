@@ -136,8 +136,7 @@ func TestReferenceSeriesRestrictions(t *testing.T) {
 }
 
 func TestReferenceSeriesBoundaries(t *testing.T) {
-	// Successful PG providers/sources outside the selected native SELECT-target
-	// integer scope have explicit native capability failures, not fake signatures.
+	// Numeric/temporal providers retain explicit native capability boundaries.
 	seriesScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, tc := range []struct {
 			q           string
@@ -158,8 +157,8 @@ func TestReferenceSeriesBoundaries(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET TIME ZONE 'UTC'", 0))
 				}
 				s := fixture.Select(tc.q, tc.cols, tc.types, tc.rows)
-				if !b.PG {
-					message := "functions in FROM are unsupported"
+				if !b.PG && tc.types[0] != "INT4" {
+					message := ""
 					if tc.types[0] == "NUMERIC" {
 						message = "generate_series with numeric arguments is unsupported"
 					} else if tc.types[0] == "TEXT" || tc.types[0] == "TIMESTAMPTZ" {

@@ -133,11 +133,6 @@ func TestReferenceSubscriptsBoundaries(t *testing.T) {
 			t.Run(tc.q, func(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					s := fixture.Select(tc.q, tc.cols, tc.types, tc.rows)
-					if !b.PG {
-						s = fixture.ErrorDiagnostic(tc.q, seriesDiagnostic(tc.q, "generate_subscripts", "0A000", "functions in FROM are unsupported", ""))
-						s.SelectRows = true
-						s.ErrorStage = map[bool]string{false: "execute", true: "prepare"}[prepared]
-					}
 					s.Prepared = prepared
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 				}

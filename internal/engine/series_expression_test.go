@@ -76,7 +76,7 @@ func TestSeriesBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(seriesExpression)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.queryHasTargetSet || validFunctionSourceCall(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.queryHasTargetSet || !validFunctionSourceCall(e) {
 		t.Fatal(x)
 	}
 	if _, err = e.Eval(&EvalContext{Context: context.Background()}); err == nil {

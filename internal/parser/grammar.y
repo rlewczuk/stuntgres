@@ -2105,19 +2105,27 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
 from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} }
- | from_base AS from_alias '(' using_columns type ')' {if _,ok:=$1.(*FunctionTable);!ok {sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1};sqllex.(*lexer).failAt("42601","a column definition list is only allowed for functions returning \"record\"",$5[0].Pos.Offset);return 1} ;
+ | from_base AS from_alias '(' using_columns type ')' {
+    switch $1.(type) {
+    case *FunctionTable, *FunctionFrom:
+       $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$5,HasColumnDefinitions:true,ColumnDefinitionType:$6}
+    default:
+       sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1
+    }
+   } ;
 function_table_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
  | name '.' check_function_head function_args ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
  | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+ | function {$$=$1.(FunctionExpr)}
  | transaction_time_call {$$=$1} ;
 function_table_calls: function_table_call {$$=[]FunctionExpr{$1}}
  | function_table_calls ',' function_table_call {$$=append($1,$3)} ;
 function_table_base: function_table_call {$$=&FunctionTable{Calls:[]FunctionExpr{$1},Pos:$1.Pos}}
  | name FROM '(' function_table_calls ')' {if $1.text!="rows"||$1.keyword==nil{sqllex.(*lexer).syntax($1);return 1};$$=&FunctionTable{Calls:$4,RowsFrom:true,Pos:$1.pos}} ;
 function_table: function_table_base {$$=$1}
- | function_table_base WITH name {if $3.text!="ordinality" {sqllex.(*lexer).syntax($3);return 1};$$=$1;$$.Ordinality=true}
+ | function_table_base WITH name {if $3.text!="ordinality" {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.Ordinality=true}
  | LATERAL function_table_base {$$=$2;$$.Lateral=true}
- | LATERAL function_table_base WITH name {if $4.text!="ordinality" {sqllex.(*lexer).syntax($4);return 1};$$=$2;$$.Lateral=true;$$.Ordinality=true} ;
+ | LATERAL function_table_base WITH name {if $4.text!="ordinality" {sqllex.(*lexer).syntax($3);return 1};$$=$2;$$.Lateral=true;$$.Ordinality=true} ;
 from_alias: name {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 alias_columns: /* empty */ { $$=nil } | '(' using_columns ')' { $$=$2 } ;
 using_columns: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }

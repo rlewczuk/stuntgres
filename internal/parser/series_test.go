@@ -59,8 +59,8 @@ func TestSeriesParserDecorations(t *testing.T) {
 }
 
 func TestSeriesParserRestrictions(t *testing.T) {
-	// These syntax units retain the calls for contextual binding. They do not
-	// assert SQL execution or broaden the selected provider's FROM capability.
+	// These syntax units retain calls for contextual binding, including FROM.
+	// They do not assert execution or expand overload/restricted-owner boundaries.
 	for _, q := range []string{
 		"SELECT 1 WHERE generate_series(1,2)>0",
 		"DELETE FROM t RETURNING generate_series(1,2)",

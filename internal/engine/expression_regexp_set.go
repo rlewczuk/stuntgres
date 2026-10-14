@@ -39,18 +39,3 @@ func rejectRegexpSets(expr BoundExpr, context string, lateralHint bool) error {
 	}
 	return err
 }
-
-func validateRegexpFromCall(call regexpCall) error {
-	var first BoundExpr
-	for _, arg := range call.args {
-		walkBoundExpression(arg, func(node BoundExpr) {
-			if isQuerySet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
-				first = node
-			}
-		})
-	}
-	if first == nil {
-		return nil
-	}
-	return expressionError("0A000", "set-returning functions must appear at top level of FROM", first.SourcePosition())
-}

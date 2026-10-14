@@ -409,19 +409,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   operators, new element providers or general §9.19 array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
-- Integer/bigint `generate_series` executes only through SELECT-target SRF
-  expansion, including existing SELECT consumers such as views, CTAS and
-  INSERT SELECT. Numeric/temporal overloads inform genuine resolution and
-  ambiguity but are not executable providers. Series FROM/ROWS FROM,
-  WITH ORDINALITY, lateral sources and INSERT VALUES expansion are excluded;
-  PostgreSQL success in those contexts is not a native capability claim.
+- Integer/bigint `generate_series` executes through SELECT-target expansion
+  and FROM function sources, including views, CTAS and INSERT SELECT.
+  Numeric/temporal overloads inform genuine resolution and ambiguity but are
+  not executable providers. INSERT VALUES expansion remains excluded.
+  FROM aliases, ROWS FROM zip/padding, bigint ordinality and implicit/explicit
+  lateral references to preceding sources use the existing function-source lane.
   Window PARTITION/ORDER keys are legal; window frames and scalar restricted
   owners retain exact SRF placement diagnostics.
 - `generate_subscripts(anyarray, integer [, boolean])` uses the same bounded
-  SELECT-target SRF lane and existing view/CTAS/INSERT SELECT consumers. It reads
+  target and FROM lanes and existing view/CTAS/INSERT SELECT consumers. It reads
   one dimension's stored bounds, returning INT4 without element inspection.
-  Native FROM/ROWS FROM/ordinality/lateral and INSERT VALUES expansion remain
-  excluded, regardless of PostgreSQL success. Simple anyarray requires a known
+  INSERT VALUES expansion remains excluded. Simple anyarray requires a known
   array identity; the fixed result does not infer an untyped first operand.
   Existing array storage limits are unchanged. Native bounds arithmetic safely
   terminates at INT32_MIN in reverse, unlike the observed pinned18.0 defect;

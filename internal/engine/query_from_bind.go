@@ -345,7 +345,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		return &singletonNode{}, queryNamespace{}, nil
 	case *parser.FunctionTable:
 		for _, raw := range n.Calls {
-			if sqltype.RegexpFunctionKind(raw.Name.Parts[len(raw.Name.Parts)-1].Text) != 0 || parser.JSONFunctionName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
+			if selectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
 				return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal)
 			}
 		}
@@ -420,6 +420,27 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
+		if n.HasColumnDefinitions {
+			count, ordinality := 0, false
+			switch source := n.Input.(type) {
+			case *parser.FunctionTable:
+				count, ordinality = len(source.Calls), source.Ordinality
+			case *parser.FunctionFrom:
+				count, ordinality = len(source.Calls), source.Ordinality
+			}
+			message := `a column definition list is only allowed for functions returning "record"`
+			hint := ""
+			if count > 1 {
+				message = "ROWS FROM() with multiple functions cannot have a column definition list"
+				hint = "Put a separate column definition list for each function inside ROWS FROM()."
+			} else if ordinality {
+				message = "WITH ORDINALITY cannot be used with a column definition list"
+				hint = "Put the column definition list inside ROWS FROM()."
+			}
+			failure := expressionError("42601", message, n.Columns[0].Pos).(*sqlstate.Error)
+			failure.Hint = hint
+			return nil, queryNamespace{}, failure
+		}
 		if len(n.Columns) > len(ns.columns) {
 			kind := "join expression"
 			switch n.Input.(type) {
@@ -453,11 +474,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		} else if _, derived := n.Input.(*parser.DerivedQuery); derived {
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionTable); function {
-			q.original = ns.qualifiers[0].original
 			q.scalarAlias = ns.qualifiers[0].scalarAlias
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else if _, function := n.Input.(*parser.FunctionFrom); function {
-			q.original = ns.qualifiers[0].original
 			q.scalarAlias = ns.qualifiers[0].scalarAlias
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else {
@@ -922,63 +941,16 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		if name == "string_to_table" {
 			b.stringFromForbidden = oldForbidden
-			expr, err := b.bindFunction(raw)
-			b.stringFromForbidden = false
-			if err != nil {
-				return nil, queryNamespace{}, err
-			}
-			if !isStringSet(expr) {
-				return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
-			}
-			var nested BoundExpr
-			boundExpressionChildren(expr, func(arg BoundExpr) {
-				walkBoundExpression(arg, func(e BoundExpr) {
-					if isQuerySet(e) && (nested == nil || e.SourcePosition().Offset < nested.SourcePosition().Offset) {
-						nested = e
-					}
-				})
-			})
-			if nested != nil {
-				return nil, queryNamespace{}, expressionError("0A000", "set-returning functions must appear at top level of FROM", nested.SourcePosition())
-			}
-			calls[i] = expr
-		} else if parser.JSONFunctionName(name) {
-			expr, err := b.bindFunction(raw)
-			if err != nil {
-				return nil, queryNamespace{}, err
-			}
-			var nested BoundExpr
-			boundExpressionChildren(expr, func(arg BoundExpr) {
-				walkBoundExpression(arg, func(e BoundExpr) {
-					if isQuerySet(e) && (nested == nil || e.SourcePosition().Offset < nested.SourcePosition().Offset) {
-						nested = e
-					}
-				})
-			})
-			if nested != nil {
-				return nil, queryNamespace{}, expressionError("0A000", "set-returning functions must appear at top level of FROM", nested.SourcePosition())
-			}
-			calls[i] = expr
-		} else {
-			if sqltype.RegexpFunctionKind(name) == 0 {
-				return nil, queryNamespace{}, expressionError("0A000", "functions in FROM are unsupported", raw.Pos)
-			}
-			visible, err := b.builtinVisible(raw.Name, functionLookup)
-			if err != nil {
-				return nil, queryNamespace{}, err
-			}
-			call, err := b.bindRegexpCall(raw, visible)
-			if err != nil {
-				return nil, queryNamespace{}, err
-			}
-			if err := validateRegexpFromCall(call); err != nil {
-				return nil, queryNamespace{}, err
-			}
-			calls[i] = regexpExpression{call}
-			if call.plan.ReturnsSet() {
-				calls[i] = regexpSetExpression{call}
-			}
 		}
+		expr, err := b.bindFunctionSource(raw)
+		b.stringFromForbidden = false
+		if err != nil {
+			return nil, queryNamespace{}, err
+		}
+		if !validFunctionSourceCall(expr) {
+			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
+		}
+		calls[i] = expr
 		schema[i] = ColumnDescriptor{Name: name, Usage: calls[i].ResultUsage()}
 
 	}

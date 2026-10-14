@@ -90,7 +90,7 @@ func TestSubscriptsBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(subscriptsExpression)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.queryHasTargetSet || validFunctionSourceCall(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.queryHasTargetSet || !validFunctionSourceCall(e) {
 		t.Fatal(x)
 	}
 	if b.parameters[1].Type == nil || !b.parameters[1].Type.IsArray() || b.parameters[2].Type.ID() != sqltype.Bool {

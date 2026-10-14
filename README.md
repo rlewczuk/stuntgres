@@ -126,8 +126,8 @@ Calls can be nested or zipped with other target SRFs, with typed NULL padding.
 Held statements retain inferred widths but open fresh invocations each time.
 Views retain symbolic calls; native Dump/Reset/Restore preserves those views and
 literal persisted query results, not generator state. Numeric/temporal overloads
-participate in resolution but remain native execution exclusions, as do series
-FROM/ordinality/lateral and INSERT VALUES expansion. See
+participate in resolution but remain native execution exclusions, as does
+INSERT VALUES expansion. FROM source support is described below. See
 [query contracts](docs/QUERIES.md#integer-target-series) and
 [selected proof and feature smoke](reference/numeric/README.md#integer-target-series-selected-proof).
 
@@ -166,10 +166,29 @@ INT4 result metadata. Array elements are not inspected or coerced.
 Calls share existing target-SRF nesting, zip/typed-NULL padding, held statement,
 view, CTAS and INSERT SELECT consumers. Each invocation owns constant-space
 bounds state; LIMIT stops demand. Native Dump/Reset/Restore retains symbolic
-views and materialized rows, not a live cursor. FROM/ROWS FROM/ordinality/lateral
-and INSERT VALUES expansion remain native exclusions. See
+views and materialized rows, not a live cursor. INSERT VALUES expansion remains
+a native exclusion. FROM source support is described below. See
 [query contracts](docs/QUERIES.md#array-target-subscripts) and
 [selected proof and feature smoke](reference/numeric/README.md#array-target-subscripts-selected-proof).
+
+## Set-returning functions in FROM — change note
+
+Existing integer/bigint series and array subscript providers now share the
+function-source lane with supported string, JSON and regexp providers. Sources
+retain output aliases and empty-result metadata. `ROWS FROM` zips members to the
+longest output, padding exhausted members with their own typed NULLs; comma
+sources form a Cartesian product. `WITH ORDINALITY` appends one-based INT8 values
+before filtering and resets on every invocation, including held execution and
+implicit or explicit lateral references to preceding sources.
+
+Views retain symbolic arguments and renamed dependency identities; CTAS and
+INSERT SELECT retain ordinary statement atomicity. Native Dump/Reset/Restore
+retains supported views and persisted rows, never live generator state, without
+widening Restore's whitelist. General scalar FROM functions, new overloads and
+lateral derived queries remain outside this cutover. See
+[query contracts](docs/QUERIES.md#function-sources) and
+[selected proof and feature smoke](reference/numeric/README.md#from-srf-selected-proof).
+
 
 ## Phase 1 server — change note
 

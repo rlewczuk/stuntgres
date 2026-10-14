@@ -1409,6 +1409,7 @@ type expressionBinder struct {
 	stringFromForbidden        bool
 	stringSingleInsert         bool
 	queryHasTargetSet          bool
+	fromSetObservation         fromSetObservation
 	regexpClause               string
 	aggregates                 []aggregateCall
 	groupingActive             bool
@@ -1834,7 +1835,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if r.Schema != nil {
 				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 			}
-			if r.Within && !orderedSetName(r.Name) {return b.rejectOrdinaryWithin(r)}
+			if r.Within && !orderedSetName(r.Name) {
+				return b.rejectOrdinaryWithin(r)
+			}
 			if r.Window != nil && !orderedSetName(r.Name) {
 				var err error
 				node, err = b.bindWindow(r, name)
@@ -1883,7 +1886,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			var err error
 			if orderedSetName(r.Name) {
-				node,err=b.bindOrderedSet(r,name)
+				node, err = b.bindOrderedSet(r, name)
 			} else if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
 				node, err = b.bindBooleanAggregate(r, name)
 			} else if r.Name == "avg" {

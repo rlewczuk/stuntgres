@@ -239,9 +239,6 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 	if b.aggregateClause == "INSERT VALUES" {
 		return nil, expressionError("0A000", "generate_series is unsupported in INSERT VALUES", raw.Pos)
 	}
-	if b.aggregateClause == "FROM" {
-		return nil, expressionError("0A000", "functions in FROM are unsupported", raw.Pos)
-	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}

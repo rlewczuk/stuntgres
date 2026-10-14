@@ -53,9 +53,11 @@ type JoinReference struct {
 func (*JoinReference) fromItem() {}
 
 type AliasReference struct {
-	Input   FromItem
-	Name    Identifier
-	Columns []Identifier
+	Input                FromItem
+	Name                 Identifier
+	Columns              []Identifier
+	HasColumnDefinitions bool
+	ColumnDefinitionType TypeName
 }
 
 func (*AliasReference) fromItem() {}

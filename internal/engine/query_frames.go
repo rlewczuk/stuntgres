@@ -38,6 +38,8 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	oldSetGuard, oldForbidden := b.stringSetGuard, b.stringFromForbidden
 	oldRegexpClause := b.regexpClause
 	oldTargetSet := b.queryHasTargetSet
+	oldFromSet := b.fromSetObservation
+	b.fromSetObservation = fromSetObservation{}
 	b.queryHasTargetSet = false
 	b.stringSetGuard, b.stringFromForbidden = "", false
 	b.regexpClause = ""
@@ -77,6 +79,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 		b.stringSetGuard, b.stringFromForbidden = oldSetGuard, oldForbidden
 		b.regexpClause = oldRegexpClause
 		b.queryHasTargetSet = oldTargetSet
+		b.fromSetObservation = oldFromSet
 		parent := b.queryScopes[index]
 		b.queryScopes = b.queryScopes[:index]
 		b.queryNamespace, b.queryHidden = oldNamespace, parent.hidden

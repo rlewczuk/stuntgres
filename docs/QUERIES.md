@@ -91,8 +91,9 @@ Strict arithmetic with a physical constant NULL erases its target-set subtree
 during immutable planning, then re-lowers surviving peers. This is not a
 first-item series evaluation: the erased provider contributes no cardinality.
 A nullable source column does not supply that constant proof and still yields
-one NULL per expanded row. Stored target-set validation is separate from FROM
-source eligibility; a serializable series view does not enable series FROM.
+one NULL per expanded row. Stored target-set validation and FROM source
+eligibility are separate checks; both supported integer/bigint series lanes
+are admitted.
 
 Arithmetic state is constant-space and execution-private. LIMIT stops provider
 demand; only finalized immutable output is published. Late errors or cancellation
@@ -102,8 +103,8 @@ Dump/Restore replays eligible views and literal stored data under its existing
 whitelist; it does not enable INSERT query sources or CTAS during Restore.
 
 Numeric/temporal signatures are considered for truthful overload resolution but
-are not native executable providers. Series FROM/ROWS FROM/ordinality/lateral
-and INSERT VALUES expansion remain explicit native capability exclusions.
+are not native executable providers. INSERT VALUES expansion remains an explicit
+native capability exclusion; FROM providers use the shared source lane below.
 Public coverage and commands live in [reference/numeric](../reference/numeric/README.md#integer-target-series-selected-proof).
 
 ## Array target subscripts
@@ -135,9 +136,8 @@ existing Restore whitelist.
 Typed array literals own their subscripts replay cast; matching source casts do
 not grow on successive Dump/Restore rounds, while differing casts are retained.
 
-Native FROM/ROWS FROM/WITH ORDINALITY/lateral and INSERT VALUES expansion remain
-explicit exclusions even where PostgreSQL executes them. Scalar restricted
-owners retain existing SRF placement diagnostics.
+INSERT VALUES expansion remains excluded even where PostgreSQL executes it.
+Scalar restricted owners retain existing SRF placement diagnostics.
 
 **Pinned release safety exception:** PostgreSQL18.0 oracle discovery observed
 reverse iteration with lower bound INT32_MIN fail to terminate before fixture
@@ -147,6 +147,35 @@ and terminates; an internal real-cursor unit proves this without emulating the
 release defect or repeating the hazardous PostgreSQL query. The existing array
 storage upper-bound exclusion remains unchanged.
 See [selected proof](../reference/numeric/README.md#array-target-subscripts-selected-proof).
+
+## Function sources
+
+Existing integer/bigint `generate_series` and `generate_subscripts` calls use the
+same typed source stage as supported string, JSON and regexp calls. Output
+aliases preserve positional names and types, including empty metadata.
+Comma sources form Cartesian products; `ROWS FROM` zips to the longest member
+and pads exhausted members with typed NULLs, emitting no row when all are empty.
+`WITH ORDINALITY` appends INT8 starting at1 before filters/OFFSET.
+
+Functions implicitly see preceding FROM columns; `LATERAL` makes that scope
+explicit. Each left occurrence opens fresh arguments and ordinal state.
+LEFT joins preserve empty invocations with NULL extension; RIGHT/FULL reject
+actual join-left lateral captures, not uncorrelated sources. Nested lexical SRFs
+must appear at top level of FROM, while child SELECTs own their target SRFs.
+Ordinary source-call binding and nested placement validation precede semantic
+column-definition rejection. After successful analysis, multiple-function
+column-definition restrictions precede ordinality restrictions, then the
+record-only restriction. This does not enable record-returning sources.
+Arguments evaluate once per demanded invocation; unopened sources do not run
+under LIMIT0. Native demand-driven execution need not reproduce PostgreSQL's
+physical FunctionScan materialization.
+
+Symbolic source views, CTAS, INSERT SELECT and native control replay reuse their
+existing consumers and atomicity boundaries. No general scalar FROM capability,
+new providers/overloads, lateral derived queries or Restore whitelist entries
+are introduced. See [PostgreSQL table functions](https://www.postgresql.org/docs/18/queries-table-expressions.html#QUERIES-TABLEFUNCTIONS)
+and [selected proof](../reference/numeric/README.md#from-srf-selected-proof).
+
 
 ## Analysis and execution-private planning
 

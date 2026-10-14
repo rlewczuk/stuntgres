@@ -6,6 +6,61 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### FROM SRF selected proof
+
+Untagged `srf_from_*_test.go` scenarios assert independent direct/prepared
+INT4/INT8 values and empty metadata, aliases, bigint ordinality, comma products,
+ROWS FROM typed padding and mixed existing providers. Lateral invocations reset
+ordinality for repeated inputs; held statements retain schema across empty,
+error and recovered executions. Complete diagnostics include Unicode locations,
+analysis/runtime failure stages and source binding before column-definition
+rejection (count, then ordinality, then record-only). Nested FROM diagnostics
+track successful call completion: the last sibling, an earlier nested failure,
+scalar wrappers and mixed/regexp calls, without child-SELECT leakage.
+
+Consumer proof covers symbolic views, CTAS/INSERT SELECT late-error atomicity,
+joined cancellation workers and same-owner recovery. Controls genuinely retain
+old rows/schema across Dump/Reset/Restore, restore into a fresh Driver and replay
+the actual emitted SQL on PostgreSQL after dependency rename. Restore and
+INSERT VALUES boundaries remain unchanged. Use bounded portable FROM witnesses:
+PostgreSQL materializes demanded function output, so huge LIMIT series are only
+appropriate to the existing target tests, never FROM smoke.
+
+Run each group in both modes, with external900s deadlines:
+
+```sh
+make check RUN='^TestReferenceSRFFrom(Values|Metadata|Composition|Lateral|Diagnostics|HeldParameters)$'
+make check REFERENCE=1 RUN='^TestReferenceSRFFrom(Values|Metadata|Composition|Lateral|Diagnostics|HeldParameters)$'
+make check RUN='^TestReferenceSRFFrom(Consumers|Lifecycle|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceSRFFrom(Consumers|Lifecycle|Controls|FeatureSmoke)$'
+make check RUN='^TestReference(Series|Subscripts)Boundaries$'
+make check REFERENCE=1 RUN='^TestReference(Series|Subscripts)Boundaries$'
+make check RUN='^Test(SRFFrom(Binding|Invocation|Ownership|StoredEligibility)|SeriesBinding|SubscriptsBinding|SRFFromParser|SeriesParserRestrictions)$'
+make check RACE=1 RUN='^TestReferenceSRFFrom(Lifecycle|Controls|HeldParameters)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceSRFFrom(Lifecycle|Controls|HeldParameters)$'
+```
+
+Focused diagnostic proof includes the 16 review-regression witnesses through
+both direct and prepared routes, with plain and Unicode-prefixed positions:
+
+```sh
+make check RUN='^TestReferenceSRFFromDiagnostics$'
+make check REFERENCE=1 RUN='^TestReferenceSRFFromDiagnostics$'
+make check RUN='^TestReference(StringSplitTableSources|StringSplitDiagnostics|StringSplitStored|StringSplitLifecycle|JSONKeysReviewMixedFrom)$'
+make check REFERENCE=1 RUN='^TestReference(StringSplitTableSources|StringSplitDiagnostics|StringSplitStored|StringSplitLifecycle|JSONKeysReviewMixedFrom)$'
+```
+
+Actual smoke checks descending INT8/INT8 (5,1),(3,2),(1,3), group padding
+(1,10,1),(2,NULL,2), lateral reset/LEFT empty preservation, empty metadata,
+same-held zero-step22023/recovery and actual control roundtrip/dump replay.
+Expected observations are exact rows/types/diagnostics and quiet success:
+
+```sh
+make check RUN='^TestReferenceSRFFromFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceSRFFromFeatureSmoke$'
+```
+
+
 ### Integer target series selected proof
 
 Permanent untagged `series_*_test.go` definitions specify two-/three-argument
@@ -70,8 +125,8 @@ array atomicity, and every argument's dependencies/authorization. Lifecycle
 uses real provider advancement and observed PostgreSQL server admission with
 joined cancellation workers. Controls retain eager rows/schema across actual
 native Dump/Reset/Restore, restore into a fresh Driver and replay the actual
-emitted supported SQL on PostgreSQL. Native FROM/ROWS FROM/ordinality/lateral
-and INSERT VALUES remain explicit capability failures, not parity claims.
+emitted supported SQL on PostgreSQL. INSERT VALUES remains an explicit native
+capability failure; FROM support is covered by the dedicated selected proof above.
 The PostgreSQL VALUES witness independently expects affected2 on each direct
 and prepared insertion, leaving ordered rows1,1,2,2.
 
