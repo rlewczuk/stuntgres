@@ -239,6 +239,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case seriesExpression:
+		o, ok := other.(seriesExpression)
+		if !ok || e.ResultUsage() != o.ResultUsage() || len(e.args) != len(o.args) {
+			return false
+		}
+		for i, arg := range e.args {
+			if !same(arg, o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case jsonKeysExpression:
 		o, ok := other.(jsonKeysExpression)
 		return ok && e.plan == o.plan && len(e.args) == 1 && len(o.args) == 1 && same(e.args[0], o.args[0])
@@ -761,6 +772,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case seriesExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case jsonKeysExpression:
 		e.args = []BoundExpr{rewrite(e.args[0])}
 		stage(&e.expressionInfo)
@@ -1082,6 +1100,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 		for _, item := range e.items {
 			walk(item)
+		}
+	case seriesExpression:
+		for _, arg := range e.args {
+			walk(arg)
 		}
 	case jsonKeysExpression:
 		walk(e.args[0])

@@ -36,6 +36,24 @@ and [native limits](docs/DIALECT.md#sql-cursor-metadata).
 Feature smoke: `make check RUN='^TestReferencePGCursorsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGCursorsFeatureSmoke$'`.
 
+## Integer target series — change note
+
+`generate_series(integer, integer [, integer])` and the corresponding bigint
+overloads expand SELECT targets through the existing query SRF stages. Result
+metadata stays INT4 or INT8, including empty results. Default step is +1;
+reachable endpoints are inclusive, direction mismatches and NULL inputs are
+empty, and zero step fails with PostgreSQL `22023`. Successor overflow ends the
+series normally. LIMIT stops provider demand before eager result publication.
+
+Calls can be nested or zipped with other target SRFs, with typed NULL padding.
+Held statements retain inferred widths but open fresh invocations each time.
+Views retain symbolic calls; native Dump/Reset/Restore preserves those views and
+literal persisted query results, not generator state. Numeric/temporal overloads
+participate in resolution but remain native execution exclusions, as do series
+FROM/ordinality/lateral and INSERT VALUES expansion. See
+[query contracts](docs/QUERIES.md#integer-target-series) and
+[selected proof and feature smoke](reference/numeric/README.md#integer-target-series-selected-proof).
+
 ## Phase 1 server — change note
 
 Build and create an account with explicit database grants:

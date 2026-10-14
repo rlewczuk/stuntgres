@@ -6,6 +6,18 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Integer series CHECK restriction
+
+`TestReferenceSeriesCheckRestrictions` is an untagged shared native/PG witness.
+It asserts the complete positioned CHECK SRF diagnostic and atomic noncreation
+through direct and prepared DDL. The prepared utility errors at execute, not
+prepare. Root runs both selected modes with external900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceSeriesCheckRestrictions$'
+make check REFERENCE=1 RUN='^TestReferenceSeriesCheckRestrictions$'
+```
+
 ### RANGE table ATTACH — selected proof
 
 The untagged `partition_attach_*_test.go` definitions share direct/prepared bodies

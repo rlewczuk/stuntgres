@@ -199,6 +199,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case regexpSetExpression:
 		n.args = args(n.args)
 		next = n
+	case seriesExpression:
+		n.args = args(n.args)
+		next = n
 	case jsonKeysExpression:
 		n.args = args(n.args)
 		next = n

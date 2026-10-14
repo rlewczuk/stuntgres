@@ -28,6 +28,9 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 		return false
 	}
 	switch first := a.(type) {
+	case seriesExpression:
+		second, ok := b.(seriesExpression)
+		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)
 	case jsonKeysExpression:
 		second, ok := b.(jsonKeysExpression)
 		return ok && first.plan.Name() == second.plan.Name()

@@ -245,6 +245,9 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if err == nil {
 			e.right, err = child(e.right)
 		}
+		if err == nil && arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
 		expression = e
 	case likeExpression:
 		e.left, err = child(e.left)
@@ -330,6 +333,10 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		})
 		changed = changed || replaced
 		expression = e
+	case seriesExpression:
+		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, arg, decisiveDefaults)
+		})
 	case jsonKeysExpression:
 		arg, failure := child(e.args[0])
 		err = failure

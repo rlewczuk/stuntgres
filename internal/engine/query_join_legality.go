@@ -606,6 +606,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case jsonKeysExpression:
 		children = e.args
+	case seriesExpression:
+		children = e.args
 	case nullTestExpression:
 		children = []BoundExpr{e.child}
 	case truthTestExpression:

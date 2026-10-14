@@ -158,11 +158,18 @@ Runtime-sensitive diagnostic positions, whole-row labels/transport metadata and
 sequence timing were specified and independently observed against pinned
 PostgreSQL18.0 before native implementation; native failures are never goldens.
 Selected commands, not this capability description, establish verification.
-The `generate_series` diagnostic keeps separate source-backed boundaries:
-native generic function admission (`lexer.call` in `internal/parser/parser.go`)
-reports0A000 `functions are unsupported` with no Hint, while PostgreSQL reports
-its0A000 `set-returning functions are not allowed in RETURNING`. Both point at
-the call. This does not add a native SRF provider or bypass parser admission.
+Integer target-series support preserves the same PostgreSQL `0A000:
+set-returning functions are not allowed in RETURNING` diagnostic on INSERT,
+MERGE and DELETE, including call character positions and unchanged data.
+The extracted untagged `TestReferenceSeriesDeleteReturningRestrictions` retains
+direct/prepared routes; unrelated tagged record/trigger/rule controls remain
+separate. Select these changed witnesses in both modes:
+
+```sh
+make check RUN='^TestReference(SeriesDeleteReturningRestrictions|InsertReturningDiagnostics|MergeReturningDiagnostics|DeleteReturningBoundaries)$'
+make check REFERENCE=1 RUN='^TestReference(SeriesDeleteReturningRestrictions|InsertReturningDiagnostics|MergeReturningDiagnostics|DeleteReturningBoundaries)$'
+```
+
 No discovery backend filter is installed. In enabled reference mode, independent
 PostgreSQL subtests still run after a failing memory subtest. The Controls
 definition necessarily exercises actual native APIs and actual emitted dump SQL;

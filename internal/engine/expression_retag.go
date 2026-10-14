@@ -117,6 +117,10 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	case regexpSetExpression:
 		n.regexpCall, err = n.regexpCall.mapChildren(view, info, child)
 		rebound = n
+	case seriesExpression:
+		n.args = children(n.args)
+		n.expressionInfo = info
+		rebound = n
 	case jsonKeysExpression:
 		n.args = children(n.args)
 		if err != nil {

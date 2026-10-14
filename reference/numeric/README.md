@@ -6,6 +6,55 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Integer target series selected proof
+
+Permanent untagged `series_*_test.go` definitions specify two-/three-argument
+INT4/INT8 values, endpoints, NULL empties, checked overflow, metadata and actual
+held reuse. Overload/decorations/context expectations are independent and
+resolved against pinned PostgreSQL18.0, including legal ALL and window keys.
+DATE endpoints plus INTERVAL step resolve to the preferred TIMESTAMPTZ signature:
+Boundaries asserts exact UTC dates on PG and the full native temporal capability
+diagnostic, never a fabricated ambiguity or native temporal execution.
+Composition reuses zip/padding/nested target stages; huge finite series with
+LIMIT3 must return only1,2,3 without whole-series materialization.
+
+Lifecycle uses actual native provider-advance cancellation and observed
+PostgreSQL server admission/cancellation with joined workers. Atomicity covers
+late errors/cancellation through INSERT SELECT and CTAS. Controls exercise
+symbolic series views, genuine persisted INT4/INT8 data, retained rows/schema,
+same/fresh Driver Dump/Reset/Restore and actual emitted SQL replay on PG.
+Restore rejection of INSERT query sources remains truthful and atomic;
+zero-step SQL inside a rejected script is not claimed to execute.
+
+Root runs each reference group in both modes after edits, with external900s
+per invocation. These selectors supplement whole-project `make quickcheck`:
+
+```sh
+make check RUN='^TestReferenceSeries(Values|Overflow|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceSeries(Values|Overflow|Metadata)$'
+make check RUN='^TestReferenceSeries(Binding|Diagnostics|HeldParameters)$'
+make check REFERENCE=1 RUN='^TestReferenceSeries(Binding|Diagnostics|HeldParameters)$'
+make check RUN='^TestReferenceSeries(Composition|Limit|Restrictions|Boundaries|OracleDecisions)$'
+make check REFERENCE=1 RUN='^TestReferenceSeries(Composition|Limit|Restrictions|Boundaries|OracleDecisions)$'
+make check RUN='^TestReferenceSeries(Lifecycle|Atomicity|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceSeries(Lifecycle|Atomicity|Controls)$'
+make check RUN='^TestSeries(Binding|Cursor|Overflow|ExpressionHooks|Lowering|Cancellation|Finalization)$'
+make check RUN='^TestSeriesParser(Admission|Decorations|Restrictions)$'
+make check RACE=1 RUN='^TestReferenceSeries(Lifecycle|Controls|HeldParameters)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceSeries(Lifecycle|Controls|HeldParameters)$'
+```
+
+The bounded public new-behavior smoke checks ordered INT4 1,2,3; INT8 5,3,1;
+empty metadata; held zero-step failure/recovery; endpoint overflow; huge LIMIT3;
+zip padding; late INSERT SELECT failure preserving sentinel99; and actual
+control roundtrips/replay. Expected observations are exact rows/types/errors and
+unchanged atomic state, with exit0 and quiet package PASS output:
+
+```sh
+make check RUN='^TestReferenceSeriesFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceSeriesFeatureSmoke$'
+```
+
 ### Math constants selected proof
 
 Permanent untagged `reference/numeric/math_constants_*_test.go` scenarios cover

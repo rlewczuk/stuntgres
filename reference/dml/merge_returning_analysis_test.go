@@ -76,9 +76,6 @@ func TestReferenceMergeReturningDiagnostics(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE t(id INT,v INT)", 0))
 				q := "/*é*/ MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET absent=missing_rhs RETURNING " + tc.tail
 				d := mergeReturningDiagnostic(q, tc.token, tc.code, tc.message)
-				if !b.PG && tc.token == "generate_series" {
-					d.Message = "functions are unsupported"
-				}
 				s := fixture.ImplicitError(q, d)
 				s.Prepared = prepared
 				s.ErrorStage = map[bool]string{false: "execute", true: "prepare"}[prepared]

@@ -71,6 +71,40 @@ Direct output owns its final source pin/selection; computed output releases
 unneeded inputs. Caller cancellation remains an ordinary Go context error;
 the command's own timeout retains SQLSTATE 57014 and its timeout diagnostic.
 
+## Integer target series
+
+The INT4 and INT8 two-/three-argument `generate_series` overloads use the ordinary
+target-SRF lane, not a second query executor. Omitted step is +1. Endpoints are
+included only when reached; NULL input or a direction mismatch gives no rows.
+Nonnull zero step fails with `22023: step size cannot equal zero`, without a
+runtime Position. An overflowing successor terminates normally after the last
+valid value rather than wrapping or raising input-overflow errors.
+
+Each admitted input row owns its invocation and evaluates arguments once in
+source order. Same-depth sets zip to the longest provider with typed NULL padding;
+nested levels preserve the existing depth scheduling. Group/sort/distinct and
+legal window PARTITION/ORDER keys use the existing demanded expansion stages.
+Window frames, scalar restricted owners, and direct CASE/COALESCE calls remain
+illegal. A child SELECT owns its own placement context.
+
+Strict arithmetic with a physical constant NULL erases its target-set subtree
+during immutable planning, then re-lowers surviving peers. This is not a
+first-item series evaluation: the erased provider contributes no cardinality.
+A nullable source column does not supply that constant proof and still yields
+one NULL per expanded row. Stored target-set validation is separate from FROM
+source eligibility; a serializable series view does not enable series FROM.
+
+Arithmetic state is constant-space and execution-private. LIMIT stops provider
+demand; only finalized immutable output is published. Late errors or cancellation
+publish no native cursor or successful mutation prefix. Held statements and
+stored views preserve symbolic arguments and width, never live cursors.
+Dump/Restore replays eligible views and literal stored data under its existing
+whitelist; it does not enable INSERT query sources or CTAS during Restore.
+
+Numeric/temporal signatures are considered for truthful overload resolution but
+are not native executable providers. Series FROM/ROWS FROM/ordinality/lateral
+and INSERT VALUES expansion remain explicit native capability exclusions.
+Public coverage and commands live in [reference/numeric](../reference/numeric/README.md#integer-target-series-selected-proof).
 
 ## Analysis and execution-private planning
 

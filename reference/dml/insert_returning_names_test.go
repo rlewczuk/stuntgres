@@ -150,12 +150,6 @@ func TestReferenceInsertReturningDiagnostics(t *testing.T) {
 				if tc.token == "excluded.v" {
 					d.Detail, d.Hint = d.Hint, ""
 				}
-				if tc.token == "generate_series(1,2)" && !b.PG {
-					// Generic calls retain lexer.call's parser admission boundary
-					// (internal/parser/parser.go); no native SRF provider is added.
-					d.Message = "functions are unsupported"
-					d.Hint = ""
-				}
 				s := fixture.ImplicitError(tc.q, d)
 				s.Prepared = prepared
 				s.SelectRows = true

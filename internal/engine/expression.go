@@ -590,6 +590,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		call, changed, err := preflightRegexpCall(c, e.regexpCall, decisiveDefaults)
 		e.regexpCall = call
 		return e, changed, err
+	case seriesExpression:
+		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+		})
 	case jsonKeysExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.args[0], decisiveDefaults)
 		if changed {
@@ -714,19 +718,21 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 				return nil, false, err
 			}
 		}
+		e.left, e.right = left, right
+		if arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
 		if decisiveDefaults {
 			_, leftConstant := left.(literalExpression)
 			_, rightConstant := right.(literalExpression)
 			p := e.Properties()
 			if leftConstant && (e.right == nil || rightConstant) && p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent {
-				e.left, e.right = left, right
 				value, err := e.Eval(c)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
 		// Ordinary consumers only materialize casts; arithmetic stays row-owned.
 		if leftChanged || rightChanged {
-			e.left, e.right = left, right
 			return e, true, nil
 		}
 	case nullTestExpression:
@@ -3020,6 +3026,14 @@ type arithmeticExpression struct {
 	provider    sqltype.Arithmetic
 	operator    sqltype.ArithmeticOperator
 	namespace   string
+}
+
+// Strict arithmetic may erase a target-set subtree when a physical constant
+// NULL makes its result independent of producer demand. Ordinary row arithmetic
+// and imported parameter NULLs retain their existing execution-owned behavior.
+func arithmeticSetConstantNull(original, current arithmeticExpression) bool {
+	return (bitwiseConstantNull(current.left) || bitwiseConstantNull(current.right)) &&
+		(querySetDepth(original) != 0 || querySetDepth(current) != 0)
 }
 
 func (e arithmeticExpression) Eval(c *EvalContext) (sqltype.Value, error) {

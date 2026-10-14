@@ -483,6 +483,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return child(r.Else, n.otherwise)
 		}
 	case parser.FunctionExpr:
+		if n, ok := bound.(seriesExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(jsonKeysExpression); ok {
 			return children(r.Args, n.args)
 		}

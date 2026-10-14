@@ -91,6 +91,13 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if jsonCreateKind(name) != 0 {
 		return b.bindJSONCreate(raw)
 	}
+	if strings.EqualFold(name, "generate_series") {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		return b.bindSeries(raw, visible)
+	}
 	if parser.JSONFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

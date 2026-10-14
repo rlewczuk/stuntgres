@@ -599,7 +599,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 						return fmt.Errorf("stuntgres: duplicate stored string call slot")
 					}
 				}
-				if !validFunctionSourceCall(call) || call.ResultUsage() != n.Schema()[base+slot].Usage {
+				if !isQuerySet(call) || call.ResultUsage() != n.Schema()[base+slot].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string set usage")
 				}
 			}

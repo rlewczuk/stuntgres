@@ -213,6 +213,14 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   operators, new element providers or general §9.19 array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
+- Integer/bigint `generate_series` executes only through SELECT-target SRF
+  expansion, including existing SELECT consumers such as views, CTAS and
+  INSERT SELECT. Numeric/temporal overloads inform genuine resolution and
+  ambiguity but are not executable providers. Series FROM/ROWS FROM,
+  WITH ORDINALITY, lateral sources and INSERT VALUES expansion are excluded;
+  PostgreSQL success in those contexts is not a native capability claim.
+  Window PARTITION/ORDER keys are legal; window frames and scalar restricted
+  owners retain exact SRF placement diagnostics.
 - Selected scalar/set JSON processing includes `json_typeof`, `jsonb_typeof`,
   `json_array_length`, `jsonb_array_length`, `json_object_keys` and
   `jsonb_object_keys`, each taking its matching JSON family. Kinds/keys return

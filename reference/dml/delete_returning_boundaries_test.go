@@ -10,7 +10,7 @@ import (
 func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 	p := fixture.NewPair(t)
 	// PostgreSQL-only controls combine records with otherwise shared scalar
-	// subqueries, or require SRFs, triggers and rewriting.
+	// subqueries, or require triggers and rewriting.
 	t.Run("postgres", func(t *testing.T) {
 		db, r := p.Postgres, p.PostgresRecord
 		fixture.LockExec(t, p.Ctx, db, "CREATE TABLE t(id INT PRIMARY KEY)", 0)
@@ -20,13 +20,6 @@ func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 		// PG18.0's parenthesized whole-row expansion preserves target OLD
 		// fields here; this excluded record path is not ordinary new.id/new.*.
 		fixture.RunStep(t, p.Ctx, db, r, fixture.Select("DELETE FROM t RETURNING (old).*,(new).*", []string{"id", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}))
-		for _, tc := range []struct{ q, code, message string }{
-			{"DELETE FROM t RETURNING generate_series(1,2)", "0A000", "set-returning functions are not allowed in RETURNING"},
-		} {
-			s := fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: tc.code, Message: tc.message, Position: "25"})
-			s.SelectRows = true
-			fixture.RunStep(t, p.Ctx, db, r, s)
-		}
 		fixture.LockExec(t, p.Ctx, db, "INSERT INTO t VALUES(1)", 1)
 		fixture.LockExec(t, p.Ctx, db, "CREATE FUNCTION suppress_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$", 0)
 		fixture.LockExec(t, p.Ctx, db, "CREATE TRIGGER suppress BEFORE DELETE ON t FOR EACH ROW EXECUTE FUNCTION suppress_delete()", 0)

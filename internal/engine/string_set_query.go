@@ -69,6 +69,7 @@ const (
 	functionOwnedSetCursor
 	functionScalarCursor
 	functionJSONKeysCursor
+	functionSeriesCursor
 )
 
 type functionSetCursor struct {
@@ -79,6 +80,7 @@ type functionSetCursor struct {
 	scalar                 sqltype.Value
 	kind                   functionCursorKind
 	exhausted, initialized bool
+	current, stop, step    int64
 }
 type functionSetInvocation struct{ cursors []functionSetCursor }
 
@@ -112,6 +114,39 @@ func openFunctionInvocation(c *EvalContext, calls []BoundExpr) (functionSetInvoc
 }
 func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
 	switch call := expression.(type) {
+	case seriesExpression:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if len(call.args) != 2 && len(call.args) != 3 {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid series arguments")
+		}
+		var values [3]int64
+		values[2] = 1
+		null := false
+		for i, arg := range call.args {
+			v, err := arg.Eval(c)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			if v.IsNull() {
+				null = true
+			} else {
+				values[i], err = v.Integer()
+				if err != nil {
+					return functionSetCursor{}, err
+				}
+			}
+		}
+		cursor := functionSetCursor{kind: functionSeriesCursor, initialized: true, current: values[0], stop: values[1], step: values[2], exhausted: null}
+		if null {
+			return cursor, nil
+		}
+		if cursor.step == 0 {
+			return functionSetCursor{}, sqlError("22023", "step size cannot equal zero")
+		}
+		cursor.exhausted = cursor.step > 0 && cursor.current > cursor.stop || cursor.step < 0 && cursor.current < cursor.stop
+		return cursor, nil
 	case jsonKeysExpression:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
@@ -202,6 +237,26 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	}
 	if !s.initialized {
 		return sqltype.Value{}, false, fmt.Errorf("stuntgres: unopened function set cursor")
+	}
+	if s.kind == functionSeriesCursor {
+		if s.step > 0 && s.current > s.stop || s.step < 0 && s.current < s.stop {
+			s.exhausted = true
+			return sqltype.Null(typ), false, nil
+		}
+		value, err := sqltype.Integer(typ, s.current)
+		if err != nil {
+			return sqltype.Value{}, false, err
+		}
+		minimum, maximum := int64(math.MinInt64), int64(math.MaxInt64)
+		if typ.ID() == sqltype.Int4 {
+			minimum, maximum = math.MinInt32, math.MaxInt32
+		}
+		if s.step > 0 && s.current > maximum-s.step || s.step < 0 && s.current < minimum-s.step {
+			s.exhausted = true
+		} else {
+			s.current += s.step
+		}
+		return value, true, nil
 	}
 	if s.kind == functionOwnedSetCursor {
 		if s.position < len(s.owned) {
