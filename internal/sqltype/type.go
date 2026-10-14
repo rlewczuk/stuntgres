@@ -51,6 +51,7 @@ const (
 	Bit              ID = 1560
 	VarBit           ID = 1562
 	Numeric          ID = 1700
+	Regprocedure     ID = 2202
 	Regoper          ID = 2203
 	Regoperator      ID = 2204
 	Regclass         ID = 2205
@@ -138,9 +139,9 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 		return 1
 	case Int2:
 		return 2
-	case Int4, Oid, Xid, Cid, Regclass, Regtype, Regproc, Regrole, Date, Float4, Void,
+	case Int4, Oid, Xid, Cid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Date, Float4, Void,
 		269, 325, // table_am_handler, index_am_handler
-		2202, 2203, 2204, // regprocedure, regoper, regoperator
+		2203, 2204, // regoper, regoperator
 		2276, 2279, 2280, 2283, // any, trigger, language_handler, anyelement
 		2776, 3115, 3310, 3500, // anynonarray, fdw_handler, tsm_handler, anyenum
 		3734, 3769, 3838, // regconfig, regdictionary, event_trigger
@@ -264,6 +265,7 @@ func Builtins() []*Descriptor {
 		{id: Regrole, name: "regrole", sql: "REGROLE", database: "REGROLE", associatedArray: 4097},
 		{id: Regoper, name: "regoper", sql: "REGOPER", database: "REGOPER", associatedArray: 2208},
 		{id: Regoperator, name: "regoperator", sql: "REGOPERATOR", database: "REGOPERATOR", associatedArray: 2209},
+		{id: Regprocedure, name: "regprocedure", sql: "REGPROCEDURE", database: "REGPROCEDURE", associatedArray: 2207},
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
@@ -661,8 +663,21 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 			return Value{}, err
 		}
 		return OperatorValue(d, id)
-	case Regproc:
-		return Value{}, failure("0A000", "regproc input is unsupported")
+	case Regproc, Regprocedure:
+		if env.Regproc == nil {
+			return Value{}, fmt.Errorf("routine alias input lacks catalog authority")
+		}
+		var n uint32
+		var err error
+		if d.id == Regprocedure {
+			n, err = env.Regproc.ResolveRegprocedure(ctx, text)
+		} else {
+			n, err = env.Regproc.ResolveRegproc(ctx, text)
+		}
+		if err != nil {
+			return Value{}, err
+		}
+		return RegprocValue(d, n)
 	case Regtype:
 		if env.Regtype == nil {
 			return Value{}, fmt.Errorf("regtype input lacks catalog authority")
@@ -928,13 +943,16 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return env.Operator.FormatRegoper(id)
 		}
 		return env.Operator.FormatRegoperator(id)
-	case Regproc:
+	case Regproc, Regprocedure:
 		id, err := v.ProcedureOID()
 		if err != nil {
 			return "", err
 		}
 		if env.Regproc == nil {
 			return "", fmt.Errorf("missing regproc output snapshot")
+		}
+		if d.id == Regprocedure {
+			return env.Regproc.FormatRegprocedure(id)
 		}
 		return env.Regproc.FormatRegproc(id)
 	case Regclass:
@@ -1071,6 +1089,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'", nil
 	case Regoper, Regoperator:
 		id, err := v.OperatorOID()
+		if err != nil {
+			return "", err
+		}
+		return "'" + strconv.FormatUint(uint64(id), 10) + "'", nil
+	case Regproc, Regprocedure:
+		id, err := v.ProcedureOID()
 		if err != nil {
 			return "", err
 		}
@@ -1308,7 +1332,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regrole, Regoper, Regoperator, Inet, Cidr, ACLItem:
+		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Inet, Cidr, ACLItem:
 		return true
 	}
 	return false
@@ -1389,13 +1413,17 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		}
 		return p, failure("42804", "incompatible source and destination types")
 	}
-	if source.Type.id == Regproc || target.Type.id == Regproc {
+	if IsRoutineAlias(source.Type.id) || IsRoutineAlias(target.Type.id) {
 		switch {
 		case source.Type == target.Type:
 			return p, nil
-		case source.Type.id == Regproc && target.Type.id == Oid:
+		case IsRoutineAlias(source.Type.id) && (target.Type.id == Oid || IsRoutineAlias(target.Type.id)),
+			IsRoutineAlias(target.Type.id) && (source.Type.id == Oid || source.Type.id == Int2 || source.Type.id == Int4 || source.Type.id == Int8):
 			p.method = oidConversion
-		case source.Type.id == Regproc && target.Type.id == Text && context >= Assignment:
+		case IsRoutineAlias(source.Type.id) && (target.Type.id == Int4 || target.Type.id == Int8) && context >= Assignment:
+			p.method = oidConversion
+		case IsRoutineAlias(source.Type.id) && IsCharacter(target.Type.id) && context >= Assignment,
+			IsRoutineAlias(target.Type.id) && IsCharacter(source.Type.id) && context == Explicit:
 			p.method = viaIO
 		default:
 			return p, failure("42804", "incompatible source and destination types")
@@ -1792,7 +1820,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.Type.BaseType().IsEnum() {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
-			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regrole, Regoper, Regoperator, Text, VarChar, Time,
+			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Text, VarChar, Time,
 			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8:
 		case Void:
 			message := "could not identify an ordering operator for type void"
@@ -2009,7 +2037,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		}
 	case Inet, Cidr:
 		return compareNetwork(a.network, b.network), nil
-	case Regclass, Regtype, Regproc, Regrole, Regoper, Regoperator:
+	case Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator:
 		if a.integer != 1 || b.integer != 1 {
 			return 0, fmt.Errorf("invalid regclass comparison value")
 		}

@@ -100,6 +100,17 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 						return nil, err
 					}
 				}
+				if !typesOnly && value.Type().ContainsRegproc() {
+					value, err = remapRoutineDatum(value, func(id OID) OID {
+						if address, ok := mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
+							return address.ObjectID
+						}
+						return id
+					})
+					if err != nil {
+						return nil, err
+					}
+				}
 				tuple[i].value = value
 			}
 		}

@@ -49,6 +49,9 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			if err := (scalarRenderer{dependencies: &references}).recordRegtypeReferences(auth.catalog, constant.value); err != nil {
 				return nil, err
 			}
+			if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(auth.catalog, constant.value); err != nil {
+				return nil, err
+			}
 			for _, ref := range references {
 				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: auth.catalog.state.descriptors[ref.Address].Revision()})
 			}

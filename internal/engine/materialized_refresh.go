@@ -219,15 +219,32 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref Object
 	op := scope.op
 	population, owner := op.materializedPopulation, op.materializedOwner
 	identity, schema := scope.identity, scope.currentSchemaResult
+	input := scope.input
 	op.materializedPopulation, op.materializedOwner = true, d.owner
 	scope.currentSchemaResult = sqltype.Value{}
 	defer func() {
 		op.materializedPopulation, op.materializedOwner = population, owner
 		scope.identity, scope.currentSchemaResult = identity, schema
+		scope.input = input
 	}()
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
 		err = scope.captureIdentityLocked(auth)
+	}
+	if err == nil {
+		// Preserve operation settings, but never borrow caller catalog authority
+		// for the population owner's restricted reference path.
+		candidate := input
+		candidate.Regclass, candidate.Regtype, candidate.Regrole = nil, nil, nil
+		candidate.Operator, candidate.Regproc, candidate.ACLItem = nil, nil, nil
+		candidate.TypeDiagnosticName = nil
+		captureEnumOperationSafety(op, &candidate)
+		err = captureRetainedDefinitionInput(auth.catalog, d.view,
+			func() error { return e.captureElementInput(auth, op, &candidate) },
+			func(typ *sqltype.Descriptor) error { return e.captureTypeDiagnosticInput(auth, op, &candidate, typ) })
+		if err == nil {
+			scope.input = candidate
+		}
 	}
 	if err != nil {
 		e.mu.Unlock()

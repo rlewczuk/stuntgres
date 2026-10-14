@@ -11,6 +11,7 @@ import (
 type regtypeConstant struct {
 	offset    int
 	operator  sqltype.ID
+	typeID    sqltype.ID
 	id        uint32
 	value     sqltype.Value
 	qualified []ObjectAddress
@@ -75,7 +76,7 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 	found := false
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, c := range b.expected.regtypes.constants {
-			if c.offset == pos.Offset && c.operator == 0 {
+			if c.offset == pos.Offset && c.operator == 0 && c.typeID == 0 {
 				constant, found = c, true
 				break
 			}
@@ -104,7 +105,7 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, constant := range b.expected.regtypes.constants {
-			if constant.offset == pos.Offset && constant.operator == 0 && constant.value.Type() != nil {
+			if constant.offset == pos.Offset && constant.operator == 0 && constant.typeID == 0 && constant.value.Type() != nil {
 				value, err := constant.value.Retag(u.Type)
 				if err != nil {
 					return sqltype.Value{}, err
@@ -134,12 +135,12 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 }
 
 func (b *expressionBinder) foldRegtypeConstant(child BoundExpr, plan sqltype.CoercionPlan, info expressionInfo) (BoundExpr, bool, error) {
-	if (info.usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.usage.Type.BaseType().ID())) || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters || b.materializedDefinition) {
+	if (info.usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.usage.Type.BaseType().ID()) && !sqltype.IsRoutineAlias(info.usage.Type.BaseType().ID())) || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters || b.materializedDefinition) {
 		return nil, false, nil
 	}
 	p := child.Properties()
 	id := child.ResultUsage().BaseUsage().Type.ID()
-	if p.Volatility != Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
+	if p.Volatility != Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 && !sqltype.IsRoutineAlias(id) {
 		return nil, false, nil
 	}
 	value, err := child.Eval(&EvalContext{Context: b.ctx, Input: b.input})
@@ -151,6 +152,10 @@ func (b *expressionBinder) foldRegtypeConstant(child BoundExpr, plan sqltype.Coe
 		return nil, true, err
 	}
 	if !value.IsNull() {
+		if value.Type().ContainsRegproc() {
+			b.regtypeConstants = append(b.regtypeConstants, regtypeConstant{offset: info.pos.Offset, typeID: value.Type().ID(), value: value})
+			return literalExpression{info, value}, true, nil
+		}
 		var id uint32
 		var err error
 		if sqltype.IsOperatorAlias(value.Type().BaseType().ID()) {

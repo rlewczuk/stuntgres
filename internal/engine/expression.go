@@ -2256,7 +2256,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if err := b.captureTypeDiagnosticInput(policy.expected.Type); err != nil {
 			return nil, err
 		}
-		if policy.expected.Type.ContainsRegclass() || policy.expected.Type.ContainsRegtype() || policy.expected.Type.ContainsRegrole() || policy.expected.Type.ContainsOperatorAlias() {
+		if policy.expected.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
 				return nil, err
 			}
@@ -2384,7 +2384,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
-	if target.Type.ContainsRegclass() || target.Type.ContainsRegtype() || target.Type.ContainsRegrole() || target.Type.ContainsOperatorAlias() {
+	if target.Type.ContainsCatalogIdentifier() {
 		if err := b.captureElementInput(); err != nil {
 			return nil, err
 		}
@@ -2449,6 +2449,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	target = info.usage
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
+		if sqltype.IsRoutineAlias(source.Type.BaseType().ID()) || sqltype.IsRoutineAlias(target.Type.BaseType().ID()) {
+			return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+		}
 		// A rejected cast from an existing stored scalar to an existing array is
 		// a type mismatch, not an unimplemented scalar provider. This only
 		// selects the diagnostic below; it adds no coercion capability.
@@ -2689,6 +2692,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if err := b.captureTypeDiagnosticInput(u.Type); err != nil {
 		return sqltype.Value{}, err
 	}
+	if u.Type.ContainsRegproc() {
+		return b.routineConstant(text, u, pos)
+	}
 	if u.Type.ID() == sqltype.Regtype {
 		return b.regtypeConstant(text, pos)
 	}
@@ -2726,7 +2732,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			}
 			return c.value.Retag(u.Type)
 		}
-		if u.Type.ContainsRegclass() || u.Type.ContainsRegtype() || u.Type.ContainsRegrole() || u.Type.ContainsOperatorAlias() {
+		if u.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
 				return sqltype.Value{}, err
 			}
@@ -2819,27 +2825,40 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 }
 
 func (b *expressionBinder) captureElementInput() error {
-	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil {
+	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil && b.input.Regproc != nil {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return err
 	}
-	if b.input.Regclass == nil {
-		b.input.Regclass, err = b.engine.captureRegclassInput(auth)
+	return b.engine.captureElementInput(auth, b.op, &b.input)
+}
+
+// Capture recursive catalog input from one coherent authorization snapshot.
+// Frozen expressions and newly bound expressions share these same owners.
+func (e *Engine) captureElementInput(auth AuthorizationView, op *Operation, input *sqltype.InputEnvironment) error {
+	var err error
+	if input.Regclass == nil {
+		input.Regclass, err = e.captureRegclassInput(auth)
 		if err != nil {
 			return err
 		}
 	}
-	if b.input.Regtype == nil {
-		b.input.Regtype, err = b.engine.captureRegtypeInput(auth, b.op)
+	if input.Regtype == nil {
+		input.Regtype, err = e.captureRegtypeInput(auth, op)
+		if err != nil {
+			return err
+		}
 	}
-	if b.input.Regrole == nil {
-		b.input.Regrole = capturedRegroleInput{roles: auth.roles}
+	if input.Regproc == nil {
+		input.Regproc, err = e.captureRoutineInput(auth, input.Regtype.(capturedRegtypeInput))
 	}
-	if err == nil && b.input.Operator == nil {
-		b.input.Operator, err = b.engine.captureOperatorInput(auth, b.op)
+	if input.Regrole == nil {
+		input.Regrole = capturedRegroleInput{roles: auth.roles}
+	}
+	if err == nil && input.Operator == nil {
+		input.Operator, err = e.captureOperatorInput(auth, op)
 	}
 	return err
 }

@@ -69,6 +69,11 @@ func (input InputEnvironment) ParameterInput(slot int, empty bool) InputEnvironm
 	}); ok {
 		input.Operator = resolver.OperatorParameter(slot, empty)
 	}
+	if resolver, ok := input.Regproc.(interface {
+		RoutineParameter(int, bool) RoutineResolver
+	}); ok {
+		input.Regproc = resolver.RoutineParameter(slot, empty)
+	}
 	if resolver, ok := input.ACLItem.(interface {
 		ACLItemParameter(int, bool) ACLItemResolver
 	}); ok {
@@ -80,6 +85,11 @@ func (input InputEnvironment) ParameterInput(slot int, empty bool) InputEnvironm
 // LiteralInput associates codec notices with the enclosing SQL literal, including
 // array children and warnings emitted before a later input error.
 func (input InputEnvironment) LiteralInput(position int) InputEnvironment {
+	if resolver, ok := input.Regproc.(interface {
+		RoutineLiteral(int) RoutineResolver
+	}); ok {
+		input.Regproc = resolver.RoutineLiteral(position)
+	}
 	if resolver, ok := input.ACLItem.(interface {
 		ACLItemLiteral(int) ACLItemResolver
 	}); ok {

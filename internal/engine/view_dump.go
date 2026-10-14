@@ -11,6 +11,11 @@ import (
 // it must wait for that exact reciprocal owner, even after address remapping.
 func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, error) {
 	address.SubID = 0
+	if address.ClassID == ProcedureClassID {
+		if _, builtin := routineByOID[address.ObjectID]; builtin {
+			return 0, nil
+		}
+	}
 	object, exists := view.Descriptor(address)
 	if !exists {
 		return 0, fmt.Errorf("stuntgres: missing dump dependency")

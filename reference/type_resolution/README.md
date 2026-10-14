@@ -96,6 +96,181 @@ held parameter failure/recovery, metadata, private-schema denial, numeric dump
 roundtrips, retained strings and failed-tuple atomicity. These definitions and
 implementation are not passing evidence until root exercises the gates.
 
+### Regproc / regprocedure definitions and evidence
+
+The original eight `TestReferenceRegProc` definitions preserve the independently specified
+PostgreSQL18.0 contract. Root Verification1 exposed diagnostic/quoting corrections;
+Verification2 confirmed the corrected oracle SQL contract, with native-generated
+dump phases still deferred at that test-only stage. Root removed the PostgreSQL-only
+filter and both nil-stream guards before Verification3's genuine failing native
+regression. Verification8 subsequently passed the original eight definitions and
+changed standalone REGTYPE definition in native/pinned modes, quickcheck and public
+smoke after captured type-authority reuse, including actual emitted-stream replay.
+Review1 identified additional numeric/dash signature-type and mixed routine/REGROLE
+serialization defects outside those exercised paths. Verification12 completed
+native/pinned proof for both new regression definitions, including restored-default
+INSERT and actual emitted-stream replay. Prior passes alone did not establish
+their remedies. No discovery filters or control deferrals remain in the twelve
+RegProc definitions; completed selected native/pinned proof now includes R5.
+
+Witnesses cover direct/fresh-prepared/same-held values, empty-result metadata,
+string/textual-byte/typed-nil/NULL frames, exact fixed identities and signatures,
+six complete diagnostic routes, casts, all-path overload visibility, real unaccent
+authority, expression versus data-only dependencies, atomic late-row failure,
+tables/defaults/views/domains/arrays, retained outputs and native replacement.
+Schema authority setup deliberately uses real PostgreSQL USAGE grants versus
+supported native schema ownership transfer; it does not admit native GRANT/REVOKE
+SQL or transfer bootstrap-owned tables.
+`DROP EXTENSION` is likewise an existing native utility boundary, not delivered
+by routine aliases. PreparedAuthority and Persistence assert its exact native
+`0A000` / `statement is unsupported` / Position `1` diagnostic and unchanged
+alias values, then continue supported path/role authority and persistence phases.
+Real PostgreSQL retains the complete drop/reinstall, dangling data identity,
+held-literal retention and dependency Detail/Hint assertions. Private real catalog
+removal supplements native identity-lifetime coverage without claiming SQL support.
+
+Signature witnesses include canonical aliases, schema-qualified types, modifiers,
+arrays, zero arity, aggregate sum and
+the quoted mixed-case RI builtin. Complete release extraction validates all 3397
+source-fixed identities and 116 argument-type symbols; see
+[the evidence note](../../docs/design/regproc-pg18-oracle.md).
+
+`SignatureTypeSyntax` distinguishes decoded argument syntax from whole-alias input:
+numeric/dash arguments must use the existing type parser and diagnostics, while
+whole REGTYPE/REGPROC/REGPROCEDURE numeric and dash shortcuts remain valid.
+`MixedRolePersistence` covers a supported composite carrying REGPROCEDURE and a
+named REGROLE, preserving symbolic role serialization in rows/defaults/views,
+displaced native Restore and exact emitted-stream PostgreSQL replay. Its role OID
+must resolve to the receiving catalog's named role, not retain the source OID.
+Native arrays of composites and scalar REGROLE stored constants remain unsupported.
+
+Review2's distinct mixed routine/operator capture coverage gap is addressed by
+`reference/type_resolution/regproc_mixed_operator_test.go` /
+`TestReferenceRegProcMixedOperatorPersistence`: the admitted composite contains
+REGPROCEDURE, REGOPERATOR and REGTYPE, with independently expected builtin OIDs
+1397/551/23 and symbolic output. Direct and held string/byte/NULL frames,
+row/default/view persistence, actual emitted native Dump replay on PostgreSQL,
+restored-default INSERT and retained native output/metadata across Reset/Restore
+preserve existing operator behavior without adding operator functionality.
+The private `TestRoutineMixedOperatorCompoundCapture` supplements public values
+with real descriptor publication, exact ordered fresh and retained operand
+dependencies at the same occurrence, cell classifications, actual operand revision
+invalidation/recapture and qualified operand-authority invalidation/recovery.
+Completed root native/pinned checks confirm the public scenario, and the real
+private mixed-capture lifecycle selector passes. Verification12 remains historical;
+the later proof exercises the exact mixed owner and restored-view remedy.
+
+```sh
+make check RUN='^TestRoutineMixedOperatorCompoundCapture$'
+make check RUN='^TestReferenceRegProcMixedOperatorPersistence$'
+make check RUN='^TestReferenceRegProcMixedOperatorPersistence$' REFERENCE=1
+```
+
+The public selector is also the bounded R4 feature smoke: expect exact symbolic
+values and OIDs, restored-default evaluation, actual PostgreSQL replay, and
+retained native output/metadata to pass, not merely successful setup.
+
+Review3's materialized retained-input finding has a public regression in
+`regproc_materialized_test.go` / `TestReferenceRegProcMaterializedPersistence`.
+It independently specifies fixed builtin OIDs1397/551/23 and receiving-catalog
+named-role identity in a nonpublic opaque composite. Direct and nested definitions
+must retain native saved stale population1 after Dump/Reset/Restore, refresh to2,
+then refresh to2/3. Actual emitted SQL creates PostgreSQL views WITH NO DATA:
+complete55000 diagnostics precede explicit refresh to2, then2/3. Native unread
+rows and metadata remain retained across replacement and refresh.
+Verification16 records oracle-only SQL discovery success and corrected native
+Restore failure `type "mixed" does not exist`, not passing materialized proof.
+The source remedy reuses shared retained input traversal under the population
+owner before frozen preflight, qualifies dumped composite casts through the
+existing renderer, and validates emitted closed snapshot concatenation through
+the existing import owner. Completed native and pinned replay proof now confirms
+this consumer; Verification15 remains the historical earlier-consumer evidence.
+
+```sh
+make check RUN='^TestReferenceRegProcMaterializedPersistence$' REFERENCE=1
+make check RUN='^TestReferenceRegProcMaterializedPersistence$'
+```
+
+This dedicated R5 smoke expects exit0/PASS for current symbolic values, exact
+builtin identities, relational role identity, direct/prepared fresh metadata,
+stale-versus-refreshed populations, retained native results, and actual stream
+replay. Root removed discovery filters and missing-stream deferrals before the
+genuine native failure; the fixture preserves Reset's existing role catalog.
+The modified private owner proof is selected separately:
+
+```sh
+make check RUN='^Test(MaterializedRefreshOwnerContext|MaterializedRefreshAuthorization|MaterializedViewSnapshotLosslessCoercions|RoutineMixedOperatorCompoundCapture)$'
+```
+
+It expects genuine retained coercion1397, owner-authorized restricted input,
+unchanged caller session identity, and input/principal restoration after success
+or producer failure. Full quickcheck and fresh review remain separate root gates.
+The snapshot unit admits the generated closed concatenation and rejects nested
+function, identity, column and binary-arithmetic expressions.
+
+`Persistence` and `FeatureSmoke` use actual native Dump bytes, native Reset/Restore,
+displaced independent engine identities, retained rows and failed/canceled Restore
+atomicity. Real mode replays that exact emitted stream through ordinary PostgreSQL
+SQL; no manually reconstructed stream or simulated PostgreSQL control API is used.
+
+Selected root proof commands, each with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceRegProc(ValuesMetadata|Signatures|SignatureTypeSyntax|Diagnostics|Casts)$'
+make check RUN='^TestReferenceRegProc(ValuesMetadata|Signatures|SignatureTypeSyntax|Diagnostics|Casts)$' REFERENCE=1
+make check RUN='^TestReferenceRegProc(SearchPath|PreparedAuthority|Persistence|MixedRolePersistence|FeatureSmoke)$'
+make check RUN='^TestReferenceRegProc(SearchPath|PreparedAuthority|Persistence|MixedRolePersistence|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceRegProcFeatureSmoke$'
+make check RUN='^TestReferenceRegProcFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceRegProc(SignatureTypeSyntax|MixedRolePersistence)$'
+make check RUN='^TestReferenceRegProc(SignatureTypeSyntax|MixedRolePersistence)$' REFERENCE=1
+make check RUN='^TestReferenceRegProc(PreparedAuthority|Persistence)$' RACE=1
+make check RUN='^TestReferenceRegtypeAliasModifierSyntax$' REFERENCE=1
+make check RUN='^TestReferenceRegtypeAliasModifierSyntax$'
+```
+
+Smoke expects exact builtin OIDs1242/1397/1644, REGPROC/REGPROCEDURE metadata,
+full ambiguity/missing records, same-held invalid-to-valid recovery, no partial
+INSERT rows, native persistent roundtrip and actual emitted-stream oracle replay.
+Expected success is test PASS/exit0, not an invented console banner. Private parser,
+codec, release-inventory, candidate-mask, remap and retained-presentation units
+supplement these public scenarios; they do not replace selected dual-mode proof,
+whole-project quickcheck or post-integration finalcheck. Neither readiness nor
+source extraction is passing native smoke evidence.
+
+Changed preexisting definition: `TestReferenceRegtypeAliasModifierSyntax` now
+adds the shared generic decoded-type keyword boundary (NONE on all six routes)
+and preserves admitted quoted/qualified domain and builtin/modifier paths.
+Its REGTYPE-specific route expectations use the existing independent error owner;
+Verification8 confirmed these standalone fields in both native and pinned modes.
+The two review regressions also pass completed native/pinned proof, including
+six-route numeric/dash rejection and mixed composite row/default/view restoration
+with receiving-catalog role identity and actual emitted-stream PostgreSQL replay.
+
+Complete added/modified dual-definition inventory (`A` = first RegProc selector
+above, `B` = second, `C` = standalone Regtype selector, `D` = dedicated R4
+MixedOperatorPersistence selector, `E` = dedicated R5 MaterializedPersistence
+selector; repeat each in both modes):
+
+| Path in this package | Exact definition | Membership | Reason |
+| --- | --- | --- | --- |
+| `regproc_values_test.go` | `TestReferenceRegProcValuesMetadata` | A | New alias values, raw transport, metadata and storage |
+| `regproc_values_test.go` | `TestReferenceRegProcSignatures` | A | New exact signatures, released OIDs and quoting |
+| `regproc_signature_type_syntax_test.go` | `TestReferenceRegProcSignatureTypeSyntax` | A and remedy smoke | Numeric/dash argument syntax across six routes, valid held recovery and preserved whole-input shortcuts |
+| `regproc_diagnostics_test.go` | `TestReferenceRegProcDiagnostics` | A | New complete six-route diagnostics |
+| `regproc_values_test.go` | `TestReferenceRegProcCasts` | A | New casts, comparisons and assignment boundaries |
+| `regproc_authority_test.go` | `TestReferenceRegProcSearchPath` | B | New path/namespace authority and qualified output |
+| `regproc_authority_test.go` | `TestReferenceRegProcPreparedAuthority` | B | Held identity/input lifecycle, supported path/role recovery and explicit native DROP boundary; full PG drop/reinstall |
+| `regproc_persistence_test.go` | `TestReferenceRegProcPersistence` | B | Native controls, owned REGPROC/REGPROCEDURE retained raw cells, remap/dependencies, DROP boundary and actual stream replay |
+| `regproc_persistence_test.go` | `TestReferenceRegProcFeatureSmoke` | B and exact smoke | New feature acceptance smoke |
+| `regproc_mixed_controls_test.go` | `TestReferenceRegProcMixedRolePersistence` | B and remedy smoke | Supported routine/role composite row/default/view serialization, displaced target-role identity and actual emitted-stream replay |
+| `regproc_mixed_operator_test.go` | `TestReferenceRegProcMixedOperatorPersistence` | D and R4 smoke | Actual mixed routine/operator/type capture, row/default/view persistence, restored-default INSERT, retained output and emitted-stream replay |
+| `regproc_materialized_test.go` | `TestReferenceRegProcMaterializedPersistence` | E and R5 smoke | Direct/nested materialized frozen definitions, routine/operator/type/role authority, actual controls and refresh, stale/retained rows and actual emitted-stream replay |
+| `regtype_alias_syntax_test.go` | `TestReferenceRegtypeAliasModifierSyntax` | C | Modified shared decoded-type keyword admission proof |
+
+The eight RegProc definitions were authored and oracle-corrected in the prior
+test-only stage; Stage C preserves their full expectations. No public definition
+was migrated, and no other preexisting public definition was modified.
 
 ### Transaction and command identifiers
 

@@ -189,18 +189,73 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if actual, err := rows.FormatRegproc(uint32(second.address.ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
 		t.Fatal("retained REGPROC presentation changed", actual, err)
 	}
+	// Remove the referent itself through real catalog publication. Native SQL
+	// DROP EXTENSION is unavailable; this supplements the public PostgreSQL
+	// drop/reinstall witness with the native captured-identity invariant.
+	view = e.CatalogRead()
+	procedureType, _ := view.LookupType(sqltype.Regprocedure)
+	procedureValue, err := sqltype.RegprocValue(procedureType, uint32(second.address.ObjectID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := captureRegprocOutputValue(rows, view, path, procedureValue); err != nil {
+		t.Fatal(err)
+	}
+	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{{offset: 7, typeID: sqltype.Regprocedure, value: procedureValue}}}}
+	stage = e.BeginCatalogStage(view)
+	if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: second.address}); err != nil {
+		t.Fatal(err)
+	}
+	collationUnitPublish(t, e, stage)
+	binder := &expressionBinder{ctx: context.Background(), expected: heldDescription}
+	heldValue, err := binder.routineConstant("pg_catalog.unaccent(text)", procedureType.Usage(), parser.Position{Offset: 7, Character: 8})
+	if err != nil {
+		t.Fatal("retained literal after referent removal", err)
+	}
+	if id, err := heldValue.ProcedureOID(); err != nil || id != uint32(second.address.ObjectID) {
+		t.Fatal("retained literal identity changed", id, err)
+	}
+	op, auth := conversionUnitAuth(t, e)
+	types, err := e.captureRegtypeInput(auth, op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := e.captureRoutineInput(auth, types)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fresh.ResolveRegprocedure(context.Background(), "pg_catalog.unaccent(text)"); err == nil {
+		t.Fatal("fresh input resolved removed referent")
+	} else {
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != `function "pg_catalog.unaccent(text)" does not exist` {
+			t.Fatal("fresh removed-referent diagnostic", err)
+		}
+	}
+	if actual := routineSpelling(e.CatalogRead(), path, second.address.ObjectID, true, false); actual != "90001" {
+		t.Fatal("fresh removed-referent output", actual)
+	}
+	if actual, err := rows.FormatRegproc(uint32(second.address.ObjectID)); err != nil || actual != "pg_catalog.unaccent" {
+		t.Fatal("retained REGPROC after referent removal", actual, err)
+	}
+	if actual, err := rows.FormatRegprocedure(uint32(second.address.ObjectID)); err != nil || actual != "unaccent(text)" {
+		t.Fatal("retained REGPROCEDURE after referent removal", actual, err)
+	}
 }
 
-func TestConversionRegprocStorageBoundary(t *testing.T) {
+func TestRoutineAliasStorageAdmission(t *testing.T) {
 	e := New()
 	op, _ := conversionUnitAuth(t, e)
-	typ, _ := e.CatalogRead().LookupType(sqltype.Regproc)
-	if err := validateQueryTableOutputType(typ); err == nil {
-		t.Fatal("derived REGPROC admitted as query storage")
+	for _, id := range []sqltype.ID{sqltype.Regproc, sqltype.Regprocedure, 1008, 2207} {
+		typ, _ := e.CatalogRead().LookupType(id)
+		if err := validateQueryTableOutputType(typ); err != nil {
+			t.Fatal("routine alias query storage rejected", err)
+		}
 	}
-	_, err := e.resolveTableColumnType(parser.TypeName{Name: "regproc"}, op)
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
-		t.Fatal("REGPROC table declaration admitted", err)
+	for _, name := range []string{"regproc", "regprocedure"} {
+		usage, err := e.resolveTableColumnType(parser.TypeName{Name: name}, op)
+		if err != nil || !usage.Type.ContainsRegproc() {
+			t.Fatal("routine alias declaration rejected", usage, err)
+		}
 	}
 }

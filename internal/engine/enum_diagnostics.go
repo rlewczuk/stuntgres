@@ -78,13 +78,19 @@ func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) e
 	if err != nil {
 		return err
 	}
-	if acl {
-		b.input.ACLItem = b.engine.captureACLItemInput(auth, b.op)
+	return b.engine.captureTypeDiagnosticInput(auth, b.op, &b.input, typ)
+}
+
+func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
+	if typ.ContainsACLItem() && input.ACLItem == nil {
+		input.ACLItem = e.captureACLItemInput(auth, op)
 	}
-	if enum {
-		b.input.TypeDiagnosticName, err = b.engine.captureTypeDiagnosticName(auth)
+	if input.TypeDiagnosticName == nil && hasEnumInput(typ) {
+		var err error
+		input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+		return err
 	}
-	return err
+	return nil
 }
 
 func hasEnumInput(typ *sqltype.Descriptor) bool {
@@ -108,41 +114,88 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 	return false
 }
 
-// Retained write expressions are not rebound with the consuming statement.
-// Capture lazy diagnostic naming without evaluating any default or branch.
-func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, generations map[int32]columnGeneration, checks []checkConstraint) error {
-	if b.input.TypeDiagnosticName != nil {
-		return nil
-	}
-	var failure error
-	visit := func(node BoundExpr) {
-		if failure != nil || b.input.TypeDiagnosticName != nil {
-			return
+// Retained reads and writes have identical input demands, independent of the
+// tree walker used by their consumer. Naming never suppresses catalog input.
+func captureRetainedExpressionInput(node BoundExpr, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+	switch node := node.(type) {
+	case enumFunctionExpression:
+		return diagnostic(node.plan.Enum())
+	case coercionExpression:
+		if sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID()) {
+			target := node.ResultUsage().Type
+			if target.ContainsCatalogIdentifier() {
+				if err := element(); err != nil {
+					return err
+				}
+			}
+			return diagnostic(target)
 		}
-		switch node := node.(type) {
-		case enumFunctionExpression:
-			failure = b.captureTypeDiagnosticInput(node.plan.Enum())
-		case coercionExpression:
-			if sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID()) {
-				failure = b.captureTypeDiagnosticInput(node.ResultUsage().Type)
+	}
+	return nil
+}
+
+// Stored sources are opaque to the outer expression binder, but their
+// planning-time conversions consume the same published input environment.
+func (b *expressionBinder) captureRetainedViewInput(definition *viewDefinition) error {
+	return captureRetainedDefinitionInput(b.queryAuth.catalog, definition, b.captureElementInput, b.captureTypeDiagnosticInput)
+}
+
+// Each frozen consumer supplies its own coherent catalog and input owners.
+func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+	seen := make(map[*viewDefinition]bool)
+	var capture func(*viewDefinition) error
+	capture = func(definition *viewDefinition) error {
+		if seen[definition] {
+			return nil
+		}
+		seen[definition] = true
+		var failure error
+		walkQueryArgumentNode(definition.query.Root, func(node BoundExpr) {
+			if failure == nil {
+				failure = captureRetainedExpressionInput(node, element, diagnostic)
+			}
+		})
+		if failure != nil {
+			return failure
+		}
+		for _, source := range definition.sources {
+			relation, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+			if ok && relation.relationKind == viewRelation {
+				if err := capture(relation.view); err != nil {
+					return err
+				}
 			}
 		}
+		return nil
+	}
+	return capture(definition)
+}
+
+// Retained write expressions are not rebound with the consuming statement.
+// Capture input authority and lazy naming without evaluating defaults or branches.
+func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, generations map[int32]columnGeneration, checks []checkConstraint) error {
+	var failure error
+	visit := func(node BoundExpr) {
+		if failure != nil {
+			return
+		}
+		failure = captureRetainedExpressionInput(node, b.captureElementInput, b.captureTypeDiagnosticInput)
 	}
 	for _, node := range defaults {
 		walkBoundExpression(node, visit)
-		if failure != nil || b.input.TypeDiagnosticName != nil {
+		if failure != nil {
 			return failure
 		}
 	}
 	for _, definition := range generations {
 		walkBoundExpression(definition.planned, visit)
-		if failure != nil || b.input.TypeDiagnosticName != nil {
+		if failure != nil {
 			return failure
 		}
 	}
 	for _, definition := range checks {
 		walkBoundExpression(definition.expression, visit)
-		if failure != nil || b.input.TypeDiagnosticName != nil {
+		if failure != nil {
 			return failure
 		}
 	}

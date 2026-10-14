@@ -217,14 +217,20 @@ func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpre
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
+	if sqltype.IsRoutineAlias(u.Type.ID()) && !n.value.IsNull() {
+		return routineLiteralSQL(view, n.value)
+	}
 	if u.Type.IsArray() || u.Type.IsComposite() {
 		declaration, err := catalogTypeDeclaration(view, u)
 		if err != nil {
 			return "", err
 		}
+		if u.Type.ContainsRegproc() && !n.value.IsNull() {
+			return routineContainerLiteral(ctx, view, n.value, u, aclOutput)
+		}
 		literal := "NULL"
 		if !n.value.IsNull() {
-			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, ACLItem: aclOutput})
+			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, Regproc: catalogRoutineOutput{view: view, qualified: true}, ACLItem: aclOutput})
 			if err != nil {
 				return "", err
 			}

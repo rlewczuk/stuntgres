@@ -86,15 +86,18 @@ func (d *Descriptor) oidInput(text string) (Value, error) {
 }
 
 func oidCoercion(v Value, target *Descriptor) (Value, error) {
-	if target.id == Regclass || target.id == Regtype || target.id == Regrole || IsOperatorAlias(target.id) {
+	if target.id == Regclass || target.id == Regtype || target.id == Regrole || IsOperatorAlias(target.id) || IsRoutineAlias(target.id) {
 		var oid uint32
-		if v.typ.id == Oid || IsOperatorAlias(v.typ.id) {
+		if v.typ.id == Oid || v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regrole || IsOperatorAlias(v.typ.id) || IsRoutineAlias(v.typ.id) {
 			oid = v.oid
 		} else {
 			if v.typ.id == Int8 && (v.integer < 0 || v.integer > 4294967295) {
 				return Value{}, failure("22003", "OID out of range")
 			}
 			oid = uint32(v.integer)
+		}
+		if IsRoutineAlias(target.id) {
+			return RegprocValue(target, oid)
 		}
 		if target.id == Regtype {
 			return RegtypeValue(target, oid)
@@ -109,7 +112,7 @@ func oidCoercion(v Value, target *Descriptor) (Value, error) {
 		return Value{typ: target, text: strconv.FormatUint(uint64(oid), 10), oid: oid, integer: 1}, nil
 	}
 	if target.id == Oid {
-		if v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regproc || v.typ.id == Regrole || IsOperatorAlias(v.typ.id) {
+		if v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regrole || IsOperatorAlias(v.typ.id) || IsRoutineAlias(v.typ.id) {
 			if v.integer != 1 {
 				return Value{}, fmt.Errorf("unresolved regclass value")
 			}

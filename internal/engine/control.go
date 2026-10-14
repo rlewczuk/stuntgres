@@ -414,9 +414,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		if r.view != nil {
 			// Materialized definitions preserve their analyzed presentation
-			// without injecting synthetic source aliases during replay. A nil
-			// path qualifies identities for portable, executable dump SQL.
+			// without synthetic source aliases. Their explicit empty visibility
+			// path below qualifies user types for portable, executable dump SQL.
 			presentation := viewPresentation{columns: r.columns, deparse: r.relationKind == materializedViewRelation}
+			if presentation.deparse {
+				// A nil path is diagnostic naming's unqualified mode. Dump's
+				// canonical materialized renderer must qualify user types too.
+				presentation.path = []ObjectAddress{}
+			}
 			body, err := r.view.selectSQL(ctx, catalog, presentation)
 			if err != nil {
 				e.mu.Unlock()

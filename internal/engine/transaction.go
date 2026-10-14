@@ -364,6 +364,7 @@ type StatementScope struct {
 	visibilityOtherPath         []ObjectAddress
 	conversionDefaults          map[[2]int]conversionDefault
 	regprocOutput               map[uint32]string
+	regprocedureOutput          map[uint32]string
 	identity                    identitySnapshot
 	currentSchemaResult         sqltype.Value
 	deparsePath                 []ObjectAddress

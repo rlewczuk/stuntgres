@@ -45,7 +45,7 @@ and reports `interface{}` ScanType where native exports strings.
 | Timestamp infinities | Fresh owned `[]byte` |
 | BYTEA | Fresh owned `[]byte` |
 | Executable arrays, composites, ranges and multiranges | Canonical `string` |
-| REGCLASS, REGTYPE, REGROLE, REGOPER, REGOPERATOR | Captured symbolic `string` |
+| REGCLASS, REGTYPE, REGROLE, REGOPER, REGOPERATOR, REGPROC, REGPROCEDURE | Captured symbolic `string` |
 | ACLITEM | Captured canonical `string` |
 
 Numeric I/O never roundtrips through binary float. FLOAT4 input uses its own
@@ -385,6 +385,26 @@ Native logical Dump uses explicit typed numeric OID literals, preserving builtin
 zero and unknown identities losslessly even when ordinary overloaded REGOPER
 output such as `pg_catalog.+` cannot be parsed unambiguously.
 
+REGPROC (24, array1008) and REGPROCEDURE (2202, array2207) use unsigned four-byte
+routine identities. Names, textual bytes and NULL frames share the existing
+direct/prepared input owner. REGPROC rejects overloaded names; REGPROCEDURE
+matches exact input-argument type OIDs, not call coercion/default/variadic rules.
+Signature arguments use ordinary type parsing, qualification, aliases, arrays and
+modifier validation. Output preserves SQL identifier quoting and canonical type
+names. Numeric zero and `-` display `-`; unknown nonzero OIDs display unsigned
+decimal without requiring a procedure row. Integral/OID casts and the reciprocal
+routine-alias casts preserve identity; outgoing INT4 retains signed low32 bits,
+while INT8 input retains the ordinary OID range check. TEXT assignment into an
+alias is not implicit; explicit string IO uses current statement authority.
+Columns/domains/arrays and stored constants use the same physical carrier.
+Prepared literals retain identity across referent-only drops and refresh on
+relevant path/role/namespace authority changes; parameter/runtime input is fresh
+each execution. Dump uses qualified signatures rather than ambiguous REGPROC
+names, including recursive values. Restore remaps actual extension referents,
+not unknown numeric values or immutable builtin identities. Data-only values do
+not own providers; expression constants have real descriptor dependencies.
+Complete released identity lookup does not add execution or public pg_proc rows.
+See [routine alias evidence and boundaries](design/regproc-pg18-oracle.md).
 
 Internal CHAR catalog output uses string transport, not BPCHAR semantics or a
 physical ABI. High-byte output is printable escaped text. Nonnull VOID result

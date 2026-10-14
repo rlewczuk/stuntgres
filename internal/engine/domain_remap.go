@@ -416,6 +416,19 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 					changed = changed || remapped != rebound
 					rebound = remapped
 				}
+				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegproc() {
+					remapped, er := remapRoutineDatum(rebound, func(id OID) OID {
+						if target, ok := mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}]; ok {
+							return target.ObjectID
+						}
+						return id
+					})
+					if er != nil {
+						return er
+					}
+					changed = changed || remapped != rebound
+					rebound = remapped
+				}
 				if changed {
 					if values == nil {
 						values = append([]sqltype.Value(nil), row.values...)

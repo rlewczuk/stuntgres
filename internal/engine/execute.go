@@ -279,6 +279,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.operatorInput != nil {
 		scope.input.Operator = b.operatorInput
 	}
+	if b.regprocInput != nil {
+		scope.input.Regproc = b.regprocInput
+	}
 	if b.aclitemInput != nil {
 		scope.input.ACLItem = b.aclitemInput
 	}
@@ -294,7 +297,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 		}
-		if usage.Type.ContainsRegtype() && scope.input.Regtype == nil {
+		if (usage.Type.ContainsRegtype() || usage.Type.ContainsRegproc()) && scope.input.Regtype == nil {
 			scope.input.Regtype, err = e.captureRegtypeInput(auth, op)
 			if err != nil {
 				e.mu.Unlock()
@@ -306,6 +309,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		if usage.Type.ContainsOperatorAlias() && scope.input.Operator == nil {
 			scope.input.Operator, err = e.captureOperatorInput(auth, op)
+			if err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+		}
+		if usage.Type.ContainsRegproc() && scope.input.Regproc == nil {
+			scope.input.Regproc, err = e.captureRoutineInput(auth, scope.input.Regtype.(capturedRegtypeInput))
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err

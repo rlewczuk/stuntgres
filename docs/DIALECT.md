@@ -438,8 +438,16 @@ uses registered real release routines and current catalog defaults, not arbitrar
 pathfinding or an implicit UTF8 pivot; the database encoding remains UTF8.
 CREATE/ALTER/DROP CONVERSION, ownership, schema moves and directed default lookup
 are supported. Arbitrary function definitions/external conversion ABIs and wire
-transcoding remain excluded. REGPROC is a catalog-derived identity/output carrier
-with OID/TEXT inspection casts, not generic named input or a storage declaration.
+transcoding remain excluded. REGPROC and REGPROCEDURE admit named/signature input,
+numeric identities, symbolic output and ordinary storage through the existing
+type owners. Their complete source-fixed identity inventory is lookup-only:
+it neither expands pg_proc SQL rows nor admits execution, CREATE FUNCTION or
+CREATE PROCEDURE. Runtime-allocated information_schema/plpgsql routines are an
+unavailable native catalog capability, not fabricated fixed OIDs. Schema GRANT/
+REVOKE remains unavailable SQL; tests explicitly use native schema ownership
+transfer versus PostgreSQL schema USAGE to establish authority. Native ABI,
+external procedural runtimes and PostgreSQL physical persistence are not supplied
+by routine alias lookup. See [the evidence note](design/regproc-pg18-oracle.md).
 REGOPER/REGOPERATOR provide the complete released builtin operator identity
 inventory, exact signature lookup and captured symbolic output, including
 lookup-only operand type identities. This does not add execution providers,

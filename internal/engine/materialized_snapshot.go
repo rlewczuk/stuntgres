@@ -133,6 +133,16 @@ func materializedSnapshotScalar(raw parser.Expr) error {
 		}
 		return nil
 	case parser.OperatorExpr:
+		if len(r.Name.Parts) == 1 && r.Name.Parts[0].Text == "||" && len(r.Args) == 2 {
+			// Routine-containing containers emit closed TEXT concatenation
+			// around qualified alias-to-OID casts, not arbitrary execution.
+			for _, child := range r.Args {
+				if err := materializedSnapshotScalar(child); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if len(r.Name.Parts) != 1 || len(r.Args) != 1 || (r.Name.Parts[0].Text != "-" && r.Name.Parts[0].Text != "+") {
 			return invalid()
 		}
@@ -240,6 +250,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			environment.Regclass, environment.Regtype = b.regclassInput, b.regtypeInput
 			environment.Regrole = b.regroleInput
 			environment.Operator = b.operatorInput
+			environment.Regproc = b.regprocInput
 			environment.ACLItem = b.aclitemInput
 			evaluation := EvalContext{Context: ctx, Input: environment}
 			for _, expressions := range b.expressions {

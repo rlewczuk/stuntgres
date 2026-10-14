@@ -281,13 +281,14 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.generations, b.relation.checkConstraints); err != nil {
 		return err
 	}
+	s.input = binder.input
 	for _, target := range b.targets {
 		var err error
 		usage := b.relation.columns[target].Usage
 		if usage.Type.ContainsRegclass() && s.input.Regclass == nil {
 			s.input.Regclass, err = e.captureRegclassInput(auth)
 		}
-		if err == nil && usage.Type.ContainsRegtype() && s.input.Regtype == nil {
+		if err == nil && (usage.Type.ContainsRegtype() || usage.Type.ContainsRegproc()) && s.input.Regtype == nil {
 			s.input.Regtype, err = e.captureRegtypeInput(auth, s.op)
 		}
 		if err == nil && usage.Type.ContainsRegrole() && s.input.Regrole == nil {
@@ -295,6 +296,9 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 		}
 		if err == nil && usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
 			s.input.Operator, err = e.captureOperatorInput(auth, s.op)
+		}
+		if err == nil && usage.Type.ContainsRegproc() && s.input.Regproc == nil {
+			s.input.Regproc, err = e.captureRoutineInput(auth, s.input.Regtype.(capturedRegtypeInput))
 		}
 		if err == nil {
 			err = binder.captureTypeDiagnosticInput(usage.Type)

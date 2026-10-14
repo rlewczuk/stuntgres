@@ -67,7 +67,12 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 	return r.resolveTypeName(ctx, text)
 }
 
+// resolveTypeName resolves decoded SQL type syntax, without the numeric OID and
+// dash shortcuts accepted by whole REGTYPE inputs.
 func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) (uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	op := r.op
 	if r.authority != nil {
 		op = nil

@@ -887,15 +887,39 @@ Nonempty conversion uses the current statement-owned default catalog/search
 path; nondefaults never repair missing dispatch. CREATE checks one default per
 schema/directed pair, while legal SET SCHEMA moves may leave multiple defaults.
 Rename, move and ownership changes retain identity; system seeds retain pins.
-Read-only `pg_conversion` exposes its eight actual columns, including derived
-REGPROC `conproc` output and OID/TEXT inspection casts. This does not add general
-REGPROC input/storage, CREATE FUNCTION, external ABI loading or wire transcoding.
+Read-only `pg_conversion` exposes its eight actual columns, including symbolic
+REGPROC `conproc` output. Routine aliases also admit ordinary input/storage as
+described below; this does not add CREATE FUNCTION, external ABI loading or wire transcoding.
 Dump emits exact quoted definitions and collision-safe seed metadata deltas,
 including legal duplicate-default replay. Reset restores canonical seeds and
 Restore remaps actual owners/providers while preserving live target TEMP.
 Conversion DDL retains the native autocommit-only explicit-transaction boundary.
 Smoke: `make check RUN='^TestReferenceConversionFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceConversionFeatureSmoke$' REFERENCE=1`.
+
+Change note: REGPROC and REGPROCEDURE carry unsigned four-byte routine identities.
+REGPROC requires a unique visible name; REGPROCEDURE selects the exact input-type
+signature, including schema-qualified types, canonical aliases, arrays and validated
+modifiers. Both accept fixed numeric OIDs, zero/`-` and unknown numeric identities
+as whole inputs; signature arguments require decoded SQL type syntax instead.
+Symbolic output quotes SQL identifiers and uses statement-owned path/catalog
+authority; retained rows never consult a later catalog. Lookup includes all 3397
+source-fixed PostgreSQL18.0 routine identities without expanding pg_proc SQL rows
+or authorizing execution. Installed unaccent identities remain actual provider
+objects. Direct/held parameters, casts, columns, domains, arrays, defaults and view
+constants use existing value/storage/analysis owners. Dump preserves overloaded
+identities through qualified signatures and Restore remaps real extension identities.
+The schema-authority fixture deliberately uses PostgreSQL USAGE grants and native
+schema ownership transfer; native schema GRANT/REVOKE SQL remains outside this part.
+CREATE FUNCTION/PROCEDURE, runtime-allocated information_schema/plpgsql routines and
+external procedural/native-ABI providers remain unavailable native capabilities.
+Smoke commands: `make check RUN='^TestReferenceRegProcFeatureSmoke$'` and
+`make check RUN='^TestReferenceRegProcFeatureSmoke$' REFERENCE=1`. Selected native
+and pinned checks also cover numeric/dash signature-type rejection and mixed
+routine/REGROLE composite persistence, including receiving-catalog role identity,
+restored-default evaluation and actual emitted-stream replay. Standalone public
+API smoke independently exercised those reviewed remedies. See
+[routine alias evidence](docs/design/regproc-pg18-oracle.md).
 
 Change note: SQL `(start,end) OVERLAPS (start,end)` and start-plus-INTERVAL
 pairs normalize reversed endpoints and use half-open periods, with equal

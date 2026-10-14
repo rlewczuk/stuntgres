@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -77,6 +78,9 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		original, err := e.authorizationLocked(op)
 		if err == nil {
 			err = scope.captureIdentityLocked(original)
+			if err == nil {
+				err = e.captureElementInput(original, op, &scope.input)
+			}
 		}
 		e.mu.Unlock()
 		if err != nil {
@@ -86,9 +90,16 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		name, _ := e.CatalogRead().LookupType(sqltype.Name)
 		scope.currentSchemaResult = sqltype.String(name, "sentinel")
 		beforeSchema := scope.currentSchemaResult
+		scope.input.TypeDiagnosticName = func(sqltype.ID) string { return "caller-naming" }
+		scope.input.ExactSnapshot = true
+		beforeInput := scope.input
 		sentinel := errors.New("producer failed")
-		usage := d.columns[0].Usage
-		probe := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+		routine, _ := e.CatalogRead().LookupType(sqltype.Regprocedure)
+		text, _ := e.CatalogRead().LookupType(sqltype.Text)
+		columns := append([]ColumnDescriptor(nil), d.columns...)
+		columns[0].Usage = routine.Usage()
+		d.columns = columns
+		probe := queryProbe(text.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
 			e.mu.Unlock()
@@ -111,13 +122,25 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if schema != "pg_catalog" {
 				t.Fatal(schema)
 			}
+			captured, ok := c.Input.Regtype.(capturedRegtypeInput)
+			if !ok || captured.auth.state.CurrentUser != owner || captured.auth.state.SessionUser != caller || !captured.auth.materializedPopulation ||
+				!slices.Equal(captured.path, []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}) ||
+				c.Input.Regclass == nil || c.Input.Regrole == nil || c.Input.Operator == nil || c.Input.Regproc == nil ||
+				c.Input.TypeDiagnosticName != nil || !c.Input.ExactSnapshot {
+				t.Fatal("population did not recapture coherent restricted input", c.Input)
+			}
 			if fail {
 				return sqltype.Value{}, sentinel
 			}
-			return sqltype.Integer(usage.Type, 7)
+			return sqltype.String(text, "abs(integer)"), nil
 		})
+		plan, err := sqltype.PlanCoercion(text.Usage(), routine.Usage(), sqltype.Explicit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		converted := coercionExpression{expressionInfo: expressionInfo{usage: routine.Usage()}, child: probe, plan: plan, mode: sqltype.Explicit}
 		definition := *d.view
-		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []BoundExpr{probe}}}
+		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []BoundExpr{converted}}}
 		d.view = &definition
 		e.mu.Lock()
 		rows, err := e.materializedRefreshRowsLocked(scope, ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: d.address}, d)
@@ -127,6 +150,19 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			}
 		} else if err != nil || len(rows) != 1 {
 			t.Fatal(rows, err)
+		}
+		if !fail {
+			id, err := rows[0][0].ProcedureOID()
+			if err != nil || id != 1397 {
+				t.Fatal("population did not evaluate retained routine coercion", id, err)
+			}
+		}
+		restored := scope.input.Regtype.(capturedRegtypeInput)
+		before := beforeInput.Regtype.(capturedRegtypeInput)
+		if restored.auth.state != before.auth.state || !slices.Equal(restored.path, before.path) ||
+			scope.input.TypeDiagnosticName == nil || scope.input.TypeDiagnosticName(sqltype.Regprocedure) != "caller-naming" ||
+			scope.input.ExactSnapshot != beforeInput.ExactSnapshot {
+			t.Fatal("population leaked input context")
 		}
 		if op.materializedPopulation || op.materializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.identity != beforeIdentity || !sqltype.SameDatum(scope.currentSchemaResult, beforeSchema) {
 			t.Fatal("population leaked owner context")

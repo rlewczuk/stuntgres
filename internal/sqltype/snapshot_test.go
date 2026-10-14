@@ -75,3 +75,83 @@ func TestSnapshotCodecLossless(t *testing.T) {
 		})
 	}
 }
+
+func TestSnapshotOIDIdentityCodecLossless(t *testing.T) {
+	ctx, types := context.Background(), testTypes()
+	exact := InputEnvironment{ExactSnapshot: true}
+	apply := func(value Value, target Usage) (Value, error) {
+		mode := Explicit
+		if value.Type().ID() == Oid && (target.Type.ID() == VarChar || target.Type.ID() == BPChar) {
+			mode = Assignment
+		}
+		plan, err := PlanCoercion(value.Type().Usage(), target, mode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return plan.Apply(ctx, value, exact, OutputEnvironment{})
+	}
+	for _, oid := range []uint32{0, 1397, 2147483648, 4294967295} {
+		value, err := OIDValue(types[Oid], oid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []ID{Regclass, Regtype, Regrole, Regoper, Regoperator, Regproc, Regprocedure} {
+			alias, err := apply(value, types[id].Usage())
+			if err != nil {
+				t.Fatal("unsigned identity to alias", id, oid, err)
+			}
+			got, err := apply(alias, types[Oid].Usage())
+			if err != nil || !SameDatum(got, value) {
+				t.Fatal("alias changed unsigned identity", id, oid, err)
+			}
+		}
+		text, err := apply(value, types[Text].Usage())
+		if err != nil {
+			t.Fatal("OID decimal codec", oid, err)
+		}
+		got, err := apply(text, types[Oid].Usage())
+		if err != nil || !SameDatum(got, value) {
+			t.Fatal("decimal codec changed identity", oid, err)
+		}
+		if _, err := apply(value, types[Int4].Usage()); err == nil {
+			t.Fatal("accepted unsigned-to-signed conversion", oid)
+		}
+	}
+	value, err := OIDValue(types[Oid], 4294967295)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []ID{VarChar, BPChar} {
+		for _, width := range []int32{9, 10, 11} {
+			usage, _, err := types[id].ResolveModifiers(width)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := apply(value, usage)
+			// VARCHAR widening preserves bytes; BPCHAR widening adds padding.
+			lossless := width == 10 || (id == VarChar && width == 11)
+			if (err == nil) != lossless {
+				t.Fatal("OID decimal sizing boundary", id, width, err)
+			}
+			if lossless {
+				text, err := apply(got, types[Text].Usage())
+				if err != nil {
+					t.Fatal("sized decimal text", id, width, err)
+				}
+				restored, err := apply(text, types[Oid].Usage())
+				if err != nil || !SameDatum(restored, value) {
+					t.Fatal("sized decimal codec changed identity", id, width, err)
+				}
+			}
+		}
+	}
+	for _, n := range []int64{-1, 4294967296} {
+		integer, err := Integer(types[Int8], n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := apply(integer, types[Oid].Usage()); err == nil {
+			t.Fatal("accepted integer-to-OID conversion", n)
+		}
+	}
+}

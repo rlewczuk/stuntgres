@@ -443,6 +443,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err := r.recordRegtypeReferences(view, n.value); err != nil {
 			return "", err
 		}
+		if err := r.recordRoutineReferences(view, n.value); err != nil {
+			return "", err
+		}
 		if r.regtypeReferences != nil && n.value.Type().ContainsRegtype() && !n.value.IsNull() {
 			*r.regtypeReferences = true
 		}

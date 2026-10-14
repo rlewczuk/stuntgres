@@ -262,8 +262,9 @@ pg_catalog identity. After native Restore remints a user namespace, cleanup
 independently re-resolves only the known hidden schema under a fresh bounded
 context and requires an exact ID match before repair.
 Native private consumer units acquire real statement snapshots for conversion
-evaluation and construct catalog-derived REGPROC carriers without admitting
-generic input. Control units assert actual lossless replay and preservation of
+evaluation and construct unsigned REGPROC carriers. General routine-alias input/
+storage is covered by the [type-resolution family](../type_resolution/README.md#testing),
+not by expanding conversion providers. Control units assert actual lossless replay and preservation of
 existing namespace collisions, not incidental temporary-helper spellings;
 the shared reference definitions separately retain exact public CREATE output.
 

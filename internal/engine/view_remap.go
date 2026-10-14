@@ -120,6 +120,15 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 				return nil, failure
 			}
 		}
+		if n.usage.Type.ContainsRegproc() && !n.value.IsNull() {
+			var failure error
+			n.value, failure = remapRoutineDatum(n.value, func(id OID) OID {
+				return ref(ObjectRef{Address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}}).Address.ObjectID
+			})
+			if failure != nil {
+				return nil, failure
+			}
+		}
 		next = n
 	case tableOIDExpression:
 		n.owner = rowRef(n.owner)

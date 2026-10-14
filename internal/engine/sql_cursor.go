@@ -183,6 +183,11 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		reader.types.qualified, reader.qualified = nil, nil
 		c.state.input.Operator = reader
 	}
+	if reader, ok := c.state.input.Regproc.(capturedRoutineInput); ok {
+		reader.types.op, reader.types.authority = nil, c.authority
+		reader.types.qualified = nil
+		c.state.input.Regproc = reader
+	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}

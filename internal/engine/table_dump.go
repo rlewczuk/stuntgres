@@ -121,6 +121,9 @@ func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog CatalogR
 			continue
 		}
 		for i, column := range t.columns {
+			if err := walkRoutineReferences(catalog, version.values[i], add); err != nil {
+				return err
+			}
 			if !column.Usage.Type.ContainsRegclass() {
 				continue
 			}

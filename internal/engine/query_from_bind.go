@@ -401,6 +401,11 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			}
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
 		}
+		if relation.relationKind == viewRelation {
+			if err := b.captureRetainedViewInput(relation.view); err != nil {
+				return nil, queryNamespace{}, err
+			}
+		}
 		leaf := len(b.querySources)
 		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n].query, deleteReference: b.deleteUsingSources && len(b.queryScopes) == 0})
 		columns := make([]queryColumn, len(relation.columns))

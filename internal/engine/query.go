@@ -1251,25 +1251,26 @@ func mergeQueryIndices(ctx context.Context, indices []int, compare func(int, int
 // finalRows contains only finalized output, never expressions or parameters.
 // self prevents forged or copied handles from releasing another cursor's pins.
 type finalRows struct {
-	self              *finalRows
-	schema            []ColumnDescriptor
-	source            *querySource
-	owner             *querySource // Capture tree when projection retains a non-root occurrence.
-	selection, slots  []int
-	values            []sqltype.Value
-	regclassOutput    map[string]string
-	regtypeOutput     map[uint32]string
-	regprocOutput     map[uint32]string
-	regroleOutput     map[uint32]string
-	operatorOutput    map[operatorOutputKey]string
-	operatorGroups    operatorGroups
-	aclAuthority      *sqltype.ACLAuthority
-	aclitemOutput     map[uint32]string
-	anonymous         [][]sqltype.Value
-	count, position   int
-	terminal          error
-	exhausted, closed bool
-	output            sqltype.OutputEnvironment
+	self               *finalRows
+	schema             []ColumnDescriptor
+	source             *querySource
+	owner              *querySource // Capture tree when projection retains a non-root occurrence.
+	selection, slots   []int
+	values             []sqltype.Value
+	regclassOutput     map[string]string
+	regtypeOutput      map[uint32]string
+	regprocOutput      map[uint32]string
+	regprocedureOutput map[uint32]string
+	regroleOutput      map[uint32]string
+	operatorOutput     map[operatorOutputKey]string
+	operatorGroups     operatorGroups
+	aclAuthority       *sqltype.ACLAuthority
+	aclitemOutput      map[uint32]string
+	anonymous          [][]sqltype.Value
+	count, position    int
+	terminal           error
+	exhausted, closed  bool
+	output             sqltype.OutputEnvironment
 }
 
 func newFinalRows(schema []ColumnDescriptor, count int) *finalRows {
@@ -1313,6 +1314,7 @@ func (r *finalRows) release() {
 	r.regroleOutput = nil
 	r.operatorOutput = nil
 	r.operatorGroups = nil
+	r.regprocedureOutput = nil
 	r.aclitemOutput = nil
 	r.aclAuthority = nil
 }

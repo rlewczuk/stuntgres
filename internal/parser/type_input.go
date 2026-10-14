@@ -42,7 +42,15 @@ func inputColumnType(l sqlLexer, tok lexeme) TypeName {
 	if !l.(*lexer).typeInputMode {
 		return columnType(tok)
 	}
-	return TypeName{Name: tok.text, Pos: tok.pos, Quoted: columnType(tok).Quoted}
+	raw := TypeName{Name: tok.text, Pos: tok.pos, Quoted: columnType(tok).Quoted}
+	// Generic type names use PostgreSQL's type/function-name category, not
+	// the broader ordinary column-name grammar. Real builtin type syntax is
+	// recognized by the existing standalone normalizer; quoted and qualified
+	// labels retain their own grammar admission.
+	if tok.keyword != nil && !tok.keyword.typeFunctionName() && !standaloneType(raw).System {
+		l.(*lexer).syntax(tok)
+	}
+	return raw
 }
 
 func appendStandalonePart(raw TypeName, tok lexeme) TypeName {

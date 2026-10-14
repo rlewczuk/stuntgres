@@ -195,8 +195,24 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if v.Type().ContainsOperatorAlias() {
 		output.Operator = dumpOperatorOutput{}
 	}
+	if v.Type().ContainsRegproc() {
+		output.Regproc = catalogRoutineOutput{view: r.view, path: r.path}
+	}
 	if v.Type().ContainsACLItem() && output.ACLItem == nil {
 		output.ACLItem = aclItemContextFormatter(ctx)
+	}
+	if sqltype.IsRoutineAlias(v.Type().BaseType().ID()) {
+		text, err := routineLiteralSQL(r.view, v)
+		if err != nil {
+			return "", err
+		}
+		if u.Type.IsDomain() {
+			text = "(" + text + ")::" + typ
+		}
+		return text, nil
+	}
+	if v.Type().ContainsRegproc() {
+		return catalogLiteralSQL(ctx, r.view, n)
 	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {

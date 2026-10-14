@@ -117,6 +117,7 @@ type binding struct {
 	regtypeInput          sqltype.RegtypeResolver
 	regroleInput          sqltype.RegroleResolver
 	operatorInput         sqltype.OperatorResolver
+	regprocInput          sqltype.RoutineResolver
 	aclitemInput          sqltype.ACLItemResolver
 	typeDiagnosticName    func(sqltype.ID) string
 	enumMemberSafe        func(sqltype.ID, int64) bool
@@ -603,9 +604,6 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return strings.Compare(a.Name, b.Name)
 				})
 				for _, c := range source.columns {
-					if c.Usage.Type.ContainsRegproc() {
-						return b, sqlError("0A000", "unsupported column type")
-					}
 					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
 					declarations = append(declarations, createColumnDeclaration{})
 				}
@@ -866,14 +864,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.subqueryDemand = binder.subqueryDemand
 	b.sequenceConstants = binder.sequenceConstants
 	b.regclassConcat = binder.regclassConcat
-	b.regclassInput = binder.input.Regclass
 	b.regtypeConstants = binder.regtypeConstants
-	b.regtypeInput = binder.input.Regtype
-	b.regroleInput = binder.input.Regrole
-	b.operatorInput = binder.input.Operator
-	b.aclitemInput = binder.input.ACLItem
-	b.typeDiagnosticName = binder.input.TypeDiagnosticName
-	b.enumMemberSafe = binder.input.EnumMemberSafe
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
 	b.viewComposites = binder.viewComposites
@@ -892,8 +883,15 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.generations, b.viewWrite.base.checkConstraints); err != nil {
 			return b, err
 		}
-		b.typeDiagnosticName = binder.input.TypeDiagnosticName
 	}
+	b.regclassInput = binder.input.Regclass
+	b.regtypeInput = binder.input.Regtype
+	b.regroleInput = binder.input.Regrole
+	b.operatorInput = binder.input.Operator
+	b.regprocInput = binder.input.Regproc
+	b.aclitemInput = binder.input.ACLItem
+	b.typeDiagnosticName = binder.input.TypeDiagnosticName
+	b.enumMemberSafe = binder.input.EnumMemberSafe
 	return b, nil
 }
 

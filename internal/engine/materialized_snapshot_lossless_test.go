@@ -66,4 +66,26 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	if _, err := outer.Eval(&EvalContext{Context: context.Background()}); err != nil {
 		t.Fatal("ordinary coercion changed", err)
 	}
+	// The routine container codec emits a closed concatenation tree. Admission
+	// must recurse through both operands rather than accept arbitrary SQL below
+	// a recognized operator.
+	for _, sample := range []struct {
+		sql   string
+		valid bool
+	}{
+		{`SELECT '(' || ('pg_catalog.abs(integer)'::regprocedure::oid::text) || ',integer)'`, true},
+		{`SELECT 'prefix' || lower('suffix')`, false},
+		{`SELECT 'prefix' || current_user`, false},
+		{`SELECT 'prefix' || missing_column`, false},
+		{`SELECT 'prefix' || (1 + 2)::text`, false},
+	} {
+		statements, err := parser.Parse(sample.sql)
+		if err != nil {
+			t.Fatal(sample.sql, err)
+		}
+		raw := statements[0].(*parser.Select).Targets[0]
+		if err := materializedSnapshotScalar(raw); (err == nil) != sample.valid {
+			t.Fatal("snapshot concatenation boundary", sample.sql, err)
+		}
+	}
 }
