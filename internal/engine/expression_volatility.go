@@ -141,6 +141,8 @@ func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
 			v = Stable
 		}
 		return merge(children(n.Value, n.Zone), v)
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		v := children(n.Args...)
 		if n.Plan.SessionDependent() {

@@ -157,6 +157,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return stringSpecialSQL(n, parts)
 		}
 		return "pg_catalog." + n.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return arrayInspectSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		if err := n.Validate(); err != nil {
 			return "", err

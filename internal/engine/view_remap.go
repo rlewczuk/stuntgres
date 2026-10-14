@@ -340,6 +340,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
+		next = n
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n

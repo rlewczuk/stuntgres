@@ -30,8 +30,10 @@ and reports `interface{}` ScanType where native exports strings.
 
 The one non-concrete result exception is the canonical nullable ANYARRAY column
 `pg_attribute.attmissingval`: native exports SQL NULL as nil with database type
-ANYARRAY and `interface{}` ScanType. This does not admit nonnull ANYARRAY values,
-ordinary declarations, casts, domains, parameters or generic operators.
+ANYARRAY and `interface{}` ScanType. The six selected array shape inspectors
+accept this exact already-typed NULL and return concrete TEXT/INT4 NULLs.
+This does not admit nonnull ANYARRAY values, ordinary declarations, casts,
+domains, parameters or generic operators.
 
 Relation declarations retain array bracket rank separately from the single
 associated array type identity and stored dimensions. Rank is catalog metadata,
@@ -291,6 +293,20 @@ bounds. Associated array identities come from catalog links, never guessed
 underscore names. Cross-array conversion delegates to existing scalar providers;
 it does not add a transitive coercion graph. Lookup identity alone never grants
 an executable array family.
+
+`array_dims(anyarray)` returns TEXT; `array_ndims` and `cardinality` return INT4,
+as do `array_length/lower/upper(anyarray, integer)`. They inspect outer shape
+only: arrays of array-valued domains count outer elements, including NULLs.
+Non-1 and multidimensional bounds survive unchanged. Zero-rank empty arrays
+give NULL dimensions/rank/length/bounds but cardinality zero; whole NULL and
+NULL dimensions give typed result NULLs. Nonpositive and missing dimensions
+also give NULL without error. Native scalar integer ScanType/cells are int64.
+The simple polymorphic input must already be an array (outer domains unwrap,
+element domains remain), or the exact catalog typed-NULL carrier above.
+Unknown first operands do not infer from dimension, result or Go values.
+Explicit VARIADIC decoration does not expand an otherwise matching call.
+Stored scalar and native replacement routes preserve mapped descriptor ownership
+without introducing array comparison, leaf equality or additional codecs.
 
 Named composites atomically publish their type, nonstorage backing relation,
 stable attributes and lookup-only associated array. Native output and ScanType

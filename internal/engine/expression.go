@@ -1159,6 +1159,15 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		next, changed, err := mapArrayInspectChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
+		return folded, changed || replaced, err
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		next, changed, err := mapArraySearchChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)

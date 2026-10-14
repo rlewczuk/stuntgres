@@ -512,6 +512,22 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Invalid signatures use 42883; JSON and known TEXT do not implicitly become
   JSONB. Stored consumers retain operator syntax through deparse/Dump/Restore.
   Adjacent JSONB operators and SQL-callable `jsonb_exists*` remain excluded.
+- Selected scalar array inspection includes `array_dims(anyarray)` returning
+  TEXT, `array_ndims(anyarray)` and `cardinality(anyarray)` returning INT4,
+  and `array_length/lower/upper(anyarray, integer)` returning INT4. These read
+  outer shape only, with exact multidimensional/non-1 bounds and NULL elements
+  included in cardinality. Empty arrays have NULL dimensions/rank/length/bounds
+  and cardinality zero; whole NULL, NULL dimensions and nonpositive/missing
+  dimensions return typed NULLs. The first operand requires a known array
+  identity or the exact canonical catalog ANYARRAY typed-NULL carrier; unknown
+  strings/NULL/parameters cannot infer it. Explicit VARIADIC decoration is
+  accepted on an otherwise matching ordinary signature, without expansion.
+  Qualified/unqualified calls group by the same resolved builtin identity.
+  Arguments/FILTER transform before function namespace resolution; malformed
+  named notation reports syntax errors at the actual label/operand, rather than
+  a missing signature. These builtins still have no named formal parameters.
+  Stored scalar consumers and native controls reuse existing owners.
+  No leaf equality/output provider, new codec or overload subsystem is added.
 - Selected §9.19 functions `array_position`, `array_positions`, `array_remove`,
   `array_replace` and operators `@>`, `<@`, `&&` consume existing array codecs
   and leaf equality providers. Functions are NULL-aware; membership is strict
@@ -687,7 +703,9 @@ reader refreshes against the current catalog instead; eager captured rows stay
 unchanged. No catalog fence is relaxed for metadata queries.
 
 ANYARRAY support is limited to the exact canonical typed-NULL catalog result,
-with driver metadata and NULL transport through ordinary projections/subqueries.
+with driver metadata, NULL transport through ordinary projections/subqueries,
+and input to the six selected array shape inspectors, producing concrete scalar
+NULLs without inferring a leaf type.
 It remains non-concrete and unavailable as a declared storage, domain, parameter,
 cast or generic comparison/ordering type. Catalog mutation and row locks retain
 their native `0A000` exclusions. See [selected proof and smoke](../reference/catalogs/README.md#pg_attribute-selected-proof).

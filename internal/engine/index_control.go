@@ -242,6 +242,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return true
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.Membership()
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties], functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:

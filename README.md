@@ -13,6 +13,36 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Array dimensions and cardinality — change note
+
+The selected PostgreSQL §9.19 scalar functions `array_dims(anyarray)`,
+`array_ndims(anyarray)`, `cardinality(anyarray)` and
+`array_length/array_lower/array_upper(anyarray, integer)` inspect the existing
+immutable outer array shape without reading or formatting elements. Bounds,
+including non-1 and multidimensional bounds, remain exact; cardinality includes
+NULL elements. Empty arrays have NULL dimensions/rank/length/bounds and
+cardinality zero. Whole NULL gives a typed scalar NULL, as does a NULL,
+nonpositive or absent dimension.
+
+Inputs require a known array identity (including domains); neither an unknown
+first operand nor a Go parameter value infers the simple polymorphic type.
+The exact catalog ANYARRAY typed-NULL carrier is also accepted without admitting
+pseudo-type storage, casts, parameters or nonnull values. Otherwise matching
+nonvariadic calls accept explicit VARIADIC decoration. Results are TEXT for
+`array_dims` and INT4 otherwise, including empty/all-NULL result metadata.
+Default/generated/CHECK/view/index, group/conditional and native-control routes
+reuse existing expression and catalog owners; no new codec, equality provider
+or overload subsystem is introduced.
+Grouping matches resolved builtin identity, so unqualified and `pg_catalog`
+spellings are equivalent. Argument and FILTER transformation precede function
+namespace lookup; malformed named notation retains syntax-error ownership and
+character positions, while well-formed named calls remain missing signatures.
+
+Feature smoke: `make check RUN='^TestReferenceArrayInspectFeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceArrayInspectFeatureSmoke$'`.
+See [selected coverage](reference/binary_json_arrays/README.md#array-dimensions-and-cardinality).
+
 ## Namespace catalog metadata — change note
 
 `pg_catalog.pg_namespace` exposes the PostgreSQL 18 four-column schema:

@@ -420,6 +420,19 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties])
+		// Kind identifies the resolved builtin; lexical pg_catalog qualification
+		// is presentation provenance, not a different grouping expression.
+		if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i := range e.Args {
+			if !same(e.Args[i], o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || e.Plan != o.Plan || e.Namespace != o.Namespace || len(e.Args) != len(o.Args) {
@@ -968,6 +981,15 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		e.Args = append([]BoundExpr(nil), e.Args...)
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1268,6 +1290,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
+			walk(arg)
+		}
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)
 		}

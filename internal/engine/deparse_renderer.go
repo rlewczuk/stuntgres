@@ -589,6 +589,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		switch call := n.child.(type) {
 		case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
 			simpleFunctionCall = true
+		case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+			simpleFunctionCall = true
 		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 			simpleFunctionCall = !call.Plan.Membership()
 		}
@@ -809,6 +811,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Kind.Name(), n.Args, true)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		if n.Plan.Membership() {
 			inputRenderer := r

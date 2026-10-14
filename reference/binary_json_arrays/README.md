@@ -375,6 +375,72 @@ and native replacement with emitted-SQL replay. SQL/JSON constructor syntax,
 JSONB constructors, JSON comparison and generic builtin catalog enumeration are
 not capabilities asserted by this family.
 
+### Array dimensions and cardinality
+
+`TestReferenceArrayInspectValues`, `Typing`, `Diagnostics`,
+`ParametersMetadata`, `ACL`, `ConsumersControls` and `FeatureSmoke` specify
+`array_dims`, `array_length`, `array_lower`, `array_upper`, `array_ndims`
+and `cardinality` independently of backend parity. The existing
+`TestReferenceArraySmoke` retains its array storage, input, atomicity and
+native-control assertions and requires shared direct/prepared length results.
+
+The shape contract includes multidimensional and non-1 bounds, NULL elements,
+zero-rank empty arrays, whole NULL, missing/nonpositive/NULL dimensions,
+domains and computed NAME/JSON/enum arrays. Empty dimensions and rank are NULL;
+empty cardinality is zero. Stored default/generated/CHECK/view/index consumers,
+group/conditional/join traversal, held parameter recovery, pre-iteration raw
+metadata, complete English diagnostics/character positions, column/schema
+authorization and late-write atomicity are independently checked.
+Computed inspector projections have unknown nullability; projections of stored
+view attributes retain native `Nullable=true, known=true` for every view column.
+PostgreSQL/pq independently reports unknown nullability on both routes. All
+other raw metadata and cell assertions remain identical, including replay and
+retained native cursors. The catalog-NULL witness explicitly compares OIDs after
+casting the symbolic regclass identity to OID, without admitting oid/regclass
+cross-type equality.
+Stored view presentation retains selected argument coercions: an outer domain
+over an array is shown with its physical array cast, including after source
+column/table renames. Dump/replay preserves the same captured coercion authority;
+rendering does not infer replacement types from renamed SQL text.
+Native controls retain a scalar cursor across replacement, regenerate symbolic
+stored calls and replay emitted SQL on PostgreSQL. No general codec, storage,
+comparison, overload or pseudo-type permission is implied.
+
+Review regressions add `TestReferenceArrayInspectReviewGrouping`,
+`TestReferenceArrayInspectReviewLabels` and
+`TestReferenceArrayInspectReviewNamespaces`. Every inspector groups identically
+with mixed unqualified/`pg_catalog` spelling in both directions. Malformed
+named notation asserts full 42601 diagnostics at the repeated label or following
+positional operand; child/FILTER failures retain precedence. Missing and
+inaccessible function schemas cannot hide earlier argument/FILTER failures;
+valid children still reach their exact 3F000/42501 schema diagnostics.
+Both direct/Prepare routes and multibyte character positions remain exact.
+
+Selected proof commands (repeat both modes after affected changes):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceArrayInspect(Values|Typing|Diagnostics)$'
+make check RUN='^TestReferenceArrayInspect(Values|Typing|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceArrayInspect(ParametersMetadata|ACL|ConsumersControls|FeatureSmoke)$'
+make check RUN='^TestReferenceArrayInspect(ParametersMetadata|ACL|ConsumersControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceArraySmoke$'
+make check RUN='^TestReferenceArraySmoke$'
+make check REFERENCE=1 RUN='^TestReferenceArrayInspectReview(Grouping|Labels|Namespaces)$'
+make check RUN='^TestReferenceArrayInspectReview(Grouping|Labels|Namespaces)$'
+```
+
+Private provider/binder supplements select:
+`make check RUN='^(TestArrayInspect(Values|Demand|NoCopy|Resolver|StoredRemap|ClosedDefaults)|TestArrayDimensionAccessors)$'`.
+They check allocation-free numeric shape evaluation, immutable input,
+left-to-right sibling errors/cancellation, canonical catalog-NULL authority,
+generation remapping, child traversal and nested volatile default producers.
+
+Feature smoke selects `RUN='^TestReferenceArrayInspectFeatureSmoke$'` in both
+modes: the rank-2 tuple is `[-2:-1][3:5],3,3,5,2,6`, empty cardinality is zero
+with other cells NULL, and whole NULL gives six NULLs. The same held dimension
+statement recovers after malformed input; invalid scalar/dimension diagnostics,
+a stored six-function view and native replacement complete the smoke.
+
 ### Array search and membership
 
 The shared `TestReferenceArraySearch*` scenarios cover only `array_position`,

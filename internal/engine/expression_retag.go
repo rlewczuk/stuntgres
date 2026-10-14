@@ -594,6 +594,16 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args, text)
 		rebound = n
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		rebound = n
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		ref, conflict := n.Plan.InputCollation()
 		ref = comparisonCollation(ref)

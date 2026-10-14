@@ -286,6 +286,8 @@ func generationImmutable(node BoundExpr) bool {
 		return false
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Args)
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Args)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
@@ -446,6 +448,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args[:])
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
@@ -784,6 +788,11 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args[:])
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.Validate(); err != nil {
+			return err
+		}
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)

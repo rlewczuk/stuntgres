@@ -82,9 +82,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		return nil
 	}
-	arraySearchArguments := func(raw []parser.Expr, bound []BoundExpr) error {
+	selectedArrayArguments := func(raw []parser.Expr, bound []BoundExpr) error {
 		if len(raw) != len(bound) {
-			return fmt.Errorf("stuntgres: mismatched array search arguments")
+			return fmt.Errorf("stuntgres: mismatched selected array arguments")
 		}
 		for i, arg := range bound {
 			if coercion, ok := arg.(coercionExpression); ok && coercion.mode == sqltype.Implicit {
@@ -367,7 +367,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
 		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
-			return arraySearchArguments(r.Args, n.Args)
+			return selectedArrayArguments(r.Args, n.Args)
 		case rowComparisonExpression:
 			for side, arg := range r.Args {
 				row, ok := arg.(parser.RowExpr)
@@ -667,8 +667,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
+		if n, ok := bound.(functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return selectedArrayArguments(r.Args, n.Args)
+		}
 		if n, ok := bound.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]); ok {
-			return arraySearchArguments(r.Args, n.Args)
+			return selectedArrayArguments(r.Args, n.Args)
 		}
 		if n, ok := bound.(functions.Enum[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)

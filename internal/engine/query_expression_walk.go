@@ -161,6 +161,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args[:])
 	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args[:])
+	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
@@ -202,8 +204,8 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	call := b.aggregates[e.slot]
 	walkArguments := func(visit func(BoundExpr)) {
 		// Ordered-set direct args do not select the aggregate's owner.
-		ownerCall:=call
-		ownerCall.direct=nil
+		ownerCall := call
+		ownerCall.direct = nil
 		ownerCall.expressions(func(expr BoundExpr) { walkQueryArgumentExpression(expr, visit) })
 	}
 	owner, index := b.argumentQueryOwner(walkArguments)
@@ -227,26 +229,42 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	if nested != nil {
 		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
-	if call.direct!=nil {
-		level:=func(frame uint32) int {
-			if frame==b.frameID() {return len(b.queryScopes)}
-			for i,scope:=range b.queryScopes {if scope.frame==frame&&scope.allowed {return i}}
+	if call.direct != nil {
+		level := func(frame uint32) int {
+			if frame == b.frameID() {
+				return len(b.queryScopes)
+			}
+			for i, scope := range b.queryScopes {
+				if scope.frame == frame && scope.allowed {
+					return i
+				}
+			}
 			return -1
 		}
-		ownerLevel:=level(owner)
+		ownerLevel := level(owner)
 		var directError error
-		walkQueryArgumentExpression(call.direct,func(node BoundExpr){
-			if directError!=nil {return}
-			switch n:=node.(type) {
+		walkQueryArgumentExpression(call.direct, func(node BoundExpr) {
+			if directError != nil {
+				return
+			}
+			switch n := node.(type) {
 			case columnExpression:
-				if level(n.frame)>ownerLevel {directError=expressionError("42803","outer-level aggregate cannot contain a lower-level variable in its direct arguments",n.SourcePosition())}
+				if level(n.frame) > ownerLevel {
+					directError = expressionError("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
+				}
 			case aggregateExpression:
-				if l:=level(n.frame);l>=0&&l<=ownerLevel {directError=expressionError("42803","aggregate function calls cannot be nested",n.SourcePosition())}
+				if l := level(n.frame); l >= 0 && l <= ownerLevel {
+					directError = expressionError("42803", "aggregate function calls cannot be nested", n.SourcePosition())
+				}
 			case groupingExpression:
-				if l:=level(n.frame);l>=0&&l<=ownerLevel {directError=expressionError("42803","aggregate function calls cannot be nested",n.SourcePosition())}
+				if l := level(n.frame); l >= 0 && l <= ownerLevel {
+					directError = expressionError("42803", "aggregate function calls cannot be nested", n.SourcePosition())
+				}
 			}
 		})
-		if directError!=nil {return nil,directError}
+		if directError != nil {
+			return nil, directError
+		}
 	}
 	// Selected SUM, bitwise and JSON providers resolve children, FILTER and
 	// signatures before INSERT VALUES rejection; other aggregates stay unchanged.

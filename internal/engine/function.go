@@ -69,6 +69,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return functions.Regexp[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, nil
 	}
+	if parser.ArrayInspectFunctionName(name) {
+		return b.bindArrayInspect(raw)
+	}
 	if parser.ArraySearchFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

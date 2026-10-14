@@ -277,6 +277,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties], functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties], functions.String[BoundExpr, *EvalContext, ExprProperties],
+		functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties],
 		functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], functions.Format[BoundExpr, *EvalContext, ExprProperties],
 		installedFunctionExpression, functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return r.scalarFunctionSQL(ctx, view, node, u)

@@ -36,8 +36,10 @@ func TestReferenceArrayNativeControls(t *testing.T) {
 }
 
 func TestReferenceArraySmoke(t *testing.T) {
-	fixture.ArrayReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+	arrayInspectScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
+		run(fixture.Exec("CREATE TABLE public.one (v INT)", 0))
+		run(fixture.Exec("INSERT INTO public.one VALUES (1)", 1))
 		run(fixture.Exec("CREATE DOMAIN public.array_smoke_di AS INT", 0))
 		run(fixture.Exec("CREATE TABLE public.array_smoke (id INT,i INT[],t TEXT[][],d public.array_smoke_di[])", 0))
 		run(fixture.Exec(`INSERT INTO public.array_smoke VALUES (1,'[-1:0][3:4]={{1,NULL},{2,3}}','{NULL,"NULL","","a,b"}','{7,NULL}')`, 1))
@@ -84,16 +86,9 @@ func TestReferenceArraySmoke(t *testing.T) {
 			fixture.ArrayReferenceNativeRoundtrip(t, p, c, b, check)
 		}
 		functionQuery := "SELECT array_length(i,1) AS n FROM public.array_smoke ORDER BY id"
-		if b.PG {
-			run(fixture.Select(functionQuery, []string{"n"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(2)}}))
-		} else {
-			want := fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
-			want.Position = "8"
-			step := fixture.ErrorDiagnostic(functionQuery, want)
-			step.SelectRows = true
-			step.ErrorStage = "execute"
-			run(step)
-		}
+		functionStep := fixture.Select(functionQuery, []string{"n"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(2)}})
+		run(functionStep)
+		run(fixture.Prepared(functionStep))
 	})
 }
 
