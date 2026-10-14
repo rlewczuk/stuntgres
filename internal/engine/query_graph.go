@@ -85,6 +85,7 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 	case *windowNode:
 		for _, call := range n.calls {
 			visit(call.argument)
+			visit(call.ordinal)
 		}
 		for _, spec := range n.specs {
 			args(spec.partition)

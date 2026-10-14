@@ -229,17 +229,23 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		input := child(n.child)
 		var calls []windowCall
 		for i, call := range n.calls {
-			if call.argument == nil || err != nil {
-				continue
-			}
-			next, different, failure := rewrite(call.argument)
-			err = failure
-			if different {
-				if calls == nil {
-					calls = append([]windowCall(nil), n.calls...)
+			for j, expression := range [2]BoundExpr{call.argument, call.ordinal} {
+				if expression == nil || err != nil {
+					continue
 				}
-				calls[i].argument = next
-				changed = true
+				next, different, failure := rewrite(expression)
+				err = failure
+				if different {
+					if calls == nil {
+						calls = append([]windowCall(nil), n.calls...)
+					}
+					if j == 0 {
+						calls[i].argument = next
+					} else {
+						calls[i].ordinal = next
+					}
+					changed = true
+				}
 			}
 		}
 		var specs []boundWindowSpec

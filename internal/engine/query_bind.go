@@ -494,7 +494,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	windowCompanions := append(stringSortExpressions(order), stringSortExpressions(on)...)
-	root, err = b.finishWindows(root, keys, grouped, projection, windowCompanions)
+	root, err = b.finishWindows(root, keys, grouped, projection, order, on, projection, windowCompanions)
 	replaceStringSortExpressions(order, windowCompanions[:len(order)])
 	replaceStringSortExpressions(on, windowCompanions[len(order):])
 	if err != nil {
@@ -584,6 +584,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if call.argument != nil {
 			analysis = append(analysis, call.argument)
+		}
+		if call.ordinal != nil {
+			analysis = append(analysis, call.ordinal)
 		}
 		analysis = append(analysis, call.spec.partition...)
 		for _, key := range call.spec.order {

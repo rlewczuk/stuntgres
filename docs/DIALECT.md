@@ -593,9 +593,12 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   demand with existing type/equality providers. SEARCH/CYCLE, recursive modifying
   definitions, and general lateral derived sources remain excluded. MERGE rejects
   its own WITH RECURSIVE; a recursive SELECT inside its derived source is admitted.
-  Window providers are row_number(), count(*) and
-  existing integer/numeric/floating sum(expr); MONEY/INTERVAL SUM, expression-count
-  windows, DISTINCT/call-local aggregate ORDER and window aggregate filters remain excluded.
+  Window providers are row_number(), count(*),
+  existing integer/numeric/floating sum(expr), and first_value/last_value/nth_value.
+  Value functions retain concrete input types and PostgreSQL RESPECT NULLS;
+  nth_value uses a one-based INT4 ordinal evaluated on the current row.
+  MONEY/INTERVAL SUM, expression-count windows, explicit null-treatment/FROM LAST,
+  DISTINCT/call-local aggregate ORDER and window aggregate filters remain excluded.
 - MERGE supports RETURNING expressions, source/target rows, OLD/NEW aliases and
   lexical `merge_action()` output. Plain star is source-first; target defaults
   to NEW for INSERT/UPDATE and OLD for DELETE, with absent sides SQL NULL.

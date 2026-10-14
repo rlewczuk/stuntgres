@@ -520,9 +520,29 @@ argument occurrences. A matched ORDER call does not execute again, but its
 analyzed child graph retains authorization and dependency ownership.
 Integer inputs widen to bigint (smallint/integer) or numeric (bigint);
 numeric/real/double retain their existing SUM result types.
+
+first_value(expr), last_value(expr) and nth_value(expr,n) return the input's
+concrete type from the admitted frame, including domain/enum/array identities.
+The default ordered RANGE ends at the last current peer, not the partition tail;
+an explicit UNBOUNDED FOLLOWING frame selects across the whole partition.
+NULL values are respected, not skipped: they consume ordinal positions.
+For each actual nth_value invocation, n is evaluated on the current output row;
+NULL n or an absent one-based member returns a typed NULL, and n<=0 raises22016
+`argument of nth_value must be greater than zero`. Empty/reversed/excluded frames
+also return NULL. Computed value outputs are known nullable even for NOT NULL
+inputs. Value expressions evaluate only on a selected member, not every source
+row; volatile values are reevaluated for every actual executing call/output.
+Upper sort-input target matching can project an actual retained whole window
+output under multiple equal labels. Two unmatched postponed volatile calls keep
+independent executing slots, including equal calls with an unrelated outer
+ORDER key. This neither caches a selected value across rows nor merges genuinely
+different value/ordinal expressions. Both children retain grouping, authorization,
+dependency, capture and descriptor-remapping ownership.
+
 Arguments participate in authorization, grouping, capture and descriptor remap
-even when runtime membership is empty. General window providers, MONEY/INTERVAL SUM,
-count(expr), FILTER, DISTINCT and call-local aggregate ORDER remain excluded.
+even when runtime membership is empty. Window providers beyond the ones above,
+MONEY/INTERVAL SUM, count(expr), FILTER, DISTINCT, call-local aggregate ORDER,
+explicit IGNORE/RESPECT NULLS syntax and FROM LAST remain excluded.
 Native array/tree aggregate ordering and distinct capability limits are separate
 from their represented structural equality. Range aggregation does not add general
 range comparison, grouping or temporal-range providers.

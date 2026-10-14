@@ -42,6 +42,9 @@ const (
 	windowCount windowOperation = iota
 	windowNumber
 	windowSum
+	windowFirst
+	windowLast
+	windowNth
 )
 
 type windowCall struct {
@@ -49,6 +52,7 @@ type windowCall struct {
 	spec         boundWindowSpec
 	operation    windowOperation
 	argument     BoundExpr
+	ordinal      BoundExpr
 	provider     aggregateProvider
 	raw          *parser.WindowSpec
 	analysisOnly bool // Matched ORDER target: retain binding ownership, not execution.
@@ -118,8 +122,14 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	b.argumentOwner = argumentWindowOwner{active: true, window: true}
 	defer func() { b.argumentOwner = parentOwner }()
 	resultUsage := b.typ(sqltype.Int8).Usage()
-	var argument BoundExpr
-	if raw.Name == "count" || raw.Name == "row_number" {
+	var argument, ordinal BoundExpr
+	if windowValueName(raw.Name) {
+		var err error
+		argument, ordinal, resultUsage, err = b.resolveWindowValueSignature(raw, name)
+		if err != nil {
+			return nil, err
+		}
+	} else if raw.Name == "count" || raw.Name == "row_number" {
 		args := make([]BoundExpr, len(raw.Args))
 		for i, arg := range raw.Args {
 			var err error
@@ -157,7 +167,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if len(raw.Order) > 0 {
 		return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", raw.Pos)
 	}
-	if raw.Filter != nil && raw.Name == "row_number" {
+	if raw.Filter != nil && (raw.Name == "row_number" || windowValueName(raw.Name)) {
 		return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", raw.Pos)
 	}
 	if err := b.windowAllowed(raw.Pos); err != nil {
@@ -166,7 +176,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
-	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "sum" || (raw.Name == "count" && raw.Star)) {
+	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "sum" || windowValueName(raw.Name) || (raw.Name == "count" && raw.Star)) {
 		found := false
 		for _, definition := range b.windowRaw {
 			if definition.Name.Text == raw.Window.Name.Text {
@@ -189,13 +199,19 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Filter != nil {
 		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
 	}
-	if raw.Name != "sum" && raw.Name != "row_number" && (raw.Name != "count" || !raw.Star) {
+	if raw.Name != "sum" && raw.Name != "row_number" && !windowValueName(raw.Name) && (raw.Name != "count" || !raw.Star) {
 		return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 	}
-	call := windowCall{raw: raw.Window, argument: argument}
+	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal}
 	switch raw.Name {
 	case "row_number":
 		call.operation = windowNumber
+	case "first_value":
+		call.operation = windowFirst
+	case "last_value":
+		call.operation = windowLast
+	case "nth_value":
+		call.operation = windowNth
 	case "sum":
 		call.operation = windowSum
 		// Ordinary SUM has additional providers; windows remain numeric-only.
@@ -210,9 +226,21 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, err
 		}
 	}
-	expr := &windowExpression{expressionInfo: b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true}), slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
+	info := b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true})
+	if windowValueName(raw.Name) {
+		info.properties = mergeExpressionProperties(info.properties, argument.Properties())
+		if ordinal != nil {
+			info.properties = mergeExpressionProperties(info.properties, ordinal.Properties())
+		}
+		var err error
+		info, err = b.collatedInfo(info, argument)
+		if err != nil {
+			return nil, err
+		}
+	}
+	expr := &windowExpression{expressionInfo: info, slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
 	call.expression = expr
-	expr.nullable = call.operation == windowSum
+	expr.nullable = call.operation == windowSum || windowValueName(raw.Name)
 	b.windowCalls = append(b.windowCalls, call)
 	return expr, nil
 }
@@ -385,9 +413,9 @@ func (b *expressionBinder) sameWindowCall(a, c windowCall) bool {
 	if a.operation != c.operation {
 		return false
 	}
-	// Registered SUM arguments can own child queries hidden by the window leaf.
-	// Normalize only target equality; selected SUM execution remains independent.
-	if a.operation == windowSum && (!sameRecordUsage(a.expression.ResultUsage(), c.expression.ResultUsage()) || !b.sameQueryTarget(a.argument, c.argument)) {
+	// Arguments can own child queries hidden by the window leaf. This is
+	// semantic target equality, not permission to merge volatile executions.
+	if (a.operation == windowSum || a.operation >= windowFirst) && (!sameRecordUsage(a.expression.ResultUsage(), c.expression.ResultUsage()) || !b.sameQueryTarget(a.argument, c.argument) || !b.sameQueryTarget(a.ordinal, c.ordinal)) {
 		return false
 	}
 	if a.raw != nil || c.raw != nil {
@@ -630,7 +658,7 @@ func (b *expressionBinder) sameWindowSort(a, c boundWindowSpec) bool {
 	}
 	return true
 }
-func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, grouped bool, stringCompanions ...[]BoundExpr) (LogicalNode, error) {
+func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, grouped bool, projection []BoundExpr, order, on []sortKey, stringCompanions ...[]BoundExpr) (LogicalNode, error) {
 	if grouped {
 		for _, definition := range b.windowRaw {
 			spec := b.windowDefinitions[definition.Name.Text]
@@ -669,6 +697,13 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 				}
 				preparedCalls[i].argument = next
 			}
+			if call.ordinal != nil {
+				next, err := b.rewriteGroup(call.ordinal, keys)
+				if err != nil {
+					return nil, err
+				}
+				preparedCalls[i].ordinal = next
+			}
 			for j, key := range spec.partition {
 				next, err := b.rewriteGroup(key, keys)
 				if err != nil {
@@ -699,13 +734,14 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 		}
 		preparedCalls[i].spec = spec
 	}
+	aliases := b.windowValueAliases(preparedCalls, projection, order, on)
 	var err error
 	calls := make([]windowCall, 0, len(b.windowCalls))
 	specs := make([]boundWindowSpec, 0, len(b.windowCalls))
 	indices := make([]int, 0, len(b.windowCalls))
 	schema := append([]ColumnDescriptor(nil), root.Schema()...)
-	for _, call := range preparedCalls {
-		if call.analysisOnly {
+	for i, call := range preparedCalls {
+		if call.analysisOnly || aliases != nil && aliases[i] >= 0 {
 			continue
 		}
 		spec := call.spec
@@ -722,7 +758,7 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 		}
 		shared := -1
 		for j, previous := range calls {
-			if indices[j] == index && call.operation != windowSum && previous.operation == call.operation {
+			if indices[j] == index && (call.operation == windowNumber || call.operation == windowCount) && previous.operation == call.operation {
 				shared = j
 				break
 			}
@@ -735,7 +771,13 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 		call.spec = boundWindowSpec{}
 		calls = append(calls, call)
 		indices = append(indices, index)
-		schema = append(schema, ColumnDescriptor{Usage: call.expression.ResultUsage(), Nullable: call.operation == windowSum, NullabilityKnown: true})
+		schema = append(schema, ColumnDescriptor{Usage: call.expression.ResultUsage(), Nullable: call.expression.nullable, NullabilityKnown: true})
+	}
+	for i, owner := range aliases {
+		if owner >= 0 {
+			b.windowCalls[i].expression.slot = preparedCalls[owner].expression.slot
+			b.windowCalls[i].analysisOnly = true
+		}
 	}
 	originalWidth := len(root.Schema())
 	root, err = b.lowerStringWindowSpecs(root, specs, calls, stringCompanions)

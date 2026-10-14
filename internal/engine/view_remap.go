@@ -714,6 +714,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		for i, call := range copy.calls {
 			copy.calls[i].expression = expression(call.expression).(*windowExpression)
 			copy.calls[i].argument = expression(call.argument)
+			copy.calls[i].ordinal = expression(call.ordinal)
 			switch p := call.provider.(type) {
 			case functions.IntegralSum:
 				copy.calls[i].provider = p.Reconstruct(typ(p.InputType()), usage(p.ResultUsage()))

@@ -268,7 +268,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 		}
 		for i, call := range n.calls {
 			other := o.calls[i]
-			if call.operation != other.operation || !same(call.argument, other.argument) || !same(call.expression, other.expression) || !c.window(b, call.spec, other.spec) {
+			if call.operation != other.operation || !same(call.argument, other.argument) || !same(call.ordinal, other.ordinal) || !same(call.expression, other.expression) || !c.window(b, call.spec, other.spec) {
 				return false
 			}
 		}

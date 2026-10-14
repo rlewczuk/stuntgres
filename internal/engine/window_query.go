@@ -500,6 +500,16 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		success = true
 		return indexedStage{source: source, schema: n.Schema()}, nil
 	}
+	// Reuse one frame-local evaluator and its virtual-identity buffers across
+	// actual value calls, rather than allocating them per member/output.
+	var valueEvaluation *EvalContext
+	for _, call := range n.calls {
+		if call.operation >= windowFirst {
+			evaluation := state.evaluation(ctx)
+			valueEvaluation = &evaluation
+			break
+		}
+	}
 	for specIndex, spec := range n.specs {
 		sortIndex := specIndex
 		if len(n.sortIndices) > 0 {
@@ -598,6 +608,8 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 						value, err = sqltype.Integer(call.expression.ResultUsage().Type, int64(i)+1)
 					case windowCount:
 						value, err = windowFrameCount(ctx, call.expression.ResultUsage(), 0, windowMaskCount(spec.frame.exclusion, head, tail, i, peerStart, peerEnd))
+					case windowFirst, windowLast, windowNth:
+						value, err = evaluateWindowValue(ctx, valueEvaluation, &child, call, partition.rows, spec.frame, head, tail, i, peerStart, peerEnd)
 					}
 					if err != nil {
 						return indexedStage{}, err

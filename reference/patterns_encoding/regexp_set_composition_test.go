@@ -105,20 +105,10 @@ func TestReferenceRegexpSetPlacement(t *testing.T) {
 			{`SELECT COALESCE('safe',regexp_split_to_table('a',' '))`, `set-returning functions are not allowed in COALESCE`, lateralHint},
 			{`SELECT count(regexp_split_to_table('a b',' '))`, `aggregate function calls cannot contain set-returning function calls`, lateralHint},
 			{`SELECT count(regexp_split_to_table('a b',' ')) OVER ()`, `window function calls cannot contain set-returning function calls`, lateralHint},
+			{`SELECT first_value(regexp_split_to_table('a b',' ')) OVER ()`, `window function calls cannot contain set-returning function calls`, lateralHint},
+			{`SELECT /* é🙂 */ sum(n) OVER (ROWS regexp_split_to_table('1',' ')::int PRECEDING) FROM placement`, "set-returning functions are not allowed in window definitions", ""},
 		} {
 			regexpRoutes(t, p, b, regexpBindError(c.q, "0A000", c.msg, c.hint, "regexp_split_to_table"))
-		}
-		// SUM now reaches the shared window-definition placement diagnostic.
-		// The adjacent first_value provider remains an exact native boundary.
-		for _, c := range []struct{ q, pgMessage, pgHint, nativeMessage, nativeToken string }{
-			{`SELECT /* é🙂 */ sum(n) OVER (ROWS regexp_split_to_table('1',' ')::int PRECEDING) FROM placement`, "set-returning functions are not allowed in window definitions", "", "set-returning functions are not allowed in window definitions", "regexp_split_to_table"},
-			{`SELECT first_value(regexp_split_to_table('a b',' ')) OVER ()`, "window function calls cannot contain set-returning function calls", lateralHint, "functions are unsupported", "first_value"},
-		} {
-			s := regexpBindError(c.q, "0A000", c.pgMessage, c.pgHint, "regexp_split_to_table")
-			if !b.PG {
-				s = regexpBindError(c.q, "0A000", c.nativeMessage, "", c.nativeToken)
-			}
-			regexpRoutes(t, p, b, s)
 		}
 		for _, strength := range []string{"UPDATE", "NO KEY UPDATE", "SHARE", "KEY SHARE"} {
 			q := `SELECT regexp_matches(v,'a') FROM placement FOR ` + strength

@@ -43,6 +43,22 @@ pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceArrayInspectFeatureSmoke$'`.
 See [selected coverage](reference/binary_json_arrays/README.md#array-dimensions-and-cardinality).
 
+## Window value functions — change note
+
+`first_value`, `last_value`, and `nth_value` select from the admitted window
+frame, after existing ROWS/RANGE/GROUPS boundaries and exclusions. The default
+ordered frame ends at the current row's last peer, so `last_value` is not
+automatically the partition tail. Use an explicit whole-partition frame for that
+behavior. NULL-valued members count toward the one-based `nth_value` ordinal;
+NULL or out-of-range ordinals return NULL, while nonpositive ordinals raise22016.
+Each actual call evaluates its ordinal on the current row and its value on the
+selected member. Upper sort-target aliases can read an already produced output;
+there is no cross-row value cache or eager evaluation of unselected arguments.
+See [window contracts](docs/QUERIES.md) and
+[selected proof](reference/query_order/README.md#window-value-functions).
+Feature smoke: `make check RUN='^TestReferenceQueryWindowValueFeatureSmoke$'`
+and `make check RUN='^TestReferenceQueryWindowValueFeatureSmoke$' REFERENCE=1`.
+
 ## Namespace catalog metadata — change note
 
 `pg_catalog.pg_namespace` exposes the PostgreSQL 18 four-column schema:
@@ -1135,8 +1151,9 @@ See [period overlap](https://www.postgresql.org/docs/18/functions-datetime.html)
 Feature smoke: `make check RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`.
 
-Change note: selected PostgreSQL18 windows support `row_number()`, `count(*)`
-and `sum(expr)` with default or explicit RANGE/GROUPS/ROWS frames, typed offsets, partition/order keys
+Change note: selected PostgreSQL18 windows support `row_number()`, `count(*)`,
+`sum(expr)` and `first_value`/`last_value`/`nth_value` with default or explicit
+RANGE/GROUPS/ROWS frames, typed offsets, partition/order keys
 and inherited named `WINDOW` definitions. GROUPS requires window ORDER BY and
 measures bigint offsets in complete peer groups: keys1,1,2,3,3 with1PRECEDING
 give counts2,2,3,3,3. Bounds are inclusive and preserve NULL peers; numbering
@@ -1153,7 +1170,7 @@ occurrence, GROUP its ORDER peers, TIES its other peers, and NO OTHERS removes n
 Without window ORDER all partition rows are peers, including for ROWS masks.
 Empty count is nonnullable bigint0; empty SUM is nullable NULL. SUM reuses existing
 integer/numeric/real/double providers; MONEY and INTERVAL, window FILTER, count(expr),
-DISTINCT, call-local aggregate ORDER and other window providers remain excluded.
+DISTINCT, call-local aggregate ORDER and providers beyond the named functions remain excluded.
 See [window queries](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`.
@@ -3815,7 +3832,8 @@ ordering only orders result groups. Each call can use different source-key order
 Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
 Dump/Restore use the same eager pipeline. All existing aggregates admit
 FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. Window execution
-is restricted to row_number(), count(*) and existing integer/numeric/floating SUM;
+is restricted to row_number(), count(*), existing integer/numeric/floating SUM,
+and first_value/last_value/nth_value;
 window FILTER, DISTINCT and call-local aggregate ORDER BY remain excluded.
 Feature smoke: `make check RUN='^TestReferenceStringAggSmoke$'`;
 pinned oracle: `make check REFERENCE=1 RUN='^TestReferenceStringAgg'`.

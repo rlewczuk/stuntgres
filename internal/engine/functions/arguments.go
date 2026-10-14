@@ -48,6 +48,30 @@ func ResolveAnyValue(visible, star bool, count int, usage sqltype.Usage) Resolut
 	return Resolved
 }
 
+// Value windows use anyelement, with an implicit INT4 ordinal only for nth.
+// Signature selection precedes polymorphic resolution and value evaluation.
+func ResolveWindowValue(visible, star, nth bool, count int, value, ordinal, integer sqltype.Usage) (Resolution, sqltype.CoercionPlan) {
+	var plan sqltype.CoercionPlan
+	arity := 1
+	if nth {
+		arity = 2
+	}
+	if !visible || star || count != arity {
+		return Missing, plan
+	}
+	if nth && ordinal.Type != nil {
+		var err error
+		plan, err = sqltype.PlanCoercion(ordinal, integer, sqltype.Implicit)
+		if err != nil {
+			return Missing, plan
+		}
+	}
+	if !value.Type.Concrete() {
+		return UnknownPolymorphic, plan
+	}
+	return Resolved, plan
+}
+
 type CoercionIntent uint8
 
 const (

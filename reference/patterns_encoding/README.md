@@ -430,9 +430,9 @@ uses independently specified `pg_attrdef.adnum` ordinals and the admitted explic
 `pg_attribute` prerequisite. View inquiry selects its complete independently
 expected SQL definition, retaining function/ordinality/renamed-source assertions
 without extending inquiry-LIKE grammar. Supported INSERT/UPDATE RETURNING and
-COUNT window routes prove SRF prohibitions using the same shared expectations;
-SUM-window and first_value retain exact native capability errors versus
-PostgreSQL's selected SRF errors. Missing no-argument parameter admission remains
+COUNT, SUM and first_value window routes prove SRF prohibitions using the same
+shared complete diagnostics, including the window LATERAL hint and source position.
+Missing no-argument parameter admission remains
 native42P08 versus pq42P02, while provided-argument conflict42P08 is shared.
 FILTER owns its SRF error before the enclosing aggregate argument owner, without
 the aggregate/window LATERAL Hint.

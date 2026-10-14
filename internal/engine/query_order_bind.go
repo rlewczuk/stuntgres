@@ -140,6 +140,9 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 	computed := 0
 	for i := range keys {
 		key := &keys[i]
+		if key.targetIdentity == 0 && key.outputOrdinal > 0 {
+			key.targetIdentity = key.outputOrdinal
+		}
 		if !key.expression.CollationIndeterminate() && key.comparison.DefaultBtreeOpclass() == 0 {
 			provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
 			if err != nil {
@@ -182,19 +185,32 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		}
 	}
 	for j, output := range projection {
+		chosen, demanded := -1, false
 		for k, key := range keys {
-			if key.cache >= 0 && b.sameGroupExpression(output, key.expression) {
-				keys[k].output = true
-				properties := output.Properties()
-				properties.StageDependent = true
-				info := boundExpressionInfo(output)
-				info.properties = properties
-				projection[j] = cachedOrderExpression{
-					expressionInfo: info,
-					slot:           key.cache,
+			if key.outputOrdinal == j+1 {
+				demanded = true
+				if key.cache >= 0 {
+					chosen = k
+					break
 				}
-				break
 			}
+		}
+		if !demanded {
+			for k, key := range keys {
+				if key.cache >= 0 && b.sameGroupExpression(output, key.expression) {
+					chosen = k
+					break
+				}
+			}
+		}
+		if chosen >= 0 {
+			key := &keys[chosen]
+			key.output = true
+			properties := output.Properties()
+			properties.StageDependent = true
+			info := boundExpressionInfo(output)
+			info.properties = properties
+			projection[j] = cachedOrderExpression{expressionInfo: info, slot: key.cache}
 		}
 	}
 	return &sortNode{querySchema: root.Schema(), child: root, keys: keys, cacheWidth: computed}, nil

@@ -6,6 +6,42 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Window value functions
+
+The seven `TestReferenceQueryWindowValue` definitions share direct and actual
+prepared SQL bodies with independently asserted rows/types/counts/diagnostics.
+They cover default-frame last_value versus whole partition; RESPECT NULLS,
+current-row one-based nth ordinals, NULL/out-of-range/invalid ordinals; all
+currently admitted frame/exclusion membership; selected-member demand and
+volatile execution; grouping, scalar/correlated children, ORDER/DISTINCT/LIMIT;
+empty/nonempty metadata and concrete types; held recovery, atomic INSERT,
+cancellation, child-only dependencies/permissions and actual view replay.
+Native-only phases exercise pristine Dump/Restore, source/destination Reset,
+retained cursors and destination-owned domain/enum descriptors. They do not
+invent a PostgreSQL Reset API.
+
+```sh
+make check RUN='^TestReferenceQueryWindowValue' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowValue'
+make check RUN='^TestQueryWindowValue' RACE=1
+make check RUN='^TestReferenceQueryWindowValueFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowValueFeatureSmoke$'
+```
+
+Use an external900-second deadline for each selected command. Smoke checks the
+seeded default/whole-partition vectors, discontiguous EXCLUDE CURRENT ROW tuples,
+SAME held ordinal100/NULL/0/-1/1 recovery, full22016/static42P20 diagnostics,
+empty/nonempty INT4 metadata, volatile call versus upper-target identity, and
+persisted named views/native controls. A single executing first_value(nextval)
+produces1..4 and consumes4; identical SELECT labels under ORDER a or ORDER b
+project that retained output and consume4. Without a retained equal whole owner,
+identical calls under ORDER id execute independently, as do ORDER a,b and no
+outer ORDER. These cases and genuinely different arguments consume8, with the
+combined draw set1..8 exact without assuming inter-call pair scheduling.
+All expectations precede backend comparison. Public OID identities retain native
+int64 versus pq byte/string representations independently. Whole-project
+Docker-free verification remains `make quickcheck`, not a selected proof substitute.
+
 ### RANGE window coverage
 
 RANGE window coverage selects the complete `^TestReferenceQueryWindow` family
@@ -130,8 +166,8 @@ nonexecuting while their analyzed child graphs retain authorization/dependencies
 Internal mechanics units supplement the public contracts; quickcheck remains
 whole-project Docker-free verification, not a substitute for selected real proof.
 SUM is limited to existing integer/numeric/floating providers. count(expr),
-FILTER, DISTINCT, call-local aggregate ORDER, MONEY/INTERVAL SUM and other window
-providers retain their exclusions.
+FILTER, DISTINCT, call-local aggregate ORDER and MONEY/INTERVAL SUM retain their
+exclusions. Value-window coverage is documented separately above.
 
 ### Set operations
 
