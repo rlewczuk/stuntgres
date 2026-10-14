@@ -54,6 +54,7 @@ type procedureDescriptor struct {
 	strict                        bool
 	provider                      *unaccentProvider
 	queryCodec                    *intarrayProvider
+	fuzzy                         *fuzzystrmatchProvider
 	conversion                    sqltype.EncodingConversionHandler
 	acl                           authorization.ACLValue
 	dictionary                    ObjectAddress
@@ -143,6 +144,13 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
+		if d.fuzzy != nil {
+			if err := d.fuzzy.validateProcedure(v, d); err != nil {
+				return err
+			}
+			ext = d.extension
+			break
+		}
 		if d.queryCodec != nil {
 			if err := d.queryCodec.validateProcedure(v, d); err != nil {
 				return err

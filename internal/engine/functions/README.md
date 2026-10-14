@@ -19,6 +19,14 @@ grouping, windows and state lifetime. Query/set expansion and physical regex
 executor ownership remain engine responsibilities. There is no alternate binder,
 plugin registry, compatibility forwarding carrier or duplicated type algorithm.
 
+`DaitchMokotoff` owns the complete PostgreSQL REL_18_0 phoneme chart, narrow
+UTF8/Latin1 scanner and correlated digit-prefix state machine. Codes retain
+completion/padding order and all alternatives; no-encodable input returns nil
+for the engine's typed SQL NULL. State and result buffers are evaluation-local,
+with incremental cancellation during scans/lookahead/expansion. Installed
+fuzzystrmatch identity, strictness, immutable binding, owned text[] construction,
+generated consumers and control remapping remain engine responsibilities.
+
 ## Testing
 
 Run from repository root; use `make check RUN='...'` for individual or small
@@ -28,6 +36,12 @@ cohesive selections. Focused private state/demand examples:
 make check RUN='^(TestSumProviders|TestSumIntegralTransitions|TestSumFloatingTransitions|TestSumProviderCancellation)$'
 make check RUN='^(TestRandomIntegerSampler|TestRandomRuntimeNullEvaluatesSibling|TestUUIDGenerationPacking|TestUUIDGenerationAscendingClock)$'
 make check RUN='^(TestDatetimeSleepWait|TestDatetimeSleepCleanup|TestQueryAggregateRealAdvanceFailure)$' RACE=1
+```
+
+```sh
+make check RUN='^TestDaitchMokotoff(PublishedCodes|Boundaries|Cancellation|ProviderIdentity|ExpressionIdentity|Remap)$'
+make check REFERENCE=1 RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
 ```
 
 True leaf units live here; engine-integrated binding, parameter, descriptor,

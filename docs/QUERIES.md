@@ -30,6 +30,35 @@ errors. Exported mutable bytes detach from internal values and other exports.
 Rows remain valid across later writes, transaction completion and native
 Reset/Restore, but retained snapshots grant no publication authority.
 
+## Installed Daitch–Mokotoff expressions
+
+`daitch_mokotoff(text)` resolves only through installed fuzzystrmatch procedure
+identity. The shared binder infers TEXT for unknown parameters, applies existing
+implicit coercion, captures the procedure dependency and owns the `_text`1009
+result/element generation. Integer input does not silently stringify. Scalar
+DISTINCT/ORDER BY/FILTER/OVER report the ordinary nonaggregate/nonwindow errors;
+their primary messages preserve the full supplied qualified name, including a
+relocated schema. Procedure lookup still uses the final identifier in the
+resolved namespaces. ALL is accepted as PostgreSQL accepts it.
+
+Evaluation uses call-local prefix-tree state and the complete release phoneme
+chart, preserving correlated J alternatives, adjacent-digit suppression,
+two-digit codes and completion-before-padding order. It never sorts or truncates
+alternatives. Strict NULL and nonencodable input produce typed array NULL;
+successful output transfers fresh rank1/lower1 array buffers once. Cancellation
+checks cover skipped-codepoint scans, phoneme lookahead and branching.
+
+Intrinsic volatility comes from the installed procedure and combines with child
+volatility. Genuine immutable expressions can fold and participate in STORED
+generated columns without relaxing unaccent's STABLE restriction. Existing
+walkers, stored renderers and native control remappers preserve live procedure
+identity and exact array/element ownership; no dictionary is invented for this
+provider. Retained rows remain readable after replacement; fresh preparation and
+same-shaped held TEXT→text[] statements reanalyze against restored installed
+identity under the existing driver contract. No blanket DM stale-statement fence
+or retired builtin-TEXT alias capture is introduced.
+See [selected proof](../reference/catalogs/README.md#daitch-mokotoff-selected-proof).
+
 ## Parallel SELECT scans
 
 The eager top-level SELECT entry can partition one ordinary persistent physical

@@ -14,7 +14,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 	switch n := node.(type) {
 	case installedFunctionExpression:
 		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)
-		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || proc != n.procedure || proc.signature != unaccentTextSignature || n.usage.Type.ID() != sqltype.Text || n.arg == nil || n.arg.ResultUsage().Type.ID() != sqltype.Text || view.state.descriptors[proc.dictionary] != n.dictionary || n.dictionary == nil || view.state.descriptors[n.dictionary.template] != n.template || n.template == nil {
+		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || proc != n.procedure || !n.validProvider() || n.dictionary != nil && (view.state.descriptors[proc.dictionary] != n.dictionary || view.state.descriptors[n.dictionary.template] != n.template) {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
 		namespace, ok := view.state.descriptors[proc.namespace].(*namespaceDescriptor)

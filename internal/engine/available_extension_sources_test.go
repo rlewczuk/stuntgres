@@ -72,16 +72,18 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog CatalogRead, version
 	for _, oid := range []OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
 		source, err := captureAvailableExtensions(context.Background(), e.extensions, catalog, ref, d)
-		if err != nil || source == nil || source.count() != 2 || source.ref != ref {
+		if err != nil || source == nil || source.count() != 3 || source.ref != ref {
 			t.Fatal("capture", source, err)
 		}
 		expected := map[string][]any{
-			"unaccent": {"unaccent", "1.1", version, comment},
-			"intarray": {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
+			"unaccent":      {"unaccent", "1.1", version, comment},
+			"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
+			"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 		}
 		if oid == 12085 {
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
 			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
+			expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 		}
 		for _, row := range source.anonymous {
 			name, err := row[0].Text()

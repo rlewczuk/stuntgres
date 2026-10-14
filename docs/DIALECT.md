@@ -344,6 +344,27 @@ Index partitions have NULL bounds. Additional partition strategies and hierarchy
 alterations, including member RENAME, are not enabled; native retained-bound
 witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
+## Daitch–Mokotoff installed function
+
+The fuzzystrmatch1.2 provider installs exactly one overload,
+`daitch_mokotoff(text) RETURNS text[]`, not the complete upstream extension.
+Installation is required; missing/off-path calls use normal function resolution.
+The immutable, strict, parallel-safe function emits all alternative six-digit
+codes in release order, with significant array element order and no truncation.
+NULL, empty, punctuation/digit-only and unsupported-only strings yield SQL NULL,
+not an empty array. Vowel-only A yields `{000000}`; long input is not limited to
+255 characters.
+
+The release scanner's Latin1 table and special Ą/Ę/Ţ/Ț rules are deliberate
+compatibility limits. There is no general transliteration, Unicode normalization
+or Cyrillic mapping. Unsupported codepoints and punctuation skip within phonemes;
+ß is one S. Installed procedure identity, namespace/search-path authority,
+transactional installation and native ownership/remapping use the existing
+extension registry. Generated columns may consume this genuinely immutable
+function; a volatile child is still volatile. No dictionary/helper TEMP exclusion
+is inherited from unaccent. Availability's stock comment does not promise
+Soundex/Levenshtein/Metaphone or arbitrary loaders.
+
 ## query_int extension type
 
 The registered intarray provider supplies selected query_int scalar storage,

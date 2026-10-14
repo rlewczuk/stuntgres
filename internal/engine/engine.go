@@ -197,6 +197,10 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.registerExtension("intarray", registeredExtension{version: "1.5", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockIntarray}); err != nil {
 		return nil, err
 	}
+	comment = "determine similarities and distance between strings"
+	if err := e.registerExtension("fuzzystrmatch", registeredExtension{version: "1.2", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockFuzzystrmatch}); err != nil {
+		return nil, err
+	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
 	for _, ns := range []struct {
 		oid  OID

@@ -79,12 +79,14 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					unaccentVersion = "1.1"
 				}
 				expected := map[string][]any{
-					"unaccent": {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
-					"intarray": {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
+					"unaccent":      {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
+					"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
+					"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 				}
 				if oid == 12085 {
 					expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, "text search dictionary that removes accents"}
 					expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
+					expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 				}
 				for _, row := range source.anonymous {
 					name, err := row[0].Text()

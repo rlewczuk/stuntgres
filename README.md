@@ -3009,6 +3009,25 @@ ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
 excluded. See [registered extensions](https://www.postgresql.org/docs/18/sql.html)
 and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 
+Change note: `CREATE EXTENSION fuzzystrmatch [WITH SCHEMA schema]
+[VERSION '1.2']` installs only `daitch_mokotoff(text) RETURNS text[]`.
+This selected immutable, strict, parallel-safe provider preserves every six-digit
+alternative in PostgreSQL's element order: John returns `{160000,460000}` and
+Bierschbach returns all eight published codes. NULL, empty and unencodable-only
+input yield SQL NULL; an encodable vowel-only name can yield `{000000}`.
+The release chart has narrow Latin1 and specific Polish/Romanian letter mappings,
+not general Unicode transliteration. Unsupported characters and punctuation are
+skipped even inside phonemes; ß maps to one S. There is no 255-character limit.
+Direct/prepared calls use installed search-path identity and `_TEXT` metadata.
+Views, text[] defaults/CHECKs and STORED generated columns retain actual immutable
+procedure dependencies; native controls remap providers and owned array elements
+while already returned rows keep their old arrays/metadata. Availability reports
+the real selected provider, not full upstream fuzzystrmatch member coverage.
+Soundex, Levenshtein, Metaphone, new array operators and general extension loaders
+are not added. This provider has no dictionary helpers, so unaccent's own-TEMP
+helper-resolution restriction does not apply.
+See [selected proof](reference/catalogs/README.md#daitch-mokotoff-selected-proof).
+
 Change note: read-only `pg_catalog.pg_collation` exposes all twelve PostgreSQL18
 identity fields from installed collation descriptors: names, namespace/owner,
 provider, determinism, encoding, libc categories, provider locale, ICU rules and

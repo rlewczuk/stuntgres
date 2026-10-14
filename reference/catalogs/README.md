@@ -1308,3 +1308,60 @@ make check REFERENCE=1 RUN='^TestReferencePartitionConstraints(NonuniqueCatalog|
 Selected proof does not replace whole-project Docker-free `make quickcheck`
 or the root-owned post-integration finalcheck.
 
+### Daitch-Mokotoff selected proof
+
+`TestReferenceDaitchMokotoffCodes` specifies every published PostgreSQL18 manual
+and REL_18_0 regression array, preserving complete alternative element order.
+Direct literal/parameter, newly prepared and repeatedly held calls assert `_TEXT`
+metadata and raw carriers. Boundaries independently require SQL NULL for NULL,
+empty and unencodable input, six zero digits for A, skipped punctuation inside
+phonemes, narrow Latin1/special-letter handling and no 255-character limit.
+Diagnostics prescribe complete English fields for absent installation, signatures,
+quoted names, missing schema, off-path lookup and recognized scalar decorations.
+The Public and Relocated diagnostic cases retain `public.daitch_mokotoff` and
+`dm_addon.daitch_mokotoff` in DISTINCT/ORDER BY/FILTER/OVER primary messages.
+Direct Query and Prepare failures require whole42809 records with Position8,
+ERROR severities and empty Hint/Detail and other unsourced fields.
+
+Installation checks fuzzystrmatch1.2 availability, real extension/procedure
+identity relationships, immutable/strict/parallel-safe text→text[] metadata,
+transaction/savepoint rollback, duplicate notices and invalid-version atomicity.
+Trusted ordinary installation independently checks SAME-connection current_user
+and session_user before installation and after reset. The extension remains
+installer-owned (`dm_installer`); the procedure belongs to fixed bootstrap
+superuserOID10. Its exact declared name is native `postgres` versus pinned
+fixture initdb `stuntgres`, not the fixture's separate native-replay postgres role.
+Native membership deliberately has only this selected overload; PostgreSQL's
+additional extension functions are not falsely asserted absent on the oracle.
+The native-only adjacent soundex witness retains the existing capability
+diagnostic0A000 `functions are unsupported` at Position8, not a new missing-
+function42883 promise or adjacent-function implementation.
+Native pg_proc does not expose proargtypes: its exact argument signature25 is
+checked against the real installed descriptor in the provider identity unit,
+while an explicit PostgreSQL-only metadata phase asserts proargtypes25. The
+remaining exposed identity/properties and callable overload outcomes are shared.
+Stored expressions consume the function in views, defaults, CHECK constraints
+and STORED generated columns; a late failed multirow insertion preserves all
+prior rows. Controls share those SQL outcomes and separately exercise native
+Dump/Reset/Restore, retained array cursors, independent Driver attachment,
+symbolic named-owner redump and failed/canceled replacement preserving executable
+consumers. Shared named-owner and schema-DROP/CASCADE SQL outcomes are distinct
+from native missing-owner replay and staged-prefix I/O/cancellation. The same
+held DM statement returns its complete array before and after replacement,
+using existing same-shaped builtin-array reanalysis; no stale-alias capture or
+universal stale-statement fence is claimed.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check RUN='^TestDaitchMokotoff(PublishedCodes|Boundaries|Cancellation|ProviderIdentity|ExpressionIdentity|Remap)$'
+```
+
+The feature smoke expects complete John/Bierschbach/brzęczy arrays, NULL/empty,
+qualified off-path resolution, stored generated/view values and reusable held
+execution. Precanceled no-output/ordinary context-error assertions are native-only;
+pq fast precancellation has no stable nil-output guarantee. Selected proof does
+not replace whole-project quickcheck, standalone feature smoke or finalcheck.
+

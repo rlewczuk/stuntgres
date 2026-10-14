@@ -297,7 +297,7 @@ func generationImmutable(node BoundExpr) bool {
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case installedFunctionExpression:
-		return false
+		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.arg})
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return false
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
@@ -611,8 +611,20 @@ func validateGenerationProviders(view CatalogRead, d *relationDescriptor) error 
 			}
 			provider, ok := view.Descriptor(address)
 			relation, relationProvider := provider.(*relationDescriptor)
-			if !ok || provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != OperatorObject && provider.Kind() != NamespaceObject && provider.Kind() != TSDictionaryObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) || provider.Kind() == NamespaceObject && ref.Address.SubID != 0 {
+			if !ok || provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != OperatorObject && provider.Kind() != NamespaceObject && provider.Kind() != TSDictionaryObject && provider.Kind() != ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.address.ClassID != RelationClassID) || provider.Kind() == NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
+			}
+			if provider.Kind() == ProcedureObject {
+				// Analyzed dependencies retain installed identity even when a
+				// branch is pruned. Surviving-tree immutability is checked
+				// separately; validate the actual procedure manifest here.
+				procedure, ok := provider.(*procedureDescriptor)
+				if !ok || ref.Address.SubID != 0 {
+					return fmt.Errorf("stuntgres: invalid generation procedure")
+				}
+				if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, procedure); err != nil {
+					return err
+				}
 			}
 			if provider.Kind() == CollationObject {
 				if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {

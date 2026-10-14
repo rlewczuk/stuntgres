@@ -1096,7 +1096,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		}
 		return true
 	case installedFunctionExpression:
-		return false // Installed unaccent is intrinsically STABLE.
+		return e.procedure != nil && e.procedure.volatility == Immutable && literal(e.arg)
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return false // All eight JSON creation functions are intrinsically STABLE.
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:

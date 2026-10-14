@@ -147,6 +147,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		expectedMembers = 5
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
+	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
+		expectedMembers = 1
 	default:
 		return invalid()
 	}
@@ -176,6 +178,9 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 			valid := member.Name == "unaccent" && (member.Signature == string(unaccentTextSignature) || member.Signature == string(unaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(unaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(unaccentLexizeSignature)
 			if record.Name == "intarray" {
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
+			}
+			if record.Name == "fuzzystrmatch" {
+				valid = member.Name == "daitch_mokotoff" && member.Signature == "25"
 			}
 			if !valid {
 				return invalid()
