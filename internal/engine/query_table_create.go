@@ -214,9 +214,13 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		if scope.cteInvocation != nil {
+			err = e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
+		} else {
+			_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		}
 	}
-	if err == nil {
+	if err == nil && scope.cteInvocation == nil {
 		scope.completed = true
 	}
 	return err

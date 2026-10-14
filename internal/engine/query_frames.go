@@ -91,6 +91,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 }
 
 func (s *queryState) evaluation(ctx context.Context) EvalContext {
+	s.inheritCTEs()
 	frame := s.frame
 	if frame == 0 {
 		frame = 1

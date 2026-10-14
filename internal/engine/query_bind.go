@@ -58,7 +58,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}()
 	oldCTEs := len(b.cteBindings)
 	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()
-	definitions, err := b.bindCTEDefinitions(s)
+	definitions, err := b.bindCTEDefinitions(s.With)
 	if err != nil {
 		return nil, err
 	}
@@ -67,9 +67,14 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return
 		}
 		project := query.Root.(*projectNode)
-		project.cteOwner = true
+		project.cteOwner = !parser.HasModifyingCTE(s)
+		if parser.HasModifyingCTE(s) {
+			b.statementCTEs = definitions
+		}
 		for _, definition := range definitions {
-			project.analysisExpressions = append(project.analysisExpressions, subqueryExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), definition.position, ExprProperties{}), queryPlan: definition.query, cteDefinition: true})
+			if definition.query != nil {
+				project.analysisExpressions = append(project.analysisExpressions, subqueryExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), definition.position, ExprProperties{}), queryPlan: definition.query, cteDefinition: true})
+			}
 		}
 	}()
 	plainDistinct := s.Distinct != nil && len(s.Distinct.On) == 0

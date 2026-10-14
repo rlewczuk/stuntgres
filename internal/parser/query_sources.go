@@ -15,6 +15,9 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	var visible []string
 	var pending []string
 	var query func(*Select) error
+	var queryBody func(*Select) error
+	var walk func(Statement) error
+	depth := 0
 	var expression func(Expr) error
 	var from func(FromItem, *Select) error
 	expressions := func(items []Expr) error {
@@ -221,28 +224,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		return nil
 	}
-	query = func(s *Select) error {
-		oldVisible, oldPending := len(visible), len(pending)
-		defer func() { visible = visible[:oldVisible]; pending = pending[:oldPending] }()
-		for i, definition := range s.With {
-			for _, prior := range s.With[:i] {
-				if definition.Name.Text == prior.Name.Text {
-					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42712", Message: fmt.Sprintf(`WITH query name "%s" specified more than once`, definition.Name.Text), Position: strconv.Itoa(definition.Name.Pos.Character)}
-				}
-			}
-			pending = append(pending, definition.Name.Text)
-		}
-		for i, definition := range s.With {
-			pending = pending[:oldPending]
-			for _, later := range s.With[i:] {
-				pending = append(pending, later.Name.Text)
-			}
-			if err := query(definition.Query); err != nil {
-				return err
-			}
-			visible = append(visible, definition.Name.Text)
-		}
-		pending = pending[:oldPending]
+	query = func(s *Select) error { return walk(s) }
+	queryBody = func(s *Select) error {
 		if visitQuery != nil {
 			if err := visitQuery(s); err != nil {
 				return err
@@ -299,68 +282,160 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		return expressions(r.Targets)
 	}
-	switch s := statement.(type) {
-	case *CreatePolicy:
-		if err := expression(s.Using); err != nil {
-			return err
-		}
-		return expression(s.Check)
-	case *AlterPolicy:
-		if err := expression(s.Using); err != nil {
-			return err
-		}
-		return expression(s.Check)
-	case *PrepareSQL:
-		return VisitQuerySources(s.Body, visitQuery, visitTable, classify...)
-	case *Select:
-		return query(s)
-	case *DeclareCursor:
-		return query(s.Query)
-	case *CreateView:
-		return query(s.Query)
-	case *CreateQueryTable:
-		return query(s.Query)
-	case *Insert:
-		for _, target := range s.Targets {
-			for _, step := range target.Steps {
-				if step.Subscript == nil {
-					continue
-				}
-				bound := step.Subscript
-				if err := expression(bound.Lower); err != nil {
-					return err
-				}
-				if err := expression(bound.Upper); err != nil {
-					return err
+	walk = func(statement Statement) error {
+		oldVisible, oldPending := len(visible), len(pending)
+		defer func() { visible = visible[:oldVisible]; pending = pending[:oldPending]; depth-- }()
+		top := depth == 0
+		depth++
+		definitions := StatementWith(statement)
+		for i, definition := range definitions {
+			for _, prior := range definitions[:i] {
+				if definition.Name.Text == prior.Name.Text {
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42712", Message: fmt.Sprintf(`WITH query name "%s" specified more than once`, definition.Name.Text), Position: strconv.Itoa(definition.Name.Pos.Character)}
 				}
 			}
+			pending = append(pending, definition.Name.Text)
 		}
-		if s.Source != nil {
-			var err error
-			if s.Source.Select != nil {
-				err = query(s.Source.Select)
+		for i, definition := range definitions {
+			if !top && ModifyingStatement(definition.Query) {
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "WITH clause containing a data-modifying statement must be at the top level", Position: strconv.Itoa(definition.Name.Pos.Character)}
+			}
+			pending = pending[:oldPending]
+			for _, later := range definitions[i:] {
+				pending = append(pending, later.Name.Text)
+			}
+			if err := walk(definition.Query); err != nil {
+				return err
+			}
+			visible = append(visible, definition.Name.Text)
+		}
+		pending = pending[:oldPending]
+		switch s := statement.(type) {
+		case *CreatePolicy:
+			if err := expression(s.Using); err != nil {
+				return err
+			}
+			return expression(s.Check)
+		case *AlterPolicy:
+			if err := expression(s.Using); err != nil {
+				return err
+			}
+			return expression(s.Check)
+		case *PrepareSQL:
+			return VisitQuerySources(s.Body, visitQuery, visitTable, classify...)
+		case *Select:
+			return queryBody(s)
+		case *DeclareCursor:
+			return query(s.Query)
+		case *CreateView:
+			return query(s.Query)
+		case *CreateQueryTable:
+			return query(s.Query)
+		case *Insert:
+			for _, target := range s.Targets {
+				for _, step := range target.Steps {
+					if step.Subscript == nil {
+						continue
+					}
+					bound := step.Subscript
+					if err := expression(bound.Lower); err != nil {
+						return err
+					}
+					if err := expression(bound.Upper); err != nil {
+						return err
+					}
+				}
+			}
+			if s.Source != nil {
+				var err error
+				if s.Source.Select != nil {
+					err = query(s.Source.Select)
+				} else {
+					err = values(s.Source.Values)
+				}
+				if err != nil {
+					return err
+				}
 			} else {
-				err = values(s.Source.Values)
+				for _, row := range s.Rows {
+					if err := expressions(row); err != nil {
+						return err
+					}
+				}
 			}
-			if err != nil {
+			if s.Conflict != nil && s.Conflict.Update {
+				// Match shared assignment binding: every RHS precedes destination
+				// subscript analysis, and action WHERE follows the complete SET list.
+				for _, assignment := range s.Conflict.Assignments {
+					if err := expression(assignment.Value); err != nil {
+						return err
+					}
+				}
+				for _, assignment := range s.Conflict.Assignments {
+					for _, step := range assignment.Steps {
+						if step.Subscript == nil {
+							continue
+						}
+						bound := step.Subscript
+						if err := expression(bound.Lower); err != nil {
+							return err
+						}
+						if err := expression(bound.Upper); err != nil {
+							return err
+						}
+					}
+				}
+				if err := expression(s.Conflict.Where); err != nil {
+					return err
+				}
+			}
+			return returning(s.Returning)
+		case *Merge:
+			if err := from(s.Source, &Select{From: s.Source}); err != nil {
 				return err
 			}
-		} else {
-			for _, row := range s.Rows {
-				if err := expressions(row); err != nil {
+			if err := expression(s.On); err != nil {
+				return err
+			}
+			if err := returning(s.Returning); err != nil {
+				return err
+			}
+			for _, arm := range s.Arms {
+				if err := expression(arm.Condition); err != nil {
 					return err
 				}
-			}
-		}
-		if s.Conflict != nil && s.Conflict.Update {
-			// Match shared assignment binding: every RHS precedes destination
-			// subscript analysis, and action WHERE follows the complete SET list.
-			for _, assignment := range s.Conflict.Assignments {
-				if err := expression(assignment.Value); err != nil {
+				if err := expressions(arm.Values); err != nil {
 					return err
 				}
+				for _, assignment := range arm.Assignments {
+					for _, step := range assignment.Steps {
+						if step.Subscript == nil {
+							continue
+						}
+						bound := step.Subscript
+						if err := expression(bound.Lower); err != nil {
+							return err
+						}
+						if err := expression(bound.Upper); err != nil {
+							return err
+						}
+					}
+					if err := expression(assignment.Value); err != nil {
+						return err
+					}
+				}
 			}
-			for _, assignment := range s.Conflict.Assignments {
+		case *Update:
+			if err := from(s.From, &Select{From: s.From}); err != nil {
+				return err
+			}
+			if err := expression(s.Where); err != nil {
+				return err
+			}
+			if err := returning(s.Returning); err != nil {
+				return err
+			}
+			for _, assignment := range s.Assignments {
 				for _, step := range assignment.Steps {
 					if step.Subscript == nil {
 						continue
@@ -373,82 +448,28 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 						return err
 					}
 				}
-			}
-			if err := expression(s.Conflict.Where); err != nil {
-				return err
-			}
-		}
-		return returning(s.Returning)
-	case *Merge:
-		if err := from(s.Source, &Select{From: s.Source}); err != nil {
-			return err
-		}
-		if err := expression(s.On); err != nil {
-			return err
-		}
-		if err := returning(s.Returning); err != nil {
-			return err
-		}
-		for _, arm := range s.Arms {
-			if err := expression(arm.Condition); err != nil {
-				return err
-			}
-			if err := expressions(arm.Values); err != nil {
-				return err
-			}
-			for _, assignment := range arm.Assignments {
-				for _, step := range assignment.Steps {
-					if step.Subscript == nil {
-						continue
-					}
-					bound := step.Subscript
-					if err := expression(bound.Lower); err != nil {
-						return err
-					}
-					if err := expression(bound.Upper); err != nil {
-						return err
-					}
-				}
 				if err := expression(assignment.Value); err != nil {
 					return err
 				}
 			}
-		}
-	case *Update:
-		if err := from(s.From, &Select{From: s.From}); err != nil {
-			return err
-		}
-		if err := expression(s.Where); err != nil {
-			return err
-		}
-		if err := returning(s.Returning); err != nil {
-			return err
-		}
-		for _, assignment := range s.Assignments {
-			for _, step := range assignment.Steps {
-				if step.Subscript == nil {
-					continue
-				}
-				bound := step.Subscript
-				if err := expression(bound.Lower); err != nil {
-					return err
-				}
-				if err := expression(bound.Upper); err != nil {
-					return err
-				}
-			}
-			if err := expression(assignment.Value); err != nil {
+		case *Delete:
+			if err := from(s.Using, &Select{From: s.Using}); err != nil {
 				return err
 			}
+			if err := expression(s.Where); err != nil {
+				return err
+			}
+			return returning(s.Returning)
 		}
-	case *Delete:
-		if err := from(s.Using, &Select{From: s.Using}); err != nil {
-			return err
-		}
-		if err := expression(s.Where); err != nil {
-			return err
-		}
-		return returning(s.Returning)
+		return nil
 	}
-	return nil
+	switch s := statement.(type) {
+	case *CreateView:
+		statement = s.Query
+	case *CreateQueryTable:
+		statement = s.Query
+	case *DeclareCursor:
+		statement = s.Query
+	}
+	return walk(statement)
 }

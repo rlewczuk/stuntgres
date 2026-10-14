@@ -31,11 +31,15 @@ func viewCTEOrdinal(root LogicalNode, ordinal int) *derivedNode {
 func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
 	var definitions []string
 	for _, definition := range s.With {
-		child := r.queries[definition.Query]
+		selection, ok := definition.Query.(*parser.Select)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: modifying WITH cannot be stored")
+		}
+		child := r.queries[selection]
 		if child == nil {
 			return "", fmt.Errorf("stuntgres: missing retained WITH body")
 		}
-		body, err := r.selectQueryColumnsSQL(ctx, catalog, definition.Query, child, child.Schema(), false)
+		body, err := r.selectQueryColumnsSQL(ctx, catalog, selection, child, child.Schema(), false)
 		if err != nil {
 			return "", err
 		}

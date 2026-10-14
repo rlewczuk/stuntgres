@@ -296,6 +296,16 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 
 func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Statement) bool {
 	switch stmt.(type) {
+	case *parser.Select:
+		if !parser.HasModifyingCTE(stmt) {
+			return false
+		}
+		for _, definition := range b.ctes {
+			if definition.mutation != nil && !temporaryDataTarget(auth, definition.mutation, definition.statement) {
+				return false
+			}
+		}
+		return true
 	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete:
 		if b.relation != nil {
 			ns, ok := auth.catalog.state.descriptors[b.relation.namespace].(*namespaceDescriptor)

@@ -875,6 +875,7 @@ func (s *indexedStage) fail(err error) error {
 	return err
 }
 func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (indexedStage, error) {
+	state.inheritCTEs()
 	return openRetainedQueryNode(ctx, state, node)
 }
 

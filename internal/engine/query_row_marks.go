@@ -32,16 +32,17 @@ func effectiveQueryRowMark(relation *relationDescriptor, mark queryRowMark) quer
 // Admission is execution-owned and keyed by the actual query syntax, never a
 // prepared description or session. Its semantic error waits for normal analysis.
 type queryLockAdmission struct {
-	selectQuery    *parser.Select
-	syntheticOwner bool // DML source roots are regenerated on each visitor traversal.
-	marks          []queryRowMark
-	err            error
-	indices        map[*parser.TableReference]int
-	queries        map[*parser.Select]*queryLockAdmission
-	ordered        []*queryLockAdmission
-	tableQueries   map[*parser.TableReference]preparedSource // Query and exact pre-wait identity.
-	futureCTE      map[*parser.TableReference]string
-	virtualCTE     map[*parser.TableReference]bool
+	selectQuery     *parser.Select
+	syntheticOwner  bool // DML source roots are regenerated on each visitor traversal.
+	marks           []queryRowMark
+	err             error
+	indices         map[*parser.TableReference]int
+	queries         map[*parser.Select]*queryLockAdmission
+	ordered         []*queryLockAdmission
+	tableQueries    map[*parser.TableReference]preparedSource // Query and exact pre-wait identity.
+	futureCTE       map[*parser.TableReference]string
+	virtualCTE      map[*parser.TableReference]bool
+	mutationTargets []admittedMutationTarget
 }
 
 func mergeQueryRowMark(a, b queryRowMark) queryRowMark {

@@ -1428,6 +1428,8 @@ type expressionBinder struct {
 	cteScanOrdinal             int
 	cteAnalysisDepth           int
 	cteExecutables             []*BoundQuery
+	statementCTEs              []*cteDefinition
+	cteSelectBodies            bool
 	resolvedQueryFrame         uint32
 	presenceFrames             map[uint32]int
 	suppressWholePresence      bool

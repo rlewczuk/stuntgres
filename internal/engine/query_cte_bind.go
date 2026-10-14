@@ -11,6 +11,9 @@ import (
 // contain producer state; neither catalog objects nor prepared handles do.
 type cteDefinition struct {
 	query      *BoundQuery
+	statement  parser.Statement
+	mutation   *binding
+	schema     querySchema
 	owner      uint32
 	references int
 	hint       parser.CTEMaterialization
@@ -23,7 +26,14 @@ type cteBinding struct {
 }
 
 func (d *cteDefinition) folded() bool {
-	return !d.volatile && d.hint != parser.CTEMaterialized && (d.hint == parser.CTENotMaterialized || d.references == 1)
+	return d.mutation == nil && !d.volatile && d.hint != parser.CTEMaterialized && (d.hint == parser.CTENotMaterialized || d.references == 1)
+}
+
+func (d *cteDefinition) outputSchema() querySchema {
+	if d.query != nil {
+		return d.query.Root.Schema()
+	}
+	return d.schema
 }
 
 func futureCTEError(err error, name string) error {
@@ -37,38 +47,57 @@ func futureCTEError(err error, name string) error {
 	return &copy
 }
 
-func (b *expressionBinder) bindCTEDefinitions(s *parser.Select) ([]*cteDefinition, error) {
+func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTableExpression) ([]*cteDefinition, error) {
 	var definitions []*cteDefinition
-	for _, raw := range s.With {
-		if raw.Query.Values != nil {
-			return nil, expressionError("0A000", "WITH bodies must be SELECT queries", raw.Name.Pos)
-		}
+	for _, raw := range rawDefinitions {
 		start := len(b.querySources)
-		b.cteAnalysisDepth++
-		query, err := b.bindSelect(raw.Query, false)
-		b.cteAnalysisDepth--
-		if err != nil {
-			return nil, err
-		}
-		for i := start; i < len(b.querySources); i++ {
-			b.querySources[i].analysisOnly = true
-		}
-		if len(raw.Columns) > len(query.Root.Schema()) {
-			return nil, expressionError("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(query.Root.Schema()), len(raw.Columns)), raw.Name.Pos)
-		}
-		viewVolatile, err := cteStoredViewVolatile(b.queryAuth.catalog, query.Root)
-		if err != nil {
-			return nil, err
-		}
-		definition := &cteDefinition{query: query, owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, volatile: cteVolatile(query.Root) || viewVolatile}
-		// Prefix aliases belong to the virtual output schema, not a catalog row.
-		if len(raw.Columns) != 0 {
-			project := *query.Root.(*projectNode)
-			project.querySchema = append(querySchema(nil), project.querySchema...)
-			for i, name := range raw.Columns {
-				project.querySchema[i].Name = name.Text
+		definition := &cteDefinition{owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos}
+		if selection, ok := raw.Query.(*parser.Select); ok {
+			b.cteSelectBodies = true
+			if selection.Values != nil {
+				return nil, expressionError("0A000", "WITH bodies must be SELECT queries", raw.Name.Pos)
 			}
-			query.Root = &project
+			b.cteAnalysisDepth++
+			query, err := b.bindSelect(selection, false)
+			b.cteAnalysisDepth--
+			if err != nil {
+				return nil, err
+			}
+			for i := start; i < len(b.querySources); i++ {
+				b.querySources[i].analysisOnly = true
+			}
+			viewVolatile, err := cteStoredViewVolatile(b.queryAuth.catalog, query.Root)
+			if err != nil {
+				return nil, err
+			}
+			definition.query = query
+			definition.volatile = cteVolatile(query.Root) || viewVolatile
+		} else {
+			mutation, err := b.bindCTEMutation(raw.Query)
+			if err != nil {
+				return nil, err
+			}
+			definition.statement, definition.mutation = raw.Query, &mutation
+			if mutation.returning != nil {
+				definition.schema = mutation.returning.schema
+			}
+		}
+		if len(raw.Columns) > len(definition.outputSchema()) {
+			return nil, expressionError("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(definition.outputSchema()), len(raw.Columns)), raw.Name.Pos)
+		}
+		if len(raw.Columns) != 0 {
+			aliased := append(querySchema(nil), definition.outputSchema()...)
+			for i, name := range raw.Columns {
+				aliased[i].Name = name.Text
+			}
+			if definition.query != nil {
+				project := *definition.query.Root.(*projectNode)
+				project.querySchema = aliased
+				definition.query.Root = &project
+			} else {
+				definition.schema = aliased
+				definition.mutation.returning.schema = aliased
+			}
 		}
 		definitions = append(definitions, definition)
 		b.cteBindings = append(b.cteBindings, cteBinding{raw.Name.Text, definition})
@@ -77,8 +106,11 @@ func (b *expressionBinder) bindCTEDefinitions(s *parser.Select) ([]*cteDefinitio
 }
 
 func (b *expressionBinder) bindCTEScan(table *parser.TableReference, d *cteDefinition) (LogicalNode, queryNamespace, error) {
+	if d.mutation != nil && d.mutation.returning == nil {
+		return nil, queryNamespace{}, expressionError("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
+	}
 	d.references++
-	schema := d.query.Root.Schema()
+	schema := d.outputSchema()
 	scan := &derivedNode{querySchema: schema, query: d.query, cte: d, table: table, ordinal: -1 - b.cteScanOrdinal, scanFrame: b.frameID(), demand: make([]bool, len(schema))}
 	b.cteScanOrdinal++
 	columns := make([]queryColumn, len(schema))

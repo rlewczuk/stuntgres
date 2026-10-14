@@ -92,6 +92,10 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 	if err != nil {
 		return err
 	}
+	return s.acquireAdmittedQueryRelations(admission, tables, queries, authorityStmt, execute)
+}
+
+func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmission, tables []*parser.TableReference, queries []*parser.Select, authorityStmt parser.Statement, execute bool) error {
 	s.queryLockAdmission = admission
 	for i, table := range tables {
 		mark := admission.tableMark(table)
@@ -141,6 +145,33 @@ func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogCh
 }
 
 func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
+	if len(s.mutations) != 0 && len(leaves) != len(s.querySources) {
+		for _, grant := range s.querySources {
+			found := false
+			for _, leaf := range leaves {
+				if leaf.table != grant.table {
+					continue
+				}
+				found = true
+				if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark || leaf.only != grant.only {
+					return ErrCatalogReplaced
+				}
+				break
+			}
+			if !found {
+				return ErrCatalogReplaced
+			}
+		}
+		e := s.op.session.Engine()
+		catalog := e.privateCatalogLocked(s.owner.catalog)
+		for _, leaf := range leaves {
+			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, leaf); err != nil {
+				return err
+			}
+		}
+		s.querySources = leaves
+		return nil
+	}
 	if len(leaves) != len(s.querySources) {
 		return ErrCatalogReplaced
 	}
@@ -149,6 +180,9 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 		if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark || leaf.only != grant.only {
 			return ErrCatalogReplaced
 		}
+	}
+	if len(s.mutations) != 0 {
+		s.querySources = leaves
 	}
 	return nil
 }

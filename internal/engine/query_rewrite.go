@@ -178,6 +178,9 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			out = &copy
 		}
 	case *derivedNode:
+		if n.query == nil {
+			break
+		}
 		root := child(n.query.Root)
 		if root != n.query.Root && err == nil {
 			copy := *n

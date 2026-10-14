@@ -10,6 +10,18 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
+	if view, ok := stmt.(*parser.CreateView); ok && parser.HasModifyingCTE(view.Query) {
+		if !execute {
+			return nil
+		}
+		if err := s.acquireCTEMutations(stmt, execute); err != nil {
+			return err
+		}
+		return s.prepareViewCreation(view)
+	}
+	if parser.HasModifyingCTE(statementCTERoot(stmt)) {
+		return s.acquireCTEMutations(stmt, execute)
+	}
 	if merge, ok := stmt.(*parser.Merge); ok {
 		if err := validateMergeReachability(merge); err != nil {
 			return err
@@ -293,7 +305,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		} else if s.preparedReuse != nil {
 			switch stmt.(type) {
 			case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-				ref = s.preparedReuse.target
+				if s.preparedReuse.targets != nil {
+					ref = s.preparedReuse.targets[stmt]
+				} else {
+					ref = s.preparedReuse.target
+				}
 			}
 		}
 		if ref.owner != nil {
@@ -546,7 +562,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		case *parser.Delete, *parser.Update, *parser.Merge:
 			storageTarget = descriptor.relationKind == tableRelation
 		case *parser.Insert:
-			storageTarget = descriptor.relationKind == tableRelation && statement.Conflict != nil && statement.Conflict.Update
+			storageTarget = descriptor.relationKind == tableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
 		}
 		if storageTarget {
 			s.lockedStorage = e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -621,24 +637,21 @@ func (s *StatementScope) refreshRelationGrantsLocked(e *Engine) error {
 }
 
 func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources bool) error {
+	if len(s.mutations) != 0 {
+		active := s.activeMutation
+		defer s.activateMutation(active)
+		for i := range s.mutations {
+			s.activateMutation(i)
+			if err := s.validateActiveMutationLocked(e); err != nil {
+				return err
+			}
+		}
+		s.activateMutation(active)
+	}
 	if len(s.querySources) == 0 && s.lockedRef.owner == nil && len(s.partitionRelations) == 0 {
 		return nil
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	if s.viewWrite != nil {
-		for _, layer := range s.viewWrite.layers {
-			current, ok := catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
-			if !ok || current.view != layer.relation.view || !sameRelationRowShape(current, layer.relation) {
-				return ErrCatalogReplaced
-			}
-		}
-	}
-	for address, captured := range s.partitionRelations {
-		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
-		if current != captured && !partitionAppendCompatible(captured, current) {
-			return ErrCatalogReplaced
-		}
-	}
 	for _, source := range s.inheritanceRelations {
 		if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, source); err != nil {
 			return err
@@ -656,9 +669,17 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 			}
 		}
 	}
+	if len(s.mutations) != 0 {
+		return nil
+	}
+	return s.validateActiveMutationLocked(e)
+}
+
+func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.lockedRef.owner == nil {
 		return nil
 	}
+	catalog := e.privateCatalogLocked(s.owner.catalog)
 	if s.lockedRef.owner != e.owner || s.lockedRef.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
@@ -675,6 +696,20 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		}
 	} else if current != s.lockedDescriptor {
 		return ErrCatalogReplaced
+	}
+	for address, captured := range s.partitionRelations {
+		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+		if current != captured && !partitionAppendCompatible(captured, current) {
+			return ErrCatalogReplaced
+		}
+	}
+	if s.viewWrite != nil {
+		for _, layer := range s.viewWrite.layers {
+			current, ok := catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+			if !ok || current.view != layer.relation.view || !sameRelationRowShape(current, layer.relation) {
+				return ErrCatalogReplaced
+			}
+		}
 	}
 	return nil
 }

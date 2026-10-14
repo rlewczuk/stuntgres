@@ -17,6 +17,7 @@ type preparedAnalysis struct {
 	path            sequenceEnvironment
 	namespace       uint64
 	target          ObjectRef
+	targets         map[parser.Statement]ObjectRef
 	sources         map[*parser.TableReference]preparedSource
 	dependencies    []expressionDependency
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
@@ -136,6 +137,26 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if err := visit(target); err != nil {
 		return nil, err
 	}
+	if len(s.mutations) != 0 {
+		cell.targets = make(map[parser.Statement]ObjectRef, len(s.queryLockAdmission.mutationTargets))
+		for i := range s.mutations {
+			mutation := s.mutations[i]
+			if i == s.activeMutation {
+				mutation = s.statementMutation
+			}
+			ref := mutation.lockedRef
+			if mutation.viewWrite != nil {
+				ref = mutation.viewWrite.logical.ref
+			}
+			if ref.owner == nil {
+				continue
+			}
+			cell.targets[mutation.statement] = ref
+			if err := visit(ref); err != nil {
+				return nil, err
+			}
+		}
+	}
 	if len(s.queryLockAdmission.tableQueries) != 0 {
 		cell.sources = make(map[*parser.TableReference]preparedSource, len(s.queryLockAdmission.tableQueries))
 	}
@@ -209,7 +230,20 @@ func (s *StatementScope) validateAdmissionNamesLocked(e *Engine, auth Authorizat
 		}
 		return nil
 	}
-	if len(s.admittedTargetName.Parts) != 0 {
+	if len(s.mutations) != 0 {
+		for i := range s.mutations {
+			mutation := s.mutations[i]
+			if i == s.activeMutation {
+				mutation = s.statementMutation
+			}
+			if len(mutation.admittedTargetName.Parts) != 0 {
+				if err := check(mutation.admittedTargetName, mutation.admittedTargetLexical); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if len(s.mutations) == 0 && len(s.admittedTargetName.Parts) != 0 {
 		if err := check(s.admittedTargetName, s.admittedTargetLexical); err != nil {
 			return err
 		}

@@ -59,8 +59,8 @@ Dump excludes temporary objects, session settings, prepared names, cursors,
 role creation, passwords and membership. Arbitrary explicit authorization ACLs
 and invalid indexes cannot be serialized and are rejected rather than silently discarded.
 Restore has a restricted parameter-free replay boundary, not general script
-execution. It does not import temporary objects, transaction controls or shared
-role effects. See [fixture contracts](FIXTURES.md).
+execution. It does not import temporary objects, transaction controls, shared
+role effects or arbitrary CTE/RETURNING history. See [fixture contracts](FIXTURES.md).
 
 ## Authentication and authorization
 
@@ -119,6 +119,25 @@ cost controls, forced plans, global worker pool or PostgreSQL worker processes
 are supplied. Gather promises no row order; supported ORDER BY merges sorted
 worker runs with the serial typed comparator. Cancellation joins all workers
 and discards unexposed output, preserving the primary error.
+
+## Data-modifying CTEs
+
+Nonrecursive modifying WITH uses the installed INSERT/UPDATE/DELETE/MERGE
+providers and can feed later CTEs or any installed primary command via typed
+RETURNING. Modifiers run once to completion even unused or behind executing
+LIMIT 0/false consumers; materialization hints do not authorize folding/replay.
+SELECT-only CTE demand remains lazy. All components share one physical statement
+snapshot and one atomic publication; only primary output/count is exposed.
+
+Nested modifying WITH and referenced no-RETURNING output are rejected. Ordinary
+views reject modifying WITH at execution, including held statements; materialized
+views and cursors reject it at held preparation. Existing CTAS/SELECT INTO remain
+admitted consumers. CTAS WITH NO DATA creates empty schema without executing the
+query or its modifiers. Recursive/SEARCH/CYCLE, rule/trigger/FDW and hierarchy
+provider exclusions remain unchanged. No portable same-row overlap winner or
+sibling execution order is promised. See [query ownership](QUERIES.md) and
+[PostgreSQL restrictions](https://www.postgresql.org/docs/18/queries-with.html#QUERIES-WITH-MODIFYING).
+
 
 ## Tables, hierarchies and materializations
 
@@ -397,8 +416,8 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 - Temporal providers retain exclusions for timezone age/finite inquiries,
   epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
   resolution and custom/generic optimizer-plan switching are not implemented.
-- Recursive CTEs, modifying CTE bodies, top-level CTE DML and general lateral
-  derived sources are excluded. Window providers are row_number(), count(*) and
+- Recursive CTEs and general lateral derived sources are excluded.
+  Window providers are row_number(), count(*) and
   existing integer/numeric/floating sum(expr); MONEY/INTERVAL SUM, expression-count
   windows, DISTINCT/call-local aggregate ORDER and window aggregate filters remain excluded.
 - MERGE supports RETURNING expressions, source/target rows, OLD/NEW aliases and
@@ -412,7 +431,7 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
   a no-op requires SELECT on any live target column, plus all actual read demands.
   Query/multiple-row insertion actions, partial insertion targets and writable
   target views remain excluded. Triggers/rules/FDWs, target
-  hierarchy writes, writable CTEs, procedural functions and COPY(MERGE) are not
+  hierarchy writes, procedural functions and COPY(MERGE) are not
   supplied by this feature. Positioned mutation of a view is unavailable.
 - Catalog sources are bounded projections, not complete `pg_type`,
   `pg_attribute`, `pg_index`, `information_schema` or authentication catalogs.

@@ -6,6 +6,95 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Data-modifying CTE contracts
+
+The untagged `cte_dml_{core,execution,diagnostics,metadata,prepared,atomicity,cancellation,controls,nested_invocation}_test.go`
+definitions share direct and genuine held-statement routes in native and pinned
+PostgreSQL 18.0 modes. Expected rows, multiplicities, type names/typmods, metadata,
+primary counts and complete diagnostics are independently specified.
+
+INSERT/UPDATE/DELETE/MERGE bodies execute once to completion, including unused,
+no-RETURNING, LIMIT 0, false and partial consumers. All hints preserve modifier
+identity; ordinary unused SELECT remains lazy. Repeated readers share completed
+typed RETURNING output. Physical scans retain one statement-entry snapshot across
+targets and see prior transaction work, not sibling writes. Same-target disjoint
+commands retain distinct target occurrences. Only primary schema/rows/count is
+exposed; lib/pq's installed MERGE affected-count limitation remains independently
+asserted rather than adding auxiliary counts.
+
+Restrictions assert full SQLSTATE/English/fields/character positions and no
+effects: nested modifying WITH, missing RETURNING, duplicate/forward/alias names,
+rowmarks and malformed suffixes. CREATE VIEW fails at held execution; materialized
+views and cursors fail at held preparation. CTAS/SELECT INTO use atomic creation
+and modifier effects; CTAS WITH NO DATA creates empty schema without executing
+the query. Genuine PostgreSQL recursive/rule restriction phases coexist with
+explicit native existing syntax boundaries, not fake provider success.
+
+Prepared tests cover quiet Prepare, all-body/main formal parameters, fresh
+invocations, current ACL/read-only and incompatible result shape. Atomicity
+includes later real output/constraint failure, ignored-output Exec and existing
+transaction/savepoint recovery. Cancellation observes earlier accepted audit
+RETURNING via a sequence marker, the real PostgreSQL tuple blocker, then server
+cancel with independently queried tuple Context. Native context errors remain
+ordinary; exact pending ownership and pre-Finish veto are mechanism-unit proof.
+Sequence draws do not roll back. Canceling already published eager output cannot
+undo its writes.
+
+`TestReferenceCTEDMLNestedInvocation` consumes an earlier completed modifier
+through both an actual UPDATE assignment and a RETURNING scalar subquery. A
+correlated materialized SELECT-only local WITH runs for two differing outer
+rows while joining that enclosing modifier spool. Direct and SAME-held calls
+with `(1,100)` then `(2,200)` independently expect INT4
+`id/v/replay/nested_value` rows `(1,11,11,122)/(2,21,21,142)` then
+`(1,13,13,226)/(2,23,23,246)`. Both tables are checked after each call,
+preparation is quiet, and nested modifying WITH remains explicitly forbidden.
+The standalone smoke includes the same arithmetic, types, per-call effects and
+direct/held restriction contrast.
+
+Native-only control phases use real Dump/Reset/Restore and retained raw public
+driver rows; PostgreSQL independently asserts the shared persistent SQL effects.
+No transient CTE objects/output are serialized. Failed statements/imports preserve
+the complete Dump sentinel. Restore rejects arbitrary CTE history, including
+WITH INSERT and modifying WITH disguised as generated sequence-state SELECT.
+
+Selected proof (a separate external 900-second deadline per command; every
+definition requires both modes after its implementation changes):
+
+```sh
+make check RUN='^TestReferenceCTEDML(Bodies|Pipeline|Reuse|Hints)$'
+make check REFERENCE=1 RUN='^TestReferenceCTEDML(Bodies|Pipeline|Reuse|Hints)$'
+make check RUN='^TestReferenceCTEDML(Completion|Snapshot|Primary|Consumers|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceCTEDML(Completion|Snapshot|Primary|Consumers|Metadata)$'
+make check RUN='^TestReferenceCTEDML(Diagnostics|Restrictions)$'
+make check REFERENCE=1 RUN='^TestReferenceCTEDML(Diagnostics|Restrictions)$'
+make check RUN='^TestReferenceCTEDML(Prepared|Authority|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceCTEDML(Prepared|Authority|Controls)$'
+make check RUN='^TestReferenceCTEDML(Atomicity|Cancellation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceCTEDML(Atomicity|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceCTEDMLNestedInvocation$'
+make check REFERENCE=1 RUN='^TestReferenceCTEDMLNestedInvocation$'
+make check RUN='^TestCTEDML'
+make check RACE=1 RUN='^TestCTEDML(CancellationBeforeFinish|PendingCancellation|TargetReplacementDuringWait|AtomicPublication|CTASPublication|InvocationOwnership|LateFailureIdentity)$'
+make check RACE=1 RUN='^TestReferenceCTEDML(Cancellation|Atomicity|Prepared)$'
+```
+
+The standalone public native smoke source is supplied as
+`local://cte-dml-smoke.go` in the implementation handoff, not a tracked executable.
+Materialize it outside the checkout in the session directory and run from the
+module root:
+
+```sh
+timeout 900s go run "$SESSION_TMP/cte-dml-smoke.go"
+```
+
+Expected success is exit 0 with empty stdout/stderr after assertions of all body
+kinds, repeated/hinted completion, typed empty output, snapshot separation,
+duplicate/NULL pipelines and primary DML consumers/counts, CTAS WITH NO DATA,
+held freshness/quiet Prepare, full late-failure/restriction diagnostics,
+precancel, persistent controls and retained rows across replacement. The shared
+`TestReferenceCTEDMLFeatureSmoke` supplements, not replaces, this standalone
+exercise. Root owns generation/verification; readiness is not passing evidence.
+
 ### MERGE omission and ordering contracts
 
 The untagged `merge_nothing_*_test.go` definitions share direct/prepared SQL
@@ -145,8 +234,8 @@ Restore continues to reject MERGE. The migrated insertion/composite boundaries
 now assert real RETURNING rows and final stored bags; DO NOTHING boundaries share
 positive omission assertions. Partial insertion and unrelated composite exclusions
 remain. Source views remain
-supported; writable target views, hierarchy writes, triggers/rules/FDWs,
-writable CTEs, procedural functions and COPY(MERGE) remain outside this feature.
+supported; writable MERGE target views, hierarchy writes, triggers/rules/FDWs,
+procedural functions and COPY(MERGE) remain outside this feature.
 
 ### INSERT RETURNING oracle-first contracts
 

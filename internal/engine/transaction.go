@@ -264,6 +264,10 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 // Binding uses current resolution metadata; data consumers explicitly acquire a
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
+	statementMutation
+	mutations                      []statementMutation
+	activeMutation                 int
+	cteInvocation                  *cteInvocation
 	self                           *StatementScope
 	owner                          *transactionOwner
 	op                             *Operation
@@ -282,13 +286,10 @@ type StatementScope struct {
 	controlOutcome                 controlOutcome
 	replacementRead                bool
 	ticket                         *relationTicket
-	lockedRef                      ObjectRef
 	viewCreationNamespace          ObjectRef
 	viewPersistence                string
 	viewBinding                    binding
 	viewChanges                    *catalogChanges
-	lockedDescriptor               Descriptor
-	viewWrite                      *viewWrite
 	indexMaintenance               *indexMaintenanceGrant
 	materializedRefresh            bool
 	materializedSources            []Descriptor
@@ -297,25 +298,13 @@ type StatementScope struct {
 	queryLockAdmission             queryLockAdmission
 	queryLocks                     *queryLockContext
 	activeViews                    []ObjectAddress
-	lockedStorage                  *relationStorage
-	lockedIdentityOnly             bool
 	txRef                          TxRef
 	command                        CommandID
 	ownWrites                      map[ObjectAddress][]rowVersion
 	ownDeletes                     map[ObjectAddress]*privateDeletionRoot
-	uniqueBinding                  *uniqueWriteBinding
 	exclusionModes                 exclusionModes
 	exclusionStarted               bool
 	exclusionCandidates            map[ObjectAddress][]rowVersion
-	insertConflict                 *boundInsertConflict
-	insertReturning                *insertReturningOutput
-	partitionInsert                *partitionInsertState
-	rlsTargetDenied                bool
-	rlsProposal                    rlsDisposition
-	rlsMergeUpdate                 rlsDisposition
-	rlsMergeInsert                 rlsDisposition
-	rlsProposalTable               string
-	partitionRelations             map[ObjectAddress]*relationDescriptor
 	inheritanceRelations           []queryLeaf // Exact physical SELECT grants, separate from SQL occurrences.
 	inheritanceCatalog             CatalogRead // Immutable topology after the last grant/wait reconciliation.
 	truncateRelations              []truncateRelation
@@ -330,8 +319,6 @@ type StatementScope struct {
 	preparedEpoch                  CatalogEpoch
 	preparedChangedDuringAdmission bool
 	admissionWaited                bool
-	admittedTargetName             parser.ObjectName
-	admittedTargetLexical          ObjectRef
 	implicit                       bool
 	input                          sqltype.InputEnvironment
 	statementStart                 time.Time

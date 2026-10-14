@@ -217,8 +217,14 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err != nil {
 		return err
 	}
+	if err := e.attachCTEViewTargetsLocked(s, &b, false); err != nil {
+		return err
+	}
 	if err := s.validateQuerySources(b.querySources); err != nil {
 		return err
+	}
+	if parser.HasModifyingCTE(view.Query) {
+		return sqlError("0A000", "views must not contain data-modifying statements in WITH")
 	}
 	persistence := requestedViewPersistence(auth.catalog, view, b.querySources)
 	if persistence == "temporary" && view.Persistence != "temporary" {

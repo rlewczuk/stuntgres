@@ -50,7 +50,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	state := partitionInsertState{target: parent, destination: child, layouts: map[ObjectAddress]*inheritanceQuerySegment{child.address: &back}}
 	state.physicalRow = state.rowFor(child, logical)
 	owned := append([]sqltype.Value(nil), logical...)
-	scope := StatementScope{partitionInsert: &state}
+	scope := StatementScope{statementMutation: statementMutation{partitionInsert: &state}}
 	stored := scope.partitionStoredRow(owned)
 	if &stored[0] != &owned[0] || !reflect.DeepEqual(stored, physical) {
 		t.Fatal("non-returning storage ownership")

@@ -23,6 +23,7 @@ type cteProducer struct {
 	inner                indexedStage
 	source               *querySource
 	opened, done, closed bool
+	affected             int64 // Completed modifier count, never added to primary results.
 	failure              error
 }
 
@@ -128,6 +129,9 @@ func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexe
 	}
 	producer := owner.producers[n.cte]
 	if producer == nil {
+		if n.cte.mutation != nil {
+			return indexedStage{}, fmt.Errorf("stuntgres: modifying CTE has not completed")
+		}
 		project, ok := n.query.Root.(*projectNode)
 		if !ok {
 			return indexedStage{}, fmt.Errorf("stuntgres: CTE lacks projection")

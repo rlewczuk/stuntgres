@@ -123,6 +123,16 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 	auth.recaptureCatalog(auth.catalog)
 	original := len(b.viewWrite.logical.querySources)
 	for i := original; i < len(b.querySources); i++ {
+		rewritten := false
+		for _, ordinal := range b.viewWrite.queryOccurrences {
+			if ordinal == i {
+				rewritten = true
+				break
+			}
+		}
+		if !rewritten {
+			continue
+		}
 		source := &b.querySources[i]
 		source.storage = e.privateStorageLocked(scope.owner.catalog, source.ref.Address)
 		for key, ordinal := range b.viewWrite.queryOccurrences {
@@ -141,7 +151,9 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 				break
 			}
 		}
-		scope.querySources = append(scope.querySources, *source)
+		if len(scope.mutations) == 0 {
+			scope.querySources = append(scope.querySources, *source)
+		}
 	}
 	return nil
 }

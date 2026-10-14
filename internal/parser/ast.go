@@ -851,6 +851,7 @@ type dropTarget struct {
 }
 
 type Insert struct {
+	With          []CommonTableExpression
 	Name          ObjectName
 	Alias         Identifier
 	Targets       []InsertTarget
@@ -894,6 +895,7 @@ func (*Insert) statement() {}
 
 // Merge uses the ordinary query and mutation expression machinery.
 type Merge struct {
+	With      []CommonTableExpression
 	Name      ObjectName
 	Alias     Identifier
 	Source    FromItem
@@ -958,6 +960,7 @@ func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSour
 }
 
 type Delete struct {
+	With      []CommonTableExpression
 	Name      ObjectName
 	Alias     Identifier
 	Using     FromItem
@@ -989,6 +992,7 @@ type ReturningAlias struct {
 }
 
 type Update struct {
+	With        []CommonTableExpression
 	Name        ObjectName
 	Alias       Identifier
 	From        FromItem
@@ -1039,7 +1043,7 @@ const (
 type CommonTableExpression struct {
 	Name            Identifier
 	Columns         []Identifier
-	Query           *Select
+	Query           Statement
 	Materialization CTEMaterialization
 }
 

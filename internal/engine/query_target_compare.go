@@ -224,7 +224,10 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 		}
 	case *derivedNode:
 		o, ok := d.(*derivedNode)
-		if !ok || n.cte != o.cte || !slices.Equal(n.demand, o.demand) || n.query.regclassOutput != o.query.regclassOutput || n.query.visibilitySnapshot != o.query.visibilitySnapshot {
+		if !ok || n.cte != o.cte || !slices.Equal(n.demand, o.demand) || (n.query == nil) != (o.query == nil) {
+			return false
+		}
+		if n.query != nil && (n.query.regclassOutput != o.query.regclassOutput || n.query.visibilitySnapshot != o.query.visibilitySnapshot) {
 			return false
 		}
 	case *setNode:

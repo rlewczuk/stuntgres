@@ -36,7 +36,9 @@ func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 	case *joinNode:
 		return n.left, n.right
 	case *derivedNode:
-		return n.query.Root, nil
+		if n.query != nil {
+			return n.query.Root, nil
+		}
 	}
 	return nil, nil
 }

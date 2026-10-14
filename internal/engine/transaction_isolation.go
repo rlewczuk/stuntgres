@@ -330,6 +330,9 @@ func modifyingTag(stmt parser.Statement) string {
 		if sel := stmt.(*parser.Select); sel.Locking != nil {
 			return "SELECT " + sel.Locking[0].Mode
 		}
+		if parser.HasModifyingCTE(stmt) {
+			return "SELECT"
+		}
 	case *parser.CreateSequence:
 		return "CREATE SEQUENCE"
 	case *parser.AlterSequence:

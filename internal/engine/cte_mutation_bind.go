@@ -1,0 +1,246 @@
+package engine
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+)
+
+// The existing command binders share a single statement expression binder.
+// Parameter finishing, dependencies and source occurrence ordinals stay outer.
+func (e *Engine) bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requiredRef ObjectRef, statement parser.Statement) (binding, error) {
+	b := binding{}
+	op := binder.op
+	switch s := statement.(type) {
+	case *parser.Insert:
+		var err error
+		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
+		if err != nil {
+			return b, err
+		}
+		if b.ref != requiredRef {
+			return b, ErrCatalogReplaced
+		}
+		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == compositeRelation {
+			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		}
+		if b.relation.relationKind == indexRelation {
+			return b, tableKind(b.relation, "insert into")
+		}
+		binder.insertTarget = b.relation
+		if op != nil && op.restoreInsertAuthority && len(b.relation.identities) != 0 && s.Override != parser.OverrideSystem {
+			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
+		}
+		if !b.relation.virtualView {
+			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			if b.storage == nil && b.relation.relationKind == tableRelation {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
+		}
+		if err := e.bindInsertInput(&b, binder, auth, s); err != nil {
+			return b, err
+		}
+		if err := e.bindInsertConflict(&b, binder, auth, s.Conflict); err != nil {
+			return b, err
+		}
+		if err := e.bindInsertConflictUpdate(&b, binder, s); err != nil {
+			return b, err
+		}
+		if err := e.bindInsertReturning(&b, binder, auth, s); err != nil {
+			return b, err
+		}
+	case *parser.Merge:
+		if err := e.bindMerge(&b, binder, auth, requiredRef, s); err != nil {
+			return b, err
+		}
+	case *parser.Delete:
+		var err error
+		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
+		if err != nil {
+			return b, err
+		}
+		if b.ref != requiredRef {
+			return b, ErrCatalogReplaced
+		}
+		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == compositeRelation {
+			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		}
+		if b.relation.relationKind == indexRelation {
+			return b, tableKind(b.relation, "delete from")
+		}
+		if err := inheritanceTargetGuard(auth.catalog, b.relation); err != nil {
+			return b, err
+		}
+		if !b.relation.virtualView {
+			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			if b.storage == nil && b.relation.relationKind == tableRelation {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
+		}
+		binder.relation, binder.ref = b.relation, b.ref
+		if s.CurrentOf != nil {
+			b.currentOf = s.CurrentOf.Text
+		}
+		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
+		binder.queryAuth = &auth
+		if s.Using != nil {
+			target := binder.mutationTargetNamespace()
+			binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
+			var sources queryNamespace
+			binder.deleteUsingSources = true
+			b.deleteUsing, sources, err = binder.bindFrom(s.Using)
+			binder.deleteUsingSources = false
+			if err != nil {
+				return b, err
+			}
+			b.deleteSourceWidth = len(sources.frame)
+			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.columns)))
+			if err != nil {
+				return b, err
+			}
+			binder.queryNamespace = &target
+			binder.aggregateClause = "DELETE"
+		}
+		if s.Where != nil {
+			b.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
+			if err != nil {
+				return b, err
+			}
+		}
+		if s.Returning != nil {
+			b.returning, err = binder.bindReturning(s.Returning, returningDelete)
+			if err != nil {
+				return b, err
+			}
+		}
+	case *parser.Update:
+		var err error
+		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
+		if err != nil {
+			return b, err
+		}
+		if b.ref != requiredRef {
+			return b, ErrCatalogReplaced
+		}
+		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == compositeRelation {
+			return b, compositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		}
+		if b.relation.relationKind == indexRelation {
+			return b, tableKind(b.relation, "change")
+		}
+		if !b.relation.virtualView && b.relation.relationKind == catalogRelation {
+			return b, tableKind(b.relation, "change")
+		}
+		if err := inheritanceTargetGuard(auth.catalog, b.relation); err != nil {
+			return b, err
+		}
+		if !b.relation.virtualView {
+			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			if b.storage == nil && b.relation.relationKind == tableRelation {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
+		}
+		binder.queryAuth = &auth
+		if err = e.bindUpdate(&b, binder, s); err != nil {
+			return b, err
+		}
+		b.querySources = binder.querySources
+	}
+	b.usedColumns = binder.uses
+	b.subqueryDemand = binder.subqueryDemand
+	b.visibilitySnapshot = binder.visibilitySnapshot
+	if b.relation != nil {
+		switch statement.(type) {
+		case *parser.Insert, *parser.Update, *parser.Merge:
+			if err := binder.captureRetainedWriteInput(nil, b.relation.generations, b.relation.checkConstraints); err != nil {
+				return b, err
+			}
+		}
+	}
+	b.querySources = binder.querySources
+	if err := e.bindViewWrite(&b, auth, statement); err != nil {
+		return b, err
+	}
+	binder.querySources = b.querySources
+	if b.viewWrite != nil {
+		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.generations, b.viewWrite.base.checkConstraints); err != nil {
+			return b, err
+		}
+	}
+	// Stored-view grafts add real source/visibility demands outside the scalar
+	// binder. Retain them in both this command and the statement accumulators.
+	binder.subqueryDemand = binder.subqueryDemand || b.subqueryDemand
+	binder.visibilitySnapshot = binder.visibilitySnapshot || b.visibilitySnapshot
+	b.subqueryDemand = binder.subqueryDemand
+	b.visibilitySnapshot = binder.visibilitySnapshot
+	return b, nil
+}
+
+// Only auxiliary commands need save/restore; ordinary DML keeps its existing
+// inline binding path. Lexical CTEs and all statement accumulators are shared.
+func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding, error) {
+	relation, ref, insertTarget := b.relation, b.ref, b.insertTarget
+	updateParameters, updateInputs := b.updateParameters, b.updateInputParameters
+	deleteTarget, deleteSources := b.deleteTarget, b.deleteUsingSources
+	mergeWhen, mergeInput := b.mergeWhen, b.mergeInput
+	targetName, targetAlias, uses := b.targetName, b.targetAlias, b.uses
+	returningRead := b.returningReadRequired
+	subqueries, visibility := b.subqueryDemand, b.visibilitySnapshot
+	singleInsert := b.stringSingleInsert
+	restoreQuery := b.enterQuery(true)
+	defer func() {
+		restoreQuery()
+		b.relation, b.ref, b.insertTarget = relation, ref, insertTarget
+		b.updateParameters, b.updateInputParameters = updateParameters, updateInputs
+		b.deleteTarget, b.deleteUsingSources = deleteTarget, deleteSources
+		b.mergeWhen, b.mergeInput = mergeWhen, mergeInput
+		b.targetName, b.targetAlias, b.uses = targetName, targetAlias, uses
+		b.returningReadRequired = returningRead
+		b.subqueryDemand, b.visibilitySnapshot = subqueries, visibility
+		b.stringSingleInsert = singleInsert
+	}()
+	b.relation, b.ref, b.insertTarget = nil, ObjectRef{}, nil
+	b.updateParameters, b.updateInputParameters = false, nil
+	b.deleteTarget, b.deleteUsingSources, b.mergeWhen, b.mergeInput = false, false, false, false
+	b.targetName, b.targetAlias, b.uses = "", "", nil
+	b.returningReadRequired, b.subqueryDemand, b.visibilitySnapshot = false, false, false
+	b.stringSingleInsert = false
+	b.queryFrame = 0 // Installed mutation/RETURNING row frames are frame 1.
+	oldCTEs := len(b.cteBindings)
+	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()
+	if definitions := parser.StatementWith(statement); len(definitions) != 0 {
+		if _, err := b.bindCTEDefinitions(definitions); err != nil {
+			return binding{}, err
+		}
+	}
+	var required ObjectRef
+	if b.queryLockAdmission != nil {
+		for _, target := range b.queryLockAdmission.mutationTargets {
+			if target.statement == statement {
+				required = target.ref
+				break
+			}
+		}
+	}
+	if required.owner == nil {
+		var name parser.ObjectName
+		switch s := statement.(type) {
+		case *parser.Insert:
+			name = s.Name
+		case *parser.Update:
+			name = s.Name
+		case *parser.Delete:
+			name = s.Name
+		case *parser.Merge:
+			name = s.Name
+		}
+		var err error
+		required, err = b.engine.resolveReference(*b.queryAuth, name)
+		if err != nil {
+			return binding{}, err
+		}
+	}
+	return b.engine.bindMutationCommand(b, *b.queryAuth, required, statement)
+}

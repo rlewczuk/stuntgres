@@ -251,6 +251,10 @@ When moving or exporting helpers, update runtime-frame admission probes to the
 actual new symbol name. `fixture.BinaryConversionActiveCancel` requires both the
 provider and its worker frame before cancellation; preserve that gate, workload,
 cleanup and assertions rather than weakening them to make a migration pass.
+Native admission reads complete live goroutine stacks: the 32-PC
+`runtime.GoroutineProfile` limit must not hide the worker after executor
+decomposition. Both frames must belong to the same live stack; goroutine
+creation metadata is not admission evidence.
 
 | Helper | Contract and use |
 | --- | --- |

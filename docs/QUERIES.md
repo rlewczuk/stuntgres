@@ -321,17 +321,45 @@ Presence-only subqueries can bypass proven unnecessary bounds/key production,
 while retaining the analyzed dependency graph. Scalar child stages close on
 success, failure or cancellation; their statement capture belongs to the parent.
 
-Shared CTE producers open on first demand and store typed rows once. Readers have
+Shared SELECT CTE producers open on first demand and store typed rows once. Readers have
 independent replay positions over one append-only frontier. Closing an early reader
 does not discard a producer needed later. Producers belong to the defining query
 invocation; correlated local invocations are independent and every Execute is fresh.
 Failure/cancellation sticks at the producer and closes its child once. Public Rows
 contain finalized data, not a live producer. Static analysis includes unused
-definitions; execution privileges follow referenced subtrees. Virtual scans have
+SELECT definitions; execution privileges follow referenced SELECT subtrees. Virtual scans have
 no independent ObjectRef, storage, snapshot or ACL authority, and outer rowmarks
 do not propagate through them. Native opaque-consumer gating does not erase an
 independently reachable stored physical settlement/lock frontier; PostgreSQL can
-omit those extra grants. Recursive and modifying CTEs remain excluded.
+omit those extra grants. Recursive CTEs remain excluded.
+
+Modifying definitions are separate mandatory execution roots, not lazy SELECT
+projects. The existing command binders share one parameter/dependency owner;
+command-occurrence target contexts switch inside one StatementScope, operation,
+lock ticket, WriteStage and VisibilityView. The complete physical source/target
+union is captured before effects. Every physical scan uses statement-entry
+committed/prior-transaction roots, not sibling stage writes. Constraints retain
+their shared private-stage visibility, while RETURNING explicitly communicates
+new rows to other consumers.
+
+Each modifying producer settles once to completion and exposes the existing
+typed finalized RETURNING buffer for independent replay. Hints cannot fold it.
+Unused/no-RETURNING definitions still execute; executing LIMIT 0/false/partial
+main consumers do not suppress them. SELECT definitions remain demand-driven.
+Main only supplies adapter rows/schema/count. Invocation/source cleanup and any
+error/cancellation veto precede one atomic Finish for every target; successful
+eager rows retain owned data and metadata after later writes/native replacement.
+Prepared handles retain signatures/analysis identities, never producer/data state.
+
+Modifying WITH is top-level only. Referenced no-RETURNING definitions and
+ordinary/materialized view or cursor persistence are rejected at their command's
+proper semantic stage. CTAS/SELECT INTO reuse scoped catalog staging and publish
+creation plus auxiliary effects together. Existing CTAS WITH NO DATA intentionally
+does not execute the query at all; it creates only empty schema. Native lexical
+scheduling is not a PostgreSQL sibling-order promise, and overlapping writes to
+one physical row remain unsupported/unpredictable. Sequence effects are not
+transactionally undone; canceling a successfully published result does not undo
+its writes.
 
 Window offsets, partitions, permutations and overlays are execution-private.
 Named definitions retain independent volatile identity while equivalent key sorts

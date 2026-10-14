@@ -207,6 +207,9 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		}
 		return nil
 	case *derivedNode:
+		if n.cte != nil && n.cte.mutation != nil {
+			return nil
+		}
 		if n.cte != nil {
 			marks = nil
 			inherited = queryRowMark{}

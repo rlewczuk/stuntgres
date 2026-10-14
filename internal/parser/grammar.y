@@ -594,6 +594,7 @@ package parser
 %type <sequenceOption> identity_option identity_set_option
 %type <override> insert_override
 %type <stmt> merge
+%type <stmt> cte_body with_mutation
 %type <mergeArms> merge_arms
 %type <mergeArm> merge_arm merge_insert
 %type <expr> merge_condition
@@ -643,6 +644,7 @@ optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).insertStatement=false; if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
 statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | select | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+ | with_mutation
  | truncate_table
  | alter_default_privileges
  | alter_owner | reassign_owned | drop_owned
@@ -1900,7 +1902,12 @@ query_intersection: select_operand { $$=$1 }
 with_clause: WITH cte_list { $$=cteClause{Definitions:$2,Pos:$1.pos} } ;
 cte_list: cte_definition { $$=[]CommonTableExpression{$1} }
  | cte_list ',' cte_definition { $$=append($1,$3) } ;
-cte_definition: name alias_columns AS cte_materialization '(' query_select ')' { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4} } ;
+cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4} } ;
+cte_body: query_select { $$=$1 } | insert | update | delete | merge | with_mutation ;
+with_mutation: with_clause insert { $2.(*Insert).With=$1.Definitions;$$=$2 }
+ | with_clause update { $2.(*Update).With=$1.Definitions;$$=$2 }
+ | with_clause delete { $2.(*Delete).With=$1.Definitions;$$=$2 }
+ | with_clause merge { $2.(*Merge).With=$1.Definitions;$$=$2 } ;
 cte_materialization: /* empty */ { $$=CTEDefault }
  | MATERIALIZED { $$=CTEMaterialized }
  | NOT MATERIALIZED { $$=CTENotMaterialized } ;

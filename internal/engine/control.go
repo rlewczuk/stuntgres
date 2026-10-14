@@ -1404,6 +1404,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives")
 			}
 		case *parser.Insert:
+			if len(s.With) != 0 {
+				return sqlError("0A000", "restore INSERT WITH clauses are unsupported")
+			}
 			if s.Returning != nil {
 				return sqlError("0A000", "restore INSERT RETURNING is unsupported")
 			}

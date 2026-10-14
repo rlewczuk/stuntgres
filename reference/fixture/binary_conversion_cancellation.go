@@ -1,10 +1,10 @@
 package fixture
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 )
@@ -43,7 +43,14 @@ func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, 
 		}
 	}()
 	go func() { done <- operation(ctx) }()
-	profiles := make([]runtime.StackRecord, 128)
+	// GoroutineProfile truncates to 32 PCs. Real SQL executor decomposition can
+	// place the launcher below that frontier; retain both exact frame predicates
+	// with complete live stacks rather than admitting a different worker.
+	var stacks, providerSymbol, workerSymbol []byte
+	if !b.PG {
+		stacks = make([]byte, 64<<10)
+		providerSymbol, workerSymbol = []byte(provider), []byte("activeProviderCancel")
+	}
 	observed := false
 	for !observed && ctx.Err() == nil {
 		select {
@@ -60,26 +67,30 @@ func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, 
 				t.Fatal("conversion admission", err)
 			}
 		} else {
-			n, ok := runtime.GoroutineProfile(profiles)
-			if !ok {
-				profiles = make([]runtime.StackRecord, n)
-				continue
+			n := runtime.Stack(stacks, true)
+			for n == len(stacks) {
+				stacks = make([]byte, len(stacks)*2)
+				n = runtime.Stack(stacks, true)
 			}
-			for _, profile := range profiles[:n] {
-				frames := runtime.CallersFrames(profile.Stack())
-				providerFrame, workerFrame := false, false
-				for {
-					frame, more := frames.Next()
-					providerFrame = providerFrame || strings.Contains(frame.Function, provider)
-					workerFrame = workerFrame || strings.Contains(frame.Function, "activeProviderCancel")
-					if !more {
-						break
-					}
+			remaining := stacks[:n]
+			for len(remaining) != 0 {
+				end := bytes.Index(remaining, []byte("\n\n"))
+				if end < 0 {
+					end = len(remaining)
 				}
-				if providerFrame && workerFrame {
+				frames := remaining[:end]
+				// Creation metadata is not a live frame of this goroutine.
+				if created := bytes.Index(frames, []byte("\ncreated by ")); created >= 0 {
+					frames = frames[:created]
+				}
+				if bytes.Contains(frames, providerSymbol) && bytes.Contains(frames, workerSymbol) {
 					observed = true
 					break
 				}
+				if end == len(remaining) {
+					break
+				}
+				remaining = remaining[end+2:]
 			}
 			if !observed {
 				runtime.Gosched()

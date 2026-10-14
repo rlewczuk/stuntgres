@@ -738,8 +738,8 @@ Native controls preserve omitted rows and successful mutations. Public PostgreSQ
 row-wait proof and native private pending-resource proof distinguish causal
 restarts from the native public timeout/recovery witness.
 BY SOURCE INSERT and writable target views remain excluded.
-Triggers, rules, FDWs, target hierarchy writes, writable CTEs, procedural
-functions and COPY(MERGE) remain external or adjacent mechanisms.
+Triggers, rules, FDWs, target hierarchy writes, procedural functions and
+COPY(MERGE) remain external or adjacent mechanisms.
 See [MERGE matching and actions](https://www.postgresql.org/docs/18/sql-merge.html).
 MERGE RETURNING feature smoke (900 seconds per invocation; both modes):
 `make check RUN='^TestReferenceMergeReturningFeatureSmoke$'`;
@@ -3705,14 +3705,52 @@ create catalog objects. Eligible single-use definitions fold by default;
 folds eligible repeated references. Whole-definition VOLATILE expressions
 prevent folding. Shared results are produced lazily once per owning query
 invocation, not cached on prepared statements.
-Proven FALSE/BOOL NULL consumers skip opaque CTE bodies, including their internal
+Proven FALSE/BOOL NULL consumers skip opaque SELECT CTE bodies, including their internal
 locks. Existing native stored marked aggregate/blocking frontiers still run when
 independently reachable; dead qualification does not bypass their physical lock
 settlement.
 
-Recursive/SEARCH/CYCLE, modifying CTE bodies, top-level WITH DML, standalone
-VALUES/TABLE bodies and lateral derived queries remain excluded. See
+Recursive/SEARCH/CYCLE, standalone VALUES/TABLE CTE bodies and lateral derived
+queries remain excluded. See
 [WITH query contracts](https://www.postgresql.org/docs/18/queries.html) and
 [implementation design](docs/design/PG18-QUERY-CTE.md).
 Feature smoke: `make check RUN='^TestReferenceQueryCTEFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryCTEFeatureSmoke$'`.
+
+### Data-modifying CTEs — change note
+
+Nonrecursive WITH can attach to SELECT, INSERT, UPDATE, DELETE or MERGE and can
+contain the four installed data-modifying commands. RETURNING exposes a typed
+virtual relation to later CTEs and the primary command. Each modifier executes
+once and to completion, even unused, without RETURNING, or behind an executing
+main query's LIMIT 0, false qualification or partial consumption. Materialization
+hints never fold or repeat a modifier; ordinary SELECT CTEs remain lazy.
+
+All components share the statement-entry physical snapshot. Physical scans see
+prior transaction work but not sibling statement effects; RETURNING is the
+communication channel for changed rows. Native scheduling is sequential, not a
+portable sibling-order guarantee. Modifying the same physical row twice remains
+unsupported/unpredictable. Only the primary command supplies public rows,
+metadata and affected count; auxiliary counts are not summed.
+
+One statement publication covers every target. Failure, producer-close error or
+cancellation before publication discards all provisional rows and effects.
+Sequence draws remain nontransactional. Cancellation of an already successful
+eager result does not retract committed writes. Prepare never executes a body or
+draws a sequence; each held execution imports fresh arguments, checks current
+rights and owns a fresh invocation. CTE names/output never become catalog objects
+or native Dump history; Reset/Restore preserves persistent definitions/data only.
+
+Modifying WITH must attach at the top level, and a referenced modifier needs
+RETURNING. CREATE VIEW rejects it at execution, including held statements;
+materialized views and DECLARE CURSOR reject it during held preparation.
+Existing CREATE TABLE AS and SELECT INTO can consume it atomically. CREATE TABLE
+AS WITH NO DATA does not execute its query at all: the destination is empty and
+auxiliary targets remain unchanged. This is not an exception to modifier
+completion inside an executing LIMIT 0 query.
+
+Native recursive/SEARCH/CYCLE and rule/trigger/FDW/hierarchy providers retain their
+existing exclusions. PostgreSQL separately prohibits recursive DML self-reference
+and conditional INSTEAD, ALSO or multi-statement INSTEAD target rules.
+See [PostgreSQL modifying WITH](https://www.postgresql.org/docs/18/queries-with.html#QUERIES-WITH-MODIFYING)
+and [selected proof and standalone smoke](reference/dml/README.md#data-modifying-cte-contracts).

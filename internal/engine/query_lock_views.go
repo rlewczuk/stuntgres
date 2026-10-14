@@ -238,6 +238,9 @@ func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
 	from = func(node LogicalNode) error {
 		switch n := node.(type) {
 		case *derivedNode:
+			if n.cte != nil && n.cte.mutation != nil {
+				return nil
+			}
 			if n.cte != nil {
 				return queryRowLockLegality(n.query.Root, queryRootRowMode(n.query.Root))
 			}
@@ -275,7 +278,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	if err != nil {
 		return err
 	}
-	scope.visibilityDemand = visibilityDemand
+	scope.visibilityDemand = scope.visibilityDemand || visibilityDemand
 	var visit func(*relationDescriptor, queryRowMark, bool) error
 	visit = func(d *relationDescriptor, inherited queryRowMark, referenceMarked bool) error {
 		if d.relationKind == viewRelation {

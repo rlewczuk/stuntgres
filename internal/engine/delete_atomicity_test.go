@@ -350,13 +350,14 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 	ctx := &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
 	scope.op.ctx = ctx
 	root := e.storage[scope.lockedRef.Address].ends
+	target := scope.lockedRef // Finish retires admission; retain the exact witness.
 	frontier := e.commitSeq
 	source, err := captureQuerySource(ctx, view, scope.lockedRef)
 	if source != nil || !errors.Is(err, context.Canceled) || ctx.checks.Load() != 2 {
 		_ = scope.Finish(err)
 		t.Fatal(source, err, ctx.checks.Load())
 	}
-	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage[scope.lockedRef.Address].ends != root || e.commitSeq != frontier {
+	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage[target.Address].ends != root || e.commitSeq != frontier {
 		t.Fatal(err, "deleted scan changed state")
 	}
 	transactionRows(t, s, "SELECT v FROM t ORDER BY v")
