@@ -7,7 +7,7 @@ import (
 
 // Explicit VARIADIC already carries its final array as one argument. These
 // nonvariadic signatures therefore use exactly the ordinary argument path.
-func (b *expressionBinder) bindJSONObjectFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name string, visible bool) (BoundExpr, error) {
 	var small [2]comparisonOperand
 	var smallNames [2]string
 	var operands []comparisonOperand
@@ -65,8 +65,12 @@ func (b *expressionBinder) bindJSONObjectFunction(raw parser.FunctionExpr, visib
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
 	}
-	usage := b.typ(sqltype.JSON).Usage()
-	plan, err := sqltype.BindBinary("json_object", usage, usages[:len(args)]...)
+	result := sqltype.JSON
+	if name == "jsonb_object" {
+		result = sqltype.JSONB
+	}
+	usage := b.typ(result).Usage()
+	plan, err := sqltype.BindBinary(name, usage, usages[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}

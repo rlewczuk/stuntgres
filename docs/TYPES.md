@@ -177,7 +177,14 @@ order and duplicates are preserved, nonnull values are always JSON strings,
 NULL values become JSON null, and NULL keys are errors. A NULL whole argument
 produces SQL NULL after argument evaluation. Qualified explicit final `VARIADIC`
 array syntax uses the same two nonvariadic signatures, not argument expansion.
-SQL/JSON object syntax, JSONB constructors and builtin catalog enumeration remain
+The `jsonb_object(text[])` and `jsonb_object(text[], text[])` counterparts use
+the same pairing, shape validation, strictness and string/null value rules.
+They construct immutable structural JSONB directly: normalized key order uses
+UTF8 byte length then bytes, and the last duplicate wins even when its value is
+NULL. Numeric-looking, Boolean-looking and JSON-looking text remains a string.
+Empty input produces a structural empty object. JSONB comparison/grouping and
+native logical controls use the same payload as typed JSONB input. SQL/JSON
+object syntax, other JSONB constructors and builtin catalog enumeration remain
 outside this feature.
 
 `json_array_length(json)` and `jsonb_array_length(jsonb)` count top-level array

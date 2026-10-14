@@ -64,7 +64,7 @@ func TestJSONObjectParserConsumersAndBoundaries(t *testing.T) {
 			t.Fatal("admitted adjacent capability", query)
 		}
 	}
-	for _, name := range []string{"jsonb_object", "json_objectagg"} {
+	for _, name := range []string{"json_objectagg"} {
 		if binaryScalarFunction(name) {
 			t.Fatal("promoted adjacent provider", name)
 		}

@@ -151,8 +151,8 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	}
 	var kind nullCountKind
 	switch name {
-	case "json_object":
-		return b.bindJSONObjectFunction(raw, visible)
+	case "json_object", "jsonb_object":
+		return b.bindTextObjectFunction(raw, name, visible)
 	case "enum_first", "enum_last", "enum_range":
 		return b.bindEnumFunction(raw, visible)
 	case "gen_random_uuid", "uuidv4", "uuidv7":

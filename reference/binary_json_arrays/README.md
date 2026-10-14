@@ -289,14 +289,72 @@ stored/native-control round trips. Component proof supplements public scenarios:
 Ordinary array comparison/order/hash, adjacent array functions, new element
 codecs/equality providers and unsupported collation backends remain excluded.
 
+### JSONB text-array object construction
+
+The `TestReferenceJSONBObject` families cover exactly `jsonb_object(text[])`
+and `jsonb_object(text[], text[])`, using one shared body in both modes.
+Independent expectations follow PostgreSQL 18 Table 9.49 and REL_18_0
+`jsonb.c`/`jsonb_util.c`: flat/two-column/parallel forms ignore lower bounds;
+empty arrays produce `{}`; whole-array NULL is strict; shape/count validation
+precedes NULL-key rejection. Values are always strings or JSON null, not parsed
+JSON primitives. Keys normalize by UTF8 byte length then bytes; the last duplicate
+wins, including a final NULL.
+
+Values and diagnostics cover both direct/prepared routes. Held statements cover
+inferred TEXT[] slots, repeated slots, malformed portal inputs, recovery and byte
+ownership. Metadata checks raw cells and computed descriptors before iteration,
+including empty/NULL results and detached scans. Authorization checks both
+argument columns even on empty inputs. Stored consumers cover defaults, stored/
+virtual generated columns, CHECK/view/index, CTAS/materialized view, structural
+JSONB equality/grouping, late-write atomicity and savepoint recovery. Deparse
+assertions preserve unquoted `jsonb_object` calls; native Dump SQL retains
+`pg_catalog.jsonb_object`. Actual native Dump/Reset/Restore preserves retained
+rows/metadata, deterministically redumps, replays unmodified emitted SQL on PG,
+and rejects late failing/parameterized Restore input without publishing it.
+
+Select all new definitions in both modes, each with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONBObject(Values|Diagnostics|Typing)$'
+make check RUN='^TestReferenceJSONBObject(Values|Diagnostics|Typing)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBObject(Parameters|Metadata|ACL)$'
+make check RUN='^TestReferenceJSONBObject(Parameters|Metadata|ACL)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBObject(Consumers|Deparse|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONBObject(Consumers|Deparse|Controls|FeatureSmoke)$' REFERENCE=1
+```
+
+The JSONObject sets above must also run in both modes after changes to the
+shared binder/shape provider: JSON keeps its original order, duplicates and
+separator spaces. Component units independently check structural payload/hash,
+descriptor boundaries, cancellation without partial publication, retagging,
+rendering, evaluation order and parser admission.
+
+Actual feature smoke:
+
+```sh
+make check RUN='^TestReferenceJSONBObjectFeatureSmoke$'
+make check RUN='^TestReferenceJSONBObjectFeatureSmoke$' REFERENCE=1
+```
+
+Expected observations are normalized flat/2-D/shifted-parallel JSONB output,
+duplicate-last-NULL and string primitives, computed JSONB metadata, SAME held
+empty/NULL/shape-error/codec-error/recovery frames, structural equality/grouping,
+stored recomputation, unchanged sentinels after a late write failure and actual
+native replacement with emitted-SQL replay. No printed JSON transcript is
+required; success is the independent assertions and quiet package exit0.
+SQL/JSON syntax, other object builders, extraction/operators/JSONPath and generic
+builtin catalog enumeration remain outside this feature. Whole-project Docker-
+free verification remains `make quickcheck`.
+
+
 ### Scalar list and array comparisons
 
 The shared `TestReferenceArrayCompare*` scenarios cover §9.25 scalar
 `IN`/`NOT IN` lists and comparison-operator `ANY`/`SOME`/`ALL` over an array
 expression. Independently specified rows/types/full diagnostics cover NULL,
 empty arrays, comparable scalar elements, direct and prepared routes, metadata,
-held frames and recovery. There is no backend discovery filter. Ordinary
-array-to-array comparison/order and other §9.19 functions/operators remain excluded.
+held frames and recovery. There is no backend discovery filter.
+Array-to-array comparison/order remains excluded.
 Array forms require both a scalar comparator and an existing concrete associated
 array/codec. MONEY/INET/CIDR scalar-list positives retain their explicit native
 array-element capability failures; catalog association alone is not execution.

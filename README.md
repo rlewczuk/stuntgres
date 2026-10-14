@@ -1223,6 +1223,18 @@ Feature smoke (900 seconds each):
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceJSONCreateFeatureSmoke$'`.
 
+Change note: `jsonb_object(text[])` and `jsonb_object(text[], text[])` use the
+same flat/two-column/parallel pairing and strict NULL rules, but construct genuine
+structural JSONB objects. Keys normalize by UTF8 byte length then bytes, and the
+last duplicate wins, including a final NULL value. Nonnull values always remain
+JSON strings: numeric, Boolean and JSON-looking text is not parsed. NULL keys
+and malformed shapes/counts retain PostgreSQL English diagnostics. Direct and
+prepared calls infer TEXT[] parameters; supported defaults, generated columns,
+CHECKs, views, expression indexes and native Dump/Reset/Restore retain symbolic
+calls and normalized JSONB metadata, equality and grouping.
+Feature smoke: `make check RUN='^TestReferenceJSONBObjectFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceJSONBObjectFeatureSmoke$' REFERENCE=1`.
+
 Change note: JSONB storage normalizes whitespace and key order, keeps the last
 decoded duplicate key, and preserves exact finite decimals and their display
 scale. It rejects numeric overflow, zero Unicode escapes and invalid surrogate

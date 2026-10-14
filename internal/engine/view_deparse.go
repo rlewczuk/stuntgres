@@ -1343,7 +1343,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
 		}
-		if stringVariadicFunctionName(name) || name == "format" || name == "json_object" || parser.JSONFunctionName(name) || jsonCreateKind(name) != 0 {
+		if stringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "jsonb_object" || parser.JSONFunctionName(name) || jsonCreateKind(name) != 0 {
 			functionName := "pg_catalog." + name
 			if v.presentation.deparse {
 				functionName = v.presentation.identifier(name)

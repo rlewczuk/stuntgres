@@ -26,8 +26,11 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 			input = JSONB
 		}
 		ids, arity, id = [4]ID{input}, 1, Text
-	case "json_object":
+	case "json_object", "jsonb_object":
 		ids, arity, id = [4]ID{1009, 1009}, len(args), JSON
+		if name == "jsonb_object" {
+			id = JSONB
+		}
 		if arity < 1 || arity > 2 {
 			return p, fmt.Errorf("invalid JSON object arity")
 		}
@@ -188,8 +191,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	switch p.name {
 	case "json_typeof", "jsonb_typeof":
 		return p.jsonScalar(ctx, a)
-	case "json_object":
-		return p.jsonObject(ctx, values)
+	case "json_object", "jsonb_object":
+		return p.textObject(ctx, values)
 	case "json_array_length":
 		count, err := jsonArrayLength(ctx, a.text)
 		if err != nil {
