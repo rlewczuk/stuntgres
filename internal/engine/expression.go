@@ -1863,6 +1863,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindAnyValue(r, name)
 			} else if jsonArrayAggregateName(r.Name) {
 				node, err = b.bindJSONArrayAggregate(r, name)
+			} else if jsonObjectAggregateName(r.Name) {
+				node, err = b.bindJSONObjectAggregate(r, name)
 			} else if r.Name == "min" || r.Name == "max" {
 				node, err = b.bindExtrema(r, name)
 			} else if r.Name == "string_agg" {

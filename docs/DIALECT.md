@@ -195,6 +195,15 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   NULL and applicable RETURNING JSON/JSONB, UTF8 BYTEA, existing string carriers
   and unconstrained domains with assignment typmods. Domain constraints/defaults/
   NOT NULL and aggregate-window execution retain their existing boundaries.
+  Ordinary object aggregates `json_object_agg`, `jsonb_object_agg` and their
+  `_strict` variants use two independent inputs, scalar key text conversion and
+  the same grouping/FILTER/local ordering pipeline. NULL keys are errors before
+  strict omission. JSON preserves member order/duplicates; JSONB canonicalizes
+  keys and retains the latest admitted duplicate. Strict SQL NULL values are
+  omitted before key conversion. PostgreSQL 18.0 binary strict also omits
+  converted root JSON null members after key/value conversion, retaining the
+  latest nonnull duplicate; nested nulls are retained. All-omitted input yields
+  an empty object; zero admitted rows yield SQL NULL.
   Adjacent operators/functions, generic JSON equality, SQL/JSON object aggregation
   and path/query execution remain excluded.
 - Selected §9.19 functions `array_position`, `array_positions`, `array_remove`,

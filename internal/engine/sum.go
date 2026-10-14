@@ -124,7 +124,7 @@ func containsValuesAggregateAnalysis(raw parser.Expr) bool {
 	var children []parser.Expr
 	switch e := raw.(type) {
 	case parser.AggregateExpr:
-		if e.Name == "sum" || e.Name == "bit_and" || e.Name == "bit_or" || e.Name == "bit_xor" || jsonArrayAggregateName(e.Name) {
+		if e.Name == "sum" || e.Name == "bit_and" || e.Name == "bit_or" || e.Name == "bit_xor" || jsonArrayAggregateName(e.Name) || jsonObjectAggregateName(e.Name) {
 			return true
 		}
 		for _, key := range e.Order {

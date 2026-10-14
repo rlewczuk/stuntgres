@@ -24,11 +24,11 @@ type lexer struct {
 	// Contextual role payload words are not global SQL keywords.
 	roleHead int
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
-	extractField bool
-	jsonParenDepth int
+	extractField        bool
+	jsonParenDepth      int
 	jsonAggregateDepths []int
-	err          error
-	statements   []Statement
+	err                 error
+	statements          []Statement
 	// Exact grammar row-end evidence bounds private INSERT scalar replay.
 	queryRowEnd       int
 	insertScalarEntry bool
@@ -845,24 +845,38 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.lexeme.keyword != nil && token.lexeme.text == "json_arrayagg" && l.previousToken != int('.') {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
-		if next.code == int('(') { token.code = JSON_ARRAYAGG }
+		if next.code == int('(') {
+			token.code = JSON_ARRAYAGG
+		}
 	}
-	if len(l.jsonAggregateDepths)>0 && l.jsonParenDepth==l.jsonAggregateDepths[len(l.jsonAggregateDepths)-1] && token.lexeme.keyword != nil {
+	if len(l.jsonAggregateDepths) > 0 && l.jsonParenDepth == l.jsonAggregateDepths[len(l.jsonAggregateDepths)-1] && token.lexeme.keyword != nil {
 		switch token.lexeme.text {
 		case "format":
-			next:=l.nextRaw();l.lookahead,l.hasLookahead=next,true
-			if next.lexeme.keyword!=nil && next.lexeme.text=="json" {token.code=JSON_FORMAT}
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.lexeme.keyword != nil && next.lexeme.text == "json" {
+				token.code = JSON_FORMAT
+			}
 		case "json":
-			if l.previousToken==JSON_FORMAT {token.code=JSON_FORMAT_TYPE}
+			if l.previousToken == JSON_FORMAT {
+				token.code = JSON_FORMAT_TYPE
+			}
 		case "encoding":
-			if l.previousToken==JSON_FORMAT_TYPE {token.code=JSON_ENCODING}
-		case "absent","null":
-			next:=l.nextRaw();l.lookahead,l.hasLookahead=next,true
-			if next.code==ON {
-				if token.lexeme.text=="absent" {token.code=JSON_ABSENT} else {token.code=JSON_NULL}
+			if l.previousToken == JSON_FORMAT_TYPE {
+				token.code = JSON_ENCODING
+			}
+		case "absent", "null":
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.code == ON {
+				if token.lexeme.text == "absent" {
+					token.code = JSON_ABSENT
+				} else {
+					token.code = JSON_NULL
+				}
 			}
 		case "setof":
-			token.code=SETOF_TYPE
+			token.code = SETOF_TYPE
 		}
 	}
 	if token.code == SELECTED_FUNC && strings.EqualFold(token.lexeme.text, "json_object") {
@@ -1095,7 +1109,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.generationDepth > 0 && !extractFieldIdentifier {
 		forbiddenCall := false
 		switch token.lexeme.text {
-		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "unnest":
+		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "unnest":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
 			forbiddenCall = next.code == int('(')
@@ -1103,10 +1117,12 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if forbiddenCall {
 			// SQL/JSON still needs its special clause grammar before the completed
 			// generation restriction replaces the analyzed raw expression.
-			if token.code!=JSON_ARRAYAGG {token.code = CHECK_FUNC}
+			if token.code != JSON_ARRAYAGG {
+				token.code = CHECK_FUNC
+			}
 			code, message := "", ""
 			switch token.lexeme.text {
-			case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg":
+			case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg":
 				code, message = "42803", "aggregate functions are not allowed in column generation expressions"
 			case "grouping":
 				code, message = "42803", "grouping operations are not allowed in column generation expressions"
@@ -1219,11 +1235,11 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.roleHead = 0
 		l.viewQuery = false
 	}
-	if token.code==int('(') {
+	if token.code == int('(') {
 		l.jsonParenDepth++
-	} else if token.code==int(')') {
-		if len(l.jsonAggregateDepths)>0 && l.jsonAggregateDepths[len(l.jsonAggregateDepths)-1]==l.jsonParenDepth {
-			l.jsonAggregateDepths=l.jsonAggregateDepths[:len(l.jsonAggregateDepths)-1]
+	} else if token.code == int(')') {
+		if len(l.jsonAggregateDepths) > 0 && l.jsonAggregateDepths[len(l.jsonAggregateDepths)-1] == l.jsonParenDepth {
+			l.jsonAggregateDepths = l.jsonAggregateDepths[:len(l.jsonAggregateDepths)-1]
 		}
 		l.jsonParenDepth--
 	}

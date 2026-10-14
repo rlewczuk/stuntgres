@@ -6,6 +6,76 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSON object aggregates
+
+The untagged `json_object_aggregate_*_test.go` scenarios specify the four ordinary
+`json_object_agg`, `jsonb_object_agg`, `json_object_agg_strict` and
+`jsonb_object_agg_strict` functions with two independent ANY inputs.
+Root's pinned PostgreSQL 18.0 discovery confirmed the portable expectations;
+the discovery gates are removed. Native controls require actual native-emitted
+SQL, not the portable view setup used during initial oracle discovery.
+
+| Scenario suffix | Contract |
+| --- | --- |
+| `Values` | Forward/reverse input order, JSON duplicate retention versus canonical JSONB latest-wins, independent operation slots, scalar key spelling/escaping/domains, recursive typed values, SQL/JSON null distinctions, no-input/all-omitted groups, FILTER and pairwise DISTINCT. PG window execution is positive evidence beside the explicit native unsupported-provider boundary. |
+| `Diagnostics` | Full portable English diagnostics and Unicode positions, direct/prepared Query/Exec stages, NULL/structured keys, child/FILTER/signature/context precedence, namespaces/quoted field fallback, equality/ordering boundaries and invalid losing-duplicate conversion. |
+| `Parameters` | SAME held statement with both argument slots, good/SQL NULL/NULL-key error/recovery, plain and Context routes, ANY inference order, retained cursors and live TimeZone/bytea/float/catalog spelling. |
+| `ModifierParameters` | DISTINCT and matching local ORDER infer UNKNOWN key/value inputs as TEXT, including combined modifiers and both independent parameters; SAME held success/NULL/error/recovery, exact Unicode occurrence errors, later explicit casts and typed-first reuse. ORDER resolves only its first matching input; DISTINCT resolves both. |
+| `Metadata` | Before-Next types/labels/aliases/ScanType/Length/DecimalSize/Nullable, actual raw carriers, populated/global-empty/grouped-empty/filtered results, NOT NULL and domain inputs, stored-view adapter metadata. |
+| `Consumers` | CTE/derived/HAVING, grouped views, INSERT SELECT empty cardinality, CTAS/materialized results, late NULL-key/conversion failure atomicity, forbidden definitions/no publication, both inputs/ORDER/FILTER authorization, held revoke/regrant and precancellation. |
+| `Controls` | Actual native Dump/Reset/Restore/redump, failed/canceled replacement atomicity, retained old cursor versus rebound held execution, independent restored Driver and PG replay of the actual native dump. |
+| `FeatureSmoke` | Shared four-family order/null/metadata/full-key-diagnostic/held/atomicity witnesses, focused modifier-inferred value direct/prepared/SAME-held recovery, native controls and actual emitted replay. |
+
+Root verification uses these small selected sets, each with an external
+900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONObjectAggregate(Values|Diagnostics|Parameters|Metadata)$'
+make check RUN='^TestReferenceJSONObjectAggregate(Values|Diagnostics|Parameters|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceJSONObjectAggregate(Consumers|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONObjectAggregate(Consumers|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$'
+make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceJSONObjectAggregateModifierParameters$'
+make check RUN='^TestReferenceJSONObjectAggregateModifierParameters$' REFERENCE=1
+make check RUN='^TestJSONObjectAggregate'
+```
+
+Independent expected results include ordinary JSON
+`{ \"b\" : 1, \"a\" : 2, \"a\" : null }` versus JSONB `{\"a\": null, \"b\": 1}`;
+strict results omit the SQL NULL value. Global no-input results are SQL NULL,
+while admitted all-omitted input is `{  }` for JSON or `{}` for JSONB.
+NULL keys fail even with strict NULL values: JSON uses22004
+`null value not allowed for object key`; JSONB uses22023
+`field name must not be null`, with absent runtime Position.
+
+PostgreSQL 18.0 binary strict also omits converted root JSON null values.
+Key conversion still occurs before this omission (structured keys fail22023).
+Null candidates are removed before selecting the latest surviving nonnull
+duplicate, including with interleaved canonical keys; nested object/array nulls
+and the JSON string `\"null\"` remain. Text JSON strict retains JSON null members.
+These release-specific cases are independent oracle contracts, not native
+output-derived goldens.
+
+Modifier inference is occurrence-local, not blanket key-to-TEXT inference.
+`json_object_agg('a',$1 ORDER BY $1)` treats the value as TEXT, whereas a prior
+`$1::int` makes its value an integer. An explicit integer cast after modifier
+resolution consumes the inferred TEXT without changing the aggregate value.
+An earlier separate unresolved ANY occurrence still raises42P08 at that earlier
+Unicode position. With `$1` in both inputs, ORDER chooses the first equal input
+only and the second remains an occurrence mismatch; DISTINCT completes both.
+These expectations were pinned on PostgreSQL18.0 before the production remedy.
+
+The private parser/engine/sqltype `TestJSONObjectAggregate...` units supplement
+public SQL assertions with descriptor generations, two-slot remapping, immutable
+plans/borrowed values, group isolation, sealed/idempotent state, sticky failures,
+root-only null compaction, live environments and deterministically reached
+key/value/sort/compaction/output cancellation without partial query/DML publication.
+The existing JSONB compaction cancellation unit also exercises its unchanged
+default non-skipping behavior after the explicit root-mode signature change.
+SQL/JSON `json_objectagg`, unique variants and native aggregate windows remain
+outside this feature.
+
 ### JSON array aggregate oracle-first definitions
 
 The untagged `json_array_aggregate_*_test.go` definitions specify independently

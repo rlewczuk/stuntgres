@@ -47,8 +47,9 @@ type jsonbEntry struct {
 }
 type jsonbPayload struct{ root jsonbNode }
 type jsonbFrame struct {
-	node jsonbNode
-	key  string
+	node      jsonbNode
+	key       string
+	skipNulls bool // Only selected aggregate root objects omit converted null members.
 }
 type jsonbBuilder struct {
 	frames []jsonbFrame
@@ -76,7 +77,7 @@ func (b *jsonbBuilder) close(ctx context.Context) error {
 		if err := sortJSONBFields(ctx, n.fields); err != nil {
 			return err
 		}
-		fields, err := compactJSONBFields(ctx, n.fields)
+		fields, err := compactJSONBFields(ctx, n.fields, b.frames[len(b.frames)-1].skipNulls)
 		if err != nil {
 			return err
 		}
@@ -163,11 +164,14 @@ func sortJSONBFields(ctx context.Context, fields []jsonbEntry) error {
 	return ctx.Err()
 }
 
-func compactJSONBFields(ctx context.Context, fields []jsonbEntry) ([]jsonbEntry, error) {
+func compactJSONBFields(ctx context.Context, fields []jsonbEntry, skipNulls bool) ([]jsonbEntry, error) {
 	count := 0
 	for i := range fields {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if skipNulls && fields[i].value.kind == jsonbNull {
+			continue
 		}
 		if count > 0 {
 			c, err := compareJSONBKeys(ctx, fields[count-1].key, fields[i].key)

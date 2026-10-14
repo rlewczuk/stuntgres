@@ -100,7 +100,7 @@ func (p BinaryPlan) textObject(ctx context.Context, inputs []Value) (Value, erro
 		if err := sortJSONBFields(ctx, fields); err != nil {
 			return Value{}, err
 		}
-		fields, err = compactJSONBFields(ctx, fields)
+		fields, err = compactJSONBFields(ctx, fields, false)
 		if err != nil {
 			return Value{}, err
 		}

@@ -239,14 +239,14 @@ func TestJSONBCanonicalizationCancellation(t *testing.T) {
 	t.Run("duplicate_compaction", func(t *testing.T) {
 		fields := []jsonbEntry{{key: "a", ordinal: 3}, {key: "a", ordinal: 2}, {key: "b", ordinal: 1}, {key: "c", ordinal: 0}}
 		cancel := &groupingCancelContext{Context: ctx, at: 6}
-		got, err := compactJSONBFields(cancel, fields)
+		got, err := compactJSONBFields(cancel, fields, false)
 		if !errors.Is(err, context.Canceled) || got != nil || cancel.calls != 6 {
 			t.Fatal("in-progress compaction", got, err, cancel.calls)
 		}
 		prefix := strings.Repeat("x", 8*jsonbWorkChunk)
 		fields = []jsonbEntry{{key: prefix, ordinal: 1}, {key: prefix, ordinal: 0}}
 		cancel = &groupingCancelContext{Context: ctx, at: 4}
-		if got, err := compactJSONBFields(cancel, fields); !errors.Is(err, context.Canceled) || got != nil {
+		if got, err := compactJSONBFields(cancel, fields, false); !errors.Is(err, context.Canceled) || got != nil {
 			t.Fatal("long duplicate-key comparison", got, err)
 		}
 	})
@@ -258,7 +258,7 @@ func TestJSONBCanonicalizationCancellation(t *testing.T) {
 		// First entry takes one poll; each remaining entry takes its entry poll
 		// and the short key comparator's two polls. Cancel on the second clear.
 		cancel := &groupingCancelContext{Context: ctx, at: 1 + 3*(len(fields)-1) + 2}
-		got, err := compactJSONBFields(cancel, fields)
+		got, err := compactJSONBFields(cancel, fields, false)
 		if !errors.Is(err, context.Canceled) || got != nil || fields[1].key != "" || fields[2].key != "a" {
 			t.Fatal("in-progress clearing", got, err, cancel.calls)
 		}

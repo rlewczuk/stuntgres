@@ -297,13 +297,17 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 			usage = arg.ResultUsage()
 			usage.Typmod = -1
 		}
-	case "json_agg","jsonb_agg","json_agg_strict","jsonb_agg_strict","json_arrayagg":
+	case "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg":
 		var returning sqltype.Usage
-		arg,usage,returning,err=b.resolveJSONArrayAggregateSignature(raw,name,operand,types)
-		if err==nil && returning.Type!=nil {
-			_,err=jsonReturningCoercion(usage,returning,raw.JSON.Output)
-			usage=returning
+		arg, usage, returning, err = b.resolveJSONArrayAggregateSignature(raw, name, operand, types)
+		if err == nil && returning.Type != nil {
+			_, err = jsonReturningCoercion(usage, returning, raw.JSON.Output)
+			usage = returning
 		}
+	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict":
+		var args [2]BoundExpr
+		args, usage, err = b.resolveJSONObjectAggregateSignature(raw, name, operands, types)
+		arg = args[0]
 	case "min", "max":
 		arg, err = b.resolveExtremaSignature(raw, name, operand, types)
 		if err == nil {

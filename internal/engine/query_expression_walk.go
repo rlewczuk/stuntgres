@@ -222,7 +222,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		switch call.operation {
 		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum,
 			aggregateBitAnd, aggregateBitOr, aggregateBitXor,
-			aggregateJSON,aggregateJSONStrict,aggregateJSONArray,aggregateJSONArrayAbsent:
+			aggregateJSON, aggregateJSONStrict, aggregateJSONArray, aggregateJSONArrayAbsent, aggregateJSONObject, aggregateJSONObjectStrict:
 			clause = "VALUES"
 		}
 	}

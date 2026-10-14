@@ -57,7 +57,8 @@ func (b *expressionBinder) sameAggregateTarget(target, expression BoundExpr) boo
 
 func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggregateCall, filter BoundExpr, info expressionInfo) (BoundExpr, error) {
 	call.filter = filter
-	if raw.Distinct {
+	objectProvider, object := call.provider.(jsonObjectAggregateProvider)
+	if raw.Distinct && !object {
 		var err error
 		call.argument, err = b.finalizeProjection(call.argument)
 		if err != nil {
@@ -73,12 +74,27 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		if err != nil {
 			return nil, err
 		}
-		// SQL99 matches the provisional target before resolving an UNKNOWN key.
-		// In particular, count($1 ORDER BY $1) resolves the shared input to TEXT.
-		if call.argument != nil && call.argument.ResultUsage().Type == nil && b.sameAggregateTarget(call.argument, expression) {
-			call.argument, err = b.finalizeProjection(call.argument)
+		slot := -1
+		if object {
+			// Match before UNKNOWN coercion changes structural usage. ORDER
+			// selects one first equal input, not every use of its parameter.
+			if b.sameAggregateTarget(call.argument, expression) {
+				slot = 0
+				call.argument, err = b.completeJSONObjectAggregateInput(call.argument)
+			} else if b.sameAggregateTarget(call.separator, expression) {
+				slot = 1
+				call.separator, err = b.completeJSONObjectAggregateInput(call.separator)
+			}
 			if err != nil {
 				return nil, err
+			}
+		} else {
+			// Preserve other providers' existing provisional-target inference.
+			if call.argument != nil && call.argument.ResultUsage().Type == nil && b.sameAggregateTarget(call.argument, expression) {
+				call.argument, err = b.finalizeProjection(call.argument)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		expression, err = b.finalizeProjection(expression)
@@ -96,11 +112,12 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		if err != nil {
 			return nil, err
 		}
-		slot := -1
-		if call.argument != nil && b.sameAggregateTarget(call.argument, expression) {
-			slot = 0
-		} else if call.separator != nil && b.sameAggregateTarget(call.separator, expression) {
-			slot = 1
+		if !object {
+			if call.argument != nil && b.sameAggregateTarget(call.argument, expression) {
+				slot = 0
+			} else if call.separator != nil && b.sameAggregateTarget(call.separator, expression) {
+				slot = 1
+			}
 		}
 		if slot == 0 {
 			comparison, err = aggregateOrdering(call.argument.ResultUsage(), key.Pos, false)
@@ -131,6 +148,17 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		call.order[i] = sortKey{expression: expression, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, slot: slot, cache: cache}
 	}
 	if raw.Distinct {
+		if object {
+			var err error
+			call.argument, err = b.completeJSONObjectAggregateInput(call.argument)
+			if err != nil {
+				return nil, err
+			}
+			call.separator, err = b.completeJSONObjectAggregateInput(call.separator)
+			if err != nil {
+				return nil, err
+			}
+		}
 		call.distinct = make([]sqltype.Grouping, len(raw.Args))
 		args := [2]BoundExpr{call.argument, call.separator}
 		for i, arg := range args {
@@ -155,6 +183,13 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 	}
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
+	}
+	if object {
+		provider, err := objectProvider.complete(call.argument.ResultUsage(), call.separator.ResultUsage())
+		if err != nil {
+			return nil, err
+		}
+		call.provider = provider
 	}
 	properties := ExprProperties{StageDependent: true}
 	call.expressions(func(expr BoundExpr) {

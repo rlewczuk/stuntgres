@@ -358,12 +358,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		if aggregate, ok := expr.(aggregateExpression); ok && aggregate.frame == b.frameID() {
-			operation:=b.aggregates[aggregate.slot].operation
+			operation := b.aggregates[aggregate.slot].operation
 			switch operation {
-			case aggregateJSON,aggregateJSONStrict,aggregateJSONArray,aggregateJSONArrayAbsent:
+			case aggregateJSON, aggregateJSONStrict, aggregateJSONArray, aggregateJSONArrayAbsent, aggregateJSONObject, aggregateJSONObjectStrict:
 				// JSON aggregate projections expose computed nullability, including
 				// empty/grouped/filter output, rather than a source-column claim.
-				result.Nullable,result.NullabilityKnown=false,false
+				result.Nullable, result.NullabilityKnown = false, false
 			default:
 				result.NullabilityKnown = true
 				result.Nullable = operation != aggregateCount

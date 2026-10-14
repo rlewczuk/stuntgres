@@ -121,6 +121,21 @@ See [selected array comparison proof](reference/binary_json_arrays/README.md#sca
 Feature smoke: `make check RUN='^TestReferenceArrayCompareFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceArrayCompareFeatureSmoke$'`.
 
+Change note: `json_object_agg`, `jsonb_object_agg`, `json_object_agg_strict`
+and `jsonb_object_agg_strict` collect key/value pairs through the ordinary
+aggregate pipeline. Scalar keys use JSON text spelling; SQL NULL keys are
+errors even when strict mode would omit the value. Local ORDER BY fixes member
+input order. JSON preserves duplicate members; JSONB canonicalizes keys and
+retains the latest admitted duplicate. Strict variants omit SQL NULL values;
+PostgreSQL 18.0 binary strict also omits converted root JSON null members,
+retaining the latest nonnull duplicate without removing nested nulls.
+Zero admitted rows produce SQL NULL; admitted but wholly omitted input produces
+an empty object. Prepared calls, stored views and native dump replay share the
+same typed provider. SQL/JSON `json_objectagg`, unique variants and aggregate
+window execution remain outside this support.
+Feature smoke: `make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$'`
+and `make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$' REFERENCE=1`.
+
 Change note: `json_agg`, `jsonb_agg`, `json_agg_strict`, `jsonb_agg_strict`
 and SQL/JSON `json_arrayagg` collect values through the ordinary aggregate
 pipeline. Local ORDER BY fixes element order; ordinary variants include SQL NULL,

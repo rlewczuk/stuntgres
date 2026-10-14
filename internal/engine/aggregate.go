@@ -19,7 +19,7 @@ type aggregateProvider interface {
 // Only providers with environment-sensitive output opt into execution-local
 // initialization. Ordinary providers retain their existing Init contract.
 type contextualAggregateProvider interface {
-	InitWithEnvironment(context.Context,sqltype.OutputEnvironment) (any,error)
+	InitWithEnvironment(context.Context, sqltype.OutputEnvironment) (any, error)
 }
 
 type aggregateOperation uint8
@@ -49,6 +49,8 @@ const (
 	aggregateJSONStrict
 	aggregateJSONArray
 	aggregateJSONArrayAbsent
+	aggregateJSONObject
+	aggregateJSONObjectStrict
 )
 
 type aggregateCall struct {

@@ -747,9 +747,17 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
 			case jsonArrayAggregateProvider:
-				p.input,p.usage=usage(p.input),usage(p.usage)
-				if err==nil {p.plan,err=sqltype.BindJSONArrayAggregate(p.input,p.usage,p.absent)}
-				copy.calls[i].provider=p
+				p.input, p.usage = usage(p.input), usage(p.usage)
+				if err == nil {
+					p.plan, err = sqltype.BindJSONArrayAggregate(p.input, p.usage, p.absent)
+				}
+				copy.calls[i].provider = p
+			case jsonObjectAggregateProvider:
+				p.key, p.input, p.usage = usage(p.key), usage(p.input), usage(p.usage)
+				if err == nil {
+					p.plan, err = sqltype.BindJSONObjectAggregate(p.key, p.input, p.usage, p.strict)
+				}
+				copy.calls[i].provider = p
 			case extremaProvider:
 				p.usage = usage(p.usage)
 				if err == nil {
