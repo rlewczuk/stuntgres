@@ -1235,6 +1235,20 @@ calls and normalized JSONB metadata, equality and grouping.
 Feature smoke: `make check RUN='^TestReferenceJSONBObjectFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceJSONBObjectFeatureSmoke$' REFERENCE=1`.
 
+Change note: `json_object_keys(json)` returns top-level keys as TEXT rows,
+preserving duplicate occurrences and decoding escaped names. Empty objects and
+SQL NULL produce no rows; arrays and JSON scalars use PostgreSQL diagnostics.
+Processing validates every string, including ignored nested keys and values,
+so zero Unicode escapes and invalid surrogates accepted by JSON storage are
+rejected when processed. Numeric spelling/range and retained JSON text are
+unchanged; processing does not convert to JSONB. Targets and bounded function
+FROM share expansion, LATERAL, ROWS FROM and WITH ORDINALITY machinery, including
+held prepared statements, metadata for empty results and stored-view/native replay.
+This does not add `jsonb_object_keys`, other JSON processing functions or general
+lateral derived queries. See [JSON processing](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
+Feature smoke: `make check RUN='^TestReferenceJSONKeysFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONKeysFeatureSmoke$'`.
+
 Change note: JSONB storage normalizes whitespace and key order, keeps the last
 decoded duplicate key, and preserves exact finite decimals and their display
 scale. It rejects numeric overflow, zero Unicode escapes and invalid surrogate
@@ -2412,9 +2426,9 @@ local one-row input. Full child binding/admission remains independent of
 runtime demand; eligible EXISTS may discard target-only output (see the linked
 eligibility contract). Scalar cardinality,
 NULL/empty reductions, coherent mutation consumers and stored-view dependencies
-retain their PostgreSQL contracts. The selected `string_to_table` and regexp
-families admit function FROM and function-only LATERAL; general lateral derived
-queries and unrelated table functions remain excluded.
+retain their PostgreSQL contracts. The selected `string_to_table`, JSON processing
+and regexp families admit function FROM and function-only LATERAL; general lateral
+derived queries and unrelated table functions remain excluded.
 Nonrecursive SELECT CTEs use the same query pipeline.
 Direct/prepared reference cases independently specify scalar NULL-left IN/NOT IN
 on nonempty input and SOME empty/NULL reductions.

@@ -81,7 +81,14 @@ func regexpCancellationQueries() []struct {
 func TestReferenceRegexpActualCancellation(t *testing.T) {
 	regexpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`CREATE TABLE cancel_regexp(s TEXT,p TEXT,sentinel INT)`, 0))
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO cancel_regexp VALUES($1,'',7)`, 1, strings.Repeat("a", 2*1024*1024)))
+		// Native eager sets use a bounded-cardinality scan: an absent literal
+		// cannot fill the regex result budget before observed cancellation.
+		// PostgreSQL retains empty-pattern enumeration and streaming-prefix checks.
+		pattern := ""
+		if !b.PG {
+			pattern = "z"
+		}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`INSERT INTO cancel_regexp VALUES($1,$2,7)`, 1, strings.Repeat("a", 2*1024*1024), pattern))
 		conn, err := b.DB.Conn(p.Ctx)
 		if err != nil {
 			t.Fatal(err)

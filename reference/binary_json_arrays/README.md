@@ -187,6 +187,50 @@ make check RUN='^TestJSONLexerEscapedStringCancellation$'
 make check RUN='^TestReferenceJSONType(Parameters|SRF)$' RACE=1
 ```
 
+### JSON object-key enumeration
+
+`TestReferenceJSONKeys*` covers only `json_object_keys(json)`: top-level TEXT
+rows, empty/SQL NULL sets, duplicate multiplicities, escaped names, arrays/scalars,
+complete PostgreSQL 18.0 diagnostics and metadata before iteration. Shared direct,
+prepared and same-held parameter routes exercise target expansion, FROM products,
+ROWS FROM padding, mixed regexp sources, ordinality, correlated/LEFT LATERAL,
+placement guards, authorization, failed-write atomicity and stored-view dependencies.
+Native controls retain old rows/metadata and replay actual emitted dumps on PostgreSQL.
+Unordered output is a bag, not an invented portable key-order contract.
+The review regressions retain supplied qualification in FILTER/DISTINCT/ORDER BY/
+OVER diagnostics and analyze FILTER operands before signature/decorating errors.
+`TestReferenceJSONKeysReviewMixedFrom` supplies keys and regexp in the same
+ROWS FROM group, checking lockstep padding, duplicates, empty/NULL metadata and
+stored mixed-source view ownership rather than only separate FROM products.
+Direct function outputs have computed, unknown nullability; stored view reads
+retain native catalog-origin nullable attributes, while pq reports unknown
+nullability. Both routes check complete metadata before iteration.
+
+JSON storage retains original text and accepts valid zero/surrogate escape syntax;
+processing rejects undecodable strings even in ignored nested keys/values. Huge
+numbers remain legal because keys processing does not build JSONB or convert numbers.
+No adjacent JSON/JSONB function, generic function resolution or lateral derived
+SELECT is supplied.
+
+Run each bounded selector in both modes with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONKeys(Values|Unicode|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONKeys(Values|Unicode|Diagnostics)$'
+make check RUN='^TestReferenceJSONKeys(QueryStructure|ContextDiagnostics|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONKeys(QueryStructure|ContextDiagnostics|Metadata)$'
+make check RUN='^TestReferenceJSONKeys(ParametersAndLifecycle|AuthorityAndControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONKeys(ParametersAndLifecycle|AuthorityAndControls|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONKeysReview(Diagnostics|MixedFrom)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONKeysReview(Diagnostics|MixedFrom)$'
+```
+
+Feature smoke: `make check RUN='^TestReferenceJSONKeysFeatureSmoke$'`, then the
+same selector with `REFERENCE=1`. Expected observations: CREATE0/prepared INSERT3,
+key bag a×2,b×1; ordered (a,1),(a,2),(b,3) TEXT/INT8; full empty/NULL metadata;
+LEFT LATERAL preservation; same-held array/Unicode errors followed by recovery;
+unchanged JSON storage and native Dump/Reset/Restore with emitted-SQL replay.
+
 ### JSON text-array object construction
 
 The `TestReferenceJSONObject` families cover exactly the one- and two-text-array

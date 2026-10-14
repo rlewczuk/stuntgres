@@ -66,7 +66,7 @@ type functionCursorKind uint8
 
 const (
 	functionStringCursor functionCursorKind = iota
-	functionRegexpCursor
+	functionOwnedSetCursor
 	functionScalarCursor
 	functionJSONKeysCursor
 )
@@ -142,7 +142,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		if err != nil {
 			return functionSetCursor{}, err
 		}
-		return functionSetCursor{owned: values, kind: functionRegexpCursor, initialized: true}, nil
+		return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
 	case regexpExpression:
 		value, err := call.Eval(c)
 		if err != nil {
@@ -202,7 +202,7 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	if !s.initialized {
 		return sqltype.Value{}, false, fmt.Errorf("stuntgres: unopened function set cursor")
 	}
-	if s.kind == functionRegexpCursor {
+	if s.kind == functionOwnedSetCursor {
 		if s.position < len(s.owned) {
 			value := s.owned[s.position]
 			s.position++

@@ -37,7 +37,7 @@ type jsonLexer struct {
 	text                                               string
 	offset, start, end, line, lineStart, checkedOffset int
 	kind                                               byte
-	decode                                             bool
+	decode, discard                                    bool
 	decoded                                            string
 }
 
@@ -63,6 +63,8 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 		if err := ctx.Err(); err != nil {
 			return Value{}, err
 		}
+		// Processing validates ignored strings without retaining decoded text.
+		l.discard = scan != nil && !(len(stack) == 2 && (stack[len(stack)-1] == jsonObjectFirst || stack[len(stack)-1] == jsonObjectKey))
 		if err := l.next(); err != nil {
 			return Value{}, err
 		}
@@ -399,7 +401,7 @@ func (l *jsonLexer) stringToken() error {
 				return l.fail("Unicode low surrogate must follow a high surrogate.")
 			}
 			if c == '"' {
-				if l.decode {
+				if l.decode && !l.discard {
 					if escaped {
 						b.WriteString(l.text[segment : l.offset-1])
 						l.decoded = b.String()
@@ -410,7 +412,7 @@ func (l *jsonLexer) stringToken() error {
 				return nil
 			}
 		} else {
-			if l.decode {
+			if l.decode && !l.discard {
 				b.WriteString(l.text[segment : l.offset-1])
 				escaped = true
 			}
@@ -493,8 +495,10 @@ func (l *jsonLexer) stringToken() error {
 					err.Code, err.Message = "22P05", "unsupported Unicode escape sequence"
 					return err
 				}
-				b.WriteRune(decoded)
-				segment = l.offset
+				if !l.discard {
+					b.WriteRune(decoded)
+					segment = l.offset
+				}
 			}
 		}
 	}

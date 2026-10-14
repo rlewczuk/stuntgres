@@ -46,6 +46,11 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			operand = o
 		}
 	}
+	if name == "json_object_keys" {
+		if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
+			return nil, err
+		}
+	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
@@ -91,7 +96,11 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		decoration, message = "OVER", "not a window function nor an aggregate function"
 	}
 	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+name+" is "+message, raw.Pos)
+		diagnosticName := name
+		if name == "json_object_keys" {
+			diagnosticName = objectNameText(raw.Name)
+		}
+		return nil, expressionError("42809", decoration+" specified, but "+diagnosticName+" is "+message, raw.Pos)
 	}
 	properties := arg.Properties()
 	usage := b.typ(result).Usage()
