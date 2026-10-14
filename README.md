@@ -2499,6 +2499,38 @@ allowed, while recursive reads and native cyclic Dump explicitly fail.
 Feature smoke: `make check RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$'`.
 Replacement smoke: `make check RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$'`.
 
+Change note: `pg_catalog.pg_class` now exposes the
+[PostgreSQL 18 34-column schema](https://www.postgresql.org/docs/18/catalog-pg-class.html)
+in released order, rather than the former native ten-column projection.
+Positional `SELECT *` consumers must update Scan destinations; named projections
+remain the recommended interface. Existing relation-creating features own the
+rows, including actual automatic sequences and backing indexes. Identity,
+namespace, ownership, kind, row-type/typed-table links, attribute high-water,
+CHECK counts, RLS and population come from installed descriptors, not row counts.
+Represented builtin view classification does not change their execution sources.
+All eighteen represented table catalogs own audited indexed-table metadata,
+including `pg_proc`, `pg_collation`, `pg_enum`, `pg_conversion`, `pg_ts_dict`
+and `pg_ts_template`; represented views report no indexes. These facts survive
+Reset/Restore without inventing missing native backing-index rows.
+
+Stored `relacl` preserves grantor/grantee identities, PUBLIC, privilege/grant-option
+masks, order and NULL versus empty arrays. Reading metadata does not grant access
+to its described tables. `relhasindex` and `relhassubclass` preserve immutable
+lazy publication history after the last index/child disappears. Fresh executions
+of retained catalog readers use current catalog/role snapshots; native eager
+rows retain captured values and metadata.
+
+Installed view options preserve presence, explicit false, validated lexical
+values and order. SET retains unmatched old options then appends touched keys;
+RESET removes keys; CREATE OR REPLACE replaces the installed list while retaining
+its existing identity/ownership/ACL contract. Dump emits only installed options,
+so replay no longer injects omitted false defaults. Table partition bounds use
+typed immutable structural carriers. These reads do not add physical storage,
+trigger catalogs, hierarchy alteration or catalog GRANT/REVOKE SQL; see the
+[native boundaries](docs/DIALECT.md#pg_class-logical-relation-metadata).
+Feature smoke: `make check RUN='^TestReferencePgClassSmoke$'`, also with
+`REFERENCE=1`; complete [selected proof](reference/catalogs/README.md#pg_class-selected-proof).
+
 Change note: simple one-table (including nested) views now accept INSERT,
 UPDATE and DELETE through stable base-column identities. Reordered/renamed
 outputs, omitted base defaults, identity/generated columns, existing UPDATE FROM,

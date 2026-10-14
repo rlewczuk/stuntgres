@@ -713,7 +713,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 				return fail()
 			}
 			candidate, ok := next.descriptors[address].(*relationDescriptor)
-			if !ok || candidate.relationKind != old.relationKind || candidate.namespace != old.namespace || candidate.name != old.name || candidate.owner != old.owner || candidate.virtualView != old.virtualView || candidate.attributeHighWater != old.attributeHighWater || !slices.Equal(candidate.attributes, old.attributes) || len(candidate.columns) != len(old.columns) || candidate.acl.Explicit != old.acl.Explicit || !slices.Equal(candidate.acl.Entries, old.acl.Entries) || len(candidate.columnACL) != len(old.columnACL) {
+			if !ok || candidate.relationKind != old.relationKind || candidate.namespace != old.namespace || candidate.name != old.name || candidate.owner != old.owner || candidate.virtualView != old.virtualView || candidate.hasIndexes != old.hasIndexes || candidate.hasSubclasses != old.hasSubclasses || candidate.attributeHighWater != old.attributeHighWater || !slices.Equal(candidate.attributes, old.attributes) || len(candidate.columns) != len(old.columns) || candidate.acl.Explicit != old.acl.Explicit || !slices.Equal(candidate.acl.Entries, old.acl.Entries) || len(candidate.columnACL) != len(old.columnACL) {
 				return fail()
 			}
 			for attribute, acl := range old.columnACL {

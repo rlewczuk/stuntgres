@@ -145,7 +145,13 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			e, source, root := typedUnitCatalog(t, false)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
+			predecessor, before := root, e.CatalogRead()
+			storage := e.storage[root.address]
 			roleExecute(t, e, op, "CREATE TABLE child() INHERITS(typed)")
+			root = e.CatalogRead().state.descriptors[predecessor.address].(*relationDescriptor)
+			if root == predecessor || !root.hasSubclasses || predecessor.hasSubclasses || root.address != predecessor.address || root.rowType != predecessor.rowType || root.ofType != predecessor.ofType || root.revision == predecessor.revision || before.state.descriptors[predecessor.address] != predecessor || e.storage[root.address] != storage {
+				t.Fatal("successful child publication did not preserve immutable typed identity/storage and transition subclass history")
+			}
 			roleExecute(t, e, op, "INSERT INTO typed VALUES(11,'root')")
 			roleExecute(t, e, op, "INSERT INTO child VALUES(7,'leaf')")
 			view := e.CatalogRead()

@@ -6,6 +6,91 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_class selected proof
+
+The shared `TestReferencePgClass` definitions cover the PostgreSQL 18 34-column
+schema before iteration, exact existing relation identities/kinds, row types,
+attribute high-water, CHECK/RLS/population facts, sticky index/subclass history,
+ordered stored ACLs and grant options, installed lexical view options and typed
+RANGE/default bounds. Direct, actual plain, fresh prepared and SAME held readers
+retain independently specified metadata, raw codecs, rows and diagnostics.
+Case-specific names scope database-wide catalog bags; table permission does not
+filter metadata discovery.
+
+`BuiltinIndexHistory` checks all eighteen represented indexed table catalogs and
+every represented view negative through direct, fresh and SAME prepared readers,
+without inventing native backing-index rows. `FirstChildRollback` starts with a
+childless RANGE parent: successful first ATTACH sets history only in the owner's
+private catalog, then savepoint/full rollback restores false for both owner and
+peer, including SAME prepared readers. `InvalidIndexHistory` retains an actual
+live/unready/invalid index after a duplicate-data concurrent unique build fails,
+asserts its index kind and parent history, then drops it while history stays true.
+
+Native physical fields are explicit
+[logical boundaries](../../docs/DIALECT.md#pg_class-logical-relation-metadata),
+not parity goldens derived from native output. PostgreSQL observes real
+sequence/partitioned-index initialization and ANALYZE; native tuples remain
+unknown (-1) except fixed singleton sequences (1). Native structural bound output
+differs intentionally from recorded released nodeToString bytes.
+
+PostgreSQL performs actual member RENAME and catalog-source REVOKE/GRANT.
+Native independently asserts their existing complete 0A000 capability errors;
+retained-bound lifetime uses admitted member DROP and actual Dump/Restore.
+`TestPgClassCatalogACLRecheck` publishes real native catalog ACLs with SetObjectACL,
+checks denied/restored current permission through the same operation, and verifies
+that retained authorization roots are unchanged. No schema/catalog privilege SQL
+or hierarchy capability is added merely to produce metadata witnesses.
+
+Run each public group in both modes after changing its definitions or owning
+implementation:
+
+```sh
+make check RUN='^TestReferencePgClass(Shape|Relations|Builtins)$'
+make check REFERENCE=1 RUN='^TestReferencePgClass(Shape|Relations|Builtins)$'
+make check RUN='^TestReferencePgClass(Flags|PhysicalBoundaries|Partitions)$'
+make check REFERENCE=1 RUN='^TestReferencePgClass(Flags|PhysicalBoundaries|Partitions)$'
+make check RUN='^TestReferencePgClass(ACL|Options)$'
+make check REFERENCE=1 RUN='^TestReferencePgClass(ACL|Options)$'
+make check RUN='^TestReferencePgClass(Lifecycle|Transactions|Temporary|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferencePgClass(Lifecycle|Transactions|Temporary|Diagnostics)$'
+make check RUN='^TestReferencePgClass(Controls|Smoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgClass(Controls|Smoke)$'
+make check RUN='^TestReferencePgClassBuiltinIndexHistory$'
+make check REFERENCE=1 RUN='^TestReferencePgClassBuiltinIndexHistory$'
+make check RUN='^TestReferencePgClass(FirstChildRollback|InvalidIndexHistory)$'
+make check REFERENCE=1 RUN='^TestReferencePgClass(FirstChildRollback|InvalidIndexHistory)$'
+make check RUN='^TestPgClassBuiltinIndexMetadata$'
+make check RUN='^TestPgClass(Projection|Kinds|ACLTranslation|CatalogACLRecheck)$'
+make check RACE=1 RUN='^TestPgClass(SubclassPublication|SubclassReplacement|OptionHistory|PartitionTree|CatalogACLRecheck)$'
+make check RUN='^TestPG(CastShapeAndOwnership|DescriptionShape|ExtensionShapeAndOwnership|SequenceShape|ShDescriptionDescriptor)$'
+make check RACE=1 RUN='^(TestInheritanceQueryStoredViewAdmission|TestTypedPublicationLateOwnRowConsumer)$'
+```
+
+Affected private catalog provider consumers use named pg_class fields, retaining
+their exact identity/kind/attribute-count assertions rather than the obsolete
+ten-column offsets. Inheritance/stored-view and typed late-consumer fixtures
+assert the immutable false-to-true subclass publication, then capture their real
+post-successful-child baseline. Their later lock-wait/admission and rejected
+mutation descriptor/storage invariants remain unchanged.
+
+`Controls` replays actual emitted native Dump SQL on PostgreSQL, asserting no
+invented absent options. Native failed/canceled replay and dependency/prepared
+transaction fences retain the current bag, held readers and captured bytes;
+successful replacement preserves valid live TEMP identities/options/history
+and remaps persistent row types relationally. Active graph history reconstructs
+on replay; deleted-only persistent history is not promised. Arbitrary explicit
+relation ACL Dump rejection stays intact.
+
+`Smoke` is the permanent public end-to-end witness. The part also supplies an
+external public-only standalone module/program: root runs
+`timeout 900s go run -mod=mod .` in its temporary module, expecting
+`pg_class smoke OK` after complete shape/logical/tree/options assertions, one
+retained prepared reader, explicit ACL/Dump rejection, baseline Restore,
+invalid Restore atomicity and Reset. No standalone smoke scaffold is committed.
+The standalone reader also checks all eighteen indexed builtin table facts and
+represented view negatives initially and after successful/failed Restore and Reset.
+Selected proof and standalone smoke do not replace whole-project quickcheck.
+
 ### CREATE TABLESPACE selected proof
 
 The shared `tablespace_*_test.go` scenarios independently specify builtin

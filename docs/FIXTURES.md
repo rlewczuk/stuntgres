@@ -188,6 +188,16 @@ defaults through canonical SQL replay, not raw definition OID directives.
 Restored IDs may differ; current owner/attribute relationships and behavior persist.
 Structural unknown-NULL provenance and raw temporal precision survive replay;
 destination sizing remains an executable coercion rather than a deparse-time value.
+Installed supported view options retain presence, lexical value and order through
+logical Dump/Restore; absent security options are not emitted as false defaults.
+Active indexes and inheritance/table/index-partition edges reconstruct pg_class
+publication history during replay. Deleted-only persistent history need not
+survive logical replay, while valid live TEMP descriptors retain identity,
+options and sticky history under the existing dependency fences. Table-member
+bounds retain typed key authority; native structural output intentionally differs
+from PostgreSQL nodeToString. Arbitrary explicit relation ACLs remain outside the
+serializer rather than being silently discarded; serializable baseline replay
+does not promise to preserve unsupported grants.
 The deparse reference matrix supplies independent release strings for admitted
 persisted families/types; these goldens and its generic successful insertion are
 not, by themselves, family behavioral completion. Dedicated consumer fixtures

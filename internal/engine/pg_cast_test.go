@@ -66,8 +66,8 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 		}
 		name, _ := row[1].Text()
 		ns, _ := row[2].OID()
-		kind, _ := row[4].Text()
-		count, _ := row[5].Integer()
+		kind, _ := row[class.index["relkind"]].Text()
+		count, _ := row[class.index["relnatts"]].Integer()
 		if name != "pg_cast" || ns != 11 || kind != "r" || count != 6 {
 			t.Fatal("pg_class projection", row)
 		}

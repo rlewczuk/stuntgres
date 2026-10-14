@@ -111,8 +111,8 @@ func TestPGDescriptionShape(t *testing.T) {
 		if oid == 2609 {
 			name, _ := row[1].Text()
 			namespace, _ := row[2].OID()
-			kind, _ := row[4].Text()
-			natts, _ := row[5].Integer()
+			kind, _ := row[class.index["relkind"]].Text()
+			natts, _ := row[class.index["relnatts"]].Integer()
 			if name != "pg_description" || namespace != 11 || kind != "r" || natts != 4 {
 				t.Fatal(row)
 			}

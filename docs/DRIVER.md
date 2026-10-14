@@ -367,6 +367,14 @@ supply fresh result metadata, even for empty results; already returned rows reta
 their prior metadata. No-output DML has no result-shape fence, but RETURNING does,
 and a rejected shape publishes no write effects.
 
+`pg_catalog.pg_class` uses the PostgreSQL 18 34-column order rather than its former
+native ten-column schema. Positional full-star consumers must update destinations;
+named projections avoid this arity/order upgrade. Catalog readers capture current
+descriptors and matching role snapshots on each execution, not table grants at
+Prepare. Native eager ACL/option/bound output and metadata remain owned after
+descriptor changes and logical replacement. This catalog read does not enable
+native SQL GRANT/REVOKE on catalog sources or additional hierarchy alteration.
+
 Full invalidation refreshes analyzed temporal scalar/array literal captures and
 the admitted sequence/regtype capture group atomically with analysis identities.
 Native enum/domain/composite logical captures and arrays

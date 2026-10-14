@@ -37,6 +37,8 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			queryCreatePublish(t, e, stage)
 			var child *relationDescriptor
 			if tc.child {
+				predecessor, before := parent, e.CatalogRead()
+				storage := e.storage[parent.address]
 				childStage, d := queryCreateStage(t, e, "c", 1)
 				d.inheritance = &tableInheritance{parents: []ObjectAddress{parent.address}, columns: map[int32]inheritedColumn{d.attributes[0]: {origins: []inheritanceOrigin{{parent: parent.address, attribute: parent.attributes[0]}}}}, checks: map[string]inheritedConstraint{}, notNull: map[int32]inheritedConstraint{}}
 				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, TxRef{}); err != nil {
@@ -44,6 +46,10 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				queryCreatePublish(t, e, childStage)
 				child = d
+				parent = e.CatalogRead().state.descriptors[predecessor.address].(*relationDescriptor)
+				if parent == predecessor || !parent.hasSubclasses || predecessor.hasSubclasses || parent.address != predecessor.address || parent.rowType != predecessor.rowType || parent.revision == predecessor.revision || before.state.descriptors[predecessor.address] != predecessor || e.storage[parent.address] != storage {
+					t.Fatal("successful child publication did not preserve immutable parent identity/storage and transition subclass history")
+				}
 			}
 			ref := func(d *relationDescriptor) ObjectRef {
 				return ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: d.address}

@@ -124,6 +124,7 @@ type relationDescriptor struct {
 	inheritance          *tableInheritance
 	relationKind         relationKind
 	hasIndexes           bool // Sticky publication history; removing an index does not clear it.
+	hasSubclasses        bool // Sticky inheritance/table/index partition publication history.
 	onCommit             parser.OnCommitAction
 	sequence             *sequenceOptions
 	view                 *viewDefinition
@@ -664,6 +665,11 @@ func (s *CatalogStage) replaceDescriptor(d Descriptor, synchronize bool) error {
 			return fmt.Errorf("stuntgres: relation replacement clears index publication history")
 		}
 	}
+	if previous, ok := old.(*relationDescriptor); ok && previous.hasSubclasses {
+		if next, ok := d.(*relationDescriptor); !ok || !next.hasSubclasses {
+			return fmt.Errorf("stuntgres: relation replacement clears subclass publication history")
+		}
+	}
 	oldKey := descriptorNameKey(old)
 	newKey := descriptorNameKey(d)
 	if a := s.lookupName(newKey); a != (ObjectAddress{}) && a != d.Address() {
@@ -935,6 +941,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	if err := e.markStageIndexHistoryLocked(s); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
+	if err := e.markStageSubclassHistoryLocked(s); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -1530,6 +1540,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		return ChangeSet{}, err
 	}
 	if err := normalizeReplacementIndexHistory(ctx, replacement); err != nil {
+		return ChangeSet{}, err
+	}
+	if err := normalizeReplacementSubclassHistory(ctx, replacement); err != nil {
 		return ChangeSet{}, err
 	}
 	targetRoles := e.Roles()

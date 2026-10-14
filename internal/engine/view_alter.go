@@ -145,6 +145,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 				}
 			}
 		}
+		definition.options = transformViewOptions(old.view.options, s.Options, s.Action == "reset")
 		if definition.checkOption != viewCheckNone {
 			if err := validateViewCheckDeclaration(&definition); err != nil {
 				return fail(err)

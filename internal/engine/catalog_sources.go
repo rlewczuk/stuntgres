@@ -119,7 +119,21 @@ func (e *Engine) initializeCatalogSources() error {
 		{1259, "pg_class", []struct {
 			name string
 			typ  sqltype.ID
-		}{{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid}, {"relowner", sqltype.Oid}, {"relkind", sqltype.Char}, {"relnatts", sqltype.Int2}, {"relhasrules", sqltype.Bool}, {"relispopulated", sqltype.Bool}, {"reloftype", sqltype.Oid}, {"relispartition", sqltype.Bool}}},
+		}{
+			{"oid", sqltype.Oid}, {"relname", sqltype.Name}, {"relnamespace", sqltype.Oid},
+			{"reltype", sqltype.Oid}, {"reloftype", sqltype.Oid}, {"relowner", sqltype.Oid},
+			{"relam", sqltype.Oid}, {"relfilenode", sqltype.Oid}, {"reltablespace", sqltype.Oid},
+			{"relpages", sqltype.Int4}, {"reltuples", sqltype.Float4},
+			{"relallvisible", sqltype.Int4}, {"relallfrozen", sqltype.Int4}, {"reltoastrelid", sqltype.Oid},
+			{"relhasindex", sqltype.Bool}, {"relisshared", sqltype.Bool},
+			{"relpersistence", sqltype.Char}, {"relkind", sqltype.Char},
+			{"relnatts", sqltype.Int2}, {"relchecks", sqltype.Int2},
+			{"relhasrules", sqltype.Bool}, {"relhastriggers", sqltype.Bool}, {"relhassubclass", sqltype.Bool},
+			{"relrowsecurity", sqltype.Bool}, {"relforcerowsecurity", sqltype.Bool}, {"relispopulated", sqltype.Bool},
+			{"relreplident", sqltype.Char}, {"relispartition", sqltype.Bool}, {"relrewrite", sqltype.Oid},
+			{"relfrozenxid", sqltype.Xid}, {"relminmxid", sqltype.Xid},
+			{"relacl", sqltype.ID(1034)}, {"reloptions", sqltype.ID(1009)}, {"relpartbound", sqltype.PgNodeTree},
+		}},
 		{2610, "pg_index", []struct {
 			name string
 			typ  sqltype.ID
@@ -150,6 +164,7 @@ func (e *Engine) initializeCatalogSources() error {
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
+		d.hasIndexes = representedCatalogHasIndexes(spec.oid)
 		if spec.oid == 1213 {
 			d.owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 			d.acl.Entries[0].Grantor = d.owner
@@ -165,7 +180,13 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 3456 {
 				d.columns[i].Nullable = i >= 7
 			}
-			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 3501 || spec.oid == 2610 || spec.oid == 2606 && i >= 5 || spec.oid == 1259 && i >= 8 {
+			if spec.oid == 1259 {
+				d.columns[i].Nullable = i >= 31
+				if column.typ == sqltype.ID(1009) {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
+			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 3501 || spec.oid == 2610 || spec.oid == 2606 && i >= 5 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -343,25 +364,11 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.address.ObjectID)), integer(2, int64(attribute)), tree})
 			}
 		case 1259:
-			kind := "r"
-			if relation.relationKind == sequenceRelation {
-				kind = "S"
-			} else if relation.relationKind == materializedViewRelation {
-				kind = "m"
-			} else if relation.relationKind == viewRelation || relation.virtualView {
-				kind = "v"
-			} else if relation.relationKind == indexRelation {
-				kind = "i"
-				if parent, ok := catalog.state.descriptors[relation.sqlIndex.parent].(*relationDescriptor); ok && parent.partition != nil {
-					kind = "I"
-				}
-			} else if relation.relationKind == compositeRelation {
-				kind = "c"
-			} else if relation.relationKind == partitionedRelation {
-				kind = "p"
+			row, err := e.pgClassRow(ctx, catalog, roles, source, relation)
+			if err != nil {
+				return nil, err
 			}
-			isPartition := relation.membership != nil || relation.sqlIndex != nil && relation.sqlIndex.partitionParent != (ObjectAddress{})
-			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), text(1, relation.name), oid(2, uint32(relation.namespace.ObjectID)), oid(3, uint32(relation.owner.ID())), text(4, kind), integer(5, int64(relation.attributeHighWater)), boolean(6, relation.view != nil), boolean(7, relation.relationKind != materializedViewRelation || relation.populated), oid(8, uint32(relation.ofType.ObjectID)), boolean(9, isPartition)})
+			rows = append(rows, row)
 		case 2618:
 			if relation.view == nil {
 				continue

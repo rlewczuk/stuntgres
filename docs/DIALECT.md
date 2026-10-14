@@ -169,6 +169,71 @@ outside the modern CSV implementation. Physical export of a virtual partition
 root is unavailable. Binary providers do not add storage, cast, DDL or catalog
 mutation capabilities; `pg_node_tree` binary input is excluded.
 
+## pg_class logical relation metadata
+
+`pg_catalog.pg_class` has the PostgreSQL 18 34-column order and documented types.
+The first 31 fields are known nonnullable natively; `relacl`, `reloptions` and
+`relpartbound` are nullable. Native adapter type names include OID, NAME, internal
+CHAR, INT2, INT4, FLOAT4, BOOL, XID, _ACLITEM, _TEXT and PG_NODE_TREE.
+Exact addresses, namespace, owner, kind, row types, method identities, attribute
+high-water, CHECK counts, stored ACLs/options, RLS and population belong to the
+existing relation features. No absent foreign-table or TOAST row is invented.
+Discovery is database-wide, not restricted to search_path or table privileges.
+
+The native physical fields are explicit boundaries, not approximated storage:
+
+- `relfilenode`, `relpages`, `relallvisible`, `relallfrozen`, `reltoastrelid`,
+  `relrewrite`, `relfrozenxid` and `relminmxid` are typed zero sentinels: native
+  relation files, page/maps, TOAST, transient rewrites and freezing/multixact
+  horizons do not exist. Zero filenode does not claim PostgreSQL mapped storage.
+- `reltuples` is -1 (unknown) for every nonsequence kind, including indexes;
+  sequence 1 is fixed logical singleton-generator metadata, with zero native
+  pages. Estimates never become count(*), historical version counts or sizes.
+  Real PostgreSQL sequence pages and partitioned-index initialization can differ;
+  catalog reads do not implement ANALYZE/VACUUM.
+- `relam` exposes logical heap=2, btree=403 and hash=405 compatibility identities,
+  not PostgreSQL physical heap/index storage. Default partition roots and
+  sequence/view/composite relations have method zero.
+- The exact represented shared catalog identities 1213/2396 expose shared=true
+  and pg_global=1664 metadata. Data is still database-local; this does not enable
+  physical user tablespaces. User table/MV/partition replica-identity defaults
+  likewise do not implement replication.
+- `relhastriggers` is false: native FK execution is logical, not PostgreSQL's
+  internal trigger machinery. View `_RETURN` compatibility flags do not add
+  general CREATE RULE execution or a trigger catalog.
+
+`relhasindex` and `relhassubclass` are immutable lazy publication histories;
+removing the last actual index/child does not clear them. All eighteen represented
+table catalogs initialize exact released indexed-table facts on their descriptors,
+independently of the bounded table-summary inventory. Represented views retain
+false. These facts survive Reset/Restore; they do not fabricate physical
+backing-index rows or expand the table-summary scope.
+
+Stored ACL projection keeps original identities, masks, grant options, order,
+PUBLIC and NULL versus explicit empty arrays; it is not an effective-grant summary.
+Native catalog-source GRANT/REVOKE SQL remains unsupported even though owning
+internal ACL publication and current-permission checks exist. PostgreSQL SQL
+privilege witnesses and native actual provider ACL transitions are independently
+covered.
+
+`reloptions` represents only installed supported view options, including explicit
+false and validated lexical strings. SET retains unmatched options before
+appending touched keys in statement order; RESET removes keys; replacement replaces
+the full installed list. No table/index fillfactor or other physical option is
+invented. Dump emits only installed options. Existing arbitrary explicit relation
+ACL Dump rejection remains unchanged; reading relacl does not widen that serializer.
+
+Table-member `relpartbound` is a genuine PG_NODE_TREE structural carrier of
+immutable typed RANGE/default facts. Native output is
+`{PartitionBound strategy range default true}` or
+`{PartitionBound strategy range default false lower (...) upper (...)}`.
+Finite datums are `{type OID typmod N collation OID value "..."}` with captured
+key Usage and quoted type-owned output; sentinels are MINVALUE/MAXVALUE.
+This is intentionally not PostgreSQL nodeToString or SQL FOR VALUES text.
+Index partitions have NULL bounds. Additional partition strategies and hierarchy
+alterations, including member RENAME, are not enabled; native retained-bound
+witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
+
 ## Types, expressions and catalogs
 
 - Domain constraints, inherited domain defaults and domain alteration are
@@ -177,8 +242,9 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
 - `aclitem` and `aclitem[]` are ordinary stored values, not authorization grants.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.
-  ACL binary receive/send, additional catalog ACL columns, GRANT extensions,
-  role-rename SQL and new generic grouping/search/hash providers are not added.
+  ACL binary receive/send, catalog ACL projections other than the documented
+  `pg_class.relacl`, GRANT extensions, role-rename SQL and new generic
+  grouping/search/hash providers are not added.
   Native Dump requires live identities for every emitted ACL datum or definition
   literal and rejects stale identities before writer I/O. Restore remaps both
   principals to preexisting target roles; ordinary dropped-identity output and
