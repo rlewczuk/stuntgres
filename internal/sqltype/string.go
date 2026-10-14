@@ -65,6 +65,15 @@ func (d *Descriptor) ConcatOutput(ctx context.Context, v Value, env OutputEnviro
 		}
 		return env.Regrole.FormatRegrole(v.oid)
 	}
+	if IsRegObjectAlias(d.id) {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if d.id == Regcollation && env.Regcollation == nil || d.id == Regnamespace && env.Regnamespace == nil {
+			return "", fmt.Errorf("missing collation/namespace output snapshot")
+		}
+		return d.regObjectOutput(v, env)
+	}
 	if d.id == Regclass {
 		if err := ctx.Err(); err != nil {
 			return "", err

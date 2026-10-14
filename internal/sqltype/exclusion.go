@@ -25,7 +25,7 @@ func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOpe
 	if id == VarChar {
 		id, operatorType = Text, "text"
 	}
-	if id == Regclass || id == Regtype || id == Regrole {
+	if id == Regclass || id == Regtype || id == Regrole || IsRegObjectAlias(id) {
 		id, operatorType = Oid, "oid"
 	}
 	if t.IsEnum() {

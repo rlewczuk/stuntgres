@@ -1208,6 +1208,30 @@ See [REGTYPE contracts](https://www.postgresql.org/docs/18/datatype-oid.html) an
 Feature smoke: `make check RUN='^TestReferenceRegtypeFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRegtypeFeatureSmoke$'`.
 
+Change note: `REGCOLLATION` (OID4191, array4192) and `REGNAMESPACE`
+(OID4089, array4090) support unsigned OID identities, symbolic input/output,
+stored scalar/domain/array values and logical native replay. Namespace input
+is exactly one folded/quoted schema identifier, independent of search path and
+USAGE. Collation lookup accepts schema/current-database qualification and uses
+encoding applicability, the effective collation path and schema permissions.
+Hidden identities display qualified names; represented ICU/libc identities
+remain lookup-capable without enabling unsupported comparison execution.
+Exact digits use OID input; zero/`-` display `-`, unknown OIDs remain decimal.
+Stored scalar literals retain class-aware dependencies; opaque rows do not.
+Native replay remaps named identities by catalog class rather than preserving
+allocator numbers. Relevant DROP/recreate and rename reanalyze held literal
+source spelling; already-returned Rows retain their original presentation.
+Explicit TEXT/CHARACTER/VARCHAR/NAME casts preserve captured lookup/display;
+character typmods use normal explicit truncation or assignment sizing.
+Untyped nil and typed-nil byte parameters are SQL NULL; nonnil empty bytes
+remain invalid name input, and held statements recover after errors.
+See [type contracts](docs/TYPES.md#catalog-valued-and-supporting-types) and
+[selected dual-mode proof](reference/type_resolution/README.md#regcollation-and-regnamespace).
+Feature smoke (900-second external deadline per invocation):
+`make check RUN='^TestReferenceRegCollationFeatureSmoke$'`;
+pinned counterpart:
+`make check RUN='^TestReferenceRegCollationFeatureSmoke$' REFERENCE=1`.
+
 Change note: `UNION`, `INTERSECT` and `EXCEPT` support default/explicit
 `DISTINCT` and `ALL`, full-tuple NULL equality and multiset counts. Parentheses
 preserve local ORDER/bounds; INTERSECT binds tighter than UNION/EXCEPT.

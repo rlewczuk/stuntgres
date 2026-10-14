@@ -60,7 +60,7 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		}
 		r.add(n.regclassRef.Address)
 		if r.err == nil {
-			r.err = walkRegtypeReferences(r.catalog, n.value, func(address ObjectAddress) error {
+			r.err = walkCatalogAliasDependencies(r.catalog, n.value, func(address ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})

@@ -430,6 +430,18 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
 ## Collation, encoding and indexes
 
+REGCOLLATION identifies existing encoding-applicable collation catalog objects,
+including represented providers whose comparisons remain unavailable. Symbolic
+output uses the effective collation path and visibility; alias lookup is not a
+comparison-provider capability grant. REGNAMESPACE identifies one schema name,
+independently of search path or USAGE, and does not expand `pg_temp`.
+Both accept unsigned numeric identities without requiring an existing referent.
+Explicit string-category IO covers TEXT, CHARACTER, VARCHAR and NAME, not
+internal CHAR or unrelated object aliases. Character sizing and cast strengths
+remain unchanged. Nil byte parameters are SQL NULL; nonnil empty bytes are
+malformed symbolic input.
+See [catalog-valued types](TYPES.md#catalog-valued-and-supporting-types).
+
 Collation execution uses deterministic C/POSIX and registered fixed builtin
 providers. Arbitrary libc locale data, ICU, nondeterministic equality and fallback
 providers are unavailable. Unicode-collation ILIKE retains its native exclusion;

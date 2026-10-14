@@ -834,10 +834,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
-			if literal, ok := v.literals[literalPath]; ok && (sqltype.IsOperatorAlias(literal.ResultUsage().Type.ID()) || sqltype.IsTransactionIdentifier(literal.ResultUsage().Type.ID()) || literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || literal.ResultUsage().Type.ID() == sqltype.Regtype && rawLiteral.Value.Kind == parser.StringValue) {
-				// These typed leaves already retain their cast target; identifier
-				// NULL also renders its own scalar authority. REGTYPE string
-				// output is typed, but REGTYPE NULL still needs the source cast.
+			if literal, ok := v.literals[literalPath]; ok && (sqltype.IsOperatorAlias(literal.ResultUsage().Type.ID()) || sqltype.IsTransactionIdentifier(literal.ResultUsage().Type.ID()) || literal.ResultUsage().Type.ID() == sqltype.Oid || literal.ResultUsage().Type.ID() == sqltype.Name || literal.ResultUsage().Type.ID() == sqltype.Money || (literal.ResultUsage().Type.ID() == sqltype.Regtype || sqltype.IsRegObjectAlias(literal.ResultUsage().Type.ID())) && rawLiteral.Value.Kind == parser.StringValue) {
+				// Operator aliases own their NULL/string casts. REGTYPE and the
+				// collation/namespace aliases still need the source cast for NULL.
 				return text, nil
 			}
 		}
@@ -845,7 +844,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
-		if !v.presentation.deparse && (usage.Type.IsArray() || usage.Type.IsDomain()) && (usage.Type.ContainsRegclass() || usage.Type.ContainsRegrole()) {
+		if !v.presentation.deparse && (usage.Type.IsArray() || usage.Type.IsDomain()) && (usage.Type.ContainsRegclass() || usage.Type.ContainsRegrole() || usage.Type.ContainsRegObject()) {
 			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
 				// The captured datum already supplies its exact owning typed cast.
 				// Rewrapping it would add another source cast on every replay.

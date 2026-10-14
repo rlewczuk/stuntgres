@@ -274,6 +274,9 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropSchema:
 		cascade = s.Cascade
+		if !s.Cascade {
+			domainMode = parser.DropRestrict
+		}
 	}
 	var removedRelations []ObjectAddress
 	for address, removal := range stage.removals {
@@ -569,6 +572,16 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			} else {
 				return nil, sqlError("0A000", "dropping schemas with unsupported object dependencies is unsupported")
 			}
+		}
+		// A schema is also a referent of scalar REGNAMESPACE constants in
+		// definitions outside it. Feed its identity to the existing dependency
+		// closure before publication; contained-object removal alone is not enough.
+		for _, schema := range schemas {
+			stage.domainTargets = append(stage.domainTargets, schema.address)
+		}
+		stage.dependencyPath, err = e.referencePath(auth)
+		if err != nil {
+			return nil, err
 		}
 		if len(domains) != 0 {
 			if err = e.stageSchemaDomainsLocked(op, auth, stage, schemas, dependent, domains, s.Cascade); err != nil {

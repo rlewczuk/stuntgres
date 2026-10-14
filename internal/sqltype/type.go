@@ -60,6 +60,8 @@ const (
 	UUID             ID = 2950
 	JSONB            ID = 3802
 	Regrole          ID = 4096
+	Regnamespace     ID = 4089
+	Regcollation     ID = 4191
 	Int4Range        ID = 3904
 	NumRange         ID = 3906
 	TimestampRange   ID = 3908
@@ -145,7 +147,7 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 		2276, 2279, 2280, 2283, // any, trigger, language_handler, anyelement
 		2776, 3115, 3310, 3500, // anynonarray, fdw_handler, tsm_handler, anyenum
 		3734, 3769, 3838, // regconfig, regdictionary, event_trigger
-		4089, 4191, // regnamespace, regcollation
+		Regnamespace, Regcollation,
 		5077, 5079: // anycompatible, anycompatiblenonarray
 		return 4
 	case 27, 829: // tid, macaddr
@@ -266,6 +268,8 @@ func Builtins() []*Descriptor {
 		{id: Regoper, name: "regoper", sql: "REGOPER", database: "REGOPER", associatedArray: 2208},
 		{id: Regoperator, name: "regoperator", sql: "REGOPERATOR", database: "REGOPERATOR", associatedArray: 2209},
 		{id: Regprocedure, name: "regprocedure", sql: "REGPROCEDURE", database: "REGPROCEDURE", associatedArray: 2207},
+		{id: Regcollation, name: "regcollation", sql: "REGCOLLATION", database: "REGCOLLATION", associatedArray: 4192},
+		{id: Regnamespace, name: "regnamespace", sql: "REGNAMESPACE", database: "REGNAMESPACE", associatedArray: 4090},
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
 	}
@@ -689,6 +693,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return RegtypeValue(d, n)
 	case Regrole:
 		return d.regroleInput(ctx, text, env)
+	case Regcollation, Regnamespace:
+		return d.regObjectInput(ctx, text, env)
 	case Regclass:
 		if env.Regclass != nil {
 			n, err := env.Regclass.ResolveRegclass(ctx, text)
@@ -943,6 +949,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return env.Operator.FormatRegoper(id)
 		}
 		return env.Operator.FormatRegoperator(id)
+	case Regcollation, Regnamespace:
+		return d.regObjectOutput(v, env)
 	case Regproc, Regprocedure:
 		id, err := v.ProcedureOID()
 		if err != nil {
@@ -1089,6 +1097,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'", nil
 	case Regoper, Regoperator:
 		id, err := v.OperatorOID()
+		if err != nil {
+			return "", err
+		}
+		return "'" + strconv.FormatUint(uint64(id), 10) + "'", nil
+	case Regcollation, Regnamespace:
+		id, err := v.ObjectOID()
 		if err != nil {
 			return "", err
 		}
@@ -1268,6 +1282,20 @@ var baselineCasts = [...]castSpec{
 	{Regoperator, Int8, Assignment, oidConversion, castCatalogFact{}},
 	{Regoper, Regoperator, Implicit, oidConversion, castCatalogFact{}},
 	{Regoperator, Regoper, Implicit, oidConversion, castCatalogFact{}},
+	{Regcollation, Oid, Implicit, oidConversion, castCatalogFact{}},
+	{Oid, Regcollation, Implicit, oidConversion, castCatalogFact{}},
+	{Int2, Regcollation, Implicit, oidConversion, castCatalogFact{}},
+	{Int4, Regcollation, Implicit, oidConversion, castCatalogFact{}},
+	{Int8, Regcollation, Implicit, oidConversion, castCatalogFact{}},
+	{Regcollation, Int4, Assignment, oidConversion, castCatalogFact{}},
+	{Regcollation, Int8, Assignment, oidConversion, castCatalogFact{}},
+	{Regnamespace, Oid, Implicit, oidConversion, castCatalogFact{}},
+	{Oid, Regnamespace, Implicit, oidConversion, castCatalogFact{}},
+	{Int2, Regnamespace, Implicit, oidConversion, castCatalogFact{}},
+	{Int4, Regnamespace, Implicit, oidConversion, castCatalogFact{}},
+	{Int8, Regnamespace, Implicit, oidConversion, castCatalogFact{}},
+	{Regnamespace, Int4, Assignment, oidConversion, castCatalogFact{}},
+	{Regnamespace, Int8, Assignment, oidConversion, castCatalogFact{}},
 	{Date, Timestamp, Implicit, dateTimestampConversion, castCatalogFact{20035, 2024, 'i', 'f'}},
 	{Date, Timestamptz, Implicit, datetimeConversion, castCatalogFact{20036, 1174, 'i', 'f'}},
 	{Time, Timetz, Implicit, datetimeConversion, castCatalogFact{20037, 2047, 'i', 'f'}},
@@ -1332,7 +1360,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Inet, Cidr, ACLItem:
+		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Inet, Cidr, ACLItem:
 		return true
 	}
 	return false
@@ -1540,6 +1568,15 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		p.method = viaIO
 		return p, nil
 	}
+	if context == Explicit && (IsRegObjectAlias(source.Type.id) || IsRegObjectAlias(target.Type.id)) {
+		if !RegObjectCastPair(source.Type.id, target.Type.id) {
+			return p, failure("42846", "cannot cast type "+source.Type.DiagnosticName()+" to "+target.Type.DiagnosticName())
+		}
+		if StringCategory(source.Type.id) || StringCategory(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+	}
 	if context == Explicit && (source.Type.id == Float4 || source.Type.id == Float8) && (target.Type.id == Text || target.Type.id == VarChar || target.Type.id == BPChar) {
 		p.method = viaIO
 		return p, nil
@@ -1567,7 +1604,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, nil
 	}
 	if context == Explicit {
-		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !RegtypeCastPair(source.Type.id, target.Type.id) && !RegroleCastPair(source.Type.id, target.Type.id) && !OperatorCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
+		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !(source.Type.id == Bytea && target.Type.id == Text) && !OIDCastPair(source.Type.id, target.Type.id) && !RegtypeCastPair(source.Type.id, target.Type.id) && !RegroleCastPair(source.Type.id, target.Type.id) && !OperatorCastPair(source.Type.id, target.Type.id) && !RegObjectCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
 		}
 		switch {
@@ -1773,7 +1810,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		if err != nil {
 			return Value{}, err
 		}
-		if p.context == Explicit && (p.source.Type.id == Float4 || p.source.Type.id == Float8 || IsTransactionIdentifier(p.source.Type.id)) && IsCharacter(p.target.Type.id) {
+		if p.context == Explicit && (p.source.Type.id == Float4 || p.source.Type.id == Float8 || IsTransactionIdentifier(p.source.Type.id) || IsRegObjectAlias(p.source.Type.id)) && IsCharacter(p.target.Type.id) {
 			// Explicit character casts size the captured output with cast semantics.
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
@@ -1820,7 +1857,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.Type.BaseType().IsEnum() {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
-			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Text, VarChar, Time,
+			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Text, VarChar, Time,
 			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8:
 		case Void:
 			message := "could not identify an ordering operator for type void"
@@ -2037,7 +2074,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		}
 	case Inet, Cidr:
 		return compareNetwork(a.network, b.network), nil
-	case Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator:
+	case Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace:
 		if a.integer != 1 || b.integer != 1 {
 			return 0, fmt.Errorf("invalid regclass comparison value")
 		}

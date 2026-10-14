@@ -50,8 +50,12 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 					}
 				}
 			} else if provider.Kind() == CollationObject {
-				if err := validateCollationProvider(view, ref); err != nil {
+				if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
 					return err
+				}
+			} else if provider.Kind() == NamespaceObject {
+				if ref.Address.SubID != 0 {
+					return fmt.Errorf("stuntgres: invalid default namespace provider")
 				}
 			} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject {
 				return fmt.Errorf("stuntgres: invalid default provider kind")

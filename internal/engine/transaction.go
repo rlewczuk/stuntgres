@@ -370,6 +370,7 @@ type StatementScope struct {
 	deparsePath                 []ObjectAddress
 	operatorOutput              map[operatorOutputKey]string
 	operatorGroups              operatorGroups
+	collationPath               []ObjectAddress
 }
 
 type WriteStage struct {

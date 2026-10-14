@@ -13,7 +13,7 @@ func defaultReplayDeferrable(definition columnDefault) bool {
 	if node == nil {
 		return false
 	}
-	if definition.regtypeReferences {
+	if definition.catalogAliasReferences {
 		return true
 	}
 	if closedSequenceDefault(node) {

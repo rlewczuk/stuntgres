@@ -178,11 +178,23 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog Catalog
 	if err == nil {
 		path, err = e.referencePath(auth)
 	}
+	var collationPath []ObjectAddress
+	if err == nil {
+		for _, value := range rows.values {
+			if !value.IsNull() && value.Type().ContainsRegcollation() {
+				collationPath, err = e.lookupPath(auth, collationLookup)
+				break
+			}
+		}
+	}
 	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
 	for _, value := range rows.values {
+		if err := captureRegObjectOutputValue(rows, catalog, collationPath, value); err != nil {
+			return err
+		}
 		if err := captureACLItemOutputValue(rows, capturedACLItemOutput{owner: e, roles: auth.roles}, value); err != nil {
 			return err
 		}

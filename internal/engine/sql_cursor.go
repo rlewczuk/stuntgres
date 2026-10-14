@@ -51,6 +51,7 @@ type sqlCursor struct {
 	roles                                       authorization.Read
 	deparseAuth                                 AuthorizationView
 	deparsePath                                 []ObjectAddress
+	collationPath                               []ObjectAddress
 	visibilityCatalog                           CatalogRead
 	visibilityRelationPath, visibilityOtherPath []ObjectAddress
 }
@@ -75,6 +76,7 @@ func (c *sqlCursor) releaseProducer() {
 	c.roles = authorization.Read{}
 	c.deparseAuth = AuthorizationView{}
 	c.deparsePath, c.visibilityRelationPath, c.visibilityOtherPath = nil, nil, nil
+	c.collationPath = nil
 	c.visibilityCatalog = CatalogRead{}
 	if c.authority != nil {
 		c.authority.scope = nil
@@ -162,7 +164,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	}
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.epoch, hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
-		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, visibilityCatalog: s.visibilityCatalog,
+		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, collationPath: s.collationPath, visibilityCatalog: s.visibilityCatalog,
 		visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
@@ -172,6 +174,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	c.state.output.Regproc = nil
 	c.state.output.Regrole = nil
 	c.state.output.Operator = nil
+	c.state.output.Regcollation, c.state.output.Regnamespace = nil, nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
 	if reader, ok := c.state.input.Regtype.(capturedRegtypeInput); ok {
 		reader.op, reader.authority = nil, c.authority
@@ -203,6 +206,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.querySources, s.queryLocks = c.leaves, c.locks
 	s.commentCatalog, s.commentRoles = c.catalog, c.roles
 	s.deparseAuth, s.deparsePath = c.deparseAuth, c.deparsePath
+	s.collationPath = c.collationPath
 	s.deparseAuth.session, s.deparseAuth.settings = s.op.session, s.op.session.settings
 	s.visibilityCatalog = c.visibilityCatalog
 	s.visibilityRelationPath, s.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath

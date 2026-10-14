@@ -86,9 +86,9 @@ func (d *Descriptor) oidInput(text string) (Value, error) {
 }
 
 func oidCoercion(v Value, target *Descriptor) (Value, error) {
-	if target.id == Regclass || target.id == Regtype || target.id == Regrole || IsOperatorAlias(target.id) || IsRoutineAlias(target.id) {
+	if target.id == Regclass || target.id == Regtype || target.id == Regrole || IsOperatorAlias(target.id) || IsRoutineAlias(target.id) || IsRegObjectAlias(target.id) {
 		var oid uint32
-		if v.typ.id == Oid || v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regrole || IsOperatorAlias(v.typ.id) || IsRoutineAlias(v.typ.id) {
+		if v.typ.id == Oid || v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regrole || IsOperatorAlias(v.typ.id) || IsRoutineAlias(v.typ.id) || IsRegObjectAlias(v.typ.id) {
 			oid = v.oid
 		} else {
 			if v.typ.id == Int8 && (v.integer < 0 || v.integer > 4294967295) {
@@ -108,11 +108,14 @@ func oidCoercion(v Value, target *Descriptor) (Value, error) {
 		if IsOperatorAlias(target.id) {
 			return OperatorValue(target, oid)
 		}
+		if IsRegObjectAlias(target.id) {
+			return RegObjectValue(target, oid)
+		}
 		// Canonical identity is validated here; avoid parsing it again in String.
 		return Value{typ: target, text: strconv.FormatUint(uint64(oid), 10), oid: oid, integer: 1}, nil
 	}
 	if target.id == Oid {
-		if v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regrole || IsOperatorAlias(v.typ.id) || IsRoutineAlias(v.typ.id) {
+		if v.typ.id == Regclass || v.typ.id == Regtype || v.typ.id == Regrole || IsOperatorAlias(v.typ.id) || IsRoutineAlias(v.typ.id) || IsRegObjectAlias(v.typ.id) {
 			if v.integer != 1 {
 				return Value{}, fmt.Errorf("unresolved regclass value")
 			}

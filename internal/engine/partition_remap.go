@@ -89,12 +89,12 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 						return nil, err
 					}
 				}
-				if !typesOnly && value.Type().ContainsRegtype() {
-					value, err = remapRegtypeDatum(value, func(id OID) OID {
-						if address, ok := mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: id}]; ok {
-							return address.ObjectID
+				if !typesOnly && (value.Type().ContainsRegtype() || value.Type().ContainsRegObject()) {
+					value, err = remapCatalogAliasDatum(value, func(source ObjectAddress) ObjectAddress {
+						if address, ok := mapping[source]; ok {
+							return address
 						}
-						return id
+						return source
 					})
 					if err != nil {
 						return nil, err

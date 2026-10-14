@@ -111,10 +111,10 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 				return nil, failure
 			}
 		}
-		if n.usage.Type.ContainsRegtype() && !n.value.IsNull() {
+		if (n.usage.Type.ContainsRegtype() || n.usage.Type.ContainsRegObject()) && !n.value.IsNull() {
 			var failure error
-			n.value, failure = remapRegtypeDatum(n.value, func(id OID) OID {
-				return ref(ObjectRef{Address: ObjectAddress{ClassID: TypeClassID, ObjectID: id}}).Address.ObjectID
+			n.value, failure = remapCatalogAliasDatum(n.value, func(address ObjectAddress) ObjectAddress {
+				return ref(ObjectRef{Address: address}).Address
 			})
 			if failure != nil {
 				return nil, failure

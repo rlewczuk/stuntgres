@@ -62,7 +62,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 			}
 			pgDependUnitRefs(t, refs, tc.want)
 			var captured []ObjectRef
-			if err := (scalarRenderer{dependencies: &captured}).recordRegtypeReferences(catalog, tc.value); err != nil {
+			if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(catalog, tc.value); err != nil {
 				t.Fatal(err)
 			}
 			var addresses []ObjectAddress
@@ -126,7 +126,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	pgDependUnitRefs(t, refs, want)
 	var captured []ObjectRef
-	if err := (scalarRenderer{dependencies: &captured}).recordRegtypeReferences(catalog, payload); err != nil {
+	if err := (scalarRenderer{dependencies: &captured}).recordCatalogAliasDependencies(catalog, payload); err != nil {
 		t.Fatal(err)
 	}
 	var addresses []ObjectAddress
@@ -142,7 +142,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	// later identities. No transformed payload is allocated by the walk.
 	stop := errors.New("stop recording")
 	calls := 0
-	if err := walkRegtypeReferences(catalog, payload, func(ObjectAddress) error {
+	if err := walkCatalogAliasReferences(catalog, payload, func(ObjectAddress) error {
 		calls++
 		return stop
 	}); !errors.Is(err, stop) || calls != 1 {

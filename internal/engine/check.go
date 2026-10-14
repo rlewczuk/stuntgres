@@ -210,11 +210,11 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != RelationObject && provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject) {
+			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != RelationObject && provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject && provider.Kind() != NamespaceObject) || provider.Kind() == NamespaceObject && dep.ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid check provider dependency")
 			}
 			if provider.Kind() == CollationObject {
-				if err := validateCollationProvider(view, dep.ref); err != nil {
+				if err := validateStoredCollationDependency(view, dep.ref, c.expression); err != nil {
 					return err
 				}
 			}
@@ -434,11 +434,11 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 				}
 			} else {
 				target, ok := view.Descriptor(address)
-				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != RelationObject && target.Kind() != TypeObject && target.Kind() != CollationObject && target.Kind() != ProcedureObject && target.Kind() != OperatorObject) {
+				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != RelationObject && target.Kind() != TypeObject && target.Kind() != CollationObject && target.Kind() != ProcedureObject && target.Kind() != OperatorObject && target.Kind() != NamespaceObject) || target.Kind() == NamespaceObject && dep.ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid check provider dependency")
 				}
 				if target.Kind() == CollationObject {
-					if err := validateCollationProvider(view, dep.ref); err != nil {
+					if err := validateStoredCollationDependency(view, dep.ref, c.expression); err != nil {
 						return err
 					}
 				}

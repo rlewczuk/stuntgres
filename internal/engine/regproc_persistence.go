@@ -236,7 +236,7 @@ func routineContainerFragments(ctx context.Context, view CatalogRead, value sqlt
 		}
 		return []routineFragment{{text: "(" + literal + ")::oid::text", expression: true}}, nil
 	}
-	text, err := value.Type().OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, ACLItem: acl})
+	text, err := value.Type().OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpCatalogAliasOutput{view: view}, Regcollation: dumpCatalogAliasOutput{view: view}, Regnamespace: dumpCatalogAliasOutput{view: view}, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, ACLItem: acl})
 	if err != nil {
 		return nil, err
 	}

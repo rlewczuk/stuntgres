@@ -403,12 +403,12 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 					changed = changed || remapped != rebound
 					rebound = remapped
 				}
-				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegtype() {
-					remapped, er := remapRegtypeDatum(rebound, func(id OID) OID {
-						if target, ok := mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: id}]; ok {
-							return target.ObjectID
+				if len(mapping) != 0 && !rebound.IsNull() && (target.ContainsRegtype() || target.ContainsRegObject()) {
+					remapped, er := remapCatalogAliasDatum(rebound, func(address ObjectAddress) ObjectAddress {
+						if target, ok := mapping[address]; ok {
+							return target
 						}
-						return id
+						return address
 					})
 					if er != nil {
 						return er

@@ -37,3 +37,37 @@ func validateCollationProvider(view CatalogRead, ref ObjectRef) error {
 	}
 	return nil
 }
+
+// Catalog-valued REGCOLLATION constants retain identity, not a comparison
+// capability. Other expressions and any actual use of this collation keep the
+// existing provider validation, even if the same OID also appears as an alias.
+func validateStoredCollationDependency(view CatalogRead, ref ObjectRef, node BoundExpr) error {
+	err := validateCollationProvider(view, ref)
+	if err == nil {
+		return nil
+	}
+	if ref.Address.ClassID != CollationClassID || ref.Address.SubID != 0 {
+		return err
+	}
+	if _, exists := view.state.descriptors[ref.Address].(*collationDescriptor); !exists {
+		return err
+	}
+	identity, comparison := false, false
+	walkBoundExpression(node, func(child BoundExpr) {
+		usage := child.ResultUsage()
+		if OID(usage.Collation.ID) == ref.Address.ObjectID {
+			comparison = true
+		}
+		literal, ok := child.(literalExpression)
+		if !ok || literal.value.IsNull() || literal.value.Type() == nil || literal.value.Type().ID() != sqltype.Regcollation || usage.Type == nil || usage.Type.ID() != sqltype.Regcollation {
+			return
+		}
+		if id, failure := literal.value.ObjectOID(); failure == nil && OID(id) == ref.Address.ObjectID {
+			identity = true
+		}
+	})
+	if identity && !comparison {
+		return nil
+	}
+	return err
+}

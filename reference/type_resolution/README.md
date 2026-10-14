@@ -6,6 +6,108 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Regcollation and regnamespace
+
+The shared scenarios independently specify symbolic/numeric identity, SQL
+identifier folding/quoting, unsigned boundaries, NULL and declared metadata.
+Namespace input is a single schema identifier, independent of search path and
+USAGE. Collation identity uses encoding-aware lookup and visibility, including
+shadowing, implicit pg_catalog, explicit qualification and schema permission
+failures; identity lookup does not grant ICU/libc comparison execution.
+Diagnostic scenarios cover direct/prepared literals, direct/held parameters and
+direct/held runtime text casts with full English diagnostics and character
+positions. Consumer lifecycle scenarios cover held constants, eager retained
+spelling, rename/move, stored dependencies versus opaque rows and supported
+domain/array values.
+
+The initial pinned run observed an empty pq `DatabaseTypeName` for REGCOLLATION,
+while REGNAMESPACE retains its name. Tests preserve this transport distinction
+separately from each alias's string/native and byte/pq raw codec contract.
+DROP/recreate invalidates held literals for both aliases: their next execution
+must identify the fresh named referents, not the old allocator OIDs.
+The next pinned discovery run also observed held source reanalysis after catalog
+rename: the old collation spelling fails with42704 rather than retaining success.
+This is distinct from the stable symbolic presentation of already-returned Rows.
+Retained-row mutation uses a second connection because pq cannot process another
+query while the first connection has an open result stream.
+
+Root's pinned oracle discovery passed the shared SQL definitions, and root then
+observed the native failing regression before production changes. No discovery
+backend filter or native-control deferral remains. Completed unfiltered selected
+proof is required in both modes, including native controls and actual emitted
+PostgreSQL replay; discovery alone does not prove those phases.
+Completed native phases exercise real Dump/Reset/Restore with allocator
+displacement, class-aware identity witnesses and stable redump; PostgreSQL
+replays the actual emitted native stream in the same shared scenario.
+
+The opaque-row DROP witness checks the original OID before and after deletion.
+Before stable-redump controls, that row is replaced with the independently
+unknown max sentinel4294967295; both spelling and bits are checked on source,
+restored native values and actual PostgreSQL replay. A dropped allocator OID
+can legitimately collide with a reminted live referent, changing symbolic
+spelling while retaining bits; tests do not reserve IDs or suppress live output.
+
+The bounded ArrayDependencies scenario independently requires opaque
+REGCOLLATION[]/REGNAMESPACE[] DEFAULT and VIEW Const payloads not to block DROP.
+It checks retained OIDs and fresh default execution after referent deletion.
+Root's pinned run passed this witness and quick mode exposed the native default
+provider rejection before the remedy. Dependency filtering follows exact Const
+shape; existing REGTYPE recursive dependency behavior remains unchanged.
+
+The bounded ObjectBoundaryStringCasts and ObjectBoundaryByteParameters scenarios
+cover both aliases through the same direct/prepared SQL and direct/held parameter
+paths. Independent expectations include TEXT/BPCHAR/VARCHAR/NAME IO, character
+padding and explicit truncation, NULL propagation, Boolean/unrelated-alias
+rejection, and valid -> nonnil-empty error -> nil/typed-nil NULL -> valid held
+recovery. Root's pinned PostgreSQL-only discovery passed these definitions;
+native-before rejected BPCHAR/NAME casts and treated typed-nil bytes as invalid
+name syntax. Completed post-remedy proof is still required in both modes.
+
+MixedRoutinePersistence exercises the shared routine-container consumer with
+REGPROCEDURE, REGCOLLATION and REGNAMESPACE in composites and unconstrained
+composite domains. Composite arrays remain excluded. Independent named-OID
+equalities cover saved rows, a constant view and replayed defaults. Native replay
+uses a fresh target's retained TEMP namespace/relation/rowtype allocations to
+displace both imported object classes; permanent spacers alone are replaced.
+Failure diagnostics report both original/restored OID pairs without weakening
+the requirement that both differ.
+PostgreSQL executes the actual emitted native stream. Full dual-mode selection
+is required for replay; a postgres-only selector cannot supply that native stream.
+The rebase union and this witness require fresh proof and independent review.
+The sql-contract subtest independently exercises pinned SQL expectations without
+native controls; logical-replay separately requires the actual emitted stream.
+Routine spelling is projected as TEXT while OID equality still checks identity.
+
+
+Use an external 900-second deadline per invocation, oracle first:
+
+```sh
+make check RUN='^TestReferenceReg(Collation|Namespace)(Input|Visibility|Diagnostics|Prepared|StoredControls|ArrayDependencies)$' REFERENCE=1
+make check RUN='^TestReferenceReg(Collation|Namespace)(Input|Visibility|Diagnostics|Prepared|StoredControls|ArrayDependencies)$'
+make check RUN='^TestReferenceRegObjectBoundary(StringCasts|ByteParameters)$' REFERENCE=1
+make check RUN='^TestReferenceRegObjectBoundary(StringCasts|ByteParameters)$'
+make check RUN='^TestReferenceRegCollationMixedRoutinePersistence/postgres/sql-contract$' REFERENCE=1
+make check RUN='^TestReferenceRegCollationMixedRoutinePersistence$' REFERENCE=1
+make check RUN='^TestReferenceRegCollationMixedRoutinePersistence$'
+make check RUN='^TestReferenceRegCollationFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceRegCollationFeatureSmoke$'
+make check RUN='^Test(RegObjectAlias(Datum|Codec|CapturedAuthority|Persistence|ComparisonBoundary)|AnyValueProviderDatums|MaterializedViewRegtypePresentation|PGDependRegtypeValueReferences|PGDependExpressionReferences)$'
+```
+
+The existing PGDependExpressionReferences units cover structural domain literals
+whose declared Usage supplies the datatype dependency before a datum is
+materialized. Alias value traversal must add no referent edge for that absent
+payload while preserving the declared domain type edge.
+
+Feature smoke reuses all eleven independent scenario bodies. Expected completed
+observations include C950, namespace11, dash/unknown/NULL output, quoted-dot
+namespace acceptance, shadow qualification, exact missing/ACL diagnostics,
+held recovery including typed-nil bytes, string-category sizing and cast
+boundaries, retained spelling, stored dependencies, mixed routine/object named
+identity replay and logical control
+roundtrip. Root records actual results; selected checks do not replace
+whole-project quickcheck or post-integration finalcheck.
+
 ### Regrole
 
 The untagged shared scenarios independently assert role-name folding/quoting,

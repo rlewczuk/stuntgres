@@ -230,7 +230,8 @@ func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpre
 		}
 		literal := "NULL"
 		if !n.value.IsNull() {
-			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, Regproc: catalogRoutineOutput{view: view, qualified: true}, ACLItem: aclOutput})
+			output := dumpCatalogAliasOutput{view: view}
+			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: output, Regcollation: output, Regnamespace: output, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, Regproc: catalogRoutineOutput{view: view, qualified: true}, ACLItem: aclOutput})
 			if err != nil {
 				return "", err
 			}
@@ -258,6 +259,14 @@ func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpre
 			return "", err
 		}
 		return "CAST('" + strings.ReplaceAll(regtypeReference(view, id), "'", "''") + "' AS REGTYPE)", nil
+	}
+	if sqltype.IsRegObjectAlias(u.Type.ID()) && !n.value.IsNull() {
+		output := dumpCatalogAliasOutput{view: view}
+		text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regcollation: output, Regnamespace: output})
+		if err != nil {
+			return "", err
+		}
+		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS " + u.Type.SQLName() + ")", nil
 	}
 	if u.Type.ID() == sqltype.Regclass && !n.value.IsNull() {
 		text, err := n.value.Text()

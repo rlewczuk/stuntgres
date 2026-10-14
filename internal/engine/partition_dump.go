@@ -44,7 +44,7 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 					}
 					var buffer [1]ObjectRef
 					references := buffer[:0]
-					if err := (scalarRenderer{dependencies: &references}).recordRegtypeReferences(catalog, datum.value); err != nil {
+					if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasReferences(catalog, datum.value); err != nil {
 						return nil, err
 					}
 					if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(catalog, datum.value); err != nil {

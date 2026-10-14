@@ -46,7 +46,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	for _, constant := range b.regtypeConstants {
 		if constant.value.Type() != nil {
 			var references []ObjectRef
-			if err := (scalarRenderer{dependencies: &references}).recordRegtypeReferences(auth.catalog, constant.value); err != nil {
+			if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasDependencies(auth.catalog, constant.value); err != nil {
 				return nil, err
 			}
 			if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(auth.catalog, constant.value); err != nil {

@@ -15,11 +15,11 @@ import (
 // Published definitions contain immutable typed nodes, never evaluated values
 // or caller-owned syntax. Attribute keys survive descriptor replacements.
 type columnDefault struct {
-	OID               OID
-	expression        BoundExpr
-	dependencies      []ObjectRef
-	catalogSnapshot   bool
-	regtypeReferences bool
+	OID                    OID
+	expression             BoundExpr
+	dependencies           []ObjectRef
+	catalogSnapshot        bool
+	catalogAliasReferences bool
 }
 
 // Raw and cooked DEFAULT consumers share the physical TEMP provider boundary.
@@ -102,7 +102,7 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 			continue
 		}
 		definition := columnDefault{expression: node}
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(b.ctx, view, node)
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
@@ -121,15 +121,15 @@ type scalarRenderer struct {
 	aclOutput sqltype.ACLItemFormatter
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.
-	validation         bool
-	owner              *relationDescriptor
-	dependencies       *[]ObjectRef
-	commentSnapshot    *bool
-	visibilitySnapshot *bool
-	regtypeReferences  *bool
-	provenance         *relationDescriptor
-	capturedManifest   []ObjectRef
-	capturedChecks     []expressionDependency
+	validation             bool
+	owner                  *relationDescriptor
+	dependencies           *[]ObjectRef
+	commentSnapshot        *bool
+	visibilitySnapshot     *bool
+	catalogAliasReferences *bool
+	provenance             *relationDescriptor
+	capturedManifest       []ObjectRef
+	capturedChecks         []expressionDependency
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
 	checkLiterals *[]literalExpression
@@ -440,14 +440,14 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 			}
 		}
-		if err := r.recordRegtypeReferences(view, n.value); err != nil {
+		if err := r.recordCatalogAliasDependencies(view, n.value); err != nil {
 			return "", err
 		}
 		if err := r.recordRoutineReferences(view, n.value); err != nil {
 			return "", err
 		}
-		if r.regtypeReferences != nil && n.value.Type().ContainsRegtype() && !n.value.IsNull() {
-			*r.regtypeReferences = true
+		if r.catalogAliasReferences != nil && (n.value.Type().ContainsRegtype() || n.value.Type().ContainsRegObject()) && !n.value.IsNull() {
+			*r.catalogAliasReferences = true
 		}
 		if r.checkLiterals != nil {
 			*r.checkLiterals = append(*r.checkLiterals, n)
@@ -517,7 +517,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err != nil || !plan.Equal(n.plan) {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
-		if r.commentSnapshot != nil && (plan.RequiresCatalogOutput() || u.Type.ContainsRegrole() && plan.SessionDependent()) {
+		if r.commentSnapshot != nil && (plan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && plan.SessionDependent()) {
 			*r.commentSnapshot = true
 		}
 		child, err := r.sql(ctx, view, n.child)

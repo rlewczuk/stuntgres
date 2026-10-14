@@ -45,7 +45,7 @@ and reports `interface{}` ScanType where native exports strings.
 | Timestamp infinities | Fresh owned `[]byte` |
 | BYTEA | Fresh owned `[]byte` |
 | Executable arrays, composites, ranges and multiranges | Canonical `string` |
-| REGCLASS, REGTYPE, REGROLE, REGOPER, REGOPERATOR, REGPROC, REGPROCEDURE | Captured symbolic `string` |
+| REGCLASS, REGTYPE, REGROLE, REGOPER, REGOPERATOR, REGPROC, REGPROCEDURE, REGCOLLATION, REGNAMESPACE | Captured symbolic `string` |
 | ACLITEM | Captured canonical `string` |
 
 Numeric I/O never roundtrips through binary float. FLOAT4 input uses its own
@@ -327,6 +327,54 @@ catalog-valued datums recursively; numeric coercion trees keep their original
 numbers and make no cross-catalog identity promise. Stored scalar REGCLASS
 references retain actual relation dependencies, independently of opaque array
 payloads or numeric input.
+
+REGCOLLATION (OID4191, array4192) and REGNAMESPACE (OID4089, array4090)
+are unsigned four-byte catalog identities with executable scalar/array codecs.
+Both fold unquoted identifiers, preserve quoted names and quote symbolic output
+when necessary. Exact digit input uses OID input, including octal `010`; exact
+`-` and zero display `-`. Unknown nonzero numeric OIDs remain unsigned decimal;
+missing symbolic names are errors, never synthetic catalog entries.
+
+REGNAMESPACE accepts one schema identifier, so `"a.b"` is valid but `a.b` is
+invalid name syntax. Lookup and output are independent of search path and schema
+USAGE; `pg_temp` is not a namespace alias. REGCOLLATION accepts unqualified,
+schema-qualified and current-database-qualified names. Its effective collation
+path excludes temporary schemas and schemas without USAGE; explicit schema
+qualification enforces USAGE and supports `pg_temp`. Lookup uses the database
+encoding or an encoding-independent catalog identity. Output is unqualified only
+when the exact OID is visible, otherwise schema-qualified. Identifying a represented
+ICU/libc collation does not enable its comparison execution.
+
+Explicit IO casts to/from TEXT, CHARACTER, VARCHAR and NAME use captured catalog
+authority. Explicit CHARACTER/VARCHAR typmods truncate or pad the resulting
+display string; assignment retains ordinary sizing errors. This does not add
+implicit string-to-alias casts, internal CHAR casts or unrelated object-alias
+casts. NULL remains NULL through admitted casts. Direct and held parameters
+treat both untyped nil and typed-nil `[]byte` as SQL NULL; nonnil empty byte
+slices remain invalid name syntax rather than NULL. A held frame can recover
+from that input error through typed NULL and then valid input.
+
+Stored scalar alias constants retain class-specific schema/collation dependencies;
+ordinary row values and opaque alias-array Const payloads alone do not prevent DROP.
+DROP SCHEMA RESTRICT also observes scalar schema references in definitions outside
+that schema; CASCADE removes those dependent definitions before publishing the
+schema's removal. Logical Dump/Restore serializes live named identities and remaps
+them by catalog class, including supported array/domain leaves. Zero and unmatched
+numeric IDs retain their bits, not a promise that those numbers stay absent:
+a reminted catalog can contain the same number, in which case ordinary output
+names that live referent. Held literal queries reanalyze their source after
+relevant DROP/recreate or rename:
+replacement names resolve replacement identities, while a removed spelling
+fails. Already-returned Rows retain their original symbolic spelling and metadata.
+Native metadata exposes REGCOLLATION/REGNAMESPACE with string ScanType; pinned pq
+reports an empty type name for REGCOLLATION and REGNAMESPACE for namespaces.
+
+Mixed routine/object composites and unconstrained composite domains preserve
+each alias family's captured symbolic output during logical replay. Composite
+arrays remain excluded. Live collation and
+namespace identities must resolve to the restored named referents even when
+their allocator OIDs are displaced.
+
 
 REGROLE is unsigned role identity4096 with executable array4097. Input uses the
 existing role catalog and single-identifier folding/quoting; dotted input is

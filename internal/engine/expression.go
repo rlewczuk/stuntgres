@@ -245,6 +245,8 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output.Regclass = c.liveScope()
 	output.Regtype = c.liveScope()
 	output.Regrole = c.liveScope()
+	output.Regcollation = c.liveScope()
+	output.Regnamespace = c.liveScope()
 	output.Regproc = c.liveScope()
 	output.Operator = c.liveScope()
 	output.ACLItem = c.liveScope()
@@ -252,6 +254,11 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if input.Regrole == nil {
 		if scope := c.liveScope(); scope != nil {
 			input.Regrole = scope.input.Regrole
+		}
+	}
+	if input.Regcollation == nil || input.Regnamespace == nil {
+		if scope := c.liveScope(); scope != nil {
+			input.Regcollation, input.Regnamespace = scope.input.Regcollation, scope.input.Regnamespace
 		}
 	}
 	return e.plan.Apply(c.Context, v, input, output)
@@ -2455,6 +2462,12 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		// A rejected cast from an existing stored scalar to an existing array is
 		// a type mismatch, not an unimplemented scalar provider. This only
 		// selects the diagnostic below; it adds no coercion capability.
+		if sqltype.IsRegObjectAlias(source.Type.BaseType().ID()) || sqltype.IsRegObjectAlias(target.Type.BaseType().ID()) {
+			if raw.Syntax == parser.FunctionCast {
+				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
+			}
+			return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+		}
 		if !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			if !sqltype.IsOperatorAlias(source.Type.BaseType().ID()) && !sqltype.IsOperatorAlias(target.Type.BaseType().ID()) {
 				return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
@@ -2692,6 +2705,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if err := b.captureTypeDiagnosticInput(u.Type); err != nil {
 		return sqltype.Value{}, err
 	}
+	if u.Type.ContainsRegObject() {
+		return b.regObjectConstant(text, u, pos)
+	}
 	if u.Type.ContainsRegproc() {
 		return b.routineConstant(text, u, pos)
 	}
@@ -2825,7 +2841,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 }
 
 func (b *expressionBinder) captureElementInput() error {
-	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil && b.input.Regproc != nil {
+	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil && b.input.Regproc != nil && b.input.Regcollation != nil && b.input.Regnamespace != nil {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
@@ -2859,6 +2875,13 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *Operation, inpu
 	}
 	if err == nil && input.Operator == nil {
 		input.Operator, err = e.captureOperatorInput(auth, op)
+	}
+	if err == nil && (input.Regcollation == nil || input.Regnamespace == nil) {
+		var resolver capturedRegObjectInput
+		resolver, err = e.captureRegObjectInput(auth)
+		if err == nil {
+			input.Regcollation, input.Regnamespace = resolver, resolver
+		}
 	}
 	return err
 }

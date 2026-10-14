@@ -177,7 +177,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 					definition := columnDefault{expression: node}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: destination, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, regtypeReferences: &definition.regtypeReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: destination, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
 					if destination.defaults == nil {
