@@ -22,6 +22,18 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"spcname", sqltype.Name}, {"spcowner", sqltype.Oid}, {"spcoptions", sqltype.ID(1009)}}},
+		{1262, "pg_database", []struct {
+			name string
+			typ  sqltype.ID
+		}{
+			{"oid", sqltype.Oid}, {"datname", sqltype.Name}, {"datdba", sqltype.Oid},
+			{"encoding", sqltype.Int4}, {"datlocprovider", sqltype.Char},
+			{"datistemplate", sqltype.Bool}, {"datallowconn", sqltype.Bool}, {"dathasloginevt", sqltype.Bool},
+			{"datconnlimit", sqltype.Int4}, {"datfrozenxid", sqltype.Xid}, {"datminmxid", sqltype.Xid},
+			{"dattablespace", sqltype.Oid}, {"datcollate", sqltype.Text}, {"datctype", sqltype.Text},
+			{"datlocale", sqltype.Text}, {"daticurules", sqltype.Text}, {"datcollversion", sqltype.Text},
+			{"datacl", sqltype.ID(1034)},
+		}},
 		{1255, "pg_proc", []struct {
 			name string
 			typ  sqltype.ID
@@ -180,6 +192,12 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 3456 {
 				d.columns[i].Nullable = i >= 7
 			}
+			if spec.oid == 1262 {
+				d.columns[i].Nullable = i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14
+				if column.typ == sqltype.Text {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
 			if spec.oid == 1259 {
 				d.columns[i].Nullable = i >= 31
 				if column.typ == sqltype.ID(1009) {
@@ -250,6 +268,9 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == 1262 {
+		return e.capturePGDatabase(ctx, catalog, roles, ref, source)
+	}
 	if source.address.ObjectID == 1213 {
 		return capturePGTablespace(ctx, ref, source)
 	}

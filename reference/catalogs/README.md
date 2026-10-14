@@ -6,6 +6,52 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_database selected proof
+
+`TestReferencePGDatabase` independently specifies the PostgreSQL 18 eighteen-column
+schema, raw driver metadata, current identity and cluster inventory, accessible
+UTF8/C facts, owner and stored CREATE ACL publication, ordinary-role visibility,
+search-path shadowing, complete diagnostics and native-only attachment/control
+lifetime boundaries. Unavailable native template/admission/limit/horizon/placement
+properties are typed NULL, not copied PostgreSQL physical values. Physical oracle
+XIDs and generated database OIDs are checked by carrier and identity relationships,
+not allocator goldens.
+Unconstrained TEXT columns expose `ColumnType.Length()=(math.MaxInt64,true)` on
+both native and pq adapters, including empty and NULL-only results. The other
+pg_database types report unavailable length; all report unavailable decimal size.
+
+Native opaque attachments and Reset/Dump/Restore are explicit native-only phases;
+the shared SQL definitions run on every available backend.
+
+The provider reads one immutable database descriptor with paired catalog/role
+authority, projects actual stored ACLs through the existing ACLITEM codec, and
+never scans other engines or manufactures physical horizons/placement.
+`TestPGDatabaseShapeAndOwnership`, `Capture` and `Publication` supplement public
+SQL with exact descriptor ownership/origins, concrete typed NULLs, cancellation,
+foreign/stale authority rejection, transaction-private candidate isolation and
+retained capture lifetime. New relation metadata extends only the represented
+indexed/shared inventories and the bounded pg_tables inventory.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGDatabase(Shape|Identity|Metadata|Visibility|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferencePGDatabase(ACL|Controls|Smoke)$'
+make check RUN='^TestReferencePGDatabase(Shape|Identity|Metadata|Visibility|Diagnostics)$'
+make check RUN='^TestReferencePGDatabase(ACL|Controls|Smoke)$'
+# Permanent feature smoke:
+make check RUN='^TestReferencePGDatabaseSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGDatabaseSmoke$'
+make check RUN='^TestPGDatabase(ShapeAndOwnership|Capture|Publication)$'
+make check RACE=1 RUN='^TestPGDatabase(Capture|Publication)$'
+make check RUN='^(TestPgClass(Projection|BuiltinIndexMetadata)|TestTableViewSummaryBuiltinIdentity)$'
+make check RUN='^(TestReferencePgClassBuiltinIndexHistory|TestReferencePGTableViewsBuiltins)$'
+make check REFERENCE=1 RUN='^(TestReferencePgClassBuiltinIndexHistory|TestReferencePGTableViewsBuiltins)$'
+```
+
+ACL cases restore the captured real database owner and exact nullable ACL through
+the administrative fixture after borrowers close, before dropping roles. The
+parameterized current-database-only catalog UPDATE is teardown, not a public
+catalog mutation compatibility claim. Every cleanup failure is reported.
+
 ### pg_class selected proof
 
 The shared `TestReferencePgClass` definitions cover the PostgreSQL 18 34-column
@@ -17,7 +63,7 @@ retain independently specified metadata, raw codecs, rows and diagnostics.
 Case-specific names scope database-wide catalog bags; table permission does not
 filter metadata discovery.
 
-`BuiltinIndexHistory` checks all eighteen represented indexed table catalogs and
+`BuiltinIndexHistory` checks all nineteen represented indexed table catalogs and
 every represented view negative through direct, fresh and SAME prepared readers,
 without inventing native backing-index rows. `FirstChildRollback` starts with a
 childless RANGE parent: successful first ATTACH sets history only in the owner's
@@ -87,8 +133,10 @@ external public-only standalone module/program: root runs
 `pg_class smoke OK` after complete shape/logical/tree/options assertions, one
 retained prepared reader, explicit ACL/Dump rejection, baseline Restore,
 invalid Restore atomicity and Reset. No standalone smoke scaffold is committed.
-The standalone reader also checks all eighteen indexed builtin table facts and
-represented view negatives initially and after successful/failed Restore and Reset.
+The historical standalone reader checked the then-eighteen indexed builtin table
+facts and represented view negatives initially and after successful/failed Restore
+and Reset. The maintained `BuiltinIndexHistory` definition now includes pg_database
+as the nineteenth represented indexed catalog.
 Selected proof and standalone smoke do not replace whole-project quickcheck.
 
 ### CREATE TABLESPACE selected proof

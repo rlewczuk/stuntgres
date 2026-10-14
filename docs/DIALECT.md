@@ -169,6 +169,46 @@ outside the modern CSV implementation. Physical export of a virtual partition
 root is unavailable. Binary providers do not add storage, cast, DDL or catalog
 mutation capabilities; `pg_node_tree` binary input is excluded.
 
+## pg_database current attachment metadata
+
+`pg_catalog.pg_database` exposes all eighteen PostgreSQL 18 columns in released
+order through the ordinary readonly catalog query path. Native inventory is
+exactly the current attached database, not a cluster or enumeration of a Driver's
+other engines. `datname` equals `current_database()` and `current_catalog`: the
+established UTF8-validated NAME display, clipped to a complete prefix of at most
+63 bytes. The complete opaque DSN remains the attachment key; spaces, case and
+URL-looking strings are not parsed, and colliding NAME displays do not merge keys.
+
+`oid` is the existing engine-local database identity16383; `datdba` and `datacl`
+reflect the captured database owner and actual stored ACL, including supported
+transactional CREATE grants/options and owner replacement. Initial native ACL is
+`{postgres=C*/postgres}`, not PostgreSQL's default NULL. No CONNECT/TEMP privileges
+or database creation are added. Ordinary roles can read metadata independently of
+database CREATE rights; search-path resolution uses ordinary catalog precedence
+and shadowing.
+
+`encoding=6`, `datlocprovider='c'`, `datcollate='C'` and `datctype='C'` declare
+bounded native UTF8/C semantics, not host libc/ICU infrastructure. Native
+`dathasloginevt=false` reflects absence of installed login event triggers.
+The following fields exist with their documented concrete SQL types and typed
+NULL values, rather than invented cluster/disk facts:
+
+- `datistemplate BOOL`, `datallowconn BOOL`, `datconnlimit INT4`: no database-owned
+  template, mutable admission or connection-limit metadata.
+- `datfrozenxid XID`, `datminmxid XID`: no physical freezing/multixact horizons.
+- `dattablespace OID`: no physical database placement.
+- `datlocale TEXT`, `daticurules TEXT`, `datcollversion TEXT`: inapplicable to
+  native C semantics, not fabricated ICU locales/rules or host version strings.
+
+These NULL fields and `datacl` are nullable in native result metadata; the other
+known facts are nonnullable. NULL comparisons retain ordinary SQL three-valued
+semantics. The relation's shared pg_global metadata does not imply a database
+placement. No template rows, backing indexes or TOAST relations are fabricated.
+Already returned native Rows retain their captured owner/ACL and types; fresh
+executions, including held statements, capture current authority. Reset/Restore
+preserve destination attachment identity/owner/ACL, and Dump does not serialize
+the source database or its catalog row.
+
 ## pg_class logical relation metadata
 
 `pg_catalog.pg_class` has the PostgreSQL 18 34-column order and documented types.
@@ -194,7 +234,7 @@ The native physical fields are explicit boundaries, not approximated storage:
 - `relam` exposes logical heap=2, btree=403 and hash=405 compatibility identities,
   not PostgreSQL physical heap/index storage. Default partition roots and
   sequence/view/composite relations have method zero.
-- The exact represented shared catalog identities 1213/2396 expose shared=true
+- The exact represented shared catalog identities 1213/1262/2396 expose shared=true
   and pg_global=1664 metadata. Data is still database-local; this does not enable
   physical user tablespaces. User table/MV/partition replica-identity defaults
   likewise do not implement replication.
@@ -203,7 +243,7 @@ The native physical fields are explicit boundaries, not approximated storage:
   general CREATE RULE execution or a trigger catalog.
 
 `relhasindex` and `relhassubclass` are immutable lazy publication histories;
-removing the last actual index/child does not clear them. All eighteen represented
+removing the last actual index/child does not clear them. All nineteen represented
 table catalogs initialize exact released indexed-table facts on their descriptors,
 independently of the bounded table-summary inventory. Represented views retain
 false. These facts survive Reset/Restore; they do not fabricate physical
@@ -243,7 +283,7 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.
   ACL binary receive/send, catalog ACL projections other than the documented
-  `pg_class.relacl`, GRANT extensions, role-rename SQL and new generic
+  `pg_class.relacl` and `pg_database.datacl`, GRANT extensions, role-rename SQL and new generic
   grouping/search/hash providers are not added.
   Native Dump requires live identities for every emitted ACL datum or definition
   literal and rejects stale identities before writer I/O. Restore remaps both

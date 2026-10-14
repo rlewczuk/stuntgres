@@ -72,7 +72,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("XID became OID")
 		}
 	}
-	for _, oid := range []OID{1213, 2396} {
+	for _, oid := range []OID{1213, 1262, 2396} {
 		d := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, d)
 		if err != nil {

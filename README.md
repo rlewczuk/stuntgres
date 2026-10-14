@@ -1749,6 +1749,23 @@ while retained rows keep their snapshots. The exact opaque DSN is the database k
 its NAME display silently clips to a complete UTF8 prefix of at most 63 bytes,
 without URL parsing, trimming or merging distinct keys. See
 [authorization](docs/AUTHORIZATION.md) for forms and authority boundaries.
+
+Change note: [`pg_catalog.pg_database`](https://www.postgresql.org/docs/18/catalog-pg-database.html)
+now exposes the full PostgreSQL 18 eighteen-column schema through ordinary
+direct/prepared queries. Native inventory is exactly the current attachment;
+`datname` matches both current identity expressions, while `oid`, `datdba` and
+`datacl` expose its existing logical identity, captured owner and stored CREATE
+ACL/options. Owner/grant changes are transaction-visible, fresh held executions
+see publication, and already returned native Rows retain old values.
+UTF8/C encoding/provider/locale fields are semantic declarations, not host facts.
+Unavailable template/admission/connection-limit/freeze/multixact/placement fields
+are typed NULL, as are C-inapplicable locale/rules/version fields. No multi-database
+or physical storage model, CONNECT/TEMP grants, template rows or catalog backing
+indexes are invented. Reset/Restore preserve destination identity/owner/ACL.
+See the [precise field boundaries](docs/DIALECT.md#pg_database-current-attachment-metadata).
+Feature smoke: `make check RUN='^TestReferencePGDatabaseSmoke$'` and the same
+command with `REFERENCE=1` for pinned PostgreSQL18.0.
+
 Change note: table/column GRANT and REVOKE now retain independent grantor
 origins, owner implicit options, PUBLIC and inherited role authority. All eight
 table privileges and four column privileges are represented; real supported
@@ -2538,9 +2555,9 @@ rows, including actual automatic sequences and backing indexes. Identity,
 namespace, ownership, kind, row-type/typed-table links, attribute high-water,
 CHECK counts, RLS and population come from installed descriptors, not row counts.
 Represented builtin view classification does not change their execution sources.
-All eighteen represented table catalogs own audited indexed-table metadata,
+All nineteen represented table catalogs own audited indexed-table metadata,
 including `pg_proc`, `pg_collation`, `pg_enum`, `pg_conversion`, `pg_ts_dict`
-and `pg_ts_template`; represented views report no indexes. These facts survive
+and `pg_ts_template`, together with shared `pg_database`; represented views report no indexes. These facts survive
 Reset/Restore without inventing missing native backing-index rows.
 
 Stored `relacl` preserves grantor/grantee identities, PUBLIC, privilege/grant-option

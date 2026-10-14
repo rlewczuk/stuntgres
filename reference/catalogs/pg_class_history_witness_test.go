@@ -19,7 +19,7 @@ func TestReferencePgClassBuiltinIndexHistory(t *testing.T) {
 		// Every represented table's REL_18_0 catalog header declares at least
 		// one index. This fact is independent of pg_tables summary inclusion.
 		// https://github.com/postgres/postgres/tree/REL_18_0/src/include/catalog
-		tables := []string{"pg_attrdef", "pg_cast", "pg_class", "pg_collation", "pg_constraint", "pg_conversion", "pg_depend", "pg_description", "pg_enum", "pg_extension", "pg_index", "pg_proc", "pg_rewrite", "pg_sequence", "pg_shdescription", "pg_tablespace", "pg_ts_dict", "pg_ts_template"}
+		tables := []string{"pg_attrdef", "pg_cast", "pg_class", "pg_collation", "pg_constraint", "pg_conversion", "pg_database", "pg_depend", "pg_description", "pg_enum", "pg_extension", "pg_index", "pg_proc", "pg_rewrite", "pg_sequence", "pg_shdescription", "pg_tablespace", "pg_ts_dict", "pg_ts_template"}
 		// Released system_views.sql / information_schema.sql define views,
 		// which have no relation indexes. Keep exact negative controls too.
 		views := []string{"pg_available_extension_versions", "pg_available_extensions", "pg_cursors", "pg_group", "pg_indexes", "pg_matviews", "pg_prepared_xacts", "pg_roles", "pg_sequences", "pg_tables", "pg_timezone_abbrevs", "pg_timezone_names", "pg_user", "pg_views"}
