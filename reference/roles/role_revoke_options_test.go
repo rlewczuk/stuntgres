@@ -84,7 +84,7 @@ func TestReferenceRoleRevokeOptionOnly(t *testing.T) {
 func TestReferenceRoleRevokePublicOwner(t *testing.T) {
 	fixture.RoleGrantScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		revokeActor(run, "rg_owner", func() {
-			revokeTable(run)
+			fixture.WithPublicSchemaOwner(t, p, b, "rg_owner", func() { revokeTable(run) })
 			run(fixture.Exec("GRANT SELECT ON t TO PUBLIC", 0))
 		})
 		var notices []fixture.Diagnostic

@@ -88,7 +88,9 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 	if len(scope.mutations) == 0 && b.ref.owner != nil {
 		leaves = append(append([]queryLeaf(nil), leaves...), queryLeaf{ref: b.ref, relation: b.relation})
 	}
-	refs, err := e.queryTableRefsLocked(scope.inheritanceRead(auth.catalog), leaves, nil, scope.op.session.token)
+	collectAuth := auth
+	collectAuth.recaptureCatalog(scope.inheritanceRead(auth.catalog))
+	refs, err := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, leaves, nil, scope.op.session.token, queryRowMark{})
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

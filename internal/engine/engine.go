@@ -201,17 +201,18 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	for _, ns := range []struct {
 		oid  OID
 		name string
-	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
-		rights := authorization.UsagePrivilege
-		if ns.oid == PublicNamespaceOID {
-			rights |= authorization.CreatePrivilege
-		}
+	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PGToastNamespaceOID, "pg_toast"}, {PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if ns.oid == PublicNamespaceOID {
 			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
-		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner,
-			acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: rights}, {Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege, GrantOptions: authorization.UsagePrivilege | authorization.CreatePrivilege}}}}
+		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: owner}
+		if ns.oid != PGToastNamespaceOID {
+			d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+				{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
+				{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
+			}}
+		}
 		d.comment = namespaceCommentBaseline(ns.oid)
 		e.state.descriptors[d.address] = d
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address

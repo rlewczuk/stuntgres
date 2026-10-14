@@ -13,8 +13,10 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER owner")
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-	roleExecute(t, e, op, "CREATE TABLE t(n INT)")
-	roleExecute(t, e, op, "CREATE INDEX idx ON t(n)")
+	withPublicSchemaUnitOwner(t, e, "owner", func() {
+		roleExecute(t, e, op, "CREATE TABLE t(n INT)")
+		roleExecute(t, e, op, "CREATE INDEX idx ON t(n)")
+	})
 	ref := roleTableRef(t, e, "t")
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("owner")
 	reader := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("reader")
@@ -23,7 +25,9 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	roleError(t, e, op, "CREATE INDEX forbidden ON t(n)", "42501", "must be owner of table t", "")
+	withPublicSchemaUnitOwner(t, e, "reader", func() {
+		roleError(t, e, op, "CREATE INDEX forbidden ON t(n)", "42501", "must be owner of table t", "")
+	})
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	ns := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {

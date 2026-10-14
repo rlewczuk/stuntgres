@@ -16,16 +16,18 @@ func TestReferenceRoleOwnershipDeleteGroupCounts(t *testing.T) {
 				if serial {
 					idType = "SERIAL"
 				}
-				s.exec("CREATE TABLE own_counted(id " + idType + ",payload INT DEFAULT 9)")
-				s.exec("CREATE INDEX own_counted_index ON own_counted(payload)")
+				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() { s.exec("CREATE TABLE own_counted(id " + idType + ",payload INT DEFAULT 9)") })
+				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() { s.exec("CREATE INDEX own_counted_index ON own_counted(payload)") })
 				s.run(fixture.Exec("INSERT INTO own_counted(id) VALUES(7)", 1))
 				s.exec("GRANT SELECT ON own_counted TO own_other,own_reader")
 				if serial {
 					ownershipSelect(s, "SELECT nextval('own_counted_id_seq') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}})
 				}
 				s.actor("own_other")
-				s.exec("CREATE VIEW own_counted_external AS SELECT id FROM own_counted")
-				s.exec("CREATE TABLE own_counted_sentinel(id INT)")
+				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() {
+					s.exec("CREATE VIEW own_counted_external AS SELECT id FROM own_counted")
+					s.exec("CREATE TABLE own_counted_sentinel(id INT)")
+				})
 				s.run(fixture.Exec("INSERT INTO own_counted_sentinel VALUES(9)", 1))
 				s.actor("")
 				var tableID, indexID, viewID, sequenceID int64

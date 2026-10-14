@@ -28,9 +28,6 @@ func TestReferenceRoleMigratedSmokeControls(t *testing.T) {
 			defer admin.Close()
 			defer admin.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
 			run := func(c fixture.Executor, s fixture.Step) { fixture.RunStep(t, p.Ctx, c, backend.Recorder, s) }
-			if backend.PG {
-				run(admin, fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			run(admin, fixture.Exec("CREATE ROLE role_smoke_unsupported", 0))
 			if backend.PG {
 				run(admin, fixture.Exec("ALTER ROLE role_smoke_unsupported SET application_name TO excluded", 0))
@@ -41,7 +38,11 @@ func TestReferenceRoleMigratedSmokeControls(t *testing.T) {
 			}
 			run(admin, fixture.Exec("DROP ROLE role_smoke_unsupported", 0))
 			for _, q := range []string{"CREATE USER role_smoke_owner", "CREATE USER role_smoke_reader", "SET SESSION AUTHORIZATION role_smoke_owner", "CREATE TABLE secret(id INT)"} {
-				run(admin, fixture.Exec(q, 0))
+				if q == "CREATE TABLE secret(id INT)" {
+					fixture.WithPublicSchemaOwner(t, p, backend, "role_smoke_owner", func() { run(admin, fixture.Exec(q, 0)) })
+				} else {
+					run(admin, fixture.Exec(q, 0))
+				}
 			}
 			run(admin, fixture.Prepared(fixture.Exec("INSERT INTO secret VALUES(7)", 1)))
 			check := fixture.Select("SELECT id FROM secret ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})

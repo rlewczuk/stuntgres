@@ -66,12 +66,9 @@ func policyDump(s *membershipScenario) string {
 func TestReferenceRLSPolicyControls(t *testing.T) {
 	t.Run("roundtrip", func(t *testing.T) {
 		membershipCases(t, []string{"policy_control_target", "policy_control_owner"}, func(s *membershipScenario) {
-			if s.backend.PG {
-				s.exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
-			}
 			// Create with the real named owner; owner transfer is not policy setup.
 			s.actor("policy_control_owner")
-			policySetup(s)
+			fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "policy_control_owner", func() { policySetup(s) })
 			s.actor("")
 			s.exec("CREATE TABLE z_helper(id INTEGER)")
 			s.run(fixture.Exec("INSERT INTO z_helper VALUES(1)", 1))

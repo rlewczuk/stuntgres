@@ -23,7 +23,9 @@ func TestExclusionDisclosure(t *testing.T) {
 				if expression {
 					key = "lower(a)"
 				}
-				roleExecute(t, e, owner, "CREATE TABLE public.t(a TEXT,b INT,CONSTRAINT ex EXCLUDE("+key+" WITH =,b WITH =))")
+				withPublicSchemaUnitOwner(t, e, "ex_owner", func() {
+					roleExecute(t, e, owner, "CREATE TABLE public.t(a TEXT,b INT,CONSTRAINT ex EXCLUDE("+key+" WITH =,b WITH =))")
+				})
 				roleExecute(t, e, owner, "INSERT INTO public.t VALUES('x',2)")
 				ref := roleTableRef(t, e, "public.t")
 				actor, ok := e.Roles().Lookup("ex_owner")

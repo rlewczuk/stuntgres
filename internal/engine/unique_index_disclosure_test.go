@@ -22,68 +22,70 @@ func TestUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 				roleExecute(t, e, admin, "CREATE ROLE ui_owner LOGIN")
 				owner, ownerDone := roleOperation(t, e, "ui_owner")
 				defer ownerDone()
-				roleExecute(t, e, owner, "CREATE TABLE ui_t(a INT,b TEXT)")
-				roleExecute(t, e, owner, "INSERT INTO ui_t VALUES(1,'protected'),(1,'protected')")
-				ref := roleTableRef(t, e, "ui_t")
-				actor, ok := e.Roles().Lookup("ui_owner")
-				if !ok || actor.Superuser {
-					t.Fatal("owner must be nonsuperuser", actor, ok)
-				}
-				grant := func(attribute int32, rights authorization.Privileges) {
-					target := ref
-					target.Address.SubID = attribute
-					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
-					if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
-						t.Fatal(err)
+				withPublicSchemaUnitOwner(t, e, "ui_owner", func() {
+					roleExecute(t, e, owner, "CREATE TABLE ui_t(a INT,b TEXT)")
+					roleExecute(t, e, owner, "INSERT INTO ui_t VALUES(1,'protected'),(1,'protected')")
+					ref := roleTableRef(t, e, "ui_t")
+					actor, ok := e.Roles().Lookup("ui_owner")
+					if !ok || actor.Superuser {
+						t.Fatal("owner must be nonsuperuser", actor, ok)
 					}
-				}
-				rights := authorization.InsertPrivilege
-				if mode == "table" {
-					rights |= authorization.SelectPrivilege
-				}
-				grant(0, rights)
-				if mode == "partial" || mode == "all" {
-					grant(1, authorization.SelectPrivilege)
-				}
-				if mode == "all" {
-					grant(2, authorization.SelectPrivilege)
-				}
-				before, store := e.state, e.storage[ref.Address]
-				ast := statement(t, "CREATE UNIQUE INDEX ui_ab ON ui_t(a,b)")
-				var result Result
-				var err error
-				if prepared {
-					scope, startErr := e.StartStatement(owner)
-					if startErr != nil {
-						t.Fatal(startErr)
+					grant := func(attribute int32, rights authorization.Privileges) {
+						target := ref
+						target.Address.SubID = attribute
+						acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
+						if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
+							t.Fatal(err)
+						}
 					}
-					description, describeErr := scope.Describe(ast)
-					if describeErr != nil {
-						scope.Finish(describeErr)
-						t.Fatal(describeErr)
+					rights := authorization.InsertPrivilege
+					if mode == "table" {
+						rights |= authorization.SelectPrivilege
 					}
-					scope.Expected = &description
-					result, err = scope.Execute(ast, 0, nil)
-					scope.Finish(err)
-				} else {
-					result, err = e.Execute(owner, ast, 0, nil)
-				}
-				if result.Count != 0 || result.Rows != nil {
-					t.Fatal("failed build returned output", result)
-				}
-				detail := "Duplicate keys exist."
-				if mode == "all" || mode == "table" {
-					detail = "Key (a, b)=(1, protected) is duplicated."
-				}
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui_ab"`, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_ab"})
-				if e.state != before || e.storage[ref.Address] != store || len(e.indexRoots) != 0 {
-					t.Fatal("failed build published state")
-				}
-				want := [][]driver.Value{{int64(1), "protected"}, {int64(1), "protected"}}
-				if got := tuples(roleExecute(t, e, admin, "SELECT a,b FROM ui_t")); !reflect.DeepEqual(got, want) {
-					t.Fatal(got, want)
-				}
-				lockEmpty(t, e)
+					grant(0, rights)
+					if mode == "partial" || mode == "all" {
+						grant(1, authorization.SelectPrivilege)
+					}
+					if mode == "all" {
+						grant(2, authorization.SelectPrivilege)
+					}
+					before, store := e.state, e.storage[ref.Address]
+					ast := statement(t, "CREATE UNIQUE INDEX ui_ab ON ui_t(a,b)")
+					var result Result
+					var err error
+					if prepared {
+						scope, startErr := e.StartStatement(owner)
+						if startErr != nil {
+							t.Fatal(startErr)
+						}
+						description, describeErr := scope.Describe(ast)
+						if describeErr != nil {
+							scope.Finish(describeErr)
+							t.Fatal(describeErr)
+						}
+						scope.Expected = &description
+						result, err = scope.Execute(ast, 0, nil)
+						scope.Finish(err)
+					} else {
+						result, err = e.Execute(owner, ast, 0, nil)
+					}
+					if result.Count != 0 || result.Rows != nil {
+						t.Fatal("failed build returned output", result)
+					}
+					detail := "Duplicate keys exist."
+					if mode == "all" || mode == "table" {
+						detail = "Key (a, b)=(1, protected) is duplicated."
+					}
+					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui_ab"`, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_ab"})
+					if e.state != before || e.storage[ref.Address] != store || len(e.indexRoots) != 0 {
+						t.Fatal("failed build published state")
+					}
+					want := [][]driver.Value{{int64(1), "protected"}, {int64(1), "protected"}}
+					if got := tuples(roleExecute(t, e, admin, "SELECT a,b FROM ui_t")); !reflect.DeepEqual(got, want) {
+						t.Fatal(got, want)
+					}
+					lockEmpty(t, e)
+				})
 			})
 		}
 	}
@@ -98,8 +100,10 @@ func TestUniqueIndexCurrentACLAfterWait(t *testing.T) {
 			roleExecute(t, e, admin, "CREATE ROLE ui_owner LOGIN")
 			owner, ownerDone := roleOperation(t, e, "ui_owner")
 			defer ownerDone()
-			roleExecute(t, e, owner, "CREATE TABLE public.ui_t(k INT)")
-			roleExecute(t, e, owner, "CREATE UNIQUE INDEX ui_k ON public.ui_t(k)")
+			withPublicSchemaUnitOwner(t, e, "ui_owner", func() {
+				roleExecute(t, e, owner, "CREATE TABLE public.ui_t(k INT)")
+				roleExecute(t, e, owner, "CREATE UNIQUE INDEX ui_k ON public.ui_t(k)")
+			})
 			ref := roleTableRef(t, e, "public.ui_t")
 			actor, ok := e.Roles().Lookup("ui_owner")
 			if !ok || actor.Superuser {

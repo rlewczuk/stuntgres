@@ -39,7 +39,7 @@ func ownershipProtectedRestore(s *membershipScenario, database string) {
 		}
 	}
 	if s.backend.PG {
-		if _, err := s.c.ExecContext(ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
+		if _, err := s.c.ExecContext(ctx, "GRANT USAGE ON SCHEMA public TO PUBLIC"); err != nil {
 			s.t.Error("restore fixture public rights", err)
 		}
 	}
@@ -130,7 +130,7 @@ func TestReferenceRoleOwnershipPublicSchema(t *testing.T) {
 			// Recreate before any later body or ordinary role cleanup needs public.
 			s.exec("CREATE SCHEMA public AUTHORIZATION " + pq.QuoteIdentifier(s.bootstrap))
 			if s.backend.PG {
-				s.exec("GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC")
+				s.exec("GRANT USAGE ON SCHEMA public TO PUBLIC")
 			}
 			s.exec("GRANT own_other TO own_source WITH INHERIT TRUE, SET FALSE")
 			s.actor("own_source")

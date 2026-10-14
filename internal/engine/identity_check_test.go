@@ -68,6 +68,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			source, dest := New(), New()
 			a, b := sessionStart(t, source, nil), sessionStart(t, dest, nil)
+			sessionSQL(t, a, `CREATE SCHEMA collision_padding`)
 			for _, q := range []string{`CREATE SCHEMA portable`, `CREATE TABLE portable.i(id INT GENERATED ALWAYS AS IDENTITY)`, `CREATE VIEW portable.v AS SELECT last_value FROM portable.i_id_seq`, `CREATE TABLE portable.c(p INT CHECK(nextval('portable.i_id_seq')>0))`} {
 				sessionSQL(t, a, q)
 			}
@@ -75,8 +76,8 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			// Advance the imported candidate allocator beyond both dependents;
 			// replacement retains its allocation frontier, not destination padding.
 			sessionSQL(t, a, `CREATE TABLE portable.padding(v INT)`)
-			// TEMP namespace consumes the schema address; kept consumes the owner
-			// table address, not the linked sequence address.
+			// The real table/toast namespace pair consumes two schema addresses;
+			// kept then consumes the padded source owner's table address.
 			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)

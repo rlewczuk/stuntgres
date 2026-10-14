@@ -68,7 +68,9 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 				roleExecute(t, e, admin, "CREATE ROLE index_owner LOGIN")
 				owner, ownerDone := roleOperation(t, e, "index_owner")
 				defer ownerDone()
-				roleExecute(t, e, owner, "CREATE TABLE t(v TEXT,n INT,payload TEXT)")
+				withPublicSchemaUnitOwner(t, e, "index_owner", func() {
+					roleExecute(t, e, owner, "CREATE TABLE t(v TEXT,n INT,payload TEXT)")
+				})
 				seed := "INSERT INTO t VALUES('A',1,'protected'),('a',1,'different')"
 				if kind == "collated" {
 					seed = "INSERT INTO t VALUES('A',1,'protected'),('A',1,'different')"
@@ -119,7 +121,10 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 				if access == "hidden" || (computed && access != "table") {
 					detail, typeDetail, writeDetail = "Duplicate keys exist.", "Duplicate keys exist.", ""
 				}
-				_, err := e.Execute(owner, statement(t, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t("+definition+") INCLUDE(payload)"), 0, nil)
+				var err error
+				withPublicSchemaUnitOwner(t, e, "index_owner", func() {
+					_, err = e.Execute(owner, statement(t, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t("+definition+") INCLUDE(payload)"), 0, nil)
+				})
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: detail, Schema: "public", Table: "t", Constraint: "ui"})
 				initial, _ := concurrentUnitIndex(t, e, "ui", false, false)
 				_, err = e.Execute(owner, statement(t, "REINDEX INDEX ui"), 0, nil)

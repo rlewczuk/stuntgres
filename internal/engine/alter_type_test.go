@@ -148,7 +148,9 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	}
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET SESSION AUTHORIZATION alter_reader")
-	sessionSQL(t, s, "CREATE TABLE t(c TEXT)")
+	withPublicSchemaUnitOwner(t, e, "alter_reader", func() {
+		sessionSQL(t, s, "CREATE TABLE t(c TEXT)")
+	})
 	sessionSQL(t, s, "INSERT INTO t VALUES('keep')")
 	ref := roleTableRef(t, e, "t")
 	old, storage := e.state.descriptors[ref.Address], e.storage[ref.Address]

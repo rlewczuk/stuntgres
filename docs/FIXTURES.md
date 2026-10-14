@@ -8,7 +8,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error
 ```
 
-Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. They are **host-authorized**, independently of a borrowed connection's effective principal. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog` and `public` namespace descriptors while retaining database identity, cluster roles, nonreuse counters, live identities/settings and existing pools. Dump captures before external I/O, emits persistent tables/views in creation-address order among objects whose sources are ready, and writes quoted owner-switch directives plus PostgreSQL-compatible CREATE/INSERT SQL, declaration-ordered columns and canonical literals. Explicit relation/column ACLs cannot be serialized and cause a failure before output, rather than silent loss. Dump excludes role creation, passwords, membership and settings; it is not complete `pg_dump` output, COPY, or catalog export.
+Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. They are **host-authorized**, independently of a borrowed connection's effective principal. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog`, `pg_toast`, `public` and `information_schema` namespace descriptors while retaining database identity, cluster roles, nonreuse counters, live identities/settings and existing pools. Dump captures before external I/O, emits persistent tables/views in creation-address order among objects whose sources are ready, and writes quoted owner-switch directives plus PostgreSQL-compatible CREATE/INSERT SQL, declaration-ordered columns and canonical literals. Explicit relation/column ACLs cannot be serialized and cause a failure before output, rather than silent loss. Dump excludes role creation, passwords, membership and settings; it is not complete `pg_dump` output, COPY, or catalog export.
 
 Dump reconstructs renamed, absent and recreated bootstrap namespaces using ordinary
 DROP/ALTER SCHEMA SQL before user schemas and tables. Retained builtin ACLs must
@@ -58,6 +58,12 @@ Feature smoke: `make check RUN='^TestReferencePartitionDetachFeatureSmoke$'` and
 the same selector with `REFERENCE=1`; full controls/replay:
 `make check RUN='^TestReferencePartitionDetach(Controls|Replay|ReplayLocal|ReplayVirtual)$'` in both modes.
 
+Pristine public stores owner UC and PUBLIC USAGE, with no stored owner options.
+pg_toast is an actual builtin namespace with NULL ACL, never an ordinary
+CREATE SCHEMA in Dump. Both live and retired TEMP namespace descriptors are
+omitted from portable export/import. Replacement preserves the destination's
+exact real pair and live children, including retained empty metadata, without
+importing source physical-session authority.
 
 Conversion controls serialize real qualified CREATE [DEFAULT] CONVERSION
 definitions, canonical encoding strings and actual registered routine names.

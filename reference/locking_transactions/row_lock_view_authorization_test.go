@@ -12,9 +12,6 @@ func TestReferenceRowLockViewAuthorization(t *testing.T) {
 		admin, actor := fixture.LockConnections(t, p.Ctx, backend.DB)
 		const owner = "row_lock_view_owner"
 		const reader = "row_lock_view_reader"
-		if backend.PG {
-			fixture.LockExec(t, p.Ctx, admin, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0)
-		}
 		for _, q := range []string{"CREATE ROLE " + owner, "CREATE ROLE " + reader, "CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,10)"} {
 			if _, err := admin.ExecContext(p.Ctx, q); err != nil {
 				t.Fatal(err)
@@ -26,9 +23,11 @@ func TestReferenceRowLockViewAuthorization(t *testing.T) {
 		})
 		fixture.LockExec(t, p.Ctx, admin, "SET SESSION AUTHORIZATION "+owner, 0)
 		// PostgreSQL independently permits definition without source SELECT or UPDATE.
-		for _, q := range []string{"CREATE VIEW owned AS SELECT id FROM t", "CREATE VIEW invoker WITH(security_invoker=true) AS SELECT id FROM t", "CREATE VIEW nested AS SELECT id FROM invoker", "CREATE VIEW stored AS SELECT id FROM t FOR UPDATE"} {
-			fixture.LockExec(t, p.Ctx, admin, q, 0)
-		}
+		fixture.WithPublicSchemaOwner(t, p, backend, owner, func() {
+			for _, q := range []string{"CREATE VIEW owned AS SELECT id FROM t", "CREATE VIEW invoker WITH(security_invoker=true) AS SELECT id FROM t", "CREATE VIEW nested AS SELECT id FROM invoker", "CREATE VIEW stored AS SELECT id FROM t FOR UPDATE"} {
+				fixture.LockExec(t, p.Ctx, admin, q, 0)
+			}
+		})
 		fixture.LockExec(t, p.Ctx, admin, "RESET SESSION AUTHORIZATION", 0)
 		fixture.LockExec(t, p.Ctx, admin, "GRANT SELECT(id) ON t TO "+owner, 0)
 		fixture.LockExec(t, p.Ctx, admin, "GRANT SELECT,UPDATE ON owned,invoker,nested,stored TO "+reader, 0)

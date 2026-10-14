@@ -29,6 +29,9 @@ func TestReferenceTemporaryViewImportCollisions(t *testing.T) {
 			t.Fatal(err)
 		}
 		source := fixture.NewFixture(t, false, true)
+		// Offset the second real TEMP namespace allocation so the imported
+		// relation/rule inventory genuinely overlaps the retained identities.
+		fixture.RunStep(t, s.P.Ctx, source.Memory, source.MemoryRecord, fixture.Exec("CREATE SCHEMA collision_padding", 0))
 		for i := range 12 {
 			for _, step := range []fixture.Step{fixture.Exec(fmt.Sprintf("CREATE TABLE imported_%d(v INT)", i), 0), fixture.Exec(fmt.Sprintf("INSERT INTO imported_%d VALUES(%d)", i, i), 1), fixture.Exec(fmt.Sprintf("CREATE VIEW imported_view_%d AS SELECT v FROM imported_%d", i, i), 0)} {
 				fixture.RunStep(t, s.P.Ctx, source.Memory, source.MemoryRecord, step)

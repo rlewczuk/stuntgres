@@ -104,7 +104,8 @@ func TestReferenceIdentityControlsOwnerCollision(t *testing.T) {
 	}
 	source := sql.OpenDB(connector)
 	defer source.Close()
-	for _, q := range []string{`CREATE SCHEMA portable`, `CREATE TABLE portable.i(id INT GENERATED ALWAYS AS IDENTITY)`, `CREATE VIEW portable.v AS SELECT last_value FROM portable.i_id_seq`, `CREATE TABLE portable.c(p INT CHECK(nextval('portable.i_id_seq')>0))`} {
+	// The retained target allocates both real TEMP namespaces before its sequence.
+	for _, q := range []string{`CREATE SCHEMA portable`, `CREATE SEQUENCE portable.collision_padding`, `CREATE TABLE portable.i(id INT GENERATED ALWAYS AS IDENTITY)`, `CREATE VIEW portable.v AS SELECT last_value FROM portable.i_id_seq`, `CREATE TABLE portable.c(p INT CHECK(nextval('portable.i_id_seq')>0))`} {
 		identityRefExec(t, source, q, 0)
 	}
 	identityRefExec(t, source, `INSERT INTO portable.i DEFAULT VALUES`, 1)

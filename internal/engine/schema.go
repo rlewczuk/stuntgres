@@ -49,7 +49,7 @@ func checkPersistentCreationNamespace(catalog CatalogRead, namespace ObjectAddre
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ObjectRef) error {
 	auth.catalog = stage.base
 	auth.recaptureCatalog(auth.catalog)
-	if namespace, ok := auth.catalog.state.descriptors[ns].(*namespaceDescriptor); ok && auth.session != nil && namespace.temporary == auth.session.token {
+	if namespace, ok := auth.catalog.state.descriptors[ns].(*namespaceDescriptor); ok && !namespace.temporaryToast && auth.session != nil && namespace.temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
@@ -317,7 +317,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	if err == nil {
 		for _, descriptor := range stage.descriptors {
-			if ns, ok := descriptor.(*namespaceDescriptor); ok && ns.temporary == op.session.token {
+			if ns, ok := descriptor.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == op.session.token {
 				op.session.temporaryNamespace = ns.address
 			}
 		}

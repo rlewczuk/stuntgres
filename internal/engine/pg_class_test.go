@@ -119,6 +119,10 @@ func TestPgClassKinds(t *testing.T) {
 
 func TestPgClassACLTranslation(t *testing.T) {
 	e := New()
+	e.nextPrincipal = 100001
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	roleExecute(t, e, op, "CREATE ROLE acl_translation_grantor")
 	roles := e.Roles()
 	array := pgClassUnitSource(t, e).columns[31].Usage.Type
 	owner := e.authorizationDomain.Principal(10)
@@ -175,7 +179,7 @@ func TestPgClassACLTranslation(t *testing.T) {
 	all := authorization.Privileges((1 << 11) - 1)
 	combined := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: all, GrantOptions: authorization.UpdatePrivilege},
-		{Grantor: e.authorizationDomain.Principal(100001), Grantee: authorization.ACLGrantee{Public: true}, Privileges: all, GrantOptions: all},
+		{Grantor: roles.LookupRef("acl_translation_grantor"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: all, GrantOptions: all},
 	}}
 	value, err = e.pgClassACL(roles, array, combined)
 	if err != nil {

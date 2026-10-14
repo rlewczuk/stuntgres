@@ -41,6 +41,20 @@ checkpoint service. Native sequence `log_cnt` is always zero; cache state does
 not promise crash durability. Native controls are logical fixture replacement,
 not arbitrary `pg_dump` import or PostgreSQL physical backup.
 
+Qualified TEMP namespace/REGCLASS lookup follows normal captured role authority;
+it is not permission to read or mutate another physical session's stored TEMP data.
+Native stored-source/target admission rejects that access at execution with
+`0A000 cannot access temporary tables of other sessions`, without a position.
+This includes recursive stored-view sources, DML, table COPY and explicit TRUNCATE.
+Metadata-only analysis/Prepare and identity lookup remain valid; ordinary schema
+denials still precede storage admission and retired missing children remain42P01.
+View owner/invoker source ACL denials also precede physical admission. Table COPY
+checks column ACLs and direction-specific read-only25006 before this boundary,
+without consuming input or producing output for any denied admission.
+PostgreSQL's small foreign-TEMP scan can independently return an empty local-buffer
+cursor; native neither fabricates that cursor nor exposes the owner's actual rows.
+
+
 `CREATE TABLESPACE name [OWNER role] LOCATION 'directory' [WITH (...)]` supports
 syntax and PostgreSQL 18 ordered validation, not physical creation. Direct
 effective superuser authority precedes OWNER lookup, then canonical POSIX path
@@ -210,6 +224,21 @@ outside the modern CSV implementation. Physical export of a virtual partition
 root is unavailable. Binary providers do not add storage, cast, DDL or catalog
 mutation capabilities; `pg_node_tree` binary input is excluded.
 
+## pg_namespace namespace metadata
+
+`pg_catalog.pg_namespace` is a readonly projection of actual namespace
+identities, names, owner OIDs and nullable typed ACLITEM arrays. Inaccessible
+schemas remain visible in inventory; metadata visibility is not schema USAGE.
+Initialized builtin identities/ACLs and supported schema DDL/default-privilege
+effects are exact. Real TEMP table/toast metadata is retained after physical
+close while objects retire. The toast descriptor does not enable TOAST storage
+or own-table authority. Catalog mutation and virtual-relation row locks remain
+unsupported; this feature adds no schema GRANT/REVOKE SQL or ACL serialization.
+Registered rowtype ownership does not add a `pg_type` SQL source. Native role
+rename SQL remains excluded; actual namespace ownership/ACL merge is supported
+through its existing producer. TEMP absence observations use real catalog
+relationships, not execution of lookup-only namespace/relation inquiry functions.
+
 ## pg_database current attachment metadata
 
 `pg_catalog.pg_database` exposes all eighteen PostgreSQL 18 columns in released
@@ -378,8 +407,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.
   ACL binary receive/send, catalog ACL projections other than the documented
-  `pg_class.relacl`, `pg_database.datacl` and `pg_attribute.attacl`, GRANT extensions,
-  role-rename SQL and new generic grouping/search/hash providers are not added.
+  `pg_class.relacl`, `pg_database.datacl`, `pg_attribute.attacl` and
+  `pg_namespace.nspacl`, GRANT extensions, role-rename SQL and new generic
+  grouping/search/hash providers are not added.
   Native Dump requires live identities for every emitted ACL datum or definition
   literal and rejects stale identities before writer I/O. Restore remaps both
   principals to preexisting target roles; ordinary dropped-identity output and

@@ -10,7 +10,13 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, q := range []string{"CREATE USER owner", "CREATE USER reader", "CREATE ROLE middle", "CREATE ROLE rights", "SET SESSION AUTHORIZATION owner", "CREATE TABLE secret(a INT,b INT)", "RESET SESSION AUTHORIZATION", "GRANT owner TO middle", "GRANT middle TO reader"} {
+	for _, q := range []string{"CREATE USER owner", "CREATE USER reader", "CREATE ROLE middle", "CREATE ROLE rights", "SET SESSION AUTHORIZATION owner"} {
+		roleExecute(t, e, op, q)
+	}
+	withPublicSchemaUnitOwner(t, e, "owner", func() {
+		roleExecute(t, e, op, "CREATE TABLE secret(a INT,b INT)")
+	})
+	for _, q := range []string{"RESET SESSION AUTHORIZATION", "GRANT owner TO middle", "GRANT middle TO reader"} {
 		roleExecute(t, e, op, q)
 	}
 	ref := roleTableRef(t, e, "secret")

@@ -15,17 +15,13 @@ func addConstraintAuthority(t *testing.T) {
 			for _, q := range []string{"CREATE ROLE add_builder", "CREATE ROLE add_writer", "CREATE TABLE p(a INT,b INT,PRIMARY KEY(a,b))", "GRANT REFERENCES(a) ON p TO add_builder"} {
 				run(fixture.Exec(q, 0))
 			}
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO add_builder", 0))
-				run(fixture.Exec("GRANT USAGE ON SCHEMA public TO add_writer", 0))
-			}
 			defer func() {
 				if _, err := c.ExecContext(p.Ctx, "RESET ROLE"); err != nil {
 					t.Error(err)
 				}
 			}()
 			run(fixture.Exec("SET ROLE add_builder", 0))
-			run(fixture.Exec("CREATE TABLE c(a INT,b INT)", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "add_builder", func() { run(fixture.Exec("CREATE TABLE c(a INT,b INT)", 0)) })
 			q := "ALTER TABLE c ADD CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p NOT VALID"
 			held := addConstraintHeld(t, p, b, c, q)
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table p")))

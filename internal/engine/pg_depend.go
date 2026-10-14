@@ -14,7 +14,7 @@ type pgDependEdge struct {
 // Pinning follows represented bootstrap authorities, never an OID cutoff.
 func pgDependPinned(catalog CatalogRead, address ObjectAddress) bool {
 	if address.ClassID == NamespaceClassID {
-		return address.ObjectID == PGCatalogNamespaceOID
+		return address.ObjectID == PGCatalogNamespaceOID || address.ObjectID == PGToastNamespaceOID
 	}
 	whole := address
 	whole.SubID = 0

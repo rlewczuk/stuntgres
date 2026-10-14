@@ -40,7 +40,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER owner")
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-	roleExecute(t, e, op, "CREATE TABLE secret(a INT,b INT,c INT)")
+	withPublicSchemaUnitOwner(t, e, "owner", func() { roleExecute(t, e, op, "CREATE TABLE secret(a INT,b INT,c INT)") })
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7,8,9)")
 	ref := roleTableRef(t, e, "secret")
 	owner := op.RoleState().CurrentUser
@@ -138,7 +138,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 		roleExecute(t, pair.e, pair.op, "CREATE USER reader")
 	}
 	roleExecute(t, source, a, "SET SESSION AUTHORIZATION owner")
-	roleExecute(t, source, a, "CREATE TABLE secret(id INT)")
+	withPublicSchemaUnitOwner(t, source, "owner", func() { roleExecute(t, source, a, "CREATE TABLE secret(id INT)") })
 	roleExecute(t, source, a, "INSERT INTO secret VALUES(7)")
 	ref := roleTableRef(t, source, "secret")
 	owner := a.RoleState().CurrentUser
@@ -446,9 +446,8 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	original := e.state.descriptors[namespace.Address].(*namespaceDescriptor).acl
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege},
-		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege},
-		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.UsagePrivilege, GrantOptions: authorization.UsagePrivilege},
+		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.CreatePrivilege},
+		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.UsagePrivilege},
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 	}}
 	if err := e.SetObjectACL(context.Background(), namespace, equivalent); err != nil {
@@ -514,7 +513,7 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER owner")
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
+	withPublicSchemaUnitOwner(t, e, "owner", func() { roleExecute(t, e, op, "CREATE TABLE secret(id INT)") })
 	ref := roleTableRef(t, e, "secret")
 	owner := op.RoleState().CurrentUser
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")

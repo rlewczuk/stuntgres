@@ -274,8 +274,9 @@ func TestIntarrayProviderControls(t *testing.T) {
 		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		addresses := append([]ObjectAddress{namespace.address, ext.address, array}, ext.members...)
+		addresses := append([]ObjectAddress{ext.address, array}, ext.members...)
 		close()
+		assertTemporaryNamespacePair(t, e, namespace.temporary, namespace.address)
 		for _, address := range addresses {
 			if e.state.descriptors[address] != nil {
 				t.Fatal("retired TEMP identity retained", address)
@@ -331,7 +332,8 @@ func TestIntarrayProviderControls(t *testing.T) {
 			t.Fatal("retained codec", text, err)
 		}
 		closeOwner()
-		if target.state.descriptors[namespace.address] != nil || target.state.descriptors[unaccent.Address()] != nil {
+		assertTemporaryNamespacePair(t, target, namespace.temporary, namespace.address)
+		if target.state.descriptors[namespace.address] != namespace || target.state.descriptors[unaccent.Address()] != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
 		if err := (extensionCatalogProvider{ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {

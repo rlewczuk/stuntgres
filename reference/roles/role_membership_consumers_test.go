@@ -21,9 +21,11 @@ func TestReferenceRoleMembershipOwnerConsumers(t *testing.T) {
 			}
 		}()
 		s.actor("mx_owner")
-		s.exec("CREATE SEQUENCE membership_sequence")
-		s.exec("CREATE DOMAIN membership_type AS INT")
-		s.exec("CREATE VIEW membership_view AS SELECT id FROM membership_owned")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "mx_owner", func() {
+			s.exec("CREATE SEQUENCE membership_sequence")
+			s.exec("CREATE DOMAIN membership_type AS INT")
+			s.exec("CREATE VIEW membership_view AS SELECT id FROM membership_owned")
+		})
 		s.actor("")
 		s.exec("GRANT mx_owner TO mx_member WITH INHERIT FALSE, SET FALSE")
 		s.actor("mx_member")

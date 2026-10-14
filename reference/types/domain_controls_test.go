@@ -25,11 +25,6 @@ func TestReferenceDomainNativeControls(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"domain_roundtrip_owner"})
 	domainReferenceScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder, notices *[]fixture.Diagnostic) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
-		if backend.PG {
-			if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-				t.Fatal(err)
-			}
-		}
 		t.Cleanup(func() {
 			if _, err := backend.DB.ExecContext(p.Ctx, `DROP DOMAIN IF EXISTS public."Integer Domain" CASCADE`); err != nil {
 				t.Error(err)
@@ -47,7 +42,11 @@ func TestReferenceDomainNativeControls(t *testing.T) {
 			"CREATE TABLE domain_s.\"Stored Values\" (id integer,i public.\"Integer Domain\",n domain_s.\"Number Domain\",v domain_s.\"String Domain\",a domain_s.\"Array Domain\",c domain_s.\"Chain Domain\" DEFAULT 7::domain_s.\"Chain Domain\")",
 			"CREATE VIEW domain_s.\"Domain View\" AS SELECT id,(i+1)::public.\"Integer Domain\" AS v FROM domain_s.\"Stored Values\"",
 		} {
-			run(fixture.Exec(q, 0))
+			if q == "CREATE DOMAIN public.\"Integer Domain\" AS integer" {
+				fixture.WithPublicSchemaOwner(t, p, backend, "domain_roundtrip_owner", func() { run(fixture.Exec(q, 0)) })
+			} else {
+				run(fixture.Exec(q, 0))
+			}
 		}
 		run(fixture.Exec("INSERT INTO domain_s.\"Stored Values\" (id,i,n,v,a) VALUES (1,7,12.345,'abc','{NULL,\"NULL\",\"\",alpha}')", 1))
 		run(fixture.Exec("INSERT INTO domain_s.\"Stored Values\" VALUES (2,NULL,NULL,NULL,NULL,NULL)", 1))

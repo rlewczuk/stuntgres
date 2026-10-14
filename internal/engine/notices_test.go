@@ -371,30 +371,37 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER notice_owner")
 	roleExecute(t, e, op, "CREATE USER notice_reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION notice_owner")
-	roleExecute(t, e, op, "CREATE TABLE notice_secret(id INT)")
+	withPublicSchemaUnitOwner(t, e, "notice_owner", func() {
+		roleExecute(t, e, op, "CREATE TABLE notice_secret(id INT)")
+	})
 	roleExecute(t, e, op, "INSERT INTO notice_secret VALUES(7)")
 	roleExecute(t, e, op, "SET client_min_messages TO warning")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION notice_reader")
 	skip := statement(t, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)")
-	if _, err := e.Describe(op, skip); err != nil {
-		t.Fatal("CREATE preparation", err)
-	}
-	before := e.CatalogRead()
-	if result, err := e.Execute(op, skip, 0, nil); err != nil || result.Count != 0 || op.DetachNotices() != nil {
-		t.Fatal("filtered authorized skip", result, err)
-	}
-	if e.CatalogRead().state != before.state {
-		t.Fatal("skip published catalog changes")
-	}
+	var before CatalogRead
+	withPublicSchemaUnitOwner(t, e, "notice_reader", func() {
+		if _, err := e.Describe(op, skip); err != nil {
+			t.Fatal("CREATE preparation", err)
+		}
+		before = e.CatalogRead()
+		if result, err := e.Execute(op, skip, 0, nil); err != nil || result.Count != 0 || op.DetachNotices() != nil {
+			t.Fatal("filtered authorized skip", result, err)
+		}
+		if e.CatalogRead().state != before.state {
+			t.Fatal("skip published catalog changes")
+		}
+	})
 	roleExecute(t, e, op, "SET client_min_messages TO notice")
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION notice_reader")
-	roleExecute(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)")
+	withPublicSchemaUnitOwner(t, e, "notice_reader", func() {
+		roleExecute(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)")
+	})
 	want := []sqlstate.Error{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: `relation "notice_secret" already exists, skipping`}}
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatal("switch reset notice filter", got)
 	}
-	namespace := ObjectRef{owner: e.owner, Epoch: before.Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+	namespace := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -431,6 +438,15 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			roleExecute(t, e, admin, "CREATE USER losing_creator")
 			loser, loserDone := roleOperation(t, e, "losing_creator")
 			defer loserDone()
+			public := schemaRef(t, e, "public")
+			descriptor, ok := e.CatalogRead().Descriptor(public.Address)
+			if !ok {
+				t.Fatal("public namespace missing")
+			}
+			prior, err := e.Roles().Descriptor(descriptor.(*namespaceDescriptor).owner)
+			if err != nil {
+				t.Fatal(err)
+			}
 			var winner CatalogRead
 			e.providers[RelationClassID] = &publicationConflictProvider{
 				CatalogProvider: e.providers[RelationClassID],
@@ -443,6 +459,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 					if usage {
 						acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}
 					}
+					roleExecute(t, e, admin, `ALTER SCHEMA public OWNER TO "`+strings.ReplaceAll(prior.Name, `"`, `""`)+`"`)
 					if err := e.SetObjectACL(context.Background(), namespace, acl); err != nil {
 						t.Fatal(err)
 					}
@@ -453,10 +470,12 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			if usage {
 				code, message = "42501", "permission denied for schema public"
 			}
-			roleErrorPosition(t, e, loser, "CREATE TABLE IF NOT EXISTS contested_notice(lost TEXT)", code, message, "", "28")
-			if loser.DetachNotices() != nil || e.CatalogRead().state != winner.state {
-				t.Fatal("unauthorized conflict became skip or changed winner")
-			}
+			withPublicSchemaUnitOwner(t, e, "losing_creator", func() {
+				roleErrorPosition(t, e, loser, "CREATE TABLE IF NOT EXISTS contested_notice(lost TEXT)", code, message, "", "28")
+				if loser.DetachNotices() != nil || e.CatalogRead().state != winner.state {
+					t.Fatal("unauthorized conflict became skip or changed winner")
+				}
+			})
 			result := roleExecute(t, e, admin, "SELECT id FROM contested_notice")
 			if !reflect.DeepEqual(tuples(result), [][]driver.Value{{int64(7)}}) {
 				t.Fatal(tuples(result))

@@ -37,7 +37,9 @@ func TestReferenceRoleDefaultPrivilegesTypes(t *testing.T) {
 		// A future table grant for the creator cannot bypass source TYPES USAGE.
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES FOR ROLE dp_reader GRANT SELECT ON TABLES TO dp_other", 0))
 		dpActor(run, "dp_reader", func() {
-			dpDenied(run, "CREATE TABLE dp_typed_source_denied OF dp_s.dp_composite_new", "type", "dp_s.dp_composite_new")
+			fixture.WithPublicSchemaOwner(t, p, b, "dp_reader", func() {
+				dpDenied(run, "CREATE TABLE dp_typed_source_denied OF dp_s.dp_composite_new", "type", "dp_s.dp_composite_new")
+			})
 			for _, name := range []string{"enum", "domain", "composite"} {
 				run(fixture.Exec("CREATE TABLE dp_s.dp_"+name+"_old_use(x dp_s.dp_"+name+"_old)", 0))
 				dpDenied(run, "CREATE TABLE dp_s.dp_"+name+"_new_use(x dp_s.dp_"+name+"_new)", "type", "dp_s.dp_"+name+"_new")
@@ -54,10 +56,12 @@ func TestReferenceRoleDefaultPrivilegesTypes(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE dp_s.dp_"+name+"_scoped_use(x dp_s.dp_"+name+"_scoped)", 0))
 			}
 			dpEnumArray(run, b, "CREATE TABLE dp_s.dp_array_scoped_use(x dp_s.dp_enum_scoped[])", "dp_s.dp_enum_scoped", true)
-			run(fixture.Exec("CREATE TABLE dp_typed_scoped_source OF dp_s.dp_composite_scoped", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "dp_reader", func() { run(fixture.Exec("CREATE TABLE dp_typed_scoped_source OF dp_s.dp_composite_scoped", 0)) })
 			run(fixture.Exec("INSERT INTO dp_typed_scoped_source VALUES(13)", 1))
 			dpRead(run, "dp_typed_scoped_source", 13)
-			dpDenied(run, "CREATE TABLE dp_typed_source_still_denied OF dp_s.dp_composite_new", "type", "dp_s.dp_composite_new")
+			fixture.WithPublicSchemaOwner(t, p, b, "dp_reader", func() {
+				dpDenied(run, "CREATE TABLE dp_typed_source_still_denied OF dp_s.dp_composite_new", "type", "dp_s.dp_composite_new")
+			})
 			run(fixture.Exec("INSERT INTO dp_s.dp_enum_scoped_use VALUES('b')", 1))
 			run(fixture.Select("SELECT x::TEXT FROM dp_s.dp_enum_scoped_use", []string{"x"}, []string{"TEXT"}, [][]any{{"b"}}))
 			run(fixture.Exec("INSERT INTO dp_s.dp_domain_scoped_use VALUES(9)", 1))

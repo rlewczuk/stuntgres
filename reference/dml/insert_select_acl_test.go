@@ -18,11 +18,6 @@ func TestReferenceInsertSelectIndependentACL(t *testing.T) {
 	p := fixture.NewScenario(t)
 	dsn := "reference/" + t.Name()
 	p.Step(t, fixture.Exec("CREATE ROLE "+writer+" LOGIN", 0))
-	if p.Postgres != nil {
-		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-			t.Fatal(err)
-		}
-	}
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
 			admin := func(s fixture.Step) { fixture.InsertSelectRun(t, p.Ctx, backend.DB, backend.Recorder, s) }
@@ -55,8 +50,10 @@ func TestReferenceInsertSelectIndependentACL(t *testing.T) {
 				actor = db
 			}
 			run := func(s fixture.Step) { fixture.InsertSelectRun(t, p.Ctx, actor, backend.Recorder, s) }
-			run(fixture.Exec("CREATE TABLE target(i INT)", 0))
-			run(fixture.Exec("CREATE TABLE own_source(i INT)", 0))
+			fixture.WithPublicSchemaOwner(t, p, backend, writer, func() {
+				run(fixture.Exec("CREATE TABLE target(i INT)", 0))
+				run(fixture.Exec("CREATE TABLE own_source(i INT)", 0))
+			})
 			run(fixture.Exec("INSERT INTO own_source VALUES(7)", 1))
 			for _, prepared := range []bool{false, true} {
 				for _, tc := range []struct{ q, table string }{

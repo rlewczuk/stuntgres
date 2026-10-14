@@ -92,9 +92,10 @@ func TestExpressionIndexSQLLifecycleRoots(t *testing.T) {
 
 func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	source, target := New(), New()
-	// The first source object consumes the slot occupied by the destination TEMP
-	// namespace; the next persistent table must collide with its retained sequence.
+	// Two source schemas match the destination's actual TEMP namespace pair;
+	// the persistent table must collide with its retained sequence.
 	run(t, source, "CREATE SCHEMA portable")
+	run(t, source, "CREATE SCHEMA collision_padding")
 	session := sessionStart(t, target, nil)
 	sessionSQL(t, session, "CREATE TEMP SEQUENCE retained START 40 CACHE 5")
 	_, description := sequencePreparedDescription(t, target, session, "SELECT nextval('retained')")

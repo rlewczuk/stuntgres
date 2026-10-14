@@ -41,15 +41,12 @@ func TestReferenceSessionIdentitySessionAuthorityAndArgumentPrecedence(t *testin
 			for _, q := range []string{"CREATE USER identity_member_a", "CREATE ROLE identity_member_b", "CREATE ROLE identity_member_c", "CREATE SCHEMA identity_hidden"} {
 				run(fixture.Exec(q, 0))
 			}
-			if !b.native {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO identity_member_a", 0))
-			}
 			run(fixture.Exec("SET ROLE identity_member_a", 0))
 			run(fixture.Exec("SET ROLE identity_member_b", 0))
 			run(fixture.Exec("RESET ROLE", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION identity_member_a", 0))
 			run(fixture.Exec("SET ROLE identity_member_a", 0))
-			run(fixture.Exec("CREATE TABLE identity_child(id INT)", 0))
+			fixture.WithPublicSchemaOwner(t, p, backend, "identity_member_a", func() { run(fixture.Exec("CREATE TABLE identity_child(id INT)", 0)) })
 			for _, prepared := range []bool{false, true} {
 				s := fixture.ImplicitError("SET ROLE identity_member_b", fixture.Diagnostic{Code: "42501", Message: `permission denied to set role "identity_member_b"`})
 				s.Prepared = prepared
@@ -80,9 +77,6 @@ func TestReferenceSessionIdentitySessionAuthorityAndArgumentPrecedence(t *testin
 			}
 			run(fixture.Select("SELECT current_user,session_user", []string{"current_user", "session_user"}, []string{"NAME", "NAME"}, [][]any{{"identity_member_a", "identity_member_a"}}))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-			if !b.native {
-				run(fixture.Exec("REVOKE USAGE,CREATE ON SCHEMA public FROM identity_member_a", 0))
-			}
 			run(fixture.Exec("DROP TABLE identity_child", 0))
 			run(fixture.Exec("DROP SCHEMA identity_hidden", 0))
 			run(fixture.Exec("DROP ROLE identity_member_a,identity_member_b,identity_member_c", 0))

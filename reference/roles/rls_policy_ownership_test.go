@@ -9,11 +9,8 @@ import (
 
 func TestReferenceRLSPolicyOwnership(t *testing.T) {
 	membershipCases(t, []string{"policy_owner", "policy_member", "policy_grantee", "policy_schema", "policy_set", "policy_ephemeral"}, func(s *membershipScenario) {
-		if s.backend.PG {
-			s.exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
-		}
 		s.actor("policy_owner")
-		policySetup(s)
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "policy_owner", func() { policySetup(s) })
 		s.exec("CREATE POLICY p ON t")
 		s.actor("")
 		s.exec("GRANT SELECT,INSERT,UPDATE,DELETE ON t TO policy_grantee")
@@ -72,11 +69,8 @@ func TestReferenceRLSPolicyOwnership(t *testing.T) {
 		policyRows(s)
 	})
 	membershipCases(t, []string{"policy_session", "policy_effective", "policy_extra"}, func(s *membershipScenario) {
-		if s.backend.PG {
-			s.exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
-		}
 		s.actor("policy_effective")
-		policySetup(s)
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "policy_effective", func() { policySetup(s) })
 		s.actor("")
 		s.exec("GRANT policy_effective TO policy_session WITH INHERIT TRUE, SET TRUE")
 		s.actor("policy_session")

@@ -22,9 +22,12 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	if len(changes.descriptors) != 0 {
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
+		if ns, ok := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor); ok && !ns.temporaryToast && auth.session != nil && ns.temporary == auth.session.token {
+			auth.stagedTemporary = ns.address
+		}
 	}
 	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
-	if ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
+	if ns.temporary != (SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {
 			return ObjectRef{}, err
@@ -123,6 +126,14 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 			return false, fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
 		}
 		stage.domainBases = append(stage.domainBases, ns)
+		for key := range base.state.defaultACLs {
+			if key.schema == ns.address {
+				if stage.defaultACLs == nil {
+					stage.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
+				}
+				stage.defaultACLs[key] = nil
+			}
+		}
 	}
 	// Exclude owned targets before projecting their surviving dependents: a TEMP
 	// table being removed must not also receive a replacement row shape.
@@ -161,16 +172,6 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: a}, accessExclusive, true); err != nil {
 			return false, err
 		}
-	}
-	e.mu.Lock()
-	for _, ns := range namespaces {
-		if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: ns.address}, true); err != nil {
-			break
-		}
-	}
-	e.mu.Unlock()
-	if err != nil {
-		return false, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {

@@ -271,6 +271,28 @@ retain separate limits. Dump stores explicit recipe kind; Restore recomputes sto
 values and remaps owner-dependent cells while preserving virtual laziness. Unread
 invalid virtual values are not demanded merely by a native roundtrip.
 
+## Namespace catalog projection
+
+`pg_catalog.pg_namespace` has four columns in released PostgreSQL 18 order:
+`oid OID`, `nspname NAME`, `nspowner OID`, `nspacl ACLITEM[]`. Only the ACL is
+nullable. The source retains relation2615 origins, attributes1–4, NAME's
+collation950 and generation-owned types even for empty results.
+
+Rows enumerate actual builtin, user and TEMP namespace descriptors without
+filtering by owner, schema USAGE or search_path. Reading visible metadata
+does not grant access to contained objects. Normal qualified/path resolution
+still governs access to the source itself. `pg_class.relnamespace` and
+`pg_roles.oid` identify the same namespace and owner authorities. Rename and
+owner transfer preserve namespace identity; drop/recreate allocates a new one.
+
+ACL NULL is distinct from an explicit empty array and from PUBLIC grants.
+Stored U/C grant-option bits are projected exactly, not inferred from ownership.
+Default-created schema ACLs normalize their actual entries by grantee identity;
+initialized builtin ACL order is retained separately. Eager returned rows keep
+captured names, ACL role spellings and types across later catalog replacement.
+Every named ACL grantor/grantee must resolve in the captured role inventory;
+domain-only or retired principal references cannot be projected as valid OIDs.
+
 ## Temporary namespace and session lifetime
 
 TEMP belongs to a physical session, not a pooled borrower. Lookup does not allocate
@@ -279,11 +301,45 @@ uses the builder's exact namespace token. Commit actions stage empty roots or re
 the dependency closure once at outer completion; rollback/savepoints restore
 catalog/action/data roots without rewinding sequence draws.
 
+First use stages actual `pg_temp_N` and reserved `pg_toast_temp_N` descriptors
+atomically, with distinct identities, bootstrap owner10 and NULL ACLs; schema
+defaults do not apply. TEMP tables/sequences/views retain their creating role.
+Only the table member supplies own-session USAGE/CREATE, search-path placement,
+the `pg_temp` alias and temporary persistence. New pairs are creator-private
+until commit and disappear on first-use rollback; preexisting pairs survive
+rollback of newly created objects.
+Both view preparation and execution retain the exact staged table-member authority,
+so an ordinary creator can publish its first TEMP view without schema delegation.
+
 Physical-session end aborts private work and retires the complete owned closure.
 Surviving expression consumers project committed/private rows by stable attributes,
 with their index candidates evolved from the latest staged layout. Catalog, surviving
 storage and roots publish together. Physical retirement retries obsolete predecessors
 instead of replacing newer state. Unrelated durable objects and peer TEMP remain.
+Both empty namespace descriptors and names remain after physical close. Their
+retired tokens are provenance, not active authority; a new session cannot adopt
+them as its own table namespace. Persistent replacement excludes source TEMP
+tokens and overlays the destination's exact live or retained empty pair.
+Namespace-scoped default-privilege directives retire with the physical closure,
+even though both empty namespace rows remain; captured directives remain immutable.
+Qualified namespace lookup uses the captured effective actor's superuser status,
+then normal schema USAGE. A bootstrap superuser resolving an absent child in a
+retained namespace gets42P01; an ordinary peer lacking USAGE gets42501. Live peer
+REGCLASS identity resolution is distinct from physical foreign-session scans.
+Neither lookup changes own-session creation, persistence or namespace adoption.
+Native physical stored-source/target admission separately requires the captured
+namespace's exact physical-session token. Foreign TEMP storage is an execution
+0A000 boundary, not a schema42501 or synthesized empty cursor. Direct/ONLY and
+recursive stored-view scans, DML physical targets, table COPY and explicit TRUNCATE
+use the same provenance guard. Metadata-only leaves stay excluded; inherited
+foreign TEMP descendants remain skipped under persistent ancestor scans.
+Executable view occurrences first use the existing captured owner/invoker source
+column and row-mark authority. Nested invoker views retain the original invoker;
+authorization is not cached or deduplicated by relation identity. Only after
+that complete authorization pass may physical-source admission acquire data views.
+Table COPY preserves column ACL, direction-specific read-only/relation-kind checks,
+then physical storage admission, before options, defaults or stream I/O.
+
 
 Dump excludes TEMP. Reset/Restore retains exact live owner descriptors, stores,
 generators, roots, commit actions and builtin generations. Contextual TEMP references
@@ -292,6 +348,11 @@ manifests and both analyzed/execution expression trees remain authoritative. Ret
 does not admit stale persistent consumers, foreign owners or retired providers.
 Incompatible live user-type dependencies remain explicit errors. Rendering recognizes
 the current owner's namespace from captured authority, not name matching.
+
+Trusted native replay reconstructs supported named-owner domains/enums/composites using the existing
+isolated destination flag, captured bootstrap authenticator and importer map.
+Only schema CREATE denial is bypassed there; ordinary SQL permissions, base-type
+access, ownership/ACL reconstruction and publication fences remain unchanged.
 
 Temporary cleanup retains its namespace descriptor and transactional removal state.
 Its live-cursor guard applies to actual relations in the complete removal closure;

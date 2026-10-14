@@ -41,7 +41,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 			delete(next.names, key)
 		}
 	}
-	pruneRemovedNamespaceDefaults(view.state, next)
+	pruneNamespaceDefaults(view.state, next, nil)
 	return CatalogRead{owner: view.owner, state: next}, nil
 }
 
@@ -727,7 +727,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			}
 			namespace, ok := e.state.descriptors[old.namespace].(*namespaceDescriptor)
 			other, candidateOK := next.descriptors[old.namespace].(*namespaceDescriptor)
-			if !ok || !candidateOK || !pgDependPinned(catalog, old.namespace) || namespace.name != other.name || namespace.owner != other.owner || namespace.temporary != other.temporary || namespace.acl.Explicit != other.acl.Explicit || !slices.Equal(namespace.acl.Entries, other.acl.Entries) {
+			if !ok || !candidateOK || !pgDependPinned(catalog, old.namespace) || namespace.name != other.name || namespace.owner != other.owner || namespace.temporary != other.temporary || namespace.temporaryToast != other.temporaryToast || namespace.acl.Explicit != other.acl.Explicit || !slices.Equal(namespace.acl.Entries, other.acl.Entries) {
 				return fail()
 			}
 			next.descriptors[address] = old

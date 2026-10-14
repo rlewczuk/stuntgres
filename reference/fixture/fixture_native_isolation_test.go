@@ -143,10 +143,13 @@ func TestReferenceFixtureResetIsolation(t *testing.T) {
 				}
 				run(Select("SELECT session_user,current_user", []string{"session_user", "current_user"}, []string{"NAME", "NAME"}, [][]any{{principal, principal}}))
 				run(Select("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{""}}))
+				owner := "pg_database_owner"
+				var ownerID any = int64(6171)
 				if b.PG {
-					// pg_namespace is an oracle surface, not a native catalog.
-					run(Select("SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname='public'", []string{"owner"}, []string{"NAME"}, [][]any{{principal}}))
-				} else {
+					owner, ownerID = principal, "10"
+				}
+				run(Select("SELECT r.rolname AS owner,n.nspowner FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='public'", []string{"owner", "nspowner"}, []string{"NAME", "OID"}, [][]any{{owner, ownerID}}))
+				if !b.PG {
 					var dump bytes.Buffer
 					if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 						t.Fatal(err)

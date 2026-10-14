@@ -63,7 +63,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	}
 	var refs []ObjectRef
 	if err == nil {
-		refs, err = e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref}, scope.op.session.token)
+		refs, err = e.queryTableRefsLocked(auth, auth.state.CurrentUser, b.querySources, []ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
 	}
 	if err == nil {
 		_, err = scope.acquireDataViewsLocked(e, refs)

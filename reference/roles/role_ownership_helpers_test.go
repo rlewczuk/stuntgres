@@ -47,7 +47,7 @@ func ownershipCases(t *testing.T, body func(*membershipScenario)) {
 			}
 		}()
 		if s.backend.PG {
-			s.exec("GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC")
+			s.exec("GRANT USAGE ON SCHEMA public TO PUBLIC")
 		}
 		body(s)
 	})
@@ -68,7 +68,11 @@ func ownershipRows(s *membershipScenario, name string) {
 func ownershipSeed(s *membershipScenario, name, owner string) {
 	s.t.Helper()
 	s.actor(owner)
-	s.exec("CREATE TABLE " + name + "(id INT)")
+	if !strings.Contains(name, ".") || strings.HasPrefix(name, "public.") {
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, owner, func() { s.exec("CREATE TABLE " + name + "(id INT)") })
+	} else {
+		s.exec("CREATE TABLE " + name + "(id INT)")
+	}
 	s.run(fixture.Exec("INSERT INTO "+name+" VALUES(7)", 1))
 	s.actor("")
 }

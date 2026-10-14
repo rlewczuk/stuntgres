@@ -243,7 +243,7 @@ func TestReferenceRoleConnectorNoticeConfigurationPreservesAuthentication(t *tes
 	p := fixture.NewScenario(t)
 	p.Step(t, fixture.Exec("CREATE USER notice_login", 0))
 	if p.Postgres != nil {
-		if _, err := fixture.Admin.ExecContext(p.Ctx, "ALTER ROLE notice_login PASSWORD 'role-core-fixture'; GRANT USAGE,CREATE ON SCHEMA public TO notice_login"); err != nil {
+		if _, err := fixture.Admin.ExecContext(p.Ctx, "ALTER ROLE notice_login PASSWORD 'role-core-fixture'"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -287,8 +287,10 @@ func TestReferenceRoleConnectorNoticeConfigurationPreservesAuthentication(t *tes
 				t.Fatal(identity, err)
 			}
 			roleScenarioIdentity(t, c, "notice_login", nil, backend.PG)
-			roleScenarioCommand(t, c, "CREATE TABLE notice_login_rows(id INT)", 0, false)
-			roleScenarioCommand(t, c, "CREATE TABLE IF NOT EXISTS notice_login_rows(id INT,id TEXT)", 0, true)
+			fixture.WithPublicSchemaOwner(t, p, backend, "notice_login", func() { roleScenarioCommand(t, c, "CREATE TABLE notice_login_rows(id INT)", 0, false) })
+			fixture.WithPublicSchemaOwner(t, p, backend, "notice_login", func() {
+				roleScenarioCommand(t, c, "CREATE TABLE IF NOT EXISTS notice_login_rows(id INT,id TEXT)", 0, true)
+			})
 			want := []fixture.Diagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: `relation "notice_login_rows" already exists, skipping`}}
 			if !reflect.DeepEqual(notices, want) {
 				t.Fatal(notices, want)
@@ -301,7 +303,7 @@ func TestReferenceRoleConnectorNoticeConfigurationPreservesAuthentication(t *tes
 			}
 			defer peer.Close()
 			roleScenarioIdentity(t, peer, "notice_login", nil, backend.PG)
-			roleScenarioCommand(t, peer, "CREATE TABLE IF NOT EXISTS notice_login_rows(id INT)", 0, false)
+			fixture.WithPublicSchemaOwner(t, p, backend, "notice_login", func() { roleScenarioCommand(t, peer, "CREATE TABLE IF NOT EXISTS notice_login_rows(id INT)", 0, false) })
 			if !reflect.DeepEqual(notices, want) {
 				t.Fatal("handler leaked", notices)
 			}
@@ -314,7 +316,9 @@ func TestReferenceRoleConnectorNoticeConfigurationPreservesAuthentication(t *tes
 				}
 				defer other.Close()
 				roleScenarioIdentity(t, other, "notice_login", nil, false)
-				roleScenarioCommand(t, other, "CREATE TABLE IF NOT EXISTS notice_login_rows(id INT)", 0, false)
+				fixture.WithPublicSchemaOwner(t, p, backend, "notice_login", func() {
+					roleScenarioCommand(t, other, "CREATE TABLE IF NOT EXISTS notice_login_rows(id INT)", 0, false)
+				})
 				if !reflect.DeepEqual(notices, want) {
 					t.Fatal("nil handler leaked", notices)
 				}

@@ -8,28 +8,31 @@ import (
 )
 
 func temporaryNamespace(auth AuthorizationView) ObjectAddress {
-	if auth.session == nil {
+	if auth.session == nil || auth.catalog.state == nil || auth.session.token == (SessionToken{}) || auth.session.token.owner != auth.engine || auth.session.token.private != nil {
 		return ObjectAddress{}
 	}
-	if auth.stagedTemporary != (ObjectAddress{}) {
-		if ns, ok := auth.catalog.state.descriptors[auth.stagedTemporary].(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
-			return ns.address
-		}
+	table := func(a ObjectAddress) bool {
+		ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
+		return ok && !ns.temporaryToast && ns.temporary == auth.session.token
 	}
-	a := auth.session.temporaryNamespace
-	if a != (ObjectAddress{}) {
-		if d, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor); ok && d.temporary == auth.session.token {
-			return a
-		}
+	if table(auth.stagedTemporary) {
+		return auth.stagedTemporary
+	}
+	if table(auth.session.temporaryNamespace) {
+		return auth.session.temporaryNamespace
 	}
 	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
-		for a, d := range owner.catalog.descriptors {
-			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
+		for a, d := range auth.catalog.state.descriptors {
+			if ns, ok := d.(*namespaceDescriptor); ok && !ns.temporaryToast && ns.temporary == auth.session.token {
 				return a
 			}
 		}
 	}
 	return ObjectAddress{}
+}
+
+func ownTemporaryNamespace(auth AuthorizationView, ns *namespaceDescriptor) bool {
+	return ns != nil && !ns.temporaryToast && ns.temporary != (SessionToken{}) && temporaryNamespace(auth) == ns.address
 }
 func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
@@ -65,13 +68,24 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 	if err != nil {
 		return ObjectRef{}, err
 	}
-	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.id), revision: rev, owner: auth.state.CurrentUser, temporary: auth.session.token}
+	toastOID, err := e.allocateOIDLocked()
+	if err != nil {
+		return ObjectRef{}, err
+	}
+	toastRevision, err := e.revisionLocked()
+	if err != nil {
+		return ObjectRef{}, err
+	}
+	owner := e.authorizationDomain.Principal(10)
+	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.id), revision: rev, owner: owner, temporary: auth.session.token}
+	toast := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: toastOID}, name: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.id), revision: toastRevision, owner: owner, temporary: auth.session.token, temporaryToast: true}
 	if c.originals == nil {
 		c.originals = make(map[ObjectAddress]Descriptor)
 		c.descriptors = make(map[ObjectAddress]Descriptor)
 		c.names = make(map[NameKey]ObjectAddress)
 	}
 	e.catalogChangeLocked(c, ns.address, ns)
+	e.catalogChangeLocked(c, toast.address, toast)
 	return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns.address}, nil
 }
 
@@ -80,7 +94,7 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 func adjustRelationCreationPersistence(auth AuthorizationView, ref ObjectRef, requested string) (string, error) {
 	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
 	temporary := ns.temporary != (SessionToken{})
-	own := temporary && auth.session != nil && ns.temporary == auth.session.token
+	own := ownTemporaryNamespace(auth, ns)
 	switch requested {
 	case "temporary":
 		if own {
@@ -272,11 +286,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		delete(storage, a)
 		delete(roots, a)
 	}
-	for _, a := range namespaces {
-		delete(next.names, descriptorNameKey(next.descriptors[a]))
-		delete(next.descriptors, a)
-	}
-	pruneRemovedNamespaceDefaults(stage.base.state, next)
+	pruneNamespaceDefaults(stage.base.state, next, namespaces)
 	nextRevision := e.nextRevision
 	for _, descriptor := range stage.descriptors {
 		if revision := descriptorRevisionFrontier(descriptor); revision >= nextRevision {

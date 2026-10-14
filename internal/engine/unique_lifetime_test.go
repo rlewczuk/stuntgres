@@ -144,6 +144,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			ctx := context.Background()
 			source := New()
 			a := sessionStart(t, source, nil)
+			sessionSQL(t, a, "CREATE SCHEMA collision_padding")
 			sessionSQL(t, a, "CREATE SCHEMA portable CREATE TABLE t(k INT CONSTRAINT u UNIQUE NULLS NOT DISTINCT)")
 			sessionSQL(t, a, "INSERT INTO portable.t VALUES(7)")
 			before := source.CatalogRead()

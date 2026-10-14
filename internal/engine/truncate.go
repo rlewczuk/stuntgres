@@ -72,7 +72,12 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					}
 					if err == nil && !otherTemporary {
 						err = checkTruncate(auth, ref, before, privilege && !cascade, only)
-						store = e.privateStorageLocked(s.owner.catalog, ref.Address)
+						if err == nil && privilege {
+							err = checkTemporaryStorageAccess(auth.catalog, before, s.op.session.token)
+						}
+						if err == nil {
+							store = e.privateStorageLocked(s.owner.catalog, ref.Address)
+						}
 					}
 				}
 			}

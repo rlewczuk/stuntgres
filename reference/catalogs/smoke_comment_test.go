@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"stuntgres"
@@ -32,11 +33,6 @@ func TestReferenceSmokeCommentSmoke(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer b.Close()
-			if backend.PG {
-				if _, err := fixture.Admin.ExecContext(ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-					t.Fatal(err)
-				}
-			}
 			comment := func(q, label string, want any) {
 				t.Helper()
 				fixture.RunStep(t, ctx, a, backend.Recorder, fixture.Select(q, []string{label}, []string{"TEXT"}, [][]any{{want}}))
@@ -226,7 +222,9 @@ func TestReferenceSmokeCommentSmoke(t *testing.T) {
 				exec(a, "SET SESSION AUTHORIZATION other", false)
 				// A separate public table keeps schema USAGE from masking ownership diagnostics.
 				exec(b, "SET SESSION AUTHORIZATION owner", false)
-				exec(b, "CREATE TABLE public.auth_table(v INT)", false)
+				fixture.WithPublicSchemaOwner(t, p, backend, "owner", func() {
+					exec(b, "CREATE TABLE public.auth_table(v INT)", false)
+				})
 				exec(b, "RESET SESSION AUTHORIZATION", false)
 				for _, tc := range []struct{ q, code, message, detail string }{
 					{"COMMENT ON TABLE public.auth_table IS 'bad'", "42501", "must be owner of table auth_table", ""},
@@ -371,6 +369,68 @@ func TestReferenceSmokeCommentSmoke(t *testing.T) {
 					}
 				}
 			})
+		})
+	}
+}
+
+func TestReferenceCommentAuthorization(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+			owner := "comment_owner_" + fmt.Sprint(prepared)
+			other := "comment_other_" + fmt.Sprint(prepared)
+			fixture.RoleReferenceCleanup(t, []string{owner, other})
+			fixture.SchemaReferenceCleanup(t, "comment_owned")
+			p := fixture.NewScenario(t)
+			for _, name := range []string{owner, other} {
+				p.Step(t, fixture.Exec("CREATE USER "+name, 0))
+			}
+			for _, backend := range p.Backends() {
+				bootstrap := "postgres"
+				if backend.PG {
+					bootstrap = "stuntgres"
+				}
+				t.Run(backend.Name, func(t *testing.T) {
+					conn, err := backend.DB.Conn(p.Ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer conn.Close()
+					run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s) }
+					run(fixture.Exec("CREATE SCHEMA comment_owned AUTHORIZATION "+owner, 0))
+					run(fixture.Exec("SET SESSION AUTHORIZATION "+owner, 0))
+					fixture.WithPublicSchemaOwner(t, p, backend, owner, func() {
+						run(fixture.Exec("CREATE TABLE t(a INT)", 0))
+					})
+					run(fixture.Exec("COMMENT ON TABLE t IS 'old'", 0))
+					held, err := conn.PrepareContext(p.Ctx, "COMMENT ON TABLE t IS 'held'")
+					if err != nil {
+						t.Fatal("valid utility protocol Prepare", err)
+					}
+					defer held.Close()
+					run(fixture.Exec("SET SESSION AUTHORIZATION "+other, 0))
+					for _, tc := range []struct{ q, code, message, detail string }{
+						{"COMMENT ON TABLE t IS 'bad'", "42501", "must be owner of table t", ""},
+						{"COMMENT ON COLUMN t.a IS 'bad'", "42501", "must be owner of relation t", ""},
+						{"COMMENT ON SCHEMA comment_owned IS 'bad'", "42501", "must be owner of schema comment_owned", ""},
+						{"COMMENT ON COLUMN t.missing IS 'bad'", "42703", `column "missing" of relation "t" does not exist`, ""},
+						{"COMMENT ON ROLE " + other + " IS 'bad'", "42501", "permission denied", "The current user must have the CREATEROLE attribute."},
+						{"COMMENT ON ROLE " + bootstrap + " IS 'bad'", "42501", "permission denied", "The current user must have the SUPERUSER attribute."},
+					} {
+						run(fixture.RoleReferenceError(tc.q, tc.code, tc.message, tc.detail, prepared, "execute"))
+					}
+					_, err = held.ExecContext(p.Ctx)
+					fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "must be owner of table t"})
+					run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
+					run(fixture.Exec("DROP TABLE t", 0))
+					run(fixture.Exec("CREATE TABLE t(a INT)", 0))
+					run(fixture.Exec("SET SESSION AUTHORIZATION "+owner, 0))
+					_, err = held.ExecContext(p.Ctx)
+					fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "must be owner of table t"})
+					run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
+					run(fixture.Exec("DROP TABLE t", 0))
+					run(fixture.Exec("DROP SCHEMA comment_owned", 0))
+				})
+			}
 		})
 	}
 }

@@ -136,7 +136,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 				}
 			}
 		}
-		if namespaces != 1 || temps != 1 {
+		if namespaces != 2 || temps != 1 {
 			t.Fatal("missing genuine first TEMP namespace/sequence", namespaces, temps)
 		}
 	}

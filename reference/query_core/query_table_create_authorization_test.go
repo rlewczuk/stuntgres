@@ -18,11 +18,10 @@ func TestReferenceQueryTableCreateAuthorization(t *testing.T) {
 			run(fixture.Exec("CREATE USER qc_owner", 0))
 			run(fixture.Exec("CREATE USER qc_reader", 0))
 			run(fixture.Exec("CREATE SCHEMA qc_private AUTHORIZATION qc_owner", 0))
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION qc_owner", 0))
-			run(fixture.Exec("CREATE TABLE qc_acl_source(i INTEGER)", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "qc_owner", func() {
+				run(fixture.Exec("CREATE TABLE qc_acl_source(i INTEGER)", 0))
+			})
 			run(fixture.Exec("INSERT INTO qc_acl_source VALUES(7)", 1))
 			run(fixture.Exec("CREATE TABLE qc_private.qc_owned AS SELECT i FROM qc_acl_source", 1))
 			heldQuery := "CREATE TABLE qc_acl_held AS SELECT i FROM qc_acl_source"
@@ -40,21 +39,23 @@ func TestReferenceQueryTableCreateAuthorization(t *testing.T) {
 				t.Run(body, func(t *testing.T) {
 					s := fixture.ImplicitError("CREATE TABLE qc_acl_denied AS "+body, fixture.Diagnostic{Code: "42501", Message: "permission denied for table qc_acl_source"})
 					s.ErrorStage = "execute"
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
+					fixture.WithPublicSchemaOwner(t, p, b, "qc_reader", func() { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) })
 					fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, b.PG, "qc_acl_denied")
 				})
 			}
 			t.Run("held_source_denial", func(t *testing.T) {
 				s := fixture.ImplicitError(heldQuery, fixture.Diagnostic{Code: "42501", Message: "permission denied for table qc_acl_source"})
 				s.ErrorStage = "execute"
-				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: held, SQL: heldQuery}, b.Recorder, s)
+				fixture.WithPublicSchemaOwner(t, p, b, "qc_reader", func() {
+					fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: held, SQL: heldQuery}, b.Recorder, s)
+				})
 				fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, b.PG, "qc_acl_held")
 			})
 			t.Run("source_namespace_nodata", func(t *testing.T) {
 				q := "CREATE TABLE qc_namespace_denied AS SELECT i FROM qc_private.qc_owned WITH NO DATA"
 				want := fixture.ControlsReferenceDiagnostic("42501", "permission denied for schema qc_private")
 				want.Position = "51"
-				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.ErrorDiagnostic(q, want))
+				fixture.WithPublicSchemaOwner(t, p, b, "qc_reader", func() { fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.ErrorDiagnostic(q, want)) })
 				fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, b.PG, "qc_namespace_denied")
 			})
 			t.Run("schema_denial", func(t *testing.T) {
@@ -113,14 +114,15 @@ func TestReferenceQueryTableCreateNoDataAuthorization(t *testing.T) {
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 			run(fixture.Exec("CREATE USER qc_nd_owner", 0))
 			run(fixture.Exec("CREATE USER qc_nd_reader", 0))
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION qc_nd_owner", 0))
-			run(fixture.Exec("CREATE TABLE qc_nd_source(i INTEGER)", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "qc_nd_owner", func() {
+				run(fixture.Exec("CREATE TABLE qc_nd_source(i INTEGER)", 0))
+			})
 			run(fixture.Exec("INSERT INTO qc_nd_source VALUES(7)", 1))
 			run(fixture.Exec("SET SESSION AUTHORIZATION qc_nd_reader", 0))
-			run(fixture.Exec("CREATE TABLE qc_nd_acl AS SELECT i FROM qc_nd_source WITH NO DATA", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "qc_nd_reader", func() {
+				run(fixture.Exec("CREATE TABLE qc_nd_acl AS SELECT i FROM qc_nd_source WITH NO DATA", 0))
+			})
 			run(fixture.Select("SELECT * FROM qc_nd_acl", []string{"i"}, []string{"INT4"}, nil))
 			var notices []fixture.Diagnostic
 			_, noticeConn, recorder := fixture.NoticeReferencePool(t, p, b.PG, &notices)
@@ -137,13 +139,15 @@ func TestReferenceQueryTableCreateNoDataAuthorization(t *testing.T) {
 			// INSERT on its freshly created target, unlike a later ordinary INSERT.
 			if b.PG {
 				run(fixture.Exec("SET SESSION AUTHORIZATION qc_nd_reader", 0))
-				run(fixture.Exec("BEGIN", 0))
-				defer conn.ExecContext(context.Background(), "ROLLBACK")
-				run(fixture.Exec("ALTER DEFAULT PRIVILEGES REVOKE INSERT ON TABLES FROM qc_nd_reader", 0))
-				run(fixture.Exec("CREATE TABLE qc_no_insert AS SELECT 9 AS i", 1))
-				run(fixture.Select("SELECT i FROM qc_no_insert", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
-				run(fixture.ImplicitError("INSERT INTO qc_no_insert VALUES(10)", fixture.Diagnostic{Code: "42501", Message: "permission denied for table qc_no_insert"}))
-				run(fixture.Exec("ROLLBACK", 0))
+				fixture.WithPublicSchemaOwner(t, p, b, "qc_nd_reader", func() {
+					run(fixture.Exec("BEGIN", 0))
+					defer conn.ExecContext(context.Background(), "ROLLBACK")
+					run(fixture.Exec("ALTER DEFAULT PRIVILEGES REVOKE INSERT ON TABLES FROM qc_nd_reader", 0))
+					run(fixture.Exec("CREATE TABLE qc_no_insert AS SELECT 9 AS i", 1))
+					run(fixture.Select("SELECT i FROM qc_no_insert", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
+					run(fixture.ImplicitError("INSERT INTO qc_no_insert VALUES(10)", fixture.Diagnostic{Code: "42501", Message: "permission denied for table qc_no_insert"}))
+					run(fixture.Exec("ROLLBACK", 0))
+				})
 				run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			}
 		})

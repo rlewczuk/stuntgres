@@ -49,7 +49,9 @@ func TestTableCoreLikeOwnershipDescriptors(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER owner")
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-	roleExecute(t, e, op, "CREATE TABLE source(a INT NOT NULL)")
+	withPublicSchemaUnitOwner(t, e, "owner", func() {
+		roleExecute(t, e, op, "CREATE TABLE source(a INT NOT NULL)")
+	})
 	source := roleTableRef(t, e, "source")
 	reader, _ := e.Roles().Lookup("reader")
 	owner := op.RoleState().CurrentUser
@@ -63,7 +65,9 @@ func TestTableCoreLikeOwnershipDescriptors(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), source, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
-	roleExecute(t, e, op, "CREATE TABLE clone(LIKE source)")
+	withPublicSchemaUnitOwner(t, e, "reader", func() {
+		roleExecute(t, e, op, "CREATE TABLE clone(LIKE source)")
+	})
 	clone := e.CatalogRead().state.descriptors[roleTableRef(t, e, "clone").Address].(*relationDescriptor)
 	if clone.owner != reader.Ref || clone.acl.Explicit || len(clone.columnACL) != 0 {
 		t.Fatal("LIKE copied ACL/owner")

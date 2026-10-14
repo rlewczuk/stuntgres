@@ -54,7 +54,7 @@ func TestReferenceRLSBaseControls(t *testing.T) {
 		// Revoking grants leaves an explicit ACL, which Dump intentionally
 		// excludes. Recreate the relation with its genuine default owner ACL.
 		s.exec("DROP TABLE t")
-		s.exec("CREATE TABLE t(id INT PRIMARY KEY,v INT DEFAULT 9)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.exec("CREATE TABLE t(id INT PRIMARY KEY,v INT DEFAULT 9)") })
 		s.run(fixture.Exec("INSERT INTO t VALUES(1,10),(2,20)", 2))
 		s.exec("CREATE POLICY retained ON t TO rls_other USING(id>0) WITH CHECK(v>0)")
 		for _, state := range []struct{ enable, force bool }{{false, false}, {false, true}, {true, false}, {true, true}} {

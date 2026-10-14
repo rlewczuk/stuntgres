@@ -121,11 +121,6 @@ func TestReferenceRoleAuthorization(t *testing.T) {
 			}
 			p.Step(t, fixture.Exec("CREATE ROLE "+nolog, 0))
 			p.Step(t, fixture.Exec("CREATE ROLE "+free, 0))
-			if p.Postgres != nil {
-				if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-					t.Fatal(err)
-				}
-			}
 			for _, backend := range p.Backends() {
 				bootstrap := "postgres"
 				if backend.PG {
@@ -159,7 +154,7 @@ func TestReferenceRoleAuthorization(t *testing.T) {
 					run(b, fixture.Exec("SET SESSION AUTHORIZATION '"+reader+"'", 0))
 					identity(a, owner)
 					identity(b, reader)
-					run(a, fixture.Exec("CREATE TABLE secret(id INT)", 0))
+					fixture.WithPublicSchemaOwner(t, p, backend, owner, func() { run(a, fixture.Exec("CREATE TABLE secret(id INT)", 0)) })
 					run(a, fixture.Exec("INSERT INTO secret VALUES(7)", 1))
 					sentinel := func() {
 						run(a, fixture.Select("SELECT id FROM secret ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))

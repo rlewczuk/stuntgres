@@ -8,6 +8,8 @@ func namespaceCommentBaseline(oid OID) string {
 	switch oid {
 	case PGCatalogNamespaceOID:
 		return "system catalog schema"
+	case PGToastNamespaceOID:
+		return "reserved schema for TOAST tables"
 	case PublicNamespaceOID:
 		return "standard public schema"
 	}

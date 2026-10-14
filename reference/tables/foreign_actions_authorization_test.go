@@ -16,10 +16,6 @@ func TestReferenceForeignActionsAuthorization(t *testing.T) {
 					for _, q := range []string{"CREATE ROLE fa_builder", "CREATE ROLE fa_actor", "CREATE TABLE p(id INT PRIMARY KEY)", "GRANT REFERENCES(id) ON p TO fa_builder", "GRANT DELETE,UPDATE,SELECT ON p TO fa_actor"} {
 						run(fixture.Exec(q, 0))
 					}
-					if b.PG {
-						run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO fa_builder", 0))
-						run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fa_actor", 0))
-					}
 					conn, err := b.DB.Conn(p.Ctx)
 					if err != nil {
 						t.Fatal(err)
@@ -28,7 +24,9 @@ func TestReferenceForeignActionsAuthorization(t *testing.T) {
 					defer conn.ExecContext(p.Ctx, "RESET ROLE")
 					step := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 					step(fixture.Exec("SET ROLE fa_builder", 0))
-					step(fixture.Exec("CREATE TABLE c(id INT PRIMARY KEY,pid INT DEFAULT 1 CONSTRAINT fk REFERENCES p ON "+direction+" "+action+",note TEXT)", 0))
+					fixture.WithPublicSchemaOwner(t, p, b, "fa_builder", func() {
+						step(fixture.Exec("CREATE TABLE c(id INT PRIMARY KEY,pid INT DEFAULT 1 CONSTRAINT fk REFERENCES p ON "+direction+" "+action+",note TEXT)", 0))
+					})
 					step(fixture.Exec("RESET ROLE", 0))
 					run(fixture.Exec("REVOKE REFERENCES ON p FROM fa_builder", 0))
 					run(fixture.Exec("INSERT INTO p VALUES(1),(2)", 2))
@@ -68,10 +66,6 @@ func TestReferenceForeignActionsAuthorizationOwnerDefaults(t *testing.T) {
 		for _, q := range []string{"CREATE ROLE fa_builder", "CREATE ROLE fa_actor", "CREATE TABLE p(id TEXT PRIMARY KEY)", "GRANT REFERENCES ON p TO fa_builder", "GRANT DELETE,SELECT ON p TO fa_actor"} {
 			run(fixture.Exec(q, 0))
 		}
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO fa_builder", 0))
-			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fa_actor", 0))
-		}
 		conn, err := b.DB.Conn(p.Ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -80,7 +74,9 @@ func TestReferenceForeignActionsAuthorizationOwnerDefaults(t *testing.T) {
 		defer conn.ExecContext(p.Ctx, "RESET ROLE")
 		step := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 		step(fixture.Exec("SET ROLE fa_builder", 0))
-		step(fixture.Exec("CREATE TABLE c(pid TEXT DEFAULT CURRENT_USER CONSTRAINT fk REFERENCES p ON DELETE SET DEFAULT)", 0))
+		fixture.WithPublicSchemaOwner(t, p, b, "fa_builder", func() {
+			step(fixture.Exec("CREATE TABLE c(pid TEXT DEFAULT CURRENT_USER CONSTRAINT fk REFERENCES p ON DELETE SET DEFAULT)", 0))
+		})
 		step(fixture.Exec("RESET ROLE", 0))
 		run(fixture.Exec("INSERT INTO p VALUES('old'),('fa_builder'),('fa_actor')", 3))
 		run(fixture.Exec("INSERT INTO c VALUES('old')", 1))
@@ -103,10 +99,6 @@ func TestReferenceForeignActionsAuthorizationProvider(t *testing.T) {
 		for _, q := range []string{"CREATE ROLE fa_builder", "CREATE ROLE fa_actor", "CREATE SEQUENCE action_provider START 10", "ALTER SEQUENCE action_provider OWNER TO fa_builder", "CREATE TABLE p(id BIGINT PRIMARY KEY)", "GRANT REFERENCES ON p TO fa_builder", "GRANT DELETE,SELECT ON p TO fa_actor"} {
 			run(fixture.Exec(q, 0))
 		}
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO fa_builder", 0))
-			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fa_actor", 0))
-		}
 		conn, err := b.DB.Conn(p.Ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -115,7 +107,9 @@ func TestReferenceForeignActionsAuthorizationProvider(t *testing.T) {
 		defer conn.ExecContext(p.Ctx, "RESET ROLE")
 		step := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 		step(fixture.Exec("SET ROLE fa_builder", 0))
-		step(fixture.Exec("CREATE TABLE c(pid BIGINT DEFAULT nextval('action_provider') CONSTRAINT fk REFERENCES p ON DELETE SET DEFAULT)", 0))
+		fixture.WithPublicSchemaOwner(t, p, b, "fa_builder", func() {
+			step(fixture.Exec("CREATE TABLE c(pid BIGINT DEFAULT nextval('action_provider') CONSTRAINT fk REFERENCES p ON DELETE SET DEFAULT)", 0))
+		})
 		step(fixture.Exec("RESET ROLE", 0))
 		run(fixture.Exec("INSERT INTO p VALUES(2),(10),(11)", 3))
 		run(fixture.Exec("INSERT INTO c VALUES(2)", 1))

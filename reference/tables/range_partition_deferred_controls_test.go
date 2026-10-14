@@ -33,20 +33,19 @@ func referenceRangeDeferredControlBody(t *testing.T, p *fixture.Pair, b fixture.
 	}()
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 	run(fixture.Exec("CREATE USER rp_defer_owner", 0))
-	if b.PG {
-		run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO rp_defer_owner", 0))
-	}
 	run(fixture.Exec("SET SESSION AUTHORIZATION rp_defer_owner", 0))
-	for _, query := range []string{
-		"CREATE TABLE rp_defer_target(k REGCLASS)",
-		"CREATE TABLE rp_defer_other(k INT)",
-		"CREATE TABLE rp_defer_root(k INT,payload REGCLASS DEFAULT 'rp_defer_target'::REGCLASS) PARTITION BY RANGE(k)",
-		"CREATE TABLE rp_defer_middle PARTITION OF rp_defer_root DEFAULT PARTITION BY RANGE(k)",
-		"CREATE TABLE rp_defer_leaf PARTITION OF rp_defer_middle(payload DEFAULT 'rp_defer_other'::REGCLASS) DEFAULT",
-		"ALTER TABLE rp_defer_target ALTER COLUMN k SET DEFAULT 'rp_defer_root'::REGCLASS",
-	} {
-		run(fixture.Exec(query, 0))
-	}
+	fixture.WithPublicSchemaOwner(t, p, b, "rp_defer_owner", func() {
+		for _, query := range []string{
+			"CREATE TABLE rp_defer_target(k REGCLASS)",
+			"CREATE TABLE rp_defer_other(k INT)",
+			"CREATE TABLE rp_defer_root(k INT,payload REGCLASS DEFAULT 'rp_defer_target'::REGCLASS) PARTITION BY RANGE(k)",
+			"CREATE TABLE rp_defer_middle PARTITION OF rp_defer_root DEFAULT PARTITION BY RANGE(k)",
+			"CREATE TABLE rp_defer_leaf PARTITION OF rp_defer_middle(payload DEFAULT 'rp_defer_other'::REGCLASS) DEFAULT",
+			"ALTER TABLE rp_defer_target ALTER COLUMN k SET DEFAULT 'rp_defer_root'::REGCLASS",
+		} {
+			run(fixture.Exec(query, 0))
+		}
+	})
 	run(fixture.Prepared(fixture.Exec("INSERT INTO rp_defer_root(k) VALUES($1)", 1, 1)))
 	run(fixture.Prepared(fixture.Exec("INSERT INTO rp_defer_leaf(k) VALUES($1)", 1, 2)))
 	expected := fixture.Select("SELECT k,payload='rp_defer_target'::REGCLASS AS parent_default,payload='rp_defer_other'::REGCLASS AS leaf_default FROM rp_defer_root ORDER BY k", []string{"k", "parent_default", "leaf_default"}, []string{"INT4", "BOOL", "BOOL"}, [][]any{{int64(1), true, false}, {int64(2), false, true}})

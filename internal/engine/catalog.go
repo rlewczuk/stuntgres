@@ -54,6 +54,7 @@ const (
 	ConversionClassID     OID = 2607
 	PolicyClassID         OID = 3256
 	PGCatalogNamespaceOID OID = 11
+	PGToastNamespaceOID   OID = 99
 	PublicNamespaceOID    OID = 2200
 )
 
@@ -81,13 +82,14 @@ type Descriptor interface {
 	Kind() ObjectKind
 }
 type namespaceDescriptor struct {
-	address   ObjectAddress
-	name      string
-	revision  DefinitionRevision
-	owner     authorization.PrincipalRef
-	acl       authorization.ACLValue
-	comment   string
-	temporary SessionToken
+	address        ObjectAddress
+	name           string
+	revision       DefinitionRevision
+	owner          authorization.PrincipalRef
+	acl            authorization.ACLValue
+	comment        string
+	temporary      SessionToken
+	temporaryToast bool
 }
 
 func (d *namespaceDescriptor) Address() ObjectAddress       { return d.address }
@@ -220,6 +222,13 @@ type namespaceProvider struct{}
 
 func (namespaceProvider) ClassID() OID { return NamespaceClassID }
 func (namespaceProvider) Validate(v CatalogRead, d Descriptor) error {
+	ns, ok := d.(*namespaceDescriptor)
+	if !ok || ns == nil || ns.temporaryToast && ns.temporary == (SessionToken{}) || v.state == nil || v.state.descriptors[ns.address] != ns {
+		return fmt.Errorf("stuntgres: invalid namespace descriptor authority")
+	}
+	if ns.temporary != (SessionToken{}) && (ns.temporary.owner != v.owner || ns.temporary.id == 0 || ns.temporary.private != nil) {
+		return fmt.Errorf("stuntgres: invalid temporary namespace provenance")
+	}
 	a := d.Address()
 	key := descriptorNameKey(d)
 	found := v.Lookup(key)
@@ -1052,6 +1061,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if current.descriptors[base.Address()] != observed {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
+			}
+			if ns, ok := base.(*namespaceDescriptor); ok && s.terminalCleanup && ns.temporary != (SessionToken{}) {
+				for address, d := range current.descriptors {
+					if _, removed := s.removals[address]; d.Namespace() == ns.address && (!removed || d != s.base.state.descriptors[address]) {
+						e.mu.Unlock()
+						return ChangeSet{}, CatalogConflict{}
+					}
+				}
 			}
 		}
 		if err := s.validateLikeSources(CatalogRead{owner: e, state: current}); err != nil {

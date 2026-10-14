@@ -81,11 +81,10 @@ func (s *membershipScenario) read(allowed bool) {
 }
 func (s *membershipScenario) owned(owner string) {
 	s.t.Helper()
-	if s.backend.PG {
-		s.exec("GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC")
-	}
 	s.actor(owner)
-	s.exec("CREATE TABLE membership_owned(id INT)")
+	fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, owner, func() {
+		s.exec("CREATE TABLE membership_owned(id INT)")
+	})
 	s.run(fixture.Exec("INSERT INTO membership_owned VALUES(7)", 1))
 	s.actor("")
 }

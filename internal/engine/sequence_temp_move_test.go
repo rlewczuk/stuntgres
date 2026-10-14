@@ -103,9 +103,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 					t.Fatal(err)
 				}
 				if namespace != (ObjectAddress{}) {
-					if _, ok := e.state.descriptors[namespace]; ok {
-						t.Fatal("physical end leaked owned temporary namespace")
-					}
+					assertTemporaryNamespacePair(t, e, a.token, namespace)
 					for address, d := range catalog.descriptors {
 						if d.Namespace() == namespace && (e.state.descriptors[address] != nil || e.sequences[address] != nil || e.storage[address] != nil) {
 							t.Fatal("physical end leaked owned temporary object", address)

@@ -12,11 +12,6 @@ import (
 func TestReferenceRoleExcludedCommands(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"owner", "reader"})
 	p := fixture.NewScenario(t)
-	if p.Postgres != nil {
-		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-			t.Fatal(err)
-		}
-	}
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
 			var notices []fixture.Diagnostic
@@ -27,7 +22,11 @@ func TestReferenceRoleExcludedCommands(t *testing.T) {
 			}
 			defer peer.Close()
 			for _, q := range []string{"CREATE USER owner", "CREATE ROLE reader", "SET SESSION AUTHORIZATION owner", "CREATE TABLE sentinel(id INT)", "CREATE TABLE role(role INT)", "SET application_name TO 'SET ROLE reader'"} {
-				roleScenarioCommand(t, c, q, 0, false)
+				if strings.HasPrefix(q, "CREATE TABLE") {
+					fixture.WithPublicSchemaOwner(t, p, backend, "owner", func() { roleScenarioCommand(t, c, q, 0, false) })
+				} else {
+					roleScenarioCommand(t, c, q, 0, false)
+				}
 			}
 			roleScenarioCommand(t, c, "INSERT INTO sentinel VALUES(7)", 1, false)
 			roleScenarioCommand(t, c, "INSERT INTO role(role) VALUES(8)", 1, true)

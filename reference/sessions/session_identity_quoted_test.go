@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"strings"
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -26,13 +27,14 @@ func TestReferenceSessionIdentityQuotedViewRoundTrip(t *testing.T) {
 			}
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s) }
 			run(fixture.Exec("CREATE ROLE identity_quoted_owner", 0))
-			if backend.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO identity_quoted_owner", 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION identity_quoted_owner", 0))
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 			for _, s := range []fixture.Step{fixture.Exec("CREATE TABLE identity_quoted_source(id INT)", 0), fixture.Exec("INSERT INTO identity_quoted_source VALUES(1)", 1), fixture.Exec(`CREATE VIEW identity_quoted_view AS SELECT "current_user"() AS effective,"session_user"() AS session_name,"system_user"() AS authentication FROM identity_quoted_source`, 0), fixture.Exec("RESET SESSION AUTHORIZATION", 0), fixture.Exec("SET ROLE identity_quoted_owner", 0)} {
-				run(s)
+				if strings.HasPrefix(s.Query, "CREATE ") {
+					fixture.WithPublicSchemaOwner(t, p, backend, "identity_quoted_owner", func() { run(s) })
+				} else {
+					run(s)
+				}
 			}
 			const query = "SELECT effective,session_name,authentication FROM identity_quoted_view"
 			held, err := conn.PrepareContext(p.Ctx, query)

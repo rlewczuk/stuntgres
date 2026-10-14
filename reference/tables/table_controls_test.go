@@ -119,11 +119,6 @@ func TestReferenceTableCoreAuthorizationAndOwnershipCleanup(t *testing.T) {
 			p.Step(t, fixture.Exec("CREATE USER "+reader, 0))
 			p.Step(t, fixture.Exec("CREATE TABLE t(id INT)", 0))
 			p.Step(t, fixture.Exec("INSERT INTO t VALUES(11)", 1))
-			if p.Postgres != nil {
-				if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-					t.Fatal(err)
-				}
-			}
 			for _, backend := range p.Backends() {
 				db := backend.DB
 				conn, err := db.Conn(p.Ctx)
@@ -136,12 +131,12 @@ func TestReferenceTableCoreAuthorizationAndOwnershipCleanup(t *testing.T) {
 					run := func(s fixture.Step) { s.Prepared = prepared; fixture.RunStep(t, p.Ctx, conn, record, s) }
 					defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 					run(fixture.Exec("SET SESSION AUTHORIZATION "+owner, 0))
-					run(fixture.Exec("CREATE TABLE source(i INT NOT NULL)", 0))
+					fixture.WithPublicSchemaOwner(t, p, backend, owner, func() { run(fixture.Exec("CREATE TABLE source(i INT NOT NULL)", 0)) })
 					run(fixture.Exec("INSERT INTO source VALUES(7)", 1))
 					run(fixture.Exec("SET SESSION AUTHORIZATION "+reader, 0))
 					denied := fixture.ImplicitError("CREATE TABLE denied(LIKE source)", fixture.Diagnostic{Code: "42501", Message: "permission denied for table source"})
 					denied.ErrorStage = "execute"
-					run(denied)
+					fixture.WithPublicSchemaOwner(t, p, backend, reader, func() { run(denied) })
 					denied = fixture.ImplicitError("DROP TABLE source", fixture.Diagnostic{Code: "42501", Message: "must be owner of table source"})
 					denied.ErrorStage = "execute"
 					run(denied)

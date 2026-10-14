@@ -21,10 +21,11 @@ func TestReferenceRLSPolicyRestoreSelectors(t *testing.T) {
 	}
 	membershipCases(t, []string{owner}, func(s *membershipScenario) {
 		if s.backend.PG {
-			s.exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
-			for _, statement := range statements {
-				s.exec(statement)
-			}
+			fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, owner, func() {
+				for _, statement := range statements {
+					s.exec(statement)
+				}
+			})
 		} else {
 			if err := stuntgres.Restore(s.p.Ctx, s.p.Native, strings.NewReader(strings.Join(statements, ";")+";")); err != nil {
 				s.t.Fatal("selector-bearing Restore", err)
@@ -94,12 +95,13 @@ func policyRestoreSelectorsReplay(s *membershipScenario, stream, owner string) {
 	consumer.c, consumer.record = c, s.p.PostgresRecord
 	consumer.backend.PG = true
 	consumer.exec("CREATE ROLE " + owner + " LOGIN")
-	consumer.exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
 	// Whole scripts are an actual PostgreSQL Exec route, not prepared SQL or
 	// a fabricated server Restore API. Subsequent probes use both SQL routes.
-	if _, err := c.ExecContext(s.p.Ctx, stream); err != nil {
-		s.t.Fatal("PostgreSQL rejected actual selector policy Dump", err)
-	}
+	fixture.WithPublicSchemaOwner(s.t, s.p, fixture.Backend{Name: "postgres", DB: s.p.Postgres, Recorder: s.p.PostgresRecord, PG: true}, owner, func() {
+		if _, err := c.ExecContext(s.p.Ctx, stream); err != nil {
+			s.t.Fatal("PostgreSQL rejected actual selector policy Dump", err)
+		}
+	})
 	consumer.actor("")
 	policyOrderedRoles(&consumer, "p", "{"+owner+","+owner+","+owner+"}")
 	consumer.run(fixture.Select("SELECT r.rolname AS owner FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE c.oid='t'::regclass", []string{"owner"}, []string{"NAME"}, [][]any{{owner}}))

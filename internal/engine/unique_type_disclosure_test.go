@@ -21,7 +21,9 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				roleExecute(t, e, admin, "CREATE ROLE unique_type_owner LOGIN")
 				owner, ownerDone := roleOperation(t, e, "unique_type_owner")
 				defer ownerDone()
-				roleExecute(t, e, owner, "CREATE TABLE t(a INT,b TEXT,CONSTRAINT u UNIQUE(a,b))")
+				withPublicSchemaUnitOwner(t, e, "unique_type_owner", func() {
+					roleExecute(t, e, owner, "CREATE TABLE t(a INT,b TEXT,CONSTRAINT u UNIQUE(a,b))")
+				})
 				roleExecute(t, e, owner, "INSERT INTO t VALUES(1,'protected'),(2,'protected')")
 				ref := roleTableRef(t, e, "t")
 				actor, ok := e.Roles().Lookup("unique_type_owner")

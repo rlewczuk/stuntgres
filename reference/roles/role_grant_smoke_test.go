@@ -9,7 +9,7 @@ import (
 func TestReferenceRoleGrantFeatureSmoke(t *testing.T) {
 	fixture.RoleGrantScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_owner", 0))
-		run(fixture.Exec("CREATE TABLE t(a INT,b INT DEFAULT 9)", 0))
+		fixture.WithPublicSchemaOwner(t, p, b, "rg_owner", func() { run(fixture.Exec("CREATE TABLE t(a INT,b INT DEFAULT 9)", 0)) })
 		run(fixture.Exec("INSERT INTO t VALUES(7,9)", 1))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_reader", 0))

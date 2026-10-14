@@ -191,20 +191,22 @@ func TestRangePartitionPublicationDeferredRestoreAndCancellation(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, query := range []string{
-		"CREATE ROLE named_owner LOGIN",
-		"SET SESSION AUTHORIZATION named_owner",
-		"CREATE TABLE target(k REGCLASS)",
-		"CREATE TABLE alternate(k INT)",
-		"CREATE TABLE root(k INT,payload REGCLASS DEFAULT 'target'::REGCLASS) PARTITION BY RANGE(k)",
-		"CREATE TABLE middle PARTITION OF root DEFAULT PARTITION BY RANGE(k)",
-		"CREATE TABLE leaf PARTITION OF middle DEFAULT",
-		"ALTER TABLE target ALTER COLUMN k SET DEFAULT 'root'::REGCLASS",
-		"INSERT INTO root(k) VALUES(1)",
-		"SET SESSION AUTHORIZATION postgres",
-	} {
-		roleExecute(t, e, op, query)
-	}
+	roleExecute(t, e, op, "CREATE ROLE named_owner LOGIN")
+	roleExecute(t, e, op, "SET SESSION AUTHORIZATION named_owner")
+	withPublicSchemaUnitOwner(t, e, "named_owner", func() {
+		for _, query := range []string{
+			"CREATE TABLE target(k REGCLASS)",
+			"CREATE TABLE alternate(k INT)",
+			"CREATE TABLE root(k INT,payload REGCLASS DEFAULT 'target'::REGCLASS) PARTITION BY RANGE(k)",
+			"CREATE TABLE middle PARTITION OF root DEFAULT PARTITION BY RANGE(k)",
+			"CREATE TABLE leaf PARTITION OF middle DEFAULT",
+			"ALTER TABLE target ALTER COLUMN k SET DEFAULT 'root'::REGCLASS",
+			"INSERT INTO root(k) VALUES(1)",
+		} {
+			roleExecute(t, e, op, query)
+		}
+	})
+	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	var stream bytes.Buffer
 	if err := e.Dump(context.Background(), &stream); err != nil {
 		t.Fatal(err)

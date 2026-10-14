@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func lockModesScenarioBackends(t *testing.T, run func(*testing.T, context.Context, fixture.Backend, *sql.Conn, *sql.Conn)) {
+func lockModesScenarioBackends(t *testing.T, run func(*testing.T, *fixture.Pair, context.Context, fixture.Backend, *sql.Conn, *sql.Conn)) {
 	t.Helper()
 	pair := fixture.NewScenario(t)
 	for _, backend := range pair.Backends() {
@@ -19,14 +19,14 @@ func lockModesScenarioBackends(t *testing.T, run func(*testing.T, context.Contex
 				a.ExecContext(pair.Ctx, "RESET SESSION AUTHORIZATION")
 				b.ExecContext(pair.Ctx, "RESET SESSION AUTHORIZATION")
 			})
-			run(t, pair.Ctx, backend, a, b)
+			run(t, pair, pair.Ctx, backend, a, b)
 		})
 	}
 }
 
 func lockModesBackends(t *testing.T, run func(*testing.T, context.Context, *sql.Conn, *sql.Conn)) {
 	t.Helper()
-	lockModesScenarioBackends(t, func(t *testing.T, ctx context.Context, _ fixture.Backend, a, b *sql.Conn) {
+	lockModesScenarioBackends(t, func(t *testing.T, _ *fixture.Pair, ctx context.Context, _ fixture.Backend, a, b *sql.Conn) {
 		run(t, ctx, a, b)
 	})
 }

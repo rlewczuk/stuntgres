@@ -128,7 +128,9 @@ func TestRoleDependencyAddressOrderAndQuoting(t *testing.T) {
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
 			var previous OID
 			for _, name := range []string{"z", "a", `"odd table"`, `"select"`, `"quote""table"`, `"integer"`, `"Mixed"`} {
-				roleExecute(t, e, op, "CREATE TABLE "+name+"(id INT)")
+				withPublicSchemaUnitOwner(t, e, "owner", func() {
+					roleExecute(t, e, op, "CREATE TABLE "+name+"(id INT)")
+				})
 				ref := roleTableRef(t, e, name)
 				if ref.Address.ObjectID <= previous {
 					t.Fatal("creation identity ordering", ref, previous)
@@ -258,7 +260,9 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 				t.Fatal(err)
 			}
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-			roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
+			withPublicSchemaUnitOwner(t, e, "owner", func() {
+				roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
+			})
 			roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 			roles, catalog := e.roles, e.state
@@ -302,7 +306,9 @@ func TestRoleColumnDependencySubIDOrderAndOwnerSuppression(t *testing.T) {
 			roleExecute(t, e, op, "CREATE USER owner")
 			roleExecute(t, e, op, "CREATE USER reader")
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-			roleExecute(t, e, op, "CREATE TABLE secret(a INT,b INT)")
+			withPublicSchemaUnitOwner(t, e, "owner", func() {
+				roleExecute(t, e, op, "CREATE TABLE secret(a INT,b INT)")
+			})
 			roleExecute(t, e, op, "INSERT INTO secret VALUES(7,8)")
 			ref := roleTableRef(t, e, "secret")
 			reader, _ := e.Roles().Lookup("reader")
@@ -406,7 +412,9 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE USER typed_owner")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION typed_owner")
-	roleExecute(t, e, op, "CREATE TABLE typed_owned(id INT NOT NULL)")
+	withPublicSchemaUnitOwner(t, e, "typed_owner", func() {
+		roleExecute(t, e, op, "CREATE TABLE typed_owned(id INT NOT NULL)")
+	})
 	roleExecute(t, e, op, "INSERT INTO typed_owned VALUES(7)")
 	query := statement(t, "SELECT session_user,current_user")
 	description, err := e.Describe(op, query)
@@ -464,10 +472,12 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 	}
 	roleIdentity(t, e, op, "typed_owner")
 	// Host AST input shares normal NAME column admission and value semantics.
-	_, err = e.Execute(op, &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "stored_name"}}}, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}}, 0, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	withPublicSchemaUnitOwner(t, e, "typed_owner", func() {
+		_, err = e.Execute(op, &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "stored_name"}}}, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}}, 0, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 	roleExecute(t, e, op, "INSERT INTO stored_name VALUES('MiXeD')")
 	if got := tuples(roleExecute(t, e, op, "SELECT id FROM stored_name")); !reflect.DeepEqual(got, [][]driver.Value{{"MiXeD"}}) {
 		t.Fatal("stored NAME value", got)
@@ -488,90 +498,92 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION publisher")
 	peer, peerDone := roleOperation(t, e, "postgres")
 	defer peerDone()
-	entered, release := make(chan struct{}), make(chan struct{})
-	released := false
-	defer func() {
-		if !released {
-			close(release)
-		}
-	}()
-	e.providers[RelationClassID] = &publicationConflictProvider{
-		CatalogProvider: e.providers[RelationClassID],
-		publishWinner: func(Descriptor) {
-			close(entered)
-			<-release
-			if err := grantMembership(t, e, authorization.Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}); err != nil {
-				t.Error(err)
+	withPublicSchemaUnitOwner(t, e, "publisher", func() {
+		entered, release := make(chan struct{}), make(chan struct{})
+		released := false
+		defer func() {
+			if !released {
+				close(release)
 			}
-		},
-	}
-	query := statement(t, "CREATE TABLE fenced_role(id INT NOT NULL)")
-	returned := make(chan error, 1)
-	go func() {
-		_, err := e.Execute(op, query, 0, nil)
-		returned <- err
-	}()
-	select {
-	case <-entered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("catalog provider gate not reached")
-	}
-	peerReturned := make(chan error, 1)
-	go func() {
-		// While provider validation is gated, session settings, authorization
-		// views and explicit transaction identity work must remain independent.
-		_, err := e.Execute(peer, statement(t, "SHOW application_name"), 0, nil)
-		if err == nil {
-			_, err = peer.Authorization()
+		}()
+		e.providers[RelationClassID] = &publicationConflictProvider{
+			CatalogProvider: e.providers[RelationClassID],
+			publishWinner: func(Descriptor) {
+				close(entered)
+				<-release
+				if err := grantMembership(t, e, authorization.Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}); err != nil {
+					t.Error(err)
+				}
+			},
 		}
-		var ref TxRef
-		if err == nil {
-			ref, err = e.Begin(peer, TxOptions{})
+		query := statement(t, "CREATE TABLE fenced_role(id INT NOT NULL)")
+		returned := make(chan error, 1)
+		go func() {
+			_, err := e.Execute(op, query, 0, nil)
+			returned <- err
+		}()
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("catalog provider gate not reached")
 		}
-		if err == nil {
-			var result Result
-			result, err = e.Execute(peer, statement(t, "SELECT current_user"), 0, nil)
-			if err == nil && !reflect.DeepEqual(tuples(result), [][]driver.Value{{"postgres"}}) {
-				err = errors.New("peer transaction identity changed")
-			}
-			if result.Rows != nil {
-				result.Rows.Close()
-			}
-			_, rollbackErr := e.Rollback(peer, ref)
+		peerReturned := make(chan error, 1)
+		go func() {
+			// While provider validation is gated, session settings, authorization
+			// views and explicit transaction identity work must remain independent.
+			_, err := e.Execute(peer, statement(t, "SHOW application_name"), 0, nil)
 			if err == nil {
-				err = rollbackErr
+				_, err = peer.Authorization()
 			}
+			var ref TxRef
+			if err == nil {
+				ref, err = e.Begin(peer, TxOptions{})
+			}
+			if err == nil {
+				var result Result
+				result, err = e.Execute(peer, statement(t, "SELECT current_user"), 0, nil)
+				if err == nil && !reflect.DeepEqual(tuples(result), [][]driver.Value{{"postgres"}}) {
+					err = errors.New("peer transaction identity changed")
+				}
+				if result.Rows != nil {
+					result.Rows.Close()
+				}
+				_, rollbackErr := e.Rollback(peer, ref)
+				if err == nil {
+					err = rollbackErr
+				}
+			}
+			peerReturned <- err
+		}()
+		select {
+		case err := <-peerReturned:
+			if err != nil {
+				t.Fatal("peer work while provider gated", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("provider validation held lifecycle or engine locks")
 		}
-		peerReturned <- err
-	}()
-	select {
-	case err := <-peerReturned:
-		if err != nil {
-			t.Fatal("peer work while provider gated", err)
+		close(release)
+		released = true
+		select {
+		case err := <-returned:
+			if err == nil || err.Error() != "stuntgres: authorization changed before publication" {
+				t.Fatal("authority fence", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("catalog publication did not release lifecycle/authority locks")
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("provider validation held lifecycle or engine locks")
-	}
-	close(release)
-	released = true
-	select {
-	case err := <-returned:
-		if err == nil || err.Error() != "stuntgres: authorization changed before publication" {
-			t.Fatal("authority fence", err)
+		if found := e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.session.TransactionState() != TxIdle {
+			t.Fatal("failed publication leaked table or transaction", found)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("catalog publication did not release lifecycle/authority locks")
-	}
-	if found := e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.session.TransactionState() != TxIdle {
-		t.Fatal("failed publication leaked table or transaction", found)
-	}
-	roleIdentity(t, e, op, "publisher")
-	roleExecute(t, e, op, "CREATE TABLE fenced_role(id INT NOT NULL)")
-	roleExecute(t, e, op, "INSERT INTO fenced_role VALUES(7)")
-	roleError(t, e, op, "INSERT INTO fenced_role VALUES(2147483648)", "22003", "integer out of range", "")
-	if got := tuples(roleExecute(t, e, op, "SELECT id FROM fenced_role")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
-		t.Fatal("post-fence publication", got)
-	}
+		roleIdentity(t, e, op, "publisher")
+		roleExecute(t, e, op, "CREATE TABLE fenced_role(id INT NOT NULL)")
+		roleExecute(t, e, op, "INSERT INTO fenced_role VALUES(7)")
+		roleError(t, e, op, "INSERT INTO fenced_role VALUES(2147483648)", "22003", "integer out of range", "")
+		if got := tuples(roleExecute(t, e, op, "SELECT id FROM fenced_role")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
+			t.Fatal("post-fence publication", got)
+		}
+	})
 }
 
 func TestRoleUtilityInstallCompletion(t *testing.T) {

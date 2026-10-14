@@ -16,7 +16,9 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER seq_owner")
 	roleExecute(t, e, op, "CREATE USER seq_reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_owner")
-	roleExecute(t, e, op, "CREATE SEQUENCE s CACHE 7")
+	withPublicSchemaUnitOwner(t, e, "seq_owner", func() {
+		roleExecute(t, e, op, "CREATE SEQUENCE s CACHE 7")
+	})
 	r := roleExecute(t, e, op, "SELECT nextval('s')")
 	r.Rows.Close()
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")

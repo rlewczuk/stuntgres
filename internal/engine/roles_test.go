@@ -279,11 +279,19 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	e := New()
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, query := range []string{`CREATE USER "a'quote"`, `CREATE USER "b\slash"`,
-		`SET SESSION AUTHORIZATION "b\slash"`, `CREATE TABLE first(id INT)`, `INSERT INTO first VALUES(7)`,
-		`SET SESSION AUTHORIZATION "a'quote"`, `CREATE TABLE second(id INT)`, `INSERT INTO second VALUES(8)`} {
+	for _, query := range []string{`CREATE USER "a'quote"`, `CREATE USER "b\slash"`} {
 		roleExecute(t, e, admin, query)
 	}
+	roleExecute(t, e, admin, `SET SESSION AUTHORIZATION "b\slash"`)
+	withPublicSchemaUnitOwner(t, e, `b\slash`, func() {
+		roleExecute(t, e, admin, "CREATE TABLE first(id INT)")
+	})
+	roleExecute(t, e, admin, "INSERT INTO first VALUES(7)")
+	roleExecute(t, e, admin, `SET SESSION AUTHORIZATION "a'quote"`)
+	withPublicSchemaUnitOwner(t, e, "a'quote", func() {
+		roleExecute(t, e, admin, "CREATE TABLE second(id INT)")
+	})
+	roleExecute(t, e, admin, "INSERT INTO second VALUES(8)")
 	peer, closePeer := roleOperation(t, e, `b\slash`)
 	defer closePeer()
 	beforeAdmin, beforePeer := admin.RoleState(), peer.RoleState()

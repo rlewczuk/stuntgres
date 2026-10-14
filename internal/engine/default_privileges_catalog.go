@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/authorization"
+import (
+	"slices"
+	"stuntgres/internal/engine/authorization"
+)
 
 func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ObjectAddress{{}, schema} {
@@ -143,12 +146,13 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 	return creationDefaultACL(view, owner, schema, class)
 }
 
-// Projection and session retirement remove namespace-owned directives along
-// with their namespaces. Invalid already-orphaned keys remain for validation.
-func pruneRemovedNamespaceDefaults(source, next *catalogState) {
+// Projection removes namespace-owned directives with their namespaces. Physical
+// retirement removes their directives while retaining empty namespace metadata.
+// Invalid already-orphaned keys remain for validation.
+func pruneNamespaceDefaults(source, next *catalogState, retired []ObjectAddress) {
 	copied := false
 	for key := range next.defaultACLs {
-		if key.schema == (ObjectAddress{}) || source.descriptors[key.schema] == nil || next.descriptors[key.schema] != nil {
+		if key.schema == (ObjectAddress{}) || source.descriptors[key.schema] == nil || next.descriptors[key.schema] != nil && !slices.Contains(retired, key.schema) {
 			continue
 		}
 		if !copied {

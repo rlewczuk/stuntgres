@@ -13,6 +13,31 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Namespace catalog metadata — change note
+
+`pg_catalog.pg_namespace` exposes the PostgreSQL 18 four-column schema:
+`oid`, `nspname`, `nspowner` and nullable `nspacl`. Rows are actual namespace
+descriptors, including inaccessible user schemas and physical TEMP pairs.
+Builtin identities and initialized ACLs are exact; pristine `public` grants
+PUBLIC USAGE, not CREATE. TEMP namespaces belong to bootstrap role10 while
+their objects retain the creating role, and physical close retains both empty
+namespace identities after removing their objects.
+Captured ACL principals must exist in their paired role inventory. Physical TEMP
+retirement preserves the empty namespace pair but removes its children and scoped
+default directives. First TEMP views retain staged physical authority through
+execution. Existing isolated Restore reconstructs named-owner domains/enums/composites
+without granting ordinary PUBLIC CREATE or changing emitted streams.
+Qualified TEMP namespace use respects the captured effective superuser, separately
+from physical own-session creation: retired absent children yield42P01 for bootstrap
+superusers and schema42501 for ordinary peers. Lookup never adopts retired tokens.
+Foreign physical TEMP storage remains unavailable: stored reads and mutation targets
+fail at execution with0A000 after valid namespace/role checks, without exposing peer
+rows or synthesizing PostgreSQL local-buffer results.
+See [namespace metadata](docs/TABLES.md#namespace-catalog-projection) and
+[selected proof](reference/catalogs/README.md#pg_namespace-selected-proof).
+Feature smoke: `make check RUN='^TestReferencePGNamespaceFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGNamespaceFeatureSmoke$'`.
+
 ## Constraint catalog metadata — change note
 
 `pg_catalog.pg_constraint` exposes the PostgreSQL 18 28-column catalog shape for
@@ -503,7 +528,7 @@ Change note: all sixteen PostgreSQL18 predefined role identities are seeded.
 Live INHERIT membership supplies real read/write/schema/sequence capabilities;
 `pg_maintain` uses substantive REINDEX and transaction-owned LOCK exclusion.
 `pg_database_owner` is implicit for the live canonical attached-database owner and
-owns canonical public, whose historical PUBLIC USAGE|CREATE default is retained.
+owns initialized public, whose exact PUBLIC default grants USAGE but not CREATE.
 Monitoring names do not unlock protected SET, and roles never synthesize missing
 statistics, filesystem/program, checkpoint, subscription or signaling providers.
 See [predefined role capabilities and limits](docs/AUTHORIZATION.md#predefined-role-capabilities)
@@ -2798,10 +2823,11 @@ rows, including actual automatic sequences and backing indexes. Identity,
 namespace, ownership, kind, row-type/typed-table links, attribute high-water,
 CHECK counts, RLS and population come from installed descriptors, not row counts.
 Represented builtin view classification does not change their execution sources.
-All twenty represented table catalogs own audited indexed-table metadata,
+All twenty-two represented table catalogs own audited indexed-table metadata,
 including `pg_proc`, `pg_collation`, `pg_enum`, `pg_conversion`, `pg_ts_dict`
-and `pg_ts_template`, together with shared `pg_database` and
-`pg_db_role_setting`; represented views report no indexes. These facts survive
+and `pg_ts_template`, together with `pg_attribute`, `pg_namespace`, shared
+`pg_database` and `pg_db_role_setting`; represented views report no indexes.
+These facts survive
 Reset/Restore without inventing missing native backing-index rows.
 
 Stored `relacl` preserves grantor/grantee identities, PUBLIC, privilege/grant-option

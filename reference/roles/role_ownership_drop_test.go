@@ -76,9 +76,9 @@ func TestReferenceRoleOwnershipRestrictAtomicity(t *testing.T) {
 		// All roots of one source and all sources are preflighted as one union.
 		s.exec("GRANT SELECT ON own_granted TO own_target")
 		s.actor("own_source")
-		s.exec("CREATE VIEW own_union_same AS SELECT id FROM own_restrict")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() { s.exec("CREATE VIEW own_union_same AS SELECT id FROM own_restrict") })
 		s.actor("own_target")
-		s.exec("CREATE VIEW own_union_other AS SELECT id FROM own_granted")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_target", func() { s.exec("CREATE VIEW own_union_other AS SELECT id FROM own_granted") })
 		s.actor("")
 		s.exec("DROP OWNED BY own_source RESTRICT")
 		ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relname='own_restrict' OR relname='own_union_same'", 0)
@@ -86,7 +86,7 @@ func TestReferenceRoleOwnershipRestrictAtomicity(t *testing.T) {
 		ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relname='own_granted' OR relname='own_union_other'", 0)
 		ownershipBool(s, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='own_source')", true)
 		s.actor("own_source")
-		s.exec("CREATE TABLE own_after_drop(id INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() { s.exec("CREATE TABLE own_after_drop(id INT)") })
 		s.actor("")
 	})
 }
@@ -94,30 +94,34 @@ func TestReferenceRoleOwnershipRestrictAtomicity(t *testing.T) {
 func TestReferenceRoleOwnershipCascade(t *testing.T) {
 	ownershipCases(t, func(s *membershipScenario) {
 		s.actor("own_source")
-		for _, q := range []string{
-			"CREATE TABLE own_cascade(id SERIAL PRIMARY KEY)",
-			"CREATE DOMAIN own_cascade_domain AS INT",
-			"CREATE SEQUENCE own_cascade_sequence",
-		} {
-			s.exec(q)
-		}
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() {
+			for _, q := range []string{
+				"CREATE TABLE own_cascade(id SERIAL PRIMARY KEY)",
+				"CREATE DOMAIN own_cascade_domain AS INT",
+				"CREATE SEQUENCE own_cascade_sequence",
+			} {
+				s.exec(q)
+			}
+		})
 		s.run(fixture.Exec("INSERT INTO own_cascade VALUES(7)", 1))
 		s.exec("GRANT SELECT,REFERENCES ON own_cascade TO own_other")
 		s.actor("")
 		s.exec("GRANT own_source TO own_other WITH INHERIT TRUE, SET FALSE")
 		s.flags("own_source", "own_other", s.bootstrap, 1, false, true, false)
 		s.actor("own_other")
-		for _, q := range []string{
-			"CREATE VIEW own_cascade_v AS SELECT id FROM own_cascade",
-			"CREATE VIEW own_cascade_v2 AS SELECT id FROM own_cascade_v",
-			"CREATE TABLE own_fk_survivor(id INT REFERENCES own_cascade(id),keep INT)",
-			"CREATE TABLE own_type_survivor(dropme own_cascade_domain,keep INT,calc INT DEFAULT 7::own_cascade_domain,CONSTRAINT own_cast_check CHECK(keep::own_cascade_domain>0))",
-			"CREATE POLICY own_cast_policy ON own_type_survivor USING(keep::own_cascade_domain>0)",
-			"CREATE TABLE own_default_survivor(id INT DEFAULT nextval('own_cascade_sequence'),keep INT)",
-			"CREATE SEQUENCE own_cascade_sequence_nearby",
-		} {
-			s.exec(q)
-		}
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() {
+			for _, q := range []string{
+				"CREATE VIEW own_cascade_v AS SELECT id FROM own_cascade",
+				"CREATE VIEW own_cascade_v2 AS SELECT id FROM own_cascade_v",
+				"CREATE TABLE own_fk_survivor(id INT REFERENCES own_cascade(id),keep INT)",
+				"CREATE TABLE own_type_survivor(dropme own_cascade_domain,keep INT,calc INT DEFAULT 7::own_cascade_domain,CONSTRAINT own_cast_check CHECK(keep::own_cascade_domain>0))",
+				"CREATE POLICY own_cast_policy ON own_type_survivor USING(keep::own_cascade_domain>0)",
+				"CREATE TABLE own_default_survivor(id INT DEFAULT nextval('own_cascade_sequence'),keep INT)",
+				"CREATE SEQUENCE own_cascade_sequence_nearby",
+			} {
+				s.exec(q)
+			}
+		})
 		s.run(fixture.Exec("INSERT INTO own_fk_survivor VALUES(7,9)", 1))
 		s.run(fixture.Exec("INSERT INTO own_type_survivor VALUES(7,9,7)", 1))
 		s.run(fixture.Exec("INSERT INTO own_default_survivor(keep) VALUES(9)", 1))

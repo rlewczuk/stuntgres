@@ -50,12 +50,10 @@ func TestReferenceTemporaryTableDiagnostics(t *testing.T) {
 			// relation, independently of the owner's populated local-buffer rows.
 			fixture.RunStep(s.T, s.P.Ctx, s.C, s.Record, fixture.SequenceInt64Step(fixture.Step{Query: q, Prepared: s.Prepared, SelectRows: true, Columns: []string{"v"}, Types: []string{"INT4"}, Rows: [][]any{}}))
 		} else {
-			d := fixture.TempReferenceDiagnostic("42501", "permission denied for schema "+foreign, "", "15")
-			stage := "execute"
-			if s.Prepared {
-				stage = "prepare"
-			}
-			fixture.RunStep(s.T, s.P.Ctx, s.C, s.Record, fixture.Step{Query: q, Prepared: s.Prepared, SelectRows: true, State: d.Code, Diagnostic: d, ErrorStage: stage})
+			// Qualified namespace lookup is valid for this superuser, but native
+			// physical storage never exposes another session's TEMP rows.
+			d := fixture.TempReferenceDiagnostic("0A000", "cannot access temporary tables of other sessions", "", "")
+			fixture.RunStep(s.T, s.P.Ctx, s.C, s.Record, fixture.Step{Query: q, Prepared: s.Prepared, SelectRows: true, State: d.Code, Diagnostic: d, ErrorStage: "execute"})
 		}
 	})
 }

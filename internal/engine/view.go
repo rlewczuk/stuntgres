@@ -246,6 +246,9 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
+	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == s.op.session.token {
+		auth.stagedTemporary = table.address
+	}
 	if err := auth.CheckCreate(ns); err != nil && !s.op.restoreTableDestination {
 		return err
 	}
@@ -276,6 +279,9 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if scope.viewChanges != nil {
 		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
 		auth.recaptureCatalog(auth.catalog)
+		if table, ok := scope.viewChanges.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
+			auth.stagedTemporary = table.address
+		}
 	}
 	if err == nil {
 		err = auth.CheckCreate(ns)

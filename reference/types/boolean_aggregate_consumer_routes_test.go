@@ -22,9 +22,6 @@ func TestReferenceBooleanAggregateSourceConsumerRoutes(t *testing.T) {
 			}
 			var reader *sql.DB
 			if backend.PG {
-				s := fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO "+role, 0)
-				s.NonContext = true
-				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 				var err error
 				reader, err = sql.Open("stuntgres_reference_postgres", fixture.DSN)
 				if err != nil {
@@ -45,7 +42,7 @@ func TestReferenceBooleanAggregateSourceConsumerRoutes(t *testing.T) {
 			}
 			s := fixture.Exec("CREATE TABLE target(b BOOL)", 0)
 			s.NonContext = true
-			fixture.RunStep(t, p.Ctx, reader, backend.Recorder, s)
+			fixture.WithPublicSchemaOwner(t, p, backend, role, func() { fixture.RunStep(t, p.Ctx, reader, backend.Recorder, s) })
 			for _, q := range []string{"SELECT bool_and(b) FROM source", "SELECT every(b) FROM source WHERE FALSE", "SELECT bool_or(b) FROM source WHERE NULL", "INSERT INTO target SELECT every(b) FROM source WHERE FALSE"} {
 				want := fixture.ControlsReferenceDiagnostic("42501", "permission denied for table source")
 				result, err := reader.Exec(q)

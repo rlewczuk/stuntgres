@@ -15,7 +15,7 @@ import (
 func representedCatalogHasIndexes(oid OID) bool {
 	switch oid {
 	case 1213, 1249, 1255, 1259, 1262, 2224, 2396, 2604, 2605, 2606, 2607,
-		2608, 2609, 2610, 2618, 2964, 3079, 3456, 3501, 3600, 3764:
+		2608, 2609, 2610, 2615, 2618, 2964, 3079, 3456, 3501, 3600, 3764:
 		return true
 	}
 	return false
@@ -176,7 +176,7 @@ func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor,
 	}
 	elements := make([]sqltype.Value, len(acl.Entries))
 	for i, entry := range acl.Entries {
-		if err := roles.ValidatePrincipal(entry.Grantor); err != nil {
+		if _, err := roles.Descriptor(entry.Grantor); err != nil {
 			return sqltype.Value{}, err
 		}
 		if entry.Grantor.ID() > math.MaxUint32 {
@@ -184,7 +184,7 @@ func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor,
 		}
 		grantee := uint32(0)
 		if !entry.Grantee.Public {
-			if err := roles.ValidatePrincipal(entry.Grantee.Role); err != nil {
+			if _, err := roles.Descriptor(entry.Grantee.Role); err != nil {
 				return sqltype.Value{}, err
 			}
 			if entry.Grantee.Role.ID() > math.MaxUint32 {

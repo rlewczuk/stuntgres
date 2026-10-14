@@ -103,12 +103,6 @@ func TestReferenceForeignKeyAuthorization(t *testing.T) {
 		for _, q := range []string{"CREATE ROLE fk_builder", "CREATE ROLE fk_writer"} {
 			run(fixture.Exec(q, 0))
 		}
-		// Native public namespace authority is already granted by its default
-		// ACL. Schema GRANT is PostgreSQL-only fixture setup, not FK behavior.
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO fk_builder", 0))
-			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fk_writer", 0))
-		}
 		for _, q := range []string{"CREATE TABLE p(a INT,b INT,PRIMARY KEY(a,b))", "GRANT REFERENCES(a) ON p TO fk_builder"} {
 			run(fixture.Exec(q, 0))
 		}
@@ -124,11 +118,15 @@ func TestReferenceForeignKeyAuthorization(t *testing.T) {
 		}()
 		step := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 		step(fixture.Exec("SET ROLE fk_builder", 0))
-		step(foreignKeyFail("CREATE TABLE c(a INT,b INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p)", foreignKeyError("42501", "permission denied for table p", "", "", ""), false))
+		fixture.WithPublicSchemaOwner(t, p, b, "fk_builder", func() {
+			step(foreignKeyFail("CREATE TABLE c(a INT,b INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p)", foreignKeyError("42501", "permission denied for table p", "", "", ""), false))
+		})
 		step(fixture.Exec("RESET ROLE", 0))
 		run(fixture.Exec("GRANT REFERENCES(b) ON p TO fk_builder", 0))
 		step(fixture.Exec("SET ROLE fk_builder", 0))
-		step(fixture.Exec("CREATE TABLE c(a INT,b INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p)", 0))
+		fixture.WithPublicSchemaOwner(t, p, b, "fk_builder", func() {
+			step(fixture.Exec("CREATE TABLE c(a INT,b INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p)", 0))
+		})
 		step(fixture.Exec("RESET ROLE", 0))
 		for _, q := range []string{"REVOKE REFERENCES ON p FROM fk_builder", "GRANT INSERT ON c TO fk_writer", "GRANT DELETE ON p TO fk_writer"} {
 			run(fixture.Exec(q, 0))

@@ -120,7 +120,9 @@ func TestSequenceACLAnyOfAndLateRevocation(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER seq_owner")
 	roleExecute(t, e, op, "CREATE USER seq_reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_owner")
-	roleExecute(t, e, op, "CREATE SEQUENCE s")
+	withPublicSchemaUnitOwner(t, e, "seq_owner", func() {
+		roleExecute(t, e, op, "CREATE SEQUENCE s")
+	})
 	ref := roleTableRef(t, e, "s")
 	owner := op.RoleState().CurrentUser
 	reader, _ := e.Roles().Lookup("seq_reader")

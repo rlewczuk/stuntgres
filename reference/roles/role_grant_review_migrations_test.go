@@ -24,7 +24,7 @@ func TestReferenceRoleDependencyAddressDiagnostics(t *testing.T) {
 					run(fixture.Exec("CREATE USER "+name, 0))
 				}
 				if backend.PG {
-					run(fixture.Exec("GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC", 0))
+					run(fixture.Exec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0))
 				}
 				run(fixture.Exec("CREATE TABLE secret(a INT,b INT)", 0))
 				run(fixture.Exec("INSERT INTO secret VALUES(7,8)", 1))
@@ -55,7 +55,9 @@ func TestReferenceRoleDependencyAddressDiagnostics(t *testing.T) {
 				run(fixture.Exec("SET SESSION AUTHORIZATION "+owner, 0))
 				var previous int64
 				for _, name := range []string{"z", "a", "odd table", "select", "quote\"table", "integer", "Mixed"} {
-					run(fixture.Exec("CREATE TABLE "+pq.QuoteIdentifier(name)+"(id INT)", 0))
+					fixture.WithPublicSchemaOwner(t, p, backend, owner, func() {
+						run(fixture.Exec("CREATE TABLE "+pq.QuoteIdentifier(name)+"(id INT)", 0))
+					})
 					var oid int64
 					if backend.PG {
 						if err := fixture.Admin.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_class WHERE relnamespace='public'::regnamespace AND relname=$1", name).Scan(&oid); err != nil || oid <= previous {

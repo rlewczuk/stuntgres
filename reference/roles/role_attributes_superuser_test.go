@@ -21,12 +21,7 @@ func roleAttributesSuperuserWitness(t *testing.T, prepared bool) {
 			for _, q := range []string{"CREATE ROLE rau_owner", "CREATE ROLE rau_actor", "SET SESSION AUTHORIZATION rau_owner"} {
 				run(fixture.Exec(q, 0))
 			}
-			if b.PG {
-				if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE,CREATE ON SCHEMA public TO rau_owner"); err != nil {
-					t.Fatal(err)
-				}
-			}
-			run(fixture.Exec("CREATE TABLE rau_secret(id INT)", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "rau_owner", func() { run(fixture.Exec("CREATE TABLE rau_secret(id INT)", 0)) })
 			run(fixture.Exec("INSERT INTO rau_secret VALUES(7)", 1))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			if b.PG {

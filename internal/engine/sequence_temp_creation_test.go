@@ -124,14 +124,15 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 						t.Fatal("valid own temporary creation", err)
 					}
 					ns := e.state.descriptors[a.temporaryNamespace].(*namespaceDescriptor)
-					if ns.temporary != a.token || ns.owner != e.state.descriptors[last].(*relationDescriptor).owner || (namespace != (ObjectAddress{}) && ns.address != namespace) {
-						t.Fatal("creation lost exact namespace/session/role ownership")
+					if ns.temporary != a.token || ns.temporaryToast || ns.owner.ID() != 10 || (namespace != (ObjectAddress{}) && ns.address != namespace) {
+						t.Fatal("creation lost exact namespace/session/bootstrap ownership")
 					}
+					assertTemporaryNamespacePair(t, e, a.token, ns.address)
 					address := NameAddressForTempMove(t, e, ns.address, "created")
 					d := e.state.descriptors[address].(*relationDescriptor)
 					want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: 9223372036854775807, start: 60, cache: 3, persistence: "temporary"}
 					g := e.sequences[address]
-					if d.namespace != ns.address || d.owner != ns.owner || d.relationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.sequencePlanStamp != d.revision {
+					if d.namespace != ns.address || d.owner != e.Roles().LookupRef("postgres") || d.relationKind != sequenceRelation || d.address == last || !reflect.DeepEqual(*d.sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.revision || d.sequencePlanStamp != d.revision {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
 					wantGeneration := catalog.namespaceGeneration
@@ -157,9 +158,12 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					t.Fatal(err)
 				}
 				for address, d := range e.state.descriptors {
-					if ownedNamespace != (ObjectAddress{}) && (address == ownedNamespace || d.Namespace() == ownedNamespace) {
-						t.Fatal("physical end leaked owned temporary identity", address)
+					if ownedNamespace != (ObjectAddress{}) && d.Namespace() == ownedNamespace {
+						t.Fatal("physical end leaked owned temporary child", address)
 					}
+				}
+				if ownedNamespace != (ObjectAddress{}) {
+					assertTemporaryNamespacePair(t, e, a.token, ownedNamespace)
 				}
 				if a.temporaryNamespace != (ObjectAddress{}) || len(a.sequences) != 0 || a.lastSequence != (ObjectAddress{}) || e.state.descriptors[peerAddress] != peerDescriptor || b.temporaryNamespace != peerNamespace || *b.sequences[peerAddress] != peerMemory {
 					t.Fatal("cleanup retained own state or changed peer identity/cache")

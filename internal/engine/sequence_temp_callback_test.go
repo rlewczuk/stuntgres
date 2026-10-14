@@ -131,9 +131,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	if e.state.epoch != state.epoch || e.state.namespaceGeneration != state.namespaceGeneration {
 		t.Fatal("logical retirement changed global callback or epoch authority")
 	}
-	if _, ok := e.state.descriptors[namespace]; ok {
-		t.Fatal("ended session leaked temporary namespace")
-	}
+	assertTemporaryNamespacePair(t, e, b.token, namespace)
 	if _, ok := e.state.descriptors[owned]; ok || e.sequences[owned] != nil || e.storage[owned] != nil {
 		t.Fatal("ended session leaked temporary relation or generator")
 	}

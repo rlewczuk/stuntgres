@@ -57,7 +57,9 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 					roleExecute(t, e, admin, "CREATE ROLE nn_acl_owner LOGIN")
 					roleExecute(t, e, admin, "CREATE ROLE nn_acl_actor LOGIN")
 					roleExecute(t, e, admin, "SET SESSION AUTHORIZATION nn_acl_owner")
-					roleExecute(t, e, admin, "CREATE TABLE t(n INT NOT NULL,secret TEXT,readable TEXT)")
+					withPublicSchemaUnitOwner(t, e, "nn_acl_owner", func() {
+						roleExecute(t, e, admin, "CREATE TABLE t(n INT NOT NULL,secret TEXT,readable TEXT)")
+					})
 					roleExecute(t, e, admin, "INSERT INTO t VALUES(1,'private','visible')")
 					roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
 					ref := roleTableRef(t, e, "t")

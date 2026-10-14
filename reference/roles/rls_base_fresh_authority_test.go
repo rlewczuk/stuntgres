@@ -83,7 +83,7 @@ func TestReferenceRLSBasePredefinedNoInherit(t *testing.T) {
 
 func TestReferenceRLSBaseInheritanceFlags(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE TABLE rls_child() INHERITS(t)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.exec("CREATE TABLE rls_child() INHERITS(t)") })
 		s.run(fixture.Exec("INSERT INTO rls_child VALUES(3,30)", 1))
 		s.exec("GRANT SELECT ON rls_child TO rls_reader")
 		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY")

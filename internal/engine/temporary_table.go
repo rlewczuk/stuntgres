@@ -24,6 +24,9 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
+	if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
+		auth.stagedTemporary = table.address
+	}
 	if op.restoreTableDestination {
 		bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
 		if er != nil || !bootstrap.Superuser || e.importTargets == nil {
@@ -319,7 +322,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete:
 		if b.relation != nil {
 			ns, ok := auth.catalog.state.descriptors[b.relation.namespace].(*namespaceDescriptor)
-			return ok && auth.session != nil && ns.temporary == auth.session.token
+			return ok && ownTemporaryNamespace(auth, ns)
 		}
 	}
 	return false

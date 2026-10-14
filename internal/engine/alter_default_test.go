@@ -175,7 +175,9 @@ func TestAlterDefaultOwnerAuthority(t *testing.T) {
 			t.Fatal(err, got)
 		}
 	}
-	roleExecute(t, e, op, "CREATE TABLE owned(a INT)")
+	withPublicSchemaUnitOwner(t, e, "reader", func() {
+		roleExecute(t, e, op, "CREATE TABLE owned(a INT)")
+	})
 	roleExecute(t, e, op, "ALTER TABLE owned ALTER a SET DEFAULT 7")
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, e, op, "ALTER TABLE t ALTER a SET DEFAULT 7")

@@ -125,8 +125,13 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		}
 	}
 	e.locks.mu.Unlock()
+	collectAuth, err := op.Authorization()
+	if err != nil {
+		t.Fatal(err)
+	}
+	collectAuth.recaptureCatalog(scope.inheritanceCatalog)
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(scope.inheritanceCatalog, scope.querySources, nil, op.session.token)
+	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
 	var view *VisibilityView
 	if err == nil {
 		view, err = scope.acquireDataViewsLocked(e, refs)

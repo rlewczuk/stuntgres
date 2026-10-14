@@ -1,0 +1,381 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"maps"
+	"slices"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescriptor, ObjectRef) {
+	t.Helper()
+	a := ObjectAddress{ClassID: RelationClassID, ObjectID: 2615}
+	d, ok := c.state.descriptors[a].(*relationDescriptor)
+	if !ok {
+		t.Fatal("missing namespace source")
+	}
+	return d, ObjectRef{owner: e.owner, Epoch: c.Epoch(), Address: a}
+}
+func namespaceUnitCapture(t *testing.T, e *Engine, c CatalogRead) *querySource {
+	t.Helper()
+	d, ref := namespaceUnitSource(t, e, c)
+	e.mu.Lock()
+	rows, err := e.capturePGNamespace(context.Background(), c, e.roleRead(c, e.roles), ref, d)
+	e.mu.Unlock()
+	if err != nil || rows == nil || rows.ref != ref {
+		t.Fatal(rows, err)
+	}
+	return rows
+}
+func namespaceUnitRow(t *testing.T, rows *querySource, id uint32) []sqltype.Value {
+	t.Helper()
+	var found []sqltype.Value
+	for _, row := range rows.anonymous {
+		oid, err := row[0].OID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if oid == id {
+			if found != nil {
+				t.Fatal("duplicate namespace", id)
+			}
+			found = row
+		}
+	}
+	if found == nil {
+		t.Fatal("missing namespace", id)
+	}
+	return found
+}
+
+func TestPGNamespaceShape(t *testing.T) {
+	e := New()
+	c := e.CatalogRead()
+	d, _ := namespaceUnitSource(t, e, c)
+	if d.name != "pg_namespace" || d.namespace.ObjectID != 11 || d.relationKind != catalogRelation || d.virtualView || !d.hasIndexes || d.rowType != 10047 || len(d.columns) != 4 || d.attributeHighWater != 4 {
+		t.Fatal("namespace relation shape", d)
+	}
+	names := [...]string{"oid", "nspname", "nspowner", "nspacl"}
+	ids := [...]sqltype.ID{26, 19, 26, 1034}
+	for i, column := range d.columns {
+		typ, ok := c.LookupType(ids[i])
+		collation := uint32(0)
+		if i == 1 {
+			collation = 950
+		}
+		if !ok || column.Name != names[i] || column.Usage.Type != typ || column.Usage.Typmod != -1 || uint32(column.Usage.Collation.ID) != collation || column.Nullable != (i == 3) || !column.NullabilityKnown || column.OriginTable != 2615 || column.OriginAttribute != int16(i+1) || d.attributes[i] != int32(i+1) || d.index[names[i]] != i {
+			t.Fatal(i, column)
+		}
+	}
+	for _, id := range []OID{10047, 10046} {
+		typ := c.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: id}].(*typeDescriptor)
+		if typ.owningRelation != d.address || typ.owner != d.owner {
+			t.Fatal("row/array reciprocal owner", id, typ)
+		}
+	}
+	if err := (relationProvider{}).Validate(c, d); err != nil {
+		t.Fatal(err)
+	}
+	toast := c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
+	if toast.comment != "reserved schema for TOAST tables" || !pgDependPinned(c, toast.address) || ownershipRoot(c, toast) || !bootstrapNamespaceDumpable(toast) {
+		t.Fatal("actual toast seed/protected root/control baseline", toast)
+	}
+}
+
+func TestPGNamespaceCapture(t *testing.T) {
+	e := New()
+	c := e.CatalogRead()
+	oid, revision := e.nextOID, e.nextRevision
+	descriptors, names := maps.Clone(c.state.descriptors), maps.Clone(c.state.names)
+	old := namespaceUnitCapture(t, e, c)
+	if old.count() != 4 {
+		t.Fatal("pristine namespace inventory", old.count())
+	}
+	for id, name := range map[uint32]string{11: "pg_catalog", 99: "pg_toast", 2200: "public", 13229: "information_schema"} {
+		row := namespaceUnitRow(t, old, id)
+		got, err := row[1].Text()
+		if err != nil || got != name {
+			t.Fatal(name, got, err)
+		}
+		owner, err := row[2].OID()
+		want := uint32(10)
+		if id == 2200 {
+			want = 6171
+		}
+		if err != nil || owner != want || row[3].IsNull() != (id == 99) {
+			t.Fatal("builtin owner/ACL", id, owner, row[3], err)
+		}
+	}
+	if e.state != c.state || e.nextOID != oid || e.nextRevision != revision || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
+		t.Fatal("capture mutated authority/frontiers")
+	}
+	stage := e.BeginCatalogStage(c)
+	defer e.DiscardCatalogStage(stage)
+	original := c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 2200}].(*namespaceDescriptor)
+	next := *original
+	next.name = "renamed_public"
+	next.revision++
+	if err := stage.Replace(&next); err != nil {
+		t.Fatal(err)
+	}
+	private := namespaceUnitCapture(t, e, e.stageRead(stage))
+	got, err := namespaceUnitRow(t, private, 2200)[1].Text()
+	if err != nil || got != "renamed_public" {
+		t.Fatal(got, err)
+	}
+	for _, snapshot := range []*querySource{old, namespaceUnitCapture(t, e, c)} {
+		got, err := namespaceUnitRow(t, snapshot, 2200)[1].Text()
+		if err != nil || got != "public" {
+			t.Fatal("captured root changed", got, err)
+		}
+	}
+	if e.state != c.state || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
+		t.Fatal("private capture published")
+	}
+}
+
+func TestPGNamespaceACL(t *testing.T) {
+	e := New()
+	c := e.CatalogRead()
+	array, _ := c.LookupType(1034)
+	roles := e.Roles()
+	owner := roles.LookupRef("postgres")
+	reader := roles.LookupRef("pg_read_all_data")
+	for _, acl := range []authorization.ACLValue{{}, {Explicit: true}} {
+		value, err := e.pgClassACL(roles, array, acl)
+		if err != nil || value.IsNull() == acl.Explicit || acl.Explicit && value.ArrayLen() != 0 {
+			t.Fatal("NULL versus empty", value, err)
+		}
+	}
+	stage := e.BeginCatalogStage(c)
+	defer e.DiscardCatalogStage(stage)
+	empty := *c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
+	empty.acl = authorization.ACLValue{Explicit: true}
+	empty.revision++
+	if err := stage.Replace(&empty); err != nil {
+		t.Fatal(err)
+	}
+	stored := namespaceUnitRow(t, namespaceUnitCapture(t, e, e.stageRead(stage)), 99)[3]
+	if stored.IsNull() || stored.ArrayLen() != 0 || !namespaceUnitRow(t, namespaceUnitCapture(t, e, c), 99)[3].IsNull() {
+		t.Fatal("actual explicit-empty namespace ACL confused with captured NULL")
+	}
+	bits := []authorization.Privileges{0, authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege}
+	masks := []uint32{0, 256, 512, 768}
+	for i, privileges := range bits {
+		for j, options := range bits {
+			if options & ^privileges != 0 {
+				continue
+			}
+			for _, public := range []bool{false, true} {
+				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader, Public: public}, Privileges: privileges, GrantOptions: options}}}
+				if public {
+					acl.Entries[0].Grantee.Role = authorization.PrincipalRef{}
+				}
+				value, err := e.pgClassACL(roles, array, acl)
+				if err != nil || value.ArrayLen() != 1 {
+					t.Fatal(value, err)
+				}
+				authority, grantee, grantor, mask, optionMask, err := value.ArrayElement(0).ACLItem()
+				want := uint32(reader.ID())
+				if public {
+					want = 0
+				}
+				if err != nil || authority != &e.aclAuthority || grantee != want || grantor != 10 || mask != masks[i] || optionMask != masks[j] {
+					t.Fatal("schema ACL bits", grantee, grantor, mask, optionMask, err)
+				}
+			}
+		}
+	}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
+		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege},
+	}}
+	merged := authorization.SchemaACLOwner(acl, owner, reader)
+	value, err := e.pgClassACL(roles, array, merged)
+	if err != nil || value.ArrayLen() != 1 {
+		t.Fatal("owner merge", value, err)
+	}
+	_, grantee, grantor, mask, options, err := value.ArrayElement(0).ACLItem()
+	if err != nil || grantee != uint32(reader.ID()) || grantor != grantee || mask != 768 || options != 512 {
+		t.Fatal(grantee, grantor, mask, options, err)
+	}
+	foreign := New()
+	for _, bad := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999)} {
+		for _, grantor := range []bool{false, true} {
+			broken := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}
+			if grantor {
+				broken.Entries[0].Grantor = bad
+			} else {
+				broken.Entries[0].Grantee.Role = bad
+			}
+			if _, err := e.pgClassACL(roles, array, broken); err == nil {
+				t.Fatal("foreign/stale ACL principal admitted")
+			}
+		}
+	}
+}
+
+func TestPGNamespaceAuthority(t *testing.T) {
+	e := New()
+	c := e.CatalogRead()
+	d, ref := namespaceUnitSource(t, e, c)
+	foreign := New()
+	reject := func(catalog CatalogRead, roles authorization.Read, r ObjectRef, source *relationDescriptor) {
+		t.Helper()
+		e.mu.Lock()
+		rows, err := e.capturePGNamespace(context.Background(), catalog, roles, r, source)
+		e.mu.Unlock()
+		if err == nil || rows != nil {
+			t.Fatal("invalid capture authority admitted", rows, err)
+		}
+		var diagnostic *sqlstate.Error
+		if errors.As(err, &diagnostic) {
+			t.Fatal("invariant fabricated SQLSTATE", diagnostic)
+		}
+	}
+	reject(foreign.CatalogRead(), e.Roles(), ref, d)
+	reject(c, foreign.Roles(), ref, d)
+	forged := ref
+	forged.owner = foreign.owner
+	reject(c, e.Roles(), forged, d)
+	forged = ref
+	forged.Epoch++
+	reject(c, e.Roles(), forged, d)
+	forged = ref
+	forged.Address.SubID = 1
+	reject(c, e.Roles(), forged, d)
+	reject(c, e.Roles(), ref, nil)
+	for _, width := range []int{0, 3, 5} {
+		next := cloneCatalog(c.state)
+		invalid := *d
+		invalid.columns = make([]ColumnDescriptor, width)
+		next.descriptors[d.address] = &invalid
+		reject(CatalogRead{e, next}, e.Roles(), ref, &invalid)
+	}
+	for i := range d.columns {
+		next := cloneCatalog(c.state)
+		invalid := *d
+		invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
+		invalid.columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.columns[i].Usage.Type.ID())
+		next.descriptors[d.address] = &invalid
+		reject(CatalogRead{e, next}, e.Roles(), ref, &invalid)
+	}
+	ns := c.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 99}].(*namespaceDescriptor)
+	for _, owner := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999), e.authorizationDomain.Principal(1 << 32)} {
+		next := cloneCatalog(c.state)
+		invalid := *ns
+		invalid.owner = owner
+		next.descriptors[ns.address] = &invalid
+		reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	}
+	next := cloneCatalog(c.state)
+	invalid := *ns
+	invalid.name = "stale_toast"
+	next.descriptors[ns.address] = &invalid
+	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	invalid = *ns
+	invalid.temporaryToast = true
+	next.descriptors[ns.address] = &invalid
+	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	next = cloneCatalog(c.state)
+	next.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90000}] = ns
+	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	next = cloneCatalog(c.state)
+	invalid = *ns
+	invalid.temporary = SessionToken{owner: foreign, id: 1}
+	next.descriptors[ns.address] = &invalid
+	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	next = cloneCatalog(c.state)
+	next.descriptors[currentDatabaseAddress] = (*databaseDescriptor)(nil)
+	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+	database := *c.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database.owner = e.Roles().LookupRef("pg_read_all_data")
+	next = cloneCatalog(c.state)
+	next.descriptors[currentDatabaseAddress] = &database
+	reject(CatalogRead{e, next}, e.Roles(), ref, d)
+}
+
+type namespaceCancelContext struct {
+	context.Context
+	cancel    context.CancelFunc
+	calls, at int
+}
+
+func (c *namespaceCancelContext) Err() error {
+	c.calls++
+	if c.calls == c.at {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+func TestPGNamespaceCancellation(t *testing.T) {
+	e := New()
+	c := e.CatalogRead()
+	d, ref := namespaceUnitSource(t, e, c)
+	oid, revision := e.nextOID, e.nextRevision
+	roles := e.Roles()
+	for _, at := range []int{1, 3, 6} {
+		ctx, cancel := context.WithCancel(context.Background())
+		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
+		e.mu.Lock()
+		rows, err := e.capturePGNamespace(controlled, c, roles, ref, d)
+		e.mu.Unlock()
+		cancel()
+		if !errors.Is(err, context.Canceled) || rows != nil || e.state != c.state || e.nextOID != oid || e.nextRevision != revision {
+			t.Fatal("cancellation published partial capture", at, rows, err)
+		}
+	}
+	if namespaceUnitCapture(t, e, c).count() != 4 {
+		t.Fatal("capture unusable after cancellation")
+	}
+}
+
+func TestPGNamespaceFixtureOwnership(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE USER namespace_fixture_actor")
+	actor := e.Roles().LookupRef("namespace_fixture_actor")
+	op, done := roleOperation(t, e, "namespace_fixture_actor")
+	defer done()
+	before := e.CatalogRead()
+	address := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+	original := before.state.descriptors[address].(*namespaceDescriptor)
+	identity := op.RoleState()
+	withPublicSchemaUnitOwner(t, e, "namespace_fixture_actor", func() {
+		current := e.CatalogRead().state.descriptors[address].(*namespaceDescriptor)
+		if current.owner != actor || current.address != original.address || op.RoleState() != identity {
+			t.Fatal("fixture bypassed real namespace/caller authority")
+		}
+		roleExecute(t, e, op, "CREATE TABLE namespace_fixture_table(i INT)")
+		roleExecute(t, e, op, "INSERT INTO namespace_fixture_table VALUES(18)")
+	})
+	check := func() {
+		t.Helper()
+		current := e.CatalogRead().state.descriptors[address].(*namespaceDescriptor)
+		if current.owner != original.owner || current.address != original.address || current.acl.Explicit != original.acl.Explicit || !slices.Equal(current.acl.Entries, original.acl.Entries) || op.RoleState() != identity {
+			t.Fatal("fixture did not restore exact owner/ACL/caller authority")
+		}
+	}
+	check()
+	table := e.CatalogRead().state.descriptors[roleTableRef(t, e, "namespace_fixture_table").Address].(*relationDescriptor)
+	if table.owner != actor || table.namespace != address {
+		t.Fatal("fixture changed real object creator", table)
+	}
+	roleErrorPosition(t, e, op, "CREATE TABLE namespace_fixture_denied(i INT)", "42501", "permission denied for schema public", "", "14")
+	marker := new(int)
+	func() {
+		defer func() {
+			if got := recover(); got != marker {
+				t.Fatalf("fixture panic propagation: %v", got)
+			}
+		}()
+		withPublicSchemaUnitOwner(t, e, "namespace_fixture_actor", func() { panic(marker) })
+	}()
+	check()
+	if before.state.descriptors[address] != original || original.owner.ID() != 6171 {
+		t.Fatal("fixture changed immutable pristine snapshot")
+	}
+}

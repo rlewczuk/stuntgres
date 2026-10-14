@@ -21,8 +21,8 @@ func TestReferenceMaterializedAlterControls(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			c, run := fixture.QueryTableCreateSession(t, p, b)
 			if b.PG {
-				// Replay uses ordinary owner context, including the native public baseline.
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
+				// Replay needs ordinary PUBLIC lookup, not blanket CREATE.
+				run(fixture.Exec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0))
 			}
 			run(fixture.Exec("CREATE USER alter_control_owner", 0))
 			run(fixture.Exec("CREATE SCHEMA alter_control_source AUTHORIZATION alter_control_owner", 0))
@@ -118,9 +118,11 @@ func TestReferenceMaterializedAlterControls(t *testing.T) {
 				run(fixture.Exec("DROP MATERIALIZED VIEW indexed", 0))
 				run(fixture.Exec("DROP TABLE mv_base,index_source", 0))
 				run(fixture.Exec("DROP SCHEMA alter_addon CASCADE", 0))
-				if _, err := c.ExecContext(p.Ctx, string(dump)); err != nil {
-					t.Fatal("actual emitted SQL replay", err)
-				}
+				fixture.WithPublicSchemaOwner(t, p, b, "alter_control_owner", func() {
+					if _, err := c.ExecContext(p.Ctx, string(dump)); err != nil {
+						t.Fatal("actual emitted SQL replay", err)
+					}
+				})
 				unpopulated := fixture.MaterializedViewUnpopulated("saved")
 				unpopulated.Query = "SELECT * FROM alter_control.saved"
 				run(unpopulated)

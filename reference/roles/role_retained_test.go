@@ -92,9 +92,6 @@ func TestReferenceRoleRetainedIdentityRowsAcrossSwitchAndControls(t *testing.T) 
 				bootstrap := "postgres"
 				if backend.PG {
 					bootstrap = "stuntgres"
-					if _, err := fixture.Admin.ExecContext(ctx, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-						t.Fatal(err)
-					}
 				}
 				c, err := db.Conn(ctx)
 				if err != nil {
@@ -106,7 +103,11 @@ func TestReferenceRoleRetainedIdentityRowsAcrossSwitchAndControls(t *testing.T) 
 					if query == "INSERT INTO sentinel VALUES(7)" {
 						count = 1
 					}
-					roleScenarioCommand(t, c, query, count, prepared)
+					if query == "CREATE TABLE sentinel(id INT)" {
+						fixture.WithPublicSchemaOwner(t, p, backend, "original", func() { roleScenarioCommand(t, c, query, count, prepared) })
+					} else {
+						roleScenarioCommand(t, c, query, count, prepared)
+					}
 				}
 				peer, err := db.Conn(ctx)
 				if err != nil {

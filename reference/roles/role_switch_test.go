@@ -37,13 +37,10 @@ func switchAdmin(s *membershipScenario, q string) {
 
 func TestReferenceRoleSwitchIdentityAuthority(t *testing.T) {
 	roleSwitchCases(t, func(s *membershipScenario) {
-		if s.backend.PG {
-			switchAdmin(s, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
-		}
-		s.exec("CREATE TABLE switch_login_owned(id INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "switch_s", func() { s.exec("CREATE TABLE switch_login_owned(id INT)") })
 		s.run(fixture.Exec("INSERT INTO switch_login_owned VALUES(7)", 1))
 		s.exec("SET ROLE switch_b")
-		s.exec("CREATE TABLE switch_target_owned(id INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "switch_b", func() { s.exec("CREATE TABLE switch_target_owned(id INT)") })
 		s.run(fixture.Exec("INSERT INTO switch_target_owned VALUES(7)", 1))
 		switchIdentity(s, "switch_b")
 		s.run(fixture.Select("SELECT id FROM switch_target_owned", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
@@ -437,11 +434,8 @@ func TestReferenceRoleSwitchLifecycle(t *testing.T) {
 
 func TestReferenceRoleSwitchFeatureSmoke(t *testing.T) {
 	roleSwitchCases(t, func(s *membershipScenario) {
-		if s.backend.PG {
-			switchAdmin(s, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
-		}
 		s.exec("SET ROLE switch_a")
-		s.exec("CREATE TABLE switch_smoke_owned(id INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "switch_a", func() { s.exec("CREATE TABLE switch_smoke_owned(id INT)") })
 		s.run(fixture.Exec("INSERT INTO switch_smoke_owned VALUES(7)", 1))
 		s.run(fixture.Select("SELECT id FROM switch_smoke_owned", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		// Querying a utility independently checks its empty rows/columns/types.

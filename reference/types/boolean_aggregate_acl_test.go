@@ -31,9 +31,6 @@ func aggregateSourceACL(t *testing.T, role, typ string, expressions []string) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s) }
 			run(fixture.Exec("CREATE USER "+role, 0))
 			run(fixture.Exec("CREATE TABLE source(b "+typ+")", 0))
-			if backend.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO "+role, 0))
-			}
 			trustedRoutes := []bool{false}
 			if !backend.PG && typ == "BOOL" {
 				trustedRoutes = append(trustedRoutes, true)
@@ -55,7 +52,9 @@ func aggregateSourceACL(t *testing.T, role, typ string, expressions []string) {
 				} else {
 					run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
 				}
-				fixture.RunStep(t, p.Ctx, reader, backend.Recorder, fixture.Exec("CREATE TABLE target(b "+typ+")", 0))
+				fixture.WithPublicSchemaOwner(t, p, backend, role, func() {
+					fixture.RunStep(t, p.Ctx, reader, backend.Recorder, fixture.Exec("CREATE TABLE target(b "+typ+")", 0))
+				})
 				for i, q := range []string{"SELECT " + expressions[0] + " FROM source", "SELECT " + expressions[1] + " FROM source WHERE FALSE", "SELECT " + expressions[2] + " FROM source WHERE NULL", "INSERT INTO target SELECT " + expressions[3] + " FROM source WHERE FALSE"} {
 					want := fixture.ControlsReferenceDiagnostic("42501", "permission denied for table source")
 					if typ == "BOOL" || i == 3 {

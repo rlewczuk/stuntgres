@@ -192,13 +192,15 @@ func TestReferenceRoleOwnershipFeatureSmoke(t *testing.T) {
 	ownershipCases(t, func(s *membershipScenario) {
 		ownershipSeed(s, "own_smoke_t", "own_source")
 		s.actor("own_source")
-		s.exec("CREATE INDEX own_smoke_idx ON own_smoke_t(id)")
-		s.exec("CREATE SEQUENCE own_smoke_seq")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() {
+			s.exec("CREATE INDEX own_smoke_idx ON own_smoke_t(id)")
+			s.exec("CREATE SEQUENCE own_smoke_seq")
+		})
 		s.exec("GRANT SELECT ON own_smoke_t TO own_reader")
 		s.actor("")
 		s.exec("GRANT own_target TO own_source WITH INHERIT FALSE, SET TRUE")
 		s.actor("own_source")
-		s.exec("ALTER TABLE own_smoke_t OWNER TO own_target")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_target", func() { s.exec("ALTER TABLE own_smoke_t OWNER TO own_target") })
 		s.actor("")
 		ownershipOwner(s, "own_smoke_t", "own_target")
 		ownershipOwner(s, "own_smoke_idx", "own_target")
@@ -230,7 +232,7 @@ func TestReferenceRoleOwnershipFeatureSmoke(t *testing.T) {
 func TestReferenceRoleControlsOwnersAndCancellation(t *testing.T) {
 	ownershipCases(t, func(s *membershipScenario) {
 		s.actor("own_source")
-		ownershipDefinition(s, "CREATE TABLE role_control_secret(id INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() { ownershipDefinition(s, "CREATE TABLE role_control_secret(id INT)") })
 		s.run(fixture.Exec("INSERT INTO role_control_secret VALUES(7)", 1))
 		s.actor("")
 		ownershipOwner(s, "role_control_secret", "own_source")

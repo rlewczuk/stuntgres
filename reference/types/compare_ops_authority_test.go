@@ -24,16 +24,8 @@ func TestReferenceCompareOpsRightOnlyPublicAuthorization(t *testing.T) {
 			run := func(step fixture.Step) { fixture.ScalarRunStep(t, p.Ctx, conn, backend.Recorder, step) }
 			run(fixture.Exec("CREATE USER "+owner, 0))
 			run(fixture.Exec("CREATE USER "+reader, 0))
-			if backend.PG {
-				if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE,CREATE ON SCHEMA public TO "+owner); err != nil {
-					t.Fatal(err)
-				}
-				if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE ON SCHEMA public TO "+reader); err != nil {
-					t.Fatal(err)
-				}
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION "+owner, 0))
-			run(fixture.Exec("CREATE TABLE secret(i INT)", 0))
+			fixture.WithPublicSchemaOwner(t, p, backend, owner, func() { run(fixture.Exec("CREATE TABLE secret(i INT)", 0)) })
 			run(fixture.Exec("INSERT INTO secret VALUES(1)", 1))
 			q := "SELECT 0<i FROM secret"
 			held, err := conn.PrepareContext(p.Ctx, q)

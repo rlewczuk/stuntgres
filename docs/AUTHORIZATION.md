@@ -122,11 +122,24 @@ rebuilds actual index roots under existing transaction-owned exclusion, not a
 successful no-op or an owner bypass. A granted role name never manufactures
 unavailable server mechanisms.
 
-Canonical native public uses owner identity 6171 and a historical PUBLIC
-USAGE|CREATE convenience ACL, unlike fresh PostgreSQL 18's USAGE-only default.
-Catalog namespaces retain bootstrap ownership. Reset restores canonical local
-metadata but retains the shared role graph; validated imports remap predefined
-owner/ACL identities without importing memberships.
+Canonical pristine public has owner identity6171 (`pg_database_owner`) and
+stored owner UC followed by PUBLIC USAGE, without stored owner grant options.
+Ordinary roles need schema ownership or supported default-schema grants to
+CREATE; catalog visibility never supplies that privilege. pg_catalog,
+pg_toast and information_schema retain bootstrap ownership10; pg_toast's ACL
+is NULL. Reset restores initialized namespace metadata while retaining the
+shared role graph; imports remap predefined owner/ACL identities without
+importing memberships.
+
+Actual TEMP table/toast namespaces have owner10 and NULL ACLs, independent of
+the role owning their objects. Only the admitted physical session's exact
+active table namespace receives own-TEMP USAGE/CREATE; the reserved toast
+companion and abandoned tokens do not. Bulk ownership/drop roots exclude both
+TEMP members and protected catalog namespaces.
+Qualified lookup still applies ordinary captured role authority: an effective
+superuser may use another live or retained table-TEMP namespace, while SET ROLE
+to an ordinary actor denies that access even with a bootstrap authenticator.
+Namespace USAGE neither grants foreign TEMP creation nor adopts a retired token.
 
 Conversions have real creating-user ownership and normal schema/role
 dependencies. CREATE requires schema CREATE and the registered conversion
@@ -227,12 +240,18 @@ Defaults are separate immutable catalog policy, not retroactive object grants.
 Creation providers consume their own class, while generated row types and arrays
 follow canonical parent associations. Ownership transfer rewrites dependent ACL
 origins without consulting successor creation defaults.
+Default-created schema entries are ordered by grantee OID (PUBLIC0 first),
+then grantor OID without changing masks or mutating immutable default records.
+This creation normalization does not reorder initialized builtin ACLs or
+retroactively change existing objects.
 
 Default creator/grantor/recipient references are real role dependencies even
 before object creation. Scoped policy uses stable namespace identity; schema
 retirement removes it and same-name recreation cannot resurrect it. Live TEMP
 materialized ACLs survive replacement, while source TEMP-scoped directives are
 stripped from persistent import projection.
+Physical TEMP retirement also removes namespace-scoped directives while retaining
+the table/toast namespace metadata; eager catalog/default snapshots stay unchanged.
 
 Each operation captures one paired catalog/role authority, mutates one private
 candidate and advances authorization only for a changed publication. Retained

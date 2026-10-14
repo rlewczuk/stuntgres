@@ -69,18 +69,20 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if attached {
 		table += ",CONSTRAINT ui_index UNIQUE" + policy + "(" + keys + ")"
 	}
-	roleExecute(t, e, owner, table+")")
-	if !attached {
-		roleExecute(t, e, owner, "CREATE UNIQUE INDEX ui_index ON public.ui_t("+keys+")"+policy)
-	}
-	seed := "INSERT INTO public.ui_t VALUES('2001-02-03',1,'old'),('2001-02-04',2,'other')"
-	if nullSurvivor {
-		seed += ",(NULL,1,'null old')"
-	}
-	roleExecute(t, e, owner, seed)
-	roleExecute(t, e, owner, "CREATE TABLE public.ui_sibling(k INT)")
-	roleExecute(t, e, owner, "INSERT INTO public.ui_sibling VALUES(9)")
-	roleExecute(t, e, owner, "CREATE INDEX ui_sibling_index ON public.ui_sibling(k)")
+	withPublicSchemaUnitOwner(t, e, "ui_owner", func() {
+		roleExecute(t, e, owner, table+")")
+		if !attached {
+			roleExecute(t, e, owner, "CREATE UNIQUE INDEX ui_index ON public.ui_t("+keys+")"+policy)
+		}
+		seed := "INSERT INTO public.ui_t VALUES('2001-02-03',1,'old'),('2001-02-04',2,'other')"
+		if nullSurvivor {
+			seed += ",(NULL,1,'null old')"
+		}
+		roleExecute(t, e, owner, seed)
+		roleExecute(t, e, owner, "CREATE TABLE public.ui_sibling(k INT)")
+		roleExecute(t, e, owner, "INSERT INTO public.ui_sibling VALUES(9)")
+		roleExecute(t, e, owner, "CREATE INDEX ui_sibling_index ON public.ui_sibling(k)")
+	})
 	ref := roleTableRef(t, e, "public.ui_t")
 	actor, ok := e.Roles().Lookup("ui_owner")
 	if !ok || actor.Superuser {

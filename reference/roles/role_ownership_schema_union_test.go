@@ -34,7 +34,7 @@ func TestReferenceRoleOwnershipRestrictSchemaUnion(t *testing.T) {
 		s.exec("GRANT own_source TO own_other WITH INHERIT TRUE, SET FALSE")
 		s.exec("GRANT SELECT ON own_union_schema.t TO own_other")
 		s.actor("own_other")
-		s.exec("CREATE VIEW own_union_schema_external AS SELECT id FROM own_union_schema.t")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() { s.exec("CREATE VIEW own_union_schema_external AS SELECT id FROM own_union_schema.t") })
 		s.actor("")
 		s.exec("GRANT own_source TO own_actor WITH INHERIT FALSE, SET TRUE")
 		s.actor("own_actor")

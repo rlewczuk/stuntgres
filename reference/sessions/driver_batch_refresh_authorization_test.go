@@ -1,8 +1,11 @@
 package reference_test
 
 import (
+	"context"
+	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 )
 
 func TestReferenceDriverBatchRefreshPromotion(t *testing.T) {
@@ -57,7 +60,7 @@ func TestReferenceDriverBatchRefreshAuthorization(t *testing.T) {
 	batchReviewControlsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, f fixture.ControlsReferenceFixture) {
 		batchRefreshSeed(t, p, b, f.A)
 		if b.PG {
-			batchExec(t, p, b, f.A, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0)
+			batchExec(t, p, b, f.A, "GRANT USAGE ON SCHEMA public TO PUBLIC", 0)
 		}
 		batchExec(t, p, b, f.A, "INSERT INTO batch_refresh_base VALUES(3,'c')", 1)
 		four := append(batchRefreshOld(), []any{int64(3), "c"})
@@ -71,8 +74,36 @@ func TestReferenceDriverBatchRefreshAuthorization(t *testing.T) {
 		batchExec(t, p, b, f.A, "RESET ROLE", 0)
 		batchExec(t, p, b, f.A, "INSERT INTO batch_refresh_base VALUES(4,'d')", 1)
 		five := append(append(batchRefreshOld(), []any{int64(3), "c"}), []any{int64(4), "d"})
-		q = "CREATE ROLE batch_refresh_owner; GRANT SELECT ON batch_refresh_base TO batch_refresh_owner; SET ROLE batch_refresh_owner; CREATE MATERIALIZED VIEW batch_refresh_owned AS SELECT i,s FROM batch_refresh_base WITH NO DATA; REFRESH MATERIALIZED VIEW batch_refresh_owned WITH DATA; SELECT i,s FROM batch_refresh_owned; RESET ROLE"
-		batchSets(t, batchQuery(t, p, f.A, q), batchRefreshSet(five...))
+		// This batch creates its own intended owner. Keep role creation and the
+		// actor's CREATE in the same batch, with real scoped schema ownership.
+		admin, err := b.DB.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := admin.Close(); err != nil {
+				t.Error("batch public ownership connection close", err)
+			}
+		}()
+		for _, reset := range []string{"RESET SESSION AUTHORIZATION", "RESET ROLE"} {
+			batchExec(t, p, b, admin, reset, 0)
+		}
+		var previous string
+		if err := admin.QueryRowContext(p.Ctx, "SELECT r.rolname FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_roles r ON r.oid=n.nspowner WHERE n.nspname='public'").Scan(&previous); err != nil {
+			t.Fatal(err)
+		}
+		restore := "ALTER SCHEMA public OWNER TO \"" + strings.ReplaceAll(previous, "\"", "\"\"") + "\""
+		func() {
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				if _, err := admin.ExecContext(ctx, restore); err != nil {
+					t.Error("batch public ownership restore", err)
+				}
+			}()
+			q = "CREATE ROLE batch_refresh_owner; ALTER SCHEMA public OWNER TO batch_refresh_owner; GRANT SELECT ON batch_refresh_base TO batch_refresh_owner; SET ROLE batch_refresh_owner; CREATE MATERIALIZED VIEW batch_refresh_owned AS SELECT i,s FROM batch_refresh_base WITH NO DATA; REFRESH MATERIALIZED VIEW batch_refresh_owned WITH DATA; SELECT i,s FROM batch_refresh_owned; RESET ROLE; " + restore
+			batchSets(t, batchQuery(t, p, f.A, q), batchRefreshSet(five...))
+		}()
 		fixture.RunStep(t, p.Ctx, f.B, b.Recorder, fixture.Select("SELECT matviewowner FROM pg_matviews WHERE matviewname='batch_refresh_owned'", []string{"matviewowner"}, []string{"NAME"}, [][]any{{"batch_refresh_owner"}}))
 		batchExec(t, p, b, f.A, "INSERT INTO batch_refresh_base VALUES(5,'e')", 1)
 		q = "CREATE ROLE batch_refresh_undone; GRANT MAINTAIN,SELECT ON batch_refresh_mv TO batch_refresh_undone; SET ROLE batch_refresh_undone; REFRESH MATERIALIZED VIEW batch_refresh_mv; SELECT i,s FROM batch_refresh_mv; RESET ROLE; SELECT missing FROM batch_refresh_base"

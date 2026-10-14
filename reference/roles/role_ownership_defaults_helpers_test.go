@@ -3,6 +3,7 @@ package reference_test
 import (
 	"fmt"
 	"github.com/lib/pq"
+	"strings"
 	"stuntgres/reference/fixture"
 )
 
@@ -60,7 +61,11 @@ func ownershipDefaultSchemas(s *membershipScenario) {
 func ownershipDefaultTable(s *membershipScenario, name, creator string) {
 	s.t.Helper()
 	s.actor(creator)
-	s.exec("CREATE TABLE " + name + "(id INT)")
+	if !strings.Contains(name, ".") || strings.HasPrefix(name, "public.") {
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, creator, func() { s.exec("CREATE TABLE " + name + "(id INT)") })
+	} else {
+		s.exec("CREATE TABLE " + name + "(id INT)")
+	}
 	s.run(fixture.Exec("INSERT INTO "+name+" VALUES(7)", 1))
 	s.actor("")
 }

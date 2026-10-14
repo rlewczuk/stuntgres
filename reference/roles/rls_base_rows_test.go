@@ -27,14 +27,14 @@ func TestReferenceRLSBaseDefaultDenyAndInputs(t *testing.T) {
 		predefinedSelect(s, "SELECT id,count(*) FROM t GROUP BY id", []string{"id", "count"}, []string{"INT4", "INT8"}, nil)
 		predefinedSelect(s, "SELECT id,row_number() OVER(ORDER BY id) AS n FROM t", []string{"id", "n"}, []string{"INT4", "INT8"}, nil)
 		predefinedSelect(s, "SELECT id FROM t UNION ALL SELECT 7 ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})
-		s.run(fixture.Exec("CREATE TABLE rls_empty AS SELECT id FROM t", 0))
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_reader", func() { s.run(fixture.Exec("CREATE TABLE rls_empty AS SELECT id FROM t", 0)) })
 		predefinedSelect(s, "SELECT id FROM rls_empty", []string{"id"}, []string{"INT4"}, nil)
 	})
 }
 
 func TestReferenceRLSBaseWrites(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE TABLE rls_src(id INT,v INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.exec("CREATE TABLE rls_src(id INT,v INT)") })
 		s.run(fixture.Exec("INSERT INTO rls_src VALUES(1,10)", 1))
 		s.exec("GRANT SELECT ON rls_src TO rls_reader")
 		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")

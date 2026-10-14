@@ -181,7 +181,9 @@ SET SESSION AUTHORIZATION postgres;`
 		}
 	}
 	roleExecute(t, target, targetOp, "SET SESSION AUTHORIZATION middle_owner")
-	roleErrorPosition(t, target, targetOp, "CREATE TABLE denied PARTITION OF parents.root FOR VALUES FROM(10) TO(20)", "42501", "permission denied for schema parents", "", "")
+	withPublicSchemaUnitOwner(t, target, "middle_owner", func() {
+		roleErrorPosition(t, target, targetOp, "CREATE TABLE denied PARTITION OF parents.root FOR VALUES FROM(10) TO(20)", "42501", "permission denied for schema parents", "", "")
+	})
 	roleExecute(t, target, targetOp, "SET SESSION AUTHORIZATION postgres")
 	if !reflect.DeepEqual(tuples(roleExecute(t, target, targetOp, "SELECT k,payload FROM parents.root ORDER BY k")), [][]driver.Value{{int64(1), int64(11)}, {int64(2), int64(11)}, {int64(3), int64(11)}}) {
 		t.Fatal("ordinary failed child published effects")

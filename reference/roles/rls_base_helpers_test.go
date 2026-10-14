@@ -13,7 +13,7 @@ func rlsBaseCases(t *testing.T, body func(*membershipScenario, *sql.DB)) {
 		s.exec("ALTER ROLE rls_bypass BYPASSRLS")
 		s.exec("ALTER ROLE rls_noacl BYPASSRLS")
 		s.actor("rls_owner")
-		s.exec("CREATE TABLE t(id INT PRIMARY KEY,v INT DEFAULT 9)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.exec("CREATE TABLE t(id INT PRIMARY KEY,v INT DEFAULT 9)") })
 		s.run(fixture.Exec("INSERT INTO t VALUES(1,10),(2,20)", 2))
 		s.exec("GRANT SELECT,INSERT,UPDATE,DELETE ON t TO rls_reader,rls_bypass,rls_member")
 		body(s, db)

@@ -73,14 +73,18 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	roleExecute(t, e, op, "SET search_path=private_types,public")
 	// Destination is explicitly public; namespace authority on stored type OIDs
 	// and cooked expressions is distinct from fresh qualified name binding.
-	roleExecute(t, e, op, "CREATE TABLE public.root(k INT,state private_types.state DEFAULT 'low'::private_types.state,quantity private_types.quantity DEFAULT 11,CONSTRAINT state_ok CHECK(state<>'high'::private_types.state)) PARTITION BY RANGE(k)")
+	withPublicSchemaUnitOwner(t, e, "actor", func() {
+		roleExecute(t, e, op, "CREATE TABLE public.root(k INT,state private_types.state DEFAULT 'low'::private_types.state,quantity private_types.quantity DEFAULT 11,CONSTRAINT state_ok CHECK(state<>'high'::private_types.state)) PARTITION BY RANGE(k)")
+	})
 	parent := rangePartitionRelation(t, e, "public.root")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	if err := setACL(typeRefs[0], authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION actor")
-	roleError(t, e, op, "CREATE TABLE public.enum_denied PARTITION OF public.root FOR VALUES FROM(0) TO(1)", "42501", "permission denied for type state", "")
+	withPublicSchemaUnitOwner(t, e, "actor", func() {
+		roleError(t, e, op, "CREATE TABLE public.enum_denied PARTITION OF public.root FOR VALUES FROM(0) TO(1)", "42501", "permission denied for type state", "")
+	})
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	if err := setACL(typeRefs[0], grant); err != nil {
 		t.Fatal(err)
@@ -89,7 +93,9 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION actor")
-	roleError(t, e, op, "CREATE TABLE public.domain_denied PARTITION OF public.root FOR VALUES FROM(0) TO(1)", "42501", "permission denied for type quantity", "")
+	withPublicSchemaUnitOwner(t, e, "actor", func() {
+		roleError(t, e, op, "CREATE TABLE public.domain_denied PARTITION OF public.root FOR VALUES FROM(0) TO(1)", "42501", "permission denied for type quantity", "")
+	})
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	if err := setACL(typeRefs[1], grant); err != nil {
 		t.Fatal(err)
@@ -98,7 +104,9 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION actor")
-	roleExecute(t, e, op, "CREATE TABLE public.leaf PARTITION OF public.root FOR VALUES FROM(0) TO(10)")
+	withPublicSchemaUnitOwner(t, e, "actor", func() {
+		roleExecute(t, e, op, "CREATE TABLE public.leaf PARTITION OF public.root FOR VALUES FROM(0) TO(10)")
+	})
 	child := rangePartitionRelation(t, e, "public.leaf")
 	if child.columns[1].Usage != parent.columns[1].Usage || child.columns[2].Usage != parent.columns[2].Usage || child.columns[1].OriginTable != uint32(child.address.ObjectID) || child.columns[1].OriginTable == parent.columns[1].OriginTable {
 		t.Fatal("inherited identity/origin admission did not copy type and refresh child origin")
@@ -115,7 +123,9 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 		"CREATE TABLE public.check_denied PARTITION OF public.root(CONSTRAINT fresh CHECK(state<>'high'::private_types.state)) FOR VALUES FROM(10) TO(20)",
 	} {
 		position := strconv.Itoa(strings.Index(query, "private_types") + 1)
-		roleErrorPosition(t, e, op, query, "42501", "permission denied for schema private_types", "", position)
+		withPublicSchemaUnitOwner(t, e, "actor", func() {
+			roleErrorPosition(t, e, op, query, "42501", "permission denied for schema private_types", "", position)
+		})
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	for _, name := range []string{"enum_denied", "domain_denied", "cast_denied", "check_denied"} {

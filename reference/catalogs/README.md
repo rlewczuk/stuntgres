@@ -211,6 +211,92 @@ real-only guards. Private units supplement SQL with actual capture, descriptor,
 mutation, publication, type-fact and adapter-export functions, including foreign
 authority rejection, checked INT2 narrowing and immutable scalar tombstones.
 
+### pg_namespace selected proof
+
+The ten shared `TestReferencePGNamespace` families cover exact shape/raw
+metadata, pristine seeds, user identity, visibility, ACLs, TEMP pair lifecycle,
+diagnostics, native controls and feature smoke. Native OID/NAME/ACL carriers
+are int64/string/string; pq uses bytes for these catalog types. Expectations
+are independently specified, including exact stored ACL array order.
+Visibility additionally proves the shared public-schema ownership fixture restores
+actual prior owner and caller identity after ordinary return or panic; the package
+component counterpart is `TestPGNamespaceFixtureOwnership`. Neither fixture changes
+pristine seeds or globally grants schema CREATE.
+The `Controls/nominal_replay` phase independently creates public domains/enums/composites
+under scoped actual ownership, restores pristine namespace authority before any Dump,
+and preserves complete native streams, owner-only domain/composite DROP authority
+and stored values across genuine Reset/Restore. PostgreSQL also drops the owned
+enum directly; native pins the existing enum DROP TYPE0A000/Position1 boundary
+through direct/prepared calls, proves no effect and uses supported exact-owner
+DROP OWNED cleanup. The shared ordinary value/schema-denial contract runs on both
+backends; native control APIs have no fictitious PostgreSQL copy.
+`TestNominalTypeRestorePublicNamespaceAuthority` and `DestinationFence` supplement
+that surface with real package-level stream reconstruction and forged/ordinary
+authenticator rejection. `TestPGNamespaceTemporaryViewCreationAuthority` pins first
+TEMP view staging/execution under an ordinary creator; physical cleanup retains the
+pair, not its children or namespace-scoped default directives.
+`TestReferencePGNamespaceTemporarySuperuserAuthority` distinguishes captured true
+bootstrap superusers from ordinary SET ROLE actors, live qualified REGCLASS lookup
+from own-session creation, and retired-child42P01 from ordinary schema42501.
+Its direct/prepared shared body retains exact pair metadata and zero-child facts,
+foreign/retired CREATE42P16 and new-session nonadoption; it does not scan another
+backend's physical TEMP table. `TestPGNamespaceTemporarySuperuserAuthority` additionally
+proves immutable captured actors across live role switches and unchanged own-TEMP
+authority. Existing bootstrap retirement readers use common42P01, not a native
+database-owner explanation or diagnostic override.
+Native physical foreign-TEMP storage remains unavailable after valid qualified
+namespace lookup. `TestPGNamespaceForeignTemporaryStorageCapture`, `Execution`
+and `Targets` exercise actual roots, direct/ONLY and recursive stored-view denial,
+metadata-only/preseeded-reference admission, persistent/own inheritance and no-effect
+DML/COPY/TRUNCATE. Full0A000 is an execution boundary, not a Prepare/schema error.
+`TestReferenceTemporaryTableDiagnostics` preserves the independently observed PG
+small-peer empty cursor while asserting that honest native storage exclusion.
+The shared `TestReferencePGNamespaceViewStoragePrecedence` and
+`TestReferencePGNamespaceCopyStoragePrecedence` (in `reference/dml`) preserve
+source/table/schema42501 and COPY read-only25006 ahead of physical admission.
+Actual revocation, nested owner/invoker views, paired snapshots, storage roots,
+TEMP footprint and denied stream I/O are supplemented by
+`TestPGNamespaceViewStoragePrecedence` and `TestPGNamespaceCopyStoragePrecedence`.
+
+Shared public relation/namespace identities and existing REGTYPE lookup prove
+the registered source relationship. PostgreSQL additionally executes its true
+pg_type reciprocal query; native asserts the exact missing-pg_type boundary,
+with registered rowtype/array ownership covered by TestPGNamespaceShape.
+ACL ownership transfer/merge remains real shared SQL. Role rename remains a
+PostgreSQL SQL phase: native direct and actual Prepare attempts assert the
+existing 0A000/Position1 exclusion, check no effect, and retain eager ACL rows across
+supported schema ownership transfer. No adjacent catalog or role capability is
+implemented to make an incidental observation succeed.
+
+```sh
+make check RUN='^TestReferencePGNamespace(Shape|Builtins|Identity|Visibility|ACL|Temporary|TemporarySuperuserAuthority|Lifecycle|Diagnostics|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePGNamespace(Shape|Builtins|Identity|Visibility|ACL|Temporary|TemporarySuperuserAuthority|Lifecycle|Diagnostics|Controls|FeatureSmoke)$'
+make check RUN='^TestReferencePGNamespace(ViewStoragePrecedence|CopyStoragePrecedence)$'
+make check REFERENCE=1 RUN='^TestReferencePGNamespace(ViewStoragePrecedence|CopyStoragePrecedence)$'
+make check RACE=1 RUN='^TestPGNamespace(ViewStoragePrecedence|CopyStoragePrecedence)$'
+make check RACE=1 RUN='^TestPGNamespace(Shape|Capture|ACL|Authority|Cancellation|TemporarySuperuserAuthority)$'
+make check RUN='^TestPGNamespaceFixtureOwnership$'
+make check RUN='^TestReferencePGNamespaceFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGNamespaceFeatureSmoke$'
+```
+
+Use external900-second deadlines. These are selected proofs, not substitutes
+for whole-project quickcheck or finalcheck. No discovery backend filter remains.
+Pristine builtin expectations use the existing exported oracle DSN with its
+database path set to `/postgres`, never the reset fixture's reconstructed
+public schema. Builtins reads are read-only. The first-use TEMP transaction
+witness alone uses `/postgres` for TEMP-only rollback/commit isolation on the
+same physical creator before its first commit; it does not mutate permanent
+schemas or shared infrastructure. Other TEMP scenarios use the normal fixture
+and permit PostgreSQL backend-slot reuse of preexisting namespace tuples.
+
+Controls are explicit native-only phases; there is no fake PostgreSQL API.
+The session-only standalone public smoke is not committed. It asserts real
+four-field prepared reads, seeds, user identity/rename, schema denial, TEMP
+owner separation/pair and Dump/Reset/Restore; maintained feature smoke exercises
+these surfaces on both backends with the fixture's recorders.
+
+
 ### pg_database selected proof
 
 `TestReferencePGDatabase` independently specifies the PostgreSQL 18 eighteen-column
@@ -268,7 +354,7 @@ retain independently specified metadata, raw codecs, rows and diagnostics.
 Case-specific names scope database-wide catalog bags; table permission does not
 filter metadata discovery.
 
-`BuiltinIndexHistory` checks all twenty represented indexed table catalogs and
+`BuiltinIndexHistory` checks all twenty-two represented indexed table catalogs and
 every represented view negative through direct, fresh and SAME prepared readers,
 without inventing native backing-index rows. `FirstChildRollback` starts with a
 childless RANGE parent: successful first ATTACH sets history only in the owner's
@@ -340,8 +426,8 @@ retained prepared reader, explicit ACL/Dump rejection, baseline Restore,
 invalid Restore atomicity and Reset. No standalone smoke scaffold is committed.
 The historical standalone reader checked the then-eighteen indexed builtin table
 facts and represented view negatives initially and after successful/failed Restore
-and Reset. The maintained `BuiltinIndexHistory` definition now includes pg_database
-as the nineteenth represented indexed catalog.
+and Reset. The maintained `BuiltinIndexHistory` definition includes pg_database,
+pg_attribute, pg_namespace and pg_db_role_setting, giving twenty-two represented indexed catalogs.
 Selected proof and standalone smoke do not replace whole-project quickcheck.
 
 ### CREATE TABLESPACE selected proof

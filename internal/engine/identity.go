@@ -109,7 +109,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			read := e.stageRead(stage)
 			tableNamespace := read.state.descriptors[table.namespace].(*namespaceDescriptor)
 			if tableNamespace.temporary != (SessionToken{}) {
-				if auth.session != nil && tableNamespace.temporary == auth.session.token {
+				if !tableNamespace.temporaryToast && auth.session != nil && tableNamespace.temporary == auth.session.token {
 					auth.stagedTemporary = table.namespace
 				}
 				if persistenceSet {

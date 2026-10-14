@@ -10,7 +10,15 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, q := range []string{"CREATE USER owner", "CREATE USER reader", "CREATE ROLE rights", "CREATE SCHEMA membership_classes AUTHORIZATION owner", "SET SESSION AUTHORIZATION owner", "CREATE TABLE class_table(a INT)", "CREATE SEQUENCE class_sequence", "CREATE TYPE class_enum AS ENUM ('one')", "CREATE DOMAIN class_domain AS INT", "CREATE VIEW class_view AS SELECT a FROM class_table", "RESET SESSION AUTHORIZATION", "GRANT owner,rights TO reader"} {
+	for _, q := range []string{"CREATE USER owner", "CREATE USER reader", "CREATE ROLE rights", "CREATE SCHEMA membership_classes AUTHORIZATION owner", "SET SESSION AUTHORIZATION owner"} {
+		roleExecute(t, e, op, q)
+	}
+	withPublicSchemaUnitOwner(t, e, "owner", func() {
+		for _, q := range []string{"CREATE TABLE class_table(a INT)", "CREATE SEQUENCE class_sequence", "CREATE TYPE class_enum AS ENUM ('one')", "CREATE DOMAIN class_domain AS INT", "CREATE VIEW class_view AS SELECT a FROM class_table"} {
+			roleExecute(t, e, op, q)
+		}
+	})
+	for _, q := range []string{"RESET SESSION AUTHORIZATION", "GRANT owner,rights TO reader"} {
 		roleExecute(t, e, op, q)
 	}
 	owner, _ := e.Roles().Lookup("owner")

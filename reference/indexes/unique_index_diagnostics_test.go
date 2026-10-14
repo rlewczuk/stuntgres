@@ -60,11 +60,8 @@ func TestReferenceUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 						a, _ := fixture.LockConnections(t, p.Ctx, b.DB)
 						run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, a, b.Recorder, s) }
 						run(fixture.Exec("CREATE ROLE ui_owner", 0))
-						if b.PG {
-							run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO ui_owner", 0))
-						}
 						run(fixture.Exec("SET SESSION AUTHORIZATION ui_owner", 0))
-						run(fixture.Exec("CREATE TABLE ui_t(a INT,b TEXT)", 0))
+						fixture.WithPublicSchemaOwner(t, p, b, "ui_owner", func() { run(fixture.Exec("CREATE TABLE ui_t(a INT,b TEXT)", 0)) })
 						run(fixture.Exec("INSERT INTO ui_t VALUES(1,'protected'),(1,'protected')", 2))
 						run(fixture.Exec("REVOKE SELECT ON ui_t FROM ui_owner", 0))
 						if mode == "partial" || mode == "all" {
@@ -85,7 +82,7 @@ func TestReferenceUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 						if prepared {
 							s = fixture.Prepared(s)
 						}
-						run(s)
+						fixture.WithPublicSchemaOwner(t, p, b, "ui_owner", func() { run(s) })
 						run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 						run(fixture.Select("SELECT a,b FROM ui_t", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "protected"}, {int64(1), "protected"}}))
 						run(fixture.Select("SELECT relname FROM pg_class WHERE relname='ui_ab'", []string{"relname"}, []string{"NAME"}, nil))

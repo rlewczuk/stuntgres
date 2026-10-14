@@ -189,8 +189,18 @@ func tableLikeTemporaryIdentity(t *testing.T) {
 			}
 		}
 		s.Retire()
+		retained := fixture.Select("SELECT nspowner::bigint AS nspowner,nspacl FROM pg_catalog.pg_namespace WHERE nspname=$1",
+			[]string{"nspowner", "nspacl"}, []string{"INT8", "_ACLITEM"}, [][]any{{int64(10), nil}}, namespace)
+		retained.Prepared = s.Prepared
+		fixture.RunStep(s.T, s.P.Ctx, s.Peer, s.Record, retained)
 		s.Exec(s.Peer, "INSERT INTO public.permanent_identity DEFAULT VALUES", 1)
 		fixture.RunStep(s.T, s.P.Ctx, s.Peer, s.Record, fixture.Select("SELECT id FROM public.permanent_identity ORDER BY id", []string{"id"}, []string{"INT8"}, [][]any{{int64(7)}, {int64(10)}, {int64(13)}}))
-		s.Missing(s.Peer, namespace+".temporary_identity", "id", "16")
+		fixture.RunStep(s.T, s.P.Ctx, s.Peer, s.Record, fixture.Select(
+			"SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2",
+			[]string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, namespace, "temporary_identity"))
+		missing := fixture.ImplicitError("SELECT id FROM "+namespace+".temporary_identity",
+			fixture.Diagnostic{Code: "42P01", Message: `relation "` + namespace + `.temporary_identity" does not exist`, Position: "16"})
+		missing.SelectRows, missing.Prepared = true, s.Prepared
+		fixture.RunStep(s.T, s.P.Ctx, s.Peer, s.Record, missing)
 	})
 }

@@ -9,11 +9,13 @@ import (
 
 func TestReferenceRLSBasePrincipals(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE VIEW rls_owner_view AS SELECT id,v FROM t")
-		s.exec("CREATE VIEW rls_invoker_view WITH(security_invoker=true) AS SELECT id,v FROM t")
-		s.exec("CREATE VIEW rls_nested AS SELECT id,v FROM rls_invoker_view")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() {
+			s.exec("CREATE VIEW rls_owner_view AS SELECT id,v FROM t")
+			s.exec("CREATE VIEW rls_invoker_view WITH(security_invoker=true) AS SELECT id,v FROM t")
+			s.exec("CREATE VIEW rls_nested AS SELECT id,v FROM rls_invoker_view")
+		})
 		s.exec("GRANT SELECT,INSERT,UPDATE,DELETE ON rls_owner_view,rls_invoker_view,rls_nested TO rls_reader")
-		s.run(fixture.Exec("CREATE MATERIALIZED VIEW rls_mv AS SELECT id FROM t", 2))
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.run(fixture.Exec("CREATE MATERIALIZED VIEW rls_mv AS SELECT id FROM t", 2)) })
 		s.exec("GRANT SELECT ON rls_mv TO rls_reader")
 		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
 		s.actor("rls_reader")
@@ -31,8 +33,10 @@ func TestReferenceRLSBasePrincipals(t *testing.T) {
 		s.exec("REFRESH MATERIALIZED VIEW rls_mv")
 		predefinedSelect(s, "SELECT id FROM rls_mv", []string{"id"}, []string{"INT4"}, nil)
 		s.actor("rls_owner")
-		s.exec("CREATE TABLE rls_parent(id INT) PARTITION BY RANGE(id)")
-		s.exec("CREATE TABLE rls_leaf PARTITION OF rls_parent FOR VALUES FROM(0) TO(10)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() {
+			s.exec("CREATE TABLE rls_parent(id INT) PARTITION BY RANGE(id)")
+			s.exec("CREATE TABLE rls_leaf PARTITION OF rls_parent FOR VALUES FROM(0) TO(10)")
+		})
 		s.run(fixture.Exec("INSERT INTO rls_parent VALUES(7)", 1))
 		s.exec("GRANT SELECT,INSERT ON rls_parent,rls_leaf TO rls_reader")
 		s.exec("ALTER TABLE rls_leaf ENABLE ROW LEVEL SECURITY")

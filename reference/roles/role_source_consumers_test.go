@@ -9,11 +9,6 @@ import (
 func TestReferenceRolePreparedSetupSourceConsumers(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"owner", "reader"})
 	p := fixture.NewScenario(t)
-	if p.Postgres != nil {
-		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-			t.Fatal(err)
-		}
-	}
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
 			a, err := backend.DB.Conn(p.Ctx)
@@ -31,7 +26,11 @@ func TestReferenceRolePreparedSetupSourceConsumers(t *testing.T) {
 				if strings.HasPrefix(q, "INSERT") {
 					count = 1
 				}
-				roleScenarioCommand(t, a, q, count, true)
+				if q == "CREATE TABLE secret(id INT)" {
+					fixture.WithPublicSchemaOwner(t, p, backend, "owner", func() { roleScenarioCommand(t, a, q, count, true) })
+				} else {
+					roleScenarioCommand(t, a, q, count, true)
+				}
 			}
 			identity, err := a.PrepareContext(p.Ctx, "SELECT session_user,current_user,session_user")
 			if err != nil {

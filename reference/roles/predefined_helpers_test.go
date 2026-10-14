@@ -49,7 +49,7 @@ func predefinedCases(t *testing.T, names []string, body func(*membershipScenario
 					s := &membershipScenario{t, p, b, c, record, &notices, prepared, bootstrap}
 					defer c.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
 					if b.PG {
-						s.exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
+						s.exec("GRANT USAGE ON SCHEMA public TO PUBLIC")
 					}
 					for _, name := range names {
 						s.exec("CREATE ROLE " + name + " LOGIN")

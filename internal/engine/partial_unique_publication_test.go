@@ -23,20 +23,22 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	roleExecute(t, e, admin, "CREATE ROLE ui_owner LOGIN")
 	owner, od := roleOperation(t, e, "ui_owner")
 	t.Cleanup(od)
-	roleExecute(t, e, owner, "CREATE TABLE public.ui_t(a DATE,b INT,p TEXT,active BOOL)")
 	keys, count := "a", 1
-	if composite {
-		keys, count = "a,b", 2
-	}
-	policy := ""
-	if nnd {
-		policy = " NULLS NOT DISTINCT"
-	}
-	roleExecute(t, e, owner, "CREATE UNIQUE INDEX ui_index ON public.ui_t("+keys+") INCLUDE(p)"+policy+" WHERE active")
-	roleExecute(t, e, owner, "INSERT INTO public.ui_t VALUES('2001-02-03',1,'old',TRUE),('2001-02-04',2,'other',TRUE),('2001-02-03',1,'outside',FALSE),('2001-02-03',1,'unknown',NULL)")
-	roleExecute(t, e, owner, "CREATE TABLE ui_sibling(k INT)")
-	roleExecute(t, e, owner, "INSERT INTO ui_sibling VALUES(9)")
-	roleExecute(t, e, owner, "CREATE INDEX ui_sibling_index ON ui_sibling(k)")
+	withPublicSchemaUnitOwner(t, e, "ui_owner", func() {
+		roleExecute(t, e, owner, "CREATE TABLE public.ui_t(a DATE,b INT,p TEXT,active BOOL)")
+		if composite {
+			keys, count = "a,b", 2
+		}
+		policy := ""
+		if nnd {
+			policy = " NULLS NOT DISTINCT"
+		}
+		roleExecute(t, e, owner, "CREATE UNIQUE INDEX ui_index ON public.ui_t("+keys+") INCLUDE(p)"+policy+" WHERE active")
+		roleExecute(t, e, owner, "INSERT INTO public.ui_t VALUES('2001-02-03',1,'old',TRUE),('2001-02-04',2,'other',TRUE),('2001-02-03',1,'outside',FALSE),('2001-02-03',1,'unknown',NULL)")
+		roleExecute(t, e, owner, "CREATE TABLE ui_sibling(k INT)")
+		roleExecute(t, e, owner, "INSERT INTO ui_sibling VALUES(9)")
+		roleExecute(t, e, owner, "CREATE INDEX ui_sibling_index ON ui_sibling(k)")
+	})
 	ref := roleTableRef(t, e, "public.ui_t")
 	actor, ok := e.Roles().Lookup("ui_owner")
 	if !ok || actor.Superuser {

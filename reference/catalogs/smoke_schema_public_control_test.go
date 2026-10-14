@@ -290,12 +290,13 @@ func smokeSchemaPublicLifecycle(t *testing.T) {
 								t.Fatal("restored owners/ACLs/rows changed", err, again.String(), dump.String())
 							}
 						}
-						// The retained builtin still has its canonical PUBLIC CREATE grant.
-						if backend.PG {
-							command(c, "GRANT CREATE ON SCHEMA retained_public TO PUBLIC", 0)
-						}
+						// Renaming the retained builtin preserves pristine PUBLIC USAGE,
+						// not CREATE: PostgreSQL18's public schema is owner-only for CREATE.
 						command(c, "SET SESSION AUTHORIZATION lifecycle_reader", 0)
-						command(c, "CREATE TABLE retained_public.probe(id INT)", 0)
+						err = m.TransactionAffected(ctx, c, "CREATE TABLE retained_public.probe(id INT)", true, 0)
+						if err := m.TransactionDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for schema retained_public", Position: "14"}); err != nil {
+							t.Fatal(err)
+						}
 						command(c, "RESET SESSION AUTHORIZATION", 0)
 						command(c, "SET SESSION AUTHORIZATION lifecycle_owner", 0)
 						command(c, "CREATE TABLE restored_a.owner_probe(id INT)", 0)

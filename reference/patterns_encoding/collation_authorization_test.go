@@ -16,7 +16,7 @@ func TestReferenceCollationAuthorization(t *testing.T) {
 		fixture.CollationExec(t, p, b, `CREATE USER coll_owner`, `CREATE USER coll_other`, `CREATE SCHEMA coll_owner_schema AUTHORIZATION coll_owner`, `CREATE SCHEMA coll_other_schema AUTHORIZATION coll_other`)
 		if b.PG {
 			fixture.CollationExec(t, p, b, `ALTER ROLE coll_owner PASSWORD 'role-core-fixture'`, `ALTER ROLE coll_other PASSWORD 'role-core-fixture'`)
-			fixture.CollationExec(t, p, b, `GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC`)
+			fixture.CollationExec(t, p, b, `GRANT USAGE ON SCHEMA public TO PUBLIC`)
 		}
 		owner := fixture.RoleScenarioLoginPool(t, p.NativeConnector.Driver().(*stuntgres.Driver), b.PG, dsn, "coll_owner")
 		other := fixture.RoleScenarioLoginPool(t, p.NativeConnector.Driver().(*stuntgres.Driver), b.PG, dsn, "coll_other")
@@ -53,7 +53,9 @@ func TestReferenceCollationAuthorization(t *testing.T) {
 		if fixture.CollationOID(t, b.DB, "coll_public_owned") != ownedOID {
 			t.Fatal("failed authorization changed identity")
 		}
-		fixture.CollationExec(t, p, b, `ALTER COLLATION coll_public_owned OWNER TO coll_other`)
+		fixture.WithPublicSchemaOwner(t, p, b, "coll_other", func() {
+			fixture.CollationExec(t, p, b, `ALTER COLLATION coll_public_owned OWNER TO coll_other`)
+		})
 		fixture.CollationRoutes(t, p, b, fixture.Select(`SELECT collowner::bigint AS owner FROM pg_catalog.pg_collation WHERE collname='coll_public_owned'`, []string{"owner"}, []string{"INT8"}, [][]any{{otherOwner}}))
 		fixture.CollationExec(t, p, otherBackend, `DROP COLLATION coll_other_schema.coll_other_identity`)
 		fixture.CollationExec(t, p, b, `DROP SCHEMA coll_other_schema`)

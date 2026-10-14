@@ -25,7 +25,7 @@ func TestReferenceRLSBaseProposedReadConjunction(t *testing.T) {
 
 func TestReferenceRLSBaseDefaultAndCoercion(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE TABLE rls_default(id INT DEFAULT(10/(1-1)))")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.exec("CREATE TABLE rls_default(id INT DEFAULT(10/(1-1)))") })
 		s.exec("GRANT INSERT ON rls_default TO rls_reader")
 		s.exec("ALTER TABLE rls_default ENABLE ROW LEVEL SECURITY")
 		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")
@@ -41,11 +41,13 @@ func TestReferenceRLSBaseDefaultAndCoercion(t *testing.T) {
 
 func TestReferenceRLSBaseNestedWritablePrincipals(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE VIEW rls_inner_owner AS SELECT id,v FROM t")
-		s.exec("CREATE VIEW rls_outer_owner AS SELECT id,v FROM rls_inner_owner")
-		s.exec("CREATE VIEW rls_inner_invoker WITH(security_invoker=true) AS SELECT id,v FROM t")
-		s.exec("CREATE VIEW rls_outer_invoker AS SELECT id,v FROM rls_inner_invoker")
-		s.exec("CREATE VIEW rls_identity AS SELECT id,current_user AS actor,session_user AS session_actor FROM t")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() {
+			s.exec("CREATE VIEW rls_inner_owner AS SELECT id,v FROM t")
+			s.exec("CREATE VIEW rls_outer_owner AS SELECT id,v FROM rls_inner_owner")
+			s.exec("CREATE VIEW rls_inner_invoker WITH(security_invoker=true) AS SELECT id,v FROM t")
+			s.exec("CREATE VIEW rls_outer_invoker AS SELECT id,v FROM rls_inner_invoker")
+			s.exec("CREATE VIEW rls_identity AS SELECT id,current_user AS actor,session_user AS session_actor FROM t")
+		})
 		s.exec("GRANT SELECT,INSERT,UPDATE,DELETE ON rls_inner_owner,rls_outer_owner,rls_inner_invoker,rls_outer_invoker TO rls_reader")
 		s.exec("GRANT SELECT ON rls_identity TO rls_reader")
 		s.exec("ALTER TABLE t ENABLE ROW LEVEL SECURITY")

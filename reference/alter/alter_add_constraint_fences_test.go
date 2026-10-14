@@ -18,12 +18,9 @@ func addConstraintLockFences(t *testing.T) {
 			for _, q := range []string{"CREATE ROLE add_wait_owner", "CREATE TABLE p(id INT PRIMARY KEY)", "GRANT REFERENCES ON p TO add_wait_owner"} {
 				run(fixture.Exec(q, 0))
 			}
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO add_wait_owner", 0))
-			}
 			admin, observer := fixture.LockConnections(t, p.Ctx, b.DB)
 			run(fixture.Exec("SET ROLE add_wait_owner", 0))
-			run(fixture.Exec("CREATE TABLE t(a INT)", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "add_wait_owner", func() { run(fixture.Exec("CREATE TABLE t(a INT)", 0)) })
 			defer c.ExecContext(p.Ctx, "RESET ROLE")
 			q := "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID"
 			held := addConstraintHeld(t, p, b, c, q)

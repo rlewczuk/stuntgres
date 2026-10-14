@@ -1,7 +1,9 @@
 package authorization
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"strings"
 	"stuntgres/internal/parser"
 )
@@ -215,6 +217,24 @@ func CreationDefaultACL(owner PrincipalRef, class DefaultACLClass, record, scope
 			return DefaultBaseline(owner, class, false)
 		}
 		return ACLValue{}
+	}
+	if class == DefaultSchemas && len(merged.Entries) > 1 {
+		compare := func(a, b ACLEntry) int {
+			grantee := func(entry ACLEntry) uint64 {
+				if entry.Grantee.Public {
+					return 0
+				}
+				return entry.Grantee.Role.ID()
+			}
+			if order := cmp.Compare(grantee(a), grantee(b)); order != 0 {
+				return order
+			}
+			return cmp.Compare(a.Grantor.ID(), b.Grantor.ID())
+		}
+		if !slices.IsSortedFunc(merged.Entries, compare) {
+			merged.Entries = slices.Clone(merged.Entries)
+			slices.SortFunc(merged.Entries, compare)
+		}
 	}
 	return merged
 }

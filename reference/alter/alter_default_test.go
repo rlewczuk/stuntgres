@@ -102,14 +102,8 @@ func TestReferenceAlterDefaultOwnership(t *testing.T) {
 					run := func(s fixture.Step) { s.Prepared = prepared; fixture.RunStep(t, p.Ctx, conn, record, s) }
 					run(fixture.Exec("CREATE USER alter_default_owner", 0))
 					run(fixture.Exec("CREATE USER alter_default_reader", 0))
-					if backend.Name == "postgres" {
-						// PostgreSQL-only provisioning: the fixture recreates public without
-						// native public's default USAGE/CREATE. No native GRANT SQL is added.
-						run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO alter_default_owner", 0))
-						run(fixture.Exec("GRANT USAGE ON SCHEMA public TO alter_default_reader", 0))
-					}
 					run(fixture.Exec("SET SESSION AUTHORIZATION alter_default_owner", 0))
-					run(fixture.Exec("CREATE TABLE t(id INT,i INT DEFAULT 7)", 0))
+					fixture.WithPublicSchemaOwner(t, p, backend, "alter_default_owner", func() { run(fixture.Exec("CREATE TABLE t(id INT,i INT DEFAULT 7)", 0)) })
 					run(fixture.Exec("INSERT INTO t VALUES(0,11)", 1))
 					for index, q := range []string{"ALTER TABLE t ALTER i SET DEFAULT 'oops'", "ALTER TABLE t ALTER i DROP DEFAULT"} {
 						run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

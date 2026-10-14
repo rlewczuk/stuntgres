@@ -140,13 +140,10 @@ func TestReferencePartialIndexUniquePrivacy(t *testing.T) {
 				a, _ := fixture.LockConnections(t, p.Ctx, b.DB)
 				run = func(s fixture.Step) { fixture.RunStep(t, p.Ctx, a, b.Recorder, s) }
 				run(fixture.Exec("CREATE ROLE partial_unique_actor", 0))
-				if b.PG {
-					run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO partial_unique_actor", 0))
-				}
 				run(fixture.Exec("SET SESSION AUTHORIZATION partial_unique_actor", 0))
-				run(fixture.Exec("CREATE TABLE u(k INT,j TEXT,payload TEXT,active BOOL)", 0))
+				fixture.WithPublicSchemaOwner(t, p, b, "partial_unique_actor", func() { run(fixture.Exec("CREATE TABLE u(k INT,j TEXT,payload TEXT,active BOOL)", 0)) })
 				run(fixture.Exec("INSERT INTO u VALUES(7,'secret','hidden',TRUE),(7,'secret','other',FALSE)", 2))
-				run(fixture.Exec("CREATE UNIQUE INDEX pu ON u(k,j) INCLUDE(payload) WHERE active", 0))
+				fixture.WithPublicSchemaOwner(t, p, b, "partial_unique_actor", func() { run(fixture.Exec("CREATE UNIQUE INDEX pu ON u(k,j) INCLUDE(payload) WHERE active", 0)) })
 				run(fixture.Exec("REVOKE SELECT ON u FROM partial_unique_actor", 0))
 				if mode == "partial" || mode == "all" {
 					run(fixture.Exec("GRANT SELECT(k) ON u TO partial_unique_actor", 0))
@@ -171,8 +168,10 @@ func TestReferencePartialIndexUniquePrivacy(t *testing.T) {
 				run(fixture.Exec("INSERT INTO u VALUES(7,'secret','new',TRUE)", 1))
 				s = fixture.ErrorDiagnostic("CREATE UNIQUE INDEX pu ON u(k,j) INCLUDE(payload) WHERE active", uniqueIndexReferenceBuildDiagnostic("u", "pu", buildDetail))
 				s.ErrorStage = "execute"
-				run(s)
-				run(fixture.Prepared(s))
+				fixture.WithPublicSchemaOwner(t, p, b, "partial_unique_actor", func() {
+					run(s)
+					run(fixture.Prepared(s))
+				})
 				run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 				run(fixture.Select("SELECT k,j,payload,active FROM u ORDER BY payload", []string{"k", "j", "payload", "active"}, []string{"INT4", "TEXT", "TEXT", "BOOL"}, [][]any{{int64(7), "secret", "hidden", true}, {int64(7), "secret", "new", true}, {int64(7), "secret", "other", false}}))
 				run(fixture.Select("SELECT relname FROM pg_class WHERE relname='pu'", []string{"relname"}, []string{"NAME"}, nil))

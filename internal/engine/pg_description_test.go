@@ -205,6 +205,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 	bag := pgDescriptionUnitBag(t, captured)
 	expected := map[ObjectAddress]string{
 		{ClassID: NamespaceClassID, ObjectID: 11}:   "system catalog schema",
+		{ClassID: NamespaceClassID, ObjectID: 99}:   "reserved schema for TOAST tables",
 		{ClassID: NamespaceClassID, ObjectID: 2200}: "standard public schema",
 	}
 	for _, group := range []struct {
@@ -219,7 +220,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 			expected[ObjectAddress{ClassID: group.class, ObjectID: seed.oid}] = seed.text
 		}
 	}
-	if len(bag) != 165 || !reflect.DeepEqual(bag, expected) {
+	if len(bag) != 166 || !reflect.DeepEqual(bag, expected) {
 		t.Fatal("complete independent baseline", bag, expected)
 	}
 	for _, oid := range []OID{4401, 4450, 4451, 4532} {

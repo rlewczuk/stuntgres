@@ -110,7 +110,11 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			}
 		}
 		var physical []ObjectRef
-		physical, err = e.queryTableRefsLocked(catalog, leaves, nil, s.op.session.token)
+		if err = e.captureCommentSnapshotLocked(s); err == nil {
+			collectAuth := s.deparseAuth
+			collectAuth.recaptureCatalog(catalog)
+			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, leaves, nil, s.op.session.token, queryRowMark{})
+		}
 		if err == nil {
 			var view *VisibilityView
 			view, err = s.acquireDataViewsLocked(e, physical)

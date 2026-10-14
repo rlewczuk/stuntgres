@@ -130,7 +130,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]Obj
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) && kind != installedFunctionLookup {
+		if ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
 			continue
 		}
 		duplicate := false
@@ -182,7 +182,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kin
 		filtered := path[:0]
 		for _, a := range path {
 			ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
-			if ns.temporary == (SessionToken{}) || kind == installedFunctionLookup && (auth.session == nil || ns.temporary != auth.session.token) {
+			if ns.temporary == (SessionToken{}) || kind == installedFunctionLookup && !ownTemporaryNamespace(auth, ns) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -263,8 +263,8 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		return namespaceSelection{}, nil
 	}
 	ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
-	foreignTemporary := ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token)
-	if foreignTemporary && kind == collationLookup {
+	foreignTemporary := ns.temporary != (SessionToken{}) && !ns.temporaryToast && !ownTemporaryNamespace(auth, ns)
+	if foreignTemporary {
 		actor, exists := auth.roles.Find(auth.state.CurrentUser)
 		foreignTemporary = !exists || !actor.Superuser
 	}
@@ -327,7 +327,7 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 		n := name.Parts[0].Text
 		if n == "pg_temp" {
 			ns, ok := auth.catalog.state.descriptors[auth.stagedTemporary].(*namespaceDescriptor)
-			if !ok || auth.session == nil || ns.temporary != auth.session.token {
+			if !ok || !ownTemporaryNamespace(auth, ns) {
 				return ObjectRef{}, true, nil
 			}
 			a = ns.address

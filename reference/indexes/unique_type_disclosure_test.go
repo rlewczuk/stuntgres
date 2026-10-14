@@ -17,11 +17,8 @@ func TestReferenceUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 						a, _ := fixture.LockConnections(t, p.Ctx, b.DB)
 						run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, a, b.Recorder, s) }
 						run(fixture.Exec("CREATE ROLE unique_type_owner", 0))
-						if b.PG {
-							run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO unique_type_owner", 0))
-						}
 						run(fixture.Exec("SET SESSION AUTHORIZATION unique_type_owner", 0))
-						run(fixture.Exec("CREATE TABLE t(a INT,b TEXT,CONSTRAINT u UNIQUE(a,b))", 0))
+						fixture.WithPublicSchemaOwner(t, p, b, "unique_type_owner", func() { run(fixture.Exec("CREATE TABLE t(a INT,b TEXT,CONSTRAINT u UNIQUE(a,b))", 0)) })
 						run(fixture.Exec("INSERT INTO t VALUES(1,'protected'),(2,'protected')", 2))
 						namespace := fixture.UniqueReferencePublicNamespace(t, p.Ctx, b.DB, b.PG)
 						cq := "SELECT c.oid FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid WHERE r.relname='t' AND r.relnamespace=$1 AND c.conname='u'"

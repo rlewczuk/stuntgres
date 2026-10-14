@@ -14,8 +14,18 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
+	trustedDestination := op != nil && op.restoreTableDestination
+	if trustedDestination {
+		bootstrap, guardErr := auth.roles.Descriptor(auth.state.Authenticated)
+		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
+			return fmt.Errorf("stuntgres: invalid trusted restore composite destination authority")
+		}
+	}
 	if err := auth.CheckCreate(ns); err != nil {
-		return err
+		denied, ok := err.(*sqlstate.Error)
+		if !trustedDestination || !ok || denied.Code != "42501" {
+			return err
+		}
 	}
 	if err := checkPersistentCreationNamespace(auth.catalog, ns.Address); err != nil {
 		return err

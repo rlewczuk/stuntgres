@@ -9,7 +9,7 @@ import (
 
 func TestReferenceRoleRevokeFeatureSmoke(t *testing.T) {
 	fixture.RoleGrantScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
-		revokeActor(run, "rg_owner", func() { revokeTable(run) })
+		revokeActor(run, "rg_owner", func() { fixture.WithPublicSchemaOwner(t, p, b, "rg_owner", func() { revokeTable(run) }) })
 		revokeChain(run)
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_c", 0))
 		q := "SELECT a,b FROM t"

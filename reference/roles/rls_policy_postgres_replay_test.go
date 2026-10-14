@@ -33,7 +33,7 @@ func TestReferenceRLSPolicyPostgresReplay(t *testing.T) {
 			}
 			exec := func(q string) { run(fixture.Exec(q, 0)) }
 			exec("SET SESSION AUTHORIZATION policy_replay_owner")
-			exec("CREATE TABLE t(id INTEGER,allowed BOOLEAN)")
+			fixture.WithPublicSchemaOwner(t, p, fixture.Backend{Name: "memory", DB: p.Memory, Recorder: p.MemoryRecord}, "policy_replay_owner", func() { exec("CREATE TABLE t(id INTEGER,allowed BOOLEAN)") })
 			run(fixture.Exec("INSERT INTO t VALUES(1,TRUE),(2,FALSE)", 2))
 			exec("RESET SESSION AUTHORIZATION")
 			exec("CREATE TABLE replay_helper(id INTEGER)")
@@ -77,14 +77,13 @@ func TestReferenceRLSPolicyPostgresReplay(t *testing.T) {
 					oracle.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 					oracle.ExecContext(context.Background(), "DROP VIEW IF EXISTS replay_type_view; DROP TABLE IF EXISTS t,replay_helper,renamed_replay_type,replay_type CASCADE; DROP DOMAIN IF EXISTS replay_domain CASCADE; DROP COLLATION IF EXISTS replay_collation CASCADE; DROP SEQUENCE IF EXISTS replay_sequence CASCADE")
 				}()
-				// Roles preexist on the consumer. This is environmental schema
-				// access, not an edited/translated version of the emitted stream.
-				if _, err := oracle.ExecContext(p.Ctx, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-					t.Fatal(err)
-				}
-				if _, err := oracle.ExecContext(p.Ctx, stream.String()); err != nil {
-					t.Fatal("pinned PostgreSQL rejected actual native policy stream", err)
-				}
+				// Roles preexist on the consumer. Scoped ownership is explicit
+				// environmental setup; the emitted stream itself stays unchanged.
+				fixture.WithPublicSchemaOwner(t, p, fixture.Backend{Name: "postgres", DB: p.Postgres, Recorder: p.PostgresRecord, PG: true}, "policy_replay_owner", func() {
+					if _, err := oracle.ExecContext(p.Ctx, stream.String()); err != nil {
+						t.Fatal("pinned PostgreSQL rejected actual native policy stream", err)
+					}
+				})
 				if _, err := oracle.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 					t.Fatal(err)
 				}

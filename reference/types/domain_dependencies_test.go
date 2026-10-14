@@ -118,12 +118,6 @@ func TestReferenceDomainDependencies(t *testing.T) {
 		fixture.RoleReferenceCleanup(t, []string{"domain_creator", "domain_reader"})
 		domainReferenceScenario(t, func(t *testing.T, p *fixture.Pair, backend fixture.Backend, conn *sql.Conn, recorder *fixture.Recorder, notices *[]fixture.Diagnostic) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
-			if backend.PG {
-				// Existing role fixture authority; native public bootstrap has these rights.
-				if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-					t.Fatal(err)
-				}
-			}
 			t.Cleanup(func() {
 				if _, err := backend.DB.ExecContext(p.Ctx, "DROP DOMAIN IF EXISTS public.domain_owned CASCADE"); err != nil {
 					t.Error(err)
@@ -135,7 +129,7 @@ func TestReferenceDomainDependencies(t *testing.T) {
 			run(fixture.ErrorDiagnostic("CREATE DOMAIN domain_s.denied AS integer", fixture.ControlsReferenceDiagnostic("42501", "permission denied for schema domain_s")))
 			run(fixture.Exec("RESET ROLE", 0))
 			run(fixture.Exec("SET ROLE domain_creator", 0))
-			run(fixture.Exec("CREATE DOMAIN public.domain_owned AS integer", 0))
+			fixture.WithPublicSchemaOwner(t, p, backend, "domain_creator", func() { run(fixture.Exec("CREATE DOMAIN public.domain_owned AS integer", 0)) })
 			run(fixture.Exec("RESET ROLE", 0))
 			run(fixture.Exec("SET ROLE domain_reader", 0))
 			run(fixture.ErrorDiagnostic("DROP DOMAIN public.domain_owned", fixture.ControlsReferenceDiagnostic("42501", "must be owner of type domain_owned")))
@@ -147,7 +141,7 @@ func TestReferenceDomainDependencies(t *testing.T) {
 				run(fixture.Exec("SET ROLE domain_reader", 0))
 				s := fixture.ErrorDiagnostic("CREATE DOMAIN public.domain_denied_base AS public.domain_owned", fixture.ControlsReferenceDiagnostic("42501", "permission denied for type domain_owned"))
 				s.ErrorStage = "execute"
-				run(s)
+				fixture.WithPublicSchemaOwner(t, p, backend, "domain_reader", func() { run(s) })
 				run(fixture.Exec("RESET ROLE", 0))
 			}
 			run(fixture.Exec("SET ROLE domain_creator", 0))

@@ -50,7 +50,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 		t.Fatalf("base unexpectedly readable: %v", err)
 	}
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(auth.catalog, mvSources, nil, SessionToken{})
+	refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, mvSources, nil, SessionToken{}, queryRowMark{})
 	e.mu.Unlock()
 	if err != nil || !reflect.DeepEqual(refs, []ObjectRef{mvRef}) {
 		t.Fatalf("physical read expanded frozen source references: %v %v", refs, err)

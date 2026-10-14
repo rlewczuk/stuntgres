@@ -24,13 +24,13 @@ func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, 
 // Namespace ACL entry order and split entries do not affect reproducibility.
 // Principal/grantor references do: losing them would change DROP dependencies.
 func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
+	if d.address.ObjectID == PGToastNamespaceOID {
+		return !d.acl.Explicit && len(d.acl.Entries) == 0
+	}
 	if !d.acl.Explicit {
 		return false
 	}
 	publicRights := authorization.UsagePrivilege
-	if d.address.ObjectID == PublicNamespaceOID {
-		publicRights |= authorization.CreatePrivilege
-	}
 	var publicUse, publicOptions, ownerUse, ownerOptions authorization.Privileges
 	for _, entry := range d.acl.Entries {
 		if entry.Grantor != d.owner {
@@ -51,7 +51,7 @@ func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
 		}
 	}
 	return publicUse == publicRights && publicOptions == 0 &&
-		ownerUse == authorization.UsagePrivilege|authorization.CreatePrivilege && ownerOptions == authorization.UsagePrivilege|authorization.CreatePrivilege
+		ownerUse == authorization.UsagePrivilege|authorization.CreatePrivilege && ownerOptions == 0
 }
 
 // Dump emits replayable logical definitions and rows, including renamed,
@@ -149,7 +149,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, b := range []struct {
 		oid  OID
 		name string
-	}{{PublicNamespaceOID, "public"}, {PGCatalogNamespaceOID, "pg_catalog"}, {13229, "information_schema"}} {
+	}{{PublicNamespaceOID, "public"}, {PGCatalogNamespaceOID, "pg_catalog"}, {PGToastNamespaceOID, "pg_toast"}, {13229, "information_schema"}} {
 		d, exists := e.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: b.oid}]
 		if !exists {
 			preamble = append(preamble, "DROP SCHEMA "+quoteIdentifier(b.name)+";\n")
@@ -332,12 +332,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if valid && ns.comment != namespaceCommentBaseline(a.ObjectID) {
 					schemaComments = append(schemaComments, dumpComment{ns.name, ns.comment})
 				}
-				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID || a.ObjectID == 13229) &&
+				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID || a.ObjectID == PGToastNamespaceOID || a.ObjectID == 13229) &&
 					!bootstrapNamespaceDumpable(ns) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace ACL")
 				}
-				if valid && a.ObjectID != PublicNamespaceOID && a.ObjectID != PGCatalogNamespaceOID && a.ObjectID != 13229 {
+				if valid && a.ObjectID != PublicNamespaceOID && a.ObjectID != PGCatalogNamespaceOID && a.ObjectID != PGToastNamespaceOID && a.ObjectID != 13229 {
 					if ns.acl.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")
@@ -1555,6 +1555,15 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateDomain); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateEnum); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateComposite); ok {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreatePolicy); ok {

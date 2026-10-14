@@ -35,11 +35,13 @@ func TestReferenceViewOriginalInvokerControls(t *testing.T) {
 					}
 				}
 				if backend.PG {
-					grant("GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC")
+					grant("GRANT USAGE ON SCHEMA public TO PUBLIC")
 				}
 				run(fixture.Exec("SET SESSION AUTHORIZATION "+owner, 0))
-				run(fixture.Exec("CREATE VIEW inner_view WITH(security_invoker=true) AS SELECT id FROM t", 0))
-				run(fixture.Exec("CREATE VIEW outer_view AS SELECT id FROM inner_view", 0))
+				fixture.WithPublicSchemaOwner(t, p, backend, owner, func() {
+					run(fixture.Exec("CREATE VIEW inner_view WITH(security_invoker=true) AS SELECT id FROM t", 0))
+					run(fixture.Exec("CREATE VIEW outer_view AS SELECT id FROM inner_view", 0))
+				})
 				grant("GRANT SELECT ON t TO " + owner)
 				grant("GRANT SELECT ON outer_view TO " + reader)
 				run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

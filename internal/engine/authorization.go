@@ -333,9 +333,7 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authoriz
 	// PostgreSQL's own TEMP namespace follows the physical backend, not the
 	// current role. Keep this ordinary namespace authority separate from object
 	// ACLs, namespace ownership and delegation, and from private maintenance.
-	if ns, ok := d.(*namespaceDescriptor); ok && !grantOptions && v.session != nil &&
-		v.session.token != (SessionToken{}) && v.session.token.owner == v.engine &&
-		v.session.token.private == nil && ns.temporary == v.session.token {
+	if ns, ok := d.(*namespaceDescriptor); ok && !grantOptions && ownTemporaryNamespace(v, ns) {
 		return mask, nil
 	}
 	principals := []authorization.PrincipalRef{v.state.CurrentUser}

@@ -38,9 +38,11 @@ func primaryKeyUnitFixture(t *testing.T) (*Engine, *Operation, *relationDescript
 	}
 	owner, ownerDone := roleOperation(t, e, "pk_owner")
 	t.Cleanup(ownerDone)
-	if _, err := e.Execute(owner, primaryKeyUnitCreate("t", "pk"), 0, nil); err != nil {
-		t.Fatal(err)
-	}
+	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+		if _, err := e.Execute(owner, primaryKeyUnitCreate("t", "pk"), 0, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
 	for _, a := range []int64{1, 2} {
 		result, err := e.Execute(owner, primaryKeyUnitInsert(a), 0, nil)
 		if err != nil || result.Count != 1 || result.Rows != nil {

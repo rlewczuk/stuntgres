@@ -18,7 +18,7 @@ func TestReferenceMaterializedAlterAuthorization(t *testing.T) {
 				run(fixture.Exec("CREATE USER "+role, 0))
 			}
 			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
+				run(fixture.Exec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0))
 			}
 			alterSeed(run)
 			run(fixture.Exec("ALTER MATERIALIZED VIEW alter_mv OWNER TO alter_owner", 0))

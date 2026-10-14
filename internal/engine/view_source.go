@@ -159,8 +159,14 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
+	return authorizeViewSourceSnapshot(auth, ref, definition, invoker, mark)
+}
+
+// The source collector and execution fences use the same captured owner/invoker
+// checks; neither substitutes a live role/catalog sample during recursion.
+func authorizeViewSourceSnapshot(auth AuthorizationView, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
+	if !ok || ref.owner != auth.engine.owner || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
 		return ErrCatalogReplaced
 	}
 	principal := d.owner

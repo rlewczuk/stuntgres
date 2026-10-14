@@ -9,11 +9,13 @@ import (
 
 func TestReferenceRLSBaseProposalPrecedence(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE TABLE rls_stored(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) STORED)")
-		s.exec("CREATE TABLE rls_virtual(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) VIRTUAL)")
-		s.exec("CREATE TABLE rls_constrained(id INT NOT NULL CHECK(id>0))")
-		s.exec("CREATE TABLE rls_route(id INT) PARTITION BY RANGE(id)")
-		s.exec("CREATE TABLE rls_route_leaf PARTITION OF rls_route FOR VALUES FROM(0) TO(10)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() {
+			s.exec("CREATE TABLE rls_stored(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) STORED)")
+			s.exec("CREATE TABLE rls_virtual(id INT,g INT GENERATED ALWAYS AS(10/(id-id)) VIRTUAL)")
+			s.exec("CREATE TABLE rls_constrained(id INT NOT NULL CHECK(id>0))")
+			s.exec("CREATE TABLE rls_route(id INT) PARTITION BY RANGE(id)")
+			s.exec("CREATE TABLE rls_route_leaf PARTITION OF rls_route FOR VALUES FROM(0) TO(10)")
+		})
 		for _, table := range []string{"rls_stored", "rls_virtual", "rls_constrained", "rls_route"} {
 			s.exec("GRANT INSERT,SELECT ON " + table + " TO rls_reader")
 			s.exec("ALTER TABLE " + table + " ENABLE ROW LEVEL SECURITY")

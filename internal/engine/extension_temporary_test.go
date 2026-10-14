@@ -103,7 +103,12 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *extensionDescriptor) 
 }
 func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *extensionDescriptor) {
 	t.Helper()
-	for _, address := range append([]ObjectAddress{ext.address, ext.targetNamespace}, ext.members[:]...) {
+	namespace, ok := e.state.descriptors[ext.targetNamespace].(*namespaceDescriptor)
+	if !ok {
+		t.Fatal("physical end removed retained TEMP namespace metadata")
+	}
+	assertTemporaryNamespacePair(t, e, namespace.temporary, namespace.address)
+	for _, address := range append([]ObjectAddress{ext.address}, ext.members[:]...) {
 		if e.state.descriptors[address] != nil {
 			t.Fatal("retired provider identity retained", address)
 		}
@@ -316,9 +321,10 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	if err != nil || procedureInNamespaces(foreignAuth.catalog, selected, "unaccent", unaccentTextSignature) == nil {
 		t.Fatal("real foreign member lookup", selected, err)
 	}
-	for _, kind := range []lookupKind{relationLookup, typeLookup, functionLookup, operatorLookup, conversionLookup} {
-		if _, err := e.lookupNamespaces(foreignAuth, qualified, kind); err == nil {
-			t.Fatal("provider lookup widened unrelated foreign TEMP access", kind)
+	for _, kind := range []lookupKind{relationLookup, typeLookup, functionLookup, operatorLookup, collationLookup, conversionLookup} {
+		selected, err := e.lookupNamespaces(foreignAuth, qualified, kind)
+		if err != nil || selected.qualified != namespace.address {
+			t.Fatal("captured superuser namespace USAGE denied", kind, selected, err)
 		}
 	}
 	for _, kind := range []lookupKind{functionLookup, operatorLookup, collationLookup, conversionLookup} {

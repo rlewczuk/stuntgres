@@ -19,11 +19,8 @@ func TestReferenceConcurrentIndexDisclosure(t *testing.T) {
 							c := fixture.ConcurrentIndexConn(t, p, b)
 							run := func(step fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, step) }
 							run(fixture.Exec("CREATE ROLE ci_disclosure_owner", 0))
-							if b.PG {
-								run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO ci_disclosure_owner", 0))
-							}
 							run(fixture.Exec("SET SESSION AUTHORIZATION ci_disclosure_owner", 0))
-							run(fixture.Exec("CREATE TABLE t(v TEXT,n INTEGER,payload TEXT)", 0))
+							fixture.WithPublicSchemaOwner(t, p, b, "ci_disclosure_owner", func() { run(fixture.Exec("CREATE TABLE t(v TEXT,n INTEGER,payload TEXT)", 0)) })
 							seed := "INSERT INTO t VALUES('A',1,'protected'),('a',1,'different')"
 							if kind == "collated" {
 								seed = "INSERT INTO t VALUES('A',1,'protected'),('A',1,'different')"
@@ -63,7 +60,9 @@ func TestReferenceConcurrentIndexDisclosure(t *testing.T) {
 								}
 								run(step)
 							}
-							check("CREATE UNIQUE INDEX CONCURRENTLY ui ON t("+definition+") INCLUDE(payload)", fixture.ConcurrentIndexUnique("t", "ui", buildDetail, true))
+							fixture.WithPublicSchemaOwner(t, p, b, "ci_disclosure_owner", func() {
+								check("CREATE UNIQUE INDEX CONCURRENTLY ui ON t("+definition+") INCLUDE(payload)", fixture.ConcurrentIndexUnique("t", "ui", buildDetail, true))
+							})
 							check("REINDEX INDEX ui", fixture.ConcurrentIndexUnique("t", "ui", buildDetail, true))
 							check("ALTER TABLE t ALTER n TYPE BIGINT USING 0", fixture.ConcurrentIndexUnique("t", "ui", typeDetail, true))
 							run(fixture.Select("SELECT n FROM t ORDER BY n", []string{"n"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}}))

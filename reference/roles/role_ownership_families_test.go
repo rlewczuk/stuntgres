@@ -42,15 +42,17 @@ func TestReferenceRoleOwnershipFamilies(t *testing.T) {
 				// grammar is absent; no inherited bootstrap authority is granted.
 				switch f.name {
 				case "partition", "leaf", "mv", "enum", "domain", "composite":
-					s.exec(f.alter + " OWNER TO " + s.bootstrap)
+					fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, s.bootstrap, func() { s.exec(f.alter + " OWNER TO " + s.bootstrap) })
 					if f.relation != "" {
 						ownershipOwner(s, f.relation, s.bootstrap)
 					}
 					s.actor("")
 					s.exec(f.alter + " OWNER TO own_target")
 				default:
-					s.exec(f.alter + " RENAME TO own_" + f.name + "_renamed")
-					s.exec("ALTER " + f.rename + " own_" + f.name + "_renamed RENAME TO own_" + f.name)
+					fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_target", func() {
+						s.exec(f.alter + " RENAME TO own_" + f.name + "_renamed")
+						s.exec("ALTER " + f.rename + " own_" + f.name + "_renamed RENAME TO own_" + f.name)
+					})
 				}
 				s.actor("")
 			})
@@ -109,7 +111,7 @@ func TestReferenceRoleOwnershipAuthority(t *testing.T) {
 		s.exec("GRANT own_middle TO own_actor WITH INHERIT FALSE, SET TRUE")
 		s.exec("ALTER ROLE own_target NOLOGIN")
 		s.actor("own_actor")
-		s.exec("ALTER TABLE own_auth OWNER TO own_target")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_target", func() { s.exec("ALTER TABLE own_auth OWNER TO own_target") })
 		s.actor("")
 		ownershipOwner(s, "own_auth", "own_target")
 		ownershipRows(s, "own_auth")
@@ -119,7 +121,7 @@ func TestReferenceRoleOwnershipAuthority(t *testing.T) {
 		s.exec("GRANT own_alt TO own_actor WITH INHERIT FALSE, SET TRUE")
 		s.exec("REVOKE SET OPTION FOR own_middle FROM own_actor")
 		s.actor("own_actor")
-		s.exec("ALTER TABLE own_auth OWNER TO own_target")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_target", func() { s.exec("ALTER TABLE own_auth OWNER TO own_target") })
 		s.actor("")
 		// Target must CREATE in the containing schema, regardless of actor CREATE.
 		s.exec("CREATE SCHEMA own_gate AUTHORIZATION own_source")

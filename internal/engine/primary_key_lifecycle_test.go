@@ -79,9 +79,11 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 		{Like: &parser.TableLike{Name: primaryKeyUnitName("t"), Options: []parser.LikeOption{{Name: "indexes", Including: true}, {Name: "comments", Including: true}}}},
 		{Unique: &parser.UniqueConstraint{Name: parser.Identifier{Text: "chosen"}, Columns: []parser.Identifier{{Text: "a"}, {Text: "b"}}}},
 	}}
-	if _, err := e.Execute(owner, ddl, 0, nil); err != nil {
-		t.Fatal(err)
-	}
+	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+		if _, err := e.Execute(owner, ddl, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
 	clone := primaryKeyUnitRelation(t, e, "clone")
 	if len(clone.uniqueConstraints) != 2 || !clone.uniqueConstraints[0].Primary || clone.uniqueConstraints[0].Name != "clone_pkey" || clone.uniqueConstraints[1].Primary || clone.uniqueConstraints[1].Name != "chosen" || !reflect.DeepEqual(clone.uniqueConstraints[0].Attributes, []int32{2, 3}) {
 		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.uniqueConstraints)
@@ -102,17 +104,19 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 
 func TestPrimaryKeyCreateGroupFailureFence(t *testing.T) {
 	e, owner, parent, index := primaryKeyUnitFixture(t)
-	before, store, root := e.state, e.storage[parent.address], e.indexRoots[index.address]
-	result, err := e.Execute(owner, primaryKeyUnitCreate("other", "pk"), 0, nil)
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P07", Message: `relation "pk" already exists`})
-	if result.Count != 0 || result.Rows != nil || e.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root {
-		t.Fatal("backing-name conflict partly published CREATE group", result)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	result, err = testExecute(e, ctx, primaryKeyUnitCreate("canceled", "canceled_pkey"), nil)
-	if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || e.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root {
-		t.Fatal("canceled CREATE partly published group", result, err)
-	}
-	lockEmpty(t, e)
+	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+		before, store, root := e.state, e.storage[parent.address], e.indexRoots[index.address]
+		result, err := e.Execute(owner, primaryKeyUnitCreate("other", "pk"), 0, nil)
+		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P07", Message: `relation "pk" already exists`})
+		if result.Count != 0 || result.Rows != nil || e.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root {
+			t.Fatal("backing-name conflict partly published CREATE group", result)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		result, err = testExecute(e, ctx, primaryKeyUnitCreate("canceled", "canceled_pkey"), nil)
+		if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || e.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root {
+			t.Fatal("canceled CREATE partly published group", result, err)
+		}
+		lockEmpty(t, e)
+	})
 }

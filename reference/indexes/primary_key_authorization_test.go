@@ -76,11 +76,8 @@ func TestReferencePrimaryKeyTypeBuildDisclosure(t *testing.T) {
 				defer a.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, a, b.Recorder, s) }
 				run(fixture.Exec("CREATE ROLE pk_type_owner", 0))
-				if b.PG {
-					run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO pk_type_owner", 0))
-				}
 				run(fixture.Exec("SET SESSION AUTHORIZATION pk_type_owner", 0))
-				run(fixture.Exec("CREATE TABLE t(a INT,b TEXT,PRIMARY KEY(a,b))", 0))
+				fixture.WithPublicSchemaOwner(t, p, b, "pk_type_owner", func() { run(fixture.Exec("CREATE TABLE t(a INT,b TEXT,PRIMARY KEY(a,b))", 0)) })
 				run(fixture.Exec("INSERT INTO t VALUES(1,'protected'),(2,'protected')", 2))
 				run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 				before := fixture.PrimaryKeyReferenceIDs(t, p, b, "t_pkey")

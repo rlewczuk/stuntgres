@@ -216,6 +216,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		auth.catalog = e.privateCatalogLocked(changes)
 		auth.recaptureCatalog(auth.catalog)
+		if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
+			auth.stagedTemporary = table.address
+		}
 		if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
 			e.mu.Unlock()
 			return Result{}, err
@@ -423,6 +426,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// against that same private catalog, without publishing on rejection.
 			auth.catalog = e.privateCatalogLocked(changes)
 			auth.recaptureCatalog(auth.catalog)
+			if table, ok := changes.descriptors[ns.Address].(*namespaceDescriptor); ok && !table.temporaryToast && table.temporary == op.session.token {
+				auth.stagedTemporary = table.address
+			}
 			if err = auth.CheckCreate(ns); err != nil {
 				return Result{}, err
 			}

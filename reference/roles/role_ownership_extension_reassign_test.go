@@ -11,9 +11,13 @@ func TestReferenceRoleOwnershipExtensionReassign(t *testing.T) {
 		ownershipProviderOwners(s, "own_source", s.bootstrap)
 		initial := ownershipProviderIDs(s)
 		s.actor("own_other")
-		s.exec("CREATE TABLE own_provider_consumer(id INT,v TEXT DEFAULT own_provider.unaccent('Hôtel'),CHECK(own_provider.unaccent(v)<>''))")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() {
+			s.exec("CREATE TABLE own_provider_consumer(id INT,v TEXT DEFAULT own_provider.unaccent('Hôtel'),CHECK(own_provider.unaccent(v)<>''))")
+		})
 		s.run(fixture.Exec("INSERT INTO own_provider_consumer(id) VALUES(7)", 1))
-		s.exec("CREATE VIEW own_provider_view AS SELECT own_provider.unaccent(v) AS v FROM own_provider_consumer")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() {
+			s.exec("CREATE VIEW own_provider_view AS SELECT own_provider.unaccent(v) AS v FROM own_provider_consumer")
+		})
 		s.exec("CREATE POLICY own_provider_policy ON own_provider_consumer TO own_reader USING(own_provider.unaccent(v)<>'')")
 		s.actor("")
 		s.exec("GRANT own_other TO own_reader WITH INHERIT TRUE, SET FALSE")

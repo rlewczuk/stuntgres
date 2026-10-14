@@ -20,11 +20,8 @@ func TestReferenceArrayAggACL(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }
 			run(fixture.Exec("CREATE USER "+role, 0))
 			run(fixture.Exec("CREATE TABLE aa_acl(id INT,v INT,a INT[])", 0))
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO "+role, 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
-			run(fixture.Exec("CREATE TABLE aa_acl_target(v INT[])", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, role, func() { run(fixture.Exec("CREATE TABLE aa_acl_target(v INT[])", 0)) })
 			want := fixture.ControlsReferenceDiagnostic("42501", "permission denied for table aa_acl")
 			for _, expr := range []string{"array_agg(v ORDER BY id)", "array_agg(a ORDER BY id)", "array_agg(v ORDER BY id) FILTER(WHERE v IS NULL)", "array_agg(a ORDER BY id) FILTER(WHERE FALSE)"} {
 				for _, suffix := range []string{"", " WHERE FALSE"} {

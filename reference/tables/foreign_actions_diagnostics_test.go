@@ -15,10 +15,6 @@ func TestReferenceForeignActionsDiagnosticsNested(t *testing.T) {
 					for _, q := range []string{"CREATE ROLE fa_actor", "CREATE ROLE fa_owner", "CREATE TABLE p(id INT PRIMARY KEY)", "GRANT DELETE ON p TO fa_actor", "GRANT REFERENCES ON p TO fa_owner"} {
 						run(fixture.Exec(q, 0))
 					}
-					if b.PG {
-						run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO fa_owner", 0))
-						run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fa_actor", 0))
-					}
 					conn, err := b.DB.Conn(p.Ctx)
 					if err != nil {
 						t.Fatal(err)
@@ -38,7 +34,9 @@ func TestReferenceForeignActionsDiagnosticsNested(t *testing.T) {
 						d = foreignKeyChild("c", "fk", `Key (pid)=(1) is not present in table "p".`)
 					}
 					step(fixture.Exec("SET ROLE fa_owner", 0))
-					step(fixture.Exec("CREATE TABLE c(id INT,pid INT DEFAULT 1"+def+" CONSTRAINT fk REFERENCES p ON DELETE "+action+",note TEXT)", 0))
+					fixture.WithPublicSchemaOwner(t, p, b, "fa_owner", func() {
+						step(fixture.Exec("CREATE TABLE c(id INT,pid INT DEFAULT 1"+def+" CONSTRAINT fk REFERENCES p ON DELETE "+action+",note TEXT)", 0))
+					})
 					step(fixture.Exec("RESET ROLE", 0))
 					if kind != "foreign-key" {
 						run(fixture.Exec("INSERT INTO p VALUES(1)", 1))

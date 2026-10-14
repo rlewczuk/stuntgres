@@ -131,7 +131,9 @@ func TestReferenceRoleDefaultPrivilegesDiagnostics(t *testing.T) {
 			if tc.class == "TYPES" {
 				run(fixture.Exec("CREATE TYPE dp_quote_usage_type AS ENUM('a')", 0))
 				dpActor(run, "dp_reader", func() {
-					dpDenied(run, "CREATE TABLE dp_quote_usage_consumer(x dp_quote_usage_type)", "type", "dp_quote_usage_type")
+					fixture.WithPublicSchemaOwner(t, p, b, "dp_reader", func() {
+						dpDenied(run, "CREATE TABLE dp_quote_usage_consumer(x dp_quote_usage_type)", "type", "dp_quote_usage_type")
+					})
 				})
 			}
 		}

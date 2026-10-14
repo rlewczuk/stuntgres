@@ -32,7 +32,7 @@ func TestReferenceRLSBaseControlsReplay(t *testing.T) {
 				name            string
 				enabled, forced bool
 			}{{"rls_off", false, false}, {"rls_force_off", false, true}, {"rls_on", true, false}, {"rls_force_on", true, true}} {
-				exec("CREATE TABLE " + state.name + "(id INT)")
+				fixture.WithPublicSchemaOwner(t, p, fixture.Backend{Name: "memory", DB: p.Memory, Recorder: p.MemoryRecord}, "rls_replay_owner", func() { exec("CREATE TABLE " + state.name + "(id INT)") })
 				run(fixture.Exec("INSERT INTO "+state.name+" VALUES(7)", 1))
 				exec("CREATE POLICY retained ON " + state.name + " TO rls_replay_other USING(id>0) WITH CHECK(id>0)")
 				if state.enabled {
@@ -63,13 +63,12 @@ func TestReferenceRLSBaseControlsReplay(t *testing.T) {
 				}
 				defer oracle.Close()
 				defer oracle.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-				if _, err := oracle.ExecContext(p.Ctx, "GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-					t.Fatal(err)
-				}
 				// These are the exact emitted bytes, not reconstructed ALTER SQL.
-				if _, err := oracle.ExecContext(p.Ctx, stream.String()); err != nil {
-					t.Fatal("pinned replay of native flag stream", err)
-				}
+				fixture.WithPublicSchemaOwner(t, p, fixture.Backend{Name: "postgres", DB: p.Postgres, Recorder: p.PostgresRecord, PG: true}, "rls_replay_owner", func() {
+					if _, err := oracle.ExecContext(p.Ctx, stream.String()); err != nil {
+						t.Fatal("pinned replay of native flag stream", err)
+					}
+				})
 			}
 			for _, b := range p.Backends() {
 				conn, err := b.DB.Conn(p.Ctx)

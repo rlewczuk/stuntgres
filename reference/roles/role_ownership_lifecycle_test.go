@@ -99,7 +99,7 @@ func TestReferenceRoleOwnershipDiagnosticsAndFreshness(t *testing.T) {
 		s.actor("")
 		s.exec("GRANT own_target TO own_source WITH SET TRUE")
 		s.actor("own_source")
-		fixture.RunStep(s.t, s.p.Ctx, graphHeld, s.record, fixture.Exec(graphQ, 0))
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_target", func() { fixture.RunStep(s.t, s.p.Ctx, graphHeld, s.record, fixture.Exec(graphQ, 0)) })
 		s.actor("")
 		ownershipOwner(s, "own_fresh", "own_target")
 	})

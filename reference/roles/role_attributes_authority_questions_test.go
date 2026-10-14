@@ -76,11 +76,6 @@ func roleAttributesAuthorityQuestions(t *testing.T, prepared bool) {
 					run(roleAttributesDenied("ALTER ROLE SESSION_USER PASSWORD NULL", "Only roles with the SUPERUSER attribute may alter roles with the SUPERUSER attribute.", prepared))
 					run(fixture.Exec("RESET ROLE", 0))
 				} else if label == "inherit-nonretroactive" {
-					if b.PG {
-						if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO raq_target; GRANT USAGE ON SCHEMA public TO raq_actor"); err != nil {
-							t.Fatal(err)
-						}
-					}
 					for _, q := range []string{
 						"SET SESSION AUTHORIZATION raq_target",
 						"CREATE TABLE raq_old_edge(id INT)",
@@ -95,7 +90,11 @@ func roleAttributesAuthorityQuestions(t *testing.T, prepared bool) {
 						if q == "INSERT INTO raq_old_edge VALUES(7)" || q == "INSERT INTO raq_new_edge VALUES(9)" {
 							count = 1
 						}
-						run(fixture.Exec(q, count))
+						if q == "CREATE TABLE raq_old_edge(id INT)" {
+							fixture.WithPublicSchemaOwner(t, p, b, "raq_target", func() { run(fixture.Exec(q, count)) })
+						} else {
+							run(fixture.Exec(q, count))
+						}
 					}
 					run(fixture.Exec("GRANT raq_target TO raq_actor", 0))
 					oldRead := fixture.Select("SELECT id FROM raq_old_edge", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})

@@ -139,10 +139,10 @@ func TestReferenceInheritanceTemporaryCollision(t *testing.T) {
 		if err := s.c.QueryRowContext(s.p.Ctx, "SELECT 'tp'::regclass::oid").Scan(&tempOID); err != nil {
 			s.t.Fatal(err)
 		}
-		// The extra persistent schema consumes the namespace allocation that the
-		// target used for pg_temp. Observe the collision rather than hardcoding IDs.
+		// Two real persistent schemas match the target's table/TOAST namespace
+		// allocations. Observe the collision rather than hardcoding identities.
 		source := fixture.NewFixture(s.t, false, true)
-		for _, q := range []string{"CREATE SCHEMA collision_padding", "CREATE TABLE p(a INT DEFAULT 9 NOT NULL,CONSTRAINT positive CHECK(a>0))", "CREATE TABLE c() INHERITS(p)", "INSERT INTO c DEFAULT VALUES"} {
+		for _, q := range []string{"CREATE SCHEMA collision_padding", "CREATE SCHEMA collision_toast_padding", "CREATE TABLE p(a INT DEFAULT 9 NOT NULL,CONSTRAINT positive CHECK(a>0))", "CREATE TABLE c() INHERITS(p)", "INSERT INTO c DEFAULT VALUES"} {
 			count := int64(0)
 			if q == "INSERT INTO c DEFAULT VALUES" {
 				count = 1

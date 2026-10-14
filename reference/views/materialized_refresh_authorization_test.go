@@ -17,16 +17,13 @@ func TestReferenceMaterializedRefreshAuthorization(t *testing.T) {
 			for _, name := range []string{"refresh_owner", "refresh_caller", "refresh_base_owner", "refresh_member"} {
 				run(fixture.Exec("CREATE USER "+name, 0))
 			}
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION refresh_base_owner", 0))
-			run(fixture.Exec("CREATE TABLE refresh_acl_base(i INT)", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "refresh_base_owner", func() { run(fixture.Exec("CREATE TABLE refresh_acl_base(i INT)", 0)) })
 			run(fixture.Exec("INSERT INTO refresh_acl_base VALUES(1)", 1))
 			run(fixture.Exec("GRANT SELECT ON refresh_acl_base TO refresh_owner", 0))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION refresh_owner", 0))
-			run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_acl AS SELECT i FROM refresh_acl_base", 1))
+			fixture.WithPublicSchemaOwner(t, p, b, "refresh_owner", func() { run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_acl AS SELECT i FROM refresh_acl_base", 1)) })
 			run(fixture.Exec("GRANT SELECT ON refresh_acl TO refresh_caller", 0))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION refresh_caller", 0))
@@ -100,9 +97,6 @@ func TestReferenceMaterializedRefreshOwnerContext(t *testing.T) {
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 			run(fixture.Exec("CREATE USER refresh_expr_owner", 0))
 			run(fixture.Exec("CREATE USER refresh_expr_caller", 0))
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			run(fixture.Exec("SET search_path=public", 0))
 			run(fixture.Exec("CREATE SEQUENCE refresh_seq", 0))
 			run(fixture.Exec("ALTER SEQUENCE refresh_seq OWNER TO refresh_expr_owner", 0))
@@ -110,8 +104,10 @@ func TestReferenceMaterializedRefreshOwnerContext(t *testing.T) {
 			run(fixture.Exec("INSERT INTO refresh_expr_base VALUES(1)", 1))
 			run(fixture.Exec("GRANT SELECT ON refresh_expr_base TO refresh_expr_owner", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION refresh_expr_owner", 0))
-			run(fixture.Exec("CREATE VIEW refresh_invoker WITH(security_invoker=true) AS SELECT i FROM refresh_expr_base", 0))
-			run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_identity AS SELECT CURRENT_USER AS who,SESSION_USER AS session_who,CURRENT_SCHEMA AS ns,nextval('refresh_seq'::regclass) AS n,1/i AS x FROM refresh_invoker WITH NO DATA", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "refresh_expr_owner", func() {
+				run(fixture.Exec("CREATE VIEW refresh_invoker WITH(security_invoker=true) AS SELECT i FROM refresh_expr_base", 0))
+				run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_identity AS SELECT CURRENT_USER AS who,SESSION_USER AS session_who,CURRENT_SCHEMA AS ns,nextval('refresh_seq'::regclass) AS n,1/i AS x FROM refresh_invoker WITH NO DATA", 0))
+			})
 			run(fixture.Exec("GRANT MAINTAIN ON refresh_identity TO refresh_expr_caller", 0))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION refresh_expr_caller", 0))

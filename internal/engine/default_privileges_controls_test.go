@@ -52,16 +52,11 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 	t.Run("self temporary projection", func(t *testing.T) {
 		f := newDefaultUnitFixture(t)
 		f.grant(t, "tables", "select", nil)
-		f.grant(t, "tables", "insert", []string{"default_schema"})
-		state := cloneCatalog(f.e.state)
-		namespace := *state.descriptors[f.schema].(*namespaceDescriptor)
-		namespace.name = "pg_temp_default_unit"
-		namespace.temporary = f.op.session.token
-		delete(state.names, descriptorNameKey(state.descriptors[f.schema]))
-		state.descriptors[f.schema] = &namespace
-		state.names[descriptorNameKey(&namespace)] = f.schema
-		f.e.state = state
-		f.op.session.temporaryNamespace = f.schema
+		roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_projection_seed(v INT)")
+		f.schema = f.op.session.temporaryNamespace
+		namespace := f.e.state.descriptors[f.schema].(*namespaceDescriptor)
+		assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
+		f.grant(t, "tables", "insert", []string{namespace.name})
 		stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 		table := defaultUnitTable(t, f, stage, "temporary_survivor", f.owner)
 		if err := defaultUnitPublish(t, f.e, stage); err != nil {
@@ -85,7 +80,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal("self replacement confused materialized TEMP ACL with directive")
 		}
 		// Physical end removes directives tied to the retired namespace too.
-		grant := defaultUnitStatement("sequences", "usage", []string{"default_owner"}, []string{"pg_temp_default_unit"}, []string{"default_reader"})
+		grant := defaultUnitStatement("sequences", "usage", []string{"default_owner"}, []string{namespace.name}, []string{"default_reader"})
 		if err = f.apply(grant); err != nil {
 			t.Fatal(err)
 		}
@@ -95,6 +90,10 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		f.op.session.RequestEnd(CleanClose)
 		if err = f.op.session.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
+		}
+		assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
+		if f.e.state.descriptors[table.address] != nil {
+			t.Fatal("physical end retained TEMP child")
 		}
 		if f.e.state.defaultACLs[tempKey] != nil || endSnapshot.state.defaultACLs[tempKey] == nil || f.e.state.defaultACLs[global] == nil {
 			t.Fatal("TEMP retirement leaked scoped defaults or changed retained source")

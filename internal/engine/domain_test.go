@@ -200,16 +200,20 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	auth.state.CurrentUser = reader
 	ref.Epoch = auth.catalog.Epoch()
 	domainUnitDiagnostic(t, auth.CanUse(ref), "42501", "permission denied for type a")
-	before := e.CatalogRead().state
-	denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
-	e.mu.Lock()
-	stage = e.BeginCatalogStage(auth.catalog)
-	err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{})
-	e.mu.Unlock()
-	domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
-	if e.CatalogRead().state != before || len(stage.descriptors) != 0 {
-		t.Fatal("denied base published")
-	}
+	withPublicSchemaUnitOwner(t, e, "reader", func() {
+		auth = catalogAuthorization(e, e.CatalogRead())
+		auth.state.CurrentUser = reader
+		before := e.CatalogRead().state
+		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
+		e.mu.Lock()
+		stage = e.BeginCatalogStage(auth.catalog)
+		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{})
+		e.mu.Unlock()
+		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
+		if e.CatalogRead().state != before || len(stage.descriptors) != 0 {
+			t.Fatal("denied base published")
+		}
+	})
 	if len(descriptorReferences(a)) == 0 {
 		t.Fatal("domain principal references lost")
 	}

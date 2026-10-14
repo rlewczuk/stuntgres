@@ -12,10 +12,14 @@ func TestReferenceRoleOwnershipExtensionDrop(t *testing.T) {
 		ownershipProviderOwners(s, "own_source", s.bootstrap)
 		ids := ownershipProviderIDs(s)
 		s.actor("own_other")
-		s.exec("CREATE TABLE own_ext_consumer(id INT,v TEXT DEFAULT own_provider.unaccent('Hôtel'),CONSTRAINT own_ext_check CHECK(own_provider.unaccent(v)<>''))")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() {
+			s.exec("CREATE TABLE own_ext_consumer(id INT,v TEXT DEFAULT own_provider.unaccent('Hôtel'),CONSTRAINT own_ext_check CHECK(own_provider.unaccent(v)<>''))")
+		})
 		s.run(fixture.Exec("INSERT INTO own_ext_consumer(id) VALUES(7)", 1))
-		s.exec("CREATE VIEW own_ext_view AS SELECT own_provider.unaccent(v) AS v FROM own_ext_consumer")
-		s.exec("CREATE VIEW own_ext_chain AS SELECT v FROM own_ext_view")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() {
+			s.exec("CREATE VIEW own_ext_view AS SELECT own_provider.unaccent(v) AS v FROM own_ext_consumer")
+			s.exec("CREATE VIEW own_ext_chain AS SELECT v FROM own_ext_view")
+		})
 		s.exec("CREATE POLICY own_ext_policy ON own_ext_consumer TO own_reader USING(own_provider.unaccent(v)<>'')")
 		s.actor("")
 		ownershipSeed(s, "own_ext_sentinel", "own_other")

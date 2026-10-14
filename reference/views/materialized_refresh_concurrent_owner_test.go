@@ -15,15 +15,12 @@ func concurrentOwnerDisclosure(t *testing.T) {
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 			run(fixture.Exec("CREATE USER concurrent_owner", 0))
 			run(fixture.Exec("CREATE USER concurrent_caller", 0))
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			run(fixture.Exec("CREATE TABLE dup_base(a INT,b INT)", 0))
 			run(fixture.Exec("INSERT INTO dup_base VALUES(1,10)", 1))
 			run(fixture.Exec("GRANT SELECT ON dup_base TO concurrent_owner", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION concurrent_owner", 0))
-			run(fixture.Exec("CREATE MATERIALIZED VIEW mv AS SELECT a,b FROM dup_base", 1))
-			run(fixture.Exec("CREATE UNIQUE INDEX mv_u ON mv(a)", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "concurrent_owner", func() { run(fixture.Exec("CREATE MATERIALIZED VIEW mv AS SELECT a,b FROM dup_base", 1)) })
+			fixture.WithPublicSchemaOwner(t, p, b, "concurrent_owner", func() { run(fixture.Exec("CREATE UNIQUE INDEX mv_u ON mv(a)", 0)) })
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION concurrent_caller", 0))
 			q := "REFRESH MATERIALIZED VIEW CONCURRENTLY mv"

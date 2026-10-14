@@ -92,7 +92,7 @@ func dpScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backe
 						}
 					}
 					if b.PG {
-						run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
+						run(fixture.Exec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0))
 					}
 					for _, role := range dpRoles {
 						run(fixture.Exec("CREATE ROLE "+role, 0))

@@ -99,11 +99,8 @@ func TestReferenceRLSPolicyLifecycle(t *testing.T) {
 	for _, operation := range []string{"cancel", "owner_revoked"} {
 		t.Run(operation, func(t *testing.T) {
 			membershipCases(t, []string{"policy_owner", "policy_member"}, func(s *membershipScenario) {
-				if s.backend.PG {
-					s.exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC")
-				}
 				s.actor("policy_owner")
-				policySetup(s)
+				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "policy_owner", func() { policySetup(s) })
 				s.exec("CREATE POLICY p ON t USING(id>0)")
 				s.actor("")
 				s.exec("GRANT policy_owner TO policy_member WITH INHERIT TRUE")

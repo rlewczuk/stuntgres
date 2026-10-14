@@ -11,6 +11,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			source, dest := New(), New()
 			a, b := sessionStart(t, source, nil), sessionStart(t, dest, nil)
+			sessionSQL(t, a, `CREATE SCHEMA collision_padding`)
 			sessionSQL(t, a, `CREATE SCHEMA portable`)
 			sessionSQL(t, a, `CREATE TABLE portable.i(id INT GENERATED ALWAYS AS IDENTITY(START 7 CACHE 2))`)
 			sessionSQL(t, a, `INSERT INTO portable.i DEFAULT VALUES`)

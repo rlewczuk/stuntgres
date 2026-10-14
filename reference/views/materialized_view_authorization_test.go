@@ -19,26 +19,29 @@ func TestReferenceMaterializedViewAuthorization(t *testing.T) {
 			run(fixture.Exec("CREATE USER mv_owner", 0))
 			run(fixture.Exec("CREATE USER mv_reader", 0))
 			run(fixture.Exec("CREATE SCHEMA mv_private AUTHORIZATION mv_owner", 0))
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION mv_owner", 0))
-			materializedViewSeed(run)
-			run(fixture.Exec("CREATE MATERIALIZED VIEW mv_owned AS SELECT i,s FROM mv_base", 3))
+			fixture.WithPublicSchemaOwner(t, p, b, "mv_owner", func() {
+				materializedViewSeed(run)
+				run(fixture.Exec("CREATE MATERIALIZED VIEW mv_owned AS SELECT i,s FROM mv_base", 3))
+			})
 			run(fixture.Exec("SET SESSION AUTHORIZATION mv_reader", 0))
 			s := fixture.ImplicitError("SELECT * FROM mv_owned", fixture.Diagnostic{Code: "42501", Message: "permission denied for materialized view mv_owned"})
 			s.SelectRows = true
 			run(s)
 			run(fixture.ImplicitError("DROP MATERIALIZED VIEW mv_owned", fixture.Diagnostic{Code: "42501", Message: "must be owner of materialized view mv_owned"}))
-			run(fixture.ImplicitError("CREATE MATERIALIZED VIEW mv_denied AS SELECT i,s FROM mv_base", fixture.Diagnostic{Code: "42501", Message: "permission denied for table mv_base"}))
+			fixture.WithPublicSchemaOwner(t, p, b, "mv_reader", func() {
+				run(fixture.ImplicitError("CREATE MATERIALIZED VIEW mv_denied AS SELECT i,s FROM mv_base", fixture.Diagnostic{Code: "42501", Message: "permission denied for table mv_base"}))
+			})
 			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_denied")
-			run(fixture.Exec("CREATE MATERIALIZED VIEW mv_reader_no AS SELECT i,s FROM mv_base WITH NO DATA", 0))
+			fixture.WithPublicSchemaOwner(t, p, b, "mv_reader", func() {
+				run(fixture.Exec("CREATE MATERIALIZED VIEW mv_reader_no AS SELECT i,s FROM mv_base WITH NO DATA", 0))
+			})
 			run(fixture.MaterializedViewUnpopulated("mv_reader_no"))
 			run(fixture.ImplicitError("CREATE MATERIALIZED VIEW mv_private.mv_denied AS SELECT 1 AS i", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema mv_private"}))
 			for _, q := range []string{"INSERT INTO mv_owned VALUES(9,'z')", "UPDATE mv_owned SET i=9", "DELETE FROM mv_owned"} {
 				run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "42501", Message: "permission denied for materialized view mv_owned"}))
 			}
-			run(fixture.Exec("CREATE MATERIALIZED VIEW mv_reader_owned AS SELECT 9 AS i", 1))
+			fixture.WithPublicSchemaOwner(t, p, b, "mv_reader", func() { run(fixture.Exec("CREATE MATERIALIZED VIEW mv_reader_owned AS SELECT 9 AS i", 1)) })
 			run(fixture.ImplicitError("DROP MATERIALIZED VIEW mv_reader_owned,mv_owned", fixture.Diagnostic{Code: "42501", Message: "must be owner of materialized view mv_owned"}))
 			run(fixture.Select("SELECT i FROM mv_reader_owned", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

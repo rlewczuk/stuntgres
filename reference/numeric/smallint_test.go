@@ -277,10 +277,9 @@ func TestReferenceSmallintAuthorization(t *testing.T) {
 	p.Step(t, fixture.Exec("CREATE ROLE "+reader, 0))
 	p.Step(t, fixture.Exec("CREATE TABLE public.secret(i SMALLINT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO public.secret VALUES(7)", 1))
-	// Match the existing role fixture's native PUBLIC namespace baseline.
-	// Table INSERT/SELECT remain ungranted, so these are table-ACL witnesses.
+	// PUBLIC USAGE keeps these table-ACL witnesses independent of schema access.
 	if p.Postgres != nil {
-		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
+		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE ON SCHEMA public TO PUBLIC"); err != nil {
 			t.Fatal(err)
 		}
 	}

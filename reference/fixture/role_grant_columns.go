@@ -29,7 +29,7 @@ func RoleGrantScenario(t *testing.T, body func(*testing.T, *Pair, Backend, *sql.
 						}
 					}
 					if backend.PG {
-						run(Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
+						run(Exec("GRANT USAGE ON SCHEMA public TO PUBLIC", 0))
 					}
 					for _, q := range []string{"CREATE ROLE rg_reader", "CREATE ROLE rg_owner", "CREATE ROLE rg_a", "CREATE ROLE rg_b", "CREATE ROLE rg_c", "CREATE ROLE rg_group"} {
 						run(Exec(q, 0))

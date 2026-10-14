@@ -72,9 +72,6 @@ func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 							}
 						}()
 						run := func(step fixture.Step) { fixture.RunStep(t, ctx, conn, backend.Recorder, step) }
-						if backend.PG {
-							run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-						}
 						for _, q := range []string{
 							"CREATE ROLE nn_acl_owner LOGIN", "CREATE ROLE nn_acl_actor LOGIN",
 							"SET SESSION AUTHORIZATION nn_acl_owner",
@@ -87,7 +84,11 @@ func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 							if q == "INSERT INTO t VALUES(1,'private','visible')" {
 								n = 1
 							}
-							run(fixture.Exec(q, n))
+							if q == "CREATE TABLE t(n INT NOT NULL,secret TEXT,readable TEXT)" {
+								fixture.WithPublicSchemaOwner(t, p, backend, "nn_acl_owner", func() { run(fixture.Exec(q, n)) })
+							} else {
+								run(fixture.Exec(q, n))
+							}
 						}
 						detail := "Failing row contains (n) = (null)."
 						switch mode {

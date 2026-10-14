@@ -36,7 +36,9 @@ func TestRelationLockAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Default owner ACL supplies ordinary LOCK privileges.
-	roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
+	withPublicSchemaUnitOwner(t, e, "lockreader", func() {
+		roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
+	})
 	tx, err = e.Begin(op, TxOptions{})
 	if err != nil {
 		t.Fatal(err)

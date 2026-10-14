@@ -40,12 +40,11 @@ func TestReferenceSessionIdentityFormsAndFreshness(t *testing.T) {
 				system = "scram-sha-256:stuntgres"
 			}
 			run(fixture.Exec("CREATE ROLE identity_reference_role", 0))
-			if !b.native {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO identity_reference_role", 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION identity_reference_role", 0))
-			run(fixture.Exec("CREATE TABLE identity_reference_t(id INT,who TEXT DEFAULT current_user,session_name TEXT DEFAULT session_user)", 0))
-			run(fixture.Exec("CREATE VIEW identity_reference_v AS SELECT current_user AS effective,system_user AS auth FROM identity_reference_t", 0))
+			fixture.WithPublicSchemaOwner(t, p, backend, "identity_reference_role", func() {
+				run(fixture.Exec("CREATE TABLE identity_reference_t(id INT,who TEXT DEFAULT current_user,session_name TEXT DEFAULT session_user)", 0))
+				run(fixture.Exec("CREATE VIEW identity_reference_v AS SELECT current_user AS effective,system_user AS auth FROM identity_reference_t", 0))
+			})
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			held, err := conn.PrepareContext(p.Ctx, "SELECT current_role,current_user,session_user,user")
 			if err != nil {
@@ -121,9 +120,6 @@ func TestReferenceSessionIdentityFormsAndFreshness(t *testing.T) {
 			} else {
 				run(fixture.Exec("DROP VIEW identity_reference_v", 0))
 				run(fixture.Exec("DROP TABLE identity_reference_t", 0))
-			}
-			if !b.native {
-				run(fixture.Exec("REVOKE USAGE,CREATE ON SCHEMA public FROM identity_reference_role", 0))
 			}
 			run(fixture.Exec("DROP ROLE identity_reference_role", 0))
 		})

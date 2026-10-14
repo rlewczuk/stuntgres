@@ -305,7 +305,9 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		refs = make([]ObjectRef, 0, len(leaves))
 	}
 	var collectErr error
-	refs, collectErr = e.queryTableRefsLocked(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.commentCatalog)), leaves, refs, scope.op.session.token)
+	collectAuth := scope.deparseAuth
+	collectAuth.recaptureCatalog(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.commentCatalog)))
+	refs, collectErr = e.queryTableRefsLocked(collectAuth, invoker, leaves, refs, scope.op.session.token, inherited)
 	if collectErr != nil {
 		return nil, collectErr
 	}

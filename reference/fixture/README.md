@@ -16,12 +16,41 @@ make check RUN='^TestReferenceFixture'
 make check REFERENCE=1 RUN='^TestReferenceFixture'
 ```
 
-Schema-owner introspection through `pg_namespace` is PostgreSQL-only. Native
-reset isolation independently asserts bootstrap principals, fresh session
-settings, an empty public `Dump`, and same-name empty-table recreation. Its
-native-only public `Reset` phase removes actual inserted data/catalog state,
-preserves bootstrap principals, and again permits empty-table recreation;
-it does not add a native `pg_namespace` compatibility surface.
+Schema-owner introspection uses actual `pg_namespace`/`pg_roles` identities.
+Fresh native public has owner6171 (`pg_database_owner`); the ordinary PostgreSQL
+fixture's reconstructed public belongs to its actual bootstrap role10. Neither
+baseline is replaced with an invented common owner. Native reset isolation also
+asserts bootstrap principals, fresh settings, an empty public Dump and same-name
+empty-table recreation. Its native-only public Reset removes actual data/catalog
+state while preserving bootstrap principals and initialized namespace metadata.
+
+### Scoped public schema ownership
+
+`WithPublicSchemaOwner(t, pair, backend, owner, body)` supplies real, bounded
+schema ownership for intended positive CREATE or successor-owner eligibility.
+It captures public's actual prior owner, transfers ownership through supported
+SQL on a separate bootstrap connection, invokes the body without changing its
+actor handle, and restores the exact prior owner before returning or unwinding.
+PostgreSQL setup grants PUBLIC USAGE, never CREATE. No new ACL API, membership,
+superuser capability or permissive global reset is involved; table owners and
+ACL effects remain genuine. Never provision the namespace whose USAGE/CREATE
+denial is under test. A bounded positive public destination prerequisite may
+surround a statement expected to fail an independently denied source/type/table
+or ownership check. Capture exact atomicity snapshots after provisioning and
+immediately before the tested statement. Do not wrap role-drop/Dump assertions
+or an entire fixture lifetime in this scope.
+
+The public regression is part of `TestReferencePGNamespaceVisibility`: actual
+direct/prepared creates, namespace/actor/object identities, post-scope denial
+and panic unwinding with prior-owner restoration are independently asserted.
+
+```sh
+make check RUN='^TestReferencePGNamespaceVisibility$'
+make check REFERENCE=1 RUN='^TestReferencePGNamespaceVisibility$'
+```
+
+Use external900-second deadlines and the migration owner's additional exact
+changed-definition selectors for every helper consumer.
 
 ### Held plain-method consumers
 

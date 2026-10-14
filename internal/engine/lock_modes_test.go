@@ -64,7 +64,9 @@ func TestLockModesPrivileges(t *testing.T) {
 		defer done()
 		roleExecute(t, e, op, "CREATE USER lockowner")
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION lockowner")
-		roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
+		withPublicSchemaUnitOwner(t, e, "lockowner", func() {
+			roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
+		})
 		tx, err := e.Begin(op, TxOptions{})
 		if err != nil {
 			t.Fatal(err)

@@ -84,10 +84,11 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 
 func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	f := newDefaultUnitFixture(t)
+	roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_authority_seed(v INT)")
+	f.schema = f.op.session.temporaryNamespace
 	state := cloneCatalog(f.e.state)
 	namespace := *state.descriptors[f.schema].(*namespaceDescriptor)
-	namespace.name = "pg_temp_default_authority"
-	namespace.temporary = f.op.session.token
+	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
 	namespace.acl = authorization.ACLValue{Explicit: true}
 	state.descriptors[f.schema] = &namespace
 	f.e.mu.Lock()

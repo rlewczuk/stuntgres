@@ -146,9 +146,11 @@ func TestPrimaryKeyIdentityGuardPrecedence(t *testing.T) {
 		{Identity: &parser.IdentityDefinition{Mode: parser.IdentityByDefault}},
 		{NotNull: true, Name: parser.Identifier{Text: "nn"}},
 	}
-	if _, err := e.Execute(owner, ddl, 0, nil); err != nil {
-		t.Fatal(err)
-	}
+	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+		if _, err := e.Execute(owner, ddl, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
 	parent := primaryKeyUnitRelation(t, e, "identity_table")
 	view := e.CatalogRead()
 	for _, tc := range []struct {

@@ -63,7 +63,7 @@ func TestReferenceLockModesPrivilegeControls(t *testing.T) {
 			lockModesExec(t, ctx, b, "SET SESSION AUTHORIZATION "+role)
 			lockModesProbe(t, ctx, b, "LOCK v IN SHARE MODE NOWAIT", "", "")
 			lockModesProbe(t, ctx, b, "LOCK vi IN SHARE MODE NOWAIT", "42501", "permission denied for table t")
-			lockModesExec(t, ctx, b, "CREATE TABLE owned(v INT)")
+			fixture.WithPublicSchemaOwner(t, pair, backend, role, func() { lockModesExec(t, ctx, b, "CREATE TABLE owned(v INT)") })
 			lockModesProbe(t, ctx, b, "LOCK owned NOWAIT", "", "")
 			lockModesExec(t, ctx, b, "REVOKE ALL ON owned FROM "+role)
 			lockModesProbe(t, ctx, b, "LOCK owned IN ACCESS SHARE MODE NOWAIT", "42501", "permission denied for table owned")

@@ -459,54 +459,56 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 	owner, ownerDone := roleOperation(t, e, "mv_queued_owner")
 	defer ownerDone()
 	owner.Done()
-	holder := sessionStart(t, e, nil)
-	tx := transactionBegin(t, holder)
-	ended := false
-	defer func() {
-		if !ended {
-			transactionEnd(t, holder, tx, false)
-		}
-	}()
-	result := sessionSQL(t, holder, "SELECT i FROM unit_mv")
-	if err := result.Rows.Close(); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	done := lockAsync(e, owner.session, ctx, "ALTER MATERIALIZED VIEW unit_mv RENAME TO saved", false)
-	joined := false
-	defer func() {
-		if !joined {
-			cancel()
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Error("queued ALTER did not join")
+	withPublicSchemaUnitOwner(t, e, "mv_queued_owner", func() {
+		holder := sessionStart(t, e, nil)
+		tx := transactionBegin(t, holder)
+		ended := false
+		defer func() {
+			if !ended {
+				transactionEnd(t, holder, tx, false)
 			}
+		}()
+		result := sessionSQL(t, holder, "SELECT i FROM unit_mv")
+		if err := result.Rows.Close(); err != nil {
+			t.Fatal(err)
 		}
-	}()
-	lockPending(t, e, 1)
-	changed := *d
-	changed.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	changed.revision++
-	stage = e.BeginCatalogStage(e.CatalogRead())
-	if err := stage.Replace(&changed); err != nil {
-		t.Fatal(err)
-	}
-	queryCreatePublish(t, e, stage)
-	original := e.state.descriptors[d.address]
-	store := e.storage[d.address]
-	transactionEnd(t, holder, tx, false)
-	ended = true
-	select {
-	case err := <-done:
-		joined = true
-		extensionUnitError(t, err, "42501")
-	case <-time.After(5 * time.Second):
-		t.Fatal("queued ALTER did not terminate after grant")
-	}
-	if e.state.descriptors[d.address] != original || e.storage[d.address] != store {
-		t.Fatal("queued actor used stale owner authority")
-	}
-	lockEmpty(t, e)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := lockAsync(e, owner.session, ctx, "ALTER MATERIALIZED VIEW unit_mv RENAME TO saved", false)
+		joined := false
+		defer func() {
+			if !joined {
+				cancel()
+				select {
+				case <-done:
+				case <-time.After(5 * time.Second):
+					t.Error("queued ALTER did not join")
+				}
+			}
+		}()
+		lockPending(t, e, 1)
+		changed := *d
+		changed.owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		changed.revision++
+		stage = e.BeginCatalogStage(e.CatalogRead())
+		if err := stage.Replace(&changed); err != nil {
+			t.Fatal(err)
+		}
+		queryCreatePublish(t, e, stage)
+		original := e.state.descriptors[d.address]
+		store := e.storage[d.address]
+		transactionEnd(t, holder, tx, false)
+		ended = true
+		select {
+		case err := <-done:
+			joined = true
+			extensionUnitError(t, err, "42501")
+		case <-time.After(5 * time.Second):
+			t.Fatal("queued ALTER did not terminate after grant")
+		}
+		if e.state.descriptors[d.address] != original || e.storage[d.address] != store {
+			t.Fatal("queued actor used stale owner authority")
+		}
+		lockEmpty(t, e)
+	})
 }

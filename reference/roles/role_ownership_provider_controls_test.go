@@ -40,7 +40,7 @@ func TestReferenceRoleOwnershipProviderControls(t *testing.T) {
 		s.exec("GRANT CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " TO own_reader WITH GRANT OPTION")
 		ownershipDatabaseOwner(s, "own_source")
 		s.actor("own_other")
-		s.exec("CREATE TABLE own_provider_saved(v TEXT DEFAULT own_provider.unaccent('Hôtel'))")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() { s.exec("CREATE TABLE own_provider_saved(v TEXT DEFAULT own_provider.unaccent('Hôtel'))") })
 		s.run(fixture.Exec("INSERT INTO own_provider_saved DEFAULT VALUES", 1))
 		s.actor("")
 		ownershipHotel(s, "SELECT v FROM own_provider_saved")
@@ -81,9 +81,11 @@ func TestReferenceRoleOwnershipProviderControls(t *testing.T) {
 		if s.backend.PG {
 			s.exec("DROP OWNED BY own_target,own_other CASCADE")
 			s.exec("GRANT CREATE ON DATABASE " + pq.QuoteIdentifier(database) + " TO own_target")
-			if _, err := s.c.ExecContext(s.p.Ctx, dump.String()); err != nil {
-				s.t.Fatal("genuine PG replay", err)
-			}
+			fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_other", func() {
+				if _, err := s.c.ExecContext(s.p.Ctx, dump.String()); err != nil {
+					s.t.Fatal("genuine PG replay", err)
+				}
+			})
 			s.actor("")
 			// PostgreSQL ignores native member metadata comments. Trusted recreation by
 			// an ordinary target really gives bootstrap members, not target members.

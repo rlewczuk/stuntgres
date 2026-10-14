@@ -44,12 +44,12 @@ func referenceRangePartitionACLCase(t *testing.T, prepared bool) {
 		run(fixture.Exec("CREATE TABLE rp_acl_expr(k INT) PARTITION BY RANGE((k+1))", 0))
 		run(fixture.Exec("CREATE SCHEMA rp_private", 0))
 		if b.PG {
-			run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO rp_actor", 0))
+			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO rp_actor", 0))
 		}
 		run(fixture.Exec("SET SESSION AUTHORIZATION rp_actor", 0))
 		s := referenceRangeError("CREATE TABLE rp_denied PARTITION OF rp_acl FOR VALUES FROM(3) TO(5)", "42501", "must be owner of table rp_acl", fixture.Diagnostic{})
 		s.Prepared = prepared
-		run(s)
+		fixture.WithPublicSchemaOwner(t, p, b, "rp_actor", func() { run(s) })
 		for _, table := range []string{"rp_acl", "rp_acl_leaf"} {
 			s = referenceRangeError("SELECT * FROM "+table, "42501", "permission denied for table "+table, fixture.Diagnostic{})
 			s.Prepared = prepared

@@ -244,9 +244,14 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					t.Fatal("already admitted base gained duplicate physical manifest ownership")
 				}
 			}
+			collectAuth, err := op.Authorization()
+			if err != nil {
+				t.Fatal(err)
+			}
 			e.mu.Lock()
 			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.catalog))
-			refs, captureErr := e.queryTableRefsLocked(catalog, scope.querySources, nil, op.session.token)
+			collectAuth.recaptureCatalog(catalog)
+			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
 			var snapshot *VisibilityView
 			if captureErr == nil {
 				snapshot, captureErr = scope.acquireDataViewsLocked(e, refs)

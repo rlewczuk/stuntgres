@@ -24,15 +24,16 @@ func TestReferenceControlTransactionsHostAuthorization(t *testing.T) {
 			defer admin.Close()
 			defer admin.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
 			run := func(x fixture.Executor, s fixture.Step) { fixture.RunStep(t, p.Ctx, x, backend.Recorder, s) }
-			if backend.PG {
-				run(admin, fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO PUBLIC", 0))
-			}
 			for _, q := range []string{"CREATE USER owner", "CREATE USER reader", "SET SESSION AUTHORIZATION owner", "CREATE TABLE secret(id INT)", "INSERT INTO secret VALUES(7)"} {
 				n := int64(0)
 				if strings.HasPrefix(q, "INSERT") {
 					n = 1
 				}
-				run(admin, fixture.Exec(q, n))
+				if q == "CREATE TABLE secret(id INT)" {
+					fixture.WithPublicSchemaOwner(t, p, backend, "owner", func() { run(admin, fixture.Exec(q, n)) })
+				} else {
+					run(admin, fixture.Exec(q, n))
+				}
 			}
 			var pool *sql.DB
 			var nativeReader *sql.DB

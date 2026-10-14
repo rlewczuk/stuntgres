@@ -152,8 +152,8 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					wantACL := authorization.ACLValue{}
 					if name == "retained_public" {
 						wantACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-							{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
-							{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege, GrantOptions: authorization.UsagePrivilege | authorization.CreatePrivilege},
+							{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
+							{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 						}}
 					}
 					if ns.owner != owner.Ref || !sameACL(ns.acl, wantACL) {

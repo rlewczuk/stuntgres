@@ -75,9 +75,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	if err := owner.WaitEnd(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := e.CatalogRead().Descriptor(namespace); ok {
-		t.Fatal("namespace survived successful atomic cleanup")
-	}
+	assertTemporaryNamespacePair(t, e, owner.token, namespace)
 	for address, descriptor := range before.state.descriptors {
 		if descriptor.Namespace() == namespace {
 			if _, ok := e.CatalogRead().Descriptor(address); ok || e.storage[address] != nil || e.sequences[address] != nil || e.indexRoots[address] != nil {
@@ -141,14 +139,25 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = owner.WaitEnd(ctx)
-	if err == nil || !strings.Contains(err.Error(), "namespace invalidation generation exhausted") {
-		t.Fatal("cleanup suppressed actual publication exhaustion", err)
+	if err != nil {
+		t.Fatal("child-only cleanup failed at namespace-generation exhaustion", err)
 	}
-	if e.CatalogRead().state != before.state {
-		t.Fatal("failed cascade fell back to generic namespace deletion")
+	after := e.CatalogRead()
+	if after.state == before.state || after.state.namespaceGeneration != ^uint64(0) || owner.temporaryNamespace != (ObjectAddress{}) {
+		t.Fatal("cleanup fabricated namespace event or retained active authority")
 	}
-	if _, ok := before.Descriptor(namespace); !ok || owner.temporaryNamespace != namespace {
-		t.Fatal("failure discarded exact owned namespace bookkeeping")
+	assertTemporaryNamespacePair(t, e, owner.token, namespace)
+	for address, descriptor := range before.state.descriptors {
+		if descriptor.Namespace() == namespace && (after.state.descriptors[address] != nil || e.storage[address] != nil || e.sequences[address] != nil || e.indexRoots[address] != nil) {
+			t.Fatal("exhausted cleanup retained TEMP child", address)
+		}
+	}
+	if _, ok := before.Descriptor(namespace); !ok {
+		t.Fatal("cleanup mutated captured namespace root")
+	}
+	result := sessionSQL(t, sessionStart(t, e, nil), "SELECT * FROM coll_cleanup_exhausted_t")
+	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) || len(result.Rows.Schema()) != 1 {
+		t.Fatal("exhausted cleanup lost projected surviving rows", got)
 	}
 	lockEmpty(t, e)
 }

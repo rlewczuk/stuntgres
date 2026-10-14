@@ -10,6 +10,10 @@ import (
 
 func TestReferenceCollationCompositeNativeCollision(t *testing.T) {
 	fixture.CollationScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		if !b.PG {
+			// Match the target's second real TEMP namespace allocation.
+			fixture.CollationExec(t, p, b, `CREATE COLLATION namespace_composite_padding FROM pg_catalog."C"`)
+		}
 		fixture.CollationExec(t, p, b,
 			`CREATE COLLATION coll_composite_anchor FROM pg_catalog."C"`,
 			`CREATE COLLATION coll_composite_full FROM pg_catalog.pg_unicode_fast`,

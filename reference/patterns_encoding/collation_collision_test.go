@@ -10,6 +10,10 @@ import (
 
 func TestReferenceCollationNativeCollision(t *testing.T) {
 	fixture.CollationScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		if !b.PG {
+			// Match the target's second real TEMP namespace allocation.
+			fixture.CollationExec(t, p, b, `CREATE COLLATION namespace_collision_padding FROM pg_catalog."C"`)
+		}
 		fixture.CollationExec(t, p, b, `CREATE COLLATION coll_collision_anchor FROM pg_catalog."C"`, `CREATE COLLATION coll_collision_full FROM pg_catalog.pg_unicode_fast`, `CREATE COLLATION coll_collision_simple (PROVIDER=builtin,LOCALE='C.UTF-8')`, `CREATE DOMAIN coll_collision_domain AS TEXT COLLATE coll_collision_full`, `CREATE TABLE coll_collision_t(id INT,v coll_collision_domain DEFAULT ('ß' COLLATE coll_collision_full),s TEXT COLLATE coll_collision_simple DEFAULT 'ß',a coll_collision_domain[],g TEXT GENERATED ALWAYS AS (upper(s COLLATE coll_collision_full)) STORED,CHECK(v COLLATE coll_collision_full > ''))`, `CREATE INDEX coll_collision_ix ON coll_collision_t(v COLLATE coll_collision_full)`, `CREATE VIEW coll_collision_v AS SELECT id,upper(v COLLATE coll_collision_full) AS full,upper(s COLLATE coll_collision_simple) AS simple,g,a::TEXT AS item FROM coll_collision_t`)
 		fixture.CollationExec(t, p, b, `CREATE VIEW coll_collision_array_v AS SELECT array_agg(s COLLATE coll_collision_full ORDER BY id) AS items FROM coll_collision_t`)
 		fixture.CollationExec(t, p, b,

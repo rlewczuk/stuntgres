@@ -12,6 +12,8 @@ func TestExclusionReplacement(t *testing.T) {
 			ctx := context.Background()
 			source := New()
 			a := sessionStart(t, source, nil)
+			// Match the destination's actual table/toast namespace allocation.
+			sessionSQL(t, a, "CREATE SCHEMA collision_padding")
 			sessionSQL(t, a, "CREATE SCHEMA portable CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING btree(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
 			sessionSQL(t, a, "INSERT INTO portable.t VALUES(7)")
 			sessionSQL(t, a, "CREATE DOMAIN portable.d AS INT")

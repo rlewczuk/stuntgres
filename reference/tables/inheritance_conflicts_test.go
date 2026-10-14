@@ -69,14 +69,14 @@ func TestReferenceInheritanceOwnership(t *testing.T) {
 			}
 		}()
 		s.exec("CREATE TABLE p(a INT)", 0)
-		// Match native public-schema visibility and CREATE policy, then grant
-		// SELECT without ownership so the failure reaches the parent owner check.
+		// Destination CREATE is setup; SELECT does not supply parent ownership.
 		if s.b.PG {
-			s.exec("GRANT USAGE,CREATE ON SCHEMA public TO inheritance_owner", 0)
 			s.exec("GRANT SELECT ON p TO inheritance_owner", 0)
 		}
 		s.exec("SET ROLE inheritance_owner", 0)
-		s.fail("CREATE TABLE c() INHERITS(p)", fixture.Diagnostic{Code: "42501", Message: "must be owner of table p"})
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.b, "inheritance_owner", func() {
+			s.fail("CREATE TABLE c() INHERITS(p)", fixture.Diagnostic{Code: "42501", Message: "must be owner of table p"})
+		})
 		s.absent("c")
 	})
 }

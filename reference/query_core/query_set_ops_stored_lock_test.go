@@ -39,7 +39,7 @@ func querySetOpsStoredLockSeed(t *testing.T, p *fixture.Pair, b fixture.Backend)
 	}
 	if b.PG {
 		for _, q := range []string{
-			"GRANT USAGE,CREATE ON SCHEMA public TO " + querySetOpsLockReader,
+			"GRANT USAGE ON SCHEMA public TO " + querySetOpsLockReader,
 			"GRANT SELECT ON set_lock_base TO " + querySetOpsLockReader,
 			"GRANT SELECT,UPDATE ON set_lock_owned,set_lock_invoker,set_lock_owned_nested,set_lock_invoker_nested,set_lock_local,set_lock_local_set TO " + querySetOpsLockReader,
 		} {
@@ -47,8 +47,10 @@ func querySetOpsStoredLockSeed(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		}
 	}
 	run("SET SESSION AUTHORIZATION "+querySetOpsLockReader, 0)
-	run("CREATE VIEW set_lock_reader_catalog WITH(security_invoker=true) AS SELECT relname FROM pg_catalog.pg_class WHERE relname='set_lock_base' UNION ALL SELECT relname FROM pg_catalog.pg_class WHERE relname='set_lock_base'", 0)
-	run("CREATE VIEW set_lock_reader_nested AS SELECT relname FROM set_lock_reader_catalog", 0)
+	fixture.WithPublicSchemaOwner(t, p, b, querySetOpsLockReader, func() {
+		run("CREATE VIEW set_lock_reader_catalog WITH(security_invoker=true) AS SELECT relname FROM pg_catalog.pg_class WHERE relname='set_lock_base' UNION ALL SELECT relname FROM pg_catalog.pg_class WHERE relname='set_lock_base'", 0)
+		run("CREATE VIEW set_lock_reader_nested AS SELECT relname FROM set_lock_reader_catalog", 0)
+	})
 	run("RESET SESSION AUTHORIZATION", 0)
 	return c
 }

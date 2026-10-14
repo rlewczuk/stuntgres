@@ -9,19 +9,21 @@ import (
 func TestReferenceRoleOwnershipAssociations(t *testing.T) {
 	ownershipCases(t, func(s *membershipScenario) {
 		s.actor("own_source")
-		for _, q := range []string{
-			"CREATE TABLE own_parent(id SERIAL,identity_id INT GENERATED ALWAYS AS IDENTITY,payload INT DEFAULT 9)",
-			"CREATE INDEX own_parent_index ON own_parent(payload)",
-			"COMMENT ON TABLE own_parent IS 'ownership sentinel'",
-			"CREATE POLICY own_parent_policy ON own_parent TO own_reader USING(payload>0)",
-			"CREATE SEQUENCE own_nearby",
-			"CREATE TABLE own_child(extra INT) INHERITS(own_parent)",
-			"CREATE TYPE own_e AS ENUM('a','b')",
-			"CREATE DOMAIN own_d AS INT",
-			"CREATE TYPE own_c AS(id INT)",
-		} {
-			s.exec(q)
-		}
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() {
+			for _, q := range []string{
+				"CREATE TABLE own_parent(id SERIAL,identity_id INT GENERATED ALWAYS AS IDENTITY,payload INT DEFAULT 9)",
+				"CREATE INDEX own_parent_index ON own_parent(payload)",
+				"COMMENT ON TABLE own_parent IS 'ownership sentinel'",
+				"CREATE POLICY own_parent_policy ON own_parent TO own_reader USING(payload>0)",
+				"CREATE SEQUENCE own_nearby",
+				"CREATE TABLE own_child(extra INT) INHERITS(own_parent)",
+				"CREATE TYPE own_e AS ENUM('a','b')",
+				"CREATE DOMAIN own_d AS INT",
+				"CREATE TYPE own_c AS(id INT)",
+			} {
+				s.exec(q)
+			}
+		})
 		s.run(fixture.Exec("INSERT INTO own_parent(payload) VALUES(7)", 1))
 		s.exec("GRANT SELECT ON own_parent TO own_reader")
 		s.exec("GRANT SELECT(payload) ON own_parent TO own_reader WITH GRANT OPTION")

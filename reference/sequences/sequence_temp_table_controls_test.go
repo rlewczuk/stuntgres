@@ -54,8 +54,21 @@ func TestReferenceSequenceTemporaryTableControls(t *testing.T) {
 			s.T.Fatal(err)
 		}
 		s.Retire()
-		s.Missing(s.Peer, own+".seed", "last_value", "24")
-		s.Missing(s.Peer, own+".owned_table", "v", "15")
+		retained := fixture.Select("SELECT nspowner::bigint AS nspowner,nspacl FROM pg_catalog.pg_namespace WHERE nspname=$1",
+			[]string{"nspowner", "nspacl"}, []string{"INT8", "_ACLITEM"}, [][]any{{int64(10), nil}}, own)
+		retained.Prepared = s.Prepared
+		fixture.RunStep(s.T, s.P.Ctx, s.Peer, s.Record, retained)
+		for _, object := range []struct{ name, column, position string }{
+			{"seed", "last_value", "24"}, {"owned_table", "v", "15"},
+		} {
+			fixture.RunStep(s.T, s.P.Ctx, s.Peer, s.Record, fixture.Select(
+				"SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2",
+				[]string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, own, object.name))
+			missing := fixture.ImplicitError("SELECT "+object.column+" FROM "+own+"."+object.name,
+				fixture.Diagnostic{Code: "42P01", Message: `relation "` + own + "." + object.name + `" does not exist`, Position: object.position})
+			missing.SelectRows, missing.Prepared = true, s.Prepared
+			fixture.RunStep(s.T, s.P.Ctx, s.Peer, s.Record, missing)
+		}
 		s.Value(s.Peer, "SELECT nextval('peer_seed')", 83)
 		fixture.TemporaryTableRows(s, s.Peer, "public.persistent", 7)
 	})

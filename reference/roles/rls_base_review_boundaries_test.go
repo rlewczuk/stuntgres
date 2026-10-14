@@ -54,7 +54,7 @@ func TestReferenceRLSBaseMixedAlterBoundary(t *testing.T) {
 
 func TestReferenceRLSBaseEmptyExpressionBoundary(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE TABLE rls_boundary_empty(id INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.exec("CREATE TABLE rls_boundary_empty(id INT)") })
 		predefinedSelect(s, "SELECT id FROM rls_boundary_empty", []string{"id"}, []string{"INT4"}, nil)
 		s.exec("GRANT SELECT ON rls_boundary_empty TO rls_reader")
 		s.exec("ALTER TABLE rls_boundary_empty ENABLE ROW LEVEL SECURITY")
@@ -97,7 +97,7 @@ func TestReferenceRLSBaseSQLPreparedExpressionBoundary(t *testing.T) {
 
 func TestReferenceRLSBaseReadBeforeProposalBoundary(t *testing.T) {
 	rlsBaseCases(t, func(s *membershipScenario, db *sql.DB) {
-		s.exec("CREATE TABLE rls_boundary_source(id INT,v INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "rls_owner", func() { s.exec("CREATE TABLE rls_boundary_source(id INT,v INT)") })
 		s.run(fixture.Exec("INSERT INTO rls_boundary_source VALUES(3,30)", 1))
 		s.exec("GRANT SELECT ON rls_boundary_source TO rls_reader")
 		s.exec("ALTER TABLE rls_boundary_source ENABLE ROW LEVEL SECURITY")

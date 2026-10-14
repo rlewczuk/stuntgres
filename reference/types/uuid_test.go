@@ -318,7 +318,7 @@ func TestReferenceUUIDAuthorization(t *testing.T) {
 	// The fixture recreates public without PUBLIC privileges. Match native public
 	// namespace visibility before testing the independently denied table rights.
 	if p.Postgres != nil {
-		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
+		if _, err := fixture.Admin.ExecContext(p.Ctx, "GRANT USAGE ON SCHEMA public TO PUBLIC"); err != nil {
 			t.Fatal(err)
 		}
 	}

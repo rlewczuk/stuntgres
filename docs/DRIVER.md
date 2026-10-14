@@ -77,6 +77,15 @@ advisory holds. Peers and durable data are unchanged.
 Without explicit cleanup, healthy reuse intentionally preserves these resources:
 `ResetSession` is still a health check, never automatic DISCARD or rollback.
 
+TEMP first use creates a real table/toast namespace pair visible through
+`pg_namespace` once committed. `DISCARD TEMP/ALL` and physical termination
+remove TEMP objects, not the paired namespace tuples. Physical end clears the
+session's table-namespace pointer and sequence memories; retained empty metadata
+does not confer active authority on later sessions. Healthy pool reuse keeps
+the same physical session and its existing pair. Native Reset/Restore preserves
+the destination's exact TEMP pair and live objects but never imports another
+engine's physical tokens.
+
 SQL PREPARE names and ordinary Go statements have distinct lifetimes. PLANS retains
 both and lazily reanalyzes private literal captures without changing fixed
 parameter/result signatures or catalog fences. ALL removes SQL names (subsequent

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"stuntgres/reference/fixture"
 )
 
 func TestReferenceRoleMembershipDependencies(t *testing.T) {
@@ -32,11 +34,10 @@ func TestReferenceRoleMembershipDependencies(t *testing.T) {
 				s.fail("DROP ROLE "+endpoint+",missing_membership_role", "42704", `role "missing_membership_role" does not exist`, "")
 				memberships(1)
 				// Later owner dependency must roll back earlier endpoint cleanup too.
-				if s.backend.PG {
-					s.exec("GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC")
-				}
 				s.actor(member)
-				s.exec("CREATE TABLE membership_dependency(id INT)")
+				fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, member, func() {
+					s.exec("CREATE TABLE membership_dependency(id INT)")
+				})
 				s.actor("")
 				s.fail("DROP ROLE "+endpoint+","+member, "2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", member), "owner of table membership_dependency")
 				memberships(1)

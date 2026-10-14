@@ -36,8 +36,8 @@ func TestReferenceTemporaryViewUnauthorized(t *testing.T) {
 		})
 		s.Utility("CREATE TABLE "+sourceSchema+".security_public(v INT)", nil)
 		s.Exec(s.C, "INSERT INTO "+sourceSchema+".security_public VALUES(7)", 1)
-		// This peer has no TEMP namespace yet: initialize it as the reader so
-		// the same physical owner has ordinary native namespace/view authority.
+		// Initialize the reader's own physical TEMP namespace: namespace owner10
+		// does not replace the active session's ordinary CREATE/view authority.
 		s.Exec(s.Peer, "SET SESSION AUTHORIZATION "+reader, 0)
 		invoker := *s
 		invoker.C = s.Peer

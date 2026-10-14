@@ -54,7 +54,7 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	switch t := d.(type) {
 	case *namespaceDescriptor:
-		return t.address.ObjectID != PGCatalogNamespaceOID && t.address.ObjectID != 13229
+		return t.temporary == (SessionToken{}) && t.address.ObjectID != PGCatalogNamespaceOID && t.address.ObjectID != PGToastNamespaceOID && t.address.ObjectID != 13229
 	case *relationDescriptor:
 		return t.relationKind != catalogRelation && t.relationKind != indexRelation && t.relationKind != compositeRelation && (t.sequence == nil || t.sequence.owned == (ObjectAddress{}))
 	case *typeDescriptor:

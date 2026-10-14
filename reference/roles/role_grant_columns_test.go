@@ -62,7 +62,7 @@ func TestReferenceRoleGrantRevoke(t *testing.T) {
 func TestReferenceRoleGrantOwner(t *testing.T) {
 	fixture.RoleGrantScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_owner", 0))
-		run(fixture.Exec("CREATE TABLE t(a INT)", 0))
+		fixture.WithPublicSchemaOwner(t, p, b, "rg_owner", func() { run(fixture.Exec("CREATE TABLE t(a INT)", 0)) })
 		run(fixture.Exec("INSERT INTO t VALUES(7)", 1))
 		stmt, err := c.PrepareContext(p.Ctx, "SELECT a FROM t")
 		if err != nil {
@@ -116,7 +116,7 @@ func TestReferenceRoleGrantPublicInheritance(t *testing.T) {
 func TestReferenceRoleGrantInheritedOwner(t *testing.T) {
 	fixture.RoleGrantScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_owner", 0))
-		run(fixture.Exec("CREATE TABLE t(a INT)", 0))
+		fixture.WithPublicSchemaOwner(t, p, b, "rg_owner", func() { run(fixture.Exec("CREATE TABLE t(a INT)", 0)) })
 		run(fixture.Exec("INSERT INTO t VALUES(7)", 1))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec("GRANT rg_owner TO rg_group WITH INHERIT TRUE", 0))

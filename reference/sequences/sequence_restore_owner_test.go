@@ -16,7 +16,11 @@ func TestReferenceSequenceRestoreRejectsRecreatedCapturedOwner(t *testing.T) {
 	db := p.Native
 	a := fixture.SequenceCoreConn(t, ctx, p.Memory)
 	for _, q := range []string{"CREATE USER imported_owner", "SET SESSION AUTHORIZATION imported_owner", "CREATE SEQUENCE imported", "RESET SESSION AUTHORIZATION", "CREATE SEQUENCE sentinel"} {
-		fixture.SequenceProbeExec(t, ctx, a, q)
+		if q == "CREATE SEQUENCE imported" {
+			fixture.WithPublicSchemaOwner(t, p, fixture.Backend{Name: "memory", DB: p.Memory, Recorder: p.MemoryRecord}, "imported_owner", func() { fixture.SequenceProbeExec(t, ctx, a, q) })
+		} else {
+			fixture.SequenceProbeExec(t, ctx, a, q)
+		}
 	}
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(ctx, db, &dump); err != nil {

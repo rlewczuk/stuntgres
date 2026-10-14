@@ -30,6 +30,10 @@ func (e *Engine) initializeCatalogSources() error {
 			{"attinhcount", sqltype.Int2}, {"attcollation", sqltype.Oid}, {"attstattarget", sqltype.Int2},
 			{"attacl", sqltype.ACLItemArray}, {"attoptions", sqltype.ID(1009)}, {"attfdwoptions", sqltype.ID(1009)}, {"attmissingval", sqltype.ID(2277)},
 		}},
+		{2615, "pg_namespace", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"nspname", sqltype.Name}, {"nspowner", sqltype.Oid}, {"nspacl", sqltype.ID(1034)}}},
 		{1213, "pg_tablespace", []struct {
 			name string
 			typ  sqltype.ID
@@ -217,6 +221,9 @@ func (e *Engine) initializeCatalogSources() error {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
+			if spec.oid == 2615 {
+				d.columns[i].Nullable = i == 3
+			}
 			if spec.oid == 1262 {
 				d.columns[i].Nullable = i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14
 				if column.typ == sqltype.Text {
@@ -313,6 +320,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		// Persistent role/database defaults have no population owner yet.
 		// Session defaults and overrides are not stored catalog rows.
 		return &querySource{ref: ref, anonymous: [][]sqltype.Value{}}, nil
+	}
+	if source.address.ObjectID == 2615 {
+		return e.capturePGNamespace(ctx, catalog, roles, ref, source)
 	}
 	if source.address.ObjectID == 1262 {
 		return e.capturePGDatabase(ctx, catalog, roles, ref, source)

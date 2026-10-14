@@ -144,3 +144,42 @@ func TestDefaultPrivilegesMerge(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultSchemaCreationACLOrder(t *testing.T) {
+	f := newDefaultUnitFixture(t)
+	owner := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Role: f.owner}, Privileges: UsagePrivilege | CreatePrivilege}
+	public := ACLEntry{Grantor: f.owner, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}
+	reader := defaultUnitReaderEntry(f, CreatePrivilege, CreatePrivilege)
+	global := ACLValue{Explicit: true, Entries: []ACLEntry{reader, owner, public}}
+	before := append([]ACLEntry(nil), global.Entries...)
+	got := CreationDefaultACL(f.owner, DefaultSchemas, &global, nil)
+	roleEntries := []ACLEntry{owner, reader}
+	if f.reader.ID() < f.owner.ID() {
+		roleEntries[0], roleEntries[1] = reader, owner
+	}
+	want := ACLValue{Explicit: true, Entries: append([]ACLEntry{public}, roleEntries...)}
+	if !reflect.DeepEqual(got, want) || !reflect.DeepEqual(global.Entries, before) {
+		t.Fatal("schema order/options/refs/input immutability", got, want, global)
+	}
+	got.Entries[0].Privileges = CreatePrivilege
+	if !reflect.DeepEqual(global.Entries, before) {
+		t.Fatal("sorted result aliases immutable input")
+	}
+	for _, class := range []DefaultACLClass{DefaultTables, DefaultSequences, DefaultRoutines, DefaultTypes, DefaultLargeObjects} {
+		mask := DefaultMask(class)
+		record := ACLValue{Explicit: true, Entries: []ACLEntry{
+			{Grantor: f.owner, Grantee: ACLGrantee{Role: f.reader}, Privileges: mask, GrantOptions: mask},
+			{Grantor: f.owner, Grantee: ACLGrantee{Role: f.owner}, Privileges: mask},
+			{Grantor: f.owner, Grantee: ACLGrantee{Public: true}, Privileges: mask},
+		}}
+		other := CreationDefaultACL(f.owner, class, &record, nil)
+		if !reflect.DeepEqual(other, record) {
+			t.Fatal("schema normalization changed other class", class, other)
+		}
+	}
+	for _, record := range []*ACLValue{nil, {Explicit: true}, func() *ACLValue { v := DefaultBaseline(f.owner, DefaultSchemas, false); return &v }()} {
+		if value := CreationDefaultACL(f.owner, DefaultSchemas, record, nil); value.Explicit || len(value.Entries) != 0 {
+			t.Fatal("schema NULL/baseline normalization", value)
+		}
+	}
+}

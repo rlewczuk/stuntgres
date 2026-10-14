@@ -69,7 +69,9 @@ func TestLockModesRevokedOwner(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE USER lockowner")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION lockowner")
-	roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
+	withPublicSchemaUnitOwner(t, e, "lockowner", func() {
+		roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
+	})
 	ref := roleTableRef(t, e, "owned")
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)

@@ -32,13 +32,12 @@ func TestReferenceSessionIdentityDefaultsViewsAndControls(t *testing.T) {
 			}
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s) }
 			run(fixture.Exec("CREATE ROLE identity_reader", 0))
-			if backend.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO identity_reader", 0))
-			}
 			run(fixture.Exec("SET SESSION AUTHORIZATION identity_reader", 0))
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-			run(fixture.Exec("CREATE TABLE identity_default(id INT,who TEXT DEFAULT current_user,session_name TEXT DEFAULT session_user)", 0))
-			run(fixture.Exec("CREATE VIEW identity_view AS SELECT current_user AS effective,system_user AS auth FROM identity_default", 0))
+			fixture.WithPublicSchemaOwner(t, p, backend, "identity_reader", func() {
+				run(fixture.Exec("CREATE TABLE identity_default(id INT,who TEXT DEFAULT current_user,session_name TEXT DEFAULT session_user)", 0))
+				run(fixture.Exec("CREATE VIEW identity_view AS SELECT current_user AS effective,system_user AS auth FROM identity_default", 0))
+			})
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec("SET ROLE identity_reader", 0))
 			defer conn.ExecContext(context.Background(), "RESET ROLE")
@@ -151,11 +150,13 @@ func TestReferenceSessionIdentityFailedAndCanceledControlsPreserveState(t *testi
 			}
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s) }
 			run(fixture.Exec("CREATE ROLE identity_control_owner", 0))
-			if backend.PG {
-				run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO identity_control_owner", 0))
-			}
 			for _, q := range []string{"SET SESSION AUTHORIZATION identity_control_owner", "CREATE TABLE identity_sentinel(id INT,who TEXT DEFAULT current_user)", "INSERT INTO identity_sentinel(id) VALUES(77)", "RESET SESSION AUTHORIZATION", "SET ROLE identity_control_owner"} {
-				run(fixture.Exec(q, map[bool]int64{true: 1, false: 0}[strings.HasPrefix(q, "INSERT")]))
+				step := fixture.Exec(q, map[bool]int64{true: 1, false: 0}[strings.HasPrefix(q, "INSERT")])
+				if strings.HasPrefix(q, "CREATE TABLE") {
+					fixture.WithPublicSchemaOwner(t, p, backend, "identity_control_owner", func() { run(step) })
+				} else {
+					run(step)
+				}
 			}
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 			query := "SELECT current_user,current_catalog,session_user,system_user,id,who FROM identity_sentinel"
@@ -192,6 +193,7 @@ func TestReferenceSessionIdentityFailedAndCanceledControlsPreserveState(t *testi
 					t.Fatal(reader.observed, err)
 				}
 			} else {
+				fixture.WithPublicSchemaOwner(t, p, backend, "identity_control_owner", func() {
 				tx, err := conn.BeginTx(p.Ctx, nil)
 				if err != nil {
 					t.Fatal(err)
@@ -202,6 +204,7 @@ func TestReferenceSessionIdentityFailedAndCanceledControlsPreserveState(t *testi
 				if err := tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}
+				})
 			}
 			assert()
 			if retained != nil {

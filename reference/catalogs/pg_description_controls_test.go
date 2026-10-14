@@ -111,8 +111,8 @@ func pgDescriptionControlsScenario(t *testing.T) {
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
 	}
-	fixture.RunStep(t, p.Ctx, native.DB, native.Recorder, fixture.Select("SELECT count(*) FROM pg_catalog.pg_description", []string{"count"}, []string{"INT8"}, [][]any{{int64(165)}}))
-	fixture.PgDescriptionRows(t, p, native, pgDescriptionSelect("SELECT * FROM pg_catalog.pg_description WHERE classoid=2615", [][]any{{int64(11), int64(2615), int64(0), "system catalog schema"}, {int64(2200), int64(2615), int64(0), "standard public schema"}}))
+	fixture.RunStep(t, p.Ctx, native.DB, native.Recorder, fixture.Select("SELECT count(*) FROM pg_catalog.pg_description", []string{"count"}, []string{"INT8"}, [][]any{{int64(166)}}))
+	fixture.PgDescriptionRows(t, p, native, pgDescriptionSelect("SELECT * FROM pg_catalog.pg_description WHERE classoid=2615", [][]any{{int64(11), int64(2615), int64(0), "system catalog schema"}, {int64(99), int64(2615), int64(0), "reserved schema for TOAST tables"}, {int64(2200), int64(2615), int64(0), "standard public schema"}}))
 	if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump)); err != nil {
 		t.Fatal(err)
 	}

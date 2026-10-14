@@ -41,10 +41,13 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)
 	}
-	for _, a := range []ObjectAddress{table.address, sequence.address, index.address, table.namespace} {
+	for _, a := range []ObjectAddress{table.address, sequence.address, index.address} {
 		if e.state.descriptors[a] != nil || e.storage[a] != nil || e.sequences[a] != nil || e.indexRoots[a] != nil {
 			t.Fatal("orphan owner dependency", a)
 		}
+	}
+	if ns, ok := e.state.descriptors[table.namespace].(*namespaceDescriptor); !ok || ns.temporary != op.session.token {
+		t.Fatal("cleanup lost retained namespace identity")
 	}
 	if e.state.descriptors[peerTable.address] != &peerTable || e.storage[peerTable.address] != peerStore || e.state.epoch != epoch {
 		t.Fatal("peer or epoch changed")
@@ -64,19 +67,15 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 // terminal stage and publication seams rather than repeat driver SQL scenarios.
 func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *relationDescriptor, *relationDescriptor, *relationDescriptor) {
 	t.Helper()
-	e, op, changes, owner := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	options.persistence, options.owned = "temporary", owner.address
-	options.owned.SubID = 1
-	sequence := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20003}, namespace: owner.namespace, name: "cleanup_owned", revision: 1, sequencePlanStamp: 1, owner: owner.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, attributeHighWater: 3, relationKind: sequenceRelation, sequence: &options}
-	e.catalogChangeLocked(changes, sequence.address, sequence)
-	e.state = e.privateCatalogLocked(changes).state
-	e.storage[owner.address] = &relationStorage{}
-	e.sequences[sequence.address] = &sequenceGenerator{last: options.start, generation: 1}
-	op.session.temporaryNamespace = owner.namespace
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	roleExecute(t, e, op, "CREATE TEMP TABLE cleanup_owner(v INT)")
+	roleExecute(t, e, op, "CREATE TEMP SEQUENCE cleanup_owned OWNED BY cleanup_owner.v")
+	namespace := op.session.temporaryNamespace
+	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
+	owner := e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "cleanup_owner"}]].(*relationDescriptor)
+	sequence := e.state.descriptors[e.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: "cleanup_owned"}]].(*relationDescriptor)
 	roleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
 	address := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "cleanup_survivor"}]
 	survivor := e.state.descriptors[address].(*relationDescriptor)
@@ -151,7 +150,8 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		if err != nil || !installed || e.storage[survivor.address] != currentStore || e.indexRoots[index] != currentRoot || e.sequences[unrelated] != currentGenerator || e.state.epoch != epoch || e.state.namespaceGeneration != generation {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
-		if len(survivor.checkConstraints) != 1 || len(e.state.descriptors[survivor.address].(*relationDescriptor).checkConstraints) != 0 || e.storage[owner.address] != nil || e.sequences[sequence.address] != nil || e.state.descriptors[owner.namespace] != nil {
+		assertTemporaryNamespacePair(t, e, op.session.token, owner.namespace)
+		if len(survivor.checkConstraints) != 1 || len(e.state.descriptors[survivor.address].(*relationDescriptor).checkConstraints) != 0 || e.storage[owner.address] != nil || e.sequences[sequence.address] != nil {
 			t.Fatal("incomplete terminal stage")
 		}
 		e.DiscardCatalogStage(stage)
@@ -217,7 +217,8 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	if replacement == &maximum || replacement.revision != maximum.revision || len(replacement.checkConstraints) != 0 || len(maximum.checkConstraints) != 1 || e.nextRevision != maximum.revision {
 		t.Fatal("saturated replacement identity/frontier")
 	}
-	if e.storage[survivor.address] != store || e.indexRoots[index] != root || e.state.epoch != epoch || e.state.namespaceGeneration != generation || e.state.descriptors[owner.namespace] != nil || e.sequences[sequence.address] != nil {
+	assertTemporaryNamespacePair(t, e, op.session.token, owner.namespace)
+	if e.storage[survivor.address] != store || e.indexRoots[index] != root || e.state.epoch != epoch || e.state.namespaceGeneration != generation || e.sequences[sequence.address] != nil {
 		t.Fatal("maximum cleanup changed rows/roots/peer analysis or kept provider")
 	}
 	result, err := e.Execute(peerOp, held, 0, nil)

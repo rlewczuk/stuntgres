@@ -11,13 +11,15 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 	e, owner, parent, _ := primaryKeyUnitFixture(t)
 	ordinary := primaryKeyUnitCreate("ordinary", "ordinary_unique")
 	ordinary.Elements[3].Unique.Primary = false
-	if _, err := e.Execute(owner, ordinary, 0, nil); err != nil {
-		t.Fatal(err)
-	}
-	standalone := &parser.CreateIndex{Name: parser.Identifier{Text: "standalone_unique"}, Table: primaryKeyUnitName("t"), Method: "btree", Unique: true, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "a"}}, {Column: parser.Identifier{Text: "b"}}}}
-	if _, err := e.Execute(owner, standalone, 0, nil); err != nil {
-		t.Fatal(err)
-	}
+	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+		if _, err := e.Execute(owner, ordinary, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+		standalone := &parser.CreateIndex{Name: parser.Identifier{Text: "standalone_unique"}, Table: primaryKeyUnitName("t"), Method: "btree", Unique: true, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "a"}}, {Column: parser.Identifier{Text: "b"}}}}
+		if _, err := e.Execute(owner, standalone, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
 	for _, name := range []string{"ordinary_unique", "standalone_unique"} {
 		index := primaryKeyUnitRelation(t, e, name)
 		view := e.CatalogRead()
@@ -37,9 +39,11 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	ddl.Elements[0].Column.TypeName = parser.TypeName{Name: "numeric"}
 	width := int32(4)
 	ddl.Elements[1].Column.TypeName = parser.TypeName{Name: "character", Modifiers: []parser.TypeModifier{{Integer: &width}}}
-	if _, err := e.Execute(owner, ddl, 0, nil); err != nil {
-		t.Fatal(err)
-	}
+	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+		if _, err := e.Execute(owner, ddl, 0, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
 	constraint := parent.uniqueConstraints[0]
 	index := e.state.descriptors[constraint.Index].(*relationDescriptor)

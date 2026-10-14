@@ -35,7 +35,7 @@ func TestReferenceRoleOwnershipDatabaseCleanup(t *testing.T) {
 		// The refused statement must not revoke shared CREATE. It authorizes a real
 		// trusted install, not a privilege inquiry or fake successful probe.
 		s.actor("own_source")
-		s.exec("CREATE EXTENSION unaccent")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() { s.exec("CREATE EXTENSION unaccent") })
 		ownershipHotel(s, "SELECT unaccent('Hôtel') AS v")
 		s.actor("")
 		ownershipProviderOwners(s, "own_source", s.bootstrap)

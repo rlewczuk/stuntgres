@@ -6,6 +6,38 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Actual TEMP namespace identities
+
+`TestReferenceSequenceTempCreationActualNamespace` and
+`TestReferenceSequenceTempMoveNamespaceAuthority` share complete direct/prepared
+creation, permission/persistence precedence, identity/cache and physical-lifetime
+assertions across native and PostgreSQL. Actual generated names come from
+`pg_class.relnamespace` joined to `pg_namespace`, not execution of lookup-only
+`pg_my_temp_schema` or an invented alias identity. Failed CREATE and physical
+retirement absence are exact bag/count checks of the same relation/namespace
+join, not execution of unavailable `to_regclass`. Persistence reads the actual
+CHAR field with an explicit REGCLASS-to-OID identity cast, without adding
+unrelated character-cast or mixed-alias comparison capabilities.
+
+```sh
+make check RUN='^TestReferenceSequence(TempCreationActualNamespace|TempMoveNamespaceAuthority)$'
+make check REFERENCE=1 RUN='^TestReferenceSequence(TempCreationActualNamespace|TempMoveNamespaceAuthority)$'
+```
+
+Use external900-second deadlines. Both backends retain empty table/toast
+namespace identities after physical owner exit; sequences, generators and
+session memories retire. Namespace owner10 is independent of object creator.
+Native controls omit source TEMP tokens and retain the destination's exact pair,
+live children and empty retired metadata. The catalog's complete contract and
+new feature smoke are documented in [catalog selected proof](../catalogs/README.md#pg_namespace-selected-proof).
+`TestReferenceTemporaryTableDiagnostics` additionally distinguishes successful
+superuser qualified namespace lookup from unsupported foreign physical storage.
+Native direct/prepared execution asserts full0A000/no-position; the pinned PG
+small populated peer table retains its independently expected empty cursor.
+The native guard does not alter metadata/REGCLASS lookup, ordinary schema42501,
+retired-child42P01 or supported own-session storage/creation.
+
+
 ### Virtual generated columns
 
 Virtual generated-column coverage uses the shared untagged

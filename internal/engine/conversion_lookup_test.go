@@ -98,20 +98,38 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		t.Fatal(refreshErr)
 	}
 	auth.state.CurrentUser = actor
-	create := &parser.CreateConversion{Name: conversionUnitName("public", "denied"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1")}
-	stage := e.BeginCatalogStage(auth.catalog)
-	before := auth.catalog.state
+	var stage *CatalogStage
+	var err error
+	withPublicSchemaUnitOwner(t, e, "pg_monitor", func() {
+		e.mu.Lock()
+		auth, refreshErr = e.authorizationLocked(op)
+		e.mu.Unlock()
+		if refreshErr != nil {
+			t.Fatal(refreshErr)
+		}
+		auth.state.CurrentUser = actor
+		create := &parser.CreateConversion{Name: conversionUnitName("public", "denied"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1")}
+		stage = e.BeginCatalogStage(auth.catalog)
+		before := auth.catalog.state
+		e.mu.Lock()
+		err = e.stageCreateConversionLocked(op, auth, stage, create)
+		e.mu.Unlock()
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for function pg_catalog.utf8_to_iso8859_1" {
+			t.Fatal("actual routine ACL denial", err)
+		}
+		e.DiscardCatalogStage(stage)
+		if e.CatalogRead().state != before {
+			t.Fatal("denied EXECUTE published conversion")
+		}
+	})
 	e.mu.Lock()
-	err := e.stageCreateConversionLocked(op, auth, stage, create)
+	auth, refreshErr = e.authorizationLocked(op)
 	e.mu.Unlock()
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for function pg_catalog.utf8_to_iso8859_1" {
-		t.Fatal("actual routine ACL denial", err)
+	if refreshErr != nil {
+		t.Fatal(refreshErr)
 	}
-	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before {
-		t.Fatal("denied EXECUTE published conversion")
-	}
+	auth.state.CurrentUser = actor
 	private := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 90010}, name: "private", revision: 1, owner: e.authorizationDomain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.catalog)
 	if err = stage.Create(private); err != nil {

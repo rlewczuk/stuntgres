@@ -9,15 +9,15 @@ import (
 
 func TestReferenceLockModesRolesJoin(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"lockowner", "lockstranger"})
-	lockModesScenarioBackends(t, func(t *testing.T, ctx context.Context, backend fixture.Backend, a, b *sql.Conn) {
+	lockModesScenarioBackends(t, func(t *testing.T, pair *fixture.Pair, ctx context.Context, backend fixture.Backend, a, b *sql.Conn) {
 		lockModesExec(t, ctx, a, "CREATE USER lockowner")
 		lockModesExec(t, ctx, a, "CREATE USER lockstranger")
-		if backend.PG {
-			lockModesExec(t, ctx, a, "GRANT USAGE, CREATE ON SCHEMA public TO lockowner")
-			lockModesExec(t, ctx, a, "GRANT USAGE ON SCHEMA public TO lockstranger")
-		}
 		for _, q := range []string{"SET SESSION AUTHORIZATION lockowner", "CREATE TABLE left_t(v INT)", "CREATE TABLE right_t(v INT)", "CREATE VIEW joined AS SELECT left_t.v FROM left_t JOIN right_t USING(v)", "CREATE VIEW nested AS SELECT v FROM joined"} {
-			lockModesExec(t, ctx, a, q)
+			if q == "SET SESSION AUTHORIZATION lockowner" {
+				lockModesExec(t, ctx, a, q)
+			} else {
+				fixture.WithPublicSchemaOwner(t, pair, backend, "lockowner", func() { lockModesExec(t, ctx, a, q) })
+			}
 		}
 		for _, mode := range []string{"ACCESS SHARE", "SHARE"} {
 			lockModesExec(t, ctx, a, "BEGIN")
@@ -60,7 +60,7 @@ func TestReferenceLockModesRolesJoin(t *testing.T) {
 }
 
 func TestReferenceLockModesStackPublication(t *testing.T) {
-	lockModesScenarioBackends(t, func(t *testing.T, ctx context.Context, backend fixture.Backend, a, b *sql.Conn) {
+	lockModesScenarioBackends(t, func(t *testing.T, _ *fixture.Pair, ctx context.Context, backend fixture.Backend, a, b *sql.Conn) {
 		lockModesExec(t, ctx, a, "CREATE TABLE t(v INT)")
 		lockModesExec(t, ctx, a, "CREATE TABLE child(v INT)")
 		lockModesExec(t, ctx, a, "BEGIN")

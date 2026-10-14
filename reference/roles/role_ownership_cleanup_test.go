@@ -93,10 +93,12 @@ func TestReferenceRoleOwnershipDropRole(t *testing.T) {
 	ownershipCases(t, func(s *membershipScenario) {
 		ownershipSeed(s, "own_role_table", "own_source")
 		s.actor("own_source")
-		s.exec("CREATE INDEX own_role_index ON own_role_table(id)")
-		s.exec("CREATE TYPE own_role_enum AS ENUM('a')")
-		s.exec("CREATE DOMAIN own_role_domain AS INT")
-		s.exec("CREATE TYPE own_role_composite AS(id INT)")
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.backend, "own_source", func() {
+			s.exec("CREATE INDEX own_role_index ON own_role_table(id)")
+			s.exec("CREATE TYPE own_role_enum AS ENUM('a')")
+			s.exec("CREATE DOMAIN own_role_domain AS INT")
+			s.exec("CREATE TYPE own_role_composite AS(id INT)")
+		})
 		s.actor("")
 		ownershipRoleDependency(s, "own_source", "owner of table own_role_table", "owner of type own_role_enum", "owner of type own_role_domain", "owner of type own_role_composite")
 		s.exec("REASSIGN OWNED BY own_source TO own_target")

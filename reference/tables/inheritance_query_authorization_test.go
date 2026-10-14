@@ -64,11 +64,8 @@ func TestReferenceInheritanceQueryRLS(t *testing.T) {
 		inheritanceQueryRole(s, "inherit_query_owner", "NOBYPASSRLS")
 		inheritanceQueryRole(s, "inherit_query_rls", "NOBYPASSRLS")
 		inheritanceQueryRole(s, "inherit_query_bypass", "BYPASSRLS")
-		if s.b.PG {
-			s.exec("GRANT CREATE ON SCHEMA public TO inherit_query_owner", 0)
-		}
 		s.exec("SET ROLE inherit_query_owner", 0)
-		s.exec("CREATE TABLE p(a INT,x TEXT)", 0)
+		fixture.WithPublicSchemaOwner(s.t, s.p, s.b, "inherit_query_owner", func() { s.exec("CREATE TABLE p(a INT,x TEXT)", 0) })
 		s.exec("INSERT INTO p VALUES(1,'p')", 1)
 		s.exec("SET ROLE NONE", 0)
 		s.exec("CREATE TABLE q(y BOOL,a INT)", 0)
