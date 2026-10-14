@@ -60,6 +60,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	for i, column := range schema {
 		column.Nullable, column.NullabilityKnown = true, true
 		column.OriginTable, column.OriginAttribute = 0, 0
+		column.DeclaredDimensions = 0
 		if i < len(s.Columns) {
 			column.Name = s.Columns[i].Text
 		}

@@ -118,6 +118,7 @@ type Descriptor struct {
 	multirangeRange     *Descriptor
 	multirangeCompanion *Descriptor
 	lookupOnly          bool
+	catalogNullOwner    *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
 	namespace           string
 }
 

@@ -200,7 +200,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	preserveRight := n.kind == parser.JoinRight || n.kind == parser.JoinFull
 	nullFrame := func(start, count int) {
 		for i := start; i < start+count; i++ {
-			frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
+			frame[i] = sqltype.ResultNull(n.Schema()[i].Usage)
 		}
 	}
 	emit := func(ctx context.Context, out *indexedStage, li, ri int) (bool, error) {

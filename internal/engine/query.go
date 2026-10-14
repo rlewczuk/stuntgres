@@ -830,7 +830,7 @@ func (s *indexedStage) projectOrdinal(ctx context.Context, ordinal int, dst []sq
 			if err != nil {
 				return false, s.fail(err)
 			}
-			if value.Type() == nil || !value.Type().Concrete() || value.Type() != s.schema[i].Usage.Type {
+			if !value.ValidResult(s.schema[i].Usage) {
 				return false, s.fail(fmt.Errorf("stuntgres: invalid finalized query value"))
 			}
 			if dst != nil {
@@ -1516,7 +1516,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 				if err != nil {
 					return nil, 0, err
 				}
-				if value.Type() == nil || !value.Type().Concrete() || value.Type() != r.schema[j].Usage.Type {
+				if !value.ValidResult(r.schema[j].Usage) {
 					return nil, 0, fmt.Errorf("stuntgres: invalid finalized query value")
 				}
 			}
@@ -1578,7 +1578,7 @@ func anonymousResult(schema []ColumnDescriptor, rows [][]sqltype.Value, count in
 			return Result{}, fmt.Errorf("stuntgres: invalid anonymous result width")
 		}
 		for j, value := range row {
-			if value.Type() == nil || !value.Type().Concrete() || value.Type() != schema[j].Usage.Type {
+			if !value.ValidResult(schema[j].Usage) {
 				return Result{}, fmt.Errorf("stuntgres: invalid anonymous result type")
 			}
 		}

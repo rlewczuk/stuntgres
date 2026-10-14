@@ -105,6 +105,8 @@ type relationDescriptor struct {
 	index                map[string]int
 	attributes           []int32
 	attributeHighWater   int32
+	droppedAttributes    map[int32]attributeMetadata
+	catalogAttributes    []catalogAttribute
 	owner                authorization.PrincipalRef
 	acl                  authorization.ACLValue
 	columnACL            map[int32]authorization.ACLValue
@@ -279,16 +281,29 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.attributeHighWater < 0 {
 		return fmt.Errorf("stuntgres: invalid relation attribute high-water")
 	}
+	if r.relationKind == catalogRelation && len(r.catalogAttributes) != len(r.columns) {
+		return fmt.Errorf("stuntgres: invalid catalog attribute metadata")
+	}
+	for number, history := range r.droppedAttributes {
+		if number <= 0 || number > r.attributeHighWater || history.number != number || !history.dropped || history.typeID != 0 || history.notNull || history.hasDefault || history.generated != "" || history.dimensions < 0 || r.indexForAttribute(number) >= 0 {
+			return fmt.Errorf("stuntgres: invalid dropped attribute metadata")
+		}
+	}
 	for i, c := range r.columns {
 		offset, exists := r.index[c.Name]
-		if r.attributes[i] <= 0 || r.attributes[i] > r.attributeHighWater || i > 0 && r.attributes[i] <= r.attributes[i-1] || !exists || offset != i {
+		ordered := i == 0 || r.attributes[i] > r.attributes[i-1]
+		if r.relationKind == catalogRelation {
+			ordered = r.attributes[i] == catalogAttributeNumber(r.address.ObjectID, c.Name, int32(i+1))
+		}
+		if r.attributes[i] <= 0 || r.attributes[i] > r.attributeHighWater || !ordered || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
 		}
-		if !c.Usage.Type.Concrete() {
+		if c.Usage.Type == nil || c.DeclaredDimensions < 0 {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
-		if !exists || typ != c.Usage.Type || !typ.Concrete() || !c.Usage.Valid() {
+		catalogNull := r.relationKind == catalogRelation && r.address.ObjectID == pgAttributeOID && r.attributes[i] == 25 && c.Name == "attmissingval" && c.Usage.CatalogNullUsage()
+		if !exists || typ != c.Usage.Type || !catalogNull && (!typ.Concrete() || !c.Usage.Valid()) {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		if err := validateUsageCollation(v, c.Usage); err != nil {

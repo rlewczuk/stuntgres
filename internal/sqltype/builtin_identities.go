@@ -661,6 +661,9 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			byID[fact.id] = d
 		}
 		d.associatedArray, d.namespace = fact.array, fact.namespace
+		if fact.id == 2277 {
+			d.catalogNullOwner = d
+		}
 		if fact.id == 603 {
 			d.delimiter = ';'
 		}

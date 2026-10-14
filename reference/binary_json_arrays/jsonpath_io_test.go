@@ -48,6 +48,11 @@ func TestReferenceJSONPathRepresentation(t *testing.T) {
 				inquiry(fixture.Select("SELECT typname::text,oid::bigint,typarray::bigint,typelem::bigint FROM pg_catalog.pg_type WHERE typname='jsonpath'", []string{"typname", "oid", "typarray", "typelem"}, []string{"TEXT", "INT8", "INT8", "INT8"}, [][]any{{"jsonpath", int64(4072), int64(4073), int64(0)}}))
 				inquiry(fixture.Select("SELECT typname::text,oid::bigint,typarray::bigint,typelem::bigint FROM pg_catalog.pg_type WHERE typname='_jsonpath'", []string{"typname", "oid", "typarray", "typelem"}, []string{"TEXT", "INT8", "INT8", "INT8"}, [][]any{{"_jsonpath", int64(4073), int64(0), int64(4072)}}))
 				inquiry(fixture.Select("SELECT atttypid::bigint,atttypmod,attcollation::bigint FROM pg_catalog.pg_attribute WHERE attrelid='jp_io'::regclass AND attname='p'", []string{"atttypid", "atttypmod", "attcollation"}, []string{"INT8", "INT4", "INT8"}, [][]any{{int64(4072), int64(-1), int64(0)}}))
+				var relationID int64
+				if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'jp_io'::regclass::oid").Scan(&relationID); err != nil || relationID <= 0 {
+					t.Fatal("own relation identity", relationID, err)
+				}
+				run(fixture.Select("SELECT atttypid::bigint,atttypmod,attcollation::bigint FROM pg_catalog.pg_attribute WHERE attrelid=$1 AND attname='p'", []string{"atttypid", "atttypmod", "attcollation"}, []string{"INT8", "INT4", "INT8"}, [][]any{{int64(4072), int64(-1), int64(0)}}, relationID))
 				var want [][]any
 				for i, tc := range jsonpathReferenceOutputs {
 					run(fixture.Exec("INSERT INTO jp_io VALUES($1,$2)", 1, i, tc.input))

@@ -257,7 +257,11 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 						}
 					}
 				}
-				nextColumns[column.sub] = next
+				if s.Revoke && len(next.Entries) == 0 {
+					delete(nextColumns, column.sub)
+				} else {
+					nextColumns[column.sub] = next
+				}
 			}
 		}
 		if tableChanged || nextColumns != nil {

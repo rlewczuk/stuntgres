@@ -111,7 +111,7 @@ func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *relationDescri
 	return text.String(), nil
 }
 
-// PARTITION OF inherits physical column order, defaults and NOT NULL names.
+// PARTITION OF copies rank zero and inherits order, defaults and NOT NULL names.
 // Existing-table attachment need not have any of those properties. Decide from
 // captured definitions, not a historical CREATE/ATTACH flag, so logical replay
 // remains canonical after stable attribute numbers have been reminted.
@@ -121,7 +121,7 @@ func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
 	}
 	parent := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
 	for i, column := range d.columns {
-		if column.Name != parent.columns[i].Name {
+		if column.DeclaredDimensions != 0 || column.Name != parent.columns[i].Name {
 			return true
 		}
 		attribute, parentAttribute := d.attributes[i], parent.attributes[i]

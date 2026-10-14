@@ -143,7 +143,7 @@ func (e columnExpression) rowContext(c *EvalContext) (*EvalContext, error) {
 		return nil, fmt.Errorf("stuntgres: invalid expression row frame")
 	}
 	v := c.Row[e.slot]
-	if e.usage.Type == nil || !e.usage.Type.Concrete() || v.Type() != e.usage.Type {
+	if !v.ValidResult(e.usage) {
 		return nil, fmt.Errorf("stuntgres: invalid expression column type")
 	}
 	return c, nil
@@ -155,7 +155,7 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.mergeSource && !row.mergeSourcePresent {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.ResultNull(e.usage), nil
 	}
 	if e.virtual == nil {
 		return row.Row[e.slot], nil
@@ -166,7 +166,7 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		if absent {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.ResultNull(e.usage), nil
 		}
 	}
 	if e.rowStart < 0 || e.rowWidth <= 0 || e.rowStart > len(row.Row)-e.rowWidth {

@@ -26,6 +26,19 @@ not replacement. Waiters retain exact original relation authority and refresh
 metadata after grant; removal/recreation and Reset/Restore fence the old address
 rather than retargeting by name or numeric OID.
 
+`pg_attribute` projects these stable relation-owned identities and current
+declaration/constraint facts. DROP installs immutable scalar-only attribute
+history before removing live columns: the original type dependency can disappear,
+but released preserved facts and the retired number remain visible. History is
+not a live query column, ACL demand, constraint or row-codec member. Logical
+Dump/Restore preserves active definitions and rank, not physical dropped history.
+Attached partitions with active rank use ordinary CREATE plus ATTACH. Nonzero
+inherited/merged ranks use a final genuine catalog-SQL repair block in the dump,
+interpreted only by the isolated native Restore staging path. Public catalog
+sources remain readonly; replay on PostgreSQL requires superuser catalog-update
+authority. Relationships, locality, defaults, owners, ACLs and row data are not
+changed by the rank repair.
+
 Held statements rebind current metadata and enforce their cached result signatures.
 Retained eager Rows keep old values, labels and schema across utility changes,
 rollback and Reset/Restore. Zero-column relations and removal of the last column

@@ -143,7 +143,7 @@ func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bo
 		}
 		if forced[attribute] || next.columns[slot].Usage != table.columns[i].Usage {
 			usage := next.columns[slot].Usage
-			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: name}}, usage: &usage})
+			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: name}}, usage: &usage, declaredDimensions: next.columns[slot].DeclaredDimensions})
 		}
 	}
 	for i, attribute := range next.attributes {
@@ -151,7 +151,7 @@ func typedShapeActions(old, next, table *relationDescriptor, forced map[int32]bo
 			continue
 		}
 		usage := next.columns[i].Usage
-		actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: next.columns[i].Name}}, usage: &usage})
+		actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: next.columns[i].Name}}, usage: &usage, declaredDimensions: next.columns[i].DeclaredDimensions})
 	}
 	return actions, renames
 }
@@ -168,6 +168,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 		var origins []inheritanceOrigin
 		var desired *ColumnDescriptor
 		forceType := false
+		requestedDimensions := int16(0)
 		for _, origin := range provenance.origins {
 			parent := view.state.descriptors[origin.parent].(*relationDescriptor)
 			slot := parent.indexForAttribute(origin.attribute)
@@ -175,6 +176,9 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 				continue
 			}
 			forceType = forceType || forced[origin.parent][origin.attribute]
+			if forced[origin.parent][origin.attribute] {
+				requestedDimensions = parent.columns[slot].DeclaredDimensions
+			}
 			member := &parent.columns[slot]
 			if desired != nil && (desired.Name != member.Name || desired.Usage != member.Usage) {
 				return nil, nil, nil, sqlError("42P16", fmt.Sprintf(`cannot alter inherited column "%s"`, old.columns[i].Name))
@@ -196,7 +200,11 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 		}
 		if forceType || desired.Usage != old.columns[i].Usage {
 			usage := desired.Usage
-			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.columns[i].Name}}, usage: &usage})
+			dimensions := desired.DeclaredDimensions
+			if forceType {
+				dimensions = requestedDimensions
+			}
+			actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.columns[i].Name}}, usage: &usage, declaredDimensions: dimensions})
 		}
 	}
 	// New attributes merge with an existing local/sibling attribute by live name,
@@ -236,7 +244,7 @@ func typedInheritedActions(view CatalogRead, old *relationDescriptor, forced map
 			} else {
 				usage := member.Usage
 				pending[member.Name] = len(actions)
-				actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: member.Name}}, usage: &usage})
+				actions = append(actions, typedColumnAction{action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: member.Name}}, usage: &usage, declaredDimensions: member.DeclaredDimensions})
 			}
 		}
 	}

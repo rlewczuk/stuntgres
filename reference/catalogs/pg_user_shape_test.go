@@ -139,15 +139,21 @@ func TestReferencePGUserOracleCatalog(t *testing.T) {
 	pgUserScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		if !b.PG {
 			return
-		} // pg_attribute and release allocator research are not native requirements.
+		} // Release allocator/view-definition observations remain PostgreSQL-only.
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT oid::bigint AS relation_oid,reltype::bigint AS rowtype_oid FROM pg_catalog.pg_class WHERE oid='pg_catalog.pg_user'::regclass", []string{"relation_oid", "rowtype_oid"}, []string{"INT8", "INT8"}, [][]any{{int64(12014), int64(12016)}}))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT definition FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND viewname='pg_user'", []string{"definition"}, []string{"TEXT"}, [][]any{{pgUserViewDefinition}}))
+	})
+}
+
+func TestReferencePGUserAttributeCatalog(t *testing.T) {
+	pgUserScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		rows := [][]any{}
 		oids := []int64{19, 26, 16, 16, 16, 16, 25, 1184, 1009}
 		collations := []int64{950, 0, 0, 0, 0, 0, 100, 0, 950}
 		for i, name := range pgUserColumns {
 			rows = append(rows, []any{name, oids[i], int64(-1), false, collations[i]})
 		}
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation FROM pg_catalog.pg_attribute WHERE attrelid='pg_catalog.pg_user'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8"}, rows))
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT oid::bigint AS relation_oid,reltype::bigint AS rowtype_oid FROM pg_catalog.pg_class WHERE oid='pg_catalog.pg_user'::regclass", []string{"relation_oid", "rowtype_oid"}, []string{"INT8", "INT8"}, [][]any{{int64(12014), int64(12016)}}))
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT definition FROM pg_catalog.pg_views WHERE schemaname='pg_catalog' AND viewname='pg_user'", []string{"definition"}, []string{"TEXT"}, [][]any{{pgUserViewDefinition}}))
+		s := fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation FROM pg_catalog.pg_attribute WHERE attrelid='pg_catalog.pg_user'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8"}, rows)
+		pgAttributeNameCastWitness(t, p, b, s)
 	})
 }

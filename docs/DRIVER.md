@@ -203,6 +203,18 @@ expired trusted admission, physical limit release, NOLOGIN and held authority
 refresh. Its repeatable reference selector is
 `RUN='^TestReferenceRoleAttributesFeatureSmoke$'` in both check modes.
 
+Native Restore owner directives admit named `SET SESSION AUTHORIZATION` and the
+existing normalized administrative reset: `RESET SESSION AUTHORIZATION`, `SET
+SESSION AUTHORIZATION DEFAULT` and the native-only `SET AUTHORIZATION DEFAULT`
+alias. PostgreSQL 18 rejects the short alias with syntax error `42601`, Position5;
+dump SQL uses the PostgreSQL-valid long reset. Accepted native resets affect only the
+isolated replay session, restoring its original authenticated administrator. They do not
+reset live caller sessions, mutate cluster roles or change earlier restored
+owners/ACLs. Named short `SET AUTHORIZATION 'role'` and role DDL remain rejected
+as Restore input, with late failures leaving the target unchanged.
+The final inherited-rank repair block uses this reset rather than extending public
+catalog-write privileges. See [selected owner-reset proof](../reference/roles/README.md#testing).
+
 ## SQL cursors — change note
 
 Named cursors belong to one physical session; use a pinned `sql.Conn` or

@@ -49,7 +49,7 @@ func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authori
 		if i != 0 {
 			sql.WriteString(", ")
 		}
-		declaration, err := catalogTypeDeclaration(view, c.Usage)
+		declaration, err := catalogColumnDeclaration(view, c)
 		if err != nil {
 			return dumpDomain{}, err
 		}

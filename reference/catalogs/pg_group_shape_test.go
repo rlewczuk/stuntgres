@@ -235,13 +235,19 @@ func TestReferencePGGroupShape(t *testing.T) {
 
 func TestReferencePGGroupOracleCatalog(t *testing.T) {
 	if !*fixture.Mode {
-		t.Skip("pg_attribute/pg_type witness requires pinned PostgreSQL")
+		t.Skip("pg_type witness requires pinned PostgreSQL")
 	}
 	p := fixture.NewScenario(t)
 	if p.Postgres == nil {
 		t.Fatal("enabled reference backend unavailable")
 	}
 	b := fixture.Backend{Name: "postgres", DB: p.Postgres, Recorder: p.PostgresRecord, PG: true}
-	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation,attnum::bigint AS number FROM pg_attribute WHERE attrelid='pg_catalog.pg_group'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation", "number"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8", "INT8"}, [][]any{{"groname", int64(19), int64(-1), false, int64(950), int64(1)}, {"grosysid", int64(26), int64(-1), false, int64(0), int64(2)}, {"grolist", int64(1028), int64(-1), false, int64(0), int64(3)}}))
 	fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.reltype=t.oid AS row_link,t.typrelid=c.oid AS owner_link,a.typelem=t.oid AS element_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid='pg_catalog.pg_group'::regclass", []string{"row_link", "owner_link", "element_link"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+}
+
+func TestReferencePGGroupAttributeCatalog(t *testing.T) {
+	pgGroupScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		s := fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation,attnum::bigint AS number FROM pg_attribute WHERE attrelid='pg_catalog.pg_group'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation", "number"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8", "INT8"}, [][]any{{"groname", int64(19), int64(-1), false, int64(950), int64(1)}, {"grosysid", int64(26), int64(-1), false, int64(0), int64(2)}, {"grolist", int64(1028), int64(-1), false, int64(0), int64(3)}})
+		pgAttributeNameCastWitness(t, p, b, s)
+	})
 }

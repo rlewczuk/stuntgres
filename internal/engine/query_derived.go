@@ -77,7 +77,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 		row := source.flat[start:]
 		for j, expr := range inner.expressions {
 			if n.cte != nil && !n.demand[j] {
-				row[j] = sqltype.Null(n.Schema()[j].Usage.Type)
+				row[j] = sqltype.ResultNull(n.Schema()[j].Usage)
 				continue
 			}
 			value, err := expr.Eval(&inner.evaluation)

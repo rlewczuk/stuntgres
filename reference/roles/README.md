@@ -36,6 +36,28 @@ make check RUN='^TestReferenceRoleControlsOwnersAndCancellation$'
 make check REFERENCE=1 RUN='^TestReferenceRoleControlsOwnersAndCancellation$'
 ```
 
+`TestReferenceRoleRestoreOwnerReset` independently checks shared direct/prepared
+RESET SESSION AUTHORIZATION and SET SESSION AUTHORIZATION DEFAULT success.
+The preexisting native short alias SET AUTHORIZATION DEFAULT remains accepted;
+PostgreSQL independently rejects it with complete syntax `42601` at Position5,
+leaving the probe's owner unchanged before a valid reset recovers the bootstrap.
+Successful resets restore the probe's original authenticated identity, while
+two other live sessions, quoted/backslash role identities, table owners/implicit
+ACLs and data remain unchanged. Actual native Dump/Reset/Restore checks an administrator-owned
+marker created after each isolated reset; forbidden named short SET AUTHORIZATION
+and role DDL still fail atomically after earlier valid staged work.
+`TestRoleDumpRestorePreservesLiveIdentities` remains a private engine-function
+supplement for exact role-root/session pointer identities and owning principals,
+not a public SQL/API test outside this package. No parser text discrimination or
+new public privilege is introduced by accepting equivalent normalized reset ASTs.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRoleRestoreOwnerReset$'
+make check RUN='^TestReferenceRoleRestoreOwnerReset$'
+make check RUN='^TestRoleDumpRestorePreservesLiveIdentities$'
+make check RACE=1 RUN='^TestRoleDumpRestorePreservesLiveIdentities$'
+```
+
 ```sh
 make check RUN='^TestReferenceRoleOwnership(Families|Authority|Associations|SameOwner|DiagnosticsAndFreshness)$'
 make check REFERENCE=1 RUN='^TestReferenceRoleOwnership(Families|Authority|Associations|SameOwner|DiagnosticsAndFreshness)$'

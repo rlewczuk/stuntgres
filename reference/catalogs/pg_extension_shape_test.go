@@ -113,18 +113,18 @@ func TestReferencePGExtensionShape(t *testing.T) {
 		pgExtensionBoth(t, p, b, fixture.Select("SELECT schemaname,tablename,tableowner,tablespace,hasindexes,hasrules,hastriggers,rowsecurity FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_extension'",
 			[]string{"schemaname", "tablename", "tableowner", "tablespace", "hasindexes", "hasrules", "hastriggers", "rowsecurity"}, []string{"NAME", "NAME", "NAME", "NAME", "BOOL", "BOOL", "BOOL", "BOOL"},
 			[][]any{{"pg_catalog", "pg_extension", ownerName, nil, true, false, false, false}}))
+		want := [][]any{
+			{int64(1), "oid", int64(26), int64(-1), true, int64(0)},
+			{int64(2), "extname", int64(19), int64(-1), true, int64(950)},
+			{int64(3), "extowner", int64(26), int64(-1), true, int64(0)},
+			{int64(4), "extnamespace", int64(26), int64(-1), true, int64(0)},
+			{int64(5), "extrelocatable", int64(16), int64(-1), true, int64(0)},
+			{int64(6), "extversion", int64(25), int64(-1), true, int64(950)},
+			{int64(7), "extconfig", int64(1028), int64(-1), false, int64(0)},
+			{int64(8), "extcondition", int64(1009), int64(-1), false, int64(950)},
+		}
+		pgExtensionBoth(t, p, b, fixture.Select("SELECT attnum,attname,atttypid,atttypmod,attnotnull,attcollation FROM pg_attribute WHERE attrelid=3079 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "atttypid", "atttypmod", "attnotnull", "attcollation"}, []string{"INT2", "NAME", "OID", "INT4", "BOOL", "OID"}, want))
 		if b.PG {
-			want := [][]any{
-				{int64(1), "oid", int64(26), int64(-1), true, int64(0)},
-				{int64(2), "extname", int64(19), int64(-1), true, int64(950)},
-				{int64(3), "extowner", int64(26), int64(-1), true, int64(0)},
-				{int64(4), "extnamespace", int64(26), int64(-1), true, int64(0)},
-				{int64(5), "extrelocatable", int64(16), int64(-1), true, int64(0)},
-				{int64(6), "extversion", int64(25), int64(-1), true, int64(950)},
-				{int64(7), "extconfig", int64(1028), int64(-1), false, int64(0)},
-				{int64(8), "extcondition", int64(1009), int64(-1), false, int64(950)},
-			}
-			pgExtensionBoth(t, p, b, fixture.Select("SELECT attnum,attname,atttypid,atttypmod,attnotnull,attcollation FROM pg_attribute WHERE attrelid=3079 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "atttypid", "atttypmod", "attnotnull", "attcollation"}, []string{"INT2", "NAME", "OID", "INT4", "BOOL", "OID"}, want))
 			pgExtensionBoth(t, p, b, fixture.Select("SELECT t.typrelid,a.typelem=t.oid AS element_link,t.typarray=a.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid=3079", []string{"typrelid", "element_link", "array_link"}, []string{"OID", "BOOL", "BOOL"}, [][]any{{int64(3079), true, true}}))
 		}
 		owner, reader := fixture.LockConnections(t, p.Ctx, b.DB)

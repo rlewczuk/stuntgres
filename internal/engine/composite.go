@@ -73,7 +73,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 			}
 			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		}
-		columns[i] = ColumnDescriptor{Name: member.Name, Usage: usage, Nullable: true, NullabilityKnown: true}
+		columns[i] = ColumnDescriptor{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
 	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.state.CurrentUser, columns, index)
 	if err != nil {

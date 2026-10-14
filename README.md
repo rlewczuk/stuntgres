@@ -79,6 +79,28 @@ metadata; lib/pq treats PostgreSQL's generated extension OID as an unknown type.
 See [native limits](docs/DIALECT.md#query_int-extension-type) and
 [selected proof and smoke](reference/types/README.md#query_int-selected-proof).
 
+## Column catalog metadata — change note
+
+`pg_catalog.pg_attribute` exposes PostgreSQL 18's exact 25-column schema for
+represented relation columns and eligible system attributes. User rows retain
+their own relation identity, stable attribute numbers, declared type/typmod,
+syntactic array rank, NOT NULL/default/identity/generated facts, inheritance
+provenance and stored column ACLs. DROP preserves scalar attribute history rather
+than renumbering survivors. Views and indexes have no system rows; catalog
+metadata does not enable executable system-column access.
+
+The nullable `attmissingval` result remains **ANYARRAY**, not TEXT, while native
+materialized fills report no PostgreSQL fast-default physical history. Statistics,
+storage-option setters and generic pseudo-type execution are not added.
+Native dumps preserve active declaration rank, including attached partitions and
+altered inherited descendants, and logical definitions—not deleted physical
+history. Inherited-rank repair uses genuine catalog SQL in the dump; PostgreSQL
+replay requires superuser catalog-update authority. Public native catalog sources
+remain readonly. See [native boundaries](docs/DIALECT.md#pg_attribute-column-metadata)
+and [selected proof](reference/catalogs/README.md#pg_attribute-selected-proof).
+Feature smoke: `make check RUN='^TestReferencePGAttributeSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGAttributeSmoke$'`.
+
 ## Session cursor metadata — change note
 
 `pg_catalog.pg_cursors` exposes the physical session's supported SQL DECLARE

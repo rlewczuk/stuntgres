@@ -33,9 +33,7 @@ func TestReferencePGEnumShape(t *testing.T) {
 			}
 		}
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid,relname,relnamespace,relkind,relnatts FROM pg_class WHERE oid=3501", []string{"oid", "relname", "relnamespace", "relkind", "relnatts"}, []string{"OID", "NAME", "OID", "CHAR", "INT2"}, [][]any{{int64(3501), "pg_enum", int64(11), "r", int64(4)}}))
-		if b.PG {
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT attname,atttypid::integer AS typ,atttypmod,attnotnull,attcollation::integer AS coll FROM pg_attribute WHERE attrelid=3501 AND attnum>0 ORDER BY attnum", []string{"attname", "typ", "atttypmod", "attnotnull", "coll"}, []string{"NAME", "INT4", "INT4", "BOOL", "INT4"}, [][]any{{"oid", int64(26), int64(-1), true, int64(0)}, {"enumtypid", int64(26), int64(-1), true, int64(0)}, {"enumsortorder", int64(700), int64(-1), true, int64(0)}, {"enumlabel", int64(19), int64(-1), true, int64(950)}}))
-		}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT attname,atttypid::integer AS typ,atttypmod,attnotnull,attcollation::integer AS coll FROM pg_attribute WHERE attrelid=3501 AND attnum>0 ORDER BY attnum", []string{"attname", "typ", "atttypmod", "attnotnull", "coll"}, []string{"NAME", "INT4", "INT4", "BOOL", "INT4"}, [][]any{{"oid", int64(26), int64(-1), true, int64(0)}, {"enumtypid", int64(26), int64(-1), true, int64(0)}, {"enumsortorder", int64(700), int64(-1), true, int64(0)}, {"enumlabel", int64(19), int64(-1), true, int64(950)}}))
 	})
 }
 

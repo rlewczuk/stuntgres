@@ -18,6 +18,18 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{pgAttributeOID, "pg_attribute", []struct {
+			name string
+			typ  sqltype.ID
+		}{
+			{"attrelid", sqltype.Oid}, {"attname", sqltype.Name}, {"atttypid", sqltype.Oid},
+			{"attlen", sqltype.Int2}, {"attnum", sqltype.Int2}, {"atttypmod", sqltype.Int4}, {"attndims", sqltype.Int2},
+			{"attbyval", sqltype.Bool}, {"attalign", sqltype.Char}, {"attstorage", sqltype.Char}, {"attcompression", sqltype.Char},
+			{"attnotnull", sqltype.Bool}, {"atthasdef", sqltype.Bool}, {"atthasmissing", sqltype.Bool},
+			{"attidentity", sqltype.Char}, {"attgenerated", sqltype.Char}, {"attisdropped", sqltype.Bool}, {"attislocal", sqltype.Bool},
+			{"attinhcount", sqltype.Int2}, {"attcollation", sqltype.Oid}, {"attstattarget", sqltype.Int2},
+			{"attacl", sqltype.ACLItemArray}, {"attoptions", sqltype.ID(1009)}, {"attfdwoptions", sqltype.ID(1009)}, {"attmissingval", sqltype.ID(2277)},
+		}},
 		{1213, "pg_tablespace", []struct {
 			name string
 			typ  sqltype.ID
@@ -189,6 +201,12 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			if spec.oid == pgAttributeOID {
+				d.columns[i].Nullable = i >= 20
+				if column.typ == sqltype.ID(1009) {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
 			if spec.oid == 3456 {
 				d.columns[i].Nullable = i >= 7
 				if column.typ == sqltype.Text {
@@ -241,7 +259,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 1213 {
 				d.columns[i].Nullable = i == 3
 				if i == 3 {
-					// spcacl (attribute 4) has no concrete native carrier.
+					// Attribute 4 (spcacl) is omitted from this bounded projection.
 					d.columns[i].OriginAttribute = 5
 					d.attributes[i] = 5
 					d.columns[i].Usage.Collation.ID = 950
@@ -260,6 +278,7 @@ func (e *Engine) catalogSourceDescriptor(oid OID, namespace ObjectAddress, name 
 }
 
 func (e *Engine) registerCatalogSource(d *relationDescriptor) {
+	initializeCatalogAttributes(d)
 	if address, ok := e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
 		row := e.state.descriptors[address].(*typeDescriptor)
 		row.owningRelation, row.owner = d.address, d.owner
@@ -274,6 +293,9 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == pgAttributeOID {
+		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
+	}
 	if source.address.ObjectID == 1262 {
 		return e.capturePGDatabase(ctx, catalog, roles, ref, source)
 	}

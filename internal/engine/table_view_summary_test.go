@@ -159,6 +159,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		name  string
 		table bool
 	}{
+		{1249, "pg_attribute", true},
 		{2605, "pg_cast", true},
 		{1262, "pg_database", true},
 		{3079, "pg_extension", true},

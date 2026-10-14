@@ -438,6 +438,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 		d.columns[i].OriginTable = uint32(oid)
 		d.columns[i].OriginAttribute = int16(d.attributes[i])
+		d.columns[i].DeclaredDimensions = 0
 	}
 	d.attributeHighWater = attribute
 	if err = e.stageRowTypeLocked(stage, d); err != nil {

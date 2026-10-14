@@ -9,8 +9,9 @@ import (
 )
 
 type typedColumnAction struct {
-	action parser.AlterTableAction
-	usage  *sqltype.Usage
+	action             parser.AlterTableAction
+	usage              *sqltype.Usage
+	declaredDimensions int16
 }
 
 type typedRelationMutation struct {
@@ -41,6 +42,9 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				var added addedColumn
 				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.usage)
 				if err == nil && added.column != nil {
+					if planned.usage != nil {
+						mutation.next.columns[mutation.next.indexForAttribute(added.attribute)].DeclaredDimensions = planned.declaredDimensions
+					}
 					mutation.additions = append(mutation.additions, added)
 				}
 			}
@@ -71,7 +75,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 					if bindErr != nil {
 						return mutation, bindErr
 					}
-					prepared = &alterTypePreparation{*planned.usage, node}
+					prepared = &alterTypePreparation{usage: *planned.usage, expression: node, declaredDimensions: planned.declaredDimensions}
 				}
 				var transform columnTransformation
 				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.action, prepared)

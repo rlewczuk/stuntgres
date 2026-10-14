@@ -215,7 +215,7 @@ func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error
 			return sqltype.Value{}, failure
 		}
 		if !present {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.ResultNull(e.usage), nil
 		}
 		value = row[0]
 		extra, failure := stage.nextProjected(c.Context, nil)

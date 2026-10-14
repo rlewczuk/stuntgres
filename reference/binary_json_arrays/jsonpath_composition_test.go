@@ -24,6 +24,13 @@ func TestReferenceJSONPathComposition(t *testing.T) {
 		inquiry := func(s fixture.Step) { run(jsonpathReferenceInquiry(b, s)) }
 		inquiry(fixture.Select("SELECT attname::text,atttypid::bigint,atttypmod,attcollation::bigint FROM pg_catalog.pg_attribute WHERE attrelid='jp_saved'::regclass AND attname='a'", []string{"attname", "atttypid", "atttypmod", "attcollation"}, []string{"TEXT", "INT8", "INT4", "INT8"}, [][]any{{"a", int64(4073), int64(-1), int64(0)}}))
 		inquiry(fixture.Select("SELECT attname::text,atttypid::bigint,atttypmod,attcollation::bigint FROM pg_catalog.pg_attribute WHERE attrelid='jp_saved'::regclass AND attname='p'", []string{"attname", "atttypid", "atttypmod", "attcollation"}, []string{"TEXT", "INT8", "INT4", "INT8"}, [][]any{{"p", int64(4072), int64(-1), int64(0)}}))
+		var relationID int64
+		if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'jp_saved'::regclass::oid").Scan(&relationID); err != nil || relationID <= 0 {
+			t.Fatal("own relation identity", relationID, err)
+		}
+		attributes := fixture.Select("SELECT attname,atttypid::bigint,atttypmod,attcollation::bigint FROM pg_catalog.pg_attribute WHERE attrelid=$1 AND attname IN ('p','a') ORDER BY attnum", []string{"attname", "atttypid", "atttypmod", "attcollation"}, []string{"NAME", "INT8", "INT4", "INT8"}, [][]any{{"p", int64(4072), int64(-1), int64(0)}, {"a", int64(4073), int64(-1), int64(0)}}, relationID)
+		run(attributes)
+		run(fixture.Prepared(attributes))
 		inquiry(fixture.Select("SELECT typbasetype::bigint FROM pg_catalog.pg_type WHERE typname='jp_domain'", []string{"typbasetype"}, []string{"INT8"}, [][]any{{int64(4072)}}))
 		run(fixture.Exec("INSERT INTO jp_saved(id,d,a) VALUES(1,$1,$2)", 1, `$.a.v`, `{"$",NULL,"null"}`))
 		run(fixture.Exec("CREATE VIEW jp_view AS SELECT id,p,d,a FROM jp_saved", 0))

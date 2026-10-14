@@ -363,8 +363,8 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.
   ACL binary receive/send, catalog ACL projections other than the documented
-  `pg_class.relacl` and `pg_database.datacl`, GRANT extensions, role-rename SQL and new generic
-  grouping/search/hash providers are not added.
+  `pg_class.relacl`, `pg_database.datacl` and `pg_attribute.attacl`, GRANT extensions,
+  role-rename SQL and new generic grouping/search/hash providers are not added.
   Native Dump requires live identities for every emitted ACL datum or definition
   literal and rejects stale identities before writer I/O. Restore remaps both
   principals to preexisting target roles; ordinary dropped-identity output and
@@ -511,8 +511,8 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   target views remain excluded. Triggers/rules/FDWs, target
   hierarchy writes, procedural functions and COPY(MERGE) are not
   supplied by this feature. Positioned mutation of a view is unavailable.
-- Catalog sources are bounded projections, not complete `pg_type`,
-  `pg_attribute`, `pg_index`, `information_schema` or authentication catalogs.
+- Catalog sources are bounded projections, not complete `pg_type`, `pg_index`,
+  `information_schema` or authentication catalogs.
   Native virtual catalog mutation and row locking are unavailable. Installed
   extension metadata does not provide arbitrary loading, installation or updates.
 - `pg_collation` is a PUBLIC read-only projection of installed collation
@@ -539,6 +539,97 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Supported wire origins retain relation 1213 and attributes 1,2,3,5.
   `pg_tables` presents this shared catalog in `pg_global`; that metadata is not
   a physical storage mechanism.
+
+## pg_attribute column metadata
+
+`pg_catalog.pg_attribute` has the released PostgreSQL 18 25-column shape,
+including nullable INT2 `attstattarget` and the nullable ANYARRAY `attmissingval`.
+It describes only actually represented relation fields; omitted neighboring
+catalog fields are not fabricated dropped columns. Builtin attribute numbers
+follow their released catalog headers even when a bounded source's SELECT order
+differs. User and dropped rows use their own relation OID and stable attribute
+number, not query/index source-column provenance.
+
+The existing reserved native `information_schema.table_privileges` source owns
+primitive NAME/VARCHAR columns, with VARCHAR(3) for its two yes/no fields.
+Its attribute rows truthfully expose those native usages, not fabricated
+SQL_IDENTIFIER/CHARACTER_DATA/YES_OR_NO domain identities. The shared reference
+case independently checks PostgreSQL's actual domain identities and this named
+native representation boundary; names/ordinals, C collation, false NOT NULL and
+absence of system rows remain exact. No information-schema domain codecs are added.
+All 28 represented `pg_constraint` fields retain their released physical/type
+facts. Its first 20 fields are nonnullable; the seven array fields and `conbin`
+in its variable-width tail are nullable.
+
+Explicit array brackets retain declared rank independently of the array type
+OID and stored value dimensions. Initial view, CTAS, materialized-view, LIKE,
+inherited and typed-table copies use rank zero; merged inherited declarations
+also use zero. A partition copies rank zero from its parent's explicit declaration.
+Existing explicit typed ALTER/ADD CASCADE declarations publish their requested
+rank on both source and typed table, including same-type rank-only changes.
+Ordinary views and indexes do not infer NOT NULL constraints from their sources;
+index INCLUDE attributes have catalog collation zero.
+Native array btree keys retain their existing `42704` operator-class exclusion;
+a supported scalar key with an array INCLUDE column still exposes that column's
+declared rank. Partitioned index creation retains its `0A000` exclusion. Shared
+reference cases preserve PostgreSQL's complete rows for both excluded definitions
+and assert unchanged native parent metadata with no failed-index catalog residue.
+
+Tables, partitioned tables, materialized views, sequences and represented catalog
+tables expose the six negative system rows; views, standalone composites and
+indexes (including partitioned indexes) do not. This metadata does not implement
+CTID, TABLEOID or transaction-ID row access. Catalog reads use the existing
+statement-selected catalog and role authorities, including transaction-private
+visibility. Both backends expose committed TEMP descriptors to catalog readers
+in other sessions; another session still cannot resolve or execute the TEMP
+table by its unqualified name.
+
+DROP retains scalar physical/declaration facts without retaining the removed
+type's dependency. Native Dump/Restore remains logical: active declarations and
+rank survive, while deleted-column history and old attribute holes are not replayed.
+Typed tables with nonzero active rank are reconstructed as ordinary tables and
+attached through the existing ALTER TABLE OF route. This preserves an altered
+rank3 table alongside a later-created rank0 table without globally replaying
+ALTER TYPE and changing unrelated declarations.
+An independently declared partition with nonzero active rank likewise uses
+ordinary CREATE followed by ATTACH, not the rank-zero PARTITION OF copy route.
+Inherited/merged columns reconstruct with rank zero. Where an active inherited
+rank differs, Dump appends genuine `UPDATE pg_catalog.pg_attribute SET attndims=...`
+SQL under `SET SESSION AUTHORIZATION DEFAULT`, after all owner SQL. Native
+Restore accepts only that bounded normalized AST against its isolated staged
+catalog: one nonnegative INT2 rank literal, a qualified regclass relation literal
+and a live column-name literal. It changes no type, locality, inheritance count,
+default, ACL or data, and failures/cancellation preserve the old catalog.
+This preserves independently aged descendants, local ADD merges and typed-source
+divergence without globally replaying historical source alterations.
+**PostgreSQL replay requires an authenticated superuser/catalog-update authority**
+for that final repair block; ordinary table ownership is not sufficient.
+Public native catalog UPDATE remains unsupported, including the same SQL.
+The native parser normalizes `RESET SESSION AUTHORIZATION`, `SET SESSION
+AUTHORIZATION DEFAULT` and its preexisting native-only `SET AUTHORIZATION DEFAULT`
+alias to the same administrative-reset AST. PostgreSQL 18 rejects that short alias
+with `42601` at `AUTHORIZATION`; the dump emits the PostgreSQL-valid long form.
+Restore therefore accepts all three, resetting only its isolated authenticated
+administrator—not live callers, cluster roles or restored object ownership/ACLs.
+Named short `SET AUTHORIZATION 'role'` and role DDL remain outside Restore's
+owner-directive whitelist; failed late input still publishes nothing.
+Native ADD default fills are materialized, so `atthasmissing=false` and
+`attmissingval=NULL`; PostgreSQL may retain real fast-default physical history.
+Statistics targets, column options and foreign-data-wrapper options remain NULL
+unless already owned by a supported feature; new setters and physical storage
+machinery are not supplied.
+SQL REVOKE that removes the final column privilege restores NULL `attacl`; the
+private explicit-empty ACL representation remains distinct and projects `{}`.
+Held statements containing old resolved regclass literals retain the existing
+catalog-replacement fence after Reset/Restore. A held numeric-OID parameter
+reader refreshes against the current catalog instead; eager captured rows stay
+unchanged. No catalog fence is relaxed for metadata queries.
+
+ANYARRAY support is limited to the exact canonical typed-NULL catalog result,
+with driver metadata and NULL transport through ordinary projections/subqueries.
+It remains non-concrete and unavailable as a declared storage, domain, parameter,
+cast or generic comparison/ordering type. Catalog mutation and row locks retain
+their native `0A000` exclusions. See [selected proof and smoke](../reference/catalogs/README.md#pg_attribute-selected-proof).
 
 ## Collation, encoding and indexes
 

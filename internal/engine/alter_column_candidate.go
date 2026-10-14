@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
@@ -31,6 +32,9 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 		}
 		return old, nil
 	}
+	history := relationAttributeMetadata(old, slot)
+	history.name = fmt.Sprintf("........pg.dropped.%d........", history.number)
+	history.typeID, history.notNull, history.hasDefault, history.generated, history.dropped = 0, false, false, "", true
 	target := ref.Address
 	target.SubID = old.attributes[slot]
 	for _, attribute := range old.attributes {
@@ -79,6 +83,11 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 	old = stage.descriptors[ref.Address].(*relationDescriptor)
 	slot = old.indexForAttribute(target.SubID)
 	next := *old
+	next.droppedAttributes = maps.Clone(old.droppedAttributes)
+	if next.droppedAttributes == nil {
+		next.droppedAttributes = make(map[int32]attributeMetadata)
+	}
+	next.droppedAttributes[history.number] = history
 	next.columns = make([]ColumnDescriptor, 0, len(old.columns)-1)
 	next.attributes = make([]int32, 0, len(old.attributes)-1)
 	next.index = make(map[string]int, len(old.index)-1)

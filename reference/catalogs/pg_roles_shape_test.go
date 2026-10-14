@@ -152,7 +152,7 @@ func TestReferencePGRolesShape(t *testing.T) {
 
 func TestReferencePGRolesOracleCatalog(t *testing.T) {
 	if !*fixture.Mode {
-		t.Skip("pg_attribute/pg_type metadata witness requires real pinned PostgreSQL")
+		t.Skip("pg_type metadata witness requires real pinned PostgreSQL")
 	}
 	p := fixture.NewScenario(t)
 	if p.Postgres == nil {
@@ -160,13 +160,19 @@ func TestReferencePGRolesOracleCatalog(t *testing.T) {
 	}
 	t.Run("postgres", func(t *testing.T) {
 		b := fixture.Backend{Name: "postgres", DB: p.Postgres, Recorder: p.PostgresRecord, PG: true}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.reltype=t.oid AS row_link,t.typrelid=c.oid AS owner_link,a.typelem=t.oid AS element_link FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE c.oid='pg_catalog.pg_roles'::regclass", []string{"row_link", "owner_link", "element_link"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+	})
+}
+
+func TestReferencePGRolesAttributeCatalog(t *testing.T) {
+	pgRolesScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		var expected [][]any
 		oids := []int64{19, 16, 16, 16, 16, 16, 16, 23, 25, 1184, 16, 1009, 26}
 		collations := []int64{950, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 950, 0}
 		for i, name := range pgRolesColumns {
 			expected = append(expected, []any{name, oids[i], int64(-1), false, collations[i]})
 		}
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation FROM pg_catalog.pg_attribute WHERE attrelid='pg_catalog.pg_roles'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8"}, expected))
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.reltype=t.oid AS row_link,t.typrelid=c.oid AS owner_link,a.typelem=t.oid AS element_link FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE c.oid='pg_catalog.pg_roles'::regclass", []string{"row_link", "owner_link", "element_link"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+		s := fixture.Select("SELECT attname::text AS name,atttypid::bigint AS type_oid,atttypmod::bigint AS typmod,attnotnull,attcollation::bigint AS collation FROM pg_catalog.pg_attribute WHERE attrelid='pg_catalog.pg_roles'::regclass AND attnum>0 ORDER BY attnum", []string{"name", "type_oid", "typmod", "attnotnull", "collation"}, []string{"TEXT", "INT8", "INT8", "BOOL", "INT8"}, expected)
+		pgAttributeNameCastWitness(t, p, b, s)
 	})
 }

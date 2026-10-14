@@ -127,6 +127,44 @@ func catalogTypeDeclaration(view CatalogRead, u sqltype.Usage) (string, error) {
 	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(descriptor.Name()), nil
 }
 
+// Column declarations retain syntactic rank separately from array type identity.
+// A copied rank-zero array uses its catalog name, without adding bracket syntax.
+func catalogColumnDeclaration(view CatalogRead, column ColumnDescriptor) (string, error) {
+	declaration, err := catalogTypeDeclaration(view, column.Usage)
+	if err != nil || !column.Usage.Type.IsArray() {
+		return declaration, err
+	}
+	if column.DeclaredDimensions > 0 {
+		return declaration + strings.Repeat("[]", int(column.DeclaredDimensions)-1), nil
+	}
+	descriptor, ok := view.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())})
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing array declaration identity")
+	}
+	namespace, ok := view.Descriptor(descriptor.Namespace())
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing array declaration namespace")
+	}
+	alias := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(descriptor.Name())
+	if column.Usage.Typmod >= 0 {
+		if column.Usage.Type.Element().ID() == sqltype.Interval {
+			rangeMask, precision := column.Usage.Typmod>>16, column.Usage.Typmod&0xffff
+			alias += "(" + strconv.FormatInt(int64(rangeMask), 10)
+			if precision != sqltype.IntervalFullPrecision {
+				alias += "," + strconv.FormatInt(int64(precision), 10)
+			}
+			alias += ")"
+		} else {
+			start, end := strings.IndexByte(declaration, '('), strings.LastIndexByte(declaration, ')')
+			if start < 0 || end < start {
+				return "", fmt.Errorf("stuntgres: missing array declaration modifier")
+			}
+			alias += declaration[start : end+1]
+		}
+	}
+	return alias, nil
+}
+
 func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, d *typeDescriptor, replayNames *domainReplayNames) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err

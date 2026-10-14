@@ -498,13 +498,15 @@ Scalar/array catalog and attribute identities use separate equality-filtered
 queries on PostgreSQL, retaining every independently expected OID, typmod,
 collation and domain-base field. Their equality filters are inquiry witnesses,
 not a restriction on scalar IN-list expression support.
-Native explicitly asserts that the two named relations `pg_catalog.pg_type` and
-`pg_catalog.pg_attribute` remain absent (42P01, exact English message and original
-relation Position), in both direct and prepared representation setup. Other
-implemented catalog views do not imply these inquiry relations exist. Exact native
-descriptor4072/4073 and reciprocal array identities remain covered by provider
-units; all shared native JSONPATH/_JSONPATH metadata, IO, composition and controls
-remain asserted without a skip. Equality, ordering and grouping
+Native retains the exact missing-`pg_catalog.pg_type` diagnostic. The original
+PostgreSQL attribute queries still assert every expected row; native now asserts
+their existing NAME-to-TEXT cast (`0A000`) or mixed OID/regclass comparison
+(`42883`) boundary instead of claiming pg_attribute is absent. Additional shared
+direct/prepared inquiries use raw NAME fields and each backend's discovered
+numeric relation OID, asserting JSONPATH4072/_JSONPATH4073, typmod-1 and collation0.
+No NAME cast, mixed-OID operator or pg_type provider is introduced by this migration.
+All shared native JSONPATH/_JSONPATH IO, composition and controls remain asserted
+without a skip. Equality, ordering and grouping
 must reject rather than compare canonical output; grouping diagnostics retain
 the declared scalar, array or domain name and original SQL source position.
 
@@ -515,6 +517,8 @@ make check RUN='^TestReferenceJSONPath'
 make check REFERENCE=1 RUN='^TestReferenceJSONPath'
 make check RUN='^TestReferenceJSONPathFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'
+make check RUN='^TestReferenceJSONPath(Representation|Composition)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONPath(Representation|Composition)$'
 ```
 
 The feature smoke expects inferred repeated-slot insertion, strict indexed-path

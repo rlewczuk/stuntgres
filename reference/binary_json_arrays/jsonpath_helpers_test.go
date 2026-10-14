@@ -47,30 +47,38 @@ func jsonpathReferenceStep(t *testing.T, b fixture.Backend, s fixture.Step) fixt
 	return s
 }
 
-// These two named inquiry relations are outside the native catalog surface,
-// even where other pg_catalog views exist. PostgreSQL still checks every
-// expected identity field; native checks the complete missing-relation error.
+// pg_type remains a named native exclusion. Original attribute inquiries retain
+// their full PostgreSQL results and exact native cast/mixed-OID boundaries; the
+// callers also exercise admitted numeric-OID attribute metadata separately.
 func jsonpathReferenceInquiry(b fixture.Backend, s fixture.Step) fixture.Step {
 	if b.PG {
 		return s
 	}
-	for _, relation := range []string{"pg_catalog.pg_type", "pg_catalog.pg_attribute"} {
-		if offset := strings.Index(s.Query, " FROM "+relation); offset >= 0 {
-			boundary := fixture.ErrorDiagnostic(s.Query, fixture.Diagnostic{
-				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01",
-				Message:  `relation "` + relation + `" does not exist`,
-				Position: fixture.Position(offset + len(" FROM ") + 1),
-			})
-			boundary.SelectRows = true
-			boundary.Prepared = s.Prepared
-			boundary.ErrorStage = "execute"
-			if s.Prepared {
-				boundary.ErrorStage = "prepare"
-			}
-			return boundary
+	if offset := strings.Index(s.Query, " FROM pg_catalog.pg_type"); offset >= 0 {
+		boundary := fixture.ErrorDiagnostic(s.Query, fixture.Diagnostic{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01",
+			Message:  `relation "pg_catalog.pg_type" does not exist`,
+			Position: fixture.Position(offset + len(" FROM ") + 1),
+		})
+		boundary.SelectRows, boundary.Prepared, boundary.ErrorStage = true, s.Prepared, "execute"
+		if s.Prepared {
+			boundary.ErrorStage = "prepare"
 		}
+		return boundary
 	}
-	panic("JSONPath identity inquiry must name pg_catalog.pg_type or pg_catalog.pg_attribute")
+	if strings.Contains(s.Query, " FROM pg_catalog.pg_attribute") {
+		diagnostic := fixture.Diagnostic{Code: "42883", Message: "operator does not exist: oid = regclass", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: fixture.Position(strings.Index(s.Query, "attrelid=") + len("attrelid") + 1)}
+		if strings.Contains(s.Query, "attname::text") {
+			diagnostic = fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: fixture.Position(strings.Index(s.Query, "::text") + 1)}
+		}
+		boundary := fixture.ImplicitError(s.Query, diagnostic, s.Args...)
+		boundary.SelectRows, boundary.Prepared, boundary.ErrorStage = true, s.Prepared, "execute"
+		if s.Prepared {
+			boundary.ErrorStage = "prepare"
+		}
+		return boundary
+	}
+	panic("JSONPath identity inquiry must name a recognized catalog relation")
 }
 
 // Shared direct/prepared literal and bind routes use independent case outputs.

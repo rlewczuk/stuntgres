@@ -13,6 +13,7 @@ import (
 type ColumnDescriptor struct {
 	Name                       string
 	Usage                      sqltype.Usage
+	DeclaredDimensions         int16
 	Nullable, NullabilityKnown bool
 	OriginTable                uint32
 	OriginAttribute            int16

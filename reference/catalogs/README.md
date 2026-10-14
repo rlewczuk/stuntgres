@@ -53,6 +53,93 @@ immutable native captured rows, implicit-comparison42P22, an explicit POSIX true
 control, and exact versus unavailable Unicode recorded versions. Locale
 population, ICU execution and arbitrary libc semantics remain outside this part.
 
+### pg_attribute selected proof
+
+The shared `TestReferencePGAttribute` definitions independently assert all 25
+released fields, native/pq raw metadata, canonical nullable ANYARRAY transport,
+relation-local identity, exact builtin/type/system facts, syntactic rank, flags,
+column ACLs, dropped history and current DDL publication. Direct/plain, fresh
+prepared and SAME held readers use the existing fixture and middleware.
+Transactions/temporary cases retain explicit owner/observer boundaries; Controls
+exercises real native Dump/Reset/Restore and actual emitted SQL replay on PostgreSQL.
+TypedControls additionally preserves altered typed rank3 beside later-created
+rank0, using ordinary CREATE followed by the existing ALTER TABLE OF attachment.
+Native materialized ADD fills differ explicitly from PostgreSQL fast-default
+physical history, and logical dumps do not replay dropped-column tombstones.
+
+CopiedRoutes pins partition rank0, initial typed rank0, and explicit typed
+ALTER/ADD CASCADE ranks2/3. The merged explicit inherited declaration is also
+oracle-pinned rank0. Unconstrained domains share the ordinary metadata matrix;
+domain NOT NULL remains a real-only observation plus the existing exact native
+constraint-admission exclusion, not a new type feature.
+RepresentedBoundary independently checks the existing primitive native
+table_privileges schema against PostgreSQL's actual domain-backed view, without
+fabricating domain execution or relabeling native descriptor types.
+Committed TEMP descriptors are catalog-visible across sessions in both backends;
+peer execution by the TEMP name remains forbidden. Controls separately asserts
+old literal-held catalog fencing, numeric-parameter held refresh and immutable
+eager captures. SQL REVOKE empties column ACLs to NULL without discarding the
+private explicit-empty `{}` representation.
+Array btree keys and partitioned index creation retain their exact native
+`42704`/`0A000` admission boundaries and no-residue checks; full PostgreSQL rows
+remain asserted, alongside shared scalar-key/array-INCLUDE metadata. Existing
+NAME casts and mixed OID/regclass comparisons remain explicit exclusions, not
+scope expansion; role/group/user and JSONPath migrations also check admitted
+raw-NAME/numeric-OID inquiries in both modes.
+ConstraintAttributes independently checks all 28 represented constraint fields,
+including seven nullable array fields plus nullable `conbin`.
+ControlsPartitionRank distinguishes minimal attached rank3 from copied rank0.
+ControlsRankHistory and RankRepairSQL preserve inherited/merged ranks, local ADD
+merges, nested descendants, source2/root3 divergence and independently aged zero
+siblings through two Restore/redump cycles and actual emitted PostgreSQL SQL.
+RankRepairGraphs covers multiple columns/parents and a nonbootstrap owner with
+unchanged implicit ACLs. Repair SQL runs after `SET SESSION AUTHORIZATION DEFAULT`;
+real PostgreSQL replay requires superuser catalog-update authority.
+Native public UPDATE remains exactly forbidden. Strict malformed repair AST,
+late failure after a valid repair, missing/dead targets, cancellation and retained
+eager captures supplement full metadata/default/data/relationship checks.
+
+The shape follows the [PostgreSQL 18 catalog contract](https://www.postgresql.org/docs/18/catalog-pg-attribute.html).
+Run each public definition in both modes after affected changes:
+
+```sh
+make check RUN='^TestReferencePGAttribute(Shape|Identity|Builtins|Types|Declarations|DeclarationsCopiedRoutes)$'
+make check REFERENCE=1 RUN='^TestReferencePGAttribute(Shape|Identity|Builtins|Types|Declarations|DeclarationsCopiedRoutes)$'
+make check RUN='^TestReferencePGAttribute(Flags|ACL|System|Kinds|Dropped)$'
+make check REFERENCE=1 RUN='^TestReferencePGAttribute(Flags|ACL|System|Kinds|Dropped)$'
+make check RUN='^TestReferencePGAttribute(Lifecycle|Transactions|Temporary|Diagnostics|Controls|Smoke)$'
+make check REFERENCE=1 RUN='^TestReferencePGAttribute(Lifecycle|Transactions|Temporary|Diagnostics|Controls|Smoke)$'
+make check RUN='^TestReferencePGAttribute(RepresentedBoundary|TypedControls)$'
+make check REFERENCE=1 RUN='^TestReferencePGAttribute(RepresentedBoundary|TypedControls)$'
+make check RUN='^TestReferencePG(ExtensionShape|EnumShape|RolesAttributeCatalog|GroupAttributeCatalog|UserAttributeCatalog)$'
+make check REFERENCE=1 RUN='^TestReferencePG(ExtensionShape|EnumShape|RolesAttributeCatalog|GroupAttributeCatalog|UserAttributeCatalog)$'
+make check RUN='^TestReference(AvailableExtensionsMetadata|ExtensionMemberNullability|PGRolesOracleCatalog|PGGroupOracleCatalog|PGUserOracleCatalog)$'
+make check REFERENCE=1 RUN='^TestReference(AvailableExtensionsMetadata|ExtensionMemberNullability|PGRolesOracleCatalog|PGGroupOracleCatalog|PGUserOracleCatalog)$'
+make check RUN='^(TestReferencePgClassBuiltinIndexHistory|TestReferencePGTableViewsBuiltins)$'
+make check REFERENCE=1 RUN='^(TestReferencePgClassBuiltinIndexHistory|TestReferencePGTableViewsBuiltins)$'
+make check RUN='^TestReferencePGAttribute(ConstraintAttributes|ControlsRankHistory|ControlsPartitionRank|RankRepairSQL|RankRepairGraphs)$'
+make check REFERENCE=1 RUN='^TestReferencePGAttribute(ConstraintAttributes|ControlsRankHistory|ControlsPartitionRank|RankRepairSQL|RankRepairGraphs)$'
+make check RUN='^TestReferenceJSONPath(Representation|Composition)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONPath(Representation|Composition)$'
+make check RUN='^TestPGAttribute(Shape|Capture|Publication|DeclaredRank|DroppedHistory|Carrier)$'
+make check RACE=1 RUN='^TestPGAttribute(Capture|Publication|DroppedHistory)$'
+make check RUN='^TestAttribute(TypeFacts|CatalogNullCarrier)$'
+make check RUN='^(TestPgClassBuiltinIndexMetadata|TestTableViewSummaryBuiltinIdentity)$'
+make check RUN='^TestObject(Grant|Revoke)'
+make check RUN='^TestAttributeRankRestore(Syntax|Publication)$'
+make check RACE=1 RUN='^TestAttributeRankRestorePublication$'
+# Permanent feature smoke:
+make check RUN='^TestReferencePGAttributeSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGAttributeSmoke$'
+```
+
+Attribute assertions formerly guarded as PostgreSQL-only are now shared in the
+owning extension/enum/available-extension tests and the named role/group/user
+AttributeCatalog definitions. Adjacent pg_type-only observations retain their
+real-only guards. Private units supplement SQL with actual capture, descriptor,
+mutation, publication, type-fact and adapter-export functions, including foreign
+authority rejection, checked INT2 narrowing and immutable scalar tombstones.
+
 ### pg_database selected proof
 
 `TestReferencePGDatabase` independently specifies the PostgreSQL 18 eighteen-column
@@ -110,7 +197,7 @@ retain independently specified metadata, raw codecs, rows and diagnostics.
 Case-specific names scope database-wide catalog bags; table permission does not
 filter metadata discovery.
 
-`BuiltinIndexHistory` checks all nineteen represented indexed table catalogs and
+`BuiltinIndexHistory` checks all twenty represented indexed table catalogs and
 every represented view negative through direct, fresh and SAME prepared readers,
 without inventing native backing-index rows. `FirstChildRollback` starts with a
 childless RANGE parent: successful first ATTACH sets history only in the owner's

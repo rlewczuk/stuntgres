@@ -572,7 +572,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return b, sequenceOptionError("sequence type must be smallint, integer, or bigint")
 				}
 				declarations = append(declarations, declaration)
-				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: true, NullabilityKnown: true})
+				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true})
 			} else {
 				like := element.Like
 				ref, err := e.resolveReference(auth, like.Name)

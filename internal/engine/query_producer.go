@@ -268,7 +268,7 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 }
 
 func validateProducedValue(value sqltype.Value, usage sqltype.Usage) error {
-	if value.Type() == nil || !value.Type().Concrete() || value.Type() != usage.Type {
+	if !value.ValidResult(usage) {
 		return fmt.Errorf("stuntgres: invalid produced query value")
 	}
 	return nil

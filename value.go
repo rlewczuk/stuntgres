@@ -190,7 +190,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if !v.Type().Concrete() {
+	if v.Type() == nil || !v.ValidResult(v.Type().Usage()) {
 		return nil, fmt.Errorf("stuntgres: invalid result type")
 	}
 	if v.IsNull() {
@@ -262,6 +262,9 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 }
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
+	if d.Usage().CatalogNullUsage() {
+		return reflect.TypeFor[any]()
+	}
 	if d.BaseType().IsQueryInt() || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() {
 		return reflect.TypeFor[string]()
 	}

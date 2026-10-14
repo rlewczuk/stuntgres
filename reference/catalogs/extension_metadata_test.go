@@ -24,20 +24,18 @@ func TestReferenceExtensionMemberNullability(t *testing.T) {
 			{"pg_ts_dict", "3600", []string{"oid", "dictname", "dictnamespace", "dictowner", "dicttemplate", "dictinitoption"}, []string{"OID", "NAME", "OID", "OID", "OID", "TEXT"}, "dictname='unaccent'", 1, true},
 		}
 		for _, spec := range specs {
-			if pg {
-				var conditions []string
-				var expected [][]any
-				for i, name := range spec.names {
-					conditions = append(conditions, "attname='"+name+"'")
-					expected = append(expected, []any{name, !(spec.nullableLast && i == len(spec.names)-1)})
-				}
-				query := "SELECT attname,attnotnull FROM pg_catalog.pg_attribute WHERE attrelid=" + spec.oid + " AND (" + strings.Join(conditions, " OR ") + ")"
-				s := fixture.Select(query, []string{"attname", "attnotnull"}, []string{"NAME", "BOOL"}, expected)
-				s.Bag = true
-				fixture.RunStep(t, p.Ctx, c, r, s)
-				fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
+			var conditions []string
+			var expected [][]any
+			for i, name := range spec.names {
+				conditions = append(conditions, "attname='"+name+"'")
+				expected = append(expected, []any{name, !(spec.nullableLast && i == len(spec.names)-1)})
 			}
-			query := "SELECT " + strings.Join(spec.names, ",") + " FROM pg_catalog." + spec.table + " WHERE " + spec.filter
+			query := "SELECT attname,attnotnull FROM pg_catalog.pg_attribute WHERE attrelid=" + spec.oid + " AND (" + strings.Join(conditions, " OR ") + ")"
+			s := fixture.Select(query, []string{"attname", "attnotnull"}, []string{"NAME", "BOOL"}, expected)
+			s.Bag = true
+			fixture.RunStep(t, p.Ctx, c, r, s)
+			fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
+			query = "SELECT " + strings.Join(spec.names, ",") + " FROM pg_catalog." + spec.table + " WHERE " + spec.filter
 			for _, prepared := range []bool{false, true} {
 				extensionMemberMetadata(t, p, c, query, prepared, pg, spec.names, spec.types, spec.nullableLast, 0)
 			}

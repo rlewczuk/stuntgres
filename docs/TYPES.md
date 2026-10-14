@@ -28,6 +28,16 @@ computed projections can have unknown nullability. Adapter differences must be
 checked before fixture normalization: lib/pq frequently exports textual bytes
 and reports `interface{}` ScanType where native exports strings.
 
+The one non-concrete result exception is the canonical nullable ANYARRAY column
+`pg_attribute.attmissingval`: native exports SQL NULL as nil with database type
+ANYARRAY and `interface{}` ScanType. This does not admit nonnull ANYARRAY values,
+ordinary declarations, casts, domains, parameters or generic operators.
+
+Relation declarations retain array bracket rank separately from the single
+associated array type identity and stored dimensions. Rank is catalog metadata,
+not shape enforcement. Native column/composite dumps retain explicit rank and
+use the catalog array name for copied rank-zero declarations.
+
 ## Scalar Go values
 
 | Native value family | Nonnull Go export |

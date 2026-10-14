@@ -96,7 +96,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	next.notNullConstraints = slices.Clone(old.notNullConstraints)
 	next.checkConstraints = slices.Clone(old.checkConstraints)
 	next.index[column.Name] = len(next.columns)
-	definition := ColumnDescriptor{Name: column.Name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.address.ObjectID), OriginAttribute: int16(attribute)}
+	definition := ColumnDescriptor{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.address.ObjectID), OriginAttribute: int16(attribute)}
 	next.columns = append(next.columns, definition)
 	next.attributes = append(next.attributes, attribute)
 	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}

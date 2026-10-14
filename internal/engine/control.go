@@ -982,9 +982,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			currentOwner = t.owner
 		}
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
-		// Identity and stored generation cannot be declared in CREATE TABLE OF.
-		// Reconstruct their ordinary definitions, then attach through ALTER OF.
-		attachAfterCreate := t.descriptor.ofType != (ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.generations) != 0)
+		// CREATE TABLE OF cannot declare identity/generation or preserve a
+		// post-creation array rank. Reconstruct ordinary columns, then attach.
+		attachAfterCreate := t.descriptor.ofType != (ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.generations) != 0 || slices.ContainsFunc(t.columns, func(column ColumnDescriptor) bool { return column.DeclaredDimensions != 0 }))
 		var line strings.Builder
 		if t.descriptor.membership == nil || partitionDumpNeedsAttach(catalog, t.descriptor) {
 			typed := t.descriptor.ofType != (ObjectAddress{}) && !attachAfterCreate
@@ -1015,7 +1015,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if typed {
 					line.WriteString(" WITH OPTIONS")
 				} else {
-					declaration, err := catalogTypeDeclaration(catalog, c.Usage)
+					declaration, err := catalogColumnDeclaration(catalog, c)
 					if err != nil {
 						return err
 					}
@@ -1250,6 +1250,36 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	// INHERITS reconstructs every inherited/merged declaration with rank zero.
+	// Repair only the lost metadata after all owner SQL, as genuine PostgreSQL
+	// catalog SQL under the authenticated administrator, not as replay comments.
+	rankAuthority := false
+	for _, event := range eventOrder {
+		index, exists := tableIndices[event.oid]
+		if event.phase != dumpDeclaration || !exists {
+			continue
+		}
+		table := tables[index]
+		graph := table.descriptor.inheritance
+		if graph == nil {
+			continue
+		}
+		for i, column := range table.columns {
+			if column.DeclaredDimensions == 0 || len(graph.columns[table.attributes[i]].origins) == 0 {
+				continue
+			}
+			if !rankAuthority {
+				if err := emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+					return err
+				}
+				rankAuthority = true
+			}
+			qualified := quoteIdentifier(catalog.state.descriptors[table.descriptor.namespace].Name()) + "." + quoteIdentifier(table.name)
+			if err := emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, commentLiteral(qualified), commentLiteral(column.Name))); err != nil {
+				return err
+			}
+		}
+	}
 	return ctx.Err()
 }
 
@@ -1461,9 +1491,14 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only database-local COMMENT targets")
 			}
 		case *parser.SessionAuthorization:
-			if !s.OwnerDirective {
-				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives")
+			if !s.OwnerDirective && !s.Default {
+				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives or DEFAULT")
 			}
+		case *parser.Update:
+			if err := stage.restoreAttributeRank(op, s); err != nil {
+				return err
+			}
+			continue
 		case *parser.Insert:
 			if len(s.With) != 0 {
 				return sqlError("0A000", "restore INSERT WITH clauses are unsupported")

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var pgTableBuiltinNames = []string{"pg_attrdef", "pg_cast", "pg_class", "pg_constraint", "pg_database", "pg_depend", "pg_description", "pg_index", "pg_rewrite", "pg_sequence", "pg_shdescription"}
+var pgTableBuiltinNames = []string{"pg_attrdef", "pg_attribute", "pg_cast", "pg_class", "pg_constraint", "pg_database", "pg_depend", "pg_description", "pg_index", "pg_rewrite", "pg_sequence", "pg_shdescription"}
 var pgViewBuiltinNames = []string{"pg_group", "pg_indexes", "pg_prepared_xacts", "pg_roles", "pg_tables", "pg_views"}
 
 func pgTableViewsNames(column string, names []string) string {

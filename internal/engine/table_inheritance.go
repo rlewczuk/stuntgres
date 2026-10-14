@@ -169,6 +169,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 				c.Nullable = true
 				c.OriginTable = 0
 				c.OriginAttribute = 0
+				c.DeclaredDimensions = 0
 				merged = append(merged, c)
 			}
 		}

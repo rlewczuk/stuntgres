@@ -15,8 +15,9 @@ type columnTransformation struct {
 }
 
 type alterTypePreparation struct {
-	usage      sqltype.Usage
-	expression BoundExpr
+	usage              sqltype.Usage
+	expression         BoundExpr
+	declaredDimensions int16
 }
 
 // Identity AS before-statements precede the table passes, but raw USING binding
@@ -64,7 +65,7 @@ func (e *Engine) prepareAlterIdentityTypes(scope *StatementScope, op *Operation,
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		prepared = append(prepared, alterTypePreparation{usage, node})
+		prepared = append(prepared, alterTypePreparation{usage: usage, expression: node, declaredDimensions: int16(len(action.TypeName.ArrayBounds))})
 	}
 	e.mu.Unlock()
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -252,12 +253,20 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	attribute := original.attributes[source]
 	transformation := columnTransformation{attribute, node, a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod}
-	if usage == current {
+	dimensions := int16(len(a.TypeName.ArrayBounds))
+	if prepared != nil {
+		dimensions = prepared.declaredDimensions
+	}
+	if usage == current && next.columns[slot].DeclaredDimensions == dimensions {
 		return next, transformation, nil
 	}
 	replacement := *next
 	replacement.columns = append([]ColumnDescriptor(nil), next.columns...)
 	replacement.columns[slot].Usage = usage
+	replacement.columns[slot].DeclaredDimensions = dimensions
+	if usage == current {
+		return &replacement, transformation, nil
+	}
 	if definition, exists := next.defaults[attribute]; exists {
 		expression := definition.expression
 		for {

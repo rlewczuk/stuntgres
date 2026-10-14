@@ -305,20 +305,45 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	roleIdentity(t, e, peer, `b\slash`)
 	roleExecute(t, e, admin, "SELECT id FROM second")
 	roleExecute(t, e, peer, "SELECT id FROM first")
+	owners := make(map[string]authorization.PrincipalRef, 2)
 	for _, name := range []string{"first", "second"} {
 		ref := roleTableRef(t, e, name)
 		d := e.state.descriptors[ref.Address].(*relationDescriptor)
 		if e.Roles().ValidatePrincipal(d.owner) != nil {
 			t.Fatal("foreign owner after restore")
 		}
+		owners[name] = d.owner
+	}
+	// All reset spellings share the existing normalized administrative-reset
+	// AST. They reset only Restore's isolated session, never the live callers.
+	for _, query := range []string{"RESET SESSION AUTHORIZATION", "SET SESSION AUTHORIZATION DEFAULT", "SET AUTHORIZATION DEFAULT"} {
+		if err := e.Restore(context.Background(), strings.NewReader(dump.String()+query+"; CREATE TABLE reset_owner_marker(id INT);")); err != nil {
+			t.Fatal("restore administrative reset", query, err)
+		}
+		if admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer || e.roles != roles {
+			t.Fatal("isolated reset changed live role authority", query)
+		}
+		marker := roleTableRef(t, e, "reset_owner_marker")
+		if e.state.descriptors[marker.Address].(*relationDescriptor).owner != e.authorizationDomain.Principal(10) {
+			t.Fatal("reset did not restore isolated authenticated owner", query)
+		}
+		for name, owner := range owners {
+			ref := roleTableRef(t, e, name)
+			d := e.state.descriptors[ref.Address].(*relationDescriptor)
+			if d.owner != owner || d.acl.Explicit || len(d.columnACL) != 0 {
+				t.Fatal("reset changed restored table authority", name, query)
+			}
+		}
 	}
 	before := e.state
-	for _, query := range []string{"RESET SESSION AUTHORIZATION", "SET SESSION AUTHORIZATION DEFAULT", "SET AUTHORIZATION 'postgres'"} {
-		if err := e.Restore(context.Background(), strings.NewReader(query)); err == nil {
-			t.Fatal("restore whitelist widened", query)
+	for _, query := range []string{"SET AUTHORIZATION 'postgres'", "CREATE ROLE forbidden_restore_role", `ALTER ROLE "a'quote" NOLOGIN`, `DROP ROLE "b\slash"`} {
+		err := e.Restore(context.Background(), strings.NewReader(dump.String()+"SET SESSION AUTHORIZATION DEFAULT; CREATE TABLE unpublished(id INT); "+query+";"))
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
+			t.Fatal("restore accepted forbidden owner mutation", query, err)
 		}
-		if e.state != before {
-			t.Fatal("rejected directive replaced catalog")
+		if e.state != before || e.roles != roles || admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer {
+			t.Fatal("rejected directive changed catalog or role authority")
 		}
 	}
 }
