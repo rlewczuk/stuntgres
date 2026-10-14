@@ -6,6 +6,29 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Deparse identity control fixture lifecycle
+
+`TestReferenceDeparseConstraintsReviewIdentityControls` retains all 25 identity
+cases under deterministic `00`–`24` subtests. Each independent case owns a fresh
+shared fixture with the existing 30-second context, its original constraint
+table, both independently deparsed/copied constraint tables and its data table.
+The original case index remains in table names and held-statement relationships;
+native current-database expectations use the actual per-case test-name DSN.
+Direct/prepared deparse and structural metadata, SAME held statements through
+native Dump/Reset/Restore, both identity frames, complete CHECK errors, data and
+owner/cleanup assertions remain unchanged. No deadlines, retries, sleeps,
+provider behavior or expected identity values are widened or suppressed.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceDeparseConstraintsReviewIdentityControls$'
+make check RUN='^TestReferenceDeparseConstraintsReviewIdentityControls$'
+make check RACE=1 RUN='^TestReferenceDeparseConstraintsReviewIdentityControls$'
+```
+
+Run pinned mode first, with external 900-second deadlines for each selected
+command. This fixture-lifecycle remedy does not replace whole-project or
+post-integration verification.
+
 ### Materialized view creation and refresh
 
 Materialized-view coverage uses the same public dual-mode scenarios:
