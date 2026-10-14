@@ -102,18 +102,23 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		}
 		return nil, expressionError("0A000", "encoding-aware length is unsupported", raw.Pos)
 	}
+	bitCandidate := functions.BinaryBitCandidate(name, raw.Variadic, operands)
 	if visible && functions.StringBinaryCandidate(name, raw.Variadic, operands) {
 		var binaryTypes functions.BinaryTypes
-		b.supplyBinaryTypes(functions.BinaryArgumentDemand(name, operands, true), &binaryTypes)
-		if functions.BinaryArgumentsViable(name, operands, &binaryTypes) {
-			if b.defaultConsumer {
+		family := sqltype.Bytea
+		if bitCandidate {
+			family = sqltype.Bit
+		}
+		b.supplyBinaryTypes(functions.BinaryArgumentDemand(name, family, operands, true), &binaryTypes)
+		if functions.BinaryArgumentsViable(name, family, operands, &binaryTypes) {
+			if b.defaultConsumer && !bitCandidate {
 				return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 			}
 			syntax := raw.Syntax
 			if raw.StringSyntax == parser.TrimStringSyntax {
 				syntax = parser.SQLFunctionSyntax
 			}
-			return b.finishBinary(name, raw.Pos, operands, syntax, &binaryTypes)
+			return b.finishBinary(name, family, raw.Pos, operands, syntax, &binaryTypes)
 		}
 	}
 	targets := functions.StringTargets{Text: b.typ(sqltype.Text).Usage()}
@@ -201,7 +206,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 	textual, binary, resolution := functions.SelectStringConcat(visible, types)
 	if binary {
 		var binaryTypes functions.BinaryTypes
-		return b.finishBinary("||", raw.Pos, operands[:], parser.OrdinaryFunctionSyntax, &binaryTypes)
+		return b.finishBinary("||", sqltype.Bytea, raw.Pos, operands[:], parser.OrdinaryFunctionSyntax, &binaryTypes)
 	}
 	if resolution != functions.Resolved {
 		if resolution == functions.Missing {

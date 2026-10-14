@@ -2331,10 +2331,23 @@ Getters return INT4, count returns INT8, and setters return independent BYTEA
 values. New bits must be 0/1; new bytes retain the low eight bits of any INT4.
 Bounds fail with 2202E before new-bit validation (22023). NULL suppresses body
 errors, not input, signature or authority checks. Unknown operands participate
-in PostgreSQL's BYTEA/BIT overload competition; selected BIT overloads remain an
-explicit native capability boundary, not BYTEA reinterpretation.
+in PostgreSQL's BYTEA/BIT overload competition; BIT `get_bit`/`set_bit` remain
+explicit native capability boundaries, not BYTEA reinterpretation.
 See [BYTEA access](https://www.postgresql.org/docs/18/functions-binarystring.html).
 Feature smoke: `make check RUN='^TestReferenceBinaryAccessFeatureSmoke$'`;
+the pinned counterpart adds `REFERENCE=1`.
+
+Change note: BIT/VARBIT support `bit_count`, `bit_length`, `length`,
+`octet_length`, `overlay`, `position` and `substring`. Measurements count logical
+bits; octet length rounds up to bytes. Count returns INT8; other measurements
+and position return INT4. Slices and overlays return unrestricted BIT (typmod -1),
+independently of input width; destination assignment still enforces its own width.
+These immutable functions are strict. Negative overlay counts can duplicate bits,
+substring positive INT4 end overflow clips to the end, and empty-source position
+returns zero, even for an empty needle. Stored calls remain symbolic through
+Dump/Restore. No bit access functions, `substr(bit)` alias or operators are added.
+See [PostgreSQL bit functions](https://www.postgresql.org/docs/18/functions-bitstring.html).
+Feature smoke: `make check RUN='^TestReferenceBitStringFunctionsFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.
 
 BYTEA supports raw `||`, `bit_length`, `octet_length`, `length`, two-argument

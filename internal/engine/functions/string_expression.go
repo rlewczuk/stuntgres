@@ -125,6 +125,9 @@ func StringEncodingLength[E any](name string, visible bool, args []Argument[E], 
 	return true
 }
 func StringBinaryCandidate[E any](name string, variadic bool, args []Argument[E]) bool {
+	if BinaryBitCandidate(name, variadic, args) {
+		return true
+	}
 	binary := (!variadic && len(args) == 2 && (name == "btrim" || name == "ltrim" || name == "rtrim")) ||
 		(!variadic && len(args) == 1 && (name == "length" || name == "octet_length" || name == "bit_length")) ||
 		(len(args) == 2 && name == "position") || ((name == "reverse" || name == "md5") && len(args) == 1) ||

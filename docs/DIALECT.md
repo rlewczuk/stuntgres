@@ -430,9 +430,11 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   providers. Tsrange/tstzrange scalar comparisons reject at analysis with42883,
   including domains,
   contextual unknown operands, NULL data and empty relations.
-- Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates, including
-  implicit VARBIT inputs, but does not provide general bit casts, scalar
-  operators/functions, comparison/index providers or bit arrays. Unordered BIT
+- Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates and selected
+  scalar `bit_count`, `bit_length`, `length`, `octet_length`, `overlay`,
+  `position`, and `substring`, including implicit VARBIT inputs. General bit
+  casts, scalar operators, get_bit/set_bit, substr alias, comparison/index
+  providers and bit arrays remain excluded. Unordered BIT
   aggregate DISTINCT retains the absent equality-provider error; BIT/VARBIT
   local ordering and bitwise windows remain excluded. Ordering by an independent
   integer key does not require bit comparison. Raw internal CHAR declarations

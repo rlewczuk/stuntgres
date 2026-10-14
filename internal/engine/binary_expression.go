@@ -8,9 +8,6 @@ import (
 
 func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.defaultConsumer && !functions.BinaryDefaultAllowed(name, len(raw.Args)) {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
-	}
 	var operands []functions.Argument[BoundExpr]
 	if len(raw.Args) <= 100 {
 		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
@@ -26,6 +23,9 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	if b.defaultConsumer && !functions.BinaryDefaultAllowed(name, len(raw.Args)) && !functions.BinaryBitCandidate(name, raw.Variadic, operands) {
+		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	prepared := functions.PrepareBinary(name, visible, raw.Variadic, b.defaultConsumer, operands)
 	var types functions.BinaryTypes
@@ -61,12 +61,12 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	case functions.BinaryBitsUnsupported:
 		return nil, expressionError("0A000", "bit overloads of "+name+" are unsupported", raw.Pos)
 	}
-	return b.finishBinary(name, raw.Pos, operands, raw.Syntax, &types)
+	return b.finishBinary(name, selection.Family, raw.Pos, operands, raw.Syntax, &types)
 }
 
-func (b *expressionBinder) finishBinary(name string, pos parser.Position, operands []functions.Argument[BoundExpr], syntax parser.FunctionSyntax, types *functions.BinaryTypes) (BoundExpr, error) {
-	b.supplyBinaryTypes(functions.BinaryArgumentDemand(name, operands, false), types)
-	args, err := functions.CoerceBinaryArguments(b, name, operands, types)
+func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument[BoundExpr], syntax parser.FunctionSyntax, types *functions.BinaryTypes) (BoundExpr, error) {
+	b.supplyBinaryTypes(functions.BinaryArgumentDemand(name, family, operands, false), types)
+	args, err := functions.CoerceBinaryArguments(b, name, family, operands, types)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +83,8 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	b.supplyBinaryTypes(functions.BinaryResultDemand(name), types)
-	id := functions.BinaryResultID(name)
+	b.supplyBinaryTypes(functions.BinaryResultDemand(name, family), types)
+	id := functions.BinaryResultID(name, family)
 	usage := types.Usage(id)
 	info := b.info(usage, pos, properties)
 	if functions.BinaryIntrinsicStable(name) {

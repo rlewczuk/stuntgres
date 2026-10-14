@@ -84,6 +84,21 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	default:
 		return p, fmt.Errorf("invalid binary operation")
 	}
+	if len(args) > 0 && args[0].Type != nil && args[0].Type.ID() == Bit {
+		switch name {
+		case "bit_count", "bit_length", "length", "octet_length", "position", "substring", "overlay":
+			for i := range arity {
+				if ids[i] == Bytea {
+					ids[i] = Bit
+				}
+			}
+			if id == Bytea {
+				id = Bit
+			}
+		default:
+			return p, fmt.Errorf("invalid bit operation")
+		}
+	}
 	if len(args) != arity {
 		return p, fmt.Errorf("invalid binary arity")
 	}
@@ -186,6 +201,9 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		if v.null {
 			return Null(p.result.Type), nil
 		}
+	}
+	if p.args[0].Type.ID() == Bit {
+		return p.evaluateBits(ctx, values)
 	}
 	a := values[0]
 	switch p.name {
@@ -311,20 +329,10 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return Binary(p.result.Type, raw)
 	}
 	if p.name == "substring" || p.name == "substr" {
-		start := values[1].integer
-		end := int64(len(a.text)) + 1
-		if p.arity == 3 {
-			count := values[2].integer
-			if count < 0 {
-				return Value{}, failure("22011", "negative substring length not allowed")
-			}
-			sum := start + count
-			if sum >= math.MinInt32 && sum <= math.MaxInt32 {
-				end = sum
-			}
+		lo, hi, err := binarySubstringRange(len(a.text), values[1:])
+		if err != nil {
+			return Value{}, err
 		}
-		lo := min(max(start, 1)-1, int64(len(a.text)))
-		hi := min(max(end-1, lo), int64(len(a.text)))
 		return Binary(p.result.Type, a.text[lo:hi])
 	}
 	if p.name == "overlay" {
@@ -421,4 +429,24 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return a, nil
 	}
 	return Binary(p.result.Type, a.text[start:end])
+}
+
+// binarySubstringRange shares INT4 clipping for raw octets and canonical bits.
+// Addition precedes lower-bound clipping; positive INT4 overflow means to-end.
+func binarySubstringRange(size int, indexes []Value) (lo, hi int64, err error) {
+	start := indexes[0].integer
+	end := int64(size) + 1
+	if len(indexes) == 2 {
+		count := indexes[1].integer
+		if count < 0 {
+			return 0, 0, failure("22011", "negative substring length not allowed")
+		}
+		sum := start + count
+		if sum >= math.MinInt32 && sum <= math.MaxInt32 {
+			end = sum
+		}
+	}
+	lo = min(max(start, 1)-1, int64(size))
+	hi = min(max(end-1, lo), int64(size))
+	return lo, hi, nil
 }

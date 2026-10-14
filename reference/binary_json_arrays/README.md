@@ -6,6 +6,43 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Bit string measurements and slices
+
+The `TestReferenceBitStringFunctions` family specifies the seven functions in
+[PostgreSQL 18 Table 9.15](https://www.postgresql.org/docs/18/functions-bitstring.html):
+`bit_count`, `bit_length`, `length`, `octet_length`, `overlay`, `position`,
+and `substring`. Independent expectations cover logical bit lengths/popcount,
+byte rounding, bit-indexed slicing and search, strict NULLs, unrestricted BIT
+result metadata, exact diagnostics/stages/character positions, retained statement
+frames, assignment and late-write atomicity, and symbolic native control replay.
+The feature smoke composes those permanent scenarios rather than duplicating SQL.
+Count returns INT8; other measurements and position return INT4; slices/overlays
+return BIT/-1. Negative overlay counts are legal, substring and overlay have
+different INT4 end-overflow contracts, and empty/empty bit position returns zero.
+
+The independently reasoned portable expectations were confirmed against pinned
+PostgreSQL 18.0 before production implementation. The shared scenarios now run
+every available backend without discovery filters or observation recording.
+This oracle evidence does not claim native support or completed dual-mode proof.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceBitStringFunctions(Measurements|Slices|Bounds)$'
+make check REFERENCE=1 RUN='^TestReferenceBitStringFunctions(TypingDiagnostics|NullMetadata)$'
+make check REFERENCE=1 RUN='^TestReferenceBitStringFunctions(HeldStatements|ConsumersControls|Cancellation)$'
+make check REFERENCE=1 RUN='^TestReferenceBitStringFunctionsFeatureSmoke$'
+make check RUN='^TestBitStringFunctions'
+```
+
+Run each same selector without `REFERENCE=1` for native failing proof and final
+acceptance. Selected race proof adds `RACE=1` to the lifecycle/consumer group.
+Native control phases call real Dump/Reset/Restore and replay the emitted SQL on
+PostgreSQL after cleanup. Smoke expects quiet exit zero with the seven-function
+projection, VARBIT routing, widths, bounds, held NULL/error/recovery and actual
+symbolic controls/default demand independently satisfied. Initial portable
+PostgreSQL observations do not prove these native phases; root quickcheck and
+post-integration finalcheck remain separate required gates.
+
+
 ### JSON array length
 
 `TestReferenceJSONArrayLength` covers exactly `json_array_length(json)` and
@@ -606,8 +643,9 @@ remain unchanged.
 reversal, setter truncation/immutability, bounds and input diagnostics, overload
 resolution, authority, empty/NULL metadata, held frames, consumers and native
 symbolic controls with actual emitted SQL replay on PostgreSQL. PostgreSQL
-expectations are independent; BIT execution is asserted only there, with the
-native capability error asserted separately. Portal Context and pq/native BYTEA
+expectations are independent; BIT get_bit/set_bit execution is asserted only
+there, with the native capability error asserted separately. BIT bit_count is
+supported by the selected bit-function family. Portal Context and pq/native BYTEA
 metadata/empty-buffer differences remain explicit, not normalized goldens.
 
 Run each selective quickcheck under a 900-second deadline:
@@ -662,3 +700,4 @@ recovery, empty/NULL metadata before iteration and symbolic native controls with
 actual emitted SQL replay on PostgreSQL. Control replacement failures must leave
 the destination dump byte-for-byte unchanged; parameters in every new argument
 slot remain rejected. Quiet test success alone is not a discovery transcript.
+

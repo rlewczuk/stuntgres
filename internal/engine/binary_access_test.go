@@ -69,7 +69,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 		args := make([]BoundExpr, arity)
 		usages := make([]sqltype.Usage, arity)
 		for i := range args {
-			d := types[functions.BinaryArgumentID(name, i)]
+			d := types[functions.BinaryArgumentID(name, i, sqltype.Bytea)]
 			usages[i] = d.Usage()
 			value := sqltype.Null(d)
 			if i == 0 {

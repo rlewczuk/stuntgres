@@ -110,6 +110,48 @@ func BinaryTextType(d *sqltype.Descriptor) bool {
 func BinaryDefaultAllowed(name string, count int) bool {
 	return name == "substring" && (count == 2 || count == 3)
 }
+
+// BinaryBitCandidate identifies only the released measurement/slice overloads.
+// Unknowns acquire the BIT family only when a known BIT/VARBIT operand selects it.
+func BinaryBitCandidate[E any](name string, variadic bool, args []Argument[E]) bool {
+	if variadic {
+		return false
+	}
+	switch name {
+	case "bit_count", "length", "bit_length", "octet_length":
+		if len(args) != 1 {
+			return false
+		}
+	case "substring":
+		if len(args) != 2 && len(args) != 3 {
+			return false
+		}
+	case "overlay":
+		if len(args) != 3 && len(args) != 4 {
+			return false
+		}
+	case "position":
+		if len(args) != 2 {
+			return false
+		}
+	default:
+		return false
+	}
+	known := false
+	for i, arg := range args {
+		if BinaryArgumentID(name, i, sqltype.Bit) != sqltype.Bit {
+			continue
+		}
+		if d := arg.Usage.Type; d != nil {
+			id := d.BaseType().ID()
+			if id != sqltype.Bit && id != sqltype.VarBit {
+				return false
+			}
+			known = true
+		}
+	}
+	return known
+}
 func binaryConversion(name string) bool {
 	return name == "convert" || name == "convert_from" || name == "convert_to" || name == "encode" || name == "decode"
 }
@@ -117,12 +159,12 @@ func BinaryIntrinsicStable(name string) bool {
 	return name == "convert" || name == "convert_from" || name == "convert_to"
 }
 func BinaryArgumentAnalysis(name string, index int) AnalysisRequest {
-	if binaryConversion(name) && BinaryArgumentID(name, index) != sqltype.Bytea {
+	if binaryConversion(name) && BinaryArgumentID(name, index, sqltype.Bytea) != sqltype.Bytea {
 		return AnalysisRequest{Intent: StringTextArgument}
 	}
 	return AnalysisRequest{Intent: StringOtherArgument}
 }
-func BinaryArgumentID(name string, index int) sqltype.ID {
+func BinaryArgumentID(name string, index int, family sqltype.ID) sqltype.ID {
 	switch name {
 	case "get_bit", "set_bit":
 		if index == 1 {
@@ -154,9 +196,9 @@ func BinaryArgumentID(name string, index int) sqltype.ID {
 	if ((name == "substring" || name == "substr") && index >= 1) || (name == "overlay" && index >= 2) {
 		return sqltype.Int4
 	}
-	return sqltype.Bytea
+	return family
 }
-func BinaryResultID(name string) sqltype.ID {
+func BinaryResultID(name string, family sqltype.ID) sqltype.ID {
 	switch name {
 	case "length", "octet_length", "bit_length", "position", "get_bit", "get_byte":
 		return sqltype.Int4
@@ -165,7 +207,7 @@ func BinaryResultID(name string) sqltype.ID {
 	case "md5", "encode", "convert_from":
 		return sqltype.Text
 	}
-	return sqltype.Bytea
+	return family
 }
 
 type BinaryDemand uint8
@@ -208,16 +250,16 @@ func (t *BinaryTypes) Usage(id sqltype.ID) sqltype.Usage {
 	}
 	return sqltype.Usage{}
 }
-func BinaryArgumentDemand[E any](name string, args []Argument[E], knownOnly bool) (demand BinaryDemand) {
+func BinaryArgumentDemand[E any](name string, family sqltype.ID, args []Argument[E], knownOnly bool) (demand BinaryDemand) {
 	for i, arg := range args {
 		if !knownOnly || arg.Usage.Type != nil {
-			demand |= binaryTypeDemand(BinaryArgumentID(name, i))
+			demand |= binaryTypeDemand(BinaryArgumentID(name, i, family))
 		}
 	}
 	return
 }
-func BinaryResultDemand(name string) BinaryDemand {
-	return binaryTypeDemand(BinaryResultID(name)) | binaryTypeDemand(sqltype.Text)
+func BinaryResultDemand(name string, family sqltype.ID) BinaryDemand {
+	return binaryTypeDemand(BinaryResultID(name, family)) | binaryTypeDemand(sqltype.Text)
 }
 
 type BinaryRoute uint8
@@ -233,6 +275,7 @@ const (
 
 type BinarySelection struct {
 	Route            BinaryRoute
+	Family           sqltype.ID
 	Resolution       Resolution
 	IntegerPositions bool
 }
@@ -251,9 +294,19 @@ type BinaryPreparation struct {
 }
 
 func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, args []Argument[E]) BinaryPreparation {
-	selected := BinaryPreparation{}
-	missing := BinaryPreparation{Selection: BinarySelection{Resolution: Missing}}
-	if defaultConsumer {
+	selected := BinaryPreparation{Selection: BinarySelection{Family: sqltype.Bytea}}
+	missing := BinaryPreparation{Selection: BinarySelection{Family: sqltype.Bytea, Resolution: Missing}}
+	bits := BinaryBitCandidate(name, variadic, args)
+	if bits && name != "bit_count" {
+		if !visible {
+			return missing
+		}
+		selected.Selection.Family = sqltype.Bit
+		selected.kind = binaryCoercionSelection
+		selected.Demand = BinaryArgumentDemand(name, sqltype.Bit, args, true)
+		return selected
+	}
+	if defaultConsumer && !bits {
 		textual := true
 		for _, arg := range args {
 			textual = textual && BinaryTextType(arg.Usage.Type)
@@ -304,7 +357,7 @@ func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, 
 			return missing
 		}
 		selected.kind = binaryCoercionSelection
-		selected.Demand = BinaryArgumentDemand(name, args, true)
+		selected.Demand = BinaryArgumentDemand(name, sqltype.Bytea, args, true)
 		return selected
 	}
 	switch name {
@@ -327,7 +380,7 @@ func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, 
 	}
 	textual := len(args) == arity
 	for i, arg := range args {
-		if BinaryArgumentID(name, i) == sqltype.Int4 {
+		if BinaryArgumentID(name, i, sqltype.Bytea) == sqltype.Int4 {
 			d := arg.Usage.Type
 			textual = textual && (d == nil || d.BaseType().ID() == sqltype.Int2 || d.BaseType().ID() == sqltype.Int4)
 		} else {
@@ -367,7 +420,7 @@ func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, 
 		return missing
 	}
 	selected.kind = binaryCoercionSelection
-	selected.Demand = BinaryArgumentDemand(name, args, true)
+	selected.Demand = BinaryArgumentDemand(name, sqltype.Bytea, args, true)
 	return selected
 }
 func binaryAccessArgumentID(name string, index, candidate int) sqltype.ID {
@@ -377,7 +430,7 @@ func binaryAccessArgumentID(name string, index, candidate int) sqltype.ID {
 		}
 		return sqltype.Int4
 	}
-	return BinaryArgumentID(name, index)
+	return BinaryArgumentID(name, index, sqltype.Bytea)
 }
 func ResolveBinary[E any](prepared BinaryPreparation, name string, args []Argument[E], types *BinaryTypes) BinarySelection {
 	selection := prepared.Selection
@@ -388,7 +441,7 @@ func ResolveBinary[E any](prepared BinaryPreparation, name string, args []Argume
 	case binaryCoercionSelection:
 		for i, arg := range args {
 			if arg.Usage.Type != nil {
-				if _, err := sqltype.PlanCoercion(arg.Usage, types.Usage(BinaryArgumentID(name, i)), sqltype.Implicit); err != nil {
+				if _, err := sqltype.PlanCoercion(arg.Usage, types.Usage(BinaryArgumentID(name, i, selection.Family)), sqltype.Implicit); err != nil {
 					selection.Resolution = Missing
 					return selection
 				}
@@ -430,27 +483,37 @@ func ResolveBinary[E any](prepared BinaryPreparation, name string, args []Argume
 			return selection
 		}
 		if candidates[1] {
-			selection.Route = BinaryBitsUnsupported
+			selection.Family = sqltype.Bit
+			if name != "bit_count" {
+				selection.Route = BinaryBitsUnsupported
+			}
 			return selection
 		}
 		selection.Resolution = Missing
 	}
 	return selection
 }
-func BinaryArgumentsViable[E any](name string, args []Argument[E], types *BinaryTypes) bool {
+func BinaryArgumentsViable[E any](name string, family sqltype.ID, args []Argument[E], types *BinaryTypes) bool {
 	valid := true
 	for i, arg := range args {
 		if arg.Usage.Type != nil {
-			_, err := sqltype.PlanCoercion(arg.Usage, types.Usage(BinaryArgumentID(name, i)), sqltype.Implicit)
+			_, err := sqltype.PlanCoercion(arg.Usage, types.Usage(BinaryArgumentID(name, i, family)), sqltype.Implicit)
 			valid = valid && err == nil
 		}
 	}
 	return valid
 }
-func CoerceBinaryArguments[E any, B ArgumentCoercer[E]](b B, name string, arguments []Argument[E], types *BinaryTypes) ([]E, error) {
+func CoerceBinaryArguments[E any, B ArgumentCoercer[E]](b B, name string, family sqltype.ID, arguments []Argument[E], types *BinaryTypes) ([]E, error) {
 	args := make([]E, len(arguments))
 	for i, argument := range arguments {
-		arg, err := b.CoerceArgument(argument, CoercionRequest{Intent: LikeArgument, Target: types.Usage(BinaryArgumentID(name, i))})
+		target := types.Usage(BinaryArgumentID(name, i, family))
+		intent := LikeArgument
+		if target.Type.ID() == sqltype.Bit {
+			// Function formals are unrestricted even when a same-descriptor
+			// stored source carries BIT(n); preserve width only on the child.
+			intent = SizeFormalArgument
+		}
+		arg, err := b.CoerceArgument(argument, CoercionRequest{Intent: intent, Target: target})
 		if err != nil {
 			return nil, err
 		}

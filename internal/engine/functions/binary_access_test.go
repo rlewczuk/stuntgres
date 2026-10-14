@@ -15,6 +15,8 @@ func TestBinaryAccessSignatures(t *testing.T) {
 		result     sqltype.ID
 	}{
 		{"bit_count", []sqltype.ID{sqltype.Bytea}, Resolved, BinaryCall, sqltype.Int8},
+		{"bit_count", []sqltype.ID{sqltype.Bit}, Resolved, BinaryCall, sqltype.Int8},
+		{"bit_count", []sqltype.ID{sqltype.VarBit}, Resolved, BinaryCall, sqltype.Int8},
 		{"bit_count", []sqltype.ID{0}, Ambiguous, BinaryCall, 0},
 		{"get_bit", []sqltype.ID{0, sqltype.Int4}, Resolved, BinaryBitsUnsupported, 0},
 		{"get_bit", []sqltype.ID{0, sqltype.Int2}, Ambiguous, BinaryCall, 0},
@@ -55,8 +57,8 @@ func TestBinaryAccessSignatures(t *testing.T) {
 		if selected.Resolution != tc.resolution || selected.Route != tc.route {
 			t.Fatal(tc, selected)
 		}
-		if tc.result != 0 && BinaryResultID(tc.name) != tc.result {
-			t.Fatal(tc, BinaryResultID(tc.name))
+		if tc.result != 0 && BinaryResultID(tc.name, selected.Family) != tc.result {
+			t.Fatal(tc, BinaryResultID(tc.name, selected.Family))
 		}
 	}
 }
