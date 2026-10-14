@@ -51,6 +51,12 @@ func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, 
 		stacks = make([]byte, 64<<10)
 		providerSymbol, workerSymbol = []byte(provider), []byte("activeProviderCancel")
 	}
+	var poll *time.Timer
+	defer func() {
+		if poll != nil {
+			poll.Stop()
+		}
+	}()
 	observed := false
 	for !observed && ctx.Err() == nil {
 		select {
@@ -93,7 +99,24 @@ func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, 
 				remaining = remaining[end+2:]
 			}
 			if !observed {
-				runtime.Gosched()
+				// Stack(all=true) stops the world. Wait after each unsuccessful
+				// complete sample so observation cannot monopolize worker progress.
+				// Start the delay here, not on a ticker with accumulated ticks.
+				if poll == nil {
+					poll = time.NewTimer(time.Millisecond)
+				} else {
+					poll.Reset(time.Millisecond)
+				}
+				select {
+				case <-ctx.Done():
+				case outcome := <-done:
+					joined = true
+					if outcome.Rows != nil {
+						outcome.Rows.Close()
+					}
+					t.Fatal("conversion completed before active admission", query, outcome.Err)
+				case <-poll.C:
+				}
 			}
 		}
 	}

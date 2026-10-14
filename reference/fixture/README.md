@@ -116,3 +116,39 @@ make check RUN='^TestReferencePartialIndexTypeGeneration$'
 ```
 
 Selected proof does not replace `make quickcheck` or post-merge `make finalcheck`.
+
+### Active provider cancellation observation
+
+`BinaryConversionActiveCancel` and `SleepActiveCancel` require real admission
+before cancellation, not merely a sufficiently large query or a precanceled
+context. Native admission requires the exact provider and fixture worker in the
+same complete live goroutine stack; creation metadata is not a live frame.
+PostgreSQL independently observes its actual query and optional wait event.
+The existing admission deadline remains15 seconds, and every exit cancels and
+joins the worker before held statements or physical connections close.
+
+Native complete-stack sampling stops the world. The first sample is immediate;
+after an unsuccessful complete sample, a reusable timer waits1 millisecond with
+context/completion-aware selection before sampling again. The delay begins
+after sampling, not on a ticker that can accumulate ticks. This bounds observer
+pressure without substituting fake admission, changing workloads or deadlines,
+or accepting a completed query as successful cancellation. Actual cancellation,
+no published cursor/result, stored-state checks and held-statement recovery
+remain required.
+
+Every direct or indirect consumer requires selected native and real proof:
+
+```sh
+make check RUN='^TestReference(OrderedSetAggregateActiveCancellation|BinaryConversionActiveCancellation|JSONArrayLengthCancellation|ConversionCancellation)$'
+make check REFERENCE=1 RUN='^TestReference(OrderedSetAggregateActiveCancellation|BinaryConversionActiveCancellation|JSONArrayLengthCancellation|ConversionCancellation)$'
+make check RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
+make check REFERENCE=1 RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
+make check RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
+make check REFERENCE=1 RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
+make check RACE=1 RUN='^TestReference(OrderedSetAggregateActiveCancellation|BinaryConversionActiveCancellation|JSONArrayLengthCancellation|ConversionCancellation)$'
+make check RACE=1 RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
+make check RACE=1 RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
+```
+
+Each invocation has an external900-second deadline. These selected proofs do
+not replace whole-project Docker-free quickcheck or post-merge finalcheck.
