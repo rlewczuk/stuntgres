@@ -56,6 +56,15 @@ func (d *Descriptor) ConcatOutput(ctx context.Context, v Value, env OutputEnviro
 		}
 		return env.Regtype.FormatRegtype(v.oid)
 	}
+	if d.id == Regrole {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if env.Regrole == nil {
+			return "", fmt.Errorf("missing regrole output snapshot")
+		}
+		return env.Regrole.FormatRegrole(v.oid)
+	}
 	if d.id == Regclass {
 		if err := ctx.Err(); err != nil {
 			return "", err

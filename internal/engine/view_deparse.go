@@ -845,7 +845,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
-		if !v.presentation.deparse && (usage.Type.IsArray() || usage.Type.IsDomain()) && usage.Type.ContainsRegclass() {
+		if !v.presentation.deparse && (usage.Type.IsArray() || usage.Type.IsDomain()) && (usage.Type.ContainsRegclass() || usage.Type.ContainsRegrole()) {
 			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
 				// The captured datum already supplies its exact owning typed cast.
 				// Rewrapping it would add another source cast on every replay.

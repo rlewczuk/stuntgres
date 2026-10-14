@@ -164,6 +164,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		output := c.Output
 		scope := c.liveScope()
 		output.Regclass, output.Regtype = scope, scope
+		output.Regrole = scope
 		output.Regproc = scope
 		cursor, err := call.plan.OpenStringTable(c.Context, values, c.Input, output)
 		if err != nil {

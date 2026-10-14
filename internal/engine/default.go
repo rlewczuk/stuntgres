@@ -413,6 +413,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	case transactionTimeExpression:
 		return n.sql()
 	case literalExpression:
+		if err := validateRegroleStoredLiteral(n.value); err != nil {
+			return "", err
+		}
 		if n.regclassRef != (ObjectRef{}) {
 			ref := n.regclassRef
 			target, ok := view.Descriptor(ref.Address)
@@ -511,7 +514,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err != nil || !plan.Equal(n.plan) {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
-		if r.commentSnapshot != nil && plan.RequiresCatalogOutput() {
+		if r.commentSnapshot != nil && (plan.RequiresCatalogOutput() || u.Type.ContainsRegrole() && plan.SessionDependent()) {
 			*r.commentSnapshot = true
 		}
 		child, err := r.sql(ctx, view, n.child)

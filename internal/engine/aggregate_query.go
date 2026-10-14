@@ -107,9 +107,10 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	}
 	tuple := make([]sqltype.Value, orderedWidth)
 	evaluation := state.evaluation(ctx)
-	output:=evaluation.Output
-	scope:=evaluation.liveScope()
-	output.Regclass,output.Regtype,output.Regproc=scope,scope,scope
+	output := evaluation.Output
+	scope := evaluation.liveScope()
+	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
+	output.Regrole = scope
 	newGroup := func(occurrence int) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return 0, err
@@ -136,10 +137,10 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		}
 		for i, call := range n.calls {
 			var err error
-			if provider,ok:=call.provider.(contextualAggregateProvider);ok {
-				group.states[i],err=provider.InitWithEnvironment(ctx,output)
+			if provider, ok := call.provider.(contextualAggregateProvider); ok {
+				group.states[i], err = provider.InitWithEnvironment(ctx, output)
 			} else {
-				group.states[i],err=call.provider.Init(ctx)
+				group.states[i], err = call.provider.Init(ctx)
 			}
 			if err != nil {
 				return 0, err

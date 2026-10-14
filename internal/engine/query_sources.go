@@ -180,6 +180,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 		scope.commentRoles = e.roleRead(scope.commentCatalog, e.operationRolesLocked(scope.op))
 	}
 	scope.output.ACLItem = scope
+	scope.output.Regrole = scope
 	if scope.deparsePath == nil {
 		auth, err := e.authorizationLocked(scope.op)
 		if err != nil {
@@ -189,8 +190,11 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 		scope.commentRoles = auth.roles
 		scope.deparseAuth = auth
 		scope.deparsePath, err = e.referencePath(auth)
-		return err
+		if err != nil {
+			return err
+		}
 	}
+	scope.input.Regrole = capturedRegroleInput{roles: scope.commentRoles}
 	return nil
 }
 

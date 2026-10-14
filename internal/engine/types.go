@@ -63,7 +63,7 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 		id = t.ID()
 	}
 	switch id {
-	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.DateRange:
+	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.DateRange, sqltype.Regrole:
 		return true
 	}
 	return false
@@ -343,7 +343,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
 	if jsonReturning && jsonReturningPseudoType(d) {
-		return sqltype.Usage{},sqlError("0A000","returning pseudo-types is not supported in SQL/JSON functions")
+		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 	}
 	if domainBase && (!d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Void || d.ContainsRegproc()) {
 		return sqltype.Usage{}, typeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))

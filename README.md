@@ -1095,6 +1095,27 @@ exported HOLD stores survive. See [prepared transactions](docs/TRANSACTIONS.md#p
 Feature smoke: `make check RUN='^TestReferencePreparedTransactionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePreparedTransactionFeatureSmoke$'`.
 
+Change note: `REGROLE` (OID4096, array4097) resolves role names through the
+existing immutable role catalog, folds unquoted identifiers and quotes output
+when required (including `quote_all_identifiers`). Exact numeric input accepts
+unknown unsigned OIDs; zero and `-` display `-`. Digit input uses PostgreSQL's
+OID scanner, including `010` →8 and invalid octal `08`. Role aliases do not add
+authentication, ACL operations, role rename or `pg_authid` projection.
+Only a non-NULL scalar REGROLE Const is prohibited in stored expressions:
+`0A000 constant of the type regrole cannot be used here`, without a position.
+Typed NULL, runtime TEXT→REGROLE, numeric coercion trees, column values and opaque
+REGROLE[] constants remain legal; wrapping a forbidden scalar in another cast,
+CASE or ARRAY constructor does not hide its child. Unknown symbolic input still
+fails resolution first. Held literals retain their analyzed OID until ordinary
+analysis invalidation, including `DISCARD PLANS`; held input parameters and
+runtime text casts use execution authority. Retained rows keep captured spelling.
+Native Dump writes live role names and unknown numeric bits, never CREATE ROLE.
+Provision referenced roles in a different Driver before Restore; symbolic data
+resolves destination identities. These are logical process-local APIs, not
+cluster-role export, binary protocol/native ABI, password/network authentication
+or disk durability. See [type contracts](docs/TYPES.md#catalog-valued-and-supporting-types)
+and [selected proof and public-program smoke](reference/type_resolution/README.md#regrole).
+
 Change note: `REGTYPE` (OID2206) and its array support PostgreSQL type-name
 input, unsigned OID casts, symbolic output and stored scalar/domain/array values.
 Lookup covers all 621 released/initialized type identities and real table/view

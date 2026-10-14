@@ -22,7 +22,11 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 		return err
 	}
 	aclOutput := capturedACLItemOutput{owner: e, roles: auth.roles}
+	roleOutput := capturedRegroleOutput{owner: e, roles: auth.roles, quoteAll: rows.output.QuoteAllIdentifiers}
 	for _, value := range rows.values {
+		if err := captureRegroleOutputValue(rows, roleOutput, value); err != nil {
+			return err
+		}
 		if err := captureACLItemOutputValue(rows, aclOutput, value); err != nil {
 			return err
 		}
@@ -32,6 +36,9 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 	}
 	for _, row := range rows.anonymous {
 		for _, value := range row {
+			if err := captureRegroleOutputValue(rows, roleOutput, value); err != nil {
+				return err
+			}
 			if err := captureACLItemOutputValue(rows, aclOutput, value); err != nil {
 				return err
 			}
@@ -48,6 +55,9 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 			}
 			row := rows.source.row(index)
 			for _, slot := range rows.slots {
+				if err := captureRegroleOutputValue(rows, roleOutput, row[slot]); err != nil {
+					return err
+				}
 				if err := captureACLItemOutputValue(rows, aclOutput, row[slot]); err != nil {
 					return err
 				}

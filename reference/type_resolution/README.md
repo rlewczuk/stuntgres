@@ -6,6 +6,52 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Regrole
+
+The untagged shared scenarios independently assert role-name folding/quoting,
+numeric OID boundaries (unknown IDs admitted), direct/fresh/held prepared input,
+captured spelling, metadata/raw payloads, exact English diagnostic fields and
+stored scalar Const restriction. Numeric conversion trees, runtime casts, typed
+NULL and opaque arrays are distinguished from prohibited scalar children.
+Native phases exercise real Dump/Reset/Restore, cross-Driver target-role remapping,
+retained metadata/cursors, failure/cancellation atomicity and actual emitted-dump
+replay on PostgreSQL18.0. Role provisioning is fixture setup, not an extension of
+authentication/ACL/role DDL scope.
+CHECK-grid native array-to-array equality failures and domain-constraint admission
+failures are independently asserted broader capability boundaries; PostgreSQL
+still verifies the admitted array/domain shapes and exact scalar-Const ban.
+DEFAULT/VIEW shapes exercise native numeric/runtime/opaque-array distinctions.
+Unknown-role Restore failures assert full independent diagnostics against the
+corresponding pinned SQL replay: ERROR/ERROR, exact42704 primary, character
+Position in the complete script, absent Context and all other optional fields.
+The actual-dump missing-role case identifies the first opaque array DEFAULT in
+`rr_recursive`; earlier runtime-text defaults do not resolve names at CREATE.
+
+Run each small set both without and with `REFERENCE=1`, serially, with an external
+900-second deadline:
+
+```sh
+make check RUN='^TestReferenceRegrole(Values|Parameters|Diagnostics|Metadata)$'
+make check RUN='^TestReferenceRegrole(Values|Parameters|Diagnostics|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceRegrole(StoredConstants|StoredShapes|PreparedIdentity)$'
+make check RUN='^TestReferenceRegrole(StoredConstants|StoredShapes|PreparedIdentity)$' REFERENCE=1
+make check RUN='^TestReferenceRegrole(AtomicityCancellation|NativeControls)$'
+make check RUN='^TestReferenceRegrole(AtomicityCancellation|NativeControls)$' REFERENCE=1
+make check RUN='^TestRegrole(Datum|Codec|StoredLiteral|CapturedAuthority)$'
+make check RUN='^TestReferenceRegrole(PreparedIdentity|AtomicityCancellation|NativeControls)$' RACE=1
+```
+
+Feature smoke also requires a real throwaway public API Go program, not tests
+alone. Run `go run /tmp/regrole-feature-smoke/main.go` from the worktree after
+materializing the session-provided source outside the repository. It independently
+checks direct/held prepared quoted and unknown numeric values, REGROLE metadata,
+full0A000 stored diagnostic, legal runtime-default data and NULL view, actual
+Dump/Reset/Restore, retained eager rows and identical redump. Expected exit0 and
+empty stderr; its observation lines report direct/prepared values, stored error,
+nonempty dump, retained/restored values and identical redump only after validation.
+Remove the temporary program after recording evidence; never commit its source.
+Selected proofs do not replace whole-project quickcheck or post-merge finalcheck.
+
 ### Transaction and command identifiers
 
 The shared XID definitions independently assert canonical unsigned input/output,

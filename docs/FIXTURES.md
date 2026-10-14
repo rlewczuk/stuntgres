@@ -167,6 +167,18 @@ Trusted INSERT permission elevation does not replace identity snapshots:
 defaults and CHECK expressions observe the actual private session's
 `current_user` and `session_user` from named owner directives, both during
 ordinary replay and final owner-remap validation.
+
+REGROLE row data uses symbolic live role names, recursively through arrays and
+domains, and decimal fallback for unknown OIDs (zero is `-`). Cross-Driver replay
+therefore resolves names to destination role identities, not source allocator
+IDs; roles must be provisioned separately. REGROLE constants are prohibited only
+as non-NULL scalar stored-expression leaves, not as row data or opaque array
+payloads. Dump never creates roles or adds role dependencies.
+Captured opaque REGROLE[] view literals retain their owning type annotation:
+repeated Dump/Restore does not accumulate redundant array casts.
+Regrole replay input failures retain the original full-script character Position;
+native controls add no synthetic Context or unrelated diagnostic fields.
+
 The shared object allocator skips live namespace, relation, view-rule, CHECK,
 NOT NULL and default identities imported by Restore. Replacement does not rewind
 the destination's nonreuse counter. Definition collisions with retained native

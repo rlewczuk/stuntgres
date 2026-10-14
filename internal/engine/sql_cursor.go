@@ -170,6 +170,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.output.Regclass, c.state.output.Regtype = nil, nil
 	c.state.output.Regproc = nil
+	c.state.output.Regrole = nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
 	if reader, ok := c.state.input.Regtype.(capturedRegtypeInput); ok {
 		reader.op, reader.authority = nil, c.authority

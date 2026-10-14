@@ -45,7 +45,7 @@ and reports `interface{}` ScanType where native exports strings.
 | Timestamp infinities | Fresh owned `[]byte` |
 | BYTEA | Fresh owned `[]byte` |
 | Executable arrays, composites, ranges and multiranges | Canonical `string` |
-| REGCLASS, REGTYPE | Captured symbolic `string` |
+| REGCLASS, REGTYPE, REGROLE | Captured symbolic `string` |
 | ACLITEM | Captured canonical `string` |
 
 Numeric I/O never roundtrips through binary float. FLOAT4 input uses its own
@@ -303,6 +303,29 @@ numbers and make no cross-catalog identity promise. Stored scalar REGCLASS
 references retain actual relation dependencies, independently of opaque array
 payloads or numeric input.
 
+REGROLE is unsigned role identity4096 with executable array4097. Input uses the
+existing role catalog and single-identifier folding/quoting; dotted input is
+invalid name syntax. Exact digits use OID input (including octal), bypass role
+existence; unknown symbolic names fail42704. Zero/`-` display `-`, live identities
+display identifier-quoted names, and unknown identities display unsigned decimal.
+Output honors `quote_all_identifiers` and is captured before returning native
+rows. Public REGROLE metadata has string ScanType; the pinned pq adapter uses
+byte payloads and interface{} ScanType with unavailable optional flags.
+
+Stored expressions reject only non-NULL exact scalar REGROLE Const leaves with
+0A000 `constant of the type regrole cannot be used here`, no Position. NULL,
+numeric coercion trees, runtime TEXT→REGROLE, ordinary row data and opaque array
+payloads are legal. Scalar children beneath outer casts, CASE, ARRAY constructors
+and domain coercions remain subject to the same check. Role values create no
+role dependency. Held literals retain analyzed identity through role recreation;
+ordinary full analysis invalidation (`DISCARD PLANS`) resolves again. Held input
+parameters and runtime conversion use current execution authority.
+This does not add general array-to-array equality or constrained domains:
+native CHECK expressions requiring array equality still fail42883, and domain
+CHECK/default declarations still hit their existing0A000 capability boundary.
+Those analysis errors precede the stored-Const dependency walk. The reference
+grid retains exact PostgreSQL outcomes independently from these native limits.
+
 Internal CHAR catalog output uses string transport, not BPCHAR semantics or a
 physical ABI. High-byte output is printable escaped text. Nonnull VOID result
 output is an empty string with VOID metadata, not a TEXT alias; VOID storage/input
@@ -372,14 +395,20 @@ result snapshots through atomic private staging. Invalid input, owner resolution
 cancellation or final publication failure leaves the live catalog unchanged.
 Canonical dump presentation is independent of session float precision; temporal
 and monetary settings are not serialized. Restore keeps live settings.
+REGROLE data serializes live symbolic names (including recursive array/domain
+leaves), zero and unknown numeric identities. Reset/Restore preserve existing
+cluster roles, never export/provision them. Provision destination roles before
+cross-Driver replay: live symbolic values resolve target IDs, while unknown
+numeric values only promise preserved bits. Illegal stored REGROLE constants,
+unknown names and reader/cancellation failures preserve the prior target state.
 
 These are process-local logical controls, not physical durability, PostgreSQL
 ABI, external `pg_dump` formats or a network server. Native transport assertions
 and pinned pq raw-codec assertions remain separate in the reference suite.
 Selected families include `TestReferenceName`, `TestReferenceUUID`,
 `TestReferenceJSON`, `TestReferenceJSONB`, `TestReferenceComposite`,
-`TestReferenceEnum`, `TestReferenceIntegerRange`, `TestReferenceNumericRange` and
-`TestReferenceRegclass`; run the relevant `make check RUN='...'` selector both
+`TestReferenceEnum`, `TestReferenceIntegerRange`, `TestReferenceNumericRange`,
+`TestReferenceRegclass` and `TestReferenceRegrole`; run the relevant `make check RUN='...'` selector both
 without Docker and with `REFERENCE=1`. See [testing](TESTING.md) for suite policy.
 
 ## UUID generation state

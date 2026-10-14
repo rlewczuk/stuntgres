@@ -29,6 +29,7 @@ type InputEnvironment struct {
 	TimezoneAbbreviations                     TimezoneAbbreviations
 	Regclass                                  RegclassResolver
 	Regtype                                   RegtypeResolver
+	Regrole                                   RegroleResolver
 	ACLItem                                   ACLItemResolver
 	NumericLocale, MonetaryLocale, TimeLocale Locale
 	// TypeDiagnosticName captures coherent catalog visibility for child input

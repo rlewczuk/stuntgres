@@ -273,6 +273,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.regtypeInput != nil {
 		scope.input.Regtype = b.regtypeInput
 	}
+	if b.regroleInput != nil {
+		scope.input.Regrole = b.regroleInput
+	}
 	if b.aclitemInput != nil {
 		scope.input.ACLItem = b.aclitemInput
 	}
@@ -294,6 +297,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.mu.Unlock()
 				return Result{}, err
 			}
+		}
+		if usage.Type.ContainsRegrole() && scope.input.Regrole == nil {
+			scope.input.Regrole = capturedRegroleInput{roles: auth.roles}
 		}
 		if usage.Type.ContainsACLItem() && scope.input.ACLItem == nil {
 			scope.input.ACLItem = e.captureACLItemInput(auth, op)

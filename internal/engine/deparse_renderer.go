@@ -189,6 +189,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if v.Type().ContainsRegtype() {
 		output.Regtype = catalogRegtypeOutput{view: r.view, path: r.path}
 	}
+	if v.Type().ContainsRegrole() && output.Regrole == nil {
+		output.Regrole = regroleContextFormatter(ctx)
+	}
 	if v.Type().ContainsACLItem() && output.ACLItem == nil {
 		output.ACLItem = aclItemContextFormatter(ctx)
 	}
@@ -248,6 +251,8 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		// Output above resolves the typed identity through the captured
 		// catalog/path, including reminted user types after Restore.
 		return quote(text) + "::regtype", nil
+	case sqltype.Regrole:
+		return quote(text) + "::regrole", nil
 	case sqltype.Timetz:
 		return datetimeZoneTimetzDeparse(ctx, v, typ, text, quote)
 	case sqltype.Text:

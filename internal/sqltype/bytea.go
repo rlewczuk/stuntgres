@@ -42,6 +42,7 @@ type OutputEnvironment struct {
 	Regclass            RegclassFormatter
 	Regtype             RegtypeFormatter
 	Regproc             RegprocFormatter
+	Regrole             RegroleFormatter
 	ACLItem             ACLItemFormatter
 	QuoteAllIdentifiers bool
 	ClientEncoding      string

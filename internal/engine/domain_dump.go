@@ -224,7 +224,7 @@ func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpre
 		}
 		literal := "NULL"
 		if !n.value.IsNull() {
-			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}, ACLItem: aclOutput})
+			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpRegtypeOutput{view: view}, Regrole: regroleContextFormatter(ctx), ACLItem: aclOutput})
 			if err != nil {
 				return "", err
 			}
@@ -238,6 +238,13 @@ func catalogLiteralWithACL(ctx context.Context, view CatalogRead, n literalExpre
 			return "", err
 		}
 		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS ACLITEM)", nil
+	}
+	if u.Type.ID() == sqltype.Regrole && !n.value.IsNull() {
+		text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regrole: regroleContextFormatter(ctx)})
+		if err != nil {
+			return "", err
+		}
+		return "CAST('" + strings.ReplaceAll(text, "'", "''") + "' AS REGROLE)", nil
 	}
 	if u.Type.ID() == sqltype.Regtype && !n.value.IsNull() {
 		id, err := n.value.TypeOID()

@@ -40,6 +40,7 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output := c.Output
 	output.Regclass = c.liveScope()
 	output.Regtype = c.liveScope()
+	output.Regrole = c.liveScope()
 	output.Regproc = c.liveScope()
 	return e.plan.Evaluate(c.Context, values, c.Input, output)
 }
