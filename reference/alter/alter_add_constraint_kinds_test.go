@@ -59,9 +59,7 @@ func TestReferenceAlterAddConstraintKinds(t *testing.T) {
 			run(fixture.Exec("INSERT INTO child VALUES(1,2),(NULL,9),(3,4)", 3))
 			run(fixture.Exec("ALTER TABLE child ADD CONSTRAINT implicit FOREIGN KEY(x,y) REFERENCES parent", 0))
 			run(fixture.Exec("ALTER TABLE child ADD CONSTRAINT reordered FOREIGN KEY(y,x) REFERENCES parent(b,a)", 0))
-			if b.PG {
-				run(fixture.Select("SELECT conname,conkey::text,confkey::text,confrelid='parent'::regclass,convalidated FROM pg_constraint WHERE conrelid='child'::regclass ORDER BY conname", []string{"conname", "conkey", "confkey", "?column?", "convalidated"}, []string{"NAME", "TEXT", "TEXT", "BOOL", "BOOL"}, [][]any{{"implicit", "{1,2}", "{1,2}", true, true}, {"reordered", "{2,1}", "{2,1}", true, true}}))
-			}
+			run(fixture.Select("SELECT conname,conkey::text,confkey::text,confrelid='parent'::regclass::oid,convalidated FROM pg_constraint WHERE conrelid='child'::regclass::oid ORDER BY conname", []string{"conname", "conkey", "confkey", "?column?", "convalidated"}, []string{"NAME", "TEXT", "TEXT", "BOOL", "BOOL"}, [][]any{{"implicit", "{1,2}", "{1,2}", true, true}, {"reordered", "{2,1}", "{2,1}", true, true}}))
 			run(fixture.Exec("CREATE TABLE full_child(x BIGINT,y INT)", 0))
 			run(fixture.Exec("INSERT INTO full_child VALUES(1,2),(NULL,NULL)", 2))
 			run(fixture.Exec("ALTER TABLE full_child ADD CONSTRAINT full_fk FOREIGN KEY(x,y) REFERENCES parent(a,b) MATCH FULL", 0))

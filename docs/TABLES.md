@@ -79,6 +79,42 @@ Current SELECT authority controls key disclosure, including for owners with revo
 SELECT; ownership is not a disclosure bypass. Native deferrable UNIQUE/PRIMARY KEY
 and temporal-key facilities remain compatibility limits.
 
+### Constraint catalog projection
+
+`pg_catalog.pg_constraint` has the released PostgreSQL 18 28-column order and
+types. The first twenty columns are nonnullable; the eight vector/tree columns
+are nullable by applicability. Captures enumerate actual relation-owned n/c/u/p/f/x
+definitions from the caller's coherent catalog generation, including its private
+transaction overlay. There is no independent constraint cache or undo registry.
+Retained eager rows own immutable vectors and trees across rename, rollback,
+drop and native Reset/Restore. Fresh or held reexecution observes current metadata.
+
+Constraint OIDs are distinct from table and backing-index identities. Namespace
+follows the owning relation. Standalone indexes produce no synthetic rows.
+Key vectors preserve declaration order and stable sparse attributes; INCLUDE
+payloads are omitted, CHECK variables are deduplicated in first-encounter order,
+and exclusion expression keys use zero. Absent vectors are typed SQL NULL, not
+empty arrays; populated vectors use one dimension with lower bound one.
+Foreign-key metadata uses the actual referenced supporting index and its selected
+comparison family, with pf/pp/ff operators in declared pair order, including
+cross-width and normalized domain/varchar/enum inputs. Action/match codes and
+explicit delete subsets retain their declarations.
+Exclusion operator signatures are captured from the admitted index class input,
+not guessed from the declared column type: CIDR uses INET, admitted OID aliases
+use OID, VARCHAR uses TEXT, and enums use polymorphic anyenum. Domains retain
+their base class's canonical identity. This metadata does not retag stored
+values or change their existing equality, class admission, or diagnostics.
+
+Validity reflects actual historical-validation state; admitted definitions remain
+enforced. Deferral flags describe the exclusion declaration, not current
+SET CONSTRAINTS mode. Inheritance and partition flags follow actual provenance;
+nonindexed inherited constraints need not have a parent constraint OID.
+Metadata does not add domain constraints, constraint triggers, temporal keys,
+NOT ENFORCED declarations, or unsupported deferrable UNIQUE/PRIMARY KEY owners.
+CHECK conbin is a typed captured native structural tree, not a replica of
+PostgreSQL's internal nodeToString representation; use semantic deparse functions.
+
+
 ### Foreign-key final-image ownership
 
 FK definitions retain stable child/parent attributes and the actual supporting-index

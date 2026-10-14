@@ -27,6 +27,22 @@ func (p IndexForeignKeyComparison) InputTypes() (*Descriptor, *Descriptor) {
 	return p.operatorParent, p.operatorChild
 }
 
+// EqualityInputs exposes the selected family's pf, pp and ff signatures in
+// declaration-pair order. Enum operators use the released polymorphic identity.
+func (p IndexForeignKeyComparison) EqualityInputs() ([3][2]ID, error) {
+	if p.operatorParent == nil || p.operatorChild == nil {
+		return [3][2]ID{}, fmt.Errorf("missing foreign-key operator inputs")
+	}
+	parent, child := p.operatorParent.ID(), p.operatorChild.ID()
+	if p.operatorParent.IsEnum() {
+		if !p.operatorChild.IsEnum() {
+			return [3][2]ID{}, fmt.Errorf("invalid enum foreign-key operator inputs")
+		}
+		parent, child = 3500, 3500
+	}
+	return [3][2]ID{{parent, child}, {parent, parent}, {child, child}}, nil
+}
+
 func BindIndexForeignKey(parent, child Usage, class IndexClass, lookup func(ID) (*Descriptor, bool)) (IndexForeignKeyComparison, error) {
 	if _, err := BindIndexOrdering(parent, class); err != nil {
 		return IndexForeignKeyComparison{}, err

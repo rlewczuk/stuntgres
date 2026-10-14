@@ -13,6 +13,27 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Constraint catalog metadata — change note
+
+`pg_catalog.pg_constraint` exposes the PostgreSQL 18 28-column catalog shape for
+actually created NOT NULL, CHECK, UNIQUE, PRIMARY KEY, FOREIGN KEY and admitted
+exclusion constraints. Identity, namespace, validity, declaration deferral,
+inheritance provenance, stable key attributes and actual supporting-index/operator
+relationships follow their feature owners' transactional catalog generation.
+Rename preserves identity; drop and rollback reflect actual owner publication.
+Standalone indexes do not invent constraint rows. Unsupported domain/trigger,
+temporal and unenforced declarations are not enabled by metadata discovery.
+Exclusion metadata retains canonical class-selected operator identities,
+including CIDR/INET, admitted OID aliases, VARCHAR and enums, without changing
+their original equality or storage semantics.
+CHECK `conbin` retains a typed native structural tree, not PostgreSQL internal
+nodeToString bytes; deparsed semantics remain available.
+See [catalog lifecycle](docs/TABLES.md#constraint-catalog-projection) and
+[selected proof](reference/catalogs/README.md#constraint-metadata-contract).
+Feature smoke: `make check RUN='^TestReferencePGConstraintFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGConstraintFeatureSmoke$'`.
+
+
 Change note: supported read-only SELECT scans now execute concurrently in-process
 over one immutable statement snapshot. `max_parallel_workers_per_gather` defaults
 to 2 (range 0..1024); zero disables dispatch, and the setting is a ceiling rather
@@ -1926,8 +1947,8 @@ Feature smoke: `make check RUN='^TestCheckSmoke$'`.
 Constraint and stored-expression introspection supports all four PostgreSQL
 signatures: `pg_get_constraintdef(oid [, boolean])` and
 `pg_get_expr(pg_node_tree, oid [, boolean])`, returning TEXT or NULL.
-Minimal `pg_catalog.pg_constraint` and `pg_catalog.pg_attrdef` projections expose
-real definition identities and immutable structural trees. Compact/pretty
+The full `pg_catalog.pg_constraint` projection and bounded `pg_catalog.pg_attrdef`
+projection expose real definition identities and immutable structural trees. Compact/pretty
 decompilation traverses bound definitions without evaluating them, uses current
 column names, and resolves Vars against the supplied relation's stable attributes.
 Both modes retain nonassociative grouping, current search-path provider visibility,

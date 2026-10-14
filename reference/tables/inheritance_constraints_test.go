@@ -27,8 +27,8 @@ func TestReferenceInheritanceConstraints(t *testing.T) {
 		s.run(want)
 		s.values("SELECT c.oid<>p.oid AS fresh FROM pg_constraint c JOIN pg_constraint p ON p.conname=c.conname JOIN pg_class ct ON ct.oid=c.conrelid JOIN pg_class pt ON pt.oid=p.conrelid WHERE ct.relname='c' AND pt.relname='p' ORDER BY c.conname", []string{"fresh"}, []string{"BOOL"}, [][]any{{true}, {true}})
 		s.fail("ALTER TABLE c ALTER a DROP NOT NULL", fixture.Diagnostic{Code: "42P16", Message: `cannot drop inherited constraint "first_nn" of relation "c"`})
+		s.values("SELECT conname,conislocal,coninhcount FROM pg_constraint WHERE conrelid='c'::regclass::oid ORDER BY conname", []string{"conname", "conislocal", "coninhcount"}, []string{"NAME", "BOOL", "INT2"}, [][]any{{"ck", false, int64(2)}, {"first_nn", false, int64(2)}})
 		if s.b.PG {
-			s.values("SELECT conname,conislocal,coninhcount FROM pg_constraint WHERE conrelid='c'::regclass ORDER BY conname", []string{"conname", "conislocal", "coninhcount"}, []string{"NAME", "BOOL", "INT2"}, [][]any{{"ck", false, int64(2)}, {"first_nn", false, int64(2)}})
 			s.exec("CREATE TABLE nn_noinherit(a INT NOT NULL NO INHERIT)", 0)
 			s.exec("CREATE TABLE nn_nullable() INHERITS(nn_noinherit)", 0)
 			s.exec("INSERT INTO nn_nullable VALUES(NULL)", 1)
@@ -54,9 +54,7 @@ func TestReferenceInheritanceLocalConstraints(t *testing.T) {
 		s.exec("CREATE TABLE collision_parent(a INT,CONSTRAINT collision_a_check CHECK(a>0))", 0)
 		s.exec("CREATE TABLE collision(CHECK(a>0)) INHERITS(collision_parent)", 0)
 		s.constraints("collision", [][]any{{"collision_a_check", "c"}, {"collision_a_check1", "c"}})
-		if s.b.PG {
-			s.values("SELECT conname,conislocal,coninhcount FROM pg_constraint WHERE conrelid='named'::regclass ORDER BY conname", []string{"conname", "conislocal", "coninhcount"}, []string{"NAME", "BOOL", "INT2"}, [][]any{{"ck", true, int64(1)}, {"local_nn", true, int64(1)}})
-		}
+		s.values("SELECT conname,conislocal,coninhcount FROM pg_constraint WHERE conrelid='named'::regclass::oid ORDER BY conname", []string{"conname", "conislocal", "coninhcount"}, []string{"NAME", "BOOL", "INT2"}, [][]any{{"ck", true, int64(1)}, {"local_nn", true, int64(1)}})
 		for _, name := range []string{"named", "unnamed", "distinct_checks", "collision"} {
 			s.exec("INSERT INTO "+name+" VALUES(5)", 1)
 			s.values("SELECT * FROM "+name, []string{"a"}, []string{"INT4"}, [][]any{{int64(5)}})

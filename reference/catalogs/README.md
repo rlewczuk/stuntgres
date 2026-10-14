@@ -940,3 +940,80 @@ ownership/cancellation/generation retention, without issuing SQL. Selective
 runs and smoke do not replace ordinary quickcheck or the post-merge finalcheck
 under its single1800-second deadline.
 
+
+### Constraint metadata contract
+
+The `TestReferencePGConstraint` scenarios specify the released 28-column
+`pg_constraint` shape independently, including actual n/c/p/u/f/x definitions,
+stable sparse keys, CHECK encounter order, FK operator and action vectors,
+partition provenance, identity-preserving lifecycle changes, transactional
+visibility, logical native controls, and complete SQL diagnostics.
+Generated object identities are checked relationally, not against PostgreSQL's
+allocator. CHECK `conbin` is a typed captured expression: its internal tree bytes
+are backend-specific; presence and deparsed semantics remain asserted.
+The adjacent `pg_attribute` scan is an explicit PostgreSQL-only validation phase;
+native exact column ordinals, origins, types and nullability are independently
+covered by `TestPGConstraintShapeAndOwnership`, while all 28 driver fields remain
+shared. Operator signatures and exact builtin identities use the existing shared
+`regoperator` scalar API, not an unavailable native `pg_operator` scan. Namespace
+movement uses a separately named destination relation's `pg_class.relnamespace`,
+with nonzero/distinct-from-public identity and SAME-held constraint reexecution;
+it does not depend on native `pg_namespace` or regnamespace implementation.
+
+Run these unfiltered selected definitions in both modes with an external
+900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGConstraint(Shape|Kinds|ForeignKeys)$'
+make check RUN='^TestReferencePGConstraint(Shape|Kinds|ForeignKeys)$'
+make check REFERENCE=1 RUN='^TestReferencePGConstraint(Provenance|Lifecycle|Transactions)$'
+make check RUN='^TestReferencePGConstraint(Provenance|Lifecycle|Transactions)$'
+make check REFERENCE=1 RUN='^TestReferencePGConstraint(Controls|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferencePGConstraint(Controls|Diagnostics|FeatureSmoke)$'
+```
+
+`TestReferencePGConstraintExclusionSignatures` independently specifies canonical
+exclusion equality identities: CIDR/INET and CIDR domains use INET operator1201;
+OID and every admitted OID alias (including alias domains) use OID operator607;
+VARCHAR uses TEXT operator98 and enum uses anyenum operator3516. Direct,
+fresh-prepared and SAME-held reads assert exact key/operator vectors and real backing identities. A retained reader
+prepared before each exclusion is created must still read unrelated CHECK
+metadata afterward; a valid exclusion cannot poison catalog-wide discovery.
+The complete scenario is unfiltered; run both modes:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGConstraintExclusionSignatures$'
+make check RUN='^TestReferencePGConstraintExclusionSignatures$'
+```
+
+
+Feature smoke: `make check RUN='^TestReferencePGConstraintFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferencePGConstraintFeatureSmoke$'`.
+It creates all six admitted kinds, asserts the exact empty star description,
+CHECK keys and semantics, actual FK supporting-index/operator relationships,
+held-reader rename freshness, and rollback of actual ADD/DROP operations.
+Component proof and selected race coverage exercise catalog-owned descriptors,
+actual projection/capture/publication, and comparison-family metadata directly:
+
+```sh
+make check RUN='^TestPGConstraint(ShapeAndOwnership|Projection|Capture|Publication|OperatorMetadata|ExclusionMetadata)$'
+make check RACE=1 RUN='^TestPGConstraint(Capture|Publication)$'
+```
+
+Promoted owner assertions and retained lifecycle/provenance coverage require
+both selected modes as well:
+
+```sh
+make check RUN='^TestReferenceAlterAddConstraint(Kinds|ExistingData|Diagnostics|NotValid|Controls|Provenance|Transactions|PrimaryPrerequisite|SuccessorWitness|ValidityAttributes|FreshLikeValidity)$'
+make check REFERENCE=1 RUN='^TestReferenceAlterAddConstraint(Kinds|ExistingData|Diagnostics|NotValid|Controls|Provenance|Transactions|PrimaryPrerequisite|SuccessorWitness|ValidityAttributes|FreshLikeValidity)$'
+make check RUN='^TestReferenceInheritance(Constraints|LocalConstraints)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritance(Constraints|LocalConstraints)$'
+make check RUN='^TestReferenceConstraintRename(Transactions|DeferredExclusion)$'
+make check REFERENCE=1 RUN='^TestReferenceConstraintRename(Transactions|DeferredExclusion)$'
+make check RUN='^TestReferencePartitionConstraints(NonuniqueCatalog|IncompleteReuse)$'
+make check REFERENCE=1 RUN='^TestReferencePartitionConstraints(NonuniqueCatalog|IncompleteReuse)$'
+```
+
+Selected proof does not replace whole-project Docker-free `make quickcheck`
+or the root-owned post-integration finalcheck.
+

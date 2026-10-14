@@ -258,9 +258,7 @@ func TestReferenceAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 							if validOID != oid || definition != "NOT NULL a" {
 								t.Fatal("separate validating SET failed to retain/promote original NN", validOID, definition)
 							}
-							if b.PG {
-								run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE oid=$1", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}, oid))
-							}
+							run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE oid=$1", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}, oid))
 							step = fixture.Exec("ALTER TABLE t ADD CONSTRAINT pk PRIMARY KEY(a)", 0)
 							if prepared {
 								step = fixture.Prepared(step)

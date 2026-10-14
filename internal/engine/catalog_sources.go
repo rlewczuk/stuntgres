@@ -123,7 +123,7 @@ func (e *Engine) initializeCatalogSources() error {
 		{2606, "pg_constraint", []struct {
 			name string
 			typ  sqltype.ID
-		}{{"oid", sqltype.Oid}, {"conname", sqltype.Name}, {"contype", sqltype.Char}, {"conrelid", sqltype.Oid}, {"conbin", sqltype.PgNodeTree}, {"conindid", sqltype.Oid}, {"conparentid", sqltype.Oid}, {"conislocal", sqltype.Bool}, {"coninhcount", sqltype.Int2}}},
+		}{{"oid", sqltype.Oid}, {"conname", sqltype.Name}, {"connamespace", sqltype.Oid}, {"contype", sqltype.Char}, {"condeferrable", sqltype.Bool}, {"condeferred", sqltype.Bool}, {"conenforced", sqltype.Bool}, {"convalidated", sqltype.Bool}, {"conrelid", sqltype.Oid}, {"contypid", sqltype.Oid}, {"conindid", sqltype.Oid}, {"conparentid", sqltype.Oid}, {"confrelid", sqltype.Oid}, {"confupdtype", sqltype.Char}, {"confdeltype", sqltype.Char}, {"confmatchtype", sqltype.Char}, {"conislocal", sqltype.Bool}, {"coninhcount", sqltype.Int2}, {"connoinherit", sqltype.Bool}, {"conperiod", sqltype.Bool}, {"conkey", sqltype.ID(1005)}, {"confkey", sqltype.ID(1005)}, {"conpfeqop", sqltype.ID(1028)}, {"conppeqop", sqltype.ID(1028)}, {"conffeqop", sqltype.ID(1028)}, {"confdelsetcols", sqltype.ID(1005)}, {"conexclop", sqltype.ID(1028)}, {"conbin", sqltype.PgNodeTree}}},
 		{2604, "pg_attrdef", []struct {
 			name string
 			typ  sqltype.ID
@@ -204,7 +204,10 @@ func (e *Engine) initializeCatalogSources() error {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
-			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 3501 || spec.oid == 2610 || spec.oid == 2606 && i >= 5 {
+			if spec.oid == 2606 {
+				d.columns[i].Nullable = i >= 20
+			}
+			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 3501 || spec.oid == 2610 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -289,6 +292,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	if source.address.ObjectID == 3501 {
 		return capturePGEnum(ctx, catalog, ref, source)
 	}
+	if source.address.ObjectID == 2606 {
+		return capturePGConstraint(ctx, catalog, ref, source)
+	}
 	if source.address.ObjectID == 2224 {
 		return capturePGSequence(ctx, catalog.state, nil, ref, source)
 	}
@@ -334,37 +340,6 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			return nil, err
 		}
 		switch source.address.ObjectID {
-		case 2606:
-			for _, definition := range relation.notNullConstraints {
-				local, count := nonuniqueConstraintProvenance(catalog, relation, definition.Name, definition.Attribute, false)
-				local = local || definition.partitionLocal
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "n"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, 0), oid(6, 0), boolean(7, local), integer(8, count)})
-			}
-			for _, definition := range relation.checkConstraints {
-				tree, err := catalogTree(source.columns[4].Usage.Type, definition.expression)
-				if err != nil {
-					return nil, err
-				}
-				local, count := nonuniqueConstraintProvenance(catalog, relation, definition.Name, 0, true)
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "c"), oid(3, uint32(relation.address.ObjectID)), tree, oid(5, 0), oid(6, 0), boolean(7, local), integer(8, count)})
-			}
-			for _, definition := range relation.uniqueConstraints {
-				kind := "u"
-				if definition.Primary {
-					kind = "p"
-				}
-				count := int64(0)
-				if definition.Parent != 0 {
-					count = 1
-				}
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, kind), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, uint32(definition.Index.ObjectID)), oid(6, uint32(definition.Parent)), boolean(7, definition.IsLocal), integer(8, count)})
-			}
-			for _, definition := range relation.exclusionConstraints {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "x"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, uint32(definition.Index.ObjectID)), oid(6, 0), boolean(7, true), integer(8, 0)})
-			}
-			for _, definition := range relation.foreignKeys {
-				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "f"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type), oid(5, uint32(definition.Index.ObjectID)), oid(6, 0), boolean(7, true), integer(8, 0)})
-			}
 		case 2610:
 			if definition := relation.sqlIndex; definition != nil {
 				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.address.ObjectID)), oid(1, uint32(definition.parent.ObjectID)), boolean(2, definition.unique), boolean(3, definition.constraint != nil && definition.constraint.Primary), boolean(4, definition.valid), boolean(5, definition.ready), boolean(6, definition.live), boolean(7, definition.nullsNotDistinct)})

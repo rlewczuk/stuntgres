@@ -100,9 +100,7 @@ func TestReferenceAlterAddConstraintProvenance(t *testing.T) {
 				step.Prepared = prepared
 				run(step)
 				run(fixture.Select("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='t'::regclass::oid AND conname='fk'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"FOREIGN KEY (a) REFERENCES p(id)"}}))
-				if b.PG {
-					run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='t'::regclass::oid AND conname='fk'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}))
-				}
+				run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='t'::regclass::oid AND conname='fk'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}))
 				run(fixture.Exec("COMMIT", 0))
 				run(fixture.ErrorDiagnostic("INSERT INTO t VALUES(10,2)", addConstraintFK("t", "fk", "a", "10", "p")))
 				provenanceRows(t, p, b, c, "INT4", "INT4", [][]any{{int64(9), int64(1)}})

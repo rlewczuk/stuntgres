@@ -96,9 +96,7 @@ func TestReferenceAlterAddConstraintDiagnostics(t *testing.T) {
 			for _, prepared := range []bool{false, true} {
 				addConstraintError(t, p, c, "ALTER TABLE t ADD CONSTRAINT occupied NOT NULL b NOT VALID", d, prepared, "execute")
 			}
-			if b.PG {
-				run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='t'::regclass AND conname='original'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}))
-			}
+			run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='t'::regclass::oid AND conname='original'", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}))
 		})
 	})
 	t.Run("set_invalid_nn_validation", func(t *testing.T) {

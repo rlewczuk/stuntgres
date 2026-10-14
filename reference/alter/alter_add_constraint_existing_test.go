@@ -87,9 +87,7 @@ func TestReferenceAlterAddConstraintExistingData(t *testing.T) {
 					if kind.kind == "u" || kind.kind == "p" {
 						run(fixture.Exec("ALTER TABLE t ADD CONSTRAINT stable_pair UNIQUE(stable,a)", 0))
 						run(fixture.Select("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='t'::regclass::oid AND conname='stable_pair'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"UNIQUE (stable, a)"}}))
-						if b.PG {
-							run(fixture.Select("SELECT conkey::text FROM pg_constraint WHERE conrelid='t'::regclass AND conname='stable_pair'", []string{"conkey"}, []string{"TEXT"}, [][]any{{"{4,1}"}}))
-						}
+						run(fixture.Select("SELECT conkey::text FROM pg_constraint WHERE conrelid='t'::regclass::oid AND conname='stable_pair'", []string{"conkey"}, []string{"TEXT"}, [][]any{{"{4,1}"}}))
 						run(fixture.ErrorDiagnostic("INSERT INTO t(a,note,stable) VALUES(4,'pair',7),(4,'pair2',7)", fixture.UniqueReferenceDuplicate("t", map[bool]string{true: "pk", false: "uq"}[kind.kind == "p"], "Key (a)=(4) already exists.")))
 					}
 				})

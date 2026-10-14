@@ -178,6 +178,20 @@ generated options. Primary-key creation retains deferrability and temporal-key
 exclusions; ordinary key-list attachment through table alteration is not general
 primary-key creation. Mixed default-setting/removal action lists remain excluded.
 
+Read-only `pg_catalog.pg_constraint` discovery uses PostgreSQL 18's complete
+28-column shape for actual supported table constraint owners (n/c/u/p/f/x).
+Metadata includes real relation/namespace/index identities, validity, declaration
+deferral, provenance and ordered key/operator/action vectors; inapplicable
+vectors/tree values are SQL NULL. Metadata reads do not filter by table SELECT
+privilege, and TEMP catalog discovery is distinct from session-scoped unqualified
+relation resolution. Domain constraints, constraint triggers, temporal and
+NOT ENFORCED definitions are not fabricated or admitted by this projection.
+CHECK `conbin` is honest native structural PG_NODE_TREE data rather than
+PostgreSQL nodeToString bytes; compare deparsed semantics, not internal bytes.
+Catalog mutation and row locking remain unsupported through existing native
+readonly-catalog boundaries.
+
+
 ## COPY streams
 
 COPY requires the [pinned native stream helpers](DRIVER.md#pinned-copy-text-streams--change-note),

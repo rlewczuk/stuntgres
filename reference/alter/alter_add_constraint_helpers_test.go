@@ -99,9 +99,7 @@ func addConstraintInvalid(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 	if oid <= 0 || got != definition {
 		t.Fatalf("constraint %s identity/definition: %d %q, want %q", name, oid, got, definition)
 	}
-	if b.PG {
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT convalidated FROM pg_constraint WHERE oid=$1", []string{"convalidated"}, []string{"BOOL"}, [][]any{{false}}, oid))
-	}
+	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT convalidated FROM pg_constraint WHERE oid=$1", []string{"convalidated"}, []string{"BOOL"}, [][]any{{false}}, oid))
 	return oid
 }
 

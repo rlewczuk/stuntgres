@@ -11,8 +11,20 @@ import (
 type ExclusionOperator struct {
 	Name        string
 	Left, Right ID
-	comparison  Comparison
-	usage       Usage
+	// Canonical inputs come from the admitted index class, independently of
+	// declaration/diagnostic types and the original stored-value comparison.
+	equalityInputs [2]ID
+	comparison     Comparison
+	usage          Usage
+}
+
+// EqualityInputs identifies the actual canonical equality signature selected
+// by the admitted class. It does not retag values or alter comparison authority.
+func (p ExclusionOperator) EqualityInputs() ([2]ID, error) {
+	if p.Name != "=" || p.equalityInputs[0] == 0 || p.equalityInputs[1] == 0 {
+		return [2]ID{}, fmt.Errorf("missing exclusion operator inputs")
+	}
+	return p.equalityInputs, nil
 }
 
 func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOperator, error) {
@@ -94,7 +106,14 @@ func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOpe
 	if err != nil {
 		return ExclusionOperator{}, err
 	}
-	return ExclusionOperator{Name: name, Left: id, Right: id, comparison: comparison, usage: u}, nil
+	input := class.input
+	if class.enum {
+		input = 3500 // Released polymorphic anyenum operator input.
+	}
+	if input == 0 {
+		return ExclusionOperator{}, fmt.Errorf("missing exclusion class input")
+	}
+	return ExclusionOperator{Name: name, Left: id, Right: id, equalityInputs: [2]ID{input, input}, comparison: comparison, usage: u}, nil
 }
 
 // MatchesUsage prevents a captured comparison from crossing descriptor generations.

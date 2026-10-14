@@ -112,9 +112,7 @@ func TestReferenceAlterAddConstraintFreshLikeValidity(t *testing.T) {
 				if newNN <= 0 || newCK <= 0 || newNN == nn || newCK == ck {
 					t.Fatal("LIKE reused source logical identities")
 				}
-				if b.PG {
-					run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='fresh'::regclass::oid ORDER BY contype", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}, {true}}))
-				}
+				run(fixture.Select("SELECT convalidated FROM pg_constraint WHERE conrelid='fresh'::regclass::oid ORDER BY contype", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}, {true}}))
 				held := addConstraintHeld(t, p, b, c, "INSERT INTO fresh VALUES($1,$2)")
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.ErrorDiagnostic(held.SQL, fixture.PrimaryKeyReferenceNull("fresh", "a", "null, bad"), nil, "bad"))
 				bad := fixture.ControlsReferenceDiagnostic("23514", `new row for relation "fresh" violates check constraint "ck"`)
