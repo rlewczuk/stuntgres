@@ -339,3 +339,65 @@ is supplied in the OMP session as `local://numrange-smoke.go`: materialize it
 temporarily as `.numrange-feature-smoke/main.go`, run
 `timeout 60s go run ./.numrange-feature-smoke`, record observations and remove
 the materialized source. Success is quiet exit0; failure reports an actual mismatch.
+
+### DATERANGE contract and selected proof
+
+Untagged `TestReferenceDateRange` definitions independently assert civil-day
+canonicalization, finite DATE extrema/BC/leap boundaries, explicit infinity
+versus omission/empty/NULL, input and held binds, raw string/byte transport and
+metadata lifetime, complete diagnostics/phases and statement atomicity.
+DateStyle-sensitive input/output and retained contextual literal capture reuse
+the DATE environment. Relative endpoint expectations derive day D from scalar
+DATE in the same transaction, without a second wall-clock observation.
+Ordinary/nested domains, column NOT NULL and named-composite fields retain the
+same datum. Native control phases perform actual same/fresh Driver cycles,
+deterministic redumps, failed staged replacement and populated-reader shape
+replacement, then replay the actual emitted SQL on pinned PostgreSQL.
+PostgreSQL has no native Reset/Dump/Restore API; those phases are explicit.
+No discovery filters remain. No timestamp range, datemultirange, SQL comparison,
+range array or new aggregate admission is implied.
+Computed composite-field projections independently assert unknown native
+nullability (false/false), not their member declarations; native ANY_VALUE
+remains known nullable. String-literal modifiers retain the existing native
+grammar rejection at the string token (Prepare for prepared execution), while
+PostgreSQL rejects unsupported daterange modifiers at execution with the exact
+type-name diagnostic. Supported numeric/raw modifier forms retain descriptor
+rejection before conversion. The declaration resolver retains qualified type-name
+spelling for structured no-modifier diagnostics only when the declaration has an
+explicit schema. Unqualified aliases and lowered declarations retain descriptor
+canonical diagnostic names, including SERIAL's integer/bigint primitives. The
+descriptor remains the support authority. This adds no modifier grammar.
+
+Each command has an external900-second deadline; run each group in both modes:
+
+```sh
+make check RUN='^TestReferenceDateRange(Values|CanonicalBoundaries|Infinity)$' REFERENCE=1
+make check RUN='^TestReferenceDateRange(Values|CanonicalBoundaries|Infinity)$'
+make check RUN='^TestReferenceDateRange(Inputs|Binds|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceDateRange(Inputs|Binds|Metadata)$'
+make check RUN='^TestReferenceDateRange(Diagnostics|Modifiers|InputBoundaries)$' REFERENCE=1
+make check RUN='^TestReferenceDateRange(Diagnostics|Modifiers|InputBoundaries)$'
+make check RUN='^TestReferenceDateRange(Environments|RelativeCapture)$' REFERENCE=1
+make check RUN='^TestReferenceDateRange(Environments|RelativeCapture)$'
+make check RUN='^TestReferenceDateRange(Controls|DomainControls|Composition)$' REFERENCE=1
+make check RUN='^TestReferenceDateRange(Controls|DomainControls|Composition)$'
+make check RUN='^TestReferenceDateRangeFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceDateRangeFeatureSmoke$'
+make check RUN='^TestDateRange'
+make check RUN='^TestAnyValueProviderDatums$'
+```
+
+Shared range adapter/codec signatures also require the selected integer,
+numeric-range and multirange value/bind/metadata/domain-control definitions in
+both modes. Binary transport proof belongs to `reference/dml` and reuses its
+existing stream fixture (`^TestReferenceDateRangeBinary$`, both modes).
+Reserve quickcheck for the whole-project Docker-free gate, not selected proof.
+
+The additive standalone public-API smoke is `local://daterange-smoke.go`, outside
+the parent deliverables. Root materializes it in an owned temporary .go file
+outside the module, then runs from the worktree:
+`go run /tmp/PG18-TYPE-RANGE-DATE-daterange-smoke.go` (or its allocated absolute
+path), with an external900-second deadline. Expected exit0 and stdout:
+`daterange smoke: canonical days, infinity/unbounded, NULL, metadata, atomic diagnostics, nested domains, Dump/Reset/Restore and held snapshots passed`.
+Record actual argv/cwd/exit/output and remove only the owned temporary file.
+

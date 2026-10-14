@@ -13,6 +13,8 @@ func rangeLiteral(input string) string {
 }
 
 // Check both the public any-scan and middleware-owned stream before normalization.
+// A nil nullable slice asserts unknown native nullability for computed outputs;
+// a nonnil slice asserts known declaration/aggregate nullability.
 func rangeSelect(backend fixture.Backend, query string, columns, types []string, values [][]any, nullable []bool) fixture.Step {
 	s := fixture.Select(query, columns, types, values)
 	// pq's pinned OID inventory predates multiranges: their actual transport
@@ -67,9 +69,9 @@ func rangeSelect(backend fixture.Backend, query string, columns, types []string,
 				t.Fatalf("%s precision/scale %d/%d/%v", types[i], precision, scale, known)
 			}
 			n, known := typ.Nullable()
-			if backend.PG {
+			if backend.PG || nullable == nil {
 				if n || known {
-					t.Fatalf("pq nullable %v/%v", n, known)
+					t.Fatalf("unknown nullable %v/%v, want false/false", n, known)
 				}
 			} else if !known || n != nullable[i] {
 				t.Fatalf("native nullable %v/%v, want %v/true", n, known, nullable[i])
@@ -117,7 +119,7 @@ func rangeConsumeHeld(t *testing.T, rows *sql.Rows, check fixture.Step) {
 
 func rangeTransportType(name string) bool {
 	switch name {
-	case "INT4RANGE", "INT8RANGE", "NUMRANGE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE":
+	case "INT4RANGE", "INT8RANGE", "NUMRANGE", "DATERANGE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE":
 		return true
 	}
 	return false

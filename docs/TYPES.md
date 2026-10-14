@@ -211,8 +211,16 @@ Range and multirange datums own canonical endpoints/members and subtype
 descriptors from their generation. Native exports string with no Length or
 DecimalSize, despite numeric subtypes. Nil/typed-nil bytes are NULL; nonnil empty
 bytes are malformed input. Their internal normalization comparators do not
-provide SQL comparison, grouping or indexing. Range/multirange arrays, temporal
-ranges and user-defined range creation remain outside native execution.
+provide SQL comparison, grouping or indexing. DATERANGE extends the common range
+representation with civil DATE days: finite exclusive lower/inclusive upper
+bounds advance one day into canonical [) form; explicit DATE infinities retain
+their bounds and inclusivity, distinct from omitted endpoints. Live input/output
+honors DATE's DateStyle and transaction-relative environment; SQLLiteral/Dump
+uses canonical ISO independently of session presentation. Native DATERANGE
+exports string and string ScanType; pq exposes bytes and interface{} ScanType.
+Plain/nested domains, named-composite fields and existing binary COPY preserve
+the same datum. Range/multirange arrays, tsrange/tstzrange, datemultirange and
+user-defined range creation remain outside native execution.
 
 ## Temporal transport and presentation
 

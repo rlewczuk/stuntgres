@@ -24,7 +24,7 @@ func malformedMultirange(input, detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `malformed multirange literal: "` + input + `"`, Detail: detail}
 }
 
-func (d *Descriptor) multirangeInput(ctx context.Context, input string) (Value, error) {
+func (d *Descriptor) multirangeInput(ctx context.Context, input string, env InputEnvironment) (Value, error) {
 	r := d.multirangeRange
 	if !d.validMultirangeAuthority() {
 		return Value{}, fmt.Errorf("missing multirange range authority")
@@ -81,7 +81,7 @@ func (d *Descriptor) multirangeInput(ctx context.Context, input string) (Value, 
 		case inRange:
 			if ch == ']' || ch == ')' {
 				// Decode immediately: completed bad members precede suffix errors.
-				value, err := r.rangeInput(ctx, input[start:at+1])
+				value, err := r.rangeInput(ctx, input[start:at+1], env)
 				if err != nil {
 					return Value{}, err
 				}
@@ -274,7 +274,7 @@ func (v Value) validMultirange() bool {
 	return true
 }
 
-func (v Value) multirangeOutput(ctx context.Context) (string, error) {
+func (v Value) multirangeOutput(ctx context.Context, env OutputEnvironment) (string, error) {
 	if !v.validMultirange() {
 		return "", fmt.Errorf("invalid multirange datum")
 	}
@@ -289,7 +289,7 @@ func (v Value) multirangeOutput(ctx context.Context) (string, error) {
 		if i != 0 {
 			out.WriteByte(',')
 		}
-		v.typ.BaseType().multirangeRange.writeRangeDatum(&out, member)
+		v.typ.BaseType().multirangeRange.writeRangeDatum(&out, member, env)
 	}
 	out.WriteByte('}')
 	return out.String(), nil

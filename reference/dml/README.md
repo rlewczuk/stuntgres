@@ -339,6 +339,23 @@ make check RUN='^TestCopyParser'
 make check RACE=1 RUN='^(TestCopyBinary(Lifecycle|FinalCancellationVeto)|TestReferenceCopyBinaryLifecycle)$'
 ```
 
+`TestReferenceDateRangeBinary` reuses the existing COPY stream fixture and
+handwritten range/row/frame builders. Independent input bytes cover day-zero
+inclusive singleton canonicalization, present DATE infinity sentinels versus
+unbounded flags, empty and SQL NULL; expected export bytes are independently
+specified rather than obtained from native output. Later reversed bounds and
+finite maximum-day successor overflow assert complete COPY diagnostics and
+preserve all committed rows and binary output.
+
+```sh
+make check RUN='^TestReferenceDateRangeBinary$' REFERENCE=1
+make check RUN='^TestReferenceDateRangeBinary$'
+```
+
+Use an external900-second deadline for each selected command. This is reuse of
+existing binary transport, not a new protocol or temporal multirange provider.
+
+
 Keep selected text/CSV option/framing/consumer regressions below. `make quickcheck`
 is the whole-project Docker-free gate, not a replacement for selected pinned proof.
 The separate ephemeral public feature program (`local://copy-binary-smoke.go`,

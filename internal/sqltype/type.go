@@ -58,6 +58,7 @@ const (
 	JSONB          ID = 3802
 	Int4Range      ID = 3904
 	NumRange       ID = 3906
+	DateRange      ID = 3912
 	Int8Range      ID = 3926
 	JSONPath       ID = 4072
 	Int4Multirange ID = 4451
@@ -265,6 +266,7 @@ func Builtins() []*Descriptor {
 		{Int4Range, Int4, Int4Multirange, "int4range"},
 		{NumRange, Numeric, NumMultirange, "numrange"},
 		{Int8Range, Int8, Int8Multirange, "int8range"},
+		{DateRange, Date, 0, "daterange"},
 	} {
 		name := strings.ToUpper(family.name)
 		r := &Descriptor{id: family.rangeID, name: family.name, sql: name, database: name}
@@ -274,11 +276,14 @@ func Builtins() []*Descriptor {
 				break
 			}
 		}
-		companion := strings.TrimSuffix(family.name, "range") + "multirange"
-		name = strings.ToUpper(companion)
-		m := &Descriptor{id: family.companionID, name: companion, sql: name, database: name, multirangeRange: r}
-		r.multirangeCompanion = m
-		types = append(types, r, m)
+		types = append(types, r)
+		if family.companionID != 0 {
+			companion := strings.TrimSuffix(family.name, "range") + "multirange"
+			name = strings.ToUpper(companion)
+			m := &Descriptor{id: family.companionID, name: companion, sql: name, database: name, multirangeRange: r}
+			r.multirangeCompanion = m
+			types = append(types, m)
+		}
 	}
 	return completeBuiltinIdentities(types)
 }
@@ -585,10 +590,10 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.aclitemInput(ctx, text, env)
 	case Inet, Cidr:
 		return d.networkInput(text)
-	case Int4Range, Int8Range, NumRange:
-		return d.rangeInput(ctx, text)
+	case Int4Range, Int8Range, NumRange, DateRange:
+		return d.rangeInput(ctx, text, env)
 	case Int4Multirange, Int8Multirange, NumMultirange:
-		return d.multirangeInput(ctx, text)
+		return d.multirangeInput(ctx, text, env)
 	case Money:
 		return d.moneyInput(text, env.MonetaryLocale)
 	case Bit, VarBit:
@@ -817,10 +822,10 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return "", fmt.Errorf("invalid network value")
 		}
 		return v.network.output(d.id == Cidr), nil
-	case Int4Range, Int8Range, NumRange:
-		return v.rangeOutput()
+	case Int4Range, Int8Range, NumRange, DateRange:
+		return v.rangeOutput(env)
 	case Int4Multirange, Int8Multirange, NumMultirange:
-		return v.multirangeOutput(ctx)
+		return v.multirangeOutput(ctx, env)
 	case Money:
 		return moneyOutput(v.integer, env.MonetaryLocale), nil
 	case Bit, VarBit:
@@ -960,14 +965,14 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return d.sql + " '" + text + "'", nil
-	case Int4Range, Int8Range, NumRange:
-		text, err := v.rangeOutput()
+	case Int4Range, Int8Range, NumRange, DateRange:
+		text, err := v.rangeOutput(OutputEnvironment{})
 		if err != nil {
 			return "", err
 		}
 		return "'" + text + "'", nil
 	case Int4Multirange, Int8Multirange, NumMultirange:
-		text, err := v.multirangeOutput(ctx)
+		text, err := v.multirangeOutput(ctx, OutputEnvironment{})
 		if err != nil {
 			return "", err
 		}

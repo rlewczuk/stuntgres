@@ -47,7 +47,7 @@ type temporalConstant struct {
 	months, days int32
 	typed        bool
 	typedTypmod  int32
-	value        sqltype.Value // immutable analyzed array, composite or enum literal
+	value        sqltype.Value // immutable analyzed compound or enum literal
 }
 
 func refreshableTemporalCapture(c temporalConstant) bool {
@@ -63,7 +63,7 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 		id = t.ID()
 	}
 	switch id {
-	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
+	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.DateRange:
 		return true
 	}
 	return false
@@ -366,6 +366,11 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 			return sqltype.Usage{}, typeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
 		}
 		if err := d.CheckModifierSupport(); err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42601" && raw.Schema != nil {
+				// Explicit qualification owns its diagnostic spelling. Unqualified
+				// aliases and lowered declarations retain the descriptor's name.
+				return sqltype.Usage{}, typeDiagnostic(raw, diagnostic.Code, fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
+			}
 			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
 		}
 	}

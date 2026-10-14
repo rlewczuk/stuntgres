@@ -149,9 +149,11 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
   principals to preexisting target roles; ordinary dropped-identity output and
   equality remain available. See [ACL transport](TYPES.md#acl-items).
 - Range/multirange storage does not imply general constructors, casts,
-  comparison/order/index providers, temporal range storage, range arrays or
-  user-defined range creation. Temporal multiranges and multirange arrays remain
-  lookup-only.
+  comparison/order/index providers, range arrays or user-defined range creation.
+  Daterange columns store civil DATE bounds with finite day canonicalization and
+  explicit infinity distinct from omission. Tsrange/tstzrange, temporal
+  multiranges (including datemultirange) and multirange arrays remain lookup-only;
+  daterange does not add range_agg/range_intersect_agg providers.
 - Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates, including
   implicit VARBIT inputs, but does not provide general bit casts, scalar
   operators/functions, comparison/index providers or bit arrays. Unordered BIT

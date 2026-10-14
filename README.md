@@ -1288,6 +1288,25 @@ See [continuous numeric ranges](https://www.postgresql.org/docs/18/rangetypes.ht
 Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
+Change note: daterange columns extend the common range datum with civil DATE
+days. Finite bounds canonicalize to [), advancing exclusive lower/inclusive
+upper bounds by one day; maximum-day successor fails with22008 rather than
+becoming infinity. Explicit DATE infinities retain inclusivity and remain
+distinct from omitted endpoints, empty and SQL NULL. Existing DATE DateStyle,
+written civil clock/zone rules and transaction-relative input govern endpoints;
+prepared contextual literals retain analyzed days while binds decode afresh.
+Live reads use session presentation, but native Dump emits canonical ISO.
+Direct/prepared text/byte binds, native string/DATERANGE metadata, nested domains,
+named-composite fields, binary COPY and actual Dump/Reset/Restore reuse existing
+ownership/staging. No datemultirange, timestamp ranges, arrays, constructors,
+casts, operators, comparison/index providers or new range aggregates are added.
+See [date ranges](https://www.postgresql.org/docs/18/rangetypes.html).
+Feature smoke: `make check RUN='^TestReferenceDateRangeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector. The standalone
+public-API executable smoke is supplied as temporary session material; its root
+argv and expected observations are in the part plan, not a committed wrapper.
+
+
 Change note: int4multirange/int8multirange/nummultirange columns now store typed
 canonical unions through existing range codecs. Members sort, empty ranges vanish,
 and overlaps/adjacency merge: `{[1,3),[2,4),empty,[8,9)}` becomes

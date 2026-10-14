@@ -18,6 +18,10 @@ func TestNumericRangeAdapterOwnershipNullMetadata(t *testing.T) {
 	testRangeAdapterOwnershipNullMetadata(t, []sqltype.ID{sqltype.NumRange})
 }
 
+func TestDateRangeAdapterOwnershipNullMetadata(t *testing.T) {
+	testRangeAdapterOwnershipNullMetadata(t, []sqltype.ID{sqltype.DateRange})
+}
+
 func testRangeAdapterOwnershipNullMetadata(t *testing.T, ids []sqltype.ID) {
 	ctx := context.Background()
 	e := engine.New()
@@ -26,7 +30,9 @@ func testRangeAdapterOwnershipNullMetadata(t *testing.T, ids []sqltype.ID) {
 		if !ok {
 			t.Fatal("missing range descriptor")
 		}
-		bytes := []byte("[1,4]")
+		input := "[1,4]"
+		if id == sqltype.DateRange { input = "[2000-02-28,2000-03-01]" }
+		bytes := []byte(input)
 		arguments, err := normalizeArguments([]driver.NamedValue{{Ordinal: 1, Value: bytes}})
 		if err != nil {
 			t.Fatal(err)
@@ -41,6 +47,7 @@ func testRangeAdapterOwnershipNullMetadata(t *testing.T, ids []sqltype.ID) {
 		out, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
 		want := "[1,5)"
 		if id == sqltype.NumRange { want = "[1,4]" }
+		if id == sqltype.DateRange { want = "[2000-02-28,2000-03-02)" }
 		if err != nil || out != want || scanType(d) != reflect.TypeFor[string]() {
 			t.Fatal(out, err, scanType(d))
 		}

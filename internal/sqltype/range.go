@@ -32,12 +32,16 @@ type rangeBound struct {
 	special          uint8
 }
 
-func isRange(id ID) bool { return id == Int4Range || id == Int8Range || id == NumRange }
+func isRange(id ID) bool { return id == Int4Range || id == Int8Range || id == NumRange || id == DateRange }
 
-func (d *Descriptor) rangeBoundInput(input string) (rangeBound, error) {
+func (d *Descriptor) rangeBoundInput(ctx context.Context, input string, env InputEnvironment) (rangeBound, error) {
 	if d.rangeSubtype.id == Numeric {
 		v, err := d.rangeSubtype.numericInput(input, -1)
 		return rangeBound{v.text, v.exponent, v.scale, v.negative, v.special}, err
+	}
+	if d.rangeSubtype.id == Date {
+		v, err := d.rangeSubtype.InputWithEnvironment(ctx, input, -1, env)
+		return rangeBound{magnitude: v.integer}, err
 	}
 	v, err := d.rangeSubtype.integerInput(input)
 	return rangeBound{magnitude: v.integer}, err
@@ -119,7 +123,7 @@ func scanRangeBound(ctx context.Context, input string, at int) (string, int, err
 	return "", at, malformedRange(input, "Unexpected end of input.")
 }
 
-func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error) {
+func (d *Descriptor) rangeInput(ctx context.Context, input string, env InputEnvironment) (Value, error) {
 	at := 0
 	for at < len(input) && space(input[at]) {
 		at++
@@ -178,7 +182,7 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error
 	if lowerAbsent {
 		datum.flags = datum.flags&^rangeLowerInclusive | rangeLowerUnbounded
 	} else {
-		bound, err := d.rangeBoundInput(lower)
+		bound, err := d.rangeBoundInput(ctx, lower, env)
 		if err != nil {
 			return Value{}, err
 		}
@@ -187,7 +191,7 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error
 	if upperAbsent {
 		datum.flags = datum.flags&^rangeUpperInclusive | rangeUpperUnbounded
 	} else {
-		bound, err := d.rangeBoundInput(upper)
+		bound, err := d.rangeBoundInput(ctx, upper, env)
 		if err != nil {
 			return Value{}, err
 		}
@@ -200,6 +204,9 @@ func (d *Descriptor) rangeInput(ctx context.Context, input string) (Value, error
 	return Value{typ: d, rangeDatum: datum}, nil
 }
 func (d *Descriptor) canonicalRange(x rangeDatum) (rangeDatum, error) {
+	if x.flags == rangeEmpty {
+		return x, nil
+	}
 	lo, hi := x.flags&rangeLowerUnbounded != 0, x.flags&rangeUpperUnbounded != 0
 	if !lo && !hi {
 		cmp := d.compareRangeBounds(x.lower, x.upper)
@@ -211,6 +218,29 @@ func (d *Descriptor) canonicalRange(x rangeDatum) (rangeDatum, error) {
 		}
 	}
 	if d.id == NumRange {
+		return x, nil
+	}
+	if d.id == DateRange {
+		if !lo && x.flags&rangeLowerInclusive == 0 && finiteRangeDate(x.lower.magnitude) {
+			if x.lower.magnitude == dateMaximum {
+				return x, failure("22008", "date out of range")
+			}
+			x.lower.magnitude++
+			x.flags |= rangeLowerInclusive
+		}
+		if !hi && x.flags&rangeUpperInclusive != 0 && finiteRangeDate(x.upper.magnitude) {
+			if x.upper.magnitude == dateMaximum {
+				return x, failure("22008", "date out of range")
+			}
+			x.upper.magnitude++
+			x.flags &^= rangeUpperInclusive
+		}
+		if !lo && !hi {
+			cmp := d.compareRangeBounds(x.lower, x.upper)
+			if cmp > 0 || cmp == 0 && x.flags&(rangeLowerInclusive|rangeUpperInclusive) != rangeLowerInclusive|rangeUpperInclusive {
+				return rangeDatum{flags: rangeEmpty}, nil
+			}
+		}
 		return x, nil
 	}
 	maximum, name := int64(math.MaxInt32), "integer"
@@ -300,6 +330,20 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 		cmp := d.compareRangeBounds(r.lower, r.upper)
 		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
 	}
+	if d.id == DateRange {
+		if !lowerAbsent && !validRangeDateBound(r.lower) || !upperAbsent && !validRangeDateBound(r.upper) {
+			return false
+		}
+		if !lowerAbsent && finiteRangeDate(r.lower.magnitude) && r.flags&rangeLowerInclusive == 0 ||
+			!upperAbsent && finiteRangeDate(r.upper.magnitude) && r.flags&rangeUpperInclusive != 0 {
+			return false
+		}
+		if lowerAbsent || upperAbsent {
+			return true
+		}
+		cmp := d.compareRangeBounds(r.lower, r.upper)
+		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
+	}
 	if r.flags&rangeUpperInclusive != 0 || !lowerAbsent && r.flags&rangeLowerInclusive == 0 {
 		return false
 	}
@@ -312,7 +356,7 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 	return lowerAbsent || upperAbsent || r.lower.magnitude < r.upper.magnitude
 }
 
-func (v Value) rangeOutput() (string, error) {
+func (v Value) rangeOutput(env OutputEnvironment) (string, error) {
 	if !v.validRange() {
 		return "", fmt.Errorf("invalid range datum")
 	}
@@ -321,12 +365,12 @@ func (v Value) rangeOutput() (string, error) {
 		return "empty", nil
 	}
 	var out strings.Builder
-	v.typ.BaseType().writeRangeDatum(&out, r)
+	v.typ.BaseType().writeRangeDatum(&out, r, env)
 	return out.String(), nil
 }
 
 // Write directly into the caller's builder, avoiding a string per integer member.
-func (d *Descriptor) writeRangeDatum(out *strings.Builder, r rangeDatum) {
+func (d *Descriptor) writeRangeDatum(out *strings.Builder, r rangeDatum, env OutputEnvironment) {
 	left, right := byte('('), byte(')')
 	if r.flags&rangeLowerInclusive != 0 {
 		left = '['
@@ -350,6 +394,18 @@ func (d *Descriptor) writeRangeDatum(out *strings.Builder, r rangeDatum) {
 		out.WriteByte(right)
 		return
 	}
+	if d.id == DateRange {
+		out.WriteByte(left)
+		if r.flags&rangeLowerUnbounded == 0 {
+			writeRangeDateBound(out, r.lower.magnitude, env.DateStyle)
+		}
+		out.WriteByte(',')
+		if r.flags&rangeUpperUnbounded == 0 {
+			writeRangeDateBound(out, r.upper.magnitude, env.DateStyle)
+		}
+		out.WriteByte(right)
+		return
+	}
 	var buffer [44]byte
 	bytes := append(buffer[:0], left)
 	if r.flags&rangeLowerUnbounded == 0 {
@@ -361,4 +417,37 @@ func (d *Descriptor) writeRangeDatum(out *strings.Builder, r rangeDatum) {
 	}
 	bytes = append(bytes, right)
 	out.Write(bytes)
+}
+
+func finiteRangeDate(day int64) bool {
+	return day != DateNegativeInfinity && day != DatePositiveInfinity
+}
+
+func validRangeDateBound(b rangeBound) bool {
+	return b == (rangeBound{magnitude: b.magnitude}) &&
+		(!finiteRangeDate(b.magnitude) || b.magnitude >= dateMinimum && b.magnitude <= dateMaximum)
+}
+
+func writeRangeDateBound(out *strings.Builder, day int64, style DateStyle) {
+	text := dateStyledOutput(day, style)
+	quoted := len(text) == 0
+	for i := range len(text) {
+		c := text[i]
+		if c == '(' || c == ')' || c == '[' || c == ']' || c == ',' || c == '"' || c == '\\' || space(c) {
+			quoted = true
+		}
+	}
+	if quoted {
+		out.WriteByte('"')
+	}
+	for i := range len(text) {
+		c := text[i]
+		if c == '"' || c == '\\' {
+			out.WriteByte(c)
+		}
+		out.WriteByte(c)
+	}
+	if quoted {
+		out.WriteByte('"')
+	}
 }

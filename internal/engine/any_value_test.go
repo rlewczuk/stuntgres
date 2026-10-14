@@ -37,6 +37,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Int4Range:      {"[1,4]", "empty", "[,]", "[-2147483648,2147483647)"},
 		sqltype.Int8Range:      {"(1,4]", "empty", "[,]", "[-9223372036854775808,9223372036854775807)"},
 		sqltype.NumRange:       {"(4,5)", "[1.0,1.00]", "empty", "[,]", "[-Infinity,Infinity]", "[Infinity,NaN]", "[NaN,NaN]", "[9007199254740992.0000000000000001,9007199254740992.0000000000000002]"},
+		sqltype.DateRange:      {"[2000-02-28,2000-03-01]", "empty", "[,]", "[-infinity,infinity]", "[infinity,infinity]"},
 		sqltype.Int4Multirange: {"{}", "{(,)}", "{[1,3),[2,4),[8,9)}"},
 		sqltype.Int8Multirange: {"{}", "{(,)}", "{[-9223372036854775808,9223372036854775807)}"},
 		sqltype.NumMultirange:  {"{}", "{(4,5)}", "{[1.0,1.00]}", "{[-Infinity,Infinity],[Infinity,NaN]}"},
