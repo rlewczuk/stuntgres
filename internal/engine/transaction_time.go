@@ -108,6 +108,10 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		valid := true
+		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		return valid
 	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties], nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties], functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties], functions.String[BoundExpr, *EvalContext, ExprProperties], functions.Timezone[BoundExpr, *EvalContext, ExprProperties], functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], functions.Format[BoundExpr, *EvalContext, ExprProperties], functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties], caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })

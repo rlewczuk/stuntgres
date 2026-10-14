@@ -181,7 +181,7 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, plan, sqltype.Implicit}
+			n = coercionExpression{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, plan, sqltype.Implicit, false}
 		}
 		return n, nil
 	}

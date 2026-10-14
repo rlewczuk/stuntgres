@@ -126,7 +126,7 @@ func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (Bound
 		}
 	}
 	if arg.ResultUsage().Type != text {
-		arg = coercionExpression{b.info(text.Usage(), arg.SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit}
+		arg = coercionExpression{b.info(text.Usage(), arg.SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 	}
 	var dict *tsDictionaryDescriptor
 	var tmpl *tsTemplateDescriptor

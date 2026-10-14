@@ -130,7 +130,7 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 			}
 			return visibilityInquiryExpression{}, err
 		}
-		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit}
+		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 	}
 	properties := arg.Properties()
 	properties.Volatility = max(Stable, properties.Volatility)

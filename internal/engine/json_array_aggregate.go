@@ -97,7 +97,7 @@ func (b *expressionBinder) bindJSONArrayAggregate(raw parser.AggregateExpr, name
 		return nil, err
 	}
 	info.properties = coercionProperties(node, plan)
-	return coercionExpression{info, node, plan, sqltype.Assignment}, nil
+	return coercionExpression{info, node, plan, sqltype.Assignment, false}, nil
 }
 
 func jsonAggregateFormatSQL(format *parser.JSONFormat) string {
@@ -187,7 +187,7 @@ func (b *expressionBinder) resolveJSONArrayAggregateSignature(raw parser.Aggrega
 				if err != nil {
 					return fail(err)
 				}
-				arg = coercionExpression{info, arg, plan, sqltype.Explicit}
+				arg = coercionExpression{info, arg, plan, sqltype.Explicit, false}
 			}
 		}
 	}

@@ -446,6 +446,27 @@ This does not add extraction, operators, constructors or scalar-function FROM.
 Feature smoke: `make check RUN='^TestReferenceJSONArrayLengthFeatureSmoke$'`
 and `make check RUN='^TestReferenceJSONArrayLengthFeatureSmoke$' REFERENCE=1`.
 
+Change note: `jsonb_set(jsonb_in jsonb, path text[], replacement jsonb,
+create_if_missing boolean DEFAULT true)` and `jsonb_set_lax` immutably replace
+an existing JSONB field/array element, or add a missing final item when enabled.
+Missing intermediate parents are never invented. Negative array indices count
+from the end; an out-of-range final index prepends when negative and appends
+when nonnegative, without filling gaps. Empty paths preserve container roots;
+scalar roots fail with `22023`. Path elements are validated only when reached.
+`jsonb_set` is strict for SQL NULL. With SQL NULL replacement, lax defaults to
+`use_json_null`; `delete_key`, `return_target` and `raise_exception` remain
+distinct, case-sensitive treatments. JSON null is an ordinary JSONB value.
+Named calls use catalog names `jsonb_in`, `path`, `replacement`,
+`create_if_missing` and `null_value_treatment`; all written children bind and
+evaluate through the ordinary expression pipeline. Typed JSONB preserves exact
+numbers, canonical key order and shared immutable subtrees. Direct/held results,
+stored default/generated/CHECK/view/index consumers and native replay retain
+JSONB types and symbolic calls; failed writes/Restore and canceled work do not
+publish partial state. Lax deletion is private to this function, not admission
+of adjacent delete/insert operators, subscripting or JSONPath execution.
+Feature smoke: `make check RUN='^TestReferenceJSONBSetFeatureSmoke$'` and
+`make check RUN='^TestReferenceJSONBSetFeatureSmoke$' REFERENCE=1`.
+
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,
 `RESTRICT`/`CASCADE` and unchanged `CONTINUE IDENTITY` state. It uses exact

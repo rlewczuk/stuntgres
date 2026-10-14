@@ -135,7 +135,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				binder.regclassConcat = true
 			}
 			info.properties = coercionProperties(input, plan)
-			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 			source, err = storageDestination(source, dest.Usage, info.pos)
 			if err != nil {
 				return err

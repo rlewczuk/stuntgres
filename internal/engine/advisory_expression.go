@@ -214,7 +214,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 				return nil, err
 			}
 		} else if arg.ResultUsage() != usage {
-			args[i] = coercionExpression{b.info(usage, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercions[i], sqltype.Implicit}
+			args[i] = coercionExpression{b.info(usage, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercions[i], sqltype.Implicit, false}
 		}
 		properties = mergeExpressionProperties(properties, args[i].Properties())
 	}

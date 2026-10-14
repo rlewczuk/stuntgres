@@ -56,9 +56,12 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	}
 	path.node = *ordinal
 	(*ordinal)++
+	// Contextual ARRAY element casts have an explicit executable plan, but no
+	// corresponding raw element node. The enclosing written ARRAY cast owns
+	// their annotation; associate the element syntax with its original child.
 	for {
 		coercion, ok := bound.(coercionExpression)
-		if !ok || coercion.mode == sqltype.Explicit {
+		if !ok || coercion.mode == sqltype.Explicit && !coercion.syntheticArrayElement {
 			break
 		}
 		if aggregate, ok := raw.(parser.AggregateExpr); ok && aggregate.JSON != nil && aggregate.JSON.Returning != nil && coercion.mode == sqltype.Assignment {
@@ -651,6 +654,17 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		if n, ok := bound.(functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
+		}
+		if n, ok := bound.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]); ok {
+			if len(r.Args) != n.WrittenCount {
+				return fmt.Errorf("stuntgres: mismatched JSONB replacement syntax")
+			}
+			for i, arg := range r.Args {
+				if err := child(arg, n.Args[n.WrittenSlots[i]]); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
 		if n, ok := bound.(functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {

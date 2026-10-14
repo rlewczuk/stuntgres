@@ -80,6 +80,118 @@ full 42883, and stored definitions surviving real replay.
 Diagnostics separately verifies the complete unknown `?|` 42725 record.
 Whole-project Docker-free verification remains `make quickcheck`.
 
+### JSONB path replacement
+
+The `TestReferenceJSONBSet` family independently specifies `jsonb_set` and
+`jsonb_set_lax`: missing final versus intermediate paths, create flags, signed
+array indices and int32 parsing boundaries, demand-driven path diagnostics,
+strict SQL NULL and the four lax treatments. Typing covers contextual inputs,
+domains, catalog formal names, defaults/named calls, qualified/quoted names,
+invalid signatures/decorations and ordinary child evaluation. Parameters,
+metadata and persistent consumers cover direct/prepared/held recovery, JSONB
+raw/Scan ownership, computed metadata, generated/default/CHECK/view/index
+expressions and late-write atomicity.
+
+The established ten definitions share the unfiltered `jsonbSetScenario` backend loop.
+Rows, types, affected counts, diagnostics and metadata are explicit expectations,
+not generated goldens or backend parity alone.
+
+Run the bounded sets in both modes, with an external 900-second deadline per
+command:
+
+```sh
+make check RUN='^TestReferenceJSONBSet(Values|NullModes|PathDiagnostics|Typing)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBSet(Parameters|Metadata|Consumers|FeatureSmoke)$' REFERENCE=1
+```
+
+Run the same selectors without `REFERENCE=1` for selected native proof.
+Both selected modes are required before review/integration.
+
+Component contracts cover ordinary binding/all-slot inference and child demand,
+copy-on-change subtree sharing and descriptor authority, reconstruction/remap/
+retag and written named/default/VARIADIC presentation, immutable folding,
+iterative deep paths and cancellation during long-key/index/copy/output work:
+
+```sh
+make check RUN='^TestJSONBSet'
+```
+
+Named view replay preserves formal labels and omitted optional arguments:
+`null_value_treatment => 'delete_key'` must not become a positional BOOL input.
+Component replay checks reparse/rebind and assert the resulting JSONB value;
+controls check the actual emitted native dump on both native and PostgreSQL.
+Repeated replay must also preserve byte-identical emitted SQL. Exact captured
+JSON/JSONB/TEXT[] leaf annotations are emitted once; explicit conversions, domains
+and typmods are retained. Component roundtrips cover positional, named/default
+and VARIADIC calls, complementing the native deterministic-redump assertion.
+Contextual ARRAY element conversions retain their Explicit executable plan and
+mode. Capture-only provenance distinguishes those synthesized wrappers from
+written element casts, preserving the original column and VARCHAR(1) truncation
+alongside the enclosing TEXT[] annotation. The
+`TestJSONBSetContextualArrayCapture` regression exercises positional and reordered
+lax calls, default validation, remapping, descriptor reminting and exact results.
+
+`TestReferenceJSONBSetReplayBoundaries` adds actual stored reordered named lax
+deletion with SQL NULL replacement and omitted create flag, plus outer cast
+chains, checked-domain conversion, VARCHAR/NUMERIC typmods and actual
+JSON/JSONB conversions and a NUMERIC(4,1)→FLOAT8→TEXT→JSONB replacement.
+Independent assertions distinguish `12.340` from rounded `12.3`, truncated path keys from
+their source text, retained domain identity/column typmods and complete 23514
+check errors even when lax would return its target. Three native Restore/redump
+rounds and real replay of each emitted dump must retain these contracts.
+`TestJSONBSetViewReplayCastBoundaries` supplies the component three-round
+semantic/error/stability counterpart, using private catalog staging.
+
+Selected replay-boundary proof uses an external 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceJSONBSetReplayBoundaries$' REFERENCE=1
+make check RUN='^TestReferenceJSONBSetReplayBoundaries$'
+make check RUN='^TestJSONBSetViewReplayCastBoundaries$'
+```
+
+The revised replacement uses existing admitted cast edges rather than adding
+the unsupported general NUMERIC→TEXT cast. Its expected `12.3`/`7.9` results
+and NUMERIC precision/scale metadata remain independent contracts.
+Domain identity is asserted independently through `pg_attribute.atttypid`
+equaling the declared domain's qualified `regtype::oid`; the expected BOOL is
+true, while cursor metadata independently requires JSONB as the physical base.
+This does not admit adjacent `pg_type` or `pg_typeof` execution. All eleven
+definitions execute their shared SQL on every available backend. Native-only
+controls execute repeated Restore/redump, and real mode additionally checks
+each emitted native dump on PostgreSQL.
+
+Star-call syntax reaches ordinary signature binding and retains the pinned
+missing-function diagnostic rather than a parser rejection.
+DISTINCT, local ORDER BY, FILTER and OVER decorations are rejected with complete
+42809 diagnostics after ordinary formal-argument resolution/coercion. The shared
+grammar transports these modifiers; scalar execution must never discard them.
+
+`Controls` exercises actual native Dump/Reset/Restore, retained rows and metadata,
+deterministic redump, emitted-SQL replay on PostgreSQL, failed replacement and
+parameter rejection in all five formal slots. PostgreSQL has no native control
+API; those phases remain explicitly native-only. `Cancellation` uses a
+pre-imported wide typed array with a retained 32MiB string, same-owner held
+read/write recovery and sentinel atomicity using the existing admission/join
+helper. Native admission observes the value-receiver provider frame
+`sqltype.JSONBSetPlan.Evaluate`, enclosing traversal, changed-ancestor copying
+and canonical output; no lexer or sleep stand-in is used.
+
+```sh
+make check RUN='^TestReferenceJSONBSet(Controls|Cancellation)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBSet(Controls|Cancellation)$'
+make check RUN='^TestReferenceJSONBSetCancellation$' RACE=1
+make check RUN='^TestReferenceJSONBSetFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceJSONBSetFeatureSmoke$'
+```
+
+Smoke expects object replacement/missing-parent preservation, negative and
+out-of-range arrays, all lax treatments with complete raise/index diagnostics
+and same-held recovery, populated/empty/NULL metadata, persistent symbolic
+consumers and atomic late failure. After native implementation it additionally
+exercises retained native state and actual dump replay. Expected success is
+quiet selected-package success after assertions; no printed success banner.
+
 ### JSON array length
 
 `TestReferenceJSONArrayLength` covers exactly `json_array_length(json)` and

@@ -240,6 +240,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return n.Function
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		return true
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:

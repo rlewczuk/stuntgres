@@ -209,7 +209,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 			if err != nil {
 				return nil, err
 			}
-			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit}
+			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit, false}
 		}
 		p := args[i].Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)

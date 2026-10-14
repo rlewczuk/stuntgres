@@ -1,0 +1,248 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func jsonbSetUnitBind(t *testing.T, b *expressionBinder, q string) BoundExpr {
+	t.Helper()
+	raw := statement(t, q).(*parser.Select).Targets[0]
+	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	if err != nil {
+		t.Fatal(q, err)
+	}
+	return node
+}
+
+func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
+	ctx := context.Background()
+	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
+	node := jsonbSetUnitBind(t, b, "SELECT jsonb_set_lax($1,$2,$3,$4,$5)")
+	e := node.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
+	for i, id := range ids {
+		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
+			t.Fatal("lost formal inference", i, b.parameters)
+		}
+	}
+	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable || plannedVolatility(node) != Immutable {
+		t.Fatal(e, node.Properties())
+	}
+	for slot, id := range ids {
+		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
+		args := []parser.Expr{datetimeMakeString("{}"), datetimeMakeString("{a}"), datetimeMakeString("2"), datetimeMakeString("true"), datetimeMakeString("use_json_null")}
+		args[slot] = parser.ParameterExpr{Number: 1}
+		n, err := binder.bindJSONBSet(datetimeMakeRaw("jsonb_set_lax", args...), true)
+		if err != nil || !n.Properties().ParameterDependent || binder.parameters[1].Type.ID() != id {
+			t.Fatal("isolated formal property/inference lost", slot, n, err)
+		}
+	}
+	for _, slot := range []int{3, 4} {
+		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
+		args := []parser.Expr{datetimeMakeString("{}"), datetimeMakeString("{a}"), datetimeMakeString("2"), datetimeMakeString("true"), datetimeMakeString("use_json_null")}
+		randomText := parser.CastExpr{Child: datetimeMakeRaw("random"), TypeName: parser.TypeName{Name: "text"}}
+		args[slot] = randomText
+		if slot == 3 {
+			args[slot] = parser.CastExpr{Child: randomText, TypeName: parser.TypeName{Name: "boolean"}}
+		}
+		n, err := binder.bindJSONBSet(datetimeMakeRaw("jsonb_set_lax", args...), true)
+		if err != nil {
+			t.Fatal(slot, err)
+		}
+		if n.Properties().Volatility != Volatile || plannedVolatility(n) != Volatile || generationImmutable(n) {
+			t.Fatal("hidden volatile child", slot, n.Properties())
+		}
+	}
+	for _, q := range []string{
+		`SELECT jsonb_set_lax(NULL,'{a}',NULL,true,missing)`,
+		`SELECT jsonb_set_lax('{}','{a}',NULL,missing,'return_target')`,
+	} {
+		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
+		_, err := binder.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
+		var d *sqlstate.Error
+		if !errors.As(err, &d) || d.Code != "42703" {
+			t.Fatal("ordinary child analysis suppressed", q, err)
+		}
+	}
+}
+
+func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
+	ctx := context.Background()
+	engine := New()
+	view := engine.CatalogRead()
+	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
+	node := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set_lax(replacement => NULL,jsonb_in => '{"a":1}',path => '{a}',null_value_treatment => 'delete_key')`)
+	e := node.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	fresh := jsonObjectUnitTypes()
+	next, changed, err := retagBoundTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	if err != nil || !changed {
+		t.Fatal(next, changed, err)
+	}
+	n := next.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	for i, arg := range n.Arguments() {
+		if arg.ResultUsage().Type != fresh[e.Args[i].ResultUsage().Type.ID()] || arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
+			t.Fatal("retag lost child authority", i)
+		}
+	}
+	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || n.WrittenCount != e.WrittenCount {
+		t.Fatal("presentation lost")
+	}
+	got, err := n.Eval(&EvalContext{Context: ctx})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := fresh[sqltype.JSONB].Output(ctx, got)
+	if err != nil || out != "{}" {
+		t.Fatal(out, err)
+	}
+	mapped, err := remapBoundExpression(e, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	if err != nil || !sameGroupExpression(e, mapped) {
+		t.Fatal(mapped, err)
+	}
+	variadic := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set('{"a":1}','{a}',VARIADIC '2'::jsonb)`)
+	mapped, err = remapBoundExpression(variadic, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reminted, _, err := retagBoundTypes(view, mapped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := reminted.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	if !v.Variadic {
+		t.Fatal("VARIADIC lost")
+	}
+	var rawArgs []parser.Expr
+	for _, text := range []string{"2", `{"a":1}`, "{a}", "delete_key"} {
+		rawArgs = append(rawArgs, datetimeMakeString(text))
+	}
+	raw := datetimeMakeRaw("jsonb_set_lax", rawArgs...)
+	raw.Args[0] = parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
+	raw.ArgNames = []parser.Identifier{{Text: "replacement"}, {Text: "jsonb_in"}, {Text: "path"}, {Text: "null_value_treatment"}}
+	if err := b.captureViewLiterals(raw, e, viewTargetLiteral, 0); err != nil {
+		t.Fatal("written/formal literal association", err)
+	}
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.viewLiterals, castUsages: b.viewCastUsages}, frame: b.frameID()}
+	replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{clause: viewTargetLiteral})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+replaySQL)
+	replayValue, err := replayed.Eval(&EvalContext{Context: ctx})
+	if err != nil {
+		t.Fatal("named/default view replay", err)
+	}
+	replayText, err := replayValue.Type().Output(ctx, replayValue)
+	if err != nil || replayText != "{}" {
+		t.Fatal("named/default replay changed treatment", replayText, err)
+	}
+}
+
+func TestJSONBSetViewReplayDeterminism(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct{ q, want string }{
+		{`SELECT jsonb_set('{}','{a}','2')`, `{"a": 2}`},
+		{`SELECT jsonb_set_lax(jsonb_in => '{"a":1}',path => '{a}',replacement => NULL,null_value_treatment => 'delete_key')`, `{}`},
+		{`SELECT pg_catalog.jsonb_set('{}','{a}',VARIADIC '2'::jsonb)`, `{"a": 2}`},
+	} {
+		t.Run(tc.q, func(t *testing.T) {
+			engine := New()
+			query := tc.q
+			var previous string
+			for round := range 3 {
+				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
+				raw := statement(t, query).(*parser.Select).Targets[0]
+				node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+				if err != nil {
+					t.Fatal(round, err)
+				}
+				value, err := node.Eval(&EvalContext{Context: ctx})
+				if err != nil {
+					t.Fatal(round, err)
+				}
+				text, err := value.Type().Output(ctx, value)
+				if err != nil || text != tc.want {
+					t.Fatal("replay changed JSONB result", round, text, err)
+				}
+				if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+					t.Fatal(round, err)
+				}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.viewLiterals, castUsages: b.viewCastUsages}, frame: b.frameID()}
+				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+				if err != nil {
+					t.Fatal(round, err)
+				}
+				if round != 0 && emitted != previous {
+					t.Fatalf("view replay grew annotations\nbefore:\n%s\nafter:\n%s", previous, emitted)
+				}
+				previous, query = emitted, "SELECT "+emitted
+			}
+		})
+	}
+}
+
+func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
+	ctx := context.Background()
+	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
+	base := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'return_target')`).(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+	for slot := range 5 {
+		e := base
+		column := columnExpression{expressionInfo: expressionInfo{usage: e.Args[slot].ResultUsage(), properties: ExprProperties{RowDependent: true}}}
+		e.Args[slot] = column
+		rewritten, err := b.rewriteGroup(e, []BoundExpr{column})
+		if err != nil {
+			t.Fatal(slot, err)
+		}
+		n := rewritten.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
+		if _, ok := n.Args[slot].(groupExpression); !ok {
+			t.Fatal("slot not grouped", slot, n.Args[slot])
+		}
+		if _, ok := e.Args[slot].(columnExpression); !ok {
+			t.Fatal("rewrite mutated original", slot)
+		}
+		seen := false
+		boundExpressionChildren(e, func(child BoundExpr) {
+			if sameGroupExpression(child, column) {
+				seen = true
+			}
+		})
+		if !seen {
+			t.Fatal("dependency child hidden", slot)
+		}
+		other := e
+		other.Args[slot] = base.Args[slot]
+		if sameGroupExpression(e, other) {
+			t.Fatal("slot ignored in semantic identity", slot)
+		}
+	}
+}
+
+func TestJSONBSetConstantPreflight(t *testing.T) {
+	ctx := context.Background()
+	eval := &EvalContext{Context: ctx}
+	for _, q := range []string{`SELECT jsonb_set('{"a":1}','{a}','2')`, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'delete_key')`} {
+		b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
+		node := jsonbSetUnitBind(t, b, q)
+		next, changed, err := preflightCoercionsWithPolicy(eval, node, true)
+		if err != nil || !changed {
+			t.Fatal(next, changed, err)
+		}
+		if _, ok := next.(literalExpression); !ok {
+			t.Fatal("immutable replacement not folded", next)
+		}
+	}
+	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
+	node := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}','2',true,NULL)`)
+	_, _, err := preflightCoercionsWithPolicy(eval, node, true)
+	var d *sqlstate.Error
+	if !errors.As(err, &d) || d.Code != "22023" {
+		t.Fatal("NULL mode incorrectly strict-folded", err)
+	}
+}

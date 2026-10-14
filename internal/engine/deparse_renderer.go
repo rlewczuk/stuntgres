@@ -869,6 +869,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return function(n.Name, n.Arguments(), true)
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		return function(n.Plan.Name(), n.Arguments(), true)
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbSetSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return datetimeMakeSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r

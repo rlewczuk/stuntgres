@@ -48,7 +48,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := literalExpression{expressionInfo{usage: u.Type.Usage()}, v}
-	inner := coercionExpression{expressionInfo{usage: u}, literal, plan, sqltype.Explicit}
+	inner := coercionExpression{expressionInfo{usage: u}, literal, plan, sqltype.Explicit, false}
 	// The explicit node already has the destination usage. A final assignment
 	// wrapper is neither required nor sufficient to validate its child.
 	if _, err := inner.Eval(&EvalContext{Context: context.Background(), Input: input}); err == nil {
@@ -58,7 +58,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer := coercionExpression{expressionInfo{usage: u.Type.Usage()}, inner, wide, sqltype.Explicit}
+	outer := coercionExpression{expressionInfo{usage: u.Type.Usage()}, inner, wide, sqltype.Explicit, false}
 	if _, err := outer.Eval(&EvalContext{Context: context.Background(), Input: input}); err == nil {
 		t.Fatal("outer widening hid inner loss")
 	}

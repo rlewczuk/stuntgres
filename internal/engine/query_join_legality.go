@@ -644,6 +644,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Arguments()
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Arguments()
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Arguments()
 	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:

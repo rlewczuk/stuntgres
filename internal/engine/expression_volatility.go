@@ -127,6 +127,8 @@ func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
 		return merge(children(n.Arguments()...), v)
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arguments()...)
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
 	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:

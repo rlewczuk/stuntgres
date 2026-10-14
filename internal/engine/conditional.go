@@ -264,7 +264,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
 	info.properties = coercionProperties(input, plan)
-	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit}), nil
+	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false}), nil
 }
 func equalityError(err error, left, right *sqltype.Descriptor, pos parser.Position) error {
 	d, ok := err.(*sqlstate.Error)

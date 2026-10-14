@@ -116,7 +116,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 			coercionInfo := info
 			coercionInfo.pos = node.SourcePosition()
 			coercionInfo.properties = coercionProperties(node, plan)
-			expression := coercionExpression{coercionInfo, node, plan, sqltype.Implicit}
+			expression := coercionExpression{coercionInfo, node, plan, sqltype.Implicit, false}
 			if side == 0 {
 				n.leftExpressions[i] = expression
 			} else {

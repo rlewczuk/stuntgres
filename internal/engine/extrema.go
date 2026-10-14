@@ -110,7 +110,7 @@ func (b *expressionBinder) resolveExtremaSignature(raw parser.AggregateExpr, nam
 		if failure != nil {
 			return nil, failure
 		}
-		return coercionExpression{info, operand.node, plan, sqltype.Implicit}, nil
+		return coercionExpression{info, operand.node, plan, sqltype.Implicit, false}, nil
 	}
 	return b.coerceConditional(operand, selected.Usage(), raw.Name)
 }

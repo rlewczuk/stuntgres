@@ -100,6 +100,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		return r.functionSQL(ctx, view, "pg_catalog.date_trunc", n.Arguments())
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return datetimeMakeSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:

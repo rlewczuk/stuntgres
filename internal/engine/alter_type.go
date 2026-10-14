@@ -256,7 +256,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		}
 	}
 	info.properties = coercionProperties(input, plan)
-	node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+	node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 	node, err = storageDestination(node, usage, info.pos)
 	if err != nil {
 		return fail(err)
@@ -296,7 +296,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(sqlError("42804", fmt.Sprintf(`default for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())))
 		}
 		info.properties = coercionProperties(input, defaultPlan)
-		expression = restoreDomainCastCollations(annotations, coercionExpression{info, input, defaultPlan, sqltype.Assignment})
+		expression = restoreDomainCastCollations(annotations, coercionExpression{info, input, defaultPlan, sqltype.Assignment, false})
 		expression, err = storageDestination(expression, usage, info.pos)
 		if err != nil {
 			return fail(err)

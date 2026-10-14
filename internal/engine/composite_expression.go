@@ -199,7 +199,7 @@ func (b *expressionBinder) assignCompositeMember(node BoundExpr, target sqltype.
 	if err != nil {
 		return node, err
 	}
-	return coercionExpression{b.info(target, node.SourcePosition(), coercionProperties(node, plan)), node, plan, mode}, nil
+	return coercionExpression{b.info(target, node.SourcePosition(), coercionProperties(node, plan)), node, plan, mode, false}, nil
 }
 func (b *expressionBinder) selectCompositeField(base BoundExpr, name string, pos parser.Position) (BoundExpr, error) {
 	typ := base.ResultUsage().Type

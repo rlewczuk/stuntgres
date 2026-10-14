@@ -221,7 +221,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 	if err != nil {
 		return nil, ObjectRef{}, err
 	}
-	return coercionExpression{info, node, plan, sqltype.Implicit}, ObjectRef{}, nil
+	return coercionExpression{info, node, plan, sqltype.Implicit, false}, ObjectRef{}, nil
 }
 
 // Explicit casts share name input with sequence consumers but use the ordinary
@@ -250,7 +250,7 @@ func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position
 	if child.ResultUsage() == target {
 		return child, nil
 	}
-	return coercionExpression{b.info(target, raw.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Explicit}, nil
+	return coercionExpression{b.info(target, raw.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Explicit, false}, nil
 }
 func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {

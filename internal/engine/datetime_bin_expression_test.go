@@ -178,7 +178,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), text, plan, sqltype.Explicit}
+	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, ExprProperties{Volatility: Immutable}), text, plan, sqltype.Explicit, false}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {

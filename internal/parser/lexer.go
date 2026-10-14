@@ -904,6 +904,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (mathConstantFunction(token.lexeme.text) || gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.EqualFold(token.lexeme.text, "jsonb_object") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
+	if token.code == IDENT && JSONBSetFunctionName(token.lexeme.text) {
+		token.code = SELECTED_FUNC
+	}
 	if token.code == IDENT && RegexpFunctionName(token.lexeme.text) {
 		token.code = SELECTED_FUNC
 	}
@@ -1076,7 +1079,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	// Selected time, enum and delay calls reuse failure-only decorations;
 	// their binder rejects aggregate modifiers after resolving the operands.
-	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
+	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || JSONBSetFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
@@ -1518,10 +1521,14 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
 	switch name {
-	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object", "jsonb_object":
+	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax":
 		return true
 	}
-	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name)
+	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name) || JSONBSetFunctionName(name)
+}
+
+func JSONBSetFunctionName(name string) bool {
+	return strings.EqualFold(name, "jsonb_set") || strings.EqualFold(name, "jsonb_set_lax")
 }
 
 // JSONFunctionName admits only the six selected ordinary JSON processing calls.

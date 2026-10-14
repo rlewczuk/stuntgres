@@ -135,7 +135,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 		}
 		if arg.ResultUsage() != target {
 			plan := plans[i]
-			arg = coercionExpression{b.info(target, raw.Args[i].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit}
+			arg = coercionExpression{b.info(target, raw.Args[i].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 		}
 		n.args[i] = arg
 		properties = mergeExpressionProperties(properties, arg.Properties())

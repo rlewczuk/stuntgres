@@ -196,7 +196,7 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 			if err != nil {
 				return nil, err
 			}
-			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit}
+			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit, false}
 		}
 		properties = mergeExpressionProperties(properties, args[i].Properties())
 	}

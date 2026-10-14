@@ -163,7 +163,7 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if err != nil {
 		return nil, err
 	}
-	return coercionExpression{info, node, plan, sqltype.Implicit}, nil
+	return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
 }
 
 func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) {

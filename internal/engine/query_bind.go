@@ -659,6 +659,6 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 		b.regclassConcat = true
 	}
 	info.properties = coercionProperties(input, plan)
-	expr = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+	expr = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 	return storageDestination(expr, target.Usage, info.pos)
 }

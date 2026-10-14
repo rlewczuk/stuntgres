@@ -1355,14 +1355,14 @@ func singletonArgument(expr Expr) bool {
 			case "pg_collation_actual_version":
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			case "gen_random_uuid", "uuidv4", "uuidv7":
-			case "json_object", "jsonb_object":
+			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax":
 			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys":
 			case "generate_series", "generate_subscripts":
 			case "unaccent":
 			case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
-				if !strings.EqualFold(name, "generate_series") && !strings.EqualFold(name, "generate_subscripts") && !JSONFunctionName(name) && !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.EqualFold(name, "jsonb_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !strings.EqualFold(name, "generate_series") && !strings.EqualFold(name, "generate_subscripts") && !JSONFunctionName(name) && !JSONBSetFunctionName(name) && !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.EqualFold(name, "jsonb_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}

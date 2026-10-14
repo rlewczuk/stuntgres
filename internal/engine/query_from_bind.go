@@ -657,7 +657,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 							return nil, queryNamespace{}, err
 						}
 						info.properties = coercionProperties(input, plan)
-						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit})
+						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false})
 					}
 					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1}
 					join.merges = append(join.merges, value)

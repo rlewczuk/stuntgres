@@ -44,6 +44,13 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return b.bindSubscripts(raw, visible)
 	}
+	if parser.JSONBSetFunctionName(name) {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		return b.bindJSONBSet(raw, visible)
+	}
 	if parser.JSONFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

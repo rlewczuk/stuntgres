@@ -150,7 +150,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 			return columnGeneration{}, diagnostic
 		}
 		info.properties = coercionProperties(input, plan)
-		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
 		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {
@@ -161,7 +161,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 			return columnGeneration{}, failure
 		}
 		analyzedInfo.properties = coercionProperties(analyzedInput, analyzedPlan)
-		analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment})
+		analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment, false})
 	}
 	node, err = storageDestination(node, column.Usage, parser.Position{})
 	if err != nil {
@@ -278,6 +278,8 @@ func generationImmutable(node BoundExpr) bool {
 		return !n.IntrinsicStable() && both(n.Value, n.Zone)
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
 	case functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]:
@@ -440,6 +442,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
@@ -792,6 +796,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())

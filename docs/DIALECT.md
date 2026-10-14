@@ -520,6 +520,25 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   converted root JSON null members after key/value conversion, retaining the
   latest nonnull duplicate; nested nulls are retained. All-omitted input yields
   an empty object; zero admitted rows yield SQL NULL.
+  `jsonb_set` and `jsonb_set_lax` return typed immutable JSONB through ordinary
+  direct/prepared and stored scalar consumers. TEXT[] paths require existing
+  intermediate parents; only a missing final item is created by the default
+  true `create_if_missing`. Negative array indices count from the end;
+  out-of-range final indices prepend/append without gap filling, and false
+  preserves the target. Empty container paths preserve the root; scalar roots
+  error. Reached NULL/noninteger path elements use full PostgreSQL diagnostics;
+  unreached elements are not inspected. Set is SQL-NULL strict. Lax SQL NULL
+  target/path/create also yields SQL NULL; its SQL NULL replacement supports
+  exact `raise_exception`, `use_json_null` (default), `delete_key` and
+  `return_target` modes. JSON null is not SQL NULL. Catalog formal names are
+  `jsonb_in`, `path`, `replacement`, `create_if_missing`, `null_value_treatment`;
+  named/default calls preserve written syntax and ordinary child demand.
+  Explicit final VARIADIC selects the same scalar formal, not array expansion.
+  Native immutable parameter calls retain the existing optimizer boundary:
+  parameters remain runtime-owned, not PostgreSQL custom-plan constant folding.
+  Native Dump/Restore keeps symbolic calls and descriptor ownership, and
+  cancellation/failure does not publish partial JSONB or persistent state.
+  Private lax deletion does not add public delete-path functions/operators.
   Adjacent operators/functions, generic JSON equality, SQL/JSON object aggregation
   and path/query execution remain excluded.
 - JSONB existence operators `jsonb ? text`, `jsonb ?| text[]` and

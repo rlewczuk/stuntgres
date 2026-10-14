@@ -78,7 +78,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 			return nil, err
 		}
 		info.properties = coercionProperties(input, plan)
-		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment})
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 	}
 	return storageDestination(node, column.Usage, parser.Position{})
 }
@@ -275,6 +275,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties], functions.Random[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties],
+		functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties], functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties], functions.String[BoundExpr, *EvalContext, ExprProperties],
 		functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties],

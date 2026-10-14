@@ -542,6 +542,18 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 			return node, false, nil
 		}
 		rebound = mapped
+	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		rebound = n
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])

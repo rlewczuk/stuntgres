@@ -48,7 +48,7 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 		if err != nil {
 			return bound, err
 		}
-		expr = coercionExpression{b.info(usage, expr.SourcePosition(), coercionProperties(expr, plan)), expr, plan, sqltype.Implicit}
+		expr = coercionExpression{b.info(usage, expr.SourcePosition(), coercionProperties(expr, plan)), expr, plan, sqltype.Implicit, false}
 	}
 	if expressionUsesFrame(expr, b.frameID()) {
 		return bound, expressionError("42P10", "argument of RANGE must not contain variables", firstQueryBoundFrameVariable(expr, b.frameID()))
