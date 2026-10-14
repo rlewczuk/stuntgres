@@ -189,7 +189,7 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			if phase == "late source" {
 				want = sentinel
 			}
-			if rows != nil || err != want || source.view != nil {
+			if rows.values != nil || err != want || source.view != nil {
 				t.Fatal(rows, err, want, source.view)
 			}
 			source.close()
@@ -233,7 +233,7 @@ func TestInsertSelectRequiredClose(t *testing.T) {
 		if primary {
 			want = context.Canceled
 		}
-		if rows != nil || err != want || cursor.closes != 1 {
+		if rows.values != nil || err != want || cursor.closes != 1 {
 			t.Fatal(rows, err, cursor.closes)
 		}
 		source.close()
@@ -251,7 +251,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 	}
 	closing := &insertCloseCursor{RowCursor: &stage, cancel: cancel}
 	rows, err := assembleInsertRows(ctx, b, closing, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
-	if !errors.Is(err, context.Canceled) || rows != nil || closing.closes != 1 {
+	if !errors.Is(err, context.Canceled) || rows.values != nil || closing.closes != 1 {
 		t.Fatal(rows, err, closing.closes)
 	}
 	source.close()

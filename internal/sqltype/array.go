@@ -405,6 +405,11 @@ func (p *arrayReader) contents(dimensions []ArrayDimension) ([]ArrayDimension, e
 					return nil, err
 				}
 			}
+			if isNull {
+				if err := p.descriptor.element.CheckDomainInput(p.ctx, element, p.environment); err != nil {
+					return nil, err
+				}
+			}
 			// Scalar input intentionally precedes the scalar-depth check.
 			frozen = true
 			if depth != rank {

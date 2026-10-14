@@ -75,7 +75,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			case "CurrentRows":
 				sessionSQL(t, owner, "INSERT INTO public.shape_survivor(a,z) VALUES(11,13)")
 			case "AffectedIndexRoot":
-				root, err := buildIndexRoot(context.Background(), survivor, index.sqlIndex, e.storage[survivor.address])
+				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, survivor, index.sqlIndex, e.storage[survivor.address], nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -172,7 +172,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 		t.Fatal("maximum index root reused")
 	}
 	// A real changed root invalidates the prepared attempt even at equal maxima.
-	changedRoot, err := buildIndexRoot(context.Background(), &maximum, maximumIndex.sqlIndex, &maximumStore)
+	changedRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, &maximum, maximumIndex.sqlIndex, &maximumStore, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

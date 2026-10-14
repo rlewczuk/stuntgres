@@ -102,6 +102,9 @@ func (d *Descriptor) binaryArray(ctx context.Context, p []byte, typmod int32, en
 		}
 		if isNull {
 			fields = append(fields, Null(d.element))
+			if err := d.element.CheckDomainInput(ctx, fields[len(fields)-1], env); err != nil {
+				return Value{}, 0, err
+			}
 			continue
 		}
 		v, n, err := d.element.binaryReceive(ctx, data, typmod, env)
@@ -145,6 +148,9 @@ func (d *Descriptor) binaryComposite(ctx context.Context, p []byte, env InputEnv
 		}
 		fields[i] = Null(member.Usage.Type)
 		if isNull {
+			if err := member.Usage.Type.CheckDomainInput(ctx, fields[i], env); err != nil {
+				return Value{}, 0, err
+			}
 			continue
 		}
 		v, n, err := member.Usage.Type.binaryReceive(ctx, data, member.Usage.Typmod, env)

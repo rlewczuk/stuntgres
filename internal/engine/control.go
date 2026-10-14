@@ -708,6 +708,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if predecessor != 0 {
 				viewDependencies[dumpEventKey{oid: id}] = []dumpEventKey{{oid: predecessor}}
 			}
+			for _, check := range d.domainChecks {
+				for _, dependency := range check.dependencies {
+					predecessor, err := dumpPredecessor(catalog, dependency.ref.Address, d.Address())
+					if err != nil {
+						return err
+					}
+					event := dumpEventKey{oid: id}
+					dependencyEvent := dumpEventKey{oid: predecessor}
+					if predecessor != 0 && !slices.Contains(viewDependencies[event], dependencyEvent) {
+						viewDependencies[event] = append(viewDependencies[event], dependencyEvent)
+					}
+				}
+			}
 		}
 	}
 	for event, predecessors := range viewDependencies {

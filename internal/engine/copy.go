@@ -85,9 +85,12 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 		return s.copyOutput(result.Rows, options, destination)
 	}
 	e := s.op.session.Engine()
+	s.input.LockedDomainInput = s
 	e.mu.Lock()
 	b, auth, bindErr := e.bindCopyLocked(s, syntax)
 	e.mu.Unlock()
+	s.input.DomainChecks = s
+	s.domainInputCatalog = auth.catalog
 	if bindErr != nil {
 		return 0, bindErr
 	}
@@ -201,7 +204,7 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	} else {
 		cursor = newCopyCursor(s, b, options, source)
 	}
-	rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0, nil, nil)
+	rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0 || unique.checked, nil, nil)
 	if err != nil {
 		return 0, cursor.diagnostic(err)
 	}

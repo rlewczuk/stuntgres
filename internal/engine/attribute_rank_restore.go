@@ -82,7 +82,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 	if err != nil {
 		return err
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: ref.Epoch})
+	_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: ref.Epoch})
 	return err
 }
 

@@ -121,10 +121,10 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				return original.Eval(c)
 			})
 			rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.input, scope.output, scope)
-			if err != nil || len(rows) != 2 || calls != 2 || source.view != nil {
+			if err != nil || len(rows.values) != 2 || calls != 2 || source.view != nil {
 				t.Fatal(rows, err, calls, source.view)
 			}
-			if err = scope.Writes().Apply(b.ref, rows); !errors.Is(err, ErrCatalogReplaced) {
+			if err = scope.Writes().Apply(b.ref, rows.values); !errors.Is(err, ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
 			if err = scope.Finish(err); !errors.Is(err, ErrCatalogReplaced) {

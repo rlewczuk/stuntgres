@@ -72,7 +72,7 @@ func (s *StatementScope) Finish(err error) error {
 		if t.state == TxImplicit && !t.retainedMessage {
 			if !s.completed {
 				t.mu.Unlock()
-				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority)
+				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority, s)
 				t.mu.Lock()
 			}
 		} else if !s.sessionCompleted {
@@ -181,6 +181,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.stage.deletes = nil
 	s.ownDeletes = nil
 	s.ownWrites = nil
+	s.existingIndexOutputs = nil
 	s.inheritanceRelations = nil
 	s.inheritanceCatalog = CatalogRead{}
 	s.ticket = nil

@@ -92,7 +92,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.comparisons[i] = mapped.(comparisonExpression)
 		}
 		next = n
-	case identityExpression, currentDateTimeExpression, transactionTimeExpression:
+	case domainValueExpression, identityExpression, currentDateTimeExpression, transactionTimeExpression:
 		next = n
 	case literalExpression:
 		if ref == nil {

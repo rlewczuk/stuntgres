@@ -43,7 +43,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		query := &BoundQuery{Root: &projectNode{querySchema: schema, child: sorted, expressions: []BoundExpr{projection}}}
 		source := &querySource{}
 		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-		if err != nil || len(rows) != count || source.anonymous != nil {
+		if err != nil || len(rows.values) != count || source.anonymous != nil {
 			t.Fatal(rows, err, source.anonymous)
 		}
 		for i, call := range calls {
@@ -51,7 +51,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 				t.Fatal("VALUES occurrence reevaluated/deduplicated", i, call)
 			}
 		}
-		for i, row := range rows {
+		for i, row := range rows.values {
 			if i == 3 {
 				if !row[0].IsNull() {
 					t.Fatal(row)

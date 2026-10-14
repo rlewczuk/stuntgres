@@ -130,9 +130,13 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				preparedStorage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 			}
 			preparedSequences, sequenceErr := copySequenceState(source, replacement)
+			indexes, indexErr := captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
 			source.mu.Unlock()
 			if sequenceErr != nil {
 				t.Fatal(sequenceErr)
+			}
+			if indexErr != nil {
+				t.Fatal(indexErr)
 			}
 			err := func() error {
 				target.replacementMu.Lock()
@@ -152,7 +156,11 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 						nextRevision = revision + 1
 					}
 				}
-				return target.installForeignCatalogLocked(boundary, next, preparedStorage, preparedSequences, nextRevision)
+				prepared, err := target.prepareForeignIndexStorage(ctx, next, preparedStorage, indexes)
+				if err != nil {
+					return err
+				}
+				return target.installForeignCatalogLocked(boundary, next, preparedStorage, preparedSequences, nextRevision, prepared)
 			}()
 			if err == nil {
 				target.locks.fence(target.CatalogRead().Epoch())

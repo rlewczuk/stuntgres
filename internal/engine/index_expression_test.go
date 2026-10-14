@@ -24,7 +24,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	for i, v := range values {
 		store.versions = append(store.versions, rowVersion{row: RowID(i + 1), version: VersionID(i + 1), values: []sqltype.Value{v}})
 	}
-	root, err := buildIndexRoot(context.Background(), parent, d, store)
+	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, d, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(got, want)
 	}
 	publication := &rowPublication{writes: []rowVersion{{row: 6, version: 6, values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
-	next, err := mergeIndexRoot(context.Background(), parent, &relationDescriptor{sqlIndex: d}, root.entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &relationDescriptor{sqlIndex: d}, root.entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

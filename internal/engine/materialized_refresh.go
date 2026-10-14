@@ -183,7 +183,8 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 				}
 			}
 			previous.versions, previous.ends = versions, nil
-			oldEntries, err = buildIndexEntries(scope.op.Context(), d, indices[0].sqlIndex, &previous)
+			evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: stage.base}
+			oldEntries, err = buildIndexEntries(&evaluation, d, indices[0].sqlIndex, &previous, nil)
 			if err != nil {
 				return Result{}, err
 			}
@@ -205,7 +206,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true

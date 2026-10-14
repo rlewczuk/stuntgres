@@ -7,8 +7,8 @@ import (
 
 // The caller retains replacementMu throughout, but providers must never run
 // under the target catalog mutex. All effects belong to an isolated real session.
-func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, mapping map[ObjectAddress]ObjectAddress, op *Operation) (result error) {
-	needed := false
+func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, mapping map[ObjectAddress]ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
+	needed := indexes.needsOwnerRepair()
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -73,17 +73,25 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	stmt := &parser.Insert{}
 	err = scope.gate(stmt)
+	var auth AuthorizationView
 	if err == nil {
 		stage.mu.Lock()
-		var auth AuthorizationView
 		auth, err = stage.authorizationLocked(op)
 		if err == nil {
 			err = scope.captureIdentityLocked(auth)
 		}
+		if err == nil {
+			scope.input.TypeDiagnosticName, err = stage.captureTypeDiagnosticName(auth)
+		}
 		stage.mu.Unlock()
 	}
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: CatalogRead{owner: stage, state: candidate}}
+	changed := indexes.trackedGenerations(candidate)
 	if err == nil {
-		err = recomputeRemappedGenerations(ctx, candidate, storage, mapping, EvalContext{Context: ctx, statementScope: scope, Input: scope.input, Output: scope.output})
+		err = recomputeRemappedGenerations(ctx, candidate, storage, mapping, evaluation, changed)
+	}
+	if err == nil {
+		err = indexes.repair(ctx, &evaluation, storage, changed, auth)
 	}
 	if err == nil {
 		scope.completed = true

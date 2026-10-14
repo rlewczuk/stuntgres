@@ -318,6 +318,24 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ObjectRef, keys []indexK
 	return true, nil
 }
 
+// A domain's index attribute uses the physical oid_ops descriptor for output.
+// Produced keys retain their logical alias type for identity remapping; only
+// diagnostic formatting normalizes that datum, without checking it again.
+func uniqueKeyOutput(ctx context.Context, value sqltype.Value, class sqltype.IndexClass, catalog CatalogRead, output sqltype.OutputEnvironment) (string, error) {
+	if value.Type().IsDomain() && class.Name == "oid_ops" {
+		oid, ok := catalog.LookupType(sqltype.Oid)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: index OID output descriptor is missing")
+		}
+		var err error
+		value, err = class.OIDKeyValue(value, oid)
+		if err != nil {
+			return "", err
+		}
+	}
+	return value.Type().OutputWithEnvironment(ctx, value, output)
+}
+
 // Formatting uses typed provider output, never SQL literals or Go formatting.
 func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, key []sqltype.Value, schema string, output sqltype.OutputEnvironment, detailAllowed, building bool, catalog CatalogRead) error {
 	message := fmt.Sprintf(`duplicate key value violates unique constraint "%s"`, index.name)
@@ -344,7 +362,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *relationDescriptor, ke
 			if value.IsNull() {
 				values[i] = "null"
 			} else {
-				text, err := value.Type().OutputWithEnvironment(ctx, value, output)
+				text, err := uniqueKeyOutput(ctx, value, index.sqlIndex.keys[i].class, catalog, output)
 				if err != nil {
 					return err
 				}

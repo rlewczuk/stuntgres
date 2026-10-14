@@ -208,7 +208,7 @@ func (e *Engine) publishOwnership(scope *StatementScope, stage *CatalogStage) (R
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true

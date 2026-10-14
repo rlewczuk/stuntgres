@@ -40,7 +40,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
 		return nil, "", err
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.catalog}
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, "", err
@@ -103,6 +103,22 @@ func indexExpressionDepends(d *relationDescriptor, target ObjectAddress) bool {
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func (d *indexDefinition) hasRuntimeDomainConversion() bool {
+	if d.predicate != nil && d.predicate.execution.Properties().RuntimeDomainConversion {
+		return true
+	}
+	return d.hasRuntimeDomainKeyConversion()
+}
+
+func (d *indexDefinition) hasRuntimeDomainKeyConversion() bool {
+	for _, key := range d.keys {
+		if key.derived != nil && key.derived.execution.Properties().RuntimeDomainConversion {
+			return true
 		}
 	}
 	return false

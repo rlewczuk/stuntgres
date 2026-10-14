@@ -176,7 +176,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	if err != nil {
 		return false, err
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
 		scope.completed = true
 	}

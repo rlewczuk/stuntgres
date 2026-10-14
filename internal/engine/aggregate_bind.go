@@ -140,6 +140,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			return false
 		}
 		return e.unknownNull == o.unknownNull && sqltype.SameDatum(e.value, o.value)
+	case domainValueExpression:
+		_, ok := other.(domainValueExpression)
+		return ok
 	case columnExpression:
 		o, ok := other.(columnExpression)
 		return ok && e.origin == o.origin && e.scope == o.scope && comparison.sameFrame(e.frame, o.frame) && e.slot == o.slot

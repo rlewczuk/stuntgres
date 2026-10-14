@@ -145,6 +145,8 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
+		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	result := b.typ(sqltype.Text).Usage()
 	if name == "to_date" {

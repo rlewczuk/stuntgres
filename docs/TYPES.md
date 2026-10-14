@@ -321,9 +321,113 @@ identities, while retained eager results preserve their captured metadata/data.
 Domains retain logical identity while transport and metadata describe their
 ultimate base. They are not per-value boxes. Column assignment publishes exact
 immutable destination Usage without discarding an inner domain's collation
-boundary. Domain constraints/defaults remain unimplemented; supplied-value
-support for `information_schema.time_stamp` does not implement its PostgreSQL
-inherited default. Changed type/domain ACLs make Dump fail rather than lose
+boundary. Domain CHECK uses the same typed expression and conversion providers:
+`VALUE` has the immediate base usage, TRUE/UNKNOWN pass, and FALSE reports 23514
+with target domain identity and the failing own/inherited constraint name.
+Ancestors run before descendants; each domain's own checks run alphabetically.
+Checks apply to fresh input and real conversion, including COPY and admitted
+array/composite members, not on reads, downcasts, or exact same-domain assignment.
+Checked expression conversions retain runtime demand: a false filter or empty
+source does not consume their CHECK truth, and each actual row executes its own
+conversion even for a constant physical value and a volatile CHECK provider.
+CHECK recipe initialization remains earlier: a constant recipe error can fail
+an empty consumer without evaluating its candidate truth. Genuine parameter and
+nested-member input still completes checks at the original input boundary.
+The same separation applies through retained CASE/COALESCE wrappers and to
+planning-only JOIN/MERGE capability facts and conflict inference: those proofs
+do not consume candidate CHECK truth. Existing ADD COLUMN initializes recipes
+even for an empty table, but materializes a checked default or omitted fresh
+NULL separately for each actual old row, never through a once-only missing-value
+cache. Existing MERGE with BY SOURCE has a separate target action-classification
+ON evaluation in addition to candidate matching; CHECK effects belong to those
+actual execution stages, not to planning or an artificial duplicate conversion.
+Stored generated, partition and index recipe initialization carries the candidate
+catalog and captured input environment, distinct from later row truth. A constant
+division-by-zero recipe can reject CREATE even on an empty table. Index row
+execution uses the real admitted statement outside catalog/publication locks.
+It retains immutable produced membership and owned B-tree keys or a hash scalar,
+not an evaluator, catalog closure or CHECK-truth cache. Ordinary INSERT does not
+replay that event at Finish/COMMIT; ON CONFLICT separately performs candidate
+precheck, insertion and genuine existing-tuple key recheck as applicable.
+Insertion metadata is captured/bound once per target/catalog authority, with an
+optional checked lane alongside the ordinary fast path. Actual candidate
+insertion evaluates indexes in ObjectID order, interleaving unique/exclusion
+probes with checked nonunique indexes before RETURNING or the next producer row.
+Canonical batch staging only validates and consumes these produced records.
+On catalog drift, tracked/mixed batches revalidate explicit produced data against
+current providers, roots, visibility and grants, without invoking index SQL.
+The cold tracked lane also retains ordinary unique/exclusion probe outputs where
+needed, including immutable prior-own row/version data. Missing/stale proof or
+a newly ready checked index fails closed; unrelated catalog churn with unchanged
+semantics is not rejected wholesale. Only entirely untracked old/current targets
+retain the ordinary immutable retry path. Genuine deferred exclusion checks and
+RETURNING re-admission keep their real owners and distinct execution phases.
+Ordinary own-row comparisons and overlay population retain separate existing-key
+scratch storage, leaving the active proposal key unchanged through admission.
+COPY retains a different genuine producer phase: eligible input buffers flush
+at 1000 tuples or 65535 server raw text bytes, then insert each tuple through its
+ordered index list. Binary input has no text-byte counter. Ordinary nextval
+defaults remain batch-safe; other physically volatile default trees use single
+insertion, without expanding the supported DEFAULT function repertoire.
+Partition COPY buffers flush in destination first-use order. Captured input line
+origins supply insertion error context without replacing codec column frames or
+replaying generation/defaults. Apply/Finish/COMMIT do not recreate this SQL event.
+UPDATE evaluates changed values; DELETE/old-version retirement does not replay
+their index CHECKs, and rollback retains sequence effects without publishing rows.
+Slot-only DROP/projection, stable missing-value ADD and temporary cleanup transport
+existing entries with exact row/version/position and storage authority. An actual
+physical TYPE/generated/checked-ADD rewrite builds all valid ready/live physical
+indexes under the DDL owner, including indexes on otherwise unchanged keys.
+Unrelated rewrites preserve ready-invalid phases and roots instead of healing
+them. Private pins carry the produced baseline and own-row outputs to publication
+without a second build. Deferred comparisons use the actual admitted operation's statement scope.
+Earlier private rows receive produced DDL keys even for plain indexes when their
+admission predates the new definition; ordinary plain DML retains its no-output
+fast path. Pure B-tree layout transport preserves root identity when referenced
+dense slots, entries, row/version positions and inverse policy are unchanged.
+Changed referenced slots receive a new data-remapped root without SQL evaluation
+or phase healing. Metadata-only attachment retains global/private baseline roots
+without manufacturing a private copy. Successive temporary projections carry
+explicit chained lineage and the original publication fence. TRUNCATE and
+ON COMMIT DELETE rebind genuine empty artifacts and private pins to the new
+storage incarnation outside catalog locks, without evaluating CHECK inputs.
+Overlay candidate capture validates the produced root against its actual staged
+storage target; committed predecessor storage and descriptor fences independently
+retain publication authority. An absent target never accepts an older root.
+Trusted self/foreign catalog replacement captures source roots with its storage
+snapshot, filters selected live versions and remints/reowns entries as data.
+Represented routine and dictionary identities in B-tree and HASH keys follow
+the same class-aware recursive remint as stored cells, including domain and
+container payloads, without rebuilding SQL or changing source snapshots.
+UNIQUE diagnostics for domain-wrapped oid_ops keys use the physical OID output
+descriptor; the preserved logical alias datum still owns index identity.
+Recursive scalar reownership also receives the actual captured ACL principal
+importer when needed. That authority remains private through remint preparation
+and is cleared before publication; neither snapshots nor index roots retain it.
+Private remint prepares complete roots and allocator frontiers before the final
+installer, which consumes those artifacts and owns one final cancellation
+observation before indivisible publication. Cancellation after that successful
+observation does not retroactively retract the installed generation.
+Missing or malformed source authority fails closed. Only genuinely changed
+generated inputs or mapped table-OID-dependent index expressions rebuild in the
+existing real restore-repair statement; unrelated entries still transfer without
+SQL replay. Retained temporary storage and source roots remain immutable.
+Nominal `domain_name 'text'` literals decode the physical base and then use the
+same checked conversion; this syntax does not admit additional non-domain
+literal providers. Unquoted, separated E/B/X string prefixes retain their
+existing boundary; quoted nominal names use domain-only binding, while
+contiguous escape/bit literal tokens retain their existing lexer semantics.
+Omitted columns and `DEFAULT VALUES` use checked fresh NULL
+input when no column default exists. Foreign-action assignments use their
+captured type visibility and conversion authority, including fresh NULL from
+SET NULL or SET DEFAULT; they do not validate already-domain rows globally.
+Consequently fresh NULL is checked while already-domain NULL produced by an
+outer join or empty scalar subquery can bypass conversion. Native Dump/Restore
+preserves explicit/generated names and expression providers; CHECK-only provider
+CASCADE removes the dependent CHECK, not its containing domain or stored data.
+Domain DEFAULT/NOT NULL/ALTER remain unavailable; supplied-value support for
+`information_schema.time_stamp` does not implement its PostgreSQL inherited
+default. Changed type/domain ACLs make Dump fail rather than lose
 rights. Ownership transfer follows canonical root/array/backing associations
 without rebuilding codecs or value signatures; typed-table owners remain
 independent of their attached composite's owner.

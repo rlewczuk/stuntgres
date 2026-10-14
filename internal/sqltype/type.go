@@ -105,21 +105,22 @@ type Codec interface {
 
 // Descriptor has no mutable or execution-local state. Catalogs own generations.
 type Descriptor struct {
-	id                  ID
-	name, sql, database string
-	base                Usage
-	element             *Descriptor
-	associatedArray     ID
-	delimiter           byte
-	enum                *enumDefinition
-	queryInt            bool
-	composite           *compositeDefinition
-	rangeSubtype        *Descriptor
-	multirangeRange     *Descriptor
-	multirangeCompanion *Descriptor
-	lookupOnly          bool
-	catalogNullOwner    *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
-	namespace           string
+	id                            ID
+	name, sql, database           string
+	base                          Usage
+	ownDomainChecks, domainChecks bool
+	element                       *Descriptor
+	associatedArray               ID
+	delimiter                     byte
+	enum                          *enumDefinition
+	queryInt                      bool
+	composite                     *compositeDefinition
+	rangeSubtype                  *Descriptor
+	multirangeRange               *Descriptor
+	multirangeCompanion           *Descriptor
+	lookupOnly                    bool
+	catalogNullOwner              *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	namespace                     string
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
@@ -563,6 +564,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		base := d.Usage().BaseUsage()
 		value, err := base.Type.InputWithEnvironment(ctx, text, base.Typmod, env)
 		if err != nil {
+			return Value{}, err
+		}
+		if err := d.CheckDomainInput(ctx, value, env); err != nil {
 			return Value{}, err
 		}
 		return d.Wrap(value)
@@ -1227,6 +1231,13 @@ type CoercionPlan struct {
 	logicalSource, logicalTarget *Descriptor
 	element                      *CoercionPlan
 	jsonEncoding                 string
+}
+
+// ChecksDomain reports runtime CHECK demand, not free VALUE-frame dependence.
+// Identity/downcasts do not check; array element conversions share this rule.
+func (p CoercionPlan) ChecksDomain() bool {
+	return p.logicalTarget != nil && p.logicalTarget != p.logicalSource && p.logicalTarget.HasDomainChecks() ||
+		p.element != nil && p.element.ChecksDomain()
 }
 
 func (p CoercionPlan) Equal(other CoercionPlan) bool {

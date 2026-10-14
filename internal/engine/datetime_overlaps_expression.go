@@ -262,6 +262,8 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
+		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	plan, err := sqltype.BindDatetimeOverlaps(b.typ(signature[0]), b.typ(sqltype.Interval), b.typ(sqltype.Bool), b.typ(sqltype.Time), [2]bool{signature[1] == sqltype.Interval, signature[3] == sqltype.Interval}, local)
 	if err != nil {

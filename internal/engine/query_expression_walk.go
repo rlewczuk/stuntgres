@@ -18,6 +18,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		}
 	}
 	switch e := node.(type) {
+	case domainValueExpression:
+		// Conversion-local VALUE is a lexical leaf, never a query column.
 	case viewQualificationExpression:
 		args(e.predicates)
 		walk(e.user)

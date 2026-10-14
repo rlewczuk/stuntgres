@@ -1,11 +1,24 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"stuntgres/internal/sqltype"
 )
+
+// Capture accompanies one genuine DDL build. It includes evaluated exclusions
+// and NULL hash keys that intentionally have no physical index entry.
+type indexBuildCapture struct {
+	index   *relationDescriptor
+	outputs []indexRowOutput
+}
+
+type alterIndexBuild struct {
+	root    *logicalIndexRoot
+	index   *relationDescriptor
+	store   *relationStorage
+	outputs []indexRowOutput
+}
 
 // A TYPE action rebuilds each affected constraint/backing relation as one
 // removal-and-create candidate, retaining the parent and stable attribute keys.
@@ -160,11 +173,19 @@ func indexAttributeAffected(definition *indexDefinition, attribute int32) bool {
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ObjectAddress) (map[string]*logicalIndexRoot, error) {
+func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate CatalogRead, parent *relationDescriptor, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
+	ctx := evaluation.Context
+	if parent.partition != nil {
+		return nil, nil
+	}
 	var indexes []*relationDescriptor
-	if len(transformations) != 0 || len(generations) != 0 {
-		for _, index := range enforcingIndexes(candidate, parent.address) {
-			if !slices.Contains(added, index.address) && uniqueIndexValuesAffected(index.sqlIndex, transformations, generations) {
+	if physicalRewrite || len(transformations) != 0 || len(generations) != 0 {
+		for _, descriptor := range candidate.state.descriptors {
+			index, ok := descriptor.(*relationDescriptor)
+			if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live || !index.sqlIndex.valid {
+				continue
+			}
+			if !slices.Contains(added, index.address) && (physicalRewrite || uniqueIndexValuesAffected(index.sqlIndex, transformations, generations)) {
 				indexes = append(indexes, index)
 			}
 		}
@@ -179,59 +200,96 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, candidate
 	if len(indexes) == 0 {
 		return nil, nil
 	}
-	var baselines map[string]*logicalIndexRoot
-	if len(writes) == 0 && (deletes == nil || len(deletes.rows) == 0) {
-		baselines = make(map[string]*logicalIndexRoot)
-	}
-	validationStore := store
-	if baselines == nil {
-		// Overlay-only validation is never installed. Reusable roots instead
-		// retain the original physical layout, including committed tombstones.
-		replaced := make(map[RowID]bool, len(writes))
-		for _, row := range writes {
-			replaced[row.row] = true
+	slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
+		if a.address.ObjectID < b.address.ObjectID {
+			return -1
 		}
-		var live []rowVersion
-		for _, row := range store.versions {
-			if !replaced[row.row] && liveVersion(row, CommitSeq(^uint64(0)), store.ends, deletes) {
-				live = append(live, row)
-			}
+		if a.address.ObjectID > b.address.ObjectID {
+			return 1
 		}
-		for _, row := range writes {
-			if !uniqueRowDeleted(row.row, deletes) {
-				live = append(live, row)
-			}
-		}
-		validationStore = &relationStorage{versions: live}
+		return 0
+	})
+	builds := make(map[string]*alterIndexBuild, len(indexes))
+	validationStore, err := indexBuildVisibleStore(ctx, store, writes, deletes)
+	if err != nil {
+		return nil, err
 	}
 	auth.catalog = candidate
 	auth.recaptureCatalog(auth.catalog)
+	evaluation.catalog, evaluation.Output = candidate, output
+	named := false
 	for _, index := range indexes {
-		root, err := buildIndexRoot(ctx, parent, index.sqlIndex, validationStore)
+		var capture *indexBuildCapture
+		if index.sqlIndex.hasRuntimeDomainConversion() && !named {
+			var err error
+			evaluation.Input.TypeDiagnosticName, err = candidate.owner.captureTypeDiagnosticName(auth)
+			if err != nil {
+				return nil, err
+			}
+			named = true
+		}
+		if index.sqlIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
+			capture = &indexBuildCapture{index: index, outputs: make([]indexRowOutput, len(validationStore.versions))}
+		}
+		root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, validationStore, capture)
 		if err != nil {
 			return nil, err
 		}
-		if err := validateUniqueRoot(ctx, parent, index, root, schema, output, &auth, true); err != nil {
-			return nil, err
+		if index.sqlIndex.valid || index.sqlIndex.constraint != nil {
+			if err := validateUniqueRoot(ctx, parent, index, root, schema, output, &auth, true); err != nil {
+				return nil, err
+			}
 		}
-		if baselines != nil {
-			baselines[index.name] = root
+		build := &alterIndexBuild{index: index, root: root, store: validationStore}
+		if capture != nil {
+			build.outputs = capture.outputs
 		}
+		builds[index.name] = build
 	}
-	return baselines, nil
+	return builds, nil
 }
 
-// Both reminted attachments and evolved standalone indexes use the existing
-// private catalog owner. Roots exclude own successors, which DML checks in its
-// overlay; validated roots are reusable only when there was no own overlay.
-func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, source CatalogRead, parent *relationDescriptor, baseline *relationStorage, validated map[string]*logicalIndexRoot, metadataOnly bool, generations []int32) error {
+// A genuine DDL build is reusable even with an own overlay: derive the baseline
+// from produced entries, and carry exact private pins rather than invoking SQL.
+func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, source CatalogRead, parent *relationDescriptor, baseline *relationStorage, validated map[string]*alterIndexBuild, metadataOnly bool) error {
+	if parent.partition != nil {
+		return nil
+	}
+	var positions map[indexRowIdentity]int
+	for _, build := range validated {
+		if build.store != baseline {
+			var err error
+			positions, err = indexBuildPositions(evaluation.Context, baseline)
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+	for _, build := range validated {
+		descriptor, changed := changes.descriptors[build.index.address]
+		if !changed {
+			descriptor = evaluation.catalog.state.descriptors[build.index.address]
+		}
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || !sameIndexKeySemantics(build.index, index) {
+			return ErrCatalogReplaced
+		}
+		root, err := build.baselineRoot(evaluation.Context, index, baseline, positions)
+		if err != nil {
+			return err
+		}
+		retainIndexBuild(changes, index, baseline, root)
+	}
 	for address, descriptor := range changes.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || (!index.sqlIndex.unique && !index.sqlIndex.isExclusion()) || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live {
+		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live || !index.sqlIndex.valid {
 			continue
 		}
-		if !index.sqlIndex.valid {
-			// Generic parent evolution cannot rebuild a failed ready index.
+		if build := validated[index.name]; build != nil && build.index.address == address && sameIndexKeySemantics(build.index, index) {
+			continue
+		}
+		if candidate, produced := changes.indexCandidates[address]; produced && candidate.matchesIndex(index, baseline) {
 			continue
 		}
 		if original := changes.originals[address]; original == descriptor {
@@ -239,46 +297,14 @@ func prepareAlterUniqueRoots(ctx context.Context, changes *catalogChanges, sourc
 		}
 		if metadataOnly {
 			if previous, ok := source.state.descriptors[address].(*relationDescriptor); ok && sameIndexKeySemantics(previous, index) {
-				continue // Ownership/name/NN metadata alone retains the exact root.
-			}
-		}
-		root := validated[index.name]
-		if root == nil {
-			var err error
-			root, err = buildIndexRoot(ctx, parent, index.sqlIndex, baseline)
-			if err != nil {
-				return err
-			}
-		}
-		if changes.uniqueRoots == nil {
-			changes.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot)
-		}
-		changes.uniqueRoots[address] = root
-	}
-	// Type-preserving generation SET keeps index/constraint identities. Install
-	// new baseline roots even when no descriptor evolution was necessary.
-	if len(generations) != 0 {
-		for address, descriptor := range source.state.descriptors {
-			index, ok := descriptor.(*relationDescriptor)
-			if !ok || index.sqlIndex == nil || (!index.sqlIndex.unique && !index.sqlIndex.isExclusion()) || index.sqlIndex.parent != parent.address || !index.sqlIndex.ready || !index.sqlIndex.live || !index.sqlIndex.valid || !uniqueIndexValuesAffected(index.sqlIndex, nil, generations) {
 				continue
 			}
-			if _, changed := changes.descriptors[address]; changed {
-				continue
-			}
-			root := validated[index.name]
-			if root == nil {
-				var err error
-				root, err = buildIndexRoot(ctx, parent, index.sqlIndex, baseline)
-				if err != nil {
-					return err
-				}
-			}
-			if changes.uniqueRoots == nil {
-				changes.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot)
-			}
-			changes.uniqueRoots[address] = root
 		}
+		root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, baseline, nil)
+		if err != nil {
+			return err
+		}
+		retainIndexBuild(changes, index, baseline, root)
 	}
-	return nil
+	return evaluation.Context.Err()
 }

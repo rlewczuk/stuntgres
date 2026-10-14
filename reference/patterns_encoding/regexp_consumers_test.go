@@ -54,15 +54,14 @@ func TestReferenceRegexpStoredDefinitions(t *testing.T) {
 	regexpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		regexpStoredOverloads(t, p, b)
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
-		// Constrained domain DDL is an existing non-regexp boundary. Keep
-		// its PG-positive witness and a positive plain-domain coercion below.
-		domainSQL := `CREATE DOMAIN regexp_constrained AS TEXT CHECK(regexp_like(VALUE,'^a'))`
-		domain := fixture.Exec(domainSQL, 0)
-		if !b.PG {
-			domain = regexpBindError(domainSQL, "0A000", "domain constraints and defaults are unsupported", "", "CHECK")
-			domain.SelectRows, domain.ErrorStage = false, "execute"
-		}
-		run(domain)
+		// Domain CHECK uses the same regexp provider and conversion path.
+		run(fixture.Exec(`CREATE DOMAIN regexp_constrained AS TEXT CHECK(regexp_like(VALUE,'^a'))`, 0))
+		regexpRoutes(t, p, b, fixture.Select(`SELECT regexp_count('aba'::regexp_constrained,'a') AS n,regexp_count(NULL::regexp_constrained,'a') AS missing`, []string{"n", "missing"}, []string{"INT4", "INT4"}, [][]any{{int64(2), nil}}))
+		d := fixture.ControlsReferenceDiagnostic("23514", `value for domain regexp_constrained violates check constraint "regexp_constrained_check"`)
+		d.Schema, d.DataType, d.Constraint = "public", "regexp_constrained", "regexp_constrained_check"
+		failure := fixture.ErrorDiagnostic(`SELECT regexp_count('x'::regexp_constrained,'a')`, d)
+		failure.SelectRows, failure.ErrorStage = true, "execute"
+		regexpRoutes(t, p, b, failure)
 		run(fixture.Exec(`CREATE DOMAIN regexp_text AS TEXT`, 0))
 		run(fixture.Exec(regexpStoredDDL, 0))
 		run(fixture.Exec(`INSERT INTO stored(id,s) VALUES(1,'aba'),(2,NULL)`, 2))

@@ -47,7 +47,7 @@ func TestPartialIndexUniqueAdmissionPrivatePrefix(t *testing.T) {
 					case "prefix":
 						prefix = [][]sqltype.Value{old.values}
 					}
-					err := scope.checkUniqueRow(f.ref, next.values, nil, prefix)
+					err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: next.values}, nil, indexWriteBatch{values: prefix})
 					if membership == "true" && candidate == "true" {
 						nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-05, 3) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 					} else if err != nil {
@@ -73,7 +73,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			scope := partialUniqueScope(t, f)
 			row := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
-			err := scope.checkUniqueRow(f.ref, row.values, nil, nil)
+			err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: row.values}, nil, indexWriteBatch{})
 			if active == "true" {
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-03, 1) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 			} else {
@@ -92,7 +92,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			scope := partialUniqueScope(t, f)
 			row := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
-			if err := scope.claimUniqueRow(f.ref, row.values); err != nil {
+			if err := scope.claimUniqueRow(f.ref, row); err != nil {
 				t.Fatal(err)
 			}
 			uniqueKeyBucketsEmpty(t, f.e)
@@ -150,9 +150,9 @@ func TestPartialIndexUniqueAdmissionNullPredicateError(t *testing.T) {
 			row := partialUniqueRow(t, f, 1, "", "0", "true")
 			var err error
 			if claim {
-				err = scope.claimUniqueRow(f.ref, row.values)
+				err = scope.claimUniqueRow(f.ref, row)
 			} else {
-				err = scope.checkUniqueRow(f.ref, row.values, nil, nil)
+				err = scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: row.values}, nil, indexWriteBatch{})
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 			uniqueKeyBucketsEmpty(t, f.e)

@@ -46,6 +46,14 @@ type InputEnvironment struct {
 	// ExactSnapshot is private native-import policy. Codecs and coercions reject
 	// modifier loss throughout nested values; ordinary SQL leaves it disabled.
 	ExactSnapshot bool
+	// LockedDomainInput is supplied explicitly by a mutex-owning binder caller.
+	// Codecs never invoke it; only literal binding uses this narrow boundary.
+	LockedDomainInput DomainInputBoundary
+	DomainChecks      DomainCheckEvaluator
+}
+
+type DomainInputBoundary interface {
+	DecodeLockedDomainInput(context.Context, *Descriptor, string, int32, InputEnvironment) (Value, error)
 }
 
 type RegclassResolver interface {

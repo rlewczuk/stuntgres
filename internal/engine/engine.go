@@ -285,7 +285,7 @@ func (e *Engine) allocateOIDLocked() (OID, error) {
 		}
 		usedRule := false
 		for _, descriptor := range e.state.descriptors {
-			if relation, ok := descriptor.(*relationDescriptor); ok && definitionOIDUsed(relation, n) {
+			if definitionOIDUsed(descriptor, n) {
 				usedRule = true
 				break
 			}
@@ -322,6 +322,7 @@ func (e *Engine) Describe(op *Operation, stmt parser.Statement) (info StatementD
 }
 func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement) (StatementDescription, error) {
 	op := scope.op
+	scope.input.LockedDomainInput = scope
 	if err := e.validateOperation(op); err != nil {
 		return StatementDescription{}, err
 	}
@@ -948,8 +949,9 @@ func notNullDetailError(schema, table, column, detail string) error {
 	}
 }
 
-// FrameImporter runs only codec conversion of already owned adapter values.
-// It must not invoke user code or external I/O under the engine mutex.
+// FrameImporter fills one canonical frame and completes input CHECKs in lexical
+// order. It enters and returns without Engine.mu; SQL actual-expression import
+// owns only its binding/capture lock and evaluates outside it without replay.
 type FrameImporter func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error
 
 func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {

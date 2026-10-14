@@ -342,7 +342,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	}
 	uniqueCapacity := min(len(candidates), source.count())
 	oldRows := make([]rowVersion, 0, uniqueCapacity)
-	rows := make([][]sqltype.Value, 0, uniqueCapacity)
+	rows := indexWriteBatch{values: make([][]sqltype.Value, 0, uniqueCapacity)}
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
@@ -400,12 +400,13 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(b.ref, old.values); err != nil {
+		if err := s.claimUniqueRow(b.ref, old); err != nil {
 			return Result{}, err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
 		oldRows = append(oldRows, old)
-		if err := s.checkUniqueRow(b.ref, row, oldRows, rows); err != nil {
+		proposal := indexWriteCandidate{values: row}
+		if err := s.checkUniqueRow(b.ref, &proposal, oldRows, rows); err != nil {
 			return Result{}, err
 		}
 		if err := e.checkViewRow(s, &b, row, &eval); err != nil {
@@ -429,7 +430,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			}
 			output.count++
 		}
-		rows = append(rows, row)
+		rows.append(proposal)
 		if b.update.from != nil {
 			updated[candidate.row] = true
 		}
@@ -447,9 +448,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	}
 	keep = true
 	if output != nil {
-		return Result{Count: int64(len(rows)), Rows: output}, nil
+		return Result{Count: int64(len(rows.values)), Rows: output}, nil
 	}
-	return Result{Count: int64(len(rows))}, nil
+	return Result{Count: int64(len(rows.values))}, nil
 }
 
 func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column, check string, row []sqltype.Value) error {

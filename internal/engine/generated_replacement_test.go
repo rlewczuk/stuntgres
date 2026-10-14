@@ -136,9 +136,13 @@ func (f *generatedRepairFixture) run(ctx context.Context) <-chan error {
 		defer f.target.replacementMu.Unlock()
 		f.target.mu.Lock()
 		defer f.target.mu.Unlock()
-		err := f.target.repairRemappedGenerationsLocked(ctx, f.next, f.storage, f.sequences, f.mapping, f.op)
+		err := f.target.repairRemappedGenerationsLocked(ctx, f.next, f.storage, f.sequences, f.mapping, f.op, nil)
 		if err == nil {
-			err = f.target.installForeignCatalogLocked(ctx, f.next, f.storage, f.sequences, f.target.nextRevision)
+			var prepared remintedIndexStorage
+			prepared, err = f.target.prepareForeignIndexStorage(ctx, f.next, f.storage, &indexSnapshot{})
+			if err == nil {
+				err = f.target.installForeignCatalogLocked(ctx, f.next, f.storage, f.sequences, f.target.nextRevision, prepared)
+			}
 		}
 		result <- err
 	}()

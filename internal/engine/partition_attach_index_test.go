@@ -63,7 +63,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				{row: 2, version: 2, born: 1, values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.columns[2].Usage.Type, "different included payload")}},
 			}}
 			f.e.storage[f.leaf.address] = store
-			oldRoot, err := buildIndexRoot(context.Background(), f.leaf, local.sqlIndex, store)
+			oldRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.leaf, local.sqlIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -72,7 +72,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			beforeEntries := slices.Clone(oldRoot.entries)
 			beforeCatalog, beforeRoots := f.e.state, maps.Clone(f.e.indexRoots)
 			captured := captureIndexStores(f.e.storage, next)
-			roots, err := f.e.prepareIndexPublication(context.Background(), current, next, captured, f.e.indexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil)
+			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, current, next, captured, f.e.indexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if f.e.state != beforeCatalog || !maps.Equal(f.e.indexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}

@@ -66,6 +66,8 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 		p.RowDependent = p.RowDependent || child.RowDependent
 		p.ParameterDependent = p.ParameterDependent || child.ParameterDependent
 		p.StageDependent = p.StageDependent || child.StageDependent
+		p.DomainDependent = p.DomainDependent || child.DomainDependent
+		p.RuntimeDomainConversion = p.RuntimeDomainConversion || child.RuntimeDomainConversion
 	}
 	info := b.info(result, pos, p)
 	inputInfo := info

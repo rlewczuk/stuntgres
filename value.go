@@ -63,10 +63,17 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 				return sqltype.Value{}, err
 			}
 		}
+		if err := target.Type.CheckDomainInput(ctx, value, input); err != nil {
+			return sqltype.Value{}, err
+		}
 		return target.Type.Wrap(value)
 	}
 	if raw == nil {
-		return sqltype.Null(target.Type), ctx.Err()
+		value := sqltype.Null(target.Type)
+		if err := target.Type.CheckDomainInput(ctx, value, input); err != nil {
+			return sqltype.Value{}, err
+		}
+		return value, ctx.Err()
 	}
 	var text string
 	switch v := raw.(type) {
@@ -152,8 +159,8 @@ func timetzParameterText(v time.Time) string {
 	return string(text)
 }
 
-// Only checked scalar imports and codecs run in this callback. Values are already owned and no user code
-// runs under the coherent bind/import/evaluate publication critical section.
+// Arguments have already acquired immutable ownership; no Valuer/user callback
+// runs here. Sequential codec/CHECK completion runs outside the engine mutex.
 func frameImporter(values []driver.Value) engine.FrameImporter {
 	return func(ctx context.Context, parameters engine.ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 		for i, raw := range values {
@@ -169,7 +176,7 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 						copy.Context += "\n"
 					}
 					copy.Context += fmt.Sprintf("unnamed portal parameter $%d", i+1)
-					if copy.Code != "22021" {
+					if copy.Code != "22021" && raw != nil {
 						if text, ok := raw.(string); ok && text == "" {
 							copy.Context += " = ''"
 						} else {

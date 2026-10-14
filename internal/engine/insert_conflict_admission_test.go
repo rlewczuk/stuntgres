@@ -23,7 +23,7 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	f.index.sqlIndex = &definition
 	f.store.versions = f.store.versions[:1]
 	f.store.versions[0].born = 1
-	root, err := buildIndexRoot(context.Background(), f.parent, &definition, f.store)
+	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,12 +63,57 @@ func insertConflictUnitRow(t testing.TB, f partialIndexFixture, n int64) []sqlty
 	}
 	return []sqltype.Value{value, sqltype.Boolean(f.parent.columns[1].Usage.Type, true)}
 }
+func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		purpose indexProbePurpose
+	}{{"ordinary", indexProbeRuntime}, {"tracked", indexProbeTracked}} {
+		t.Run(test.name, func(t *testing.T) {
+			purpose := test.purpose
+			f := insertConflictUniqueFixture(t)
+			scope, ref := insertConflictUnitScope(t, f)
+			binding, err := scope.bindUniqueWrite(ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bound := &binding.keys[0]
+			evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output}
+			proposal := insertConflictUnitRow(t, f, 20)
+			key, err := bound.load(proposal, &evaluation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			own := rowVersion{row: 200, version: 200, values: insertConflictUnitRow(t, f, 10)}
+			member, existing, err := scope.existingUniqueOutput(bound, own, &evaluation, purpose)
+			if err != nil || !member {
+				t.Fatal("existing row lost membership", member, err)
+			}
+			for _, comparison := range []struct {
+				name string
+				got  []sqltype.Value
+				want sqltype.Value
+			}{
+				{"proposal", key, proposal[0]},
+				{"existing", existing, own.values[0]},
+			} {
+				cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{keys: comparison.got}, logicalIndexEntry{keys: []sqltype.Value{comparison.want}})
+				if err != nil || cmp != 0 {
+					t.Fatal(comparison.name+" key was overwritten", cmp, err)
+				}
+			}
+			if purpose == indexProbeRuntime && scope.existingIndexOutputs != nil {
+				t.Fatal("ordinary fast path retained tracked outputs")
+			}
+		})
+	}
+}
+
 func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
 	manager := f.e.locks
 	first := insertConflictUnitRow(t, f, 20)
-	admitted, err := scope.admitInsertRow(ref, first, nil, nil)
+	admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: first}, indexWriteBatch{}, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
@@ -77,7 +122,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 		t.Fatal("accepted proposal owns one actual key", baseline)
 	}
 	for _, row := range [][]sqltype.Value{insertConflictUnitRow(t, f, 10), first} {
-		admitted, err = scope.admitInsertRow(ref, row, [][]sqltype.Value{first}, nil)
+		admitted, err = scope.admitInsertRow(ref, &indexWriteCandidate{values: row}, indexWriteBatch{values: [][]sqltype.Value{first}}, nil)
 		if err != nil || admitted {
 			t.Fatal("duplicate was not omitted", admitted, err)
 		}
@@ -91,7 +136,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 			}
 		}
 	}
-	admitted, err = scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 30), [][]sqltype.Value{first}, nil)
+	admitted, err = scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 30)}, indexWriteBatch{values: [][]sqltype.Value{first}}, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
@@ -105,7 +150,7 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 		scope, ref := insertConflictUnitScope(t, f)
 		scope.owner.isolation = isolation
 		scope.owner.frontier = 0
-		admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
+		admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 		if isolation == ReadCommitted {
 			if err != nil || admitted {
 				t.Fatal("read committed", admitted, err)
@@ -138,24 +183,24 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	def.predicate = nil
 	second.sqlIndex = &def
 	f.e.state.descriptors[second.address] = &second
-	root, err := buildIndexRoot(context.Background(), f.parent, &def, f.store)
+	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.e.indexRoots[second.address] = root
 	scope.uniqueBinding = nil
 	scope.insertConflict.catalog = nil
-	admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
+	admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal("selected provider must win", admitted, err)
 	}
-	admitted, err = scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil)
+	admitted, err = scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 20)}, indexWriteBatch{}, nil)
 	var diagnostic *sqlstate.Error
 	if admitted || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("unselected violation", admitted, err)
 	}
 	scope.insertConflict = nil
-	err = scope.checkUniqueRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
+	err = scope.checkUniqueRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, nil, indexWriteBatch{})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("ordinary route changed", err)
 	}
@@ -197,7 +242,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		index.attributes = []int32{1, 2}
 		index.attributeHighWater = 2
 		f.e.state.descriptors[index.address] = &index
-		root, err := buildIndexRoot(context.Background(), f.parent, &definition, f.store)
+		root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

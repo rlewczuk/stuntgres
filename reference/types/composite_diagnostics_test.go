@@ -91,12 +91,6 @@ func TestReferenceCompositeTypedCoercion(t *testing.T) {
 func TestReferenceCompositeConstrainedDomainBoundary(t *testing.T) {
 	fixture.CompositeReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		q := `CREATE DOMAIN positive_int AS integer CHECK(VALUE>0)`
-		if !b.PG {
-			want := fixture.CompositeReferenceDiagnostic("0A000", "domain constraints and defaults are unsupported")
-			want.Position = fmt.Sprint(strings.Index(q, "CHECK") + 1)
-			fixture.CompositeReferenceError(t, p, c, q, "execute", want)
-			return
-		}
 		fixture.CompositeReferenceSetup(t, p, b, c, q, `CREATE TYPE tested AS (i positive_int)`, `CREATE TABLE holder(k integer,v tested)`)
 		want := fixture.CompositeReferenceDiagnostic("23514", `value for domain positive_int violates check constraint "positive_int_check"`)
 		want.Schema = "public"

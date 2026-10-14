@@ -3,6 +3,12 @@ package engine
 // plannedVolatility inspects the physical surviving tree. Analysis properties
 // deliberately retain dependence from eliminated CASE/COALESCE arms.
 func plannedVolatility(node BoundExpr) Volatility {
+	return plannedPhysicalVolatility(node, false)
+}
+
+// COPY's supported nextval defaults are batch-safe, but their argument trees
+// are still inspected. Other consumers retain ordinary physical volatility.
+func plannedPhysicalVolatility(node BoundExpr, copyNextval bool) Volatility {
 	if node == nil {
 		return Immutable
 	}
@@ -15,7 +21,7 @@ func plannedVolatility(node BoundExpr) Volatility {
 	children := func(args ...BoundExpr) Volatility {
 		v := Immutable
 		for _, a := range args {
-			v = merge(v, plannedVolatility(a))
+			v = merge(v, plannedPhysicalVolatility(a, copyNextval))
 		}
 		return v
 	}
@@ -26,21 +32,26 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return v
 	}
 	switch n := node.(type) {
+	case sequenceCallExpression:
+		if copyNextval && n.name == "nextval" {
+			return children(n.args...)
+		}
+		return n.Properties().Volatility
 	case rowExpression:
 		return children(n.fields...)
 	case fieldExpression:
-		return plannedVolatility(n.base)
+		return plannedPhysicalVolatility(n.base, copyNextval)
 	case arrayExpression:
 		return children(n.elements...)
 	case subscriptExpression:
 		var storage [13]BoundExpr
 		return children(subscriptChildren(n, &storage)...)
-	case literalExpression, columnExpression:
+	case domainValueExpression, literalExpression, columnExpression:
 		return Immutable
 	case collationExpression:
-		return plannedVolatility(n.child)
+		return plannedPhysicalVolatility(n.child, copyNextval)
 	case coercionExpression:
-		return session(plannedVolatility(n.child), n.plan.SessionDependent())
+		return session(plannedPhysicalVolatility(n.child, copyNextval), n.plan.SessionDependent())
 	case rowComparisonExpression:
 		v := Immutable
 		for _, pair := range n.comparisons {
@@ -48,9 +59,9 @@ func plannedVolatility(node BoundExpr) Volatility {
 		}
 		return v
 	case scalarArrayComparisonExpression:
-		v := plannedVolatility(n.left)
+		v := plannedPhysicalVolatility(n.left, copyNextval)
 		if n.array != nil {
-			v = merge(v, plannedVolatility(n.array))
+			v = merge(v, plannedPhysicalVolatility(n.array, copyNextval))
 		}
 		v = merge(v, children(n.items...))
 		return session(v, n.predicate.SessionDependent())
@@ -85,9 +96,9 @@ func plannedVolatility(node BoundExpr) Volatility {
 	case subscriptsExpression:
 		return children(n.args...)
 	case nullTestExpression:
-		return plannedVolatility(n.child)
+		return plannedPhysicalVolatility(n.child, copyNextval)
 	case truthTestExpression:
-		return plannedVolatility(n.child)
+		return plannedPhysicalVolatility(n.child, copyNextval)
 	case logicalExpression:
 		return children(n.left, n.right)
 	case distinctExpression:

@@ -322,7 +322,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog CatalogRead) erro
 		var err error
 		properties := merge.on.Properties()
 		_, literal := merge.on.(literalExpression)
-		if merge.on.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == Immutable && !properties.RowDependent && !properties.StageDependent) {
+		if merge.on.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == Immutable && !properties.RowDependent && !properties.StageDependent && !properties.RuntimeDomainConversion) {
 			// MERGE admits integer/TEXT carriers independently of Boolean JOIN
 			// predicates. Preserve that truth contract in constant capability facts
 			// without replacing the expression or its analyzed dependencies.
@@ -408,11 +408,11 @@ func (merge *boundMerge) hasVirtualReads() bool {
 func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b binding, target, inputs *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer target.close()
 	defer inputs.close()
-	if err := selectQuerySources(ctx, inputs); err != nil {
-		return Result{}, err
-	}
 	unique, err := scope.bindUniqueWrite(b.ref)
 	if err != nil {
+		return Result{}, err
+	}
+	if err := selectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
 	state := &queryState{source: inputs, parameters: parameters, input: scope.input, output: scope.output, locking: inputs.locks != nil, virtualReads: b.merge.hasVirtualReads()}
@@ -426,7 +426,7 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err != nil {
 		return Result{}, err
 	}
-	rows, err := e.assembleMergeRows(ctx, scope, b, target, &cursor, state, schema, len(unique.keys) != 0)
+	rows, err := e.assembleMergeRows(ctx, scope, b, target, &cursor, state, schema, len(unique.keys) != 0 || unique.checked)
 	if err != nil {
 		return Result{}, err
 	}

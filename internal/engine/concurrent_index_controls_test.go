@@ -333,7 +333,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			definition.ready = true
 			next.sqlIndex = &definition
 			next.revision++
-			root, err := buildIndexRoot(context.Background(), parent, &definition, &snapshot)
+			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &definition, &snapshot, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -343,7 +343,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
 			stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.address: parent}
-			stage.indexCandidates = map[ObjectAddress]indexRootCandidate{next.address: {root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
+			stage.indexCandidates = map[ObjectAddress]indexRootCandidate{next.address: {index: &next, root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}

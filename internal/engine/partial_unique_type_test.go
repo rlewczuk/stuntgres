@@ -36,7 +36,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				writes = []rowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
-			roots, err := validateAlterUniques(context.Background(), f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.attributes[3], rewrite: true}}, nil, nil)
+			roots, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.attributes[3], rewrite: true}}, nil, nil, true)
 			if overlay == "none" || overlay == "member_successor" {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")
@@ -44,6 +44,17 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui_index"`, Detail: "Key (a, b)=(2001-02-03, 1) is duplicated.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 			} else if err != nil {
 				t.Fatal(err)
+			}
+			if err == nil {
+				build := roots[f.index.name]
+				if build == nil || build.root == nil || build.store == &store {
+					t.Fatal("successful overlay lost its produced root or compact layout", build)
+				}
+				for _, entry := range build.root.entries {
+					if entry.row == store.versions[2].row {
+						t.Fatal("owner-invisible predecessor/excluded successor became an index member", entry)
+					}
+				}
 			}
 			if !reflect.DeepEqual(store, before) || reflect.DeepEqual(store, original) {
 				t.Fatal("final TYPE candidate mutated or not actually transformed")
@@ -64,7 +75,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	definition.predicate = &predicate
 	next.sqlIndex = &definition
 	changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{next.address: &next}, originals: map[ObjectAddress]Descriptor{next.address: f.index}}
-	if err := prepareAlterUniqueRoots(context.Background(), changes, f.auth.catalog, f.parent, &baseline, nil, false, nil); err != nil {
+	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, changes, f.auth.catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	root := changes.uniqueRoots[next.address]
@@ -83,9 +94,9 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	if changes.uniqueRoots[next.address] != root {
 		t.Fatal("savepoint map aliases private owner")
 	}
-	validated := map[string]*logicalIndexRoot{next.name: root}
+	validated := map[string]*alterIndexBuild{next.name: {index: &next, root: root, store: &baseline}}
 	other := &catalogChanges{descriptors: changes.descriptors, originals: changes.originals}
-	if err := prepareAlterUniqueRoots(context.Background(), other, f.auth.catalog, f.parent, &baseline, validated, false, nil); err != nil {
+	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, other, f.auth.catalog, f.parent, &baseline, validated, false); err != nil {
 		t.Fatal(err)
 	}
 	if other.uniqueRoots[next.address] != root {

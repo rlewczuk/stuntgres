@@ -9,7 +9,8 @@ import (
 
 // Each proposal is already projected and constrained. Only arbitration is
 // restarted after a row wait; defaults, the source and SET are never replayed.
-func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sqltype.Value, proposalEvaluation *EvalContext) error {
+func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, candidate *indexWriteCandidate, proposalEvaluation *EvalContext) error {
+	proposal := candidate.values
 	c := s.insertConflict
 	e := s.op.session.Engine()
 	manager := e.locks
@@ -24,18 +25,18 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 		if err := evaluation.Context.Err(); err != nil {
 			return err
 		}
-		hit, err := s.probeUniqueRow(ref, proposal, nil, nil, c)
+		hit, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, c, indexProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if hit.index == nil {
-			other, err := s.probeUniqueRow(ref, proposal, nil, nil, nil)
+			other, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, nil, indexProbeRuntime)
 			if err != nil {
 				return err
 			}
 			if c.catalog != s.uniqueBinding.catalog {
 				manager.restoreUniqueDelta(s.ticket)
-				s.discardExclusionCandidate(ref, proposal)
+				s.discardExclusionCandidate(ref, candidate)
 				continue
 			}
 			if other.index != nil {
@@ -50,17 +51,21 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 				}
 			}
 			if s.insertReturning != nil {
-				_, retry, err := s.Writes().appendAcceptedInsert(ref, proposal)
+				_, retry, err := s.Writes().appendAcceptedInsert(ref, candidate)
 				if err != nil {
 					return err
 				}
 				if retry {
 					manager.restoreUniqueDelta(s.ticket)
-					s.discardExclusionCandidate(ref, proposal)
+					s.discardExclusionCandidate(ref, candidate)
 					continue
 				}
-			} else if err := s.Writes().applyValidated(ref, [][]sqltype.Value{proposal}); err != nil {
-				return err
+			} else {
+				var batch indexWriteBatch
+				batch.append(*candidate)
+				if err := s.Writes().applyValidated(ref, batch); err != nil {
+					return err
+				}
 			}
 			staged := s.stage.rows[ref.Address]
 			c.markAffected(staged[len(staged)-1].row, len(staged)-1)
@@ -69,7 +74,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 		// A speculative key must never be held while queuing for the selected row.
 		// Restore only this candidate's newly granted keys, preserving prior claims.
 		manager.restoreUniqueDelta(s.ticket)
-		s.discardExclusionCandidate(ref, proposal)
+		s.discardExclusionCandidate(ref, candidate)
 		mode := noKeyUpdate
 		for _, target := range c.updateTargets {
 			for _, key := range s.uniqueBinding.keySlots {
@@ -89,13 +94,13 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 			continue
 		}
 		// Reacquire row -> key, and demand the same physical identity under both.
-		checked, err := s.probeUniqueRow(ref, proposal, nil, nil, c)
+		checked, err := s.probeUniqueRow(ref, candidate, nil, indexWriteBatch{}, c, indexProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if checked.index == nil || checked.row.row != old.row || checked.row.version != old.version {
 			manager.restoreUniqueDelta(s.ticket)
-			s.discardExclusionCandidate(ref, proposal)
+			s.discardExclusionCandidate(ref, candidate)
 			continue
 		}
 		if _, duplicate := c.affectedRows[old.row]; duplicate {
@@ -113,7 +118,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 		}
 		if !matches {
 			manager.restoreUniqueDelta(s.ticket)
-			s.discardExclusionCandidate(ref, proposal)
+			s.discardExclusionCandidate(ref, candidate)
 			return nil
 		}
 		row, err := evaluateUpdateAssignments(&evaluation, c.update, c.updateTargets, old.values)
@@ -142,18 +147,21 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, proposal []sql
 				return errors.New("stuntgres: conflict update predecessor changed under row lock")
 			}
 		}
-		if err := s.claimUniqueRow(ref, old.values); err != nil {
+		if err := s.claimUniqueRow(ref, old); err != nil {
 			return err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
-		if err := s.checkUniqueRow(ref, row, []rowVersion{old}, nil); err != nil {
+		replacement := indexWriteCandidate{values: row}
+		if err := s.checkUniqueRow(ref, &replacement, []rowVersion{old}, indexWriteBatch{}); err != nil {
 			return err
 		}
 		b.viewWrite = s.viewWrite
 		if err := e.checkViewRow(s, &b, row, &evaluation); err != nil {
 			return err
 		}
-		if err := s.Writes().replaceDistinct(ref, []rowVersion{old}, [][]sqltype.Value{row}); err != nil {
+		var batch indexWriteBatch
+		batch.append(replacement)
+		if err := s.Writes().replaceDistinct(ref, []rowVersion{old}, batch); err != nil {
 			return err
 		}
 		c.markAffected(old.row, len(s.stage.rows[ref.Address])-1)

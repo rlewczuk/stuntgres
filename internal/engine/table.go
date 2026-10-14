@@ -161,7 +161,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		return Result{}, nil
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err != nil {
 		return Result{}, err
 	}

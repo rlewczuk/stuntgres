@@ -44,7 +44,7 @@ func (e *Engine) executeComment(scope *StatementScope, s *parser.Comment, count 
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	return Result{}, err
 }
 

@@ -137,14 +137,19 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	if store == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
-	fills, _, err := planAddedColumns(scope, mutation.additions)
+	fills, perRowAdd, err := planAddedColumns(scope, mutation.additions)
 	if err != nil {
 		return err
 	}
 	replacement := store
-	rewrite := false
+	rewrite := perRowAdd
 	for _, transform := range mutation.transforms {
 		rewrite = rewrite || transform.rewrite
+	}
+	if perRowAdd {
+		if err := rowRewriteError(auth.catalog, old); err != nil {
+			return err
+		}
 	}
 	if rewrite {
 		scope.owner.mu.Lock()
@@ -223,9 +228,17 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	if err := stage.Replace(next); err != nil {
 		return err
 	}
-	if len(mutation.transforms) != 0 {
-		if _, err := validateAlterUniques(scope.op.Context(), auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil); err != nil {
+	if rewrite || len(mutation.transforms) != 0 {
+		indexEvaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: e.stageRead(stage)}
+		builds, err := validateAlterIndexBuilds(&indexEvaluation, auth, e.stageRead(stage), next, replacement, nil, nil, schema, scope.output, mutation.transforms, nil, nil, rewrite)
+		if err != nil {
 			return err
+		}
+		for _, build := range builds {
+			if stage.indexCandidates == nil {
+				stage.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+			}
+			stage.indexCandidates[build.index.address] = indexRootCandidate{index: build.index, root: build.root, storage: indexStorageIdentity(replacement), generation: replacement.generation, ends: replacement.ends, length: len(replacement.versions)}
 		}
 	}
 	if replacement != store {
@@ -233,6 +246,19 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			stage.rowShapes = make(map[ObjectAddress]catalogRowShape)
 		}
 		stage.rowShapes[old.address] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}
+	}
+	if !rewrite && len(stage.indexLayouts) != 0 {
+		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: e.stageRead(stage)}
+		transported := newCatalogChanges()
+		if _, _, err := transportIndexLayouts(&evaluation, stage, transported, next, store, replacement, nil, nil); err != nil {
+			return err
+		}
+		for address, candidate := range transported.indexCandidates {
+			if stage.indexCandidates == nil {
+				stage.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+			}
+			stage.indexCandidates[address] = candidate
+		}
 	}
 	return nil
 }

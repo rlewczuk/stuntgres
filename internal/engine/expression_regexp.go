@@ -211,6 +211,8 @@ func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool)
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
+		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	if sqltype.RegexpFunctionKind(name) == sqltype.RegexpMatches || sqltype.RegexpFunctionKind(name) == sqltype.RegexpSplitTable {
 		properties.StageDependent = true

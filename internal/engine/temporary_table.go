@@ -127,7 +127,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		}
 		return Result{created: created}, nil
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
 		scope.completed = true
 	}
@@ -282,11 +282,21 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			changes.storage[a] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
 		}
 	}
+	for address, candidate := range stage.indexCandidates {
+		if changes.indexCandidates == nil {
+			changes.indexCandidates = make(map[ObjectAddress]indexRootCandidate)
+		}
+		if changes.uniqueRoots == nil {
+			changes.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot)
+		}
+		changes.indexCandidates[address], changes.uniqueRoots[address] = candidate, candidate.root
+	}
 	for a := range stage.removals {
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.generators, a)
 		delete(changes.storage, a)
 		delete(changes.uniqueRoots, a)
+		delete(changes.indexCandidates, a)
 		delete(changes.indexRebuilds, a)
 	}
 	for a, g := range stage.generators {

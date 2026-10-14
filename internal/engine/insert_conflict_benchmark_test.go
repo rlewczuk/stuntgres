@@ -20,7 +20,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					f.store.versions[i] = rowVersion{row: RowID(i + 1), version: VersionID(i + 1), born: 1, values: insertConflictUnitRow(b, f, int64(size-i))}
 				}
 				f.e.nextRow, f.e.nextVersion, f.e.commitSeq = uint64(size), uint64(size), 1
-				root, err := buildIndexRoot(context.Background(), f.parent, f.index.sqlIndex, f.store)
+				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index.sqlIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -61,14 +61,14 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				scope.insertConflict = action
-				if admitted, err := scope.admitInsertRow(ref, f.store.versions[0].values, nil, nil); admitted || err != nil {
+				if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: f.store.versions[0].values}, indexWriteBatch{}, nil); admitted || err != nil {
 					b.Fatal("warmup", admitted, err)
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {
 					for i := range f.store.versions {
-						if admitted, err := scope.admitInsertRow(ref, f.store.versions[i].values, nil, nil); admitted || err != nil {
+						if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: f.store.versions[i].values}, indexWriteBatch{}, nil); admitted || err != nil {
 							b.Fatal("committed omission", admitted, err)
 						}
 					}

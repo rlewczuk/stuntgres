@@ -26,7 +26,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			return v
 		}
 		proposal := []sqltype.Value{integer(1), integer(2)}
-		hit, err := scope.probeUniqueRow(b.ref, proposal, nil, nil, b.conflict)
+		hit, err := scope.probeUniqueRow(b.ref, &indexWriteCandidate{values: proposal}, nil, indexWriteBatch{}, b.conflict, indexProbeRuntime)
 		entry := e.indexRoots[b.conflict.selected[0]].entries[0]
 		store := e.storage[b.ref.Address]
 		if err != nil || !hit.committed || entry.position != 1 || hit.position != 1 || hit.row.row != entry.row || hit.row.version != entry.version || &hit.row.values[0] != &store.versions[1].values[0] {
@@ -34,11 +34,11 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		}
 		old := hit.row
 		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: scope.input, Output: scope.output, statementScope: scope}
-		if admitted, err := scope.admitInsertRow(b.ref, proposal, nil, &evaluation); admitted || err != nil {
+		if admitted, err := scope.admitInsertRow(b.ref, &indexWriteCandidate{values: proposal}, indexWriteBatch{}, &evaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
 		stage := scope.stage.rows[b.ref.Address]
-		replacement, err := scope.probeUniqueRow(b.ref, proposal, nil, nil, b.conflict)
+		replacement, err := scope.probeUniqueRow(b.ref, &indexWriteCandidate{values: proposal}, nil, indexWriteBatch{}, b.conflict, indexProbeRuntime)
 		if err != nil || replacement.committed || len(stage) != 1 || replacement.row.row != old.row || replacement.row.version != stage[0].version || replacement.row.base != old.version || replacement.row.version == old.version || testExport(old.values[1]) != int64(10) {
 			t.Fatal("current-command replacement overlay/provenance", replacement, stage, old, err)
 		}
@@ -55,12 +55,12 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		prior := s.transactions.writes[b.ref.Address][0]
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
-		own, err := scope2.probeUniqueRow(b2.ref, nextProposal, nil, nil, b2.conflict)
+		own, err := scope2.probeUniqueRow(b2.ref, &indexWriteCandidate{values: nextProposal}, nil, indexWriteBatch{}, b2.conflict, indexProbeRuntime)
 		if err != nil || own.committed || own.row.row != prior.row || own.row.version != prior.version || len(b2.conflict.affectedRows) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
 		nextEvaluation := EvalContext{Context: op2.Context(), Scope: 1, Frame: 1, Input: scope2.input, Output: scope2.output, statementScope: scope2}
-		if admitted, err := scope2.admitInsertRow(b2.ref, nextProposal, nil, &nextEvaluation); admitted || err != nil {
+		if admitted, err := scope2.admitInsertRow(b2.ref, &indexWriteCandidate{values: nextProposal}, indexWriteBatch{}, &nextEvaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
 		changed := scope2.stage.rows[b2.ref.Address][0]

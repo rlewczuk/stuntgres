@@ -149,7 +149,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 	ctx, cancel := context.WithCancel(op.Context())
 	cancel()
 	op.ctx = ctx
-	err = e.publishRows(op, scope.txRef, nil, nil, changes, nil)
+	err = e.publishRows(op, scope.txRef, nil, nil, changes, nil, nil)
 	scope.Finish(err)
 	if !errors.Is(err, context.Canceled) || e.state != before || e.state.descriptors[view.address] != nil || op.session.temporaryNamespace != (ObjectAddress{}) || e.storage[view.address] != nil {
 		t.Fatal("canceled publication leaked TEMP artifacts", err)

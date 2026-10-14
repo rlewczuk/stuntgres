@@ -469,7 +469,7 @@ package parser
 %type <typ> type temporal_type generic_precision generic_modifier_atom generic_modifiers type_modifier_head date_literal_precision
 %type <tok> bit_modifier_operator bit_modifier_symbol
 %type <typ> interval_type interval_fields interval_second_fields interval_type_qualifier
-%type <constraints> nullability column_constraints domain_constraints
+%type <constraints> nullability column_constraints domain_constraints domain_column_constraints
 %type <constraint> column_constraint
 %type <notNull> table_not_null create_not_null
 %type <tok> nn_modifier nn_inherit
@@ -1163,9 +1163,13 @@ composite_member: name type column_collation {$$=&Column{Name:$1.text,TypeName:$
 create_domain: CREATE DOMAIN relation_name domain_as type column_collation domain_constraints { $$=&CreateDomain{Name:$3,Base:$5,Collation:$6,Constraints:$7,Pos:$1.pos} } ;
 domain_as: /* empty */ | AS ;
 domain_constraints: /* empty */ {$$=nil}
- | column_constraints {$$=$1}
+ | domain_column_constraints {$$=$1}
  | '(' {sqllex.(*lexer).syntax($1);return 1}
  | column_suffix {sqllex.(*lexer).capability($1,unsupportedSuffixes,"domain constraints are unsupported");return 1} ;
+domain_column_constraints: column_constraint { $$=[]ColumnConstraint{$1} }
+ | domain_column_constraints column_constraint { $$=append($1,$2) }
+ | domain_column_constraints NOT nn_modifier {sqllex.(*lexer).syntax($3);return 1}
+ | domain_column_constraints NO nn_inherit {if $1[len($1)-1].Check!=nil {$1[len($1)-1].Check.NoInherit=true} else {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported")};$$=$1} ;
 drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode:$4,Pos:$1.pos} }
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
 drop_composite: DROP TYPE relation_names drop_mode {$$=&DropComposite{Names:$3,Mode:$4,Pos:$1.pos}}
@@ -1794,10 +1798,10 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | INTERVAL '(' NUMBER ')' STRING {raw,ok:=intervalPrecision(sqllex,32767,$3,$2);if !ok{return 1};raw.Name="interval";raw.Pos=$1.pos;$$=TypedLiteralExpr{TypeName:raw,Text:$5.text,Pos:$5.pos}}
  /* DATE is an IDENT (also when quoted). TIME/TIMESTAMP STRING continuations
   * belong exclusively to temporal_type, not the ordinary name reduction. */
- | IDENT STRING { if $1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
+ | IDENT STRING {if len($1.raw)==1 && ($1.text=="e" || $1.text=="b" || $1.text=="x") {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};requiresDomain:=$1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money";$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:requiresDomain} }
  | KW_C STRING { if $1.text!="json" {sqllex.(*lexer).syntax($2);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | column_reference %prec NAME_LIST { $$=$1 }
- | name '.' col_label STRING {raw,ok:=qualifiedTypedLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
+ | name '.' col_label STRING {raw,ok:=qualifiedTypedLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos,RequiresDomain:$1.text!="pg_catalog"}}
  /* Qualified column paths are shared with the subscript postfix. */
  | conditional { $$=$1 }
  | INDEX_SUBQUERY_OPEN query_values ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }

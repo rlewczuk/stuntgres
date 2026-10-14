@@ -18,6 +18,7 @@ type statementMutation struct {
 	lockedIdentityOnly    bool
 	viewWrite             *viewWrite
 	uniqueBinding         *uniqueWriteBinding
+	indexBindings         map[ObjectAddress]*uniqueWriteBinding
 	insertConflict        *boundInsertConflict
 	insertReturning       *insertReturningOutput
 	partitionInsert       *partitionInsertState

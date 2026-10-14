@@ -469,9 +469,9 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			}
 			defer evaluation.query.source.close()
 		}
-		var rows [][]sqltype.Value
+		var rows indexWriteBatch
 		if scope.insertReturning == nil {
-			rows = make([][]sqltype.Value, 0, len(b.insertRows))
+			rows.values = make([][]sqltype.Value, 0, len(b.insertRows))
 		}
 		for i, source := range b.insertRows {
 			if err = ctx.Err(); err != nil {
@@ -489,7 +489,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 					return Result{}, err
 				}
-				admitted, admitErr := scope.admitInsertProducer(b, row, rows, &evaluation)
+				candidate := indexWriteCandidate{values: row}
+				admitted, admitErr := scope.admitInsertProducer(b, &candidate, rows, &evaluation)
 				if admitErr != nil {
 					return Result{}, admitErr
 				}
@@ -497,7 +498,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 					if err := e.checkViewRow(scope, &b, row, &evaluation); err != nil {
 						return Result{}, err
 					}
-					rows = append(rows, row)
+					rows.append(candidate)
 				}
 				continue
 			}
@@ -540,7 +541,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
-			admitted, admitErr := scope.admitInsertProducer(b, row, rows, &evaluation)
+			candidate := indexWriteCandidate{values: row}
+			admitted, admitErr := scope.admitInsertProducer(b, &candidate, rows, &evaluation)
 			if admitErr != nil {
 				return Result{}, admitErr
 			}
@@ -548,7 +550,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				if err := e.checkViewRow(scope, &b, row, &evaluation); err != nil {
 					return Result{}, err
 				}
-				rows = append(rows, row)
+				rows.append(candidate)
 			}
 		}
 		if err := ctx.Err(); err != nil {

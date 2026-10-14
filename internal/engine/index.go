@@ -51,6 +51,7 @@ type logicalIndexRoot struct {
 	entries    []logicalIndexEntry // Ordered B-tree keys, including NULLs.
 	hash       *hashIndexRoot
 	membership map[RowID]VersionID // Immutable; partial roots only.
+	rowEntries map[RowID]int       // Sorted-entry ordinals, only checked unique/exclusion expression keys.
 }
 type indexOrdering struct {
 	slots       []int
@@ -308,18 +309,19 @@ func (o indexOrdering) sort(ctx context.Context, entries []logicalIndexEntry) er
 	copy(entries, src)
 	return nil
 }
-func buildIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDefinition, store *relationStorage) (*logicalIndexRoot, error) {
+func buildIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *indexDefinition, store *relationStorage, capture *indexBuildCapture) (*logicalIndexRoot, error) {
 	if d.method == hashMethod {
-		return buildHashIndexRoot(ctx, parent, d, store, true)
+		return buildHashIndexRoot(evaluation, parent, d, store, true, capture)
 	}
-	entries, err := buildIndexEntries(ctx, parent, d, store)
+	entries, err := buildIndexEntries(evaluation, parent, d, store, capture)
 	if err != nil {
 		return nil, err
 	}
 	return newLogicalIndexRoot(d, entries), nil
 }
 
-func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *indexDefinition, store *relationStorage) ([]logicalIndexEntry, error) {
+func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *indexDefinition, store *relationStorage, capture *indexBuildCapture) ([]logicalIndexEntry, error) {
+	ctx := evaluation.Context
 	o, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return nil, err
@@ -328,24 +330,29 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 		return nil, fmt.Errorf("stuntgres: index parent storage is missing")
 	}
 	entries := make([]logicalIndexEntry, 0, len(store.versions))
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
 	for position, row := range store.versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
-			matches, err := indexPredicateMatches(&evaluation, d.predicate, row.values)
+			matches, err := indexPredicateMatches(evaluation, d.predicate, row.values)
 			if err != nil {
 				return nil, err
+			}
+			if capture != nil {
+				capture.outputs[position] = indexRowOutput{index: capture.index, member: matches}
 			}
 			if !matches {
 				continue
 			}
-			entry, err := o.entry(row, &evaluation)
+			entry, err := o.entry(row, evaluation)
 			if err != nil {
 				return nil, err
 			}
 			entry.position = position
+			if capture != nil {
+				capture.outputs[position].keys = entry.keys
+			}
 			entries = append(entries, entry)
 		}
 	}
@@ -354,7 +361,8 @@ func buildIndexEntries(ctx context.Context, parent *relationDescriptor, d *index
 	}
 	return entries, nil
 }
-func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
+func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, old []logicalIndexEntry, p *rowPublication, reconstruct, materialize, building bool, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView) (*logicalIndexRoot, error) {
+	ctx := evaluation.Context
 	d := index.sqlIndex
 	validate := (d.unique || d.isExclusion()) && (d.constraint != nil || d.valid || reconstruct)
 	o, err := bindIndexOrdering(parent, d)
@@ -367,7 +375,6 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 	}
 	ended := make(map[RowID]VersionID, endedCount)
 	added := make([]logicalIndexEntry, 0, len(p.writes))
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
 	for i, row := range p.writes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -380,19 +387,32 @@ func mergeIndexRoot(ctx context.Context, parent, index *relationDescriptor, old 
 				continue
 			}
 		}
-		if !reconstruct && !rowMaintainsIndex(row, index) {
+		output, produced := row.indexOutputs[index.address]
+		produced = produced && output.matches(index)
+		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
 			continue
 		}
-		matches, err := indexPredicateMatches(&evaluation, d.predicate, row.values)
-		if err != nil {
-			return nil, err
-		}
-		if !matches {
-			continue
-		}
-		entry, err := o.entry(row, &evaluation)
-		if err != nil {
-			return nil, err
+		var entry logicalIndexEntry
+		if produced {
+			if !output.member {
+				continue
+			}
+			entry = logicalIndexEntry{keys: output.keys, row: row.row, version: row.version}
+		} else {
+			if d.hasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
+				return nil, fmt.Errorf("stuntgres: missing produced index row")
+			}
+			matches, err := indexPredicateMatches(evaluation, d.predicate, row.values)
+			if err != nil {
+				return nil, err
+			}
+			if !matches {
+				continue
+			}
+			entry, err = o.entry(row, evaluation)
+			if err != nil {
+				return nil, err
+			}
 		}
 		entry.position = publicationSlot(p, i)
 		added = append(added, entry)
@@ -627,7 +647,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
-		_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: base.Epoch()})
+		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 		e.DiscardCatalogStage(stage)
 		if _, conflict := err.(CatalogConflict); conflict {
 			if contextErr := scope.op.Context().Err(); contextErr != nil {

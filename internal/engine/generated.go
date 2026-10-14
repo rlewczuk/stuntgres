@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -128,7 +129,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 			return columnGeneration{}, err
 		}
 	}
-	node, _, err = simplifyConditional(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}, node, true)
+	node, _, err = simplifyConditional(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: b.input, catalog: auth.catalog}, node, true)
 	if err != nil {
 		return columnGeneration{}, err
 	}
@@ -472,7 +473,7 @@ func generationHasTableOID(node BoundExpr) bool {
 
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
-func recomputeRemappedGenerations(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, mapping map[ObjectAddress]ObjectAddress, eval EvalContext) error {
+func recomputeRemappedGenerations(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, mapping map[ObjectAddress]ObjectAddress, eval EvalContext, changed map[ObjectAddress]map[int32]bool) error {
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -514,6 +515,24 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 				return err
 			}
 		}
+		var comparisons map[int]sqltype.Grouping
+		if len(changed[target]) != 0 {
+			comparisons = make(map[int]sqltype.Grouping, len(filtered.generations))
+			for attribute := range filtered.generations {
+				if _, tracked := changed[target][attribute]; !tracked {
+					continue
+				}
+				slot := slices.Index(descriptor.attributes, attribute)
+				if slot < 0 {
+					return ErrCatalogReplaced
+				}
+				comparison, err := sqltype.BindGrouping(descriptor.columns[slot].Usage)
+				if err != nil {
+					return err
+				}
+				comparisons[slot] = comparison
+			}
+		}
 		for i := range rows.versions {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -543,7 +562,24 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalogState, stora
 			if constraint != nil {
 				return checkDetailError(schema, descriptor.name, constraint.Name, "")
 			}
+			for slot, comparison := range comparisons {
+				before := rows.versions[i].values[slot]
+				if before == row[slot] {
+					continue
+				}
+				equal, err := comparison.Equal(ctx, before, row[slot])
+				if err != nil {
+					return err
+				}
+				if !equal {
+					if changed[target] == nil {
+						changed[target] = make(map[int32]bool)
+					}
+					changed[target][descriptor.attributes[slot]] = true
+				}
+			}
 			rows.versions[i].values = row
+			rows.versions[i].indexOutputs = nil
 		}
 	}
 	return ctx.Err()

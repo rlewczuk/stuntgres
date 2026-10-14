@@ -1744,7 +1744,7 @@ catalog overlay. Canonical native Dump/Restore retains current definitions,
 rows and representable table/column comments, not rename history.
 Graph CHECK/NOT NULL ALTER remains an explicit boundary; admitted local
 UNIQUE/PRIMARY KEY/EXCLUDE graph definitions retain their existing allowance.
-Domain constraints, FK/constraint triggers and PostgreSQL physical storage,
+Domain DEFAULT/NOT NULL/ALTER, FK/constraint triggers and PostgreSQL physical storage,
 WAL and external pg_dump mechanisms are not implemented; network access uses the
 bounded [Phase 1 server](#phase-1-server--change-note).
 Selected proof: `make check RUN='^TestReferenceConstraintRename'`;
@@ -1858,19 +1858,57 @@ Feature smokes:
 and `make check REFERENCE=1 RUN='^TestReferenceSerializable'`.
 
 Change note: `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` declares a
-catalog-owned logical type over a supported scalar or array base.
+catalog-owned logical type over a supported scalar or array base, with optional
+named or unnamed CHECK clauses.
 Domain columns, direct/prepared input, inherited base typmods, operators/functions
 and explicit assignment/cast-back retain the distinction between logical identity
 and physical codecs. `DROP DOMAIN [IF EXISTS] ... [RESTRICT | CASCADE]` follows
 real type/column/stored-expression dependencies: CASCADE removes dependent columns
 and views, not unrelated tables or surviving rows. Native Dump/Restore preserves
-qualified declarations, chains, owners and data. Domain DEFAULT/CHECK/NOT NULL,
+qualified declarations, chains, owners, named/generated CHECKs and data. Domain DEFAULT/NOT NULL,
 ALTER DOMAIN, array operators/functions, type ACL-management
 SQL and transactional domain DDL remain excluded. See [domains](https://www.postgresql.org/docs/18/domains.html).
 Feature smokes:
 `make check RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$'`,
 `make check RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$'`,
 and pinned `make check REFERENCE=1 RUN='^TestReferenceDomain'`.
+
+Change note: domain CHECK expressions bind `VALUE` to the immediate base type.
+TRUE and UNKNOWN pass; FALSE raises 23514 with the conversion target's schema/type
+and the failing constraint name, without a table failing-row detail. Names are
+explicit or generated namespace-wide; checks run alphabetically within each
+domain, with all ancestors before descendants. Existing shared expression/input
+providers enforce checks during casts, base assignments, parameters, COPY and
+nested member input. Operators downcast to the base; cast-back rechecks.
+Expression conversions retain per-row CHECK truth instead of being folded into
+once-only input: false/empty consumers do not consume truth, while CHECK recipe
+initialization can still expose constant errors before rows are demanded.
+Planning-only JOIN/MERGE facts and conflict inference do not consume candidate
+truth. Retained CASE/COALESCE conversions still initialize their recipes.
+Existing ADD COLUMN materializes checked defaults and omitted fresh NULL per
+actual old row, without a once-only checked-value cache. Existing MERGE with
+BY SOURCE also consumes ON at its target action-classification stage.
+Stored generated, partition and index definitions capture their real catalog and
+input authority for recipe initialization and row execution. Index insertion
+produces immutable membership/keys; COMMIT transports those entries without
+replaying CHECK SQL. ON CONFLICT retains its distinct precheck/insertion events
+and genuine existing-tuple key recheck. Slot-only projection and trusted snapshot
+replacement transport produced data, while genuine value rewrites rebuild under
+their admitted SQL owner. No synthetic COMMIT evaluator or CHECK-truth cache is used.
+Fresh NULL input is checked, but already-domain NULL from an unmatched outer
+join or an empty scalar subquery can bypass conversion. This is not domain
+NOT NULL. CHECK-owned provider CASCADE retires only the dependent check when
+there is no separate base dependency, preserving the domain and stored data.
+Native Dump/Restore retains recorded names, recipes and post-restore enforcement;
+external pg_dump/pg_restore and procedural runtimes remain separate boundaries.
+Feature smokes:
+`make check RUN='^TestReferenceDomainCheck(Truth|ConversionsNull|Ancestors)$'`,
+`make check RUN='^TestReferenceDomainCheckNativeControls$'`,
+`make check RUN='^TestReferenceDomainCheck(Demand|DemandWrappers)$'`,
+`make check RUN='^TestReferenceDomainCheck(PlanningDemand|RecipeInitialization|ConflictProofDemand|AddColumnDemand|StoredDemand)$'`,
+`make check RUN='^TestReferenceDomainCheckIndex(RuntimeDemand|LifecycleDemand|FailureDemand|ConflictDemand)$'`.
+Run each selected counterpart with `REFERENCE=1` for the pinned oracle; see
+[type testing](reference/types/README.md#domain-check-selected-proof) for all groups.
 
 Change note: the predefined `information_schema.time_stamp` domain accepts
 supplied timestamptz values and explicit/bound NULL through the authoritative

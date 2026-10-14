@@ -316,6 +316,9 @@ func (d *Descriptor) compositeInput(ctx context.Context, input string, env Input
 		}
 		if null {
 			fields[i] = Null(member.Usage.Type)
+			if err := member.Usage.Type.CheckDomainInput(ctx, fields[i], env); err != nil {
+				return Value{}, err
+			}
 		} else {
 			fields[i], err = member.Usage.Type.InputWithEnvironment(ctx, text, member.Usage.Typmod, env)
 			if err != nil {

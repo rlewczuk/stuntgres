@@ -52,7 +52,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		// Commit the validated TEMP closure with the normal combined publisher.
 		// Admission and replacement authority stay held until Finish. After this
 		// succeeds, no fallible owner operation or context check remains.
-		if err := e.publishRows(s.op, s.txRef, s.stage.rows, s.stage.deletes, s.catalog, s.catalogAuthority); err != nil {
+		if err := e.publishRows(s.op, s.txRef, s.stage.rows, s.stage.deletes, s.catalog, s.catalogAuthority, s); err != nil {
 			return Result{}, err
 		}
 		e.mu.Lock()

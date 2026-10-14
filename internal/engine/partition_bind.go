@@ -67,7 +67,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			if err != nil {
 				return nil, err
 			}
-			evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}
+			evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.catalog}
 			planned, _, err := preflightCoercionsWithPolicy(&evaluation, node, true)
 			if err != nil {
 				return nil, err

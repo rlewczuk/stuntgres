@@ -106,7 +106,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
 	s.controlOutcome = controlExecuted
 	if state == TxAborted {
-		_, err := e.endAdmitted(s.op, t, ref, false, false, true, s.statementStart)
+		_, err := e.endAdmitted(s.op, t, ref, false, false, true, s.statementStart, s)
 		return err
 	}
 	t.mu.Lock()
@@ -131,10 +131,11 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 				e.prepared = make(map[string]*preparedTransaction)
 			}
 			e.mu.Unlock()
+			s.attachTransactionLocked()
 			t.mu.Unlock()
-			err = e.checkTransactionExclusions(s.op, t)
+			err = e.checkTransactionExclusions(s)
 			if err == nil {
-				err = e.publishRowsPrepared(s.op, ref, t.writes, t.deletes, t.catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t})
+				err = e.publishRowsPrepared(s.op, ref, t.writes, t.deletes, t.catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t}, s)
 			}
 			t.mu.Lock()
 		}
@@ -180,7 +181,7 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 		return err
 	}
 	if commit {
-		err = e.publishRowsPrepared(op, entry.ref, entry.writes, entry.deletes, entry.catalog, nil, &preparedPublication{entry: entry})
+		err = e.publishRowsPrepared(op, entry.ref, entry.writes, entry.deletes, entry.catalog, nil, &preparedPublication{entry: entry}, nil)
 	} else {
 		e.mu.Lock()
 		op.session.mu.Lock()

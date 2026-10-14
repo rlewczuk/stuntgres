@@ -156,7 +156,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 	if err != nil {
 		return err
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: base.Epoch()})
 	return err
 }
 

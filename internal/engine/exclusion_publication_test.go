@@ -38,7 +38,7 @@ func TestExclusionPublication(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				roots, err := e.prepareIndexPublication(context.Background(), e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil)
+				roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 				var diagnostic *sqlstate.Error
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" || diagnostic.Constraint != "ex" {
 					t.Fatal("publication omitted the actual exclusion integrity veto", materialize, roots, err)
@@ -74,7 +74,7 @@ func TestExclusionPublication(t *testing.T) {
 				indexCopy.sqlIndex = &definition
 				next.descriptors[index.address] = &indexCopy
 				before := indexMaintenanceCapture(e)
-				roots, err := e.prepareIndexPublication(ctx, e.state, &next, captureIndexStores(e.storage, &next), e.indexRoots, map[ObjectAddress]bool{parent.address: true}, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil)
+				roots, err := e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, e.state, &next, captureIndexStores(e.storage, &next), e.indexRoots, map[ObjectAddress]bool{parent.address: true}, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 				cancel()
 				want := fault
 				if cancelled {
@@ -110,7 +110,7 @@ func TestExclusionPublication(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					roots, err := e.prepareIndexPublication(context.Background(), e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil)
+					roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 					if roots != nil {
 						t.Fatal("integrity veto returned publication roots", roots)
 					}

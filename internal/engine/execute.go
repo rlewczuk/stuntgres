@@ -12,6 +12,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	captureEnumOperationSafety(op, &scope.input)
+	scope.input.LockedDomainInput, scope.input.DomainChecks = scope, scope
 	if !op.commandAdmission {
 		op.snapshotNoticeThreshold()
 	}
@@ -427,12 +428,39 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.parameters.Count)
 	}
 	canonical := make([]sqltype.Value, count)
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
+	scope.domainInputCatalog = auth.catalog
+	for _, usage := range b.parameters.Types {
+		if sqltype.ContainsDomainChecks(usage.Type) {
+			evaluation.Input.DomainChecks = &evaluation
+			break
+		}
+	}
 	if count != 0 {
 		if importFrame == nil {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
 		}
-		if err = importFrame(ctx, b.parameters, canonical, scope.input); err != nil {
+		// Complete each parameter/member input before decoding the next one.
+		// CHECK recipes use this captured authority and run without Engine.mu.
+		captured := auth.catalog
+		e.mu.Unlock()
+		err = importFrame(ctx, b.parameters, canonical, evaluation.Input)
+		e.mu.Lock()
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if err = scope.validateLockedRelation(e); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		auth, err = e.statementAuthorizationLocked(op, stmt)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if err := validateCapturedInputBinding(captured, auth.catalog, b.dependencies); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -479,7 +507,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			defer func() { op.materializedPopulation = false }()
 		}
 	}
-	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
 	// Native has no cost-based custom/generic planner. Parameterized consumers
 	// fold into a fresh operation-local group, including stored origins.
 	quoteCaptures := quoteCaptureCandidate{}
@@ -488,6 +515,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		quoteCaptures.prune(auth.catalog)
 	}
 	evaluation.quoteCaptures = &quoteCaptures
+	// Planning-owned physical conversions and CHECK recipe initialization
+	// precede executor ACLs, without Engine.mu or a data view. Checked
+	// domain truth remains runtime consumer demand, not a folded value.
 	return e.executeCTECommandsLocked(scope, stmt, b, auth, canonical, evaluation, creationStage, creationDescriptor)
 }
 

@@ -154,7 +154,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		var prepared *PreparedCatalogPublication
 		prepared, err = e.ValidateCatalogStage(op.Context(), stage)
 		if err == nil {
-			_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: ref.Epoch})
+			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 		}
 	}
 	if err != nil {

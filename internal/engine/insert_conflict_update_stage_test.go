@@ -47,7 +47,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			var pinned []rowVersion
 			for k := 1; k <= size*2; k++ {
 				proposal := []sqltype.Value{integer(int64(k)), integer(1)}
-				if admitted, err := scope.admitInsertRow(ref, proposal, nil, &evaluation); admitted || err != nil {
+				if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: proposal}, indexWriteBatch{}, &evaluation); admitted || err != nil {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
 				stage := scope.stage.rows[ref.Address]
@@ -91,7 +91,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			}
 			var finishErr error
 			if duplicate {
-				_, finishErr = scope.admitInsertRow(ref, []sqltype.Value{integer(1), integer(1)}, nil, &evaluation)
+				_, finishErr = scope.admitInsertRow(ref, &indexWriteCandidate{values: []sqltype.Value{integer(1), integer(1)}}, indexWriteBatch{}, &evaluation)
 				var d *sqlstate.Error
 				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.stage.rows[ref.Address]) != size*2 || b.conflict.affected != size*2 {
 					t.Fatal("duplicate does not append or count", finishErr, b.conflict.affected)

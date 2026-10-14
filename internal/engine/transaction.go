@@ -69,6 +69,7 @@ type rowVersion struct {
 	values []sqltype.Value
 	// Private admission captures index readiness; committed rows clear this pin.
 	indexAdmission *catalogState
+	indexOutputs   map[ObjectAddress]indexRowOutput // Private, immutable produced index data.
 }
 
 type transactionOwner struct {
@@ -244,7 +245,7 @@ func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, err
 	}
 	defer t.admission.Unlock()
-	return e.endAdmitted(op, t, ref, false, false, false, time.Time{})
+	return e.endAdmitted(op, t, ref, false, false, false, time.Time{}, nil)
 }
 
 func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
@@ -257,7 +258,7 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, err
 	}
 	defer t.admission.Unlock()
-	return e.endAdmitted(op, t, ref, true, false, false, time.Time{})
+	return e.endAdmitted(op, t, ref, true, false, false, time.Time{}, nil)
 }
 
 // StatementScope serializes one session's statement, from parsing through Finish.
@@ -302,9 +303,9 @@ type StatementScope struct {
 	command                        CommandID
 	ownWrites                      map[ObjectAddress][]rowVersion
 	ownDeletes                     map[ObjectAddress]*privateDeletionRoot
+	existingIndexOutputs           map[ObjectAddress]map[indexRowIdentity]indexRowOutput
 	exclusionModes                 exclusionModes
 	exclusionStarted               bool
-	exclusionCandidates            map[ObjectAddress][]rowVersion
 	inheritanceRelations           []queryLeaf // Exact physical SELECT grants, separate from SQL occurrences.
 	inheritanceCatalog             CatalogRead // Immutable topology after the last grant/wait reconciliation.
 	truncateRelations              []truncateRelation
@@ -321,6 +322,9 @@ type StatementScope struct {
 	admissionWaited                bool
 	implicit                       bool
 	input                          sqltype.InputEnvironment
+	domainEvaluation               *EvalContext
+	domainPreparedChecks           map[*typeDescriptor][]BoundExpr
+	domainInputCatalog             CatalogRead
 	statementStart                 time.Time
 	transactionStart               time.Time
 	timeoutRef                     TxRef // admission projection for preparse ERROR timer retirement
@@ -545,22 +549,29 @@ func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	for i, row := range rows {
-		if err := s.checkUniqueRow(ref, row, nil, rows[:i]); err != nil {
+	batch := indexWriteBatch{values: rows}
+	for i := range batch.values {
+		candidate := batch.candidate(i)
+		if err := s.checkUniqueRow(ref, &candidate, nil, batch.prefix(i)); err != nil {
 			return err
 		}
+		batch.set(i, candidate)
 	}
-	return w.applyValidated(ref, rows)
+	return w.applyValidated(ref, batch)
 }
 
 // SQL producers validate each accepted prefix before demanding the next row;
 // only this canonical staging method transfers the completed immutable batch.
-func (w *WriteStage) applyValidated(ref ObjectRef, rows [][]sqltype.Value) error {
+func (w *WriteStage) applyValidated(ref ObjectRef, batch indexWriteBatch) error {
+	rows := batch.values
 	s := w.scope
 	if err := s.active(); err != nil {
 		return err
 	}
 retry:
+	if err := s.validateIndexCandidates(ref, &batch); err != nil {
+		return err
+	}
 	s.owner.mu.Lock()
 	e := s.op.session.Engine()
 	e.mu.Lock()
@@ -570,15 +581,14 @@ retry:
 		s.owner.mu.Unlock()
 		if s.insertConflict != nil && s.insertConflict.update == nil {
 			var err error
-			rows, err = s.revalidateConflictRows(ref, rows)
+			batch, err = s.revalidateConflictRows(ref, batch)
+			rows = batch.values
 			if err != nil {
 				return err
 			}
 		} else {
-			for i, row := range rows {
-				if err := s.checkUniqueRow(ref, row, nil, rows[:i]); err != nil {
-					return err
-				}
+			if err := s.revalidateIndexRows(ref, nil, &batch); err != nil {
+				return err
 			}
 		}
 		goto retry
@@ -614,14 +624,14 @@ retry:
 	}
 	var versions []rowVersion
 	var err error
-	if len(s.exclusionCandidates[ref.Address]) != 0 {
+	if len(relation.exclusionConstraints) != 0 {
 		versions = make([]rowVersion, len(rows))
-		for i, row := range rows {
-			reserved, ok := s.reservedExclusionRow(ref, row)
-			if !ok {
+		for i := range rows {
+			reserved := batch.candidate(i).exclusion
+			if reserved == nil {
 				return errors.New("stuntgres: exclusion row lost its admission identity")
 			}
-			versions[i] = reserved
+			versions[i] = *reserved
 			versions[i].indexAdmission = admission
 		}
 	} else {
@@ -629,6 +639,11 @@ retry:
 	}
 	if err != nil {
 		return err
+	}
+	if batch.states != nil {
+		for i := range versions {
+			versions[i].indexOutputs = batch.states[i].indexes
+		}
 	}
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		for _, row := range versions {

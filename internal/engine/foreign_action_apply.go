@@ -16,6 +16,8 @@ type foreignActionPlan struct {
 	defaults             []BoundExpr
 	conversions          []sqltype.CoercionPlan
 	convert              []bool
+	input                sqltype.InputEnvironment
+	domainChecks         bool
 }
 
 func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) (*foreignActionPlan, error) {
@@ -37,20 +39,64 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			return nil, ErrCatalogReplaced
 		}
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
+	plan.input = s.input
+	for _, slot := range plan.targets {
+		plan.domainChecks = plan.domainChecks || sqltype.ContainsDomainChecks(job.child.columns[slot].Usage.Type)
+	}
+	if plan.domainChecks {
+		e := s.op.session.Engine()
+		e.mu.Lock()
+		name, err := e.captureTypeDiagnosticName(auth)
+		e.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		plan.input.TypeDiagnosticName = name
+	}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: auth.catalog, Input: plan.input, Output: s.output}
+	if plan.domainChecks {
+		evaluation.Input.DomainChecks = &evaluation
+	}
 	if action == parser.ForeignKeySetDefault {
 		b := binding{relation: job.child}
-		s.op.session.Engine().bindInsertDefaults(&b, auth, parser.OverrideNone)
+		e := s.op.session.Engine()
+		e.bindInsertDefaults(&b, auth, parser.OverrideNone)
 		plan.defaults = make([]BoundExpr, len(plan.targets))
 		for i, slot := range plan.targets {
-			if len(b.defaults) == 0 || b.defaults[slot] == nil {
+			if len(b.defaults) != 0 {
+				plan.defaults[i] = b.defaults[slot]
+			}
+		}
+		// Retained defaults can themselves cast to a checked domain even when
+		// the action destination is an ordinary base type.
+		binder := expressionBinder{engine: e, ctx: s.op.Context(), input: plan.input, op: s.op, queryAuth: &auth}
+		e.mu.Lock()
+		err := binder.captureRetainedWriteInput(plan.defaults, nil, nil)
+		e.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		plan.input, evaluation.Input = binder.input, binder.input
+		if plan.domainChecks {
+			evaluation.Input.DomainChecks = &evaluation
+		}
+		for i, expression := range plan.defaults {
+			if expression == nil {
 				continue
 			}
-			folded, _, err := preflightCoercionsWithPolicy(&evaluation, b.defaults[slot], true)
+			folded, _, err := preflightCoercionsWithPolicy(&evaluation, expression, true)
 			if err != nil {
 				return nil, err
 			}
 			plan.defaults[i] = folded
+		}
+	}
+	if action == parser.ForeignKeySetNull && plan.domainChecks {
+		plan.defaults = make([]BoundExpr, len(plan.targets))
+		for i, slot := range plan.targets {
+			if job.child.columns[slot].Usage.Type.HasDomainChecks() {
+				plan.defaults[i] = domainNullInputExpression(job.child.columns[slot].Usage)
+			}
 		}
 	}
 	if action == parser.ForeignKeyCascade {
@@ -174,7 +220,14 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if err != nil {
 		return err
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
+	input := s.input
+	if plan != nil {
+		input = plan.input
+	}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: ownerAuth.catalog, Input: input, Output: s.output}
+	if plan != nil && plan.domainChecks {
+		evaluation.Input.DomainChecks = &evaluation
+	}
 	schema := auth.catalog.state.descriptors[job.child.namespace].Name()
 	for _, candidate := range candidates {
 		mode := noKeyUpdate
@@ -218,13 +271,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			case parser.ForeignKeyCascade:
 				row[slot] = event.next.values[plan.parentSlots[i]]
 				if plan.convert[i] {
-					row[slot], err = plan.conversions[i].Apply(evaluation.Context, row[slot], s.input, s.output)
+					row[slot], err = plan.conversions[i].Apply(evaluation.Context, row[slot], evaluation.Input, evaluation.Output)
 				}
-			case parser.ForeignKeySetNull:
+			case parser.ForeignKeySetNull, parser.ForeignKeySetDefault:
 				row[slot] = sqltype.Null(job.child.columns[slot].Usage.Type)
-			case parser.ForeignKeySetDefault:
-				row[slot] = sqltype.Null(job.child.columns[slot].Usage.Type)
-				if plan.defaults[i] != nil {
+				if len(plan.defaults) != 0 && plan.defaults[i] != nil {
 					row[slot], err = plan.defaults[i].Eval(&evaluation)
 				}
 			}
@@ -245,16 +296,19 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return s.foreignActionError(err, job, event, action, auth.catalog)
 			}
 		}
-		if err = s.claimUniqueRow(ref, old.values); err != nil {
+		if err = s.claimUniqueRow(ref, old); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
 		predecessor := [1]rowVersion{old}
-		if err = s.checkUniqueRow(ref, row, predecessor[:], nil); err != nil {
+		proposal := indexWriteCandidate{values: row}
+		if err = s.checkUniqueRow(ref, &proposal, predecessor[:], indexWriteBatch{}); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		replacement := [1][]sqltype.Value{row}
-		if err = s.stage.replace(ref, predecessor[:], replacement[:]); err != nil {
+		batch := indexWriteBatch{values: replacement[:]}
+		batch.set(0, proposal)
+		if err = s.stage.replace(ref, predecessor[:], batch); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 	}

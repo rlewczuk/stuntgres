@@ -359,7 +359,7 @@ func TestSerializablePublicationOrdinaryFailureCannotDoomPeers(t *testing.T) {
 	}
 	defer op.Done()
 	cancel()
-	err = e.publishRows(op, a.ref, nil, nil, nil, nil)
+	err = e.publishRows(op, a.ref, nil, nil, nil, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("wrong precondition cause", err)
 	}

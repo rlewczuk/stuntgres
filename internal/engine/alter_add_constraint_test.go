@@ -270,7 +270,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = validateAlterUniques(context.Background(), auth, e.stageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ObjectAddress{next.uniqueConstraints[1].Index})
+	_, err = validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: e.stageRead(stage)}, auth, e.stageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ObjectAddress{next.uniqueConstraints[1].Index}, false)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("no real private root validation", err)

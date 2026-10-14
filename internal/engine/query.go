@@ -381,6 +381,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return &copy, nil
 		}
 	case *projectNode:
+		// Projection initialization precedes opening its child. CHECK recipes
+		// may fail here, but checked conversion truth stays in each runtime row.
 		var expressions []BoundExpr
 		for i, expression := range n.expressions {
 			folded, changed, err := preflightCoercions(c, expression)

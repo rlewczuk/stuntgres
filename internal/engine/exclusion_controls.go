@@ -5,7 +5,6 @@ import (
 	"maps"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func (s *StatementScope) checkExclusionEvents(all bool, selected map[OID]bool) error {
@@ -52,7 +51,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[OID]bool) e
 		if bound == nil {
 			continue
 		}
-		conflict, _, err := s.probeExclusion(event.parent, binding, bound, rowVersion{row: event.row, version: event.version}, true)
+		conflict, _, err := s.probeExclusion(event.parent, binding, bound, rowVersion{row: event.row, version: event.version}, true, indexProbeRuntime)
 		if err != nil {
 			return err
 		}
@@ -63,13 +62,11 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[OID]bool) e
 	s.exclusionModes.events = remaining
 	return nil
 }
-func (e *Engine) checkTransactionExclusions(op *Operation, t *transactionOwner) error {
-	input, output := sessionPresentation(op.session)
-	s := &StatementScope{owner: t, op: op, ticket: t.ticket, txRef: t.ref, input: input, output: output, exclusionStarted: true, exclusionModes: t.exclusionModes}
+func (e *Engine) checkTransactionExclusions(s *StatementScope) error {
 	if err := s.checkExclusionEvents(true, nil); err != nil {
 		return err
 	}
-	t.exclusionModes = s.exclusionModes
+	s.owner.exclusionModes = s.exclusionModes
 	return nil
 }
 func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count int) (Result, error) {
@@ -185,13 +182,4 @@ func (e *Engine) removeExclusionOwner(ticket *relationTicket) {
 		e.exclusionGeneration++
 	}
 	e.mu.Unlock()
-}
-
-func (s *StatementScope) reservedExclusionRow(ref ObjectRef, values []sqltype.Value) (rowVersion, bool) {
-	for _, row := range s.exclusionCandidates[ref.Address] {
-		if len(values) > 0 && &row.values[0] == &values[0] {
-			return row, true
-		}
-	}
-	return rowVersion{}, false
 }

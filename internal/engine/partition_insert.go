@@ -23,7 +23,7 @@ type partitionInsertState struct {
 }
 type partitionInsertGroup struct {
 	ref    ObjectRef
-	rows   [][]sqltype.Value
+	rows   indexWriteBatch
 	unique *uniqueWriteBinding
 }
 
@@ -274,11 +274,8 @@ func (s *StatementScope) partitionStoredRow(row []sqltype.Value) []sqltype.Value
 	return row
 }
 
-func (s *StatementScope) checkInsertUniqueRow(ref ObjectRef, row []sqltype.Value, prefix [][]sqltype.Value) error {
+func (s *StatementScope) partitionInsertionGroup(ref ObjectRef) *partitionInsertGroup {
 	state := s.partitionInsert
-	if state == nil {
-		return s.checkUniqueRow(ref, row, nil, prefix)
-	}
 	address := state.destination.address
 	group := state.groups[address]
 	if group == nil {
@@ -289,17 +286,25 @@ func (s *StatementScope) checkInsertUniqueRow(ref ObjectRef, row []sqltype.Value
 		state.groups[address] = group
 		state.order = append(state.order, group)
 	}
+	return group
+}
+
+func (s *StatementScope) checkInsertUniqueRow(ref ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch) error {
+	if s.partitionInsert == nil {
+		return s.checkUniqueRow(ref, candidate, nil, prefix)
+	}
+	group := s.partitionInsertionGroup(ref)
 	s.uniqueBinding = group.unique
-	row = s.partitionStoredRow(row)
-	if err := s.checkUniqueRow(group.ref, row, nil, group.rows); err != nil {
+	candidate.values = s.partitionStoredRow(candidate.values)
+	if err := s.checkUniqueRow(group.ref, candidate, nil, group.rows); err != nil {
 		return err
 	}
 	group.unique = s.uniqueBinding
-	group.rows = append(group.rows, row)
+	group.rows.append(*candidate)
 	return nil
 }
 
-func (s *StatementScope) applyInsertValidated(ref ObjectRef, rows [][]sqltype.Value) (int, error) {
+func (s *StatementScope) applyInsertValidated(ref ObjectRef, rows indexWriteBatch) (int, error) {
 	if s.partitionInsert == nil {
 		return s.Writes().applyInsertValidated(ref, rows)
 	}
@@ -309,7 +314,7 @@ func (s *StatementScope) applyInsertValidated(ref ObjectRef, rows [][]sqltype.Va
 		if err := s.Writes().applyValidated(group.ref, group.rows); err != nil {
 			return 0, err
 		}
-		count += len(group.rows)
+		count += len(group.rows.values)
 	}
 	return count, nil
 }

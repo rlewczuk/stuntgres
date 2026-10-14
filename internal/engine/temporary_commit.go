@@ -53,17 +53,25 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref TxRef, writes map[Obj
 		shape.truncated = false
 		shape.relation = base.state.descriptors[a].(*relationDescriptor)
 		next.storage[a] = shape
+		e.fenceEmptyIndexStorageLocked(base.state, next, a)
 		delete(nextWrites, a)
 		delete(nextDeletes, a)
 	}
 	e.mu.Unlock()
+	for _, address := range cleared {
+		if err := transportEmptyIndexStorage(op.Context(), base.state, next, nil, address, next.storage[address].replacement); err != nil {
+			return nil, nil, nil, err
+		}
+	}
 	if len(dropped) != 0 {
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
+		input, output := sessionPresentation(op.session)
+		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input, Output: output, catalog: base}
 		project := func(old, replacement *relationDescriptor) error {
 			owner := op.session.transactions
 			snapshot, exists := owner.roots[old.address]
-			rows, deleted, _, err := stagePrivateColumnShape(op.Context(), stage, next, old, replacement, nextWrites[old.address], nextDeletes[old.address], snapshot, exists, stableIsolation(owner.isolation))
+			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.address], nextDeletes[old.address], snapshot, exists, stableIsolation(owner.isolation))
 			if err != nil {
 				return err
 			}

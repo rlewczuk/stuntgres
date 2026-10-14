@@ -18,6 +18,7 @@ type catalogChanges struct {
 	generators          map[ObjectAddress]*sequenceGenerator
 	storage             map[ObjectAddress]catalogStorageChange
 	uniqueRoots         map[ObjectAddress]*logicalIndexRoot
+	indexCandidates     map[ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies        []catalogDependencyObservation
 	extensionAuthority  []extensionAuthorityObservation
 	cachedBase          *catalogState
@@ -76,6 +77,12 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		n.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot, len(c.uniqueRoots))
 		for a, root := range c.uniqueRoots {
 			n.uniqueRoots[a] = root
+		}
+	}
+	if c.indexCandidates != nil {
+		n.indexCandidates = make(map[ObjectAddress]indexRootCandidate, len(c.indexCandidates))
+		for a, candidate := range c.indexCandidates {
+			n.indexCandidates[a] = candidate
 		}
 	}
 	n.dependencies = append(n.dependencies, c.dependencies...)
@@ -155,6 +162,7 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ObjectAddress, d Descr
 	c.descriptors[a] = d
 	if d == nil {
 		delete(c.uniqueRoots, a)
+		delete(c.indexCandidates, a)
 	}
 	c.cachedBase = nil
 	c.cached = CatalogRead{}

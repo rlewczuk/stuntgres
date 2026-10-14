@@ -100,6 +100,18 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	next.columns = append(next.columns, definition)
 	next.attributes = append(next.attributes, attribute)
 	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}
+	if usage.Type.HasDomainChecks() {
+		// The omitted value is fresh base-type NULL, not an already checked
+		// domain value. Keep this input conversion execution-private.
+		added.expression = domainNullInputExpression(usage)
+	}
+	if sqltype.ContainsDomainChecks(usage.Type) && scope.input.TypeDiagnosticName == nil {
+		var err error
+		scope.input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+		if err != nil {
+			return fail(err)
+		}
+	}
 	if declaration.defaultExpr != nil {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.queryAuth = &auth
@@ -128,7 +140,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 
 func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32]sqltype.Value, bool, error) {
 	var fills map[int32]sqltype.Value
-	volatile := false
+	perRow := false
 	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
 	for i := range additions {
 		added := &additions[i]
@@ -138,8 +150,9 @@ func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32
 				return nil, false, alterCookingError(err)
 			}
 			added.expression = planned
-			if planned.Properties().Volatility > Stable {
-				volatile = true
+			properties := planned.Properties()
+			if properties.Volatility > Stable || properties.RuntimeDomainConversion {
+				perRow = true
 				continue
 			}
 			added.value, err = planned.Eval(&evaluation)
@@ -152,5 +165,5 @@ func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32
 		}
 		fills[added.attribute] = added.value
 	}
-	return fills, volatile, nil
+	return fills, perRow, nil
 }

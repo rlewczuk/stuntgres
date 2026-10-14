@@ -318,7 +318,7 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			definition.predicate = &predicate
 			index.sqlIndex = &definition
 			next.descriptors[index.address] = &index
-			roots, err := f.e.prepareIndexPublication(context.Background(), f.catalog, &next, captureIndexStores(f.e.storage, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil)
+			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

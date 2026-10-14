@@ -307,7 +307,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 	// Pruning preserves analyzed dependencies even on a physical literal.
 	// Those properties still govern metadata/ACLs, not its planning truth.
 	_, literal := expr.(literalExpression)
-	if literal || p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+	if literal || p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion {
 		value, err := expr.Eval(c)
 		if err != nil {
 			return fullJoinFacts{}, err
@@ -392,7 +392,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 		var test sqltype.Value
 		if e.test != nil {
 			p := e.test.Properties()
-			if p.Volatility != Immutable || p.RowDependent || p.StageDependent {
+			if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
 				return fullJoinFacts{}, nil
 			}
 			var err error
@@ -403,7 +403,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 		}
 		for _, arm := range e.arms {
 			p := arm.condition.Properties()
-			if p.Volatility != Immutable || p.RowDependent || p.StageDependent {
+			if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
 				return fullJoinFacts{}, nil
 			}
 			condition, err := arm.condition.Eval(c)
@@ -418,6 +418,9 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 				}
 				match = truth == True
 			} else {
+				if arm.testPlan.ChecksDomain() {
+					return fullJoinFacts{}, nil
+				}
 				view, err := arm.testPlan.Apply(c.Context, test, c.Input, c.Output)
 				if err != nil {
 					return fullJoinFacts{}, err
@@ -439,7 +442,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 	if e, ok := expr.(conditionalExpression); ok && e.kind == parser.Coalesce {
 		for _, arg := range e.args {
 			p := arg.Properties()
-			if p.Volatility != Immutable || p.RowDependent || p.StageDependent {
+			if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
 				// Dropping preceding constant NULLs still leaves COALESCE,
 				// not a bare equality key, even with one remaining argument.
 				break

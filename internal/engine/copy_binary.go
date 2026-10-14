@@ -145,6 +145,9 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 		length := int32(binary.BigEndian.Uint32(p))
 		dst[i] = sqltype.Null(column.Usage.Type)
 		if length == -1 {
+			if err := column.Usage.Type.CheckDomainInput(ctx, dst[i], c.scope.input); err != nil {
+				return false, c.diagnostic(err)
+			}
 			c.column = ""
 			continue
 		}
@@ -186,7 +189,7 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 		return err
 	}
 	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.relation.name, c.number)
-	if strings.Contains(record.Context, prefix) {
+	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.relation.name)) {
 		return err
 	}
 	result := *record

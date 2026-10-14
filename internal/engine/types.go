@@ -83,6 +83,7 @@ type typeDescriptor struct {
 	dimensions     int32
 	array          sqltype.ID
 	owningRelation ObjectAddress
+	domainChecks   []domainCheckConstraint
 }
 
 func (d *typeDescriptor) Address() ObjectAddress {
@@ -168,6 +169,9 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		actual, exists := view.LookupType(base.Type.ID())
 		if !exists || actual != base.Type || t.typ.Concrete() && (!base.Valid() || t.revision == 0) || t.dimensions < 0 {
 			return fmt.Errorf("stuntgres: invalid domain base generation")
+		}
+		if err := validateDomainCheckDefinitions(view, t); err != nil {
+			return err
 		}
 	}
 	if t.typ.IsArray() {

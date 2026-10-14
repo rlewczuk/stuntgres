@@ -84,7 +84,18 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	return nil
 }
 
-func definitionOIDUsed(d *relationDescriptor, id OID) bool {
+func definitionOIDUsed(descriptor Descriptor, id OID) bool {
+	d, relation := descriptor.(*relationDescriptor)
+	if !relation {
+		if domain, ok := descriptor.(*typeDescriptor); ok {
+			for _, check := range domain.domainChecks {
+				if check.OID == id {
+					return true
+				}
+			}
+		}
+		return false
+	}
 	if d.view != nil && d.view.rule == id {
 		return true
 	}
@@ -133,7 +144,16 @@ func definitionOIDUsed(d *relationDescriptor, id OID) bool {
 
 // Descriptor and owned-definition OIDs share one identity space. Replacement
 // must reserve both before allocating any collision replacement.
-func reserveDefinitionOIDs(reserved map[OID]bool, d *relationDescriptor) {
+func reserveDefinitionOIDs(reserved map[OID]bool, descriptor Descriptor) {
+	d, relation := descriptor.(*relationDescriptor)
+	if !relation {
+		if domain, ok := descriptor.(*typeDescriptor); ok {
+			for _, check := range domain.domainChecks {
+				reserved[check.OID] = true
+			}
+		}
+		return
+	}
 	if d.view != nil {
 		reserved[d.view.rule] = true
 	}
@@ -176,6 +196,13 @@ func validateDefinitionOIDs(view CatalogRead) error {
 		return nil
 	}
 	for _, descriptor := range view.state.descriptors {
+		if domain, ok := descriptor.(*typeDescriptor); ok {
+			for _, check := range domain.domainChecks {
+				if err := claim(check.OID); err != nil {
+					return err
+				}
+			}
+		}
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -234,8 +261,13 @@ func validateDefinitionOIDs(view CatalogRead) error {
 func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	reserved := make(map[OID]bool)
 	var relations []*relationDescriptor
+	var domains []*typeDescriptor
 	for address, descriptor := range next.descriptors {
 		reserved[address.ObjectID] = true
+		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
+			domains = append(domains, domain)
+			reserveDefinitionOIDs(reserved, domain)
+		}
 		if d, ok := descriptor.(*relationDescriptor); ok {
 			relations = append(relations, d)
 			reserveDefinitionOIDs(reserved, d)
@@ -294,6 +326,27 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				reserved[candidate], claimed[candidate] = true, true
 				return candidate, nil
 			}
+		}
+	}
+	sort.Slice(domains, func(i, j int) bool { return domains[i].Address().ObjectID < domains[j].Address().ObjectID })
+	for _, domain := range domains {
+		copy := *domain
+		var checks []domainCheckConstraint
+		for i, check := range domain.domainChecks {
+			id, err := remint(check.OID)
+			if err != nil {
+				return err
+			}
+			if id != check.OID {
+				if checks == nil {
+					checks = append([]domainCheckConstraint(nil), domain.domainChecks...)
+				}
+				checks[i].OID = id
+			}
+		}
+		if checks != nil {
+			copy.domainChecks = checks
+			next.descriptors[domain.Address()] = &copy
 		}
 	}
 	uniqueMapping := make(map[OID]OID)

@@ -156,7 +156,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if err != nil {
 		return Result{}, err
 	}
-	if _, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
+	if _, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
 		return Result{}, err
 	}
 	scope.completed = true

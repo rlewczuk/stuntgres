@@ -117,6 +117,183 @@ array equality/inequality, complete unknown-role diagnostics with unchanged
 rows, and native Dump/Reset/Restore with held rows and deterministic redump.
 Success is quiet exit 0 and the ordinary package summary after those assertions.
 
+### Domain CHECK selected proof
+
+Run each small group first against pinned PostgreSQL with `REFERENCE=1`, then
+in native mode, with an external 900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceDomainCheck(Truth|NamesOrder)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheck(Truth|NamesOrder)$'
+make check RUN='^TestReferenceDomainCheckDiagnostics$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckDiagnostics$'
+make check RUN='^TestReferenceDomainCheck(ConversionsNull|Ancestors)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheck(ConversionsNull|Ancestors)$'
+make check RUN='^TestReferenceDomainCheck(InputRoutes|Metadata|NativeControls)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheck(InputRoutes|Metadata|NativeControls)$'
+make check RUN='^TestReferenceDomainCheckInputOrdering$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckInputOrdering$'
+make check RUN='^TestReferenceDomainCheckSQLExecute$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckSQLExecute$'
+make check RUN='^TestReferenceDomainCheckDemand$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckDemand$'
+make check RUN='^TestReferenceDomainCheckDemandWrappers$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckDemandWrappers$'
+make check RUN='^TestReferenceDomainCheck(PlanningDemand|RecipeInitialization)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheck(PlanningDemand|RecipeInitialization)$'
+make check RUN='^TestReferenceDomainCheck(ConflictProofDemand|AddColumnDemand|StoredDemand)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheck(ConflictProofDemand|AddColumnDemand|StoredDemand)$'
+make check RUN='^TestReferenceDomainCheckIndex(RuntimeDemand|LifecycleDemand|FailureDemand|ConflictDemand)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckIndex(RuntimeDemand|LifecycleDemand|FailureDemand|ConflictDemand)$'
+make check RUN='^TestReferenceDomainCheckIndex(ProducerDemand|ProducerFailureDemand|ReturningProducerDemand|MutationProducerDemand|MergeProducerDemand|CopyProducerDemand|CopyInsertionOrderDemand|InsertionOrderDemand)$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckIndex(ProducerDemand|ProducerFailureDemand|ReturningProducerDemand|MutationProducerDemand|MergeProducerDemand|CopyProducerDemand|CopyInsertionOrderDemand|InsertionOrderDemand)$'
+make check RUN='^TestReferenceDomainCheckIndexCopyFlushDemand$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckIndexCopyFlushDemand$'
+make check RUN='^TestReferenceDomainDiagnostics$' REFERENCE=1
+make check RUN='^TestReferenceDomainDiagnostics$'
+```
+
+The scenarios assert named/generated identities, three-valued CHECK truth,
+ancestor-first and per-domain alphabetical order, declaration diagnostics,
+conversion versus already-domain NULL bypass, atomic assignments, COPY and
+nested input, direct/prepared base metadata, and CHECK-owned dependency
+retirement. Native-only control phases additionally exercise Dump/Reset/Restore,
+fresh-driver remapping, retained eager rows, and failed/canceled replay atomicity.
+These definitions are contracts, not passing-verification claims.
+Demand separates domain expression initialization from truth consumption:
+invalid scalar casts behind false filters/empty sources remain unconsumed,
+empty omitted-default INSERT affects no rows, and each consumed row executes
+its volatile CHECK. Real SQL sequence rows/state and late-error atomicity are
+the witnesses, not a mocked evaluator. Constant CHECK recipe errors still
+initialize at Execute for an empty consumer; inferred domain input remains
+immediate while explicit-base parameters and already-domain NULL preserve their
+separate conversion/bypass contracts. The private supplement is selected by
+`make check RUN='^TestDomainCheckPreflightDemandInternal$'`.
+DemandWrappers exercises public direct/prepared abs, COALESCE, CASE and ANY
+consumers behind false filters and empty sources, plus demanded failure/success
+and already-domain NULL bypass. The shared conditional constant eligibility
+used by these providers must preserve live checked conversions and enclosing
+runtime barriers; a literal physical child is not a completed CHECK event.
+PlanningDemand covers empty keyed FULL JOIN/MERGE scalar, array and conditional
+casts without truth consumption, real FULL JOIN sequence demand, and MERGE's
+separate ordinary BY SOURCE action-stage ON evaluation. After the earlier
+observable nextval1, one FULL JOIN match ends at nextval3, while a matched
+BY SOURCE MERGE ends at nextval4 and deletes its target. MERGE command counts
+retain the existing lib/pq adapter contract (PG0/native actual1).
+RecipeInitialization requires retained CASE/COALESCE/ancestor/array and stored
+default recipes to report22012 at Execute even for false/empty consumers; removed
+dead arms return1 without initializing their eliminated conversion.
+ConflictProofDemand proves empty partial-index inference consumes no truth,
+while an actual inserted index row fails23514 atomically.
+AddColumnDemand proves fresh omitted NULL and invalid defaults are checked only
+on actual old rows, failed schema/data publication permits same-column retry,
+three checked rows draw three sequence values, an empty ADD draws none, and
+retained recipe1/0 still initializes with22012 on an empty table.
+StoredDemand checks generated and RANGE-partition initialization and actual input:
+retained division-by-zero recipes reject CREATE with22012, publish no partial
+table, and permit a same-name valid retry. IndexRuntimeDemand requires empty CREATE
+to consume no truth, one INSERT effect and no COMMIT replay. IndexLifecycleDemand
+covers B-tree/hash predicate/key and existing unique-predicate INSERT/UPDATE/DELETE,
+duplicate23505 and rollback with retained sequence effects. IndexFailureDemand
+requires failed UPDATE to draw only its genuine new-value effect before23514,
+preserve old index/row data after rollback, and permit a later valid update.
+IndexConflictDemand preserves distinct accepted ON CONFLICT precheck/insertion
+events and duplicate existing-key rechecks: after initial sequence1, ordinary
+INSERT ends at2, accepted ON CONFLICT at4, and duplicate DO NOTHING at5 for
+predicate-only or6 for key/zero-width witnesses. COMMIT and zero-width DELETE
+do not replay these effects. All SQL expectations are strict direct/prepared
+dual-mode definitions; they are not proof that the current implementation passes.
+HASH partial-predicate and UNIQUE expression-key/zero-width behaviors remain
+PostgreSQL witnesses: the same definitions independently assert native0A000
+with exact existing diagnostics and no partial row/effect publication. Native
+artifact behavior uses admitted HASH derived nonpartial keys and UNIQUE simple
+keys with a predicate; these definitions do not expand index providers.
+ProducerDemand and ProducerFailureDemand distinguish actual per-row VALUES/query
+insertion from later batch publication, with and without RETURNING. Mutation and
+MERGE companions retain genuine new-version events and first-failure atomicity.
+CopyProducerDemand independently retains PG18's eligible nextval-default COPY
+flush phase: buffered defaults precede insertion checks; this is not the ordinary
+INSERT producer schedule. InsertionOrderDemand uses reverse lexical index names
+to prove creation/ObjectID order, exact first domain/constraint identity and
+pre-error sequence effects. These strict expectations require pinned oracle and
+native proof; equal final event counts alone do not establish correct ordering.
+ReturningProducerDemand also makes RETURNING consume nextval, distinguishing
+source/index/RETURNING events before the next source: stored IDs1,4 and returned
+(1,3),(4,6), ending at6. CopyInsertionOrderDemand rejects tuple2's first index
+after buffered defaults1,2 and tuple1's ordered checks3,4; exact curr5 and line2
+prove row-outer/index-inner flush order and actual tuple diagnostic provenance.
+CopyFlushDemand distinguishes the finite COPY tuple and server raw text-byte
+boundaries: binary tuple1001 stores ID2001 after the preceding1000 checks, while
+the third32768-byte text row stores ID5 after the preceding two checks. These
+source-grounded strict traces also require their selected pinned/native proofs.
+Native `TestDomainCheckIndexSnapshot` supplements exercise produced B-tree/hash
+entry transport, selected live identities/positions, unchanged CHECK sequence
+state, source immutability and missing/malformed/canceled snapshot rejection.
+
+`TestReferenceDomainCheckIndexAliasSnapshotCollision` shares ordinary SQL for
+extension-owned unaccent dictionaries and real `unaccent(text)` routine aliases
+(REGPROC and REGPROCEDURE). Domain-wrapped keys and NULLs exercise a UNIQUE
+B-tree and a separate HASH-only table, including direct/prepared equality,
+UPDATE/DELETE/reinsertion and complete duplicate diagnostics. Domain-wrapped
+oid_ops Detail contains the independently captured numeric represented identity,
+not its symbolic spelling or a pinned allocator value. Its explicit
+native control phase retains a TEMP sequence at the observed represented source
+OID, restores the actual dump into another Driver and requires a reminted
+dictionary/procedure identity while the retained sequence keeps its original
+identity and state. The same SQL checks must still hold after replacement;
+CHECK sequence frontier and byte-identical source dump guard against replay or
+source mutation. Recursive private units distinguish equal numeric identities
+in procedure/dictionary/unrelated catalog classes, nested domains, arrays,
+composites, bounds and NULLs without adding compound index providers.
+The key-output supplement requires physical OID diagnostics without changing
+logical alias/domain keys, including the provider's unsigned INT4 bit semantics.
+
+```sh
+make check RUN='^TestReferenceDomainCheckIndexAliasSnapshotCollision$' REFERENCE=1
+make check RUN='^TestReferenceDomainCheckIndexAliasSnapshotCollision$'
+make check RUN='^TestDomainCheckIndexSnapshotAlias(Recursive|KeyOutput)$'
+```
+
+
+
+Private package supplements use
+`make check RUN='^TestDomainCheck'` and
+`make check RUN='^(TestDomain(ExcludedClausesNeverPublishInternal|BaseUsageAndOwnerAuthorizationInternal)|TestArrayCatalogAssociationPublicationAndOrigin|TestEnumCatalogStagingAndAuthority)$'`.
+They exercise actual catalog staging, frame invariants, recipe/ancestry remapping,
+fresh-input versus exact-identity coercion, nested codec completion, typmod
+precedence and the allocation-free unconstrained path. They do not replace
+selected public SQL proof in both modes. The Diagnostics group also checks
+direct/prepared modifier failure stages, not just SQLSTATE.
+InputOrdering checks lexical codec/CHECK precedence across multiple parameters
+and array/composite members, including NULL. Member literal input fails at the
+actual Prepare boundary, whereas inferred parameters and an outer domain
+conversion fail at Execute. The literal decoder releases only its owning
+binder's mutex around the captured codec/evaluator and revalidates the admitted
+provider graph before resuming; it does not replay CHECKs or resolve new names.
+SQL EXECUTE actual expressions enter and leave their frame importer unlocked.
+The importer owns its narrow binding/capture lock, evaluates in the current
+statement scope outside that lock and validates captured providers before
+returning; failed CHECKs cannot strand the mutex or poison a later frame.
+Former CHECK capability exclusions now exercise shared datetime extraction,
+regexp conversion, binary COPY, foreign actions and composite member consumers:
+
+```sh
+make check RUN='^TestReference(DatetimeExtractDomainConstraintBoundary|RegexpStoredDefinitions|ForeignActionsConstraintsDomain|CompositeConstrainedDomainBoundary)$' REFERENCE=1
+make check RUN='^TestReference(DatetimeExtractDomainConstraintBoundary|RegexpStoredDefinitions|ForeignActionsConstraintsDomain|CompositeConstrainedDomainBoundary)$'
+make check RUN='^TestReferenceCopyBinaryCodecsNested$' REFERENCE=1
+make check RUN='^TestReferenceCopyBinaryCodecsNested$'
+make check RUN='^TestPreparedSQLActualNoSnapshotDemand$'
+```
+
+
+Feature smoke uses `make check RUN='^TestReferenceDomainCheck(Truth|ConversionsNull|Ancestors)$'`
+and `make check RUN='^TestReferenceDomainCheckNativeControls$'`. Expected
+observations include positive 1 accepted, 0 rejected with exact 23514 constraint
+identity, UNKNOWN admitted, fresh NULL rejected by `VALUE IS NOT NULL` while
+already-domain subquery NULL bypasses conversion, unchanged rows after failed
+assignment, and identical post-roundtrip constraint behavior. A CHECK-only
+provider cascade preserves the domain/data and removes only the dependent check.
+Whole-project Docker-free verification remains `make quickcheck`.
 
 ### Composite expression selected proof
 

@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// Extraction does not add domain constraints. Retain the original scenarios as
-// exact backend capabilities, separately from plain-domain extraction consumers.
+// Constrained-domain extraction shares conversion checks with other consumers;
+// strict NULL extraction does not suppress failure of a fresh domain input.
 func TestReferenceDatetimeExtractDomainConstraintBoundary(t *testing.T) {
 	datetimeExtractScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, prepared := range []bool{false, true} {
@@ -18,15 +18,6 @@ func TestReferenceDatetimeExtractDomainConstraintBoundary(t *testing.T) {
 					{"dx_year", "CREATE DOMAIN dx_year AS numeric CHECK(EXTRACT(year FROM DATE '2000-01-01')=VALUE)"},
 				} {
 					t.Run(tc.name, func(t *testing.T) {
-						if !b.PG {
-							d := fixture.ControlsReferenceDiagnostic("0A000", "domain constraints and defaults are unsupported")
-							// The existing domain owner annotates the CHECK keyword.
-							d.Position = fixture.Position(strings.Index(tc.ddl, "CHECK") + 1)
-							s := fixture.ErrorDiagnostic(tc.ddl, d)
-							s.Prepared, s.ErrorStage = prepared, "execute"
-							fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-							return
-						}
 						s := fixture.Exec(tc.ddl, 0)
 						s.Prepared = prepared
 						fixture.RunStep(t, p.Ctx, c, b.Recorder, s)

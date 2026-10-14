@@ -93,6 +93,8 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
+		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	if err := b.captureTypeDiagnosticInput(selected); err != nil {
 		return nil, err

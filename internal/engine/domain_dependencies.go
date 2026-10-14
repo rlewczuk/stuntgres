@@ -17,6 +17,7 @@ type domainDependency struct {
 	ordinal               int32
 	label                 string
 	relation              *relationDescriptor
+	domain                *typeDescriptor
 	column                string
 	automatic             bool
 }
@@ -137,6 +138,19 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
 			case *typeDescriptor:
+				if replacement, ok := stage.descriptors[a].(*typeDescriptor); ok {
+					d = replacement
+				}
+				if !domains[a] {
+					for _, check := range d.domainChecks {
+						for _, dep := range check.dependencies {
+							if dep.ref.Address == target {
+								direct = append(direct, domainDependency{address: ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: check.OID, label: "constraint " + dependencyIdentifier(check.Name), domain: d})
+								break
+							}
+						}
+					}
+				}
 				if d.typ.IsDomain() && usageDependsOn(d.typ.DomainBase(), target) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + typeDiagnosticNameAt(stage.base, d, stage.dependencyPath)})
 				}
@@ -458,7 +472,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		}
 	}
 	for _, edge := range edges {
-		if (edge.column != "" || edge.address.ClassID == 2606) && !seen[edge.relation.address] {
+		if edge.relation != nil && (edge.column != "" || edge.address.ClassID == 2606) && !seen[edge.relation.address] {
 			relations = append(relations, edge.relation)
 			seen[edge.relation.address] = true
 		}
@@ -614,6 +628,36 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		}
 		replacement := &relationStorage{versions: projected, ends: ends, generation: nextGeneration}
 		if err = stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends); err != nil {
+			return err
+		}
+	}
+	for _, edge := range edges {
+		if edge.domain == nil {
+			continue
+		}
+		if _, removed := stage.removals[edge.domain.Address()]; removed {
+			continue
+		}
+		d := edge.domain
+		if replacement, ok := stage.descriptors[d.Address()].(*typeDescriptor); ok {
+			d = replacement
+		}
+		copy := *d
+		copy.domainChecks = make([]domainCheckConstraint, 0, len(d.domainChecks))
+		for _, check := range d.domainChecks {
+			if check.OID != edge.address.ObjectID {
+				copy.domainChecks = append(copy.domainChecks, check)
+			}
+		}
+		copy.typ, err = sqltype.Domain(d.typ.ID(), d.Name(), d.typ.SQLName(), d.typ.DomainBase(), len(copy.domainChecks) != 0)
+		if err != nil {
+			return err
+		}
+		copy.revision, err = stage.cascadeMetadataRevision(d.revision)
+		if err != nil {
+			return err
+		}
+		if err := stage.Replace(&copy); err != nil {
 			return err
 		}
 	}

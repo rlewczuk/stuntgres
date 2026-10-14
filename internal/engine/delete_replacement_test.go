@@ -328,9 +328,13 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 	}
 	sequences, sequenceErr := copySequenceState(source, replacement)
+	indexes, indexErr := captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
 	source.mu.Unlock()
 	if sequenceErr != nil {
 		t.Fatal(sequenceErr)
+	}
+	if indexErr != nil {
+		t.Fatal(indexErr)
 	}
 	e.replacementMu.Lock()
 	writerHeld := true
@@ -380,7 +384,11 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			}
 		}
 		if err == nil {
-			err = e.installForeignCatalogLocked(context.Background(), next, storage, sequences, nextRevision)
+			var prepared remintedIndexStorage
+			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, storage, indexes)
+			if err == nil {
+				err = e.installForeignCatalogLocked(context.Background(), next, storage, sequences, nextRevision, prepared)
+			}
 		}
 	}
 	epoch := e.state.epoch

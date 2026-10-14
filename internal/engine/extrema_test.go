@@ -238,7 +238,7 @@ func TestExtremaActualComparatorCancellationOwnership(t *testing.T) {
 	defer cancel()
 	probe := &extremaCompareCancelContext{Context: ctx, cancel: cancel}
 	rows, err := evaluateInsertQuery(probe, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if !probe.entered || rows != nil || err != context.Canceled || source.view != nil || source.anonymous != nil {
+	if !probe.entered || rows.values != nil || err != context.Canceled || source.view != nil || source.anonymous != nil {
 		t.Fatal(rows, err, probe.entered, source)
 	}
 }

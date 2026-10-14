@@ -688,7 +688,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	for address, change := range entry.catalog.storage {
 		stores[address], rebuild[address] = change.replacement, true
 	}
-	roots, err := e.prepareIndexPublication(context.Background(), e.state, entry.catalog.cached.state, stores, e.indexRoots, rebuild, nil, []rowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil)
+	roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, entry.catalog.cached.state, stores, e.indexRoots, rebuild, nil, []rowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only PREPARE materialized installable index map/root", roots, err)
 	}
@@ -700,7 +700,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if materialized.next == nil || materialized.nextEnds == nil || len(materialized.slots) != len(publication.writes) || materialized.slots[updatePosition] != predecessorSlot || &materialized.next[0] == &publication.root[0] {
 		t.Fatal("completion omitted separate UPDATE replacement heads/deletion/slot installation roots")
 	}
-	roots, err = e.prepareIndexPublication(context.Background(), e.state, entry.catalog.cached.state, stores, e.indexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil)
+	roots, err = e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, entry.catalog.cached.state, stores, e.indexRoots, rebuild, nil, []rowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || len(roots) == 0 {
 		t.Fatal("completion omitted substantive index installation roots", err)
 	}

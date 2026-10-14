@@ -33,6 +33,42 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 		return old
 	}
 	for address, descriptor := range next.descriptors {
+		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
+			if typesOnly {
+				changed := false
+				for _, check := range domain.domainChecks {
+					walkQueryArgumentExpression(check.expression, func(node BoundExpr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
+				}
+				if !changed {
+					continue
+				}
+			}
+			copy := *domain
+			copy.domainChecks = append([]domainCheckConstraint(nil), domain.domainChecks...)
+			for i := range copy.domainChecks {
+				check := &copy.domainChecks[i]
+				node, _, err := retagBoundTypes(view, check.expression, typ, collation)
+				if err != nil {
+					return err
+				}
+				node, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				check.expression = node
+				check.dependencies = append([]expressionDependency(nil), check.dependencies...)
+				for j := range check.dependencies {
+					check.dependencies[j].ref = ref(check.dependencies[j].ref)
+					address := check.dependencies[j].ref.Address
+					address.SubID = 0
+					if provider, exists := view.Descriptor(address); exists {
+						check.dependencies[j].revision = provider.Revision()
+					}
+				}
+			}
+			next.descriptors[address] = &copy
+			continue
+		}
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue

@@ -44,6 +44,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		}
 		if !index.sqlIndex.ready {
 			delete(c.uniqueRoots, a)
+			delete(c.indexCandidates, a)
 			continue
 		}
 		// Virtual indexes own ancestry/validity metadata, never heap captures or
@@ -61,7 +62,22 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			e.mu.Unlock()
 			return CatalogConflict{}
 		}
-		captures = append(captures, catalogOverlayIndex{index: index, parent: parent, store: *store})
+		if _, produced := stage.indexCandidates[a]; produced {
+			candidate, exists := c.indexCandidates[a]
+			if !exists || !candidate.matchesIndex(index, store) {
+				e.mu.Unlock()
+				return CatalogConflict{}
+			}
+			continue
+		}
+		if _, transported := stage.indexLayouts[a]; transported {
+			if candidate, exists := c.indexCandidates[a]; exists && candidate.matchesIndex(index, store) && stage.indexRebuilds[a] == nil {
+				continue
+			}
+		}
+		snapshot := *store
+		snapshot.indexSource = indexStorageIdentity(store)
+		captures = append(captures, catalogOverlayIndex{index: index, parent: parent, store: snapshot})
 		committed := e.storage[parent.address]
 		fence := partitionReadFence{address: parent.address, storage: committed}
 		if committed != nil {
@@ -84,47 +100,66 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				return err
 			}
 		}
-		baseline, err := buildIndexRoot(scope.op.Context(), parent, index.sqlIndex, &capture.store)
-		if err != nil {
-			return err
+		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: view}
+		if index.sqlIndex.hasRuntimeDomainConversion() {
+			var err error
+			evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(indexAuth)
+			if err != nil {
+				return err
+			}
 		}
 		writes, deletes := scope.columnProjectionRoots(parent.address)
 		if stage.initialTables[parent.address] != nil {
 			writes = scope.stage.rows[parent.address]
 		}
-		publication := rowPublication{address: parent.address, store: &capture.store, root: capture.store.versions, ends: capture.store.ends, writes: writes, deletion: deletes, relation: parent, singleSlot: -1}
+		visible, err := indexBuildVisibleStore(scope.op.Context(), &capture.store, writes, deletes)
+		if err != nil {
+			return err
+		}
+		var outputs *indexBuildCapture
+		if index.sqlIndex.hasRuntimeDomainConversion() || len(writes) != 0 {
+			outputs = &indexBuildCapture{index: index}
+		}
+		if outputs != nil {
+			outputs.outputs = make([]indexRowOutput, len(visible.versions))
+		}
+		full, err := buildIndexRoot(&evaluation, parent, index.sqlIndex, visible, outputs)
+		if err != nil {
+			return err
+		}
 		schema := view.state.descriptors[parent.namespace].Name()
-		if index.sqlIndex.method == hashMethod {
-			full, err := mergeHashIndexRoot(scope.op.Context(), parent, index, baseline, &publication, true, index.sqlIndex.isExclusion())
+		if err := validateUniqueRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
+			return err
+		}
+		build := &alterIndexBuild{index: index, root: full, store: visible}
+		if outputs != nil {
+			build.outputs = outputs.outputs
+		}
+		var positions map[indexRowIdentity]int
+		if visible != &capture.store {
+			positions, err = indexBuildPositions(scope.op.Context(), &capture.store)
 			if err != nil {
 				return err
 			}
-			if index.sqlIndex.isExclusion() {
-				if full == nil {
-					full = baseline
-				}
-				if err = validateExclusionRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
-					return err
-				}
-			}
-		} else {
-			full, err := mergeIndexRoot(scope.op.Context(), parent, index, baseline.entries, &publication, true, index.sqlIndex.isExclusion(), building, schema, scope.output, &indexAuth)
-			if err != nil {
-				return err
-			}
-			if index.sqlIndex.isExclusion() {
-				if full == nil {
-					full = baseline
-				}
-				if err = validateExclusionRoot(scope.op.Context(), parent, index, full, schema, scope.output, &indexAuth, building); err != nil {
-					return err
-				}
+		}
+		baseline, err := build.baselineRoot(scope.op.Context(), index, &capture.store, positions)
+		if err != nil {
+			return err
+		}
+		retainIndexBuild(c, index, &capture.store, baseline)
+		updated, changed, err := attachIndexBuildOutputs(scope.op.Context(), writes, map[string]*alterIndexBuild{index.name: build})
+		if err != nil {
+			return err
+		}
+		if changed {
+			if stage.initialTables[parent.address] != nil {
+				// These rows were produced by this CREATE statement, not an
+				// earlier transaction prefix owned by the projection helper.
+				scope.stage.rows[parent.address] = updated
+			} else {
+				scope.stageProjectedColumnRoots(parent.address, updated, deletes)
 			}
 		}
-		if c.uniqueRoots == nil {
-			c.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot, len(captures))
-		}
-		c.uniqueRoots[index.address] = baseline
 	}
 	return scope.op.Context().Err()
 }

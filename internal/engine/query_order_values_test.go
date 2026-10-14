@@ -30,19 +30,19 @@ func TestQueryOrderValuesSourceOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 		rows, err := evaluateInsertQuery(context.Background(), bound, &querySource{}, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-		if err != nil || len(rows) != 4 {
+		if err != nil || len(rows.values) != 4 {
 			t.Fatal(rows, err)
 		}
 		for i, want := range []int64{1, 4, 2, 3} {
-			id, err := rows[i][0].Integer()
+			id, err := rows.values[i][0].Integer()
 			if err != nil || id != want {
 				t.Fatal(key, i, id, want, err)
 			}
-			if rows[i][1].Type().ID() != sqltype.Int8 {
-				t.Fatal("destination assignment type lost", rows[i][1])
+			if rows.values[i][1].Type().ID() != sqltype.Int8 {
+				t.Fatal("destination assignment type lost", rows.values[i][1])
 			}
 		}
-		if !rows[3][1].IsNull() {
+		if !rows.values[3][1].IsNull() {
 			t.Fatal("NULL placement lost", rows)
 		}
 	}

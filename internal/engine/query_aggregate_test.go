@@ -220,7 +220,7 @@ func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 		return original.Finalize(ctx, s)
 	}}
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if rows != nil || err != sentinel || calls != 2 || source.view != nil || source.anonymous != nil {
+	if rows.values != nil || err != sentinel || calls != 2 || source.view != nil || source.anonymous != nil {
 		t.Fatal(rows, err, calls, source)
 	}
 }

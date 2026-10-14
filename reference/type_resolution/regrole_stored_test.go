@@ -139,11 +139,6 @@ func TestReferenceRegroleStoredShapes(t *testing.T) {
 			t.Run(q, func(t *testing.T) {
 				want := fixture.ControlsReferenceDiagnostic("0A000", "constant of the type regrole cannot be used here")
 				switch q {
-				case "CREATE DOMAIN rr_checked AS regrole CHECK(VALUE='rr_role'::regrole)":
-					if !b.PG {
-						want = fixture.ControlsReferenceDiagnostic("0A000", "domain constraints and defaults are unsupported")
-						want.Position = "37"
-					}
 				case "CREATE TABLE rr_generated_runtime(r regrole GENERATED ALWAYS AS ('rr_role'::text::regrole) STORED)":
 					want = fixture.ControlsReferenceDiagnostic("42P17", "generation expression is not immutable")
 				case "CREATE TABLE rr_missing(r regrole DEFAULT 'rr_absent'::regrole)":

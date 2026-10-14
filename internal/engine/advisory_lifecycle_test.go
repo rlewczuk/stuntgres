@@ -75,9 +75,13 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 	}
 	sequences, err := copySequenceState(source, replacement)
+	indexes, indexErr := captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
 	source.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if indexErr != nil {
+		t.Fatal(indexErr)
 	}
 	e.mu.Lock()
 	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.state), sourceRoles, targetRoles, nil)
@@ -92,7 +96,11 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			}
 		}
 		if err == nil {
-			err = e.installForeignCatalogLocked(context.Background(), next, storage, sequences, nextRevision)
+			var prepared remintedIndexStorage
+			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, storage, indexes)
+			if err == nil {
+				err = e.installForeignCatalogLocked(context.Background(), next, storage, sequences, nextRevision, prepared)
+			}
 		}
 	}
 	epoch := e.state.epoch

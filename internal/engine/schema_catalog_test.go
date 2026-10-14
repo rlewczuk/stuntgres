@@ -156,7 +156,7 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, admin, "CREATE ROLE changed_authority")
-	if _, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().state != before.state {
+	if _, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().state != before.state {
 		t.Fatal("role revision fence published fragment", err)
 	}
 }

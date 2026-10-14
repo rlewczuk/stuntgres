@@ -1,0 +1,104 @@
+package engine
+
+import "context"
+
+func indexHasTableOID(index *indexDefinition) bool {
+	if predicate := index.predicate; predicate != nil && (generationHasTableOID(predicate.definition) || generationHasTableOID(predicate.execution)) {
+		return true
+	}
+	for _, key := range index.keys {
+		if key.derived != nil && (generationHasTableOID(key.derived.definition) || generationHasTableOID(key.derived.execution)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (snapshot *indexSnapshot) needsOwnerRepair() bool {
+	if snapshot == nil {
+		return false
+	}
+	for _, source := range snapshot.sources {
+		if snapshot.destination(source.parent.address) != source.parent.address && indexHasTableOID(source.index.sqlIndex) {
+			return true
+		}
+	}
+	return false
+}
+
+// Track only generated cells that can invalidate a captured index. False means
+// observed unchanged so far, not a missing dependency or a cached SQL result.
+func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[ObjectAddress]map[int32]bool {
+	if snapshot == nil {
+		return nil
+	}
+	var changed map[ObjectAddress]map[int32]bool
+	for _, source := range snapshot.sources {
+		address := snapshot.destination(source.parent.address)
+		if address == source.parent.address {
+			continue
+		}
+		parent, ok := next.descriptors[address].(*relationDescriptor)
+		if !ok {
+			continue
+		}
+		for attribute, generation := range parent.generations {
+			if generation.kind != generationStored || !generationHasTableOID(generation.planned) || !indexAttributeAffected(source.index.sqlIndex, attribute) {
+				continue
+			}
+			if changed == nil {
+				changed = make(map[ObjectAddress]map[int32]bool)
+			}
+			if changed[address] == nil {
+				changed[address] = make(map[int32]bool)
+			}
+			changed[address][attribute] = false
+		}
+	}
+	return changed
+}
+
+// This is part of the existing admitted restore-repair statement, before its
+// Finish. Only genuinely changed inputs or owner-dependent expressions produce
+// new entries; all other snapshots retain their original produced data.
+func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, storage map[ObjectAddress]*relationStorage, changed map[ObjectAddress]map[int32]bool, auth AuthorizationView) error {
+	if snapshot == nil {
+		return nil
+	}
+	for address, source := range snapshot.sources {
+		parentAddress := snapshot.destination(source.parent.address)
+		affected := parentAddress != source.parent.address && indexHasTableOID(source.index.sqlIndex)
+		for attribute, different := range changed[parentAddress] {
+			affected = affected || different && indexAttributeAffected(source.index.sqlIndex, attribute)
+		}
+		if !affected {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		index, ok := evaluation.catalog.state.descriptors[snapshot.destination(address)].(*relationDescriptor)
+		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
+			return ErrCatalogReplaced
+		}
+		parent, ok := evaluation.catalog.state.descriptors[parentAddress].(*relationDescriptor)
+		if !ok || parent.partition != nil || index.sqlIndex.parent != parentAddress {
+			return ErrCatalogReplaced
+		}
+		store := storage[parentAddress]
+		if store == nil {
+			return ErrCatalogReplaced
+		}
+		root, err := buildIndexRoot(evaluation, parent, index.sqlIndex, store, nil)
+		if err != nil {
+			return err
+		}
+		schema := evaluation.catalog.state.descriptors[parent.namespace].Name()
+		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &auth, true); err != nil {
+			return err
+		}
+		source.root, source.store = root, *store
+		snapshot.sources[address] = source
+	}
+	return ctx.Err()
+}

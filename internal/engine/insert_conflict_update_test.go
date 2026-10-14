@@ -310,7 +310,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 			cursor.closeError = secondary
 		}
 		rows, err := assembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope, true, nil, nil)
-		if !errors.Is(err, injected) || rows != nil || cursor.closes != 1 || len(scope.stage.rows[b.ref.Address]) == 0 {
+		if !errors.Is(err, injected) || rows.values != nil || cursor.closes != 1 || len(scope.stage.rows[b.ref.Address]) == 0 {
 			t.Fatal("cursor failure after actual mixed-stage prefix", rows, err, cursor.closes, scope.stage.rows)
 		}
 		consumed, affected := 1, 1

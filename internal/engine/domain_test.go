@@ -204,7 +204,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
 	e.mu.Lock()
 	stage = e.BeginCatalogStage(auth.catalog)
-	err := e.stageCreateDomainLocked(op, auth, stage, denied)
+	err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
 	if e.CatalogRead().state != before || len(stage.descriptors) != 0 {
@@ -221,7 +221,6 @@ func TestDomainExcludedClausesNeverPublishInternal(t *testing.T) {
 	defer done()
 	for _, q := range []string{
 		"CREATE DOMAIN public.denied AS integer DEFAULT 7",
-		"CREATE DOMAIN public.denied AS integer CHECK (VALUE > 0)",
 		"CREATE DOMAIN public.denied AS integer NOT NULL",
 	} {
 		raw := statement(t, q)

@@ -159,6 +159,8 @@ func mergeExpressionProperties(a, b ExprProperties) ExprProperties {
 	a.RowDependent = a.RowDependent || b.RowDependent
 	a.ParameterDependent = a.ParameterDependent || b.ParameterDependent
 	a.StageDependent = a.StageDependent || b.StageDependent
+	a.DomainDependent = a.DomainDependent || b.DomainDependent
+	a.RuntimeDomainConversion = a.RuntimeDomainConversion || b.RuntimeDomainConversion
 	return a
 }
 

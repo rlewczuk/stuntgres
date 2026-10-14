@@ -30,7 +30,7 @@ func extensionUnitPublish(t *testing.T, e *Engine, op *Operation, stage *Catalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.publishCatalogOperation(op, p, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
+	if _, err := e.publishCatalogOperation(op, nil, p, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

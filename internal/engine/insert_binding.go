@@ -198,7 +198,12 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 	}
 	if len(b.defaults) != 0 {
-		remaining := len(b.relation.defaults) + len(b.relation.identities)
+		remaining := 0
+		for _, expression := range b.defaults {
+			if expression != nil {
+				remaining++
+			}
+		}
 		for j, target := range b.targets {
 			if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
 				if b.defaults[target] != nil {
@@ -248,12 +253,19 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 
 // Both INSERT and COPY consume these catalog-owned default and identity plans.
 func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override parser.InsertOverride) {
-	if len(b.relation.defaults) == 0 && len(b.relation.identities) == 0 {
+	hasDomains := false
+	for _, column := range b.relation.columns {
+		hasDomains = hasDomains || column.Usage.Type.HasDomainChecks()
+	}
+	if len(b.relation.defaults) == 0 && len(b.relation.identities) == 0 && !hasDomains {
 		return
 	}
 	b.defaults = make([]BoundExpr, len(b.relation.columns))
 	for i, attribute := range b.relation.attributes {
 		b.defaults[i] = b.relation.defaults[attribute].expression
+		if b.defaults[i] == nil && b.relation.columns[i].Usage.Type.HasDomainChecks() {
+			b.defaults[i] = domainNullInputExpression(b.relation.columns[i].Usage)
+		}
 		if identity, ok := b.relation.identities[attribute]; ok {
 			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: identity.sequence}, identity: true}
 		}

@@ -70,7 +70,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
 	}
-	root, err := buildIndexRoot(ctx, f.parent, &definition, f.store)
+	root, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

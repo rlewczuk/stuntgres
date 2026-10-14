@@ -215,7 +215,15 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorizat
 		}
 		collation = " COLLATE " + name
 	}
-	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + ";\n"}, nil
+	var checks strings.Builder
+	for _, check := range d.domainChecks {
+		text, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.expression)
+		if err != nil {
+			return dumpDomain{}, err
+		}
+		checks.WriteString(" CONSTRAINT " + pgIdentifier(check.Name) + " CHECK (" + text + ")")
+	}
+	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }
 
 func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpression) (string, error) {

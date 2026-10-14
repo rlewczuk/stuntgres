@@ -59,7 +59,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			stage.terminalCleanup = mode == "TerminalMaximum"
 			changes := cloneCatalogChanges(nil)
 			project := func(old, next *relationDescriptor) error {
-				_, _, _, err := stagePrivateColumnShape(context.Background(), stage, changes, old, next, nil, nil, transactionRoot{}, false, false)
+				_, _, _, err := stagePrivateColumnShape(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: stage.base}, stage, changes, old, next, nil, nil, transactionRoot{}, false, false)
 				return err
 			}
 			providerRef := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: provider.address}

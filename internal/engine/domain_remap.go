@@ -257,7 +257,7 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 				}
 				typ, err = d.typ.RebindDomain(base, declaration)
 			} else {
-				typ, err = sqltype.Domain(sqltype.ID(target.ObjectID), d.Name(), declaration, base)
+				typ, err = sqltype.Domain(sqltype.ID(target.ObjectID), d.Name(), declaration, base, len(d.domainChecks) != 0)
 			}
 			if err != nil {
 				return err
@@ -491,6 +491,7 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 					versions = append([]rowVersion(nil), relation.versions...)
 				}
 				versions[i].values = values
+				versions[i].indexOutputs = nil
 			}
 		}
 		if versions != nil {

@@ -188,7 +188,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true

@@ -59,6 +59,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	e.mu.Lock()
 	info, bound, err := e.describeSettingCall(op.ctx, s, &input, op)
 	typ, typeOK := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
+	catalog := CatalogRead{owner: e, state: e.state}
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
@@ -70,6 +71,17 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, info.Count)
 	}
 	frame := make([]sqltype.Value, count)
+	scope, _ := input.LockedDomainInput.(*StatementScope)
+	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: catalog}
+	if scope != nil {
+		scope.domainInputCatalog = catalog
+	}
+	for _, usage := range info.Types {
+		if sqltype.ContainsDomainChecks(usage.Type) {
+			input.DomainChecks = &evaluation
+			break
+		}
+	}
 	if count != 0 {
 		if importFrame == nil {
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
@@ -84,7 +96,6 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		}
 	}
 	var inputs [3]sqltype.Value
-	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment}
 	for i, v := range bound {
 		inputs[i], err = v.Eval(&evaluation)
 		if err != nil {
@@ -92,6 +103,28 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		}
 	}
 	e.mu.Lock()
+	current, captureErr := e.authorizationLocked(op)
+	if captureErr != nil {
+		e.mu.Unlock()
+		return Result{}, captureErr
+	}
+	if current.catalog.owner != catalog.owner || current.catalog.Epoch() != catalog.Epoch() {
+		e.mu.Unlock()
+		return Result{}, ErrCatalogReplaced
+	}
+	validInputs := true
+	for _, expression := range bound {
+		walkBoundExpression(expression, func(node BoundExpr) {
+			address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(node.ResultUsage().Type.ID())}
+			if provider, exists := catalog.Descriptor(address); exists {
+				validInputs = validInputs && current.catalog.state.descriptors[address] == provider
+			}
+		})
+	}
+	if !validInputs {
+		e.mu.Unlock()
+		return Result{}, CatalogConflict{}
+	}
 	owner := op.session.settings
 	locked := true
 	unlock := func() { op.session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }

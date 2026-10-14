@@ -8,7 +8,7 @@ import (
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
-func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateDomain) error {
+func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateDomain, input sqltype.InputEnvironment) error {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -31,7 +31,10 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		if c.Unique != nil {
 			return expressionError("42601", "unique constraints not possible for domains", c.Unique.Pos)
 		}
-		if c.NotNull || c.Default != nil || c.Check != nil || c.Identity != nil || c.Name.Text != "" {
+		if c.ForeignKey != nil {
+			return expressionError("42601", "foreign key constraints not possible for domains", c.Pos)
+		}
+		if c.NotNull || c.Default != nil || c.Identity != nil || c.Generation != nil || c.Name.Text != "" && c.Check == nil {
 			return expressionError("0A000", "domain constraints and defaults are unsupported", c.Pos)
 		}
 	}
@@ -63,7 +66,11 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	}
 	namespace := auth.catalog.state.descriptors[ns.Address].Name()
 	declaration := dependencyIdentifier(namespace) + "." + dependencyIdentifier(name)
-	typ, err := sqltype.Domain(sqltype.ID(oid), name, declaration, base)
+	hasChecks := false
+	for _, constraint := range s.Constraints {
+		hasChecks = hasChecks || constraint.Check != nil
+	}
+	typ, err := sqltype.Domain(sqltype.ID(oid), name, declaration, base, hasChecks)
 	if err != nil {
 		return err
 	}
@@ -82,7 +89,11 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	if err = stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, dimensions: int32(len(s.Base.ArrayBounds)), array: array.ID()}); err != nil {
+	domain := &typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, dimensions: int32(len(s.Base.ArrayBounds)), array: array.ID()}
+	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
+		return err
+	}
+	if err = stage.Create(domain); err != nil {
 		return err
 	}
 	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false)})

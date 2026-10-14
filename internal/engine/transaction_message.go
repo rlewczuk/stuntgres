@@ -93,7 +93,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 		t.mu.Unlock()
 	}
 	if state == TxImplicit {
-		_, endErr := s.op.session.Engine().endAdmitted(s.op, t, ref, err == nil, false, true, s.statementStart)
+		_, endErr := s.op.session.Engine().endAdmitted(s.op, t, ref, err == nil, false, true, s.statementStart, s)
 		if err == nil {
 			err = endErr
 		}

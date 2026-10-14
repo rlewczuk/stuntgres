@@ -175,7 +175,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 		resolver.qualified = &constant.qualified
 		input.Regtype = resolver
 	}
-	value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
+	value, err := b.decodeLiteralInput(text, u.Type, -1, input.LiteralInput(pos.Character))
 	if err != nil {
 		return sqltype.Value{}, regtypeInputError(err, pos)
 	}
@@ -190,7 +190,7 @@ func (b *expressionBinder) foldRegtypeConstant(child BoundExpr, plan sqltype.Coe
 	}
 	p := child.Properties()
 	id := child.ResultUsage().BaseUsage().Type.ID()
-	if p.Volatility != Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 && !sqltype.IsRoutineAlias(id) {
+	if p.Volatility != Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion || sqltype.ContainsDomainChecks(info.usage.Type) || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 && !sqltype.IsRoutineAlias(id) {
 		return nil, false, nil
 	}
 	value, err := child.Eval(&EvalContext{Context: b.ctx, Input: b.input})

@@ -23,8 +23,8 @@ func decisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
 	return sqltype.Value{}, false, nil
 }
 
-// simplifyConditional folds only immutable SQL constants. Imported parameters
-// remain runtime-owned even when the surrounding expression is row-independent.
+// simplifyConditional folds only immutable SQL constants, never runtime domain
+// truth. Imported parameters remain runtime-owned even without row dependence.
 func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
 	if expression == nil {
 		return nil, false, nil
@@ -230,6 +230,9 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		expression = e
 	case coercionExpression:
 		e.child, err = child(e.child)
+		if err == nil && e.plan.ChecksDomain() {
+			err = c.prepareDomainConversion(e.child.ResultUsage().Type, e.usage.Type)
+		}
 		expression = e
 	case bitwiseExpression:
 		e.left, err = child(e.left)
@@ -882,7 +885,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		return nil, false, err
 	}
 	p := expression.Properties()
-	if _, literal := expression.(literalExpression); !literal && p.Volatility == Immutable && conditionalConstantInputs(expression) {
+	if _, literal := expression.(literalExpression); !literal && p.Volatility == Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
 		value, err := expression.Eval(c)
 		if err != nil {
 			return nil, false, err
@@ -903,11 +906,14 @@ func plannedConditionalResult(info expressionInfo, node BoundExpr) BoundExpr {
 	return caseExpression{expressionInfo: info, otherwise: node}
 }
 
-// Analysis properties deliberately retain dead-arm dependence. Physical
-// literal children after pruning, not those conservative properties, identify
-// a truly immutable constant operation. Volatile/stage/parameter leaves never
-// enter this set and sequence producers are never folded.
+// Analysis properties retain dead-arm dependence; literal children after
+// pruning identify ordinary immutable constants. A runtime domain barrier is
+// different: its literal physical child has not consumed CHECK truth. Neither
+// checked conversions nor enclosing barriers belong in this foldable set.
 func conditionalConstantInputs(node BoundExpr) bool {
+	if node.Properties().RuntimeDomainConversion {
+		return false
+	}
 	literal := func(child BoundExpr) bool { _, ok := child.(literalExpression); return ok }
 	switch e := node.(type) {
 	case timeZoneExpression:
@@ -915,7 +921,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	case collationExpression:
 		return literal(e.child)
 	case coercionExpression:
-		return literal(e.child)
+		return !e.plan.ChecksDomain() && literal(e.child)
 	case bitwiseExpression:
 		return literal(e.left) && (e.right == nil || literal(e.right))
 	case arithmeticExpression:

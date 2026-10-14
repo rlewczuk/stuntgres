@@ -26,7 +26,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	definition := *f.index.sqlIndex
 	definition.predicate = nil
 	f.index.sqlIndex = &definition
-	root, buildErr := buildIndexRoot(context.Background(), f.parent, &definition, f.store)
+	root, buildErr := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 	if buildErr != nil {
 		t.Fatal(buildErr)
 	}
@@ -65,7 +65,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal(err)
 	}
 	holder, _ := insertConflictUnitScope(t, f)
-	if admitted, err := holder.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil); err != nil || !admitted {
+	if admitted, err := holder.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 20)}, indexWriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal("holder claim", admitted, err)
 	}
 	mark := f.e.locks.checkpointUnique(holder.ticket, nil)
@@ -136,7 +136,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	}
 	scope.insertConflict = action
 	prefix := insertConflictUnitRow(t, f, 30)
-	if admitted, err := scope.admitInsertRow(ref, prefix, nil, nil); err != nil || !admitted {
+	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: prefix}, indexWriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal("authorized prefix", admitted, err)
 	}
 	ticket := scope.ticket
@@ -151,7 +151,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	proposal := insertConflictUnitRow(t, f, 20)
 	started = true
 	go func() {
-		admitted, err := scope.admitInsertRow(ref, proposal, [][]sqltype.Value{prefix}, nil)
+		admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: proposal}, indexWriteBatch{values: [][]sqltype.Value{prefix}}, nil)
 		done <- outcome{admitted, err}
 	}()
 	// Registration is witnessed under the actual manager mutex for this exact
@@ -257,13 +257,13 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	}
 	accepted := make([][]sqltype.Value, 0, 2)
 	for _, row := range [][]sqltype.Value{prefix, proposal} {
-		admitted, err := scope.admitInsertRow(ref, row, accepted, nil)
+		admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: row}, indexWriteBatch{values: accepted}, nil)
 		if err != nil || !admitted {
 			t.Fatal("postfailure authorized admission", admitted, err)
 		}
 		accepted = append(accepted, row)
 	}
-	count, err := scope.stage.applyInsertValidated(ref, accepted)
+	count, err := scope.stage.applyInsertValidated(ref, indexWriteBatch{values: accepted})
 	if err != nil || count != 2 {
 		t.Fatal("postfailure batch", count, err)
 	}

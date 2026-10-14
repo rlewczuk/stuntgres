@@ -126,27 +126,19 @@ func TestReferenceForeignActionsConstraintsConversion(t *testing.T) {
 func TestReferenceForeignActionsConstraintsDomain(t *testing.T) {
 	foreignActionsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 		q := "CREATE DOMAIN positive AS INT CONSTRAINT positive_check CHECK(VALUE>0)"
-		if !b.PG {
-			d := foreignKeyError("0A000", "domain constraints and defaults are unsupported", "", "", "")
-			d.Position = "57"
-			for _, prepared := range []bool{false, true} {
-				run(foreignKeyFail(q, d, prepared))
-			}
-		} else {
-			run(fixture.Exec(q, 0))
-			run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
-			run(fixture.Exec("CREATE TABLE c(pid positive CONSTRAINT fk REFERENCES p ON UPDATE CASCADE)", 0))
-			run(fixture.Exec("INSERT INTO p VALUES(1)", 1))
-			run(fixture.Exec("INSERT INTO c VALUES(1)", 1))
-			d := foreignKeyError("23514", `value for domain positive violates check constraint "positive_check"`, "", "", "positive_check")
-			d.Schema, d.DataType = "public", "positive"
-			d = foreignActionsContext(d, foreignActionsSQL("c", "pid", "CASCADE", "UPDATE")+"::pg_catalog.int4")
-			for _, prepared := range []bool{false, true} {
-				run(foreignKeyFail("UPDATE p SET id=-1", d, prepared))
-			}
-			run(foreignKeyIntRows("SELECT id FROM p", "id", 1))
-			run(foreignKeyIntRows("SELECT pid::int AS pid FROM c", "pid", 1))
+		run(fixture.Exec(q, 0))
+		run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
+		run(fixture.Exec("CREATE TABLE c(pid positive CONSTRAINT fk REFERENCES p ON UPDATE CASCADE)", 0))
+		run(fixture.Exec("INSERT INTO p VALUES(1)", 1))
+		run(fixture.Exec("INSERT INTO c VALUES(1)", 1))
+		d := foreignKeyError("23514", `value for domain positive violates check constraint "positive_check"`, "", "", "positive_check")
+		d.Schema, d.DataType = "public", "positive"
+		d = foreignActionsContext(d, foreignActionsSQL("c", "pid", "CASCADE", "UPDATE")+"::pg_catalog.int4")
+		for _, prepared := range []bool{false, true} {
+			run(foreignKeyFail("UPDATE p SET id=-1", d, prepared))
 		}
+		run(foreignKeyIntRows("SELECT id FROM p", "id", 1))
+		run(foreignKeyIntRows("SELECT pid::int AS pid FROM c", "pid", 1))
 		// Unconstrained domains are a real shared assignment provider. A table
 		// CHECK independently validates the action-produced domain value.
 		run(fixture.Exec("CREATE DOMAIN action_integer AS INT", 0))

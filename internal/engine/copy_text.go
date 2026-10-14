@@ -28,6 +28,7 @@ type copyCursor struct {
 	eol                          byte
 	ended, headerDone, lineValid bool
 	column, value                string
+	nullInput                    bool
 }
 
 func newCopyCursor(scope *StatementScope, b binding, o copyOptions, r io.Reader) *copyCursor {
@@ -307,6 +308,11 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 			}
 		}
 		if isNull {
+			c.column, c.nullInput = column.Name, true
+			if err := column.Usage.Type.CheckDomainInput(ctx, dst[i], c.scope.input); err != nil {
+				return false, c.diagnostic(err)
+			}
+			c.column, c.nullInput = "", false
 			continue
 		}
 		if field.isDefault {
@@ -314,6 +320,7 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 			continue
 		}
 		c.column = column.Name
+		c.nullInput = false
 		c.value = string(field.decoded)
 		dst[i], err = column.Usage.Type.InputWithEnvironment(ctx, c.value, column.Usage.Typmod, c.scope.input)
 		if err != nil {
@@ -348,7 +355,11 @@ func (c *copyCursor) diagnostic(err error) error {
 	result := *record
 	result.Context = fmt.Sprintf("COPY %s, line %d", c.binding.relation.name, c.number)
 	if c.column != "" {
-		result.Context += fmt.Sprintf(", column %s: \"%s\"", c.column, copyContextValue(c.value))
+		if c.nullInput {
+			result.Context += fmt.Sprintf(", column %s: null input", c.column)
+		} else {
+			result.Context += fmt.Sprintf(", column %s: \"%s\"", c.column, copyContextValue(c.value))
+		}
 	} else if c.lineValid && record.Code != "23505" {
 		result.Context += fmt.Sprintf(": \"%s\"", copyContextValue(string(c.line)))
 	}

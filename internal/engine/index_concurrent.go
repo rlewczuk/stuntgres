@@ -9,6 +9,7 @@ import (
 // Catalog publication alone owns installation, revision and root-map authority.
 type indexRootCandidate struct {
 	root       *logicalIndexRoot
+	index      *relationDescriptor
 	storage    *relationStorage
 	generation uint64
 	ends       *deletionRoot
@@ -17,6 +18,10 @@ type indexRootCandidate struct {
 
 func (c indexRootCandidate) matches(store *relationStorage) bool {
 	return store == c.storage && store != nil && store.generation == c.generation && store.ends == c.ends && len(store.versions) == c.length
+}
+
+func (c indexRootCandidate) matchesIndex(index *relationDescriptor, store *relationStorage) bool {
+	return store != nil && c.index != nil && sameIndexKeySemantics(c.index, index) && c.matches(indexStorageIdentity(store))
 }
 
 func simpleConcurrentIndex(parent *relationDescriptor, definition *indexDefinition) (bool, error) {
@@ -130,7 +135,8 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		stage.indexParents = map[ObjectAddress]*relationDescriptor{parent.address: parent}
 		namespace := auth.catalog.state.descriptors[parent.namespace].Name()
 		e.mu.Unlock()
-		root, err := buildIndexRoot(scope.op.Context(), parent, &definition, &snapshot)
+		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.catalog}
+		root, err := buildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {
 			err = validateUniqueRoot(scope.op.Context(), parent, &next, root, namespace, scope.output, &auth, first)
 		}
@@ -138,13 +144,13 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.DiscardCatalogStage(stage)
 			return 0, err
 		}
-		stage.indexCandidates = map[ObjectAddress]indexRootCandidate{address: {root: root, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
+		stage.indexCandidates = map[ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
 			var prepared *PreparedCatalogPublication
 			prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
 			if err == nil {
-				_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+				_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
 			}
 		}
 		e.DiscardCatalogStage(stage)
@@ -199,7 +205,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			var prepared *PreparedCatalogPublication
 			prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
 			if err == nil {
-				_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+				_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
 			}
 		}
 		e.DiscardCatalogStage(stage)

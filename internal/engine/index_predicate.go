@@ -27,7 +27,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
 		return nil, err
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.catalog}
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, err
@@ -78,6 +78,12 @@ func newLogicalIndexRoot(d *indexDefinition, entries []logicalIndexEntry) *logic
 		root.membership = make(map[RowID]VersionID, len(entries))
 		for _, entry := range entries {
 			root.membership[entry.row] = entry.version
+		}
+	}
+	if (d.unique || d.isExclusion()) && d.hasRuntimeDomainKeyConversion() {
+		root.rowEntries = make(map[RowID]int, len(entries))
+		for i, entry := range entries {
+			root.rowEntries[entry.row] = i
 		}
 	}
 	return root

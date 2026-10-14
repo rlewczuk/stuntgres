@@ -170,6 +170,7 @@ func (p columnProjection) versions(ctx context.Context, rows []rowVersion) ([]ro
 			}
 		}
 		row.values = values
+		row.indexOutputs = nil
 		projected[i] = row
 	}
 	return projected, nil

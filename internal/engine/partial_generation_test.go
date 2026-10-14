@@ -117,7 +117,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 					t.Error("reowned predicate changed TRUE/FALSE/NULL membership", i, matched, err)
 				}
 			}
-			root, err := buildIndexRoot(context.Background(), parent, reowned.sqlIndex, stores[f.parent.address])
+			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.sqlIndex, stores[f.parent.address], nil)
 			if err != nil {
 				t.Fatal(err)
 			}

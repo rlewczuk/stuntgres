@@ -15,6 +15,11 @@ func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relat
 		if candidate != nil && descriptor.Address() == candidate.address {
 			descriptor = candidate
 		}
+		if domain, ok := descriptor.(*typeDescriptor); ok && domain.namespace == namespace {
+			for _, constraint := range domain.domainChecks {
+				names[constraint.Name] = true
+			}
+		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.namespace == namespace {
 			for _, constraint := range relation.notNullConstraints {
 				names[constraint.Name] = true

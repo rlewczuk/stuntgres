@@ -189,7 +189,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(counting, parent, index, e.indexRoots[index.address], &p, false, true)
+	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.indexRoots[index.address], &p, false, true)
 	if err != nil || candidate == nil || candidate.hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}
@@ -206,7 +206,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	defer op.Done()
 	during := &hashMergeCancellationContext{cancelAtErrCheck: &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: polls - 1}}
 	op.ctx = during
-	err = e.publishRows(op, ref, writes, deletes, nil, nil)
+	err = e.publishRows(op, ref, writes, deletes, nil, nil, nil)
 	op.Done()
 	if !errors.Is(err, context.Canceled) || during.checks.Load() != during.at {
 		t.Fatal("owner did not cancel inside real hash merge", err, during.checks.Load(), during.at)

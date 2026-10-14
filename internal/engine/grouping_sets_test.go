@@ -272,7 +272,7 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 			if phase == "fanout_cancel" {
 				want = context.Canceled
 			}
-			if rows != nil || !errors.Is(err, want) || source.view != nil || source.anonymous != nil {
+			if rows.values != nil || !errors.Is(err, want) || source.view != nil || source.anonymous != nil {
 				t.Fatal(rows, err, want, source)
 			}
 			if phase == "fanout_cancel" && advances != 2 {

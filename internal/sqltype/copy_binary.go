@@ -31,6 +31,9 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		base := d.Usage().BaseUsage()
 		v, n, err = base.Type.binaryReceive(ctx, p, base.Typmod, env)
 		if err == nil {
+			err = d.CheckDomainInput(ctx, v, env)
+		}
+		if err == nil {
 			v, err = d.Wrap(v)
 		}
 		return

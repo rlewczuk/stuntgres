@@ -314,7 +314,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	if err == nil {
 		for _, descriptor := range stage.descriptors {
 			if ns, ok := descriptor.(*namespaceDescriptor); ok && ns.temporary == op.session.token {
@@ -401,7 +401,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 	case *parser.CreateDomain:
-		if err = e.stageCreateDomainLocked(op, auth, stage, s); err != nil {
+		if err = e.stageCreateDomainLocked(op, auth, stage, s, input); err != nil {
 			return nil, err
 		}
 	case *parser.DropDomain:

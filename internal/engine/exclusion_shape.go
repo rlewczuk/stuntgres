@@ -11,7 +11,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 		return nil
 	}
 	entries := make(map[ObjectAddress][]exclusionEntry, len(parent.exclusionConstraints))
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: catalog}
 	for _, c := range parent.exclusionConstraints {
 		index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
 		if !ok {
@@ -25,16 +25,35 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 			if uniqueRowDeleted(row.row, deletes) {
 				continue
 			}
-			matches, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row.values)
-			if err != nil {
-				return err
-			}
-			if !matches {
-				continue
-			}
-			keys := make([]sqltype.Value, len(index.sqlIndex.keys))
-			if err := ordering.fillKeys(row.values, keys, &evaluation); err != nil {
-				return err
+			var keys []sqltype.Value
+			if index.sqlIndex.hasRuntimeDomainConversion() {
+				output, ok := row.indexOutputs[index.address]
+				if !ok || !output.matches(index) {
+					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")
+				}
+				if !output.member {
+					continue
+				}
+				if index.sqlIndex.method == hashMethod {
+					if output.key.IsNull() {
+						continue
+					}
+					keys = []sqltype.Value{output.key}
+				} else {
+					keys = output.keys
+				}
+			} else {
+				matches, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row.values)
+				if err != nil {
+					return err
+				}
+				if !matches {
+					continue
+				}
+				keys = make([]sqltype.Value, len(index.sqlIndex.keys))
+				if err := ordering.fillKeys(row.values, keys, &evaluation); err != nil {
+					return err
+				}
 			}
 			if uniqueHasNull(keys) {
 				continue

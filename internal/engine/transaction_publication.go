@@ -28,19 +28,19 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 	if ref.attachment.state != TxActive && ref.attachment.state != TxImplicit {
 		return errors.New("stuntgres: inactive publication transaction")
 	}
-	return e.publishRows(op, ref, writes, deletes, ref.attachment.catalog, nil)
+	return e.publishRows(op, ref, writes, deletes, ref.attachment.catalog, nil, nil)
 }
 
-func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority) error {
+func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
 	var err error
 	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
 	if err != nil {
 		return err
 	}
-	return e.publishRowsPrepared(op, ref, writes, deletes, c, authority, nil)
+	return e.publishRowsPrepared(op, ref, writes, deletes, c, authority, nil, scope)
 }
 
-func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication) error {
+func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
 	if len(writes) == 0 && len(deletes) == 0 && c == nil {
 		e.mu.Lock()
@@ -74,7 +74,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		e.finishDiscardRoleResetLocked(op)
 		return nil
 	}
-	_, output := sessionPresentation(op.session)
+	input, output := sessionPresentation(op.session)
+	if scope != nil {
+		input, output = scope.input, scope.output
+	}
 	for {
 		var nextCatalog *catalogState
 		var err error
@@ -238,8 +241,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			}
 			var indexErr error
 			var rebuildIntents map[ObjectAddress]*relationDescriptor
+			var indexCandidates map[ObjectAddress]indexRootCandidate
 			if c != nil {
 				rebuildIntents = c.indexRebuilds
+				indexCandidates = c.indexCandidates
 			}
 			var runtimeOwners map[ObjectAddress]authorization.PrincipalRef
 			if c != nil {
@@ -252,7 +257,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 					}
 				}
 			}
-			indexRoots, indexErr = e.prepareIndexPublication(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners)
+			indexRoots, indexErr = e.prepareIndexPublication(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: input, Output: output}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
 			if indexErr != nil {
 				return indexErr
 			}
@@ -351,6 +356,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 				}
 				row.born, row.base = e.commitSeq+1, 0
 				row.indexAdmission = nil
+				row.indexOutputs = nil
 				if row.pendingKeyChange {
 					row.keyChangedAt = row.born
 					row.pendingKeyChange = false

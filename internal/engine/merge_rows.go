@@ -16,7 +16,7 @@ type mergeActionRow struct {
 	deletion deleteCandidate
 }
 type mergeRows struct {
-	values       [][]sqltype.Value
+	indexWriteBatch
 	predecessors []rowVersion
 	actions      []mergeActionRow
 	returning    *finalRows
@@ -39,9 +39,9 @@ func (rows *mergeRows) stage(w *WriteStage, ref ObjectRef) error {
 		first, last := action.payload, rows.actions[end-1].payload+1
 		var err error
 		if action.action == parser.MergeUpdateAction {
-			err = w.replace(ref, rows.predecessors[first:last], rows.values[first:last])
+			err = w.replace(ref, rows.predecessors[first:last], rows.indexWriteBatch.slice(first, last))
 		} else {
-			err = w.applyValidated(ref, rows.values[first:last])
+			err = w.applyValidated(ref, rows.indexWriteBatch.slice(first, last))
 		}
 		if err != nil {
 			return err
@@ -221,6 +221,19 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 		}
 		setFrame()
+		if class == parser.MergeMatched && b.merge.hasBySource {
+			// BY SOURCE action classification owns a guarded ON evaluation,
+			// distinct from candidate matching and later update-chain rechecks.
+			// Initial BY SOURCE has no source row, so its guard skips ON.
+			matched, err := mergeMatches(&evaluation, b.merge.on)
+			if err != nil {
+				return nil, err
+			}
+			if !matched {
+				class = parser.MergeNotMatchedBySource
+				setFrame()
+			}
+		}
 		arm, err := b.merge.selectArm(&evaluation, class)
 		if err != nil {
 			return nil, err
@@ -339,7 +352,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
 		// initial UPDATE restarts under the hasDelete strong-mode union.
-		if err := scope.claimUniqueRow(b.ref, old.values); err != nil {
+		if err := scope.claimUniqueRow(b.ref, old); err != nil {
 			return err
 		}
 		*excluded = append(*excluded, old)
@@ -405,15 +418,16 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 				return err
 			}
 		}
-		if err := scope.claimUniqueRow(b.ref, old.values); err != nil {
+		if err := scope.claimUniqueRow(b.ref, old); err != nil {
 			return err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
 		*excluded = append(*excluded, old)
 		predecessor = old
 	}
+	candidate := indexWriteCandidate{values: row}
 	if unique {
-		if err := scope.checkUniqueRow(b.ref, row, *excluded, result.values); err != nil {
+		if err := scope.checkUniqueRow(b.ref, &candidate, *excluded, result.indexWriteBatch); err != nil {
 			return err
 		}
 	}
@@ -422,7 +436,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	}
 	result.actions = append(result.actions, mergeActionRow{action: arm.action, payload: len(result.values)})
 	result.predecessors = append(result.predecessors, predecessor)
-	result.values = append(result.values, row)
+	result.append(candidate)
 	return nil
 }
 

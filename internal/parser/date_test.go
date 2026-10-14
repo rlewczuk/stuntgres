@@ -39,10 +39,29 @@ func TestDateNamesLiteralsAndModifiers(t *testing.T) {
 	if literal, ok := stmts[0].(*Select).Targets[0].(TypedLiteralExpr); !ok || literal.TypeName.Name != "date" {
 		t.Fatal(stmts)
 	}
-	for _, q := range []string{"SELECT DATE 'epoch' FROM date; SELECT date FROM", "SELECT UUID 'bad' FROM date", "SELECT date(3) FROM date", "SELECT date('epoch') FROM date", "SELECT date($1) FROM date", "SELECT date((3)) 'epoch' FROM date"} {
+	for _, q := range []string{"SELECT DATE 'epoch' FROM date; SELECT date FROM", "SELECT date(3) FROM date", "SELECT date('epoch') FROM date", "SELECT date($1) FROM date", "SELECT date((3)) 'epoch' FROM date"} {
 		stmts, err := Parse(q)
 		if err == nil || stmts != nil {
 			t.Fatal("excluded syntax accepted", q, stmts, err)
+		}
+	}
+}
+
+func TestDomainNominalLiteralSyntax(t *testing.T) {
+	for _, head := range []string{"positive", "public.positive", "UUID", `"name"`, `"e"`, `"b"`, `"x"`} {
+		stmts, err := Parse("SELECT " + head + " '1'")
+		if err != nil || len(stmts) != 1 {
+			t.Fatal(head, stmts, err)
+		}
+		raw, ok := stmts[0].(*Select).Targets[0].(TypedLiteralExpr)
+		if !ok || !raw.RequiresDomain {
+			t.Fatal("lost domain-only syntax fact", head, stmts)
+		}
+	}
+	for _, head := range []string{"e", "E", "b", "B", "x", "X"} {
+		stmts, err := Parse("SELECT " + head + " '1'")
+		if err == nil || stmts != nil {
+			t.Fatal("accepted separated string prefix", head, stmts, err)
 		}
 	}
 }

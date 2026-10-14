@@ -211,6 +211,8 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
+		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	result := sqltype.Interval
 	if name == "isfinite" {

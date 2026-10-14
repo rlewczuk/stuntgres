@@ -7,11 +7,12 @@ import (
 
 // Domain creates immutable logical type authority over an immediate base usage.
 // Catalog ownership and dependencies remain the engine's responsibility.
-func Domain(id ID, name, declaration string, base Usage) (*Descriptor, error) {
+func Domain(id ID, name, declaration string, base Usage, checks ...bool) (*Descriptor, error) {
 	if id == 0 || id == Unknown || name == "" || declaration == "" || !base.Valid() || !base.Type.Concrete() || base.Type.BaseType().id == Void || base.Type.BaseType().id == Char {
 		return nil, fmt.Errorf("invalid domain descriptor")
 	}
-	return &Descriptor{id: id, name: name, sql: declaration, database: base.Type.BaseType().database, base: base}, nil
+	ownChecks := len(checks) != 0 && checks[0]
+	return &Descriptor{id: id, name: name, sql: declaration, database: base.Type.BaseType().database, base: base, ownDomainChecks: ownChecks, domainChecks: ownChecks || base.Type.HasDomainChecks()}, nil
 }
 
 // RebindDomain reowns a concrete domain's base without losing its immutable
@@ -26,6 +27,7 @@ func (d *Descriptor) RebindDomain(base Usage, declaration string) (*Descriptor, 
 	}
 	*validated = *d
 	validated.base, validated.database, validated.sql = base, base.Type.BaseType().database, declaration
+	validated.domainChecks = d.ownDomainChecks || base.Type.HasDomainChecks()
 	return validated, nil
 }
 
@@ -38,6 +40,56 @@ func LookupDomain(id ID, name, declaration string, base Usage) *Descriptor {
 
 func (d *Descriptor) IsDomain() bool    { return d != nil && d.base.Type != nil }
 func (d *Descriptor) DomainBase() Usage { return d.base }
+
+// HasDomainChecks is immutable conversion authority, including ancestors.
+func (d *Descriptor) HasDomainChecks() bool { return d != nil && d.domainChecks }
+
+func ContainsDomainChecks(d *Descriptor) bool {
+	if d.HasDomainChecks() {
+		return true
+	}
+	if d == nil {
+		return false
+	}
+	d = d.BaseType()
+	if d.IsArray() {
+		return ContainsDomainChecks(d.Element())
+	}
+	if d.IsComposite() {
+		for i := range d.CompositeLen() {
+			if ContainsDomainChecks(d.CompositeMember(i).Usage.Type) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// DomainValue supplies VALUE's immediate-base logical type without conversion.
+// Only the inline tag changes; constraints are owned by the outer conversion.
+func (v Value) DomainValue(base *Descriptor) (Value, error) {
+	if v.typ == nil || base == nil || v.typ.BaseType() != base.BaseType() {
+		return Value{}, fmt.Errorf("foreign domain VALUE base")
+	}
+	v.typ = base
+	return v, nil
+}
+
+type DomainCheckEvaluator interface {
+	CheckDomain(context.Context, *Descriptor, Value) error
+}
+
+// CheckDomainInput validates fresh physical input before attaching its logical
+// domain tag. Already-domain values, output and Retag do not use this seam.
+func (d *Descriptor) CheckDomainInput(ctx context.Context, v Value, env InputEnvironment) error {
+	if !d.HasDomainChecks() {
+		return nil
+	}
+	if env.DomainChecks == nil {
+		return fmt.Errorf("missing domain CHECK evaluation environment")
+	}
+	return env.DomainChecks.CheckDomain(ctx, d, v)
+}
 
 // BaseType is physical codec authority, never logical/catalog identity.
 func (d *Descriptor) BaseType() *Descriptor {
@@ -89,6 +141,11 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value, input InputEnvironment
 	}
 	if value.typ != p.target.Type {
 		return Value{}, fmt.Errorf("invalid domain coercion result")
+	}
+	if p.logicalTarget != p.logicalSource && p.logicalTarget.HasDomainChecks() {
+		if err := p.logicalTarget.CheckDomainInput(ctx, value, input); err != nil {
+			return Value{}, err
+		}
 	}
 	value.typ = p.logicalTarget
 	return value, nil

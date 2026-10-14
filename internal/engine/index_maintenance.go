@@ -124,7 +124,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		err := e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
 	if err != nil {
 		return Result{}, err
 	}

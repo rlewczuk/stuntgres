@@ -97,9 +97,9 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 	return Result{}, nil
 }
 
-// The existing executor imports directly into its one canonical frame. Binding
-// runs under its engine lock; volatile evaluation runs unlocked, within the same
-// statement scope/clock. Nothing from the actuals is retained by the definition.
+// The existing executor imports directly into its one canonical frame, unlocked.
+// This importer owns only the actual-expression binding/capture lock; evaluation
+// runs unlocked within the same scope/clock and revalidates without replay.
 func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporter {
 	return func(ctx context.Context, formal ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 		if len(raw.Arguments) != formal.Count {
@@ -108,6 +108,14 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 			return d
 		}
 		e := s.op.session.Engine()
+		e.mu.Lock()
+		locked := true
+		defer func() {
+			if locked {
+				e.mu.Unlock()
+			}
+		}()
+		input.LockedDomainInput = s
 		auth, err := e.authorizationLocked(s.op)
 		if err != nil {
 			return err
@@ -142,14 +150,32 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 		}
 		input = binder.input
 		e.mu.Unlock()
-		defer e.mu.Lock()
-		evaluation := EvalContext{Context: ctx, statementScope: s, Input: input, Output: s.output}
+		locked = false
+		evaluation := EvalContext{Context: ctx, statementScope: s, catalog: auth.catalog, Input: input, Output: s.output}
+		for _, node := range nodes {
+			if sqltype.ContainsDomainChecks(node.ResultUsage().Type) {
+				evaluation.Input.DomainChecks = &evaluation
+				break
+			}
+		}
 		for i, node := range nodes {
 			value, err := node.Eval(&evaluation)
 			if err != nil {
 				return err
 			}
 			frame[i] = value
+		}
+		e.mu.Lock()
+		locked = true
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		current, err := e.authorizationLocked(s.op)
+		if err != nil {
+			return err
+		}
+		if err := validateCapturedInputBinding(auth.catalog, current.catalog, binder.dependencies); err != nil {
+			return err
 		}
 		return nil
 	}

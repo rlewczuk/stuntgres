@@ -68,11 +68,15 @@ func TestReferenceDomainDiagnostics(t *testing.T) {
 			}
 			run(s)
 		}
-		// Domain constraints/defaults and later changes are PostgreSQL controls,
-		// not native no-op implementations. Native must reject complete commands.
+		for _, q := range []string{
+			"CREATE DOMAIN domain_s.checked AS integer CHECK (VALUE>0)",
+			"CREATE DOMAIN domain_s.namedcheck AS integer CONSTRAINT positive CHECK (VALUE>0)",
+		} {
+			run(fixture.Exec(q, 0))
+		}
+		// DEFAULT/NOT NULL and later changes remain explicit native boundaries.
 		boundaries := []struct{ name, suffix string }{
-			{"defaulted", " DEFAULT 7"}, {"checked", " CHECK (VALUE>0)"},
-			{"required", " NOT NULL"}, {"namedcheck", " CONSTRAINT positive CHECK (VALUE>0)"},
+			{"defaulted", " DEFAULT 7"}, {"required", " NOT NULL"},
 		}
 		for _, tc := range boundaries {
 			q := "CREATE DOMAIN domain_s." + tc.name + " AS integer" + tc.suffix

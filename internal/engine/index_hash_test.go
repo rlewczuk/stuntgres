@@ -108,7 +108,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	bad := *index.sqlIndex
 	bad.keys = append([]indexKey(nil), bad.keys...)
 	bad.keys[0].class, _ = sqltype.LookupHashIndexClass("int8_ops")
-	if _, err := buildHashIndexRoot(context.Background(), parent, &bad, e.storage[parent.address], true); err == nil {
+	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage[parent.address], true, nil); err == nil {
 		t.Fatal("empty build did not eagerly reject provider")
 	}
 	run(t, e, "INSERT INTO t VALUES(NULL),(NULL)")
@@ -116,14 +116,14 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(nulls.buckets) != 0 {
 		t.Fatal("NULL indexed", nulls)
 	}
-	if _, err := buildHashIndexRoot(context.Background(), parent, &bad, e.storage[parent.address], true); err == nil {
+	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage[parent.address], true, nil); err == nil {
 		t.Fatal("all-NULL build skipped provider admission")
 	}
 	run(t, e, "INSERT INTO t VALUES(2),(2),(3)")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	during := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 5}
-	if candidate, err := buildHashIndexRoot(during, parent, index.sqlIndex, e.storage[parent.address], true); candidate != nil || !errors.Is(err, context.Canceled) {
+	if candidate, err := buildHashIndexRoot(&EvalContext{Context: during, Scope: 1, Frame: 1}, parent, index.sqlIndex, e.storage[parent.address], true, nil); candidate != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(candidate, err)
 	}
 	_, retained := hashRoot(t, e, "hn")
@@ -262,7 +262,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if rebuild {
 				intents = map[ObjectAddress]*relationDescriptor{index.address: index}
 			}
-			roots, err := e.prepareIndexPublication(context.Background(), e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil)
+			roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}

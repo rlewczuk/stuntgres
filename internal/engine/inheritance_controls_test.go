@@ -30,7 +30,7 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	state, oid, revision, epoch, storage := e.state, e.nextOID, e.nextRevision, e.state.epoch, e.storage[temp.address]
 	next := cloneCatalog(New().state)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ObjectAddress]*relationStorage{}, map[ObjectAddress]*sequenceGenerator{}, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ObjectAddress]*relationStorage{}, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err == nil || err.Error() != temporaryInheritanceReplacementError {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	storage := map[ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
 	e.nextOID = 30000
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	next := cloneCatalog(source.state)
 	storage := map[ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	storage := map[ObjectAddress]*relationStorage{parent.address: {}, child.address: {}}
 	retainedStorage := e.storage[tempChild.address]
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +255,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	parentStorage, childStorage := &relationStorage{}, &relationStorage{}
 	storage := map[ObjectAddress]*relationStorage{parent.address: parentStorage, child.address: childStorage}
 	e.mu.Lock()
-	err = e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil)
+	err = e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

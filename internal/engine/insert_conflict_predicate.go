@@ -29,7 +29,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, er
 		return nil, nil
 	}
 	p := node.Properties()
-	if !p.RowDependent && !p.StageDependent && plannedVolatility(node) == Immutable {
+	if !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion && plannedVolatility(node) == Immutable {
 		value, err := node.Eval(ctx)
 		if err != nil {
 			return nil, err

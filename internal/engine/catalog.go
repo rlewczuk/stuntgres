@@ -542,6 +542,7 @@ type CatalogStage struct {
 	partitionReads       []partitionReadFence
 	indexRebuilds        map[ObjectAddress]*relationDescriptor
 	indexCandidates      map[ObjectAddress]indexRootCandidate
+	indexLayouts         map[ObjectAddress]indexLayoutLineage
 	indexParents         map[ObjectAddress]*relationDescriptor
 	indexSets            map[ObjectAddress]int
 	indexOutput          sqltype.OutputEnvironment
@@ -931,7 +932,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	}
 	for address, descriptor := range s.descriptors {
 		typ, ok := descriptor.(*typeDescriptor)
-		if !ok || !typ.typ.IsComposite() {
+		if !ok || !typ.typ.IsComposite() && !typ.typ.IsDomain() {
 			continue
 		}
 		old, _ := s.base.state.descriptors[address].(*typeDescriptor)
@@ -1005,15 +1006,15 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	return &PreparedCatalogPublication{stage: s, epoch: s.base.Epoch(), ctx: ctx}, nil
 }
 func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
-	return e.publishCatalog(nil, p, token)
+	return e.publishCatalog(nil, nil, p, token)
 }
-func (e *Engine) publishCatalogOperation(op *Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if op != nil && op.session.transactions.retainedMessage {
 		return e.stageMessageCatalog(op, p, token)
 	}
-	return e.publishCatalog(op, p, token)
+	return e.publishCatalog(op, scope, p, token)
 }
-func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
@@ -1147,7 +1148,20 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		}
 		for address, candidate := range s.indexCandidates {
 			index, ok := s.descriptors[address].(*relationDescriptor)
-			if !ok || index.sqlIndex == nil || !candidate.matches(currentStorage[index.sqlIndex.parent]) {
+			if !ok {
+				index, ok = current.descriptors[address].(*relationDescriptor)
+			}
+			if !ok || index.sqlIndex == nil {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
+			store := currentStorage[index.sqlIndex.parent]
+			if shape, changed := s.rowShapes[index.sqlIndex.parent]; changed {
+				store = shape.replacement
+			} else if initial := s.initialTables[index.sqlIndex.parent]; initial != nil {
+				store = initial
+			}
+			if !candidate.matchesIndex(index, store) {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1268,7 +1282,13 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		if r := s.materializedReplacement; r != nil && r.concurrent {
 			runtimeOwners = map[ObjectAddress]authorization.PrincipalRef{r.original.address: r.original.owner}
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, sourceRoots, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure, runtimeOwners)
+		evaluation := EvalContext{Context: p.ctx, Scope: 1, Frame: 1, statementScope: scope}
+		if scope != nil {
+			evaluation.Input, evaluation.Output = scope.input, scope.output
+		} else if op != nil {
+			evaluation.Input, evaluation.Output = sessionPresentation(op.session)
+		}
+		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, buildStores, sourceRoots, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure, runtimeOwners, s.indexCandidates)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}
@@ -1586,7 +1606,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	}
 	storage := make(map[ObjectAddress]*relationStorage, len(relationAddresses))
 	var sequences map[ObjectAddress]*sequenceGenerator
-	copyRows := func(source map[ObjectAddress]*relationStorage, frontier CommitSeq) error {
+	var indexes *indexSnapshot
+	copyRows := func(owner *Engine) error {
+		source, frontier := owner.storage, owner.commitSeq
 		for _, a := range relationAddresses {
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
@@ -1602,7 +1624,9 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			selected.close()
 			storage[a] = &relationStorage{versions: versions}
 		}
-		return nil
+		var err error
+		indexes, err = captureIndexSnapshot(ctx, replacement, source, owner.indexRoots, frontier)
+		return err
 	}
 	if replacement.owner == e {
 		e.replacementMu.Lock()
@@ -1622,7 +1646,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			return ChangeSet{}, ErrCatalogReplaced
 		}
 		next = cloneCatalog(replacement.state)
-		if err := copyRows(e.storage, e.commitSeq); err != nil {
+		if err := copyRows(e); err != nil {
 			return ChangeSet{}, err
 		}
 		var sequenceErr error
@@ -1630,7 +1654,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if sequenceErr != nil {
 			return ChangeSet{}, sequenceErr
 		}
-		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
+		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 			return ChangeSet{}, err
 		}
 		if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
@@ -1674,7 +1698,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 				}
 			}
 		}
-		roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, storage)
+		roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, storage, indexes)
 		if err != nil {
 			return ChangeSet{}, err
 		}
@@ -1701,7 +1725,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		replacement.owner.mu.Unlock()
 		return ChangeSet{}, ErrCatalogReplaced
 	}
-	err = copyRows(replacement.owner.storage, replacement.owner.commitSeq)
+	err = copyRows(replacement.owner)
 	if err == nil {
 		sequences, err = copySequenceState(replacement.owner, replacement)
 	}
@@ -1745,7 +1769,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
+	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 		return ChangeSet{}, err
 	}
 	if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
@@ -1763,8 +1787,11 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 			}
 		}
 	}
-	next.aclItemImport = nil
-	if err := e.installForeignCatalogLocked(ctx, next, storage, sequences, nextRevision); err != nil {
+	prepared, err := e.prepareForeignIndexStorage(ctx, next, storage, indexes)
+	if err != nil {
+		return ChangeSet{}, err
+	}
+	if err := e.installForeignCatalogLocked(ctx, next, storage, sequences, nextRevision, prepared); err != nil {
 		return ChangeSet{}, err
 	}
 	installed = next.epoch
@@ -1776,18 +1803,15 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, nextRevision DefinitionRevision) error {
-	// Fresh engine-local identities/frontier for this replacement. Old snapshots
-	// retain source versions; no source payload or published entry is rewritten.
-	roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, storage)
-	if err != nil {
-		return err
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, nextRevision DefinitionRevision, prepared remintedIndexStorage) error {
+	if prepared.catalog != next || prepared.baseCatalog != e.state || prepared.baseRow != e.nextRow || prepared.baseVersion != e.nextVersion || prepared.frontier != e.commitSeq {
+		return ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.nextRow, e.nextVersion = nextRow, nextVersion
-	e.indexRoots = roots
+	e.nextRow, e.nextVersion = prepared.nextRow, prepared.nextVersion
+	e.indexRoots = prepared.roots
 	e.commitSeq++
 	next.epoch = e.state.epoch + 1
 	e.state = next

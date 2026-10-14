@@ -23,6 +23,27 @@ func (c IndexClass) OID() uint32 { return c.oid }
 
 func (c IndexClass) IsHash() bool { return c.hash }
 
+// OIDKeyValue supplies the physical oid_ops datum for diagnostic output only.
+// Like comparison and HASH normalization, it reinterprets binary-compatible
+// input bits; it is not a SQL cast and never evaluates domain constraints.
+func (c IndexClass) OIDKeyValue(v Value, oid *Descriptor) (Value, error) {
+	if c.input != Oid || oid == nil || oid.id != Oid || !c.Accepts(v.typ) {
+		return Value{}, fmt.Errorf("invalid OID index output value")
+	}
+	if !v.null {
+		switch v.typ.BaseType().id {
+		case Int4:
+			v.oid = uint32(v.integer)
+		case Regclass:
+			if v.integer != 1 {
+				return Value{}, fmt.Errorf("invalid canonical regclass index key")
+			}
+		}
+	}
+	v.typ = oid
+	return v, nil
+}
+
 // Inference compares the declared input and family, not class aliases or
 // CREATE's broader binary-compatible admission set.
 func (c IndexClass) SameInferenceIdentity(other IndexClass) bool {

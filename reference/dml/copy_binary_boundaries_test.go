@@ -8,16 +8,15 @@ import (
 	"testing"
 )
 
-// A release oracle's valid domain constraints do not add native DDL authority.
-// Execute and assert the genuine positioned native setup rejection, never skip
-// the case or pretend that receiver/publication code handled an absent domain.
+// DEFAULT and NOT NULL remain domain DDL boundaries. CHECK domains instead
+// reach the shared receiver/publication cases and their full fixed expectations.
 func copyBinaryDomainBoundary(t *testing.T, c copyTextConnection, q string) bool {
 	t.Helper()
 	if c.pg || !strings.HasPrefix(q, "CREATE DOMAIN ") {
 		return false
 	}
 	at := -1
-	for _, token := range []string{"CHECK", "NOT NULL", "DEFAULT"} {
+	for _, token := range []string{"NOT NULL", "DEFAULT"} {
 		if n := strings.Index(q, token); n >= 0 && (at < 0 || n < at) {
 			at = n
 		}

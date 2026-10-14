@@ -787,6 +787,12 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	case transactionTimeExpression:
 		n.expressionInfo = info
 		rebound = n
+	case domainValueExpression:
+		if !changed {
+			return node, false, nil
+		}
+		n.expressionInfo = info
+		rebound = n
 	case literalExpression:
 		info.unknownNull = n.unknownNull
 		info.regclassRef = n.regclassRef

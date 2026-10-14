@@ -356,9 +356,24 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
 
 ## Types, expressions and catalogs
 
-- Domain constraints, inherited domain defaults and domain alteration are
-  unavailable. Composite arrays, constrained composite domains, builtin/catalog
+- Domain CHECK uses the admitted shared expression providers and conversion
+  routes, including existing nested members; subqueries and non-VALUE variables
+  are rejected. TRUE/UNKNOWN pass, FALSE reports domain 23514. Fresh NULL is
+  checked, while already-domain NULL can bypass conversion in the documented
+  outer-join/scalar-subquery contexts. Domain NOT NULL, inherited domain defaults
+  and domain alteration remain unavailable. Composite arrays, builtin/catalog
   row execution and composite comparison/hash/key providers remain excluded.
+  Pending conversions are not evaluated by JOIN/MERGE capability proofs or
+  conflict inference. Retained expression recipes still initialize before rows
+  are demanded; existing ADD COLUMN uses real per-row conversion, and existing
+  BY SOURCE MERGE retains its separate target action-classification ON stage.
+  Stored generated/partition/index recipes capture catalog/input authority;
+  constant recipe errors can reject an empty declaration. Actual index events
+  produce membership/keys once per genuine phase, not once per row value:
+  ON CONFLICT preserves separate precheck, insertion and existing-key events.
+  COMMIT, slot-only projection and trusted replacement transport produced entries
+  without replaying SQL or caching CHECK truth. Physical rewrites and affected
+  restored owner-dependent expressions execute under their real statement owner.
 - `aclitem` and `aclitem[]` are ordinary stored values, not authorization grants.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.

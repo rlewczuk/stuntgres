@@ -160,7 +160,7 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	op.ctx = ctx
 	original := e.state
 	writes := map[ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
-	err = e.publishRows(op, scope.txRef, writes, nil, c, nil)
+	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
 	if !errors.Is(err, context.Canceled) || e.state != original || e.storage[table.address] != nil || c.descriptors[table.address] != table || len(writes[table.address]) != 1 {
 		t.Fatal("canceled final commit changed catalog/action/write roots", err)

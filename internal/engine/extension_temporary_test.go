@@ -607,7 +607,7 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	roleExecute(t, e, op, "CREATE VIEW public.ext_schema_late AS SELECT v FROM public.ext_chain")
 	prepared, err := e.ValidateCatalogStage(context.Background(), candidate)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: candidate.base.Epoch()})
+		_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: candidate.base.Epoch()})
 	}
 	if err == nil {
 		t.Fatal("late schema dependent bypassed publication fence")

@@ -60,6 +60,8 @@ func likeProperties(a, b BoundExpr) ExprProperties {
 	p.RowDependent = p.RowDependent || q.RowDependent
 	p.ParameterDependent = p.ParameterDependent || q.ParameterDependent
 	p.StageDependent = p.StageDependent || q.StageDependent
+	p.DomainDependent = p.DomainDependent || q.DomainDependent
+	p.RuntimeDomainConversion = p.RuntimeDomainConversion || q.RuntimeDomainConversion
 	return p
 }
 

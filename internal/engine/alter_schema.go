@@ -179,7 +179,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: ref.Epoch})
+		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 	}
 	if _, conflict := err.(CatalogConflict); conflict {
 		e.mu.Lock()

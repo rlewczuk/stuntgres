@@ -66,7 +66,7 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ObjectAddress]*seq
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, restoreOp *Operation) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
 	e.retainDatabaseLocked(next)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
@@ -260,9 +260,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	retainedIDs := make(map[OID]bool)
 	for address, descriptor := range temporary {
 		retainedIDs[address.ObjectID] = true
-		if relation, ok := descriptor.(*relationDescriptor); ok {
-			reserveDefinitionOIDs(retainedIDs, relation)
-		}
+		reserveDefinitionOIDs(retainedIDs, descriptor)
 	}
 	reservedIDs := make(map[OID]bool, len(next.descriptors)+len(retainedIDs))
 	for id := range retainedIDs {
@@ -270,9 +268,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	for address, descriptor := range next.descriptors {
 		reservedIDs[address.ObjectID] = true
-		if relation, ok := descriptor.(*relationDescriptor); ok {
-			reserveDefinitionOIDs(reservedIDs, relation)
-		}
+		reserveDefinitionOIDs(reservedIDs, descriptor)
 	}
 	mapping := make(map[ObjectAddress]ObjectAddress)
 	for address := range next.descriptors {
@@ -303,6 +299,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	refreshScalarImportDestinations(next)
+	indexes.captureMapping(mapping, next.scalarImports)
 	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.scalarImports) != 0 || next.aclItemImport != nil {
 		if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
 			return err
@@ -489,7 +486,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := rebindImportedExclusions(next); err != nil {
 		return err
 	}
-	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp); err != nil {
+	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp, indexes); err != nil {
 		return err
 	}
 	for a, d := range temporary {

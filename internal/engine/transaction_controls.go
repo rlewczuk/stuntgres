@@ -87,7 +87,7 @@ func (e *Engine) endPreflight(op *Operation) error {
 	return publicationOperationLocked(e, op)
 }
 
-func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, commit, chain, sqlEnd bool, nextStart time.Time) (EndResult, error) {
+func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
 	// Registration can fail. A short replacement fence keeps the prospective
 	// ticket's epoch current through installation, without a lifetime fence.
 	if chain {
@@ -169,10 +169,18 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	var err error
 	committed := false
 	if commit && t.state != TxAborted {
+		if len(t.exclusionModes.events) != 0 {
+			if scope == nil {
+				scope = newStatementScope(op, t, statementOperationStart(op))
+			}
+			scope.attachTransactionLocked()
+		}
 		t.mu.Unlock()
 		err = e.holdPrecommit(op, t, nextStart)
 		if err == nil {
-			err = e.checkTransactionExclusions(op, t)
+			if scope != nil {
+				err = e.checkTransactionExclusions(scope)
+			}
 		}
 		if err == nil {
 			err = e.publishWrites(op, ref, t.writes, t.deletes)
@@ -301,7 +309,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		if s.message {
 			nextStart = time.Now().UTC().Truncate(time.Microsecond)
 		}
-		_, err = e.endAdmitted(s.op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, nextStart)
+		_, err = e.endAdmitted(s.op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, nextStart, s)
 	}
 	if err == nil {
 		s.controlOutcome = controlExecuted

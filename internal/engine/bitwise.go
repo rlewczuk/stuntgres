@@ -203,6 +203,8 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 		p.RowDependent = p.RowDependent || rp.RowDependent
 		p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 		p.StageDependent = p.StageDependent || rp.StageDependent
+		p.DomainDependent = p.DomainDependent || rp.DomainDependent
+		p.RuntimeDomainConversion = p.RuntimeDomainConversion || rp.RuntimeDomainConversion
 	}
 	provider, err := sqltype.BindBitwise(op, target, rightTarget)
 	if err != nil {

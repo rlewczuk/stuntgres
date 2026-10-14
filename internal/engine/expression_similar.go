@@ -196,6 +196,8 @@ func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operand
 		props.RowDependent = props.RowDependent || p.RowDependent
 		props.ParameterDependent = props.ParameterDependent || p.ParameterDependent
 		props.StageDependent = props.StageDependent || p.StageDependent
+		props.DomainDependent = props.DomainDependent || p.DomainDependent
+		props.RuntimeDomainConversion = props.RuntimeDomainConversion || p.RuntimeDomainConversion
 		if !similarLiteralRaw(raw.Args[i]) {
 			wrapper = true
 		}

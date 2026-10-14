@@ -218,7 +218,7 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 		if scope.cteInvocation != nil {
 			err = e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
 		} else {
-			_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
+			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 		}
 	}
 	if err == nil && scope.cteInvocation == nil {

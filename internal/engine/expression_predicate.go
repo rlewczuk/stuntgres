@@ -24,7 +24,10 @@ func (e nullTestExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		result = true
 		for i := range v.CompositeLen() {
 			null := v.CompositeField(i).IsNull()
-			if null == e.not { result = false; break }
+			if null == e.not {
+				result = false
+				break
+			}
 		}
 	} else if e.not {
 		result = !result
@@ -202,6 +205,8 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		p.RowDependent = p.RowDependent || right.Properties().RowDependent
 		p.ParameterDependent = p.ParameterDependent || right.Properties().ParameterDependent
 		p.StageDependent = p.StageDependent || right.Properties().StageDependent
+		p.DomainDependent = p.DomainDependent || right.Properties().DomainDependent
+		p.RuntimeDomainConversion = p.RuntimeDomainConversion || right.Properties().RuntimeDomainConversion
 		if volatility := right.Properties().Volatility; volatility > p.Volatility {
 			p.Volatility = volatility
 		}

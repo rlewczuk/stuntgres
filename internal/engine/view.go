@@ -476,7 +476,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 		return Result{}, nil
 	}
-	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
 		scope.completed = true
 	}

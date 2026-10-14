@@ -90,14 +90,16 @@ func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, change
 	stage.owner.mu.Lock()
 	snapshot, snapshotExists := scope.owner.roots[old.address]
 	stage.owner.mu.Unlock()
-	writes, deletes, projected, err := stagePrivateColumnShape(scope.op.Context(), stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation))
+	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
+	writes, deletes, projected, err := stagePrivateColumnShape(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation))
 	if err == nil && projected {
 		scope.stageProjectedColumnRoots(old.address, writes, deletes)
 	}
 	return err
 }
 
-func stagePrivateColumnShape(ctx context.Context, stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor, writes []rowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable bool) ([]rowVersion, *privateDeletionRoot, bool, error) {
+func stagePrivateColumnShape(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor, writes []rowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable bool) ([]rowVersion, *privateDeletionRoot, bool, error) {
+	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()
 	original := e.storage[old.address]
@@ -116,6 +118,7 @@ func stagePrivateColumnShape(ctx context.Context, stage *CatalogStage, changes *
 		shape = catalogStorageChange{original: original, root: original.versions, ends: original.ends, generation: original.generation, replacement: store, relation: storageOwner}
 	}
 	e.mu.Unlock()
+	sourceWrites := writes
 	shape, writes, deletes, err := projectColumnShapeRoots(ctx, stable, shape.relation, next, store, shape, snapshot, snapshotExists, writes, deletes)
 	if err != nil {
 		return nil, nil, false, err
@@ -133,15 +136,21 @@ func stagePrivateColumnShape(ctx context.Context, stage *CatalogStage, changes *
 			}
 		}
 	}
+	evaluation.catalog = e.stageRead(stage)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, nil, false, err
 	}
 	changes.storage[old.address] = shape
-	if err = prepareAlterUniqueRoots(ctx, changes, stage.base, next, shape.replacement, nil, false, nil); err != nil {
+	var transported bool
+	writes, transported, err = transportIndexLayouts(evaluation, stage, changes, next, store, shape.replacement, sourceWrites, writes)
+	if err != nil {
 		return nil, nil, false, err
 	}
-	return writes, deletes, shape.replacement != store, nil
+	if err = prepareAlterIndexRoots(evaluation, changes, stage.base, next, shape.replacement, nil, false); err != nil {
+		return nil, nil, false, err
+	}
+	return writes, deletes, shape.replacement != store || transported, nil
 }
 
 // Generic utility stages already project their baseline storage. Reuse the

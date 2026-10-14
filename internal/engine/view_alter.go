@@ -179,7 +179,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		var prepared *PreparedCatalogPublication
 		prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
 		if err == nil {
-			_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: ref.Epoch})
+			_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 		}
 	}
 	if err == nil {
@@ -343,7 +343,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(scope.op, prepared, PublicationToken{Epoch: epoch})
+		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: epoch})
 	}
 	if err != nil {
 		return Result{}, err

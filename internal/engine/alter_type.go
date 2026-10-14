@@ -319,13 +319,20 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 	}
 	slots := make([]int, len(next.attributes))
 	destinations := make([]int, len(transforms))
-	addedSlots := make([]int, len(additions))
+	addedSlots := make([]struct {
+		index  int
+		perRow bool
+	}, len(additions))
 	generatedSlots := make([]int, len(generations))
 	for i, attribute := range generations {
 		generatedSlots[i] = next.indexForAttribute(attribute)
 	}
 	for i, added := range additions {
-		addedSlots[i] = next.index[added.column.Name]
+		addedSlots[i].index = next.index[added.column.Name]
+		if added.expression != nil {
+			properties := added.expression.Properties()
+			addedSlots[i].perRow = properties.Volatility > Stable || properties.RuntimeDomainConversion
+		}
 	}
 	for i, attribute := range next.attributes {
 		slots[i] = -1
@@ -381,14 +388,14 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 			}
 			for i, added := range additions {
 				value := added.value
-				if added.expression != nil && added.expression.Properties().Volatility > Stable {
+				if addedSlots[i].perRow {
 					var err error
 					value, err = added.expression.Eval(&evaluation)
 					if err != nil {
 						return nil, err
 					}
 				}
-				values[addedSlots[i]] = value
+				values[addedSlots[i].index] = value
 			}
 			evaluation.Row = values
 			for i, attribute := range generations {
@@ -402,6 +409,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 				return nil, err
 			}
 			row.values = values
+			row.indexOutputs = nil
 			if !committed {
 				row.base = 0
 			}

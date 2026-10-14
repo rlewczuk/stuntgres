@@ -3,7 +3,6 @@ package engine
 import (
 	"errors"
 	"slices"
-	"stuntgres/internal/sqltype"
 )
 
 // A captured physical position is only a hint; arbitration is by stable RowID.
@@ -56,15 +55,16 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 
 // Only conflict UPDATE's affected-RowID admission proves distinct append-only
 // effects within this command. Ordinary UPDATE/MERGE keep replacement merging.
-func (w *WriteStage) replaceDistinct(ref ObjectRef, old []rowVersion, rows [][]sqltype.Value) error {
+func (w *WriteStage) replaceDistinct(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, true)
 }
 
-func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows [][]sqltype.Value) error {
+func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, false)
 }
 
-func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, rows [][]sqltype.Value, distinct bool) error {
+func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, batch indexWriteBatch, distinct bool) error {
+	rows := batch.values
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
 	}
@@ -89,6 +89,9 @@ func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, rows [][]sqlty
 		e.locks.mu.Unlock()
 	}
 retry:
+	if err := s.validateIndexCandidates(ref, &batch); err != nil {
+		return err
+	}
 	s.owner.mu.Lock()
 	e := s.op.session.Engine()
 	e.mu.Lock()
@@ -96,10 +99,8 @@ retry:
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
 		e.mu.Unlock()
 		s.owner.mu.Unlock()
-		for i, row := range rows {
-			if err := s.checkUniqueRow(ref, row, old[:i+1], rows[:i]); err != nil {
-				return err
-			}
+		if err := s.revalidateIndexRows(ref, old, &batch); err != nil {
+			return err
 		}
 		goto retry
 	}
@@ -154,7 +155,8 @@ retry:
 	}
 	for i, row := range rows {
 		predecessor := old[i]
-		if reserved, ok := s.reservedExclusionRow(ref, row); ok {
+		if identity := batch.candidate(i).exclusion; identity != nil {
+			reserved := *identity
 			reserved.keyChangedAt, reserved.pendingKeyChange = predecessor.keyChangedAt, predecessor.pendingKeyChange
 			reserved.indexAdmission = admission
 			versions[i] = reserved
@@ -166,6 +168,11 @@ retry:
 		}
 		e.nextVersion++
 		versions[i] = rowVersion{row: predecessor.row, version: VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange, indexAdmission: admission}
+	}
+	if batch.states != nil {
+		for i := range versions {
+			versions[i].indexOutputs = batch.states[i].indexes
+		}
 	}
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		for i, row := range versions {

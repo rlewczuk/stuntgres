@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func temporaryNamespace(auth AuthorizationView) ObjectAddress {
@@ -328,38 +326,46 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		}
 	}
 	next := e.stageRead(stage).state
-	stores := make(map[ObjectAddress]*relationStorage, len(stage.rowShapes))
 	parents := make(map[ObjectAddress]bool, len(stage.rowShapes))
 	for address, shape := range stage.rowShapes {
-		stores[address] = shape.replacement
+		if shape.original == nil || shape.replacement == nil {
+			e.mu.Unlock()
+			return nil, ErrCatalogReplaced
+		}
 		parents[address] = true
 	}
-	var rebuild map[ObjectAddress]*relationDescriptor
 	for address, descriptor := range next.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || !parents[index.sqlIndex.parent] || !index.sqlIndex.ready {
 			continue
 		}
 		result.previous[address] = e.indexRoots[address]
-		// Explicit intent also rebuilds ready-invalid keys without changing
-		// readiness/validity/live flags or attempting index recovery.
-		if !index.sqlIndex.valid {
-			if rebuild == nil {
-				rebuild = make(map[ObjectAddress]*relationDescriptor)
-			}
-			rebuild[address] = index
-		}
 	}
-	roots := maps.Clone(e.indexRoots)
 	e.mu.Unlock()
-	prepared, err := e.prepareIndexCatalog(context.Background(), stage.base.state, next, stores, roots, parents, rebuild, sqltype.OutputEnvironment{}, nil, nil)
-	if err != nil {
-		return nil, err
+	changes := newCatalogChanges()
+	evaluation := EvalContext{Context: context.Background(), catalog: CatalogRead{owner: e, state: next}}
+	for address, shape := range stage.rowShapes {
+		parent, ok := next.descriptors[address].(*relationDescriptor)
+		if !ok {
+			return nil, ErrCatalogReplaced
+		}
+		if _, _, err := transportIndexLayouts(&evaluation, stage, changes, parent, shape.original, shape.replacement, nil, nil); err != nil {
+			return nil, err
+		}
 	}
 	result.roots = make(map[ObjectAddress]*logicalIndexRoot, len(result.previous))
 	for address := range result.previous {
 		if _, removed := stage.removals[address]; !removed {
-			result.roots[address] = prepared[address]
+			index, ok := next.descriptors[address].(*relationDescriptor)
+			if !ok || index.sqlIndex == nil {
+				return nil, ErrCatalogReplaced
+			}
+			shape, ok := stage.rowShapes[index.sqlIndex.parent]
+			candidate, produced := changes.indexCandidates[address]
+			if !ok || !produced || !candidate.matchesIndex(index, shape.replacement) {
+				return nil, ErrCatalogReplaced
+			}
+			result.roots[address] = candidate.root
 		}
 	}
 	return result, nil

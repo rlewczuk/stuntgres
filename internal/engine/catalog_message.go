@@ -238,7 +238,20 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	}
 	for a, candidate := range s.indexCandidates {
 		index, ok := s.descriptors[a].(*relationDescriptor)
-		if !ok || index.sqlIndex == nil || !candidate.matches(e.stageStorageLocked(s, index.sqlIndex.parent)) {
+		if !ok {
+			index, ok = current.descriptors[a].(*relationDescriptor)
+		}
+		if !ok || index.sqlIndex == nil {
+			return CatalogConflict{}
+		}
+		// Candidate data belongs to the actual overlay target, not the
+		// committed/private predecessor used by captureStorage's read fence.
+		shape, staged := c.storage[index.sqlIndex.parent]
+		store := shape.replacement
+		if !staged {
+			store = e.stageStorageLocked(s, index.sqlIndex.parent)
+		}
+		if !candidate.matchesIndex(index, store) {
 			return CatalogConflict{}
 		}
 		captureStorage(index.sqlIndex.parent)

@@ -97,6 +97,9 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 	if typ == nil {
 		return false
 	}
+	if typ.HasDomainChecks() {
+		return true
+	}
 	typ = typ.BaseType()
 	if typ.IsEnum() {
 		return true
@@ -121,9 +124,10 @@ func captureRetainedExpressionInput(node BoundExpr, element func() error, diagno
 	case enumFunctionExpression:
 		return diagnostic(node.plan.Enum())
 	case coercionExpression:
-		if sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID()) {
-			target := node.ResultUsage().Type
-			if target.ContainsCatalogIdentifier() {
+		target := node.ResultUsage().Type
+		characterInput := sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID())
+		if characterInput || sqltype.ContainsDomainChecks(target) {
+			if characterInput && target.ContainsCatalogIdentifier() {
 				if err := element(); err != nil {
 					return err
 				}

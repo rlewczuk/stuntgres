@@ -444,11 +444,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			break
 		}
 	}
-	fills, volatileAdd, err := planAddedColumns(scope, additions)
+	fills, perRowAdd, err := planAddedColumns(scope, additions)
 	if err != nil {
 		return Result{}, err
 	}
-	rowRewrite := changedValues || volatileAdd
+	rowRewrite := changedValues || perRowAdd
 	for _, fill := range fills {
 		rowRewrite = rowRewrite || !fill.IsNull()
 	}
@@ -457,7 +457,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
-	rewrite = rewrite || volatileAdd
+	rewrite = rewrite || perRowAdd
 	if rewrite {
 		scope.owner.mu.Lock()
 		err = scope.acquireSerializableSnapshot()
@@ -554,7 +554,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err != nil {
 		return Result{}, err
 	}
-	uniqueBaselines, err := validateAlterUniques(op.Context(), disclosure, e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes)
+	indexEvaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: e.stageRead(stage)}
+	indexBuilds, err := validateAlterIndexBuilds(&indexEvaluation, disclosure, e.stageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations, storedReplacements, addedIndexes, rewrite)
+	if err != nil {
+		return Result{}, err
+	}
+	var indexOutputRows bool
+	projectedWrites, indexOutputRows, err = attachIndexBuildOutputs(op.Context(), projectedWrites, indexBuilds)
 	if err != nil {
 		return Result{}, err
 	}
@@ -684,14 +690,23 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		changes.storage[ref.Address] = shape
 	}
 	e.mu.Unlock()
-	if err := prepareAlterUniqueRoots(op.Context(), changes, stage.base, next, replacement, uniqueBaselines, metadataOnly, storedReplacements); err != nil {
+	if !rewrite {
+		sourceWrites, _ := scope.columnProjectionRoots(ref.Address)
+		var transported bool
+		projectedWrites, transported, err = transportIndexLayouts(&indexEvaluation, stage, changes, next, store, replacement, sourceWrites, projectedWrites)
+		if err != nil {
+			return Result{}, err
+		}
+		indexOutputRows = indexOutputRows || transported
+	}
+	if err := prepareAlterIndexRoots(&indexEvaluation, changes, stage.base, next, replacement, indexBuilds, metadataOnly); err != nil {
 		return Result{}, err
 	}
 	if err := scope.prepareExclusionShape(old, next, e.stageRead(stage), projectedWrites, projectedDeletes); err != nil {
 		return Result{}, err
 	}
 	// A shape statement replaces prior own roots only on the successful merge.
-	if replacement != store {
+	if replacement != store || indexOutputRows {
 		scope.stageProjectedColumnRoots(ref.Address, projectedWrites, projectedDeletes)
 	}
 	if changedValues {

@@ -89,6 +89,8 @@ func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, 
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
+		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	return commentInquiryExpression{b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), kind, args}, nil
 }

@@ -142,6 +142,7 @@ func (s *StatementScope) stageTruncate() error {
 		shape.snapshot, shape.hasSnapshot = nil, false
 		shape.fills = nil
 		changes.storage[ref.Address] = shape
+		e.fenceEmptyIndexStorageLocked(auth.catalog.state, changes, ref.Address)
 		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{rewrite: true}}); err != nil {
 			break
 		}
@@ -163,6 +164,11 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	for _, selected := range s.truncateRelations {
 		address := selected.ref.Address
+		if selected.relation.relationKind != partitionedRelation {
+			if err := transportEmptyIndexStorage(s.op.Context(), auth.catalog.state, changes, stage, address, changes.storage[address].replacement); err != nil {
+				return err
+			}
+		}
 		if len(s.ownWrites[address]) != 0 || s.ownDeletes[address] != nil {
 			s.stageProjectedColumnRoots(address, nil, nil)
 		}

@@ -23,6 +23,10 @@ const (
 type ExprProperties struct {
 	Volatility                                       Volatility
 	RowDependent, ParameterDependent, StageDependent bool
+	DomainDependent                                  bool
+	// RuntimeDomainConversion prevents folding a checked conversion or any
+	// enclosing expression. It does not require a VALUE frame or alter volatility.
+	RuntimeDomainConversion bool
 }
 
 // Dependence and volatility propagate independently through bound expressions.
@@ -63,10 +67,14 @@ type EvalContext struct {
 	presence             []bool
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
-	preparedChecks map[*relationDescriptor][]BoundExpr
-	pgRegex        sqltype.PGRegexExecution
-	quoteCaptures  *quoteCaptureCandidate
-	quoteOrigin    quoteOrigin
+	preparedChecks       map[*relationDescriptor][]BoundExpr
+	preparedDomainChecks map[*typeDescriptor][]BoundExpr
+	domainValue          sqltype.Value
+	domainFrameUsage     sqltype.Usage
+	domainValueActive    bool
+	pgRegex              sqltype.PGRegexExecution
+	quoteCaptures        *quoteCaptureCandidate
+	quoteOrigin          quoteOrigin
 }
 type expressionInfo struct {
 	usage       sqltype.Usage
@@ -100,6 +108,9 @@ func boundExpressionInfo(node BoundExpr) expressionInfo {
 func evaluationContext(c *EvalContext) error {
 	if c == nil || c.Context == nil {
 		return fmt.Errorf("stuntgres: missing expression context")
+	}
+	if c.domainValueActive {
+		c.Input.DomainChecks = c
 	}
 	return c.Context.Err()
 }
@@ -262,10 +273,14 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			input.Regcollation, input.Regnamespace = scope.input.Regcollation, scope.input.Regnamespace
 		}
 	}
+	if sqltype.ContainsDomainChecks(e.usage.Type) {
+		input.DomainChecks = c
+	}
 	return e.plan.Apply(c.Context, v, input, output)
 }
 func coercionProperties(child BoundExpr, plan sqltype.CoercionPlan) ExprProperties {
 	properties := child.Properties()
+	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || plan.ChecksDomain()
 	if plan.SessionDependent() && properties.Volatility < Stable {
 		properties.Volatility = Stable
 	}
@@ -307,6 +322,8 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return nil, false, err
 	}
 	switch e := expression.(type) {
+	case domainValueExpression:
+		return e, false, nil
 	case installedFunctionExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
 		if changed {
@@ -434,7 +451,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.elements = elements
 		}
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -457,8 +474,13 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return nil, false, err
 		}
 		e.child = child
+		if e.plan.ChecksDomain() {
+			if err := c.prepareDomainConversion(e.child.ResultUsage().Type, e.usage.Type); err != nil {
+				return nil, false, err
+			}
+		}
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -476,7 +498,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		e.pattern, e.escape = pattern, escape
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -496,7 +518,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			pgRegexExecution(c).Reset()
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -516,7 +538,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -535,7 +557,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -557,7 +579,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			}
 		}
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -578,7 +600,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			}
 		}
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -590,7 +612,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		e.regexpCall = call
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -627,7 +649,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
 		p := e.Properties()
-		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := e.Eval(c)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
@@ -739,7 +761,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			_, leftConstant := left.(literalExpression)
 			_, rightConstant := right.(literalExpression)
 			p := e.Properties()
-			if leftConstant && (e.right == nil || rightConstant) && p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent {
+			if leftConstant && (e.right == nil || rightConstant) && p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 				value, err := e.Eval(c)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
@@ -1378,6 +1400,7 @@ type expressionBinder struct {
 	expected              *StatementDescription
 	temporals             []temporalConstant
 	composites            map[preparedCompositeKey]compositeOccurrence
+	domainValueUsage      *sqltype.Usage
 	functionProjection    functionProjectionScope
 	anyParameters         []parameterExpression
 	deleteTarget          bool
@@ -1593,6 +1616,9 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
+	if b.domainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
+		return domainValueExpression{b.info(*b.domainValueUsage, raw.Pos, ExprProperties{DomainDependent: true})}, nil
+	}
 	if b.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		owner := b.generatedOwner
@@ -1631,7 +1657,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 		}
 		return node, nil
 	}
-	if b.checkConsumer && len(raw.Name.Parts) > 0 {
+	if b.checkConsumer && b.domainValueUsage == nil && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		switch name {
 		case "ctid", "xmin", "cmin", "xmax", "cmax":
@@ -2067,6 +2093,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if u.Type == nil {
 					u = b.typ(sqltype.Text).Usage()
 				}
+				if u.Type.IsDomain() {
+					u = u.BaseUsage()
+				}
 				value = sqltype.Null(u.Type)
 			case parser.BitStringValue:
 				value, err = b.inputConstant(v.Text, b.typ(sqltype.Bit).Usage(), v.Pos)
@@ -2105,7 +2134,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if v.Kind == parser.StringValue && u.Type.BaseType().ID() == sqltype.Interval {
 				literalUsage = u.BaseUsage()
 			}
-			node = literalExpression{b.info(literalUsage, v.Pos, ExprProperties{}), value}
+			info := b.info(literalUsage, v.Pos, ExprProperties{})
+			node = literalExpression{info, value}
 			if literalUsage.Type.ID() == sqltype.Regclass && !value.IsNull() {
 				text, _ := value.Text()
 				oid, err := strconv.ParseUint(text, 10, 32)
@@ -2134,6 +2164,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if err != nil {
 				return nil, err
 			}
+			if r.RequiresDomain && !u.Type.IsDomain() {
+				return nil, expressionError("0A000", "typed literals are unsupported", rawType.Pos)
+			}
 			if found {
 				u.Typmod = saved.typmod
 				if saved.typed {
@@ -2156,7 +2189,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					}
 				}
 			}
-			node = literalExpression{b.info(inputUsage, r.Pos, ExprProperties{}), value}
+			literalInfo := b.info(inputUsage, r.Pos, ExprProperties{})
+			node = literalExpression{literalInfo, value}
 			if inputUsage != u {
 				plan, err := sqltype.PlanCoercion(inputUsage, u, sqltype.Explicit)
 				if err != nil {
@@ -2765,7 +2799,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				return sqltype.Value{}, err
 			}
 		}
-		value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input.LiteralInput(pos.Character))
+		value, err := b.decodeLiteralInput(text, u.Type, -1, b.input.LiteralInput(pos.Character))
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && pos.Character > 0 {
 				copy := *diagnostic
@@ -2783,7 +2817,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		return value, nil
 	}
 	if u.Type.ID() != sqltype.Interval && u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
-		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
+		return b.decodeLiteralInput(text, u.Type, -1, b.input)
 	}
 	c, found, err := b.captured(pos.Offset, u)
 	if err != nil {
@@ -2808,7 +2842,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if u.Type.ID() == sqltype.Interval {
 		inputTypmod = u.Typmod
 	}
-	v, err := u.Type.InputWithEnvironment(b.ctx, text, inputTypmod, b.input)
+	v, err := b.decodeLiteralInput(text, u.Type, inputTypmod, b.input)
 	if err == nil && u.Typmod >= 0 {
 		var p sqltype.CoercionPlan
 		p, err = sqltype.PlanCoercion(u.Type.Usage(), u, sqltype.Assignment)
@@ -3080,6 +3114,8 @@ func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, opera
 	p.RowDependent = p.RowDependent || rp.RowDependent
 	p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 	p.StageDependent = p.StageDependent || rp.StageDependent
+	p.DomainDependent = p.DomainDependent || rp.DomainDependent
+	p.RuntimeDomainConversion = p.RuntimeDomainConversion || rp.RuntimeDomainConversion
 	if rp.Volatility > p.Volatility {
 		p.Volatility = rp.Volatility
 	}
@@ -3246,6 +3282,8 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		p.RowDependent = p.RowDependent || rp.RowDependent
 		p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 		p.StageDependent = p.StageDependent || rp.StageDependent
+		p.DomainDependent = p.DomainDependent || rp.DomainDependent
+		p.RuntimeDomainConversion = p.RuntimeDomainConversion || rp.RuntimeDomainConversion
 	}
 	if provider.SessionDependent() && p.Volatility < Stable {
 		p.Volatility = Stable

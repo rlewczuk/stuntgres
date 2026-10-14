@@ -123,6 +123,7 @@ type scalarRenderer struct {
 	// and construction labels require explicit captured role presentation.
 	validation             bool
 	owner                  *relationDescriptor
+	domainValue            *sqltype.Usage
 	dependencies           *[]ObjectRef
 	commentSnapshot        *bool
 	visibilitySnapshot     *bool
@@ -159,7 +160,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollation(view, u); err != nil {
@@ -173,6 +174,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	}
 	r.recordStoredType(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
+	case domainValueExpression:
+		if r.domainValue == nil || *r.domainValue != n.usage {
+			return "", fmt.Errorf("stuntgres: foreign stored domain VALUE")
+		}
+		return "VALUE", nil
 	case rowExpression:
 		parts := make([]string, len(n.fields))
 		for i, field := range n.fields {
@@ -326,6 +332,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			properties.RowDependent = properties.RowDependent || child.RowDependent
 			properties.ParameterDependent = properties.ParameterDependent || child.ParameterDependent
 			properties.StageDependent = properties.StageDependent || child.StageDependent
+			properties.DomainDependent = properties.DomainDependent || child.DomainDependent
+			properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || child.RuntimeDomainConversion
 		}
 		if p != properties {
 			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry properties")

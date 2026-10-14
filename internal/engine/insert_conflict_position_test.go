@@ -53,7 +53,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				f.store.versions = append(f.store.versions, rowVersion{row: RowID(i + 2), version: VersionID(i + 2), born: 1, values: values})
 			}
 			f.e.nextRow, f.e.nextVersion, f.e.commitSeq = 3, 3, 1
-			root, err := buildIndexRoot(context.Background(), f.parent, &definition, f.store)
+			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -80,7 +80,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)
 				}
-				next, err := mergeIndexRoot(context.Background(), f.parent, f.index, root.entries, &p, false, true, false, "public", scope.output, nil)
+				next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, root.entries, &p, false, true, false, "public", scope.output, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -117,7 +117,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			publish([]rowVersion{{row: 1, version: 7, base: 1, values: values}}, 0)
 			delete(want, 2)
 			publish(nil, 2)
-			rebuilt, err := buildIndexRoot(context.Background(), f.parent, &definition, f.store)
+			rebuilt, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -150,13 +150,13 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			nextCatalog.descriptors[index.address] = &index
 			stores := maps.Clone(f.e.storage)
 			stores[parent.address] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(context.Background(), f.e.state, &nextCatalog, stores, f.e.indexRoots, map[ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.state, &nextCatalog, stores, f.e.indexRoots, map[ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}
 			insertConflictWantHints(t, prepared[index.address], &shaped, want)
 			changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{index.address: &index}, originals: map[ObjectAddress]Descriptor{index.address: f.index}}
-			if err := prepareAlterUniqueRoots(context.Background(), changes, f.e.CatalogRead(), &parent, &shaped, nil, false, nil); err != nil {
+			if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
 			insertConflictWantHints(t, changes.uniqueRoots[index.address], &shaped, want)
@@ -175,7 +175,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			root.entries = slices.Clone(root.entries)
 			root.entries[0].position = -1
 			f.e.indexRoots[f.index.address] = &root
-			admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
+			admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 			if stableIsolation(isolation) {
 				if admitted || !errors.Is(err, ErrCatalogReplaced) {
 					t.Fatal("stable identity fence", admitted, err)
@@ -184,7 +184,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 				t.Fatal("nonstable omission must not recover version", admitted, err)
 			}
 			scope.insertConflict = nil
-			err = scope.checkUniqueRow(ref, insertConflictUnitRow(t, f, 10), nil, nil)
+			err = scope.checkUniqueRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, nil, indexWriteBatch{})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 				t.Fatal("ordinary enforcement must not recover version", err)
@@ -213,18 +213,18 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	validated, err := validateAlterUniques(context.Background(), auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil)
+	validated, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil, true)
 	if err != nil || validated[f.index.name] == nil {
 		t.Fatal("no-overlay type validation", validated, err)
 	}
 	index := *f.index
 	index.revision++
 	changes := &catalogChanges{descriptors: map[ObjectAddress]Descriptor{index.address: &index}, originals: map[ObjectAddress]Descriptor{index.address: f.index}}
-	if err := prepareAlterUniqueRoots(context.Background(), changes, f.e.CatalogRead(), f.parent, f.store, validated, false, nil); err != nil {
+	if err := prepareAlterIndexRoots(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.e.CatalogRead()}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}
 	root := changes.uniqueRoots[index.address]
-	if root != validated[index.name] {
+	if root != validated[index.name].root {
 		t.Fatal("validated root was not genuinely reused")
 	}
 	insertConflictWantHints(t, root, f.store, map[RowID]int{2: 1})
@@ -232,11 +232,11 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	scope.owner.catalog = changes
 	scope.owner.isolation = RepeatableRead
 	scope.owner.frontier = 2
-	if admitted, err := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil); err != nil || admitted {
+	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 20)}, indexWriteBatch{}, nil); err != nil || admitted {
 		t.Fatal("reused tombstone baseline did not recover actual visible born", admitted, err)
 	}
 	scope.owner.frontier = 1
-	admitted, visibilityErr := scope.admitInsertRow(ref, insertConflictUnitRow(t, f, 20), nil, nil)
+	admitted, visibilityErr := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 20)}, indexWriteBatch{}, nil)
 	wantDiagnostic := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent update"}
 	var visibilityDiagnostic *sqlstate.Error
 	if admitted || !errors.As(visibilityErr, &visibilityDiagnostic) || !reflect.DeepEqual(*visibilityDiagnostic, wantDiagnostic) {

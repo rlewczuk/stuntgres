@@ -116,7 +116,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(b.ref, current.values); err != nil {
+		if err := s.claimUniqueRow(b.ref, current); err != nil {
 			return Result{}, err
 		}
 		deleted, err := s.Writes().Delete(candidate)

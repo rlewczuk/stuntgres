@@ -51,18 +51,15 @@ func (s *StatementScope) insertOwnRow(ref ObjectRef, id RowID) (rowVersion, bool
 	return s.ownWrites[ref.Address][slot], true
 }
 
-func (o *insertWriteKeyOverlay) add(bound *uniqueBoundKey, evaluation *EvalContext, row rowVersion, slot int, buckets map[uint64][]int) error {
-	member, err := indexPredicateMatches(evaluation, bound.index.sqlIndex.predicate, row.values)
+func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, evaluation *EvalContext, row rowVersion, slot int, buckets map[uint64][]int, purpose indexProbePurpose) error {
+	member, keys, err := s.existingUniqueOutput(bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return err
 	}
-	if err := bound.ordering.fillKeys(row.values, bound.scratch, evaluation); err != nil {
-		return err
-	}
-	if uniqueHasNull(bound.scratch) && !bound.index.sqlIndex.nullsNotDistinct {
+	if uniqueHasNull(keys) && !bound.index.sqlIndex.nullsNotDistinct {
 		return nil
 	}
-	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, bound.scratch)
+	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, keys)
 	if err != nil {
 		return err
 	}
@@ -70,7 +67,7 @@ func (o *insertWriteKeyOverlay) add(bound *uniqueBoundKey, evaluation *EvalConte
 	return nil
 }
 
-func (s *StatementScope) probeInsertWriteOverlay(ref ObjectRef, bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value, excluded []rowVersion) (rowVersion, bool, error) {
+func (s *StatementScope) probeInsertWriteOverlay(ref ObjectRef, bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value, excluded []rowVersion, purpose indexProbePurpose) (rowVersion, bool, error) {
 	c := s.writeOverlay()
 	if c.overlays == nil {
 		c.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
@@ -82,7 +79,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ObjectRef, bound *uniqueBou
 	}
 	if !o.ownReady {
 		for slot, row := range s.ownWrites[ref.Address] {
-			if err := o.add(bound, evaluation, row, slot, o.own); err != nil {
+			if err := o.add(s, bound, evaluation, row, slot, o.own, purpose); err != nil {
 				return rowVersion{}, false, err
 			}
 		}
@@ -90,7 +87,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ObjectRef, bound *uniqueBou
 	}
 	stage := s.stage.rows[ref.Address]
 	for o.stageCount < len(stage) {
-		if err := o.add(bound, evaluation, stage[o.stageCount], o.stageCount, o.stage); err != nil {
+		if err := o.add(s, bound, evaluation, stage[o.stageCount], o.stageCount, o.stage, purpose); err != nil {
 			return rowVersion{}, false, err
 		}
 		o.stageCount++
@@ -114,7 +111,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ObjectRef, bound *uniqueBou
 			if uniqueRowExcluded(row.row, excluded) || uniqueRowDeleted(row.row, s.ownDeletes[ref.Address]) || uniqueRowDeleted(row.row, s.stage.deletes[ref.Address]) {
 				continue
 			}
-			matches, err := bound.matches(evaluation, row.values, key)
+			matches, err := s.matchesExistingUnique(bound, row, evaluation, key, purpose)
 			if err != nil {
 				return rowVersion{}, false, err
 			}

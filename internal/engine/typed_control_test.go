@@ -38,7 +38,7 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	state, oid, revision, storage := e.state, e.nextOID, e.nextRevision, e.storage[table.address]
 	next := cloneCatalog(New().state)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ObjectAddress]*relationStorage{}, map[ObjectAddress]*sequenceGenerator{}, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ObjectAddress]*relationStorage{}, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err == nil || err.Error() != temporaryTypedReplacementError {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	next := cloneCatalog(New().state)
 	storage := map[ObjectAddress]*relationStorage{}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

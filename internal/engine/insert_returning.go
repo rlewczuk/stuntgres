@@ -55,29 +55,30 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 }
 
 // Revalidate the proposal before output, never output before possible filtering.
-func (s *StatementScope) acceptInsertReturning(ref ObjectRef, row []sqltype.Value, evaluation *EvalContext) (bool, error) {
+func (s *StatementScope) acceptInsertReturning(ref ObjectRef, candidate *indexWriteCandidate, evaluation *EvalContext) (bool, error) {
+	row := candidate.values
 	if s.insertConflict != nil && s.insertConflict.update != nil {
-		return false, s.admitInsertConflictUpdate(ref, row, evaluation)
+		return false, s.admitInsertConflictUpdate(ref, candidate, evaluation)
 	}
-	proposal := row
+	proposal := *candidate
 	if s.partitionInsert != nil {
 		group := s.partitionReturningGroup(ref)
 		ref = group.ref
-		proposal = s.partitionStoredRow(row)
+		proposal.values = s.partitionStoredRow(row)
 		defer func() { group.unique = s.uniqueBinding }()
 	}
 	for {
 		admitted := true
 		var err error
 		if s.partitionInsert != nil {
-			err = s.checkUniqueRow(ref, proposal, nil, nil)
+			err = s.checkUniqueRow(ref, &proposal, nil, indexWriteBatch{})
 		} else {
-			admitted, err = s.admitInsertRow(ref, row, nil, evaluation)
+			admitted, err = s.admitInsertRow(ref, &proposal, indexWriteBatch{}, evaluation)
 		}
 		if err != nil || !admitted {
 			return false, err
 		}
-		accepted, retry, err := s.Writes().appendAcceptedInsert(ref, proposal)
+		accepted, retry, err := s.Writes().appendAcceptedInsert(ref, &proposal)
 		if err != nil {
 			return false, err
 		}
@@ -90,11 +91,22 @@ func (s *StatementScope) acceptInsertReturning(ref ObjectRef, row []sqltype.Valu
 
 // The same catalog/index authority as canonical batch staging performs the
 // final gate. One immutable row is appended to amortized stage storage.
-func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, row []sqltype.Value) (bool, bool, error) {
+func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, candidate *indexWriteCandidate) (bool, bool, error) {
+	row := candidate.values
 	s := w.scope
 	if err := s.active(); err != nil {
 		return false, false, err
 	}
+	values := [1][]sqltype.Value{row}
+	states := [1]indexWriteState{{indexes: candidate.indexes, precheck: candidate.precheck, exclusion: candidate.exclusion}}
+	batch := indexWriteBatch{values: values[:]}
+	if candidate.indexes != nil || candidate.precheck != nil || candidate.exclusion != nil {
+		batch.states = states[:]
+	}
+	if err := s.validateIndexCandidates(ref, &batch); err != nil {
+		return false, false, err
+	}
+	*candidate = batch.candidate(0)
 	s.owner.mu.Lock()
 	defer s.owner.mu.Unlock()
 	e := s.op.session.Engine()
@@ -136,8 +148,10 @@ func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, row []sqltype.Value) (b
 	if err = auth.checkBinding(b, &parser.Insert{}); err != nil {
 		return false, false, err
 	}
-	version, found := s.reservedExclusionRow(ref, row)
-	if !found {
+	var version rowVersion
+	if candidate.exclusion != nil {
+		version = *candidate.exclusion
+	} else {
 		if e.nextRow == ^uint64(0) || e.nextVersion == ^uint64(0) {
 			return false, false, errors.New("stuntgres: row or version identity exhausted")
 		}
@@ -146,6 +160,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ObjectRef, row []sqltype.Value) (b
 		version = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row}
 	}
 	version.indexAdmission = catalog.state
+	version.indexOutputs = candidate.indexes
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		events := [1]serializableWrite{{row: version.row, version: version.version}}
 		if err = e.serializableWriteLocked(s, ref, events[:]); err != nil {
@@ -176,16 +191,17 @@ func (s *StatementScope) partitionReturningGroup(ref ObjectRef) *partitionInsert
 
 // Returning actions own their immutable payload in WriteStage, so callers must
 // not retain a duplicate producer prefix. Upsert projects at its action seam.
-func (s *StatementScope) admitInsertProducer(b binding, row []sqltype.Value, prefix [][]sqltype.Value, c *EvalContext) (bool, error) {
+func (s *StatementScope) admitInsertProducer(b binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *EvalContext) (bool, error) {
+	row := candidate.values
 	if s.insertReturning == nil {
-		return s.admitInsertRow(b.ref, row, prefix, c)
+		return s.admitInsertRow(b.ref, candidate, prefix, c)
 	}
 	if s.insertConflict == nil || s.insertConflict.update == nil {
 		if err := s.op.session.Engine().checkViewRow(s, &b, row, c); err != nil {
 			return false, err
 		}
 	}
-	accepted, err := s.acceptInsertReturning(b.ref, row, c)
+	accepted, err := s.acceptInsertReturning(b.ref, candidate, c)
 	if err != nil || !accepted {
 		return false, err
 	}
