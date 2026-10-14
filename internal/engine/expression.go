@@ -2701,7 +2701,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		return node.(literalExpression).value, nil
 	}
-	if u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange {
+	if u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange || u.Type.BaseType().ID() == sqltype.TimestampRange {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}

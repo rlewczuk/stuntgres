@@ -11,14 +11,14 @@ import (
 	"testing"
 )
 
-type dateRangeStagedFailure struct {
+type rangeStagedFailure struct {
 	script string
 	diagnostic fixture.Diagnostic
 }
 
 // Native control APIs have no PostgreSQL equivalent. Their actual emitted SQL
 // is replayed on the oracle with the same independent rangeSelect contracts.
-func dateRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks []fixture.Step, nullable [][]bool, failures []dateRangeStagedFailure) {
+func rangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks []fixture.Step, nullable [][]bool, failures []rangeStagedFailure) {
 	t.Helper()
 	if b.PG { return }
 	check := checks[0]
@@ -30,14 +30,14 @@ func dateRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, che
 	if err != nil { t.Fatal(err) }
 	var dump bytes.Buffer
 	// Pin the control pool to its styled session: Dump must use ISO literals
-	// even when its own live DATE presentation is non-ISO.
+	// even when its own live temporal presentation is non-ISO.
 	p.Native.SetMaxOpenConns(1)
 	if _, err := p.Native.ExecContext(p.Ctx, "SET DateStyle = 'German, DMY'"); err != nil { t.Fatal(err) }
 	if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil { t.Fatal(err) }
 	if _, err := p.Native.ExecContext(p.Ctx, "SET DateStyle = 'ISO, MDY'"); err != nil { t.Fatal(err) }
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil { t.Fatal("same-engine Restore", err) }
 	rangeConsumeHeld(t, held, check)
-	dateRangeRetainedMetadata(t, metadata, check, nullable[0])
+	rangeRetainedMetadata(t, metadata, check, nullable[0])
 	for _, step := range checks { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, step) }
 	var redump bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil || !bytes.Equal(dump.Bytes(), redump.Bytes()) { t.Fatal("same-engine redump", err, redump.String()) }
@@ -62,7 +62,7 @@ func dateRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, che
 		if err != nil { t.Fatal(err) }
 		fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString(failure.script)), &failure.diagnostic)
 		rangeConsumeHeld(t, held, check)
-		dateRangeRetainedMetadata(t, metadata, check, nullable[0])
+		rangeRetainedMetadata(t, metadata, check, nullable[0])
 		for _, step := range checks { fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, step) }
 		redump.Reset()
 		if err := stuntgres.Dump(target.Ctx, target.Native, &redump); err != nil || !bytes.Equal(dump.Bytes(), redump.Bytes()) { t.Fatal("failed staged Restore published declarations/data", failure.script, err) }
@@ -86,7 +86,7 @@ func dateRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, che
 	if err != nil { t.Fatal(err) }
 	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString("CREATE TABLE r(v text NOT NULL); INSERT INTO r VALUES ('replacement');")); err != nil { t.Fatal(err) }
 	rangeConsumeHeld(t, held, check)
-	dateRangeRetainedMetadata(t, metadata, check, nullable[0])
+	rangeRetainedMetadata(t, metadata, check, nullable[0])
 	fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM r", []string{"v"}, []string{"TEXT"}, [][]any{{"replacement"}}))
 	if p.Postgres != nil {
 		if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil { t.Fatal(err) }
@@ -101,21 +101,21 @@ func dateRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, che
 	}
 }
 
-func dateRangeRetainedMetadata(t *testing.T, metadata []*sql.ColumnType, check fixture.Step, nullable []bool) {
+func rangeRetainedMetadata(t *testing.T, metadata []*sql.ColumnType, check fixture.Step, nullable []bool) {
 	t.Helper()
 	for i, typ := range metadata {
 		if typ.Name() != check.Columns[i] || typ.DatabaseTypeName() != check.Types[i] {
 			t.Fatal("retained replacement metadata", typ)
 		}
-		if check.Types[i] != "DATERANGE" { continue }
-		if typ.ScanType() != reflect.TypeFor[string]() { t.Fatal("retained DATERANGE ScanType", typ) }
+		if !rangeTransportType(check.Types[i]) { continue }
+		if typ.ScanType() != reflect.TypeFor[string]() { t.Fatal("retained range ScanType", typ) }
 		n, known := typ.Nullable()
 		if nullable == nil {
-			if n || known { t.Fatal("retained computed DATERANGE nullable", n, known) }
+			if n || known { t.Fatal("retained computed range nullable", n, known) }
 		} else if !known || n != nullable[i] {
-			t.Fatal("retained declared DATERANGE nullable", n, known)
+			t.Fatal("retained declared range nullable", n, known)
 		}
-		if n, known := typ.Length(); n != 0 || known { t.Fatal("retained DATERANGE length", n, known) }
-		if precision, scale, known := typ.DecimalSize(); precision != 0 || scale != 0 || known { t.Fatal("retained DATERANGE precision", precision, scale, known) }
+		if n, known := typ.Length(); n != 0 || known { t.Fatal("retained range length", n, known) }
+		if precision, scale, known := typ.DecimalSize(); precision != 0 || scale != 0 || known { t.Fatal("retained range precision", precision, scale, known) }
 	}
 }

@@ -401,3 +401,80 @@ path), with an external900-second deadline. Expected exit0 and stdout:
 `daterange smoke: canonical days, infinity/unbounded, NULL, metadata, atomic diagnostics, nested domains, Dump/Reset/Restore and held snapshots passed`.
 Record actual argv/cwd/exit/output and remove only the owned temporary file.
 
+
+### TSRANGE oracle-first contract
+
+The timestamp-range definitions specify continuous timestamp-without-time-zone
+bounds: finite output is quoted, open adjacent-microsecond bounds stay nonempty,
+and explicit infinity/inclusivity remains distinct from omitted bounds, empty
+and NULL. Independently specified expectations cover scalar endpoint rounding and
+extrema, ignored-but-validated written zones, DateStyle, frozen prepared literals
+versus fresh relative/ambiguous binds, raw builtin/plain/nested-domain metadata,
+all logical error fields and stages, failed-handle behavior and late-tuple
+atomicity. Named-composite projections and the deterministic one-nonNULL
+ANY_VALUE carrier retain existing composition semantics.
+
+Run these small selections with an external900-second deadline each:
+
+```sh
+make check RUN='^TestReferenceTimestampRange(Values|Metadata|Diagnostics|Modifiers|Environments|RelativeCapture)$' REFERENCE=1
+make check RUN='^TestReferenceTimestampRange(Binds|DomainControls|Composition)$' REFERENCE=1
+make check RUN='^TestReferenceTimestampRange(Values|Metadata|Diagnostics|Modifiers|Environments|RelativeCapture)$'
+make check RUN='^TestReferenceTimestampRange(Binds|DomainControls|Composition)$'
+make check RUN='^TestReferenceTimestampRange(Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceTimestampRange(Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceDateRange(Controls|DomainControls|Composition|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceDateRange(Controls|DomainControls|Composition|FeatureSmoke)$'
+make check RUN='^Test(TimestampRange|DateRangeCanonicalDatum|AnyValueProviderDatums)'
+```
+
+`Composition` also selects the binary COPY definition in `reference/dml`,
+which checks handwritten network bytes, flags and timestamp microseconds using
+the existing stream fixture. These are permanent shared scenarios, not native
+goldens. Pinned18.0 discovery confirmed the value, diagnostic, stage, environment,
+bind and composition expectations. Builtin/plain/nested-domain pq metadata uses
+TSRANGE, interface{} ScanType and unavailable length/precision/nullability.
+The empty held-result expectation uses an empty row slice, not nil; this corrects
+the discovery harness without changing SQL expectations. All scenarios visit both
+backends without discovery logging or filters. Full-record/stage mismatches
+remain nonfatal within each diagnostic route, preserving complete diagnostics.
+`Controls`, `DomainControls` and `FeatureSmoke` share `range_control_helpers_test.go`
+with date ranges: actual same/fresh Dump/Reset/Restore, canonical ISO under a
+nonISO session, actual emitted PostgreSQL SQL replay, byte-identical redump,
+failed/canceled replacement and retained populated builtin/nested-domain readers
+and metadata through a TEXT-shaped replacement. Native-only controls are explicit
+subphases; ordinary SQL and independent assertions remain shared across modes.
+
+The standalone public executable is session material
+`local://tsrange-feature-smoke.go`, not a parent deliverable or committed wrapper.
+Root materializes it as `./.tsrange-feature-smoke/main.go` and runs
+`timeout 60s go run ./.tsrange-feature-smoke` from the worktree. Expected exit0,
+stdout exactly `tsrange public smoke: PASS`, and no stderr. It checks new continuous
+timestamp behavior, binds/metadata/capture/full atomic failures and nested-domain
+controls with held readers, not merely startup. Remove the owned temporary source
+after recording actual observations. No passing native proof is claimed here.
+
+`TestReferenceTimestampRangeComparisonBoundary` distinguishes storage from SQL
+operator authority. PostgreSQL's independently specified Boolean/NULL results
+cover all six comparisons, unequal/equal finite ranges and empty ranges,
+builtin/plain/nested-domain columns, contextual strings and NULL/binds in either
+operand position, zero-row/all-NULL analysis, and a WHERE equality predicate.
+Native must reject analysis with the established full42883 unsupported-provider
+diagnostic, not silently compare distinct datums as equal. Direct execution and
+Prepare are both covered. Pinned18.0 confirmed the independent PostgreSQL results;
+the completed definition visits both backends without a discovery filter.
+
+```sh
+make check RUN='^TestReferenceTimestampRangeComparisonBoundary$' REFERENCE=1
+make check RUN='^TestReferenceTimestampRangeComparisonBoundary$'
+make check RUN='^TestTimestampRangeComparisonAdmission$'
+```
+
+The standalone smoke also asserts complete42883 diagnostics for all six scalar
+comparisons on builtin/plain/nested-domain storage, contextual strings/binds and
+NULL/zero-row analysis. Direct Exec/Query and failed Prepare expose no result,
+cursor or statement. Rejected UPDATE predicates preserve rows and a byte-identical
+Dump, proving the boundary rejects before mutation rather than evaluating a
+constant comparison result.
+
+

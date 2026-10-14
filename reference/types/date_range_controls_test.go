@@ -33,15 +33,15 @@ func TestReferenceDateRangeControls(t *testing.T) {
 			rangeSelect(b, "SELECT k,v FROM r ORDER BY k", []string{"k", "v"}, []string{"INT4", "DATERANGE"}, want, []bool{false, true}),
 			rangeSelect(b, "SELECT v FROM vacant", []string{"v"}, []string{"DATERANGE"}, nil, []bool{false}),
 		}
-		failures := []dateRangeStagedFailure{}
+		failures := []rangeStagedFailure{}
 		for _, tc := range dateRangeFailures() {
 			script := "CREATE TABLE staged(v daterange); INSERT INTO staged VALUES ('[epoch,epoch]'); INSERT INTO staged VALUES (" + rangeLiteral(tc.input) + ");"
 			diagnostic := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
 			diagnostic.Detail, diagnostic.Hint = tc.detail, tc.hint
 			diagnostic.Position = strconv.Itoa(utf8.RuneCountInString(script[:strings.LastIndex(script, "('")+1])+1)
-			failures = append(failures, dateRangeStagedFailure{script, diagnostic})
+			failures = append(failures, rangeStagedFailure{script, diagnostic})
 		}
-		dateRangeControlCycle(t, p, b, checks, [][]bool{{false, true}, {false}}, failures)
+		rangeControlCycle(t, p, b, checks, [][]bool{{false, true}, {false}}, failures)
 	}
 }
 

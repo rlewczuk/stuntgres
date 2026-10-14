@@ -61,6 +61,7 @@ const (
 	Regrole        ID = 4096
 	Int4Range      ID = 3904
 	NumRange       ID = 3906
+	TimestampRange ID = 3908
 	DateRange      ID = 3912
 	Int8Range      ID = 3926
 	JSONPath       ID = 4072
@@ -273,6 +274,7 @@ func Builtins() []*Descriptor {
 		{NumRange, Numeric, NumMultirange, "numrange"},
 		{Int8Range, Int8, Int8Multirange, "int8range"},
 		{DateRange, Date, 0, "daterange"},
+		{TimestampRange, Timestamp, 0, "tsrange"},
 	} {
 		name := strings.ToUpper(family.name)
 		r := &Descriptor{id: family.rangeID, name: family.name, sql: name, database: name}
@@ -596,7 +598,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.aclitemInput(ctx, text, env)
 	case Inet, Cidr:
 		return d.networkInput(text)
-	case Int4Range, Int8Range, NumRange, DateRange:
+	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange:
 		return d.rangeInput(ctx, text, env)
 	case Int4Multirange, Int8Multirange, NumMultirange:
 		return d.multirangeInput(ctx, text, env)
@@ -845,7 +847,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return "", fmt.Errorf("invalid network value")
 		}
 		return v.network.output(d.id == Cidr), nil
-	case Int4Range, Int8Range, NumRange, DateRange:
+	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange:
 		return v.rangeOutput(env)
 	case Int4Multirange, Int8Multirange, NumMultirange:
 		return v.multirangeOutput(ctx, env)
@@ -1009,7 +1011,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return d.sql + " '" + text + "'", nil
-	case Int4Range, Int8Range, NumRange, DateRange:
+	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange:
 		text, err := v.rangeOutput(OutputEnvironment{})
 		if err != nil {
 			return "", err
@@ -1870,7 +1872,7 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || isMultirange(left.id) || isMultirange(right.id) {
+	if left.IsArray() || right.IsArray() || left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == TimestampRange || right.id == TimestampRange || isMultirange(left.id) || isMultirange(right.id) {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if IsTransactionIdentifier(left.id) || IsTransactionIdentifier(right.id) {

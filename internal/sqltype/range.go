@@ -32,14 +32,14 @@ type rangeBound struct {
 	special          uint8
 }
 
-func isRange(id ID) bool { return id == Int4Range || id == Int8Range || id == NumRange || id == DateRange }
+func isRange(id ID) bool { return id == Int4Range || id == Int8Range || id == NumRange || id == DateRange || id == TimestampRange }
 
 func (d *Descriptor) rangeBoundInput(ctx context.Context, input string, env InputEnvironment) (rangeBound, error) {
 	if d.rangeSubtype.id == Numeric {
 		v, err := d.rangeSubtype.numericInput(input, -1)
 		return rangeBound{v.text, v.exponent, v.scale, v.negative, v.special}, err
 	}
-	if d.rangeSubtype.id == Date {
+	if d.rangeSubtype.id == Date || d.rangeSubtype.id == Timestamp {
 		v, err := d.rangeSubtype.InputWithEnvironment(ctx, input, -1, env)
 		return rangeBound{magnitude: v.integer}, err
 	}
@@ -217,7 +217,7 @@ func (d *Descriptor) canonicalRange(x rangeDatum) (rangeDatum, error) {
 			return rangeDatum{flags: rangeEmpty}, nil
 		}
 	}
-	if d.id == NumRange {
+	if d.id == NumRange || d.id == TimestampRange {
 		return x, nil
 	}
 	if d.id == DateRange {
@@ -330,6 +330,16 @@ func (d *Descriptor) validRangeDatum(r rangeDatum) bool {
 		cmp := d.compareRangeBounds(r.lower, r.upper)
 		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
 	}
+	if d.id == TimestampRange {
+		if !lowerAbsent && !validRangeTimestampBound(r.lower) || !upperAbsent && !validRangeTimestampBound(r.upper) {
+			return false
+		}
+		if lowerAbsent || upperAbsent {
+			return true
+		}
+		cmp := d.compareRangeBounds(r.lower, r.upper)
+		return cmp < 0 || cmp == 0 && r.flags&(rangeLowerInclusive|rangeUpperInclusive) == rangeLowerInclusive|rangeUpperInclusive
+	}
 	if d.id == DateRange {
 		if !lowerAbsent && !validRangeDateBound(r.lower) || !upperAbsent && !validRangeDateBound(r.upper) {
 			return false
@@ -394,14 +404,14 @@ func (d *Descriptor) writeRangeDatum(out *strings.Builder, r rangeDatum, env Out
 		out.WriteByte(right)
 		return
 	}
-	if d.id == DateRange {
+	if d.id == DateRange || d.id == TimestampRange {
 		out.WriteByte(left)
 		if r.flags&rangeLowerUnbounded == 0 {
-			writeRangeDateBound(out, r.lower.magnitude, env.DateStyle)
+			d.writeRangeTemporalBound(out, r.lower.magnitude, env.DateStyle)
 		}
 		out.WriteByte(',')
 		if r.flags&rangeUpperUnbounded == 0 {
-			writeRangeDateBound(out, r.upper.magnitude, env.DateStyle)
+			d.writeRangeTemporalBound(out, r.upper.magnitude, env.DateStyle)
 		}
 		out.WriteByte(right)
 		return
@@ -428,8 +438,23 @@ func validRangeDateBound(b rangeBound) bool {
 		(!finiteRangeDate(b.magnitude) || b.magnitude >= dateMinimum && b.magnitude <= dateMaximum)
 }
 
-func writeRangeDateBound(out *strings.Builder, day int64, style DateStyle) {
-	text := dateStyledOutput(day, style)
+func validRangeTimestampBound(b rangeBound) bool {
+	return b == (rangeBound{magnitude: b.magnitude}) &&
+		(b.magnitude == TimestampNegativeInfinity || b.magnitude == TimestampPositiveInfinity ||
+			b.magnitude >= timestampMinimum && b.magnitude <= timestampEnd)
+}
+
+func (d *Descriptor) writeRangeTemporalBound(out *strings.Builder, value int64, style DateStyle) {
+	var text string
+	if d.id == TimestampRange {
+		text = timestampStyledOutput(value, style, "", 0, false)
+	} else {
+		text = dateStyledOutput(value, style)
+	}
+	writeRangeBoundText(out, text)
+}
+
+func writeRangeBoundText(out *strings.Builder, text string) {
 	quoted := len(text) == 0
 	for i := range len(text) {
 		c := text[i]

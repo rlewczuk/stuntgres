@@ -29,7 +29,7 @@ func TestReferenceDateRangeFeatureSmoke(t *testing.T) {
 		run(check)
 		run(fixture.Prepared(check))
 		run(vacant)
-		failures := []dateRangeStagedFailure{}
+		failures := []rangeStagedFailure{}
 		for _, tc := range []dateRangeFailure{
 			{input: "[bad,2000-01-01)", code: "22007", message: `invalid input syntax for type date: "bad"`},
 			{input: "[1900-02-29,2000-01-01)", code: "22008", message: `date/time field value out of range: "1900-02-29"`},
@@ -49,7 +49,7 @@ func TestReferenceDateRangeFeatureSmoke(t *testing.T) {
 			script := "CREATE TABLE staged(v daterange); INSERT INTO staged VALUES ('[epoch,epoch]'); INSERT INTO staged VALUES ("+rangeLiteral(tc.input)+");"
 			wantError.Context = ""
 			wantError.Position = strconv.Itoa(utf8.RuneCountInString(script[:strings.LastIndex(script, "('")+1])+1)
-			failures = append(failures, dateRangeStagedFailure{script, wantError})
+			failures = append(failures, rangeStagedFailure{script, wantError})
 		}
 		for _, q := range []string{"CREATE DOMAIN span AS daterange", "CREATE DOMAIN chain AS span", "CREATE TABLE guard(k integer NOT NULL,v chain NOT NULL)"} { run(fixture.Exec(q, 0)) }
 		run(fixture.Prepared(fixture.Exec("INSERT INTO guard VALUES ($1,$2)", 1, 1, "[epoch,epoch]")))
@@ -58,8 +58,8 @@ func TestReferenceDateRangeFeatureSmoke(t *testing.T) {
 		wantError.Detail, wantError.Schema, wantError.Table, wantError.Column = "Failing row contains (2, null).", "public", "guard", "v"
 		run(fixture.ErrorDiagnostic("INSERT INTO guard VALUES (0,'empty'),(2,NULL)", wantError))
 		run(guard)
-		failures = append(failures, dateRangeStagedFailure{"CREATE DOMAIN span AS daterange; CREATE DOMAIN chain AS span; CREATE TABLE guard(k integer NOT NULL,v chain NOT NULL); INSERT INTO guard VALUES (1,'[epoch,epoch]'); INSERT INTO guard VALUES (2,NULL);", wantError})
+		failures = append(failures, rangeStagedFailure{"CREATE DOMAIN span AS daterange; CREATE DOMAIN chain AS span; CREATE TABLE guard(k integer NOT NULL,v chain NOT NULL); INSERT INTO guard VALUES (1,'[epoch,epoch]'); INSERT INTO guard VALUES (2,NULL);", wantError})
 		if err := stmt.Close(); err != nil { t.Fatal(err) }
-		dateRangeControlCycle(t, p, b, []fixture.Step{check, vacant, guard}, [][]bool{{false, true}, {false}, {false, false}}, failures)
+		rangeControlCycle(t, p, b, []fixture.Step{check, vacant, guard}, [][]bool{{false, true}, {false}, {false, false}}, failures)
 	}
 }

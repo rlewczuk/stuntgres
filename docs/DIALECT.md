@@ -186,9 +186,15 @@ mutation capabilities; `pg_node_tree` binary input is excluded.
 - Range/multirange storage does not imply general constructors, casts,
   comparison/order/index providers, range arrays or user-defined range creation.
   Daterange columns store civil DATE bounds with finite day canonicalization and
-  explicit infinity distinct from omission. Tsrange/tstzrange, temporal
-  multiranges (including datemultirange) and multirange arrays remain lookup-only;
-  daterange does not add range_agg/range_intersect_agg providers.
+  explicit infinity distinct from omission. Tsrange columns use continuous
+  TIMESTAMP WITHOUT TIME ZONE bounds without successor canonicalization; finite
+  output is quoted, valid written zones do not rotate civil fields, and explicit
+  infinity remains distinct from omission. DateStyle and relative input follow
+  the timestamp subtype, while Dump emits ISO. Tstzrange, temporal multiranges
+  (including datemultirange) and multirange arrays remain lookup-only.
+  Daterange/tsrange add no range_agg/range_intersect_agg providers.
+  Tsrange scalar comparisons reject at analysis with42883, including domains,
+  contextual unknown operands, NULL data and empty relations.
 - Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates, including
   implicit VARBIT inputs, but does not provide general bit casts, scalar
   operators/functions, comparison/index providers or bit arrays. Unordered BIT

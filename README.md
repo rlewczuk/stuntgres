@@ -1373,6 +1373,26 @@ See [continuous numeric ranges](https://www.postgresql.org/docs/18/rangetypes.ht
 Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
+Change note: tsrange columns extend the common range datum with continuous
+TIMESTAMP WITHOUT TIME ZONE bounds. `(2000-01-01,2000-01-02]` preserves both
+endpoints and flags; an open adjacent-microsecond interval stays nonempty.
+Finite bounds are quoted, explicit infinity/inclusivity remains distinct from
+omitted bounds, empty and NULL, and timestamp input owns rounding and errors.
+Valid written zones are ignored without rotating civil fields, while invalid
+offsets still fail. Session DateStyle/relative input, frozen prepared literals
+and fresh binds reuse timestamp capture; Dump always emits canonical ISO.
+Direct/prepared text/byte binds, TSRANGE metadata, nested-domain contextual
+replay, named-composite fields and binary COPY use existing ownership/staging.
+Actual Dump/Reset/Restore preserves held readers and rejects staged failures
+atomically. No tstzrange, temporal multirange, range arrays, constructors, general
+casts, comparison/index providers or new range aggregates are added.
+Scalar tsrange comparisons reject at analysis with42883, including plain/nested
+domains and contextual unknowns, rather than silently comparing unequal datums
+as equal. NULL and empty-table cases retain the same admission boundary.
+See [continuous timestamp ranges](https://www.postgresql.org/docs/18/rangetypes.html).
+Feature smoke: `make check RUN='^TestReferenceTimestampRangeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
 Change note: daterange columns extend the common range datum with civil DATE
 days. Finite bounds canonicalize to [), advancing exclusive lower/inclusive
 upper bounds by one day; maximum-day successor fails with22008 rather than

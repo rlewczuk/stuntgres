@@ -1154,3 +1154,22 @@ public API with exact output
 exit0 and empty stderr. It is removed after execution, not a permanent command.
 Selected proof and this smoke do not replace root-owned Docker-free quickcheck,
 regression/race proof, independent review or post-integration finalcheck.
+
+### Timestamp-range binary composition
+
+`TestReferenceTimestampRangeComposition` reuses the COPY stream fixture with
+independently handwritten range flags and signed8-byte timestamp endpoints.
+It asserts exact wire bytes on input/output, a nonempty open adjacent-microsecond
+interval, explicit inclusive infinities versus omission, empty versus SQL NULL,
+and the `(infinity,)` / `(,-infinity)` distinction. The same selector also runs
+the named-composite/domain carrier definition in `reference/types`.
+
+```sh
+make check RUN='^TestReferenceTimestampRangeComposition$' REFERENCE=1
+make check RUN='^TestReferenceTimestampRangeComposition$'
+```
+
+Use external900-second deadlines. Pinned18.0 discovery confirmed the independently
+specified bytes and SQL results. Both backends now run without discovery filters.
+This oracle evidence does not claim implemented or verified native support.
+

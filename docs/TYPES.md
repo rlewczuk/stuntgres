@@ -219,8 +219,24 @@ honors DATE's DateStyle and transaction-relative environment; SQLLiteral/Dump
 uses canonical ISO independently of session presentation. Native DATERANGE
 exports string and string ScanType; pq exposes bytes and interface{} ScanType.
 Plain/nested domains, named-composite fields and existing binary COPY preserve
-the same datum. Range/multirange arrays, tsrange/tstzrange, datemultirange and
-user-defined range creation remain outside native execution.
+the same datum. TSRANGE uses continuous TIMESTAMP WITHOUT TIME ZONE bounds in the
+same range representation: exclusive/inclusive endpoints are not advanced, even
+for an open one-microsecond interval. Finite output is quoted; explicit timestamp
+infinity and its inclusivity stay distinct from omitted endpoints, empty and
+NULL. Valid written timezone indications are ignored without rotating civil
+fields, but invalid offsets still fail timestamp input. Live bounds use DateStyle
+and transaction/session-relative input; prepared literals retain their analyzed
+values while binds decode in each execution environment. Native TSRANGE exports
+string and string ScanType; pq exposes bytes and interface{} ScanType, with no
+Length/DecimalSize. NonISO Dump remains canonical ISO; plain/nested domains,
+named-composite fields and binary COPY compose through the existing provider.
+Range/multirange arrays, tstzrange, temporal multiranges and user-defined range
+creation remain outside native execution. TSRANGE adds no constructors, general
+casts, comparison/order/group/index providers or range aggregates.
+Scalar tsrange comparisons reject during analysis with42883, including
+plain/nested-domain and contextual string/NULL operands. Empty relations and
+NULL data do not bypass capability admission. Internal endpoint normalization
+does not supply a SQL comparison provider.
 
 ## Temporal transport and presentation
 

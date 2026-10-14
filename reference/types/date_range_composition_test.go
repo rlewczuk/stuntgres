@@ -35,6 +35,6 @@ func TestReferenceDateRangeComposition(t *testing.T) {
 			s.Prepared = prepared
 			run(s)
 		}
-		dateRangeControlCycle(t, p, b, []fixture.Step{check}, [][]bool{nil}, nil)
+		rangeControlCycle(t, p, b, []fixture.Step{check}, [][]bool{nil}, nil)
 	}
 }

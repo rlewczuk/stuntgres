@@ -16,7 +16,7 @@ func TestDateRangeCanonicalDatum(t *testing.T) {
 	if DateRange != 3912 || !d.Concrete() || d.rangeSubtype != types[Date] || d.AssociatedArray() != 3913 || types[3913].Concrete() || types[4535].Concrete() || d.multirangeCompanion != nil || StoredScalarCastType(DateRange) {
 		t.Fatal("daterange descriptor/subtype/array/companion/cast authority", d)
 	}
-	for _, id := range []ID{3908, 3910} { if types[id].Concrete() { t.Fatal("timestamp range admitted", id) } }
+	if types[3910].Concrete() { t.Fatal("tstzrange admitted") }
 	for _, tc := range []struct { input, output string; datum rangeDatum }{
 		{"[2000-02-28,2000-03-01]", "[2000-02-28,2000-03-02)", rangeDatum{rangeBound{magnitude: 58}, rangeBound{magnitude: 61}, rangeLowerInclusive}},
 		{"(2000-02-28,2000-03-01)", "[2000-02-29,2000-03-01)", rangeDatum{rangeBound{magnitude: 59}, rangeBound{magnitude: 60}, rangeLowerInclusive}},

@@ -22,7 +22,7 @@ func aggregateOrdering(usage sqltype.Usage, pos parser.Position, distinct bool) 
 	base := usage.Type.BaseType()
 	if base.IsArray() || base.ID() == sqltype.PgNodeTree ||
 		base.ID() == sqltype.Bit || base.ID() == sqltype.VarBit ||
-		base.ID() == sqltype.Int4Range || base.ID() == sqltype.Int8Range || base.ID() == sqltype.NumRange || base.ID() == sqltype.DateRange ||
+		base.ID() == sqltype.Int4Range || base.ID() == sqltype.Int8Range || base.ID() == sqltype.NumRange || base.ID() == sqltype.DateRange || base.ID() == sqltype.TimestampRange ||
 		base.ID() == sqltype.Int4Multirange || base.ID() == sqltype.Int8Multirange || base.ID() == sqltype.NumMultirange {
 		kind := "ordering"
 		if distinct {

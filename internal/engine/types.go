@@ -63,7 +63,7 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 		id = t.ID()
 	}
 	switch id {
-	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.DateRange, sqltype.Regrole:
+	case sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.DateRange, sqltype.TimestampRange, sqltype.Regrole:
 		return true
 	}
 	return false

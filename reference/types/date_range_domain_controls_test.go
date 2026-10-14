@@ -67,6 +67,6 @@ func TestReferenceDateRangeDomainControls(t *testing.T) {
 			rangeSelect(b, "SELECT k,v FROM guard ORDER BY k", []string{"k", "v"}, []string{"INT4", "DATERANGE"}, [][]any{{int64(1), "[2000-02-28,2000-03-02)"}}, []bool{false, false}),
 		}
 		script := "CREATE DOMAIN public.span AS daterange; CREATE DOMAIN public.chain AS public.span; CREATE TABLE guard(k integer NOT NULL,v public.chain NOT NULL); INSERT INTO guard VALUES (1,'[epoch,epoch]'); INSERT INTO guard VALUES (2,NULL);"
-		dateRangeControlCycle(t, p, b, checks, [][]bool{{false, true, true}, {false, true}, {false, false}}, []dateRangeStagedFailure{{script, wantError}})
+		rangeControlCycle(t, p, b, checks, [][]bool{{false, true, true}, {false, true}, {false, false}}, []rangeStagedFailure{{script, wantError}})
 	}
 }
