@@ -71,6 +71,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
 	}
+	if err := e.checkTemporaryRuleSourcesReplacementLocked(); err != nil {
+		return err
+	}
 	temporary := make(map[ObjectAddress]Descriptor)
 	for a, d := range e.state.descriptors {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
@@ -501,17 +504,30 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || len(relation.policies) == 0 {
+		if !ok || len(relation.policies) == 0 && len(relation.rules) == 0 {
 			continue
 		}
 		view := CatalogRead{owner: e, state: next}
 		remap := func(ref ObjectRef) ObjectRef { ref.Epoch = next.epoch; return ref }
 		typ := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
-		replacement, err := remapPolicies(view, relation, nil, remap, typ, nil)
-		if err != nil {
-			return err
+		// Replacement preflight certified these exact TEMP providers. They
+		// enter the candidate after imported expressions have been remapped,
+		// so advance their frozen definition refs without applying import IDs.
+		if len(relation.policies) != 0 {
+			replacement, err := remapPolicies(view, relation, nil, remap, typ, nil)
+			if err != nil {
+				return err
+			}
+			relation = replacement
 		}
-		next.descriptors[address] = replacement
+		if len(relation.rules) != 0 {
+			replacement, err := remapRules(view, relation, nil, remap, typ, nil)
+			if err != nil {
+				return err
+			}
+			relation = replacement
+		}
+		next.descriptors[address] = relation
 	}
 	previous := make(map[ObjectAddress]Descriptor, len(next.descriptors))
 	for address, descriptor := range next.descriptors {

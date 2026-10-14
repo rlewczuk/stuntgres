@@ -36,6 +36,22 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		same = func(a, other BoundExpr) bool { return b.sameGroupExpressionIn(a, other, comparison) }
 	}
 	switch e := a.(type) {
+	case assignmentValueExpression:
+		o, ok := other.(assignmentValueExpression)
+		if !ok || !same(e.base, o.base) || !same(e.value, o.value) {
+			return false
+		}
+		left, right := e.target, o.target
+		for left != nil && right != nil {
+			if left.attribute != right.attribute || left.container != right.container || left.destination != right.destination || !left.reapply.Equal(right.reapply) {
+				return false
+			}
+			if left.attribute == 0 && !same(left.node, right.node) {
+				return false
+			}
+			left, right = left.next, right.next
+		}
+		return left == nil && right == nil
 	case tableOIDExpression:
 		o, ok := other.(tableOIDExpression)
 		return ok && e.owner == o.owner

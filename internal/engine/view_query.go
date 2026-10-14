@@ -185,17 +185,7 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 	}
 	var expressions []BoundExpr
 	for slot, expression := range project.expressions {
-		if expression.Properties().Volatility == Volatile {
-			continue
-		}
-		used := false
-		for _, use := range uses {
-			if use == slot {
-				used = true
-				break
-			}
-		}
-		if used {
+		if storedProjectionOutputDemand(expression, slot, uses) {
 			continue
 		}
 		if expressions == nil {
@@ -206,7 +196,11 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 	if expressions == nil {
 		return project, nil
 	}
-	child, err := storedScheduledPayloadDemand(project.child, expressions)
+	child, err := storedScheduledPayloadDemand(project.child, func(visit func(BoundExpr)) {
+		for _, expression := range expressions {
+			visit(expression)
+		}
+	}, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -216,10 +210,43 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 	return &copy, nil
 }
 
+func storedProjectionOutputDemand(expression BoundExpr, slot int, uses []int) bool {
+	if uses == nil || expression.Properties().Volatility == Volatile {
+		return true
+	}
+	for _, use := range uses {
+		if use == slot {
+			return true
+		}
+	}
+	return false
+}
+
+// Inspect the same retained payload/cache/clause authority without copying or
+// executing the producer. Rule-program liveness converges before its sole
+// copy-on-change projection pruning pass.
+func storedProjectionDemandExpressions(project *projectNode, uses []int, inspect func(BoundExpr), boundary func(LogicalNode)) error {
+	for _, slot := range uses {
+		if slot < 0 || slot >= len(project.expressions) {
+			return fmt.Errorf("stuntgres: invalid stored projection use")
+		}
+	}
+	retained := func(visit func(BoundExpr)) {
+		for slot, expression := range project.expressions {
+			if storedProjectionOutputDemand(expression, slot, uses) {
+				visit(expression)
+			}
+		}
+	}
+	retained(inspect)
+	_, err := storedScheduledPayloadDemand(project.child, retained, inspect, boundary)
+	return err
+}
+
 // Projection scheduling owns payload cache slots on the outer query's unary
 // path. Follow those existing owners, not source/derived-query frames, and
 // retain the transitive slot reads of selected payloads and internal clauses.
-func storedScheduledPayloadDemand(root LogicalNode, retained []BoundExpr) (LogicalNode, error) {
+func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr)), inspect func(BoundExpr), boundary func(LogicalNode)) (LogicalNode, error) {
 	input := func(node LogicalNode) LogicalNode {
 		switch node.(type) {
 		case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
@@ -254,12 +281,18 @@ func storedScheduledPayloadDemand(root LogicalNode, retained []BoundExpr) (Logic
 			producers[base+i] = expression
 		}
 	}
-	if len(producers) == 0 {
+	if len(producers) == 0 && inspect == nil {
 		return root, nil
 	}
-	live := make(map[int]bool)
+	var live map[int]bool
+	if len(producers) != 0 {
+		live = make(map[int]bool)
+	}
 	var demand func(BoundExpr)
 	demand = func(expression BoundExpr) {
+		if len(producers) == 0 {
+			return
+		}
 		walkBoundExpression(expression, func(node BoundExpr) {
 			cache, ok := node.(cachedOrderExpression)
 			if !ok || live[cache.slot] {
@@ -271,28 +304,40 @@ func storedScheduledPayloadDemand(root LogicalNode, retained []BoundExpr) (Logic
 			}
 		})
 	}
-	for _, expression := range retained {
-		demand(expression)
-	}
+	retained(demand)
 	for slot, producer := range producers {
 		if producer.Properties().Volatility == Volatile {
 			live[slot] = true
 			demand(producer)
 		}
 	}
-	for node := root; node != nil; node = input(node) {
-		switch n := node.(type) {
-		case *sortNode:
-			for _, key := range n.keys {
-				demand(key.expression)
+	clauses := func(visit func(BoundExpr), boundary func(LogicalNode)) {
+		for node := root; node != nil; node = input(node) {
+			switch n := node.(type) {
+			case *sortNode:
+				for _, key := range n.keys {
+					visit(key.expression)
+				}
+			case *evaluationNode:
+				// Payload reads are demanded through live owner slots only.
+			case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
+				if boundary != nil {
+					boundary(node)
+				}
+			default:
+				queryExpressions(node, visit)
 			}
-		case *evaluationNode:
-			// Its payload reads are demanded only through live owner slots.
-		case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
-			// These are separate projection/cache frames.
-		default:
-			queryExpressions(node, demand)
 		}
+	}
+	clauses(demand, nil)
+	if inspect != nil {
+		for slot, expression := range producers {
+			if live[slot] {
+				inspect(expression)
+			}
+		}
+		clauses(inspect, boundary)
+		return root, nil
 	}
 	identity := func(expression BoundExpr) (BoundExpr, bool, error) {
 		return expression, false, nil

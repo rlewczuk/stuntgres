@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // The existing command binders share a single statement expression binder.
@@ -28,6 +29,11 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, tableKind(b.relation, "insert into")
 		}
 		binder.insertTarget = b.relation
+		if binder.ruleNamespace != nil {
+			// Reserve a mutation lexical frame without exposing INSERT's target.
+			binder.queryFrame = 1
+			// SELECT frame allocation stays monotonic across stored modifiers.
+		}
 		if op != nil && op.restoreInsertAuthority && len(b.relation.identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
@@ -52,6 +58,9 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	case *parser.Merge:
 		if err := e.bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err
+		}
+		if len(b.relation.rules) != 0 {
+			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.relation.name), Detail: "MERGE is not supported for relations with rules."}
 		}
 	case *parser.Delete:
 		var err error
@@ -160,8 +169,10 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 	}
 	b.querySources = binder.querySources
-	if err := e.bindViewWrite(&b, auth, statement); err != nil {
-		return b, err
+	if binder.ruleNamespace == nil {
+		if err := e.bindViewWrite(&b, auth, statement); err != nil {
+			return b, err
+		}
 	}
 	binder.querySources = b.querySources
 	if b.viewWrite != nil {

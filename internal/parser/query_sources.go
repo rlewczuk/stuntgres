@@ -377,6 +377,16 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		pending = pending[:oldPending]
 		switch s := statement.(type) {
+		case *CreateRule:
+			if err := expression(s.Condition); err != nil {
+				return err
+			}
+			for _, action := range s.Actions {
+				if err := VisitQuerySources(action, visitQuery, visitTable, classify...); err != nil {
+					return err
+				}
+			}
+			return nil
 		case *CreatePolicy:
 			if err := expression(s.Using); err != nil {
 				return err

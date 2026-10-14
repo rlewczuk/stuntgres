@@ -29,6 +29,212 @@ Run pinned mode first, with external 900-second deadlines for each selected
 command. This fixture-lifecycle remedy does not replace whole-project or
 post-integration verification.
 
+### Rewrite rules
+
+Rule regressions use public direct and prepared routes with independent literal
+rows, command counts, empty-result metadata and complete structured diagnostics.
+The rule and trigger CHECK OPTION scenarios are separate: user rewrite rules
+are engine mechanisms; procedural row triggers remain an explicit boundary.
+
+Pinned discovery distinguishes query producers from physical-row callbacks:
+an action without NEW still retains two-row VALUES multiplicity. Separate
+INSERT SELECT and zero-source witnesses cover the different query shape.
+Without original RETURNING, direct Query exposes SELECT-action result sets; actual
+Go-held Query retains the original INSERT's empty result description while
+executing the action. With original RETURNING, both routes expose only its
+descriptor/rows, including the empty schema; auxiliary SELECT output is suppressed,
+not execution/errors. These routes must not be collapsed or labeled prepared merely
+by repeating direct Query.
+
+`ConditionsQueryShapes` pins source-clause survivor demand, supplied INSERT
+SELECT output sharing versus VALUES/default macro occurrences, unused volatile
+output retention, pure unused error pruning and computed post-substitution
+ORDER scheduling. `RestrictionsAdmission` pins top action/immediate INSERT
+source WITH OLD/NEW rejection without banning legal nested correlated WITH.
+Layered view rule witnesses retain outer ACL/RETURNING authority, suppress
+invalidated inherited CHECK groups only at an explicit rewrite boundary, and
+preserve the fresh action target's own checks.
+
+
+Oracle discovery runs pinned PostgreSQL first; remove any temporary local
+backend filter before native proof. Each selected command has an external
+900-second deadline. Run each selector below with `make check REFERENCE=1 RUN='…'`
+first, then `make check RUN='…'`:
+
+```text
+^TestReferenceRule(DDL|DDLNotices|SelectReturn|SelectReturnAdmission|SelectReturnRecursion|Boundaries)$
+^TestReferenceRule(Effects|Conditions|ConditionsQueryShapes|Ordering|OrderingCountAuthority)$
+^TestReferenceRule(Returning|ReturningErrors|ReturningMutationProviders|ReturningSelectActions|Restrictions|RestrictionsAdmission|RestrictionsMergeMaterialized)$
+^TestReferenceRule(Atomicity|AtomicitySavepoint|Privileges|Dependencies|DependenciesEdges)$
+^TestReferenceRule(Prepared|Controls)$
+^TestReferenceViewCheck(RuleBoundary|TriggerBoundary)$
+^TestReferenceRuleFeatureSmoke$
+```
+
+Native controls in the shared scenario exercise genuine post-data Dump/Reset/
+Restore, renamed targets and columns, future rewritten writes, and atomic invalid
+or canceled import. PostgreSQL has no invented equivalent control API.
+Diagnostic candidates and SELECT-action result-set behavior must be pinned by
+the real oracle before implementation; fixture mismatches expose all fields,
+including positions and contexts, rather than checking SQLSTATE alone.
+
+Internal template/program/provider ownership is complementary proof:
+
+```sh
+make check RUN='^TestRule(TemplateSubstitution|Program(Ordering|Authority|Recursion|AtomicStage)|CTECommandNormalization|Definition(Dependencies|Remap)|ViewReturnReplacement)$'
+make check RACE=1 RUN='^TestRule(TemplateSubstitution|ProgramAuthority|CTECommandNormalization|DefinitionRemap)$'
+```
+
+Focused WITH lexical proof, independently specified in the same shared public
+definition (run both commands, not only the PostgreSQL discovery route):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRuleRestrictionsAdmission/with_(body_(new|old)|legal_outer_new|nested_correlated_new)/held=(false|true)/postgres$'
+make check RUN='^TestReferenceRuleRestrictionsAdmission$'
+```
+
+Action-owned modifying-WITH persistence and the distinct SELECT-event exclusion
+are shared direct/held scenarios; native controls additionally exercise renamed
+auxiliary/unused target columns, post-data Restore and future writes:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRule(Controls|SelectReturnAdmission)/(action_with_modifying_cte|modifying_with)/held=(false|true)/postgres$'
+make check RUN='^TestReferenceRule(Controls|SelectReturnAdmission)$'
+```
+
+Review regressions separately prove caller-owned input sources versus rule-owned
+sinks, current conflict-row authority, forbidden OLD/NEW conflict namespaces,
+EXCLUDED and bounded-VALUES action round trips, and whole-program static
+preparation before sequence effects. Computed window schedules, result-signature
+rejection, midstream reader failure/cancellation, eager rows across replacement,
+and ordinary/TEMP rule identity collisions use actual public consumers and
+native controls rather than structural wiring assertions.
+
+Run every selector in both modes:
+
+```text
+^TestReferenceRuleReview(PrincipalSources|ConflictRecipes|ConflictAuthority)$
+^TestReferenceRuleReview(ActionRoundTrip|ProgramPreflight|QualifiedSet)$
+^TestReferenceRuleReview(WindowScheduling|ResultSignature)$
+^TestReferenceRuleReview(ReplacementLifetime|TemporaryCollision|TemporaryProvenance)$
+^TestReferenceRuleReview2Conflict(Reuse|Sessions|Layout|ColumnACL|ColumnDependencies|NothingDependencies)$
+^TestReferenceRuleReview2(NestedPreparation|CTEPreparation|CombinedOutputs|MutationPreparation)$
+^TestReferenceRuleReview3CTE(Reuse|Recovery|Sessions|Restore|Cardinality)$
+^TestReferenceRuleReview3(IndependentAuthority|InheritedAuthority)$
+^TestReferenceRuleReview4InvokerViewAuthority$
+^TestReferenceRuleReview4Inference(Matching|Mismatch)$
+^TestReferenceRuleReview5ViewProviderRetirement$
+^TestReferenceRuleReview6Named(Dependency|Retirement)$
+^TestReferenceRuleReview6Named(RenameRoundTrip|NameReuseRoundTrip)$
+```
+
+Static operator folding is local to rule-bearing program preparation, including
+normalized CTE primaries and demanded derived/mutation producers. Supplied Params
+specialize into private typed executable recipes each Execute; ordinary/mode-only
+imported-parameter protection remains unchanged. Row-, stage-, checked-domain and
+volatile expressions retain their runtime frontier. Non-evaluating conditional
+demand and inherited/correlated frame closure preserve unused payload pruning
+without dropping demanded supplier values or modifying stored graphs.
+
+```sh
+make check RUN='^TestRule(CTECommandNormalization|AssignmentMapping|StaticOperatorPreflight)$'
+make check RACE=1 RUN='^TestReferenceRuleReview(ReplacementLifetime|TemporaryCollision|TemporaryProvenance)$'
+```
+
+Conflict review witnesses retain the same held consumer through repeated keys,
+failure/recovery, two-session contention and legal post-definition ADD/DROP/ADD.
+DO UPDATE's implicit initial EXCLUDED dependencies are distinct from actual
+column-only ACL requirements; DO NOTHING separately permits unused initial DROP.
+Native layout round trips use real Dump/Restore and future writes, not mock imports.
+
+```sh
+make check RUN='^TestRule(ConflictInstantiation|ConflictAttributeRefresh|IndependentActionProducer|StaticOperatorPreflight)$'
+make check RACE=1 RUN='^TestReferenceRuleReview2Conflict(Reuse|Sessions|Layout|ColumnACL|ColumnDependencies|NothingDependencies)$'
+make check RACE=1 RUN='^TestReferenceRuleReview2(NestedPreparation|CTEPreparation|CombinedOutputs|MutationPreparation)$'
+```
+
+Stored action-owned modifying-CTE conflicts have the same repeated-key,
+failure/recovery, actual two-session and native renamed Dump/Restore coverage.
+The cardinality witness independently retains `21000` and exact empty bags after
+failure; it is not relaxed by fresh per-command workspaces. Complementary units
+invoke actual composition, refresh and normalization, preserving stored recipes,
+provider/scan coherence and command-private mutable state.
+
+Independent UPDATE/DELETE authority witnesses retain the SAME held consumer
+through owner transfer and disjoint caller/owner grants. Empty event tables still
+produce rule-added lookup rows with original count0; revoking owner authority
+fails atomically despite caller SELECT, while revoking caller lookup SELECT
+does not deny owner-authorized actions. OLD-dependent FROM/USING remains caller
+authorized. A successor lacking both privileges diagnoses log target permission
+before lookup source permission, as independently observed on PostgreSQL18.0.
+
+```sh
+make check RUN='^(TestRuleCTE(ConflictInstantiation|CommandNormalization)|TestRuleExpansionSourceAuthority)$'
+make check RACE=1 RUN='^(TestRuleCTE(ConflictInstantiation|CommandNormalization)|TestReferenceRuleReview3CTE(Reuse|Recovery|Sessions|Restore|Cardinality))$'
+make check RACE=1 RUN='^(TestRuleExpansionSourceAuthority|TestReferenceRuleReview3(IndependentAuthority|InheritedAuthority))$'
+```
+
+Inherited security-invoker-view inputs retain caller authority through both
+UPDATE and DELETE action recollection, not just composition/admission. The
+same held query succeeds with caller input rights and owner sink rights, fails
+atomically after caller revoke despite owner input grants, recovers after caller
+grant, and still succeeds after owner input revoke. The canonical collection
+unit also exercises nested invoker/definer, repeated occurrence, unset-principal
+fallback and current-versus-retained paired catalog snapshots.
+
+Decorated inference witnesses independently exercise matching/mismatching
+operator classes and collations, alone and together, for immediate actions and
+action-owned INSERT SELECT modifiers. Exact `42P10` diagnostics and no-effect
+bags survive target-column rename, real native Dump/Restore, incompatible future
+index replacement and repair through the SAME held consumer. The actual
+export→parse→reanalysis unit retains child input versus outer NEW capture and
+distinct SELECT frame ownership. Supported column indexes suffice for its
+expression-key identity contrast; native UNIQUE expression indexes remain out
+of scope. The combined standalone smoke runs native controls before explicit
+ACL fixtures: arbitrary relation/column ACL export remains an existing refusal.
+
+```sh
+make check RUN='^TestRule(ViewSourceCollectionAuthority|InferenceDumpReanalysis)$'
+make check RACE=1 RUN='^(TestRuleViewSourceCollectionAuthority|TestReferenceRuleReview4InvokerViewAuthority)$'
+make check RACE=1 RUN='^(TestRuleInferenceDumpReanalysis|TestReferenceRuleReview4Inference(Matching|Mismatch))$'
+```
+
+View-attached ordinary-rule provider retirement uses a PostgreSQL-pinned domain
+cast in NEW, not a table-column dependency. Direct and SAME held RESTRICT report
+full `2BP01` diagnostics while preserving provider/rules/view/data and subsequent
+execution. Native Dump/Restore retains that result; CASCADE emits the exact
+single-rule notice and removes only the dependent DML rule, leaving `_RETURN`,
+an unrelated ordinary rule and data intact. Future held INSERT uses ordinary
+writable-view lowering after retirement. Supported typed cast behavior observes
+provider presence/absence without requiring unimplemented `pg_type` enumeration.
+
+```sh
+make check RUN='^TestRuleViewExpressionDependencyClosure$'
+make check RACE=1 RUN='^(TestRuleViewExpressionDependencyClosure|TestReferenceRuleReview5ViewProviderRetirement)$'
+```
+
+Named conflict targets have separate dependency and current-name witnesses.
+The complete normal-edge bag references the actual class2606 constraint OID,
+not a fixed allocator value or a normal backing-index edge. Direct/SAME held
+RESTRICT preserves provider/rules/rows through native restoration; CASCADE
+removes only the dependent rule and permits future original writes.
+Rename/name-reuse cases cover DO NOTHING/EXCLUDED UPDATE, immediate actions and
+real INSERT SELECT modifiers, retaining intended provider identity and exact
+future bags through actual Dump/Restore.
+
+Private units invoke canonical reference collection, closure/retirement and
+actual export→parse→reanalysis plus collision reminting. They preserve recognized
+exclusion and no-index diagnostics, ordinary inference's replaceable providers,
+stored modifier/provider coherence and allocation-free unchanged paths.
+
+```sh
+make check RUN='^TestRuleNamedConstraint(Dependencies|Retirement|Kinds|Remap|DumpReanalysis)$'
+make check RACE=1 RUN='^(TestRuleNamedConstraint(Dependencies|Retirement|Kinds|Remap)|TestReferenceRuleReview6Named(Dependency|Retirement))$'
+make check RACE=1 RUN='^(TestRuleNamedConstraintDumpReanalysis|TestReferenceRuleReview6Named(RenameRoundTrip|NameReuseRoundTrip))$'
+```
+
+
+
 ### Materialized view creation and refresh
 
 Materialized-view coverage uses the same public dual-mode scenarios:
@@ -290,7 +496,7 @@ Run these small selectors with an external900-second deadline in **both** modes:
 make check RUN='^TestReferenceViewCheck(Grammar|Declaration|Options|Diagnostics)$' REFERENCE=1
 make check RUN='^TestReferenceViewCheck(Basic|Nested|NewRows)$' REFERENCE=1
 make check RUN='^TestReferenceViewCheck(Atomicity|Sources|Security|ConflictUpdate)$' REFERENCE=1
-make check RUN='^TestReferenceViewCheck(Transactions|Cancellation|RuleTriggerBoundary)$' REFERENCE=1
+make check RUN='^TestReferenceViewCheck(Transactions|Cancellation|RuleBoundary|TriggerBoundary)$' REFERENCE=1
 make check RUN='^TestReferenceViewCheck(Lifecycle|Replay|FeatureSmoke)$' REFERENCE=1
 make check RUN='^TestReferenceViewCheckReview(VirtualNewRows|QuotedNames)$' REFERENCE=1
 make check RUN='^TestReferenceViewReplace(CapabilityBoundaries|CapabilityBoundariesConsumerRoutes|Options)$' REFERENCE=1

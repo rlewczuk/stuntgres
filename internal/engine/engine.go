@@ -60,9 +60,12 @@ type Result struct {
 	CommandTag string
 	Count      int64
 	Rows       RowResult
+	RowSets    []RowResult
 	created    ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
 type binding struct {
+	ruleTemplate          bool
+	insertSubquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
 	relation              *relationDescriptor
 	storage               *relationStorage
 	ref                   ObjectRef
@@ -73,6 +76,7 @@ type binding struct {
 	query                 *BoundQuery
 	ctes                  []*cteDefinition
 	cteSelectBodies       bool
+	ruleCTEs              map[*cteDefinition]*ruleCTECommand
 	querySources          []queryLeaf
 	visibilitySnapshot    bool
 	subqueryDemand        bool
@@ -361,6 +365,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:
 		return StatementDescription{}, nil
+	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
+		return StatementDescription{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
@@ -422,6 +428,24 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := scope.validateQuerySources(b.querySources); err != nil {
 		return StatementDescription{}, err
 	}
+	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
+		return StatementDescription{}, err
+	}
+	if relation := bindingRuleRelation(b); relation != nil && len(relation.rules) != 0 {
+		program := ruleProgram{count: -1, returning: -1}
+		if _, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program); err != nil {
+			return StatementDescription{}, err
+		}
+		b.dependencies = append(b.dependencies, program.events...)
+		for _, command := range program.commands {
+			if command.binding.relation != nil {
+				b.dependencies = append(b.dependencies, expressionDependency{ref: command.binding.ref, revision: command.binding.relation.revision})
+			}
+			b.dependencies = append(b.dependencies, command.binding.dependencies...)
+			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
+			b.regtypeConstants = append(b.regtypeConstants, command.binding.regtypeConstants...)
+		}
+	}
 	var results []ColumnDescriptor
 	if b.query != nil && !b.commandQuery {
 		results = b.query.Root.Schema()
@@ -462,8 +486,14 @@ func objectNameText(n parser.ObjectName) string {
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
 func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, initial ...[]sqltype.Usage) (binding, error) {
+	return e.describeWithRule(ctx, stmt, auth, requiredRef, input, op, expected, admission, nil, initial...)
+}
+
+func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
+	binder.ruleNamespace = rule
+	binder.noParameters = rule != nil
 	if len(initial) != 0 && initial[0] != nil {
 		binder.seedParameters(initial[0])
 	}
@@ -785,7 +815,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.temporals = binder.temporals
 	b.composites = binder.composites
-	if !parser.ModifyingStatement(stmt) {
+	if rule == nil && !parser.ModifyingStatement(stmt) {
 		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
 			return b, err
 		}

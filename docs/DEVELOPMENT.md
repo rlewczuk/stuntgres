@@ -662,7 +662,7 @@ restricted to mode-aware migrated scenarios with `-reference=false` (flag after
 same package-owned singleton even when the runtime flag is absent/false. The tag alone
 therefore does not make the whole legacy suite quick. Richer tagged
 ordering/lock complements, the standalone PostgreSQL count column-ACL test and
-DML rules/triggers, privilege and exact blocker/server-cancellation edges remain
+procedural triggers, legacy privilege and exact blocker/server-cancellation edges remain
 tagged. Obsolete root query/comparison/cast helpers are removed; their complete
 assertion union now lives in reference owners. Join product/alias/prepared/held-row
 and physical view-provenance witnesses live in untagged reference scenarios;

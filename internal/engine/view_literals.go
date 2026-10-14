@@ -174,7 +174,12 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if b.viewColumns == nil {
 				b.viewColumns = make(map[viewLiteralPath]viewColumn)
 			}
-			b.viewColumns[path] = viewColumn{frame: column.frame, slot: column.slot}
+			captured := viewColumn{frame: column.frame, slot: column.slot}
+			if column.scope == rulePseudoScope {
+				captured.ruleRef = column.origin
+				captured.ruleSide = column.frame
+			}
+			b.viewColumns[path] = captured
 			return nil
 		}
 		if row, ok := bound.(rowExpression); ok && row.wholeNames != nil {

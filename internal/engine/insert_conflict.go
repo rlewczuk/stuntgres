@@ -19,7 +19,7 @@ type conflictKey struct {
 type boundInsertConflict struct {
 	keys          []conflictKey
 	predicate     BoundExpr
-	constraint    string
+	constraint    ObjectAddress
 	namedIndex    ObjectAddress
 	reads         []int
 	selected      []ObjectAddress
@@ -38,6 +38,21 @@ type boundInsertConflict struct {
 	insertWriteOverlay
 }
 
+// instantiate owns one command's arbitration, preparation and write workspace.
+// The analyzed expressions and manifests are immutable and may be shared.
+func (c *boundInsertConflict) instantiate() *boundInsertConflict {
+	if c == nil {
+		return nil
+	}
+	return &boundInsertConflict{
+		keys: c.keys, predicate: c.predicate, constraint: c.constraint,
+		namedIndex: c.namedIndex, reads: c.reads, targets: c.targets,
+		update: c.update, updateTargets: c.updateTargets,
+		actionReads: c.actionReads, sources: c.sources,
+		returning: c.returning, width: c.width,
+	}
+}
+
 // Analysis resolves names/types/read manifests; selecting installed providers
 // belongs to Execute, including commands with an empty source.
 func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth AuthorizationView, raw *parser.InsertConflict) error {
@@ -49,11 +64,12 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		d.Hint = "For example, ON CONFLICT (column_name)."
 		return d
 	}
-	c := &boundInsertConflict{constraint: raw.Constraint.Text, targets: b.targets}
+	c := &boundInsertConflict{targets: b.targets}
 	b.conflict = c
-	if c.constraint != "" {
+	if raw.Constraint.Text != "" {
 		for _, u := range b.relation.uniqueConstraints {
-			if u.Name == c.constraint {
+			if u.Name == raw.Constraint.Text {
+				c.constraint = ObjectAddress{ClassID: 2606, ObjectID: u.OID}
 				c.namedIndex = u.Index
 				for _, a := range u.Attributes {
 					c.reads = append(c.reads, slices.Index(b.relation.attributes, a))
@@ -62,9 +78,10 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			}
 		}
 		for _, definition := range b.relation.exclusionConstraints {
-			if definition.Name != c.constraint {
+			if definition.Name != raw.Constraint.Text {
 				continue
 			}
+			c.constraint = ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
 			c.namedIndex = definition.Index
 			index, ok := auth.catalog.state.descriptors[definition.Index].(*relationDescriptor)
 			if !ok {
@@ -87,16 +104,18 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			return nil
 		}
 		for _, check := range b.relation.checkConstraints {
-			if check.Name == c.constraint {
+			if check.Name == raw.Constraint.Text {
+				c.constraint = ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 				return nil
 			}
 		}
 		for _, nn := range b.relation.notNullConstraints {
-			if nn.Name == c.constraint {
+			if nn.Name == raw.Constraint.Text {
+				c.constraint = ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
 				return nil
 			}
 		}
-		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", c.constraint, b.relation.name))
+		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.name))
 	}
 	binder := e.indexExpressionBinder(shared.op, shared.input, auth, b.relation)
 	binder.parameters = shared.parameters
@@ -183,7 +202,7 @@ func expressionErrorFrom(err error, pos parser.Position) error {
 
 func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationDescriptor, view CatalogRead) error {
 	c.selected = c.selected[:0]
-	if c.constraint != "" && c.namedIndex == (ObjectAddress{}) {
+	if c.constraint != (ObjectAddress{}) && c.namedIndex == (ObjectAddress{}) {
 		return sqlError("42809", "constraint in ON CONFLICT clause has no associated index")
 	}
 	for _, descriptor := range view.state.descriptors {
@@ -195,7 +214,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 		if def.parent != parent.address || !def.live || !def.ready || (!def.unique && !def.isExclusion()) {
 			continue
 		}
-		if c.constraint != "" {
+		if c.constraint != (ObjectAddress{}) {
 			if index.address == c.namedIndex {
 				if c.update != nil && def.isExclusion() {
 					return sqlError("42809", "ON CONFLICT DO UPDATE not supported with exclusion constraints")
@@ -233,7 +252,7 @@ func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationD
 			c.selected = append(c.selected, index.address)
 		}
 	}
-	if (len(c.keys) != 0 || c.constraint != "") && len(c.selected) == 0 {
+	if (len(c.keys) != 0 || c.constraint != (ObjectAddress{})) && len(c.selected) == 0 {
 		return sqlError("42P10", "there is no unique or exclusion constraint matching the ON CONFLICT specification")
 	}
 	c.catalog = view.state

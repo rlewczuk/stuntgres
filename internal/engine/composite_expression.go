@@ -20,8 +20,9 @@ type rowExpression struct {
 	presenceSlot   int
 	presenceFrame  uint32
 	mergeSource    bool
-	returningWhole bool // Direct whole-row member projection uses the RETURNING output frame.
-	returningNull  bool // DELETE's scalar NEW whole row is NULL, independently of projection.
+	returningWhole bool   // Direct whole-row member projection uses the RETURNING output frame.
+	returningNull  bool   // DELETE's scalar NEW whole row is NULL, independently of projection.
+	ruleSide       uint32 // Resolved OLD/NEW whole-row identity, including zero members.
 	expansions     map[int]compositeExpansionBinding
 }
 
@@ -360,6 +361,10 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (compositeExpan
 // asValue distinguishes an alias value (bare name or scalar star) from the
 // exposed-column expansion used by a top-level qualified star or ROW(alias.*).
 func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position, asValue bool) (BoundExpr, error) {
+	if b.ruleNamespace != nil && len(name.Parts) == 1 && (name.Parts[0].Text == "old" || name.Parts[0].Text == "new") {
+		row, _, err := b.ruleColumn(parser.ColumnExpr{Name: name, Pos: pos})
+		return row, err
+	}
 	if b.returningAliases != nil && len(name.Parts) == 1 {
 		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.relation, b.frameID(), b.returningAliases, pos); found {
 			return expr, err

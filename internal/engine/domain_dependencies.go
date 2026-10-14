@@ -197,16 +197,30 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					}
 					continue
 				}
+				var name string
+				for _, rule := range d.rules {
+					if ruleDepends(stage.base, rule, target) {
+						if name == "" {
+							name = dependencyRelationName(stage.base, d, stage.dependencyPath)
+						}
+						direct = append(direct, domainDependency{address: ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, target: target, root: root, oid: rule.OID, label: "rule " + dependencyIdentifier(rule.Name) + " on " + relationDiagnosticKind(d) + " " + name, relation: d})
+					}
+				}
 				if d.view != nil {
 					if viewDepends(d, target) {
-						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: relationDiagnosticKind(d) + " " + dependencyRelationName(stage.base, d, stage.dependencyPath), relation: d})
+						if name == "" {
+							name = dependencyRelationName(stage.base, d, stage.dependencyPath)
+						}
+						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: relationDiagnosticKind(d) + " " + name, relation: d})
 					}
 					continue
 				}
 				if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != compositeRelation {
 					continue
 				}
-				name := dependencyRelationName(stage.base, d, stage.dependencyPath)
+				if name == "" {
+					name = dependencyRelationName(stage.base, d, stage.dependencyPath)
+				}
 				if d.ofType == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "table " + name, relation: d})
 					continue

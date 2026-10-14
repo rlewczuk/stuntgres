@@ -51,8 +51,10 @@ type viewLeaf struct {
 }
 
 type viewColumn struct {
-	frame uint32
-	slot  int
+	frame    uint32
+	slot     int
+	ruleRef  ObjectRef
+	ruleSide uint32
 }
 
 // Namespace labels and frame slots are immutable analysis metadata, not an

@@ -101,6 +101,44 @@ Feature smoke: `make check RUN='^TestReferenceRangeInspectFeatureSmoke$'`;
 pinned counterpart:
 `make check RUN='^TestReferenceRangeInspectFeatureSmoke$' REFERENCE=1`.
 
+## Rewrite rules — change note
+
+`CREATE [OR REPLACE] RULE`, `ALTER RULE ... RENAME TO` and `DROP RULE`
+install identity-bound, pre-execution query rewrites for INSERT/UPDATE/DELETE.
+ALSO, INSTEAD, NOTHING, conditions and ordered action lists compose existing
+typed queries and mutations; OLD/NEW are query recipes, not row-trigger callbacks.
+SELECT `_RETURN` replacement on an existing ordinary view reuses its view
+definition and fixed output layout. Same-event rules expand alphabetically,
+with current event-owner authorization and ordinary dependency/prepared fences.
+Rewritten DML has one atomic publication, including data-modifying CTE consumers;
+persistent rules restore after table data so fixture imports do not fire them.
+Demanded original/action/CTE producers prepare before effects; supplied parameters
+specialize privately per execution without evaluating unused pure projections.
+Conflict actions, including stored action-owned modifying CTEs, own fresh
+command-local state and retain stable target/EXCLUDED column identities across
+metadata changes. Independent unqualified UPDATE/DELETE actions retain current
+event-owner source authority even with zero event rows; inherited input sources
+keep caller authority, including security-invoker view bases during mutation
+source recollection. Native rule export retains explicit conflict-inference
+collation/operator-class restrictions and modifying-CTE source presentation.
+Original RETURNING suppresses auxiliary SELECT outputs, not action execution
+or errors.
+Provider RESTRICT includes ordinary rules attached to views; CASCADE retires
+dependent rules without dropping their event view or unrelated ordinary rules.
+Named conflict actions retain the actual constraint identity for dependency
+retirement and current-name export; rename and old-name reuse do not retarget
+restored rules.
+Native rule DDL remains autocommit-only. Procedural triggers, MERGE rule
+events/actions and NOTIFY transport are not introduced.
+
+See [native rule boundaries](docs/DIALECT.md#rewrite-rules),
+[prepared results](docs/DRIVER.md#prepared-catalog-and-path-invalidation),
+[fixture controls](docs/FIXTURES.md), [atomic publication](docs/TRANSACTIONS.md#rewrite-rule-publication),
+and the owning [rule](reference/views/README.md#rewrite-rules) and
+[CTE](reference/dml/README.md#data-modifying-cte-contracts) testing inventories.
+Feature smoke: `make check RUN='^TestReferenceRuleFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRuleFeatureSmoke$'`.
+
 ## Namespace catalog metadata — change note
 
 `pg_catalog.pg_namespace` exposes the PostgreSQL 18 four-column schema:
@@ -3005,7 +3043,8 @@ independent stored subqueries retain SELECT rights under their defining layer.
 Their frozen attribute layouts consume live selected rows, including own changes.
 Native Dump/Restore retains definitions and committed base rows, with future
 view writes remapped after Restore. INSERT RETURNING uses the logical view
-projection and owner/invoker authority; trigger/rule-based writes remain excluded. View-write smoke:
+projection and owner/invoker authority; explicit query rules now precede automatic
+lowering, while procedural trigger writes remain excluded. View-write smoke:
 `make check RUN='^TestReferenceViewUpdatableSmoke$'` (also with `REFERENCE=1`).
 
 Change note: automatically updatable views support `WITH [LOCAL | CASCADED]
@@ -3017,7 +3056,9 @@ explicit checks; CASCADED also checks every lower predicate, including beneath a
 no-WHERE layer. The innermost failing checked view is named; diagnostic row detail
 uses the actual actor's base-column disclosure rights. Held writes observe
 current modes/sources, and native Dump/Restore preserves modes and future writes.
-INSTEAD rules/triggers remain external provider boundaries, not native no-ops.
+INSTEAD query rules invalidate affected inherited checks; each fresh action
+target still enforces its own checks. Procedural triggers remain an external
+provider boundary, not native no-ops.
 Check-option smoke: `make check RUN='^TestReferenceViewCheckFeatureSmoke$'`
 (also with `REFERENCE=1`).
 
@@ -4227,8 +4268,10 @@ AS WITH NO DATA does not execute its query at all: the destination is empty and
 auxiliary targets remain unchanged. This is not an exception to modifier
 completion inside an executing LIMIT 0 query.
 
-SEARCH/CYCLE and rule/trigger/FDW/hierarchy providers retain their
-existing exclusions. PostgreSQL separately prohibits recursive DML self-reference
-and conditional INSTEAD, ALSO or multi-statement INSTEAD target rules.
+SEARCH/CYCLE and trigger/FDW/hierarchy providers retain their existing exclusions.
+Rule rewrites preserve original auxiliary identity and atomic completion when
+they leave one executable query; zero/multiple expansion retains PostgreSQL's
+INSTEAD NOTHING/conditional/ALSO/multi-statement diagnostics. PostgreSQL separately
+prohibits recursive DML self-reference.
 See [PostgreSQL modifying WITH](https://www.postgresql.org/docs/18/queries-with.html#QUERIES-WITH-MODIFYING)
 and [selected proof and standalone smoke](reference/dml/README.md#data-modifying-cte-contracts).

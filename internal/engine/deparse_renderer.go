@@ -19,6 +19,8 @@ type pgRenderer struct {
 	nonstandardStrings bool
 	showImplicit       bool
 	unknownTextLiteral bool
+	columnSQL          func(columnExpression) (string, error)
+	nodeSQL            func(BoundExpr) (string, bool, error)
 }
 
 func pgIdentifier(name string) string {
@@ -349,6 +351,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	if node == nil || node.ResultUsage().Type == nil {
 		return "", fmt.Errorf("stuntgres: missing deparse node")
 	}
+	if r.nodeSQL != nil {
+		if text, handled, err := r.nodeSQL(node); handled || err != nil {
+			return text, err
+		}
+	}
 	showImplicit := r.showImplicit
 	r.showImplicit = false
 	child := func(n BoundExpr) (string, error) { return r.sql(ctx, n, pgRenderParent{}) }
@@ -475,6 +482,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: invalid deparse identity keyword")
 		}
 	case columnExpression:
+		if r.columnSQL != nil {
+			return r.columnSQL(n)
+		}
 		return r.attribute(r.relation, n.origin.Address.SubID)
 	case tableOIDExpression:
 		return "tableoid", nil

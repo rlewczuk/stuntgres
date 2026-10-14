@@ -152,7 +152,7 @@ func sameViewRelation(a, b ObjectRef) bool {
 	return a == b
 }
 
-func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement) error {
+func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ObjectRef) error {
 	if b.relation == nil || b.relation.relationKind != viewRelation {
 		return nil
 	}
@@ -179,6 +179,21 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	}
 	cascaded := false
 	for d.relationKind == viewRelation {
+		match := false
+		for _, rule := range d.rules {
+			if rule.event == ruleEvent(stmt) && (len(consumed) == 0 || consumed[0] != ref) {
+				match = true
+				if rule.instead && rule.condition == nil {
+					w.checks = nil
+				}
+			}
+		}
+		if match {
+			if len(w.layers) == 0 {
+				return nil
+			}
+			break
+		}
 		if seen[ref] {
 			return sqlError("42P17", fmt.Sprintf("infinite recursion detected in rules for relation %q", d.name))
 		}
@@ -351,6 +366,12 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		targets = mapped
 		d = source
 		ref = use
+	}
+	for _, rule := range d.rules {
+		if rule.event == ruleEvent(stmt) && rule.instead && rule.condition == nil && (len(consumed) == 0 || consumed[0] != ref) {
+			w.checks = nil
+			break
+		}
 	}
 	w.base, w.ref, w.outputs = d, ref, outputs
 	b.viewWrite = w

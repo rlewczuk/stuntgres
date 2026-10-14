@@ -199,7 +199,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ObjectRef, candi
 	if !ok || store == nil || !sameRelationRowShape(candidate.parent, parent) {
 		return rowVersion{}, nil, "", false, ErrCatalogReplaced
 	}
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
 		return rowVersion{}, nil, "", false, err
 	}

@@ -34,6 +34,7 @@ type lexer struct {
 	insertScalarEntry bool
 	insertStatement   bool // Enables narrow ON CONFLICT lookahead only inside ordinary INSERT.
 	viewQuery         bool // Actual CREATE VIEW body enables check-option lookahead.
+	ruleDefinition    bool // Rule actions use ordinary query expressions, not standalone VALUES replay.
 	insertScalarEnd   int
 	typeInputEntry    bool
 	typeInputMode     bool

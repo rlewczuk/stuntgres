@@ -8,7 +8,7 @@ repository root.
 
 ### Data-modifying CTE contracts
 
-The untagged `cte_dml_{core,execution,diagnostics,metadata,prepared,atomicity,cancellation,controls,nested_invocation}_test.go`
+The untagged `cte_dml_{core,execution,diagnostics,metadata,prepared,atomicity,cancellation,controls,nested_invocation,rule_rewrite}_test.go`
 definitions share direct and genuine held-statement routes in native and pinned
 PostgreSQL 18.0 modes. Expected rows, multiplicities, type names/typmods, metadata,
 primary counts and complete diagnostics are independently specified.
@@ -29,8 +29,8 @@ views and cursors fail at held preparation. CTAS/SELECT INTO use atomic creation
 and modifier effects; CTAS WITH NO DATA creates empty schema without executing
 the query. Recursive DML self-reference is rejected on both backends with42P19,
 the complete PostgreSQL diagnostic and unchanged target rows, through direct and
-held-preparation routes. PostgreSQL rule restriction phases still coexist with
-explicit native rule-syntax boundaries, not fake provider success.
+held-preparation routes. Rule expansion is now a shared native/PostgreSQL
+contract, not a native CREATE RULE syntax boundary.
 
 Prepared tests cover quiet Prepare, all-body/main formal parameters, fresh
 invocations, current ACL/read-only and incompatible result shape. Atomicity
@@ -52,6 +52,22 @@ with `(1,100)` then `(2,200)` independently expect INT4
 preparation is quiet, and nested modifying WITH remains explicitly forbidden.
 The standalone smoke includes the same arithmetic, types, per-call effects and
 direct/held restriction contrast.
+
+`TestReferenceCTEDMLRuleRewrite` preserves the original CTE definition/output
+aliases while legal same-event or cross-event INSTEAD actions replace its
+executable mutation. Repeated/hinted readers share the completed original-key
+spool, LIMIT0/unused modifiers still complete, and physical scans retain entry
+snapshot separation. Late primary failure rolls back earlier auxiliary effects.
+Prepared reuse rechecks caller/action-owner privileges and changed rule targets.
+
+Restrictions are based on the expanded query program, including recursive
+conditional/ALSO/multi-command provenance, rather than declaration action counts.
+INSTEAD NOTHING and multiple executable commands retain exact0A000 diagnostics.
+ALSO NOTHING and single residual conditional-NOTHING commands remain admitted.
+An unused SELECT replacement stays lazy; missing RETURNING consumers and a
+replacement unable to supply original RETURNING retain their exact diagnostics.
+Parent WITH rewrites producing multiple main commands fail before effects.
+
 
 Native-only control phases use real Dump/Reset/Restore and retained raw public
 driver rows; PostgreSQL independently asserts the shared persistent SQL effects.
@@ -75,6 +91,10 @@ make check RUN='^TestReferenceCTEDML(Atomicity|Cancellation|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceCTEDML(Atomicity|Cancellation|FeatureSmoke)$'
 make check RUN='^TestReferenceCTEDMLNestedInvocation$'
 make check REFERENCE=1 RUN='^TestReferenceCTEDMLNestedInvocation$'
+make check RUN='^TestReferenceCTEDML(Restrictions|RuleRewrite)$'
+make check REFERENCE=1 RUN='^TestReferenceCTEDML(Restrictions|RuleRewrite)$'
+make check RUN='^TestRuleCTECommandNormalization$'
+make check RACE=1 RUN='^TestRuleCTECommandNormalization$'
 make check RUN='^TestCTEDML'
 make check RACE=1 RUN='^TestCTEDML(CancellationBeforeFinish|PendingCancellation|TargetReplacementDuringWait|AtomicPublication|CTASPublication|InvocationOwnership|LateFailureIdentity)$'
 make check RACE=1 RUN='^TestReferenceCTEDML(Cancellation|Atomicity|Prepared)$'

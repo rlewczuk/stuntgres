@@ -84,6 +84,7 @@ type projectNode struct {
 	syntax              *parser.Select
 	cteOwner            bool // An invocation boundary, not statement-global producer state.
 	hasTargetSet        bool // Analyzed query flag, independent of constant folding.
+	ruleInvocation      bool // A transplanted input reads the existing lateral invocation.
 }
 
 // Only a physical literal or this execution's imported parameter is row-free.
@@ -144,9 +145,22 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	case *distinctOnNode:
 		return preflightDistinctOn(c, n)
 	case *derivedNode:
-		// Child projections are demanded by the derived stage, not by an
-		// enclosing expression's constant-coercion preflight.
-		return n, nil
+		// Ordinary queries retain their runtime projection frontier. Rule
+		// programs prepare only the child payload retained by producer demand.
+		if !c.planStaticOperators || n.query == nil {
+			return n, nil
+		}
+		root, err := preflightQuery(c, n.query.Root)
+		if err != nil {
+			return nil, err
+		}
+		if root == n.query.Root {
+			return n, nil
+		}
+		copy, query := *n, *n.query
+		query.Root = root
+		copy.query = &query
+		return &copy, nil
 	case *limitNode:
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
@@ -405,6 +419,22 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				}
 				expressions[i] = folded
 			}
+		}
+		if c.planStaticOperators {
+			// Use surviving scalar recipes, not dead conditional branches, to
+			// choose child payload demand. Scalar preparation keeps its usual
+			// precedence over opening/preparing the source.
+			if expressions != nil {
+				copy := *n
+				copy.expressions = expressions
+				n, node = &copy, &copy
+				expressions = nil
+			}
+			demanded, err := ruleQueryProducerDemand(n, nil, 0)
+			if err != nil {
+				return nil, err
+			}
+			n, node = demanded.(*projectNode), demanded
 		}
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
@@ -1192,6 +1222,11 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		child.reset = nil
 		return child, err
 	case *projectNode:
+		if n.ruleInvocation {
+			local := *state
+			local.outer = state.invocation
+			state = &local
+		}
 		if !state.virtualReads {
 			state.virtualReads = queryHasVirtualReads(n)
 		}

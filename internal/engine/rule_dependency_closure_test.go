@@ -1,0 +1,91 @@
+package engine
+
+import (
+	"context"
+	"stuntgres/internal/parser"
+	"testing"
+)
+
+func TestRuleViewExpressionDependencyClosure(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	for _, q := range []string{
+		"CREATE DOMAIN rule_domain AS INT CHECK(VALUE>=0)",
+		"CREATE TABLE base(id INT)", "CREATE VIEW event_v AS SELECT id FROM base", "CREATE TABLE sink(id INT)",
+		"CREATE RULE r AS ON INSERT TO event_v DO INSTEAD INSERT INTO sink VALUES(NEW.id::rule_domain)",
+		"CREATE RULE keep_r AS ON DELETE TO event_v DO ALSO NOTHING",
+	} {
+		sessionSQL(t, s, q)
+	}
+	view := e.CatalogRead()
+	eventRef := catalogRef(t, e, view, "event_v")
+	baseRef := catalogRef(t, e, view, "base")
+	event := view.state.descriptors[eventRef.Address].(*relationDescriptor)
+	var provider ObjectAddress
+	for address, descriptor := range view.state.descriptors {
+		if address.ClassID == TypeClassID && descriptor.Name() == "rule_domain" {
+			provider = address
+			break
+		}
+	}
+	if provider == (ObjectAddress{}) {
+		t.Fatal("missing analyzed domain fixture")
+	}
+	var ruleOID OID
+	for _, rule := range event.rules {
+		if rule.Name == "r" {
+			ruleOID = rule.OID
+		}
+	}
+	if ruleOID == 0 {
+		t.Fatal("missing analyzed ordinary rule fixture")
+	}
+	if viewDepends(event, provider) {
+		t.Fatal("domain entered the view's unrelated SELECT definition")
+	}
+	closure := func(target ObjectAddress) []domainDependency {
+		t.Helper()
+		edges, err := domainDependencyClosure(context.Background(), e.BeginCatalogStage(view), []ObjectAddress{target})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return edges
+	}
+	ruleAddress := ObjectAddress{ClassID: 2618, ObjectID: ruleOID}
+	found := false
+	for _, edge := range closure(provider) {
+		if edge.address == event.address {
+			t.Fatal("ordinary rule dependency retired its event view", edge)
+		}
+		if edge.address == ruleAddress {
+			found = true
+			if edge.target != provider || edge.root != provider || edge.relation != event || edge.automatic {
+				t.Fatal("ordinary rule edge lost object/owner/provider authority", edge)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("central expression closure omitted ordinary view-attached rule")
+	}
+	// The separately analyzed SELECT definition remains the event relation's edge.
+	foundView := false
+	for _, edge := range closure(baseRef.Address) {
+		if edge.address == event.address {
+			foundView = edge.target == baseRef.Address && edge.root == baseRef.Address
+		}
+	}
+	if !foundView {
+		t.Fatal("view SELECT definition disappeared from the same canonical closure")
+	}
+	stage := e.BeginCatalogStage(view)
+	if err := stageRuleDependents(stage, []ObjectAddress{provider}, parser.DropCascade); err != nil {
+		t.Fatal(err)
+	}
+	current := e.stageRead(stage).state.descriptors[event.address].(*relationDescriptor)
+	if current.view != event.view || len(current.rules) != 1 || current.rules[0].Name != "keep_r" {
+		t.Fatal("rule-only retirement changed SELECT identity or unrelated ordinary rule")
+	}
+	if len(event.rules) != 2 {
+		t.Fatal("staged retirement mutated published event rules")
+	}
+}

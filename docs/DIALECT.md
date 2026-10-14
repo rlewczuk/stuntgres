@@ -152,6 +152,69 @@ are supplied. Gather promises no row order; supported ORDER BY merges sorted
 worker runs with the serial typed comparator. Cancellation joins all workers
 and discards unexposed output, preserving the primary error.
 
+## Rewrite rules
+
+`CREATE [OR REPLACE] RULE`, `ALTER RULE ... RENAME TO` and `DROP RULE`
+support identity-bound INSERT/UPDATE/DELETE query rewrites, including ALSO,
+INSTEAD, NOTHING, boolean qualifications, OLD/NEW and action lists. Expansion
+precedes execution, uses alphabetical same-event order and detects recursive
+relation/event ancestry before effects. It is not procedural row-trigger execution.
+Actions use current event-relation-owner authority while the original command
+retains caller authorization, parameter/result contracts and atomic publication.
+Original RETURNING is the sole published result when present, including its empty
+schema; auxiliary SELECT actions still execute and participate in atomic failure.
+Without original RETURNING, direct/held SELECT-action transport retains the
+separately documented driver behavior. Unqualified UPDATE/DELETE actions without
+OLD/NEW demand can execute even when the original command affects zero rows.
+Their rule-added sources use the current event owner, including owner changes
+observed by the same held statement; only retained original sources keep caller
+or explicitly effective source authority.
+That authority also survives execution-time recollection through security-invoker
+views; the action owner's grants cannot replace required caller input grants.
+
+All demanded original/action/normalized-CTE producers prepare before effects.
+Rule-program supplied parameters specialize as operation-private typed values;
+ordinary parameter-demand policy and row/domain/volatile runtime barriers remain.
+Unused pure derived payloads and dead literal conditional branches are not evaluated.
+Conflict execution state is command-private, including every stored action-owned
+modifying CTE body; target/EXCLUDED frame layouts and ACL manifests follow stable
+attributes rather than saved dense slots. Repeated execution, failure recovery,
+concurrent physical sessions and restored future writes do not share conflict
+bookkeeping; intra-command cardinality checks remain enforced.
+Native rule export retains explicit inference collation and operator-class
+restrictions, current attribute names and each modifying CTE's own query
+presentation. Restoration does not broaden future unique-index inference.
+Provider RESTRICT also checks ordinary DML rules attached to views, independently
+of the SELECT definition. CASCADE retires dependent rules while preserving the
+event view and unrelated rules. OLD/NEW cast inputs use the existing rule lexical
+namespace and canonical type/coercion pipeline, not a separate scalar evaluator.
+Named conflict targets capture their constraint object, not a creation-time
+spelling or an inferred index dependency. RESTRICT/CASCADE and `pg_depend` use
+that normal constraint edge. Export resolves its current canonical name, and
+native definition reminting propagates identity through immediate and modifying
+CTE actions; renaming or reusing the old spelling never selects another provider.
+
+SELECT rules bridge only an existing ordinary view's unconditional single
+INSTEAD SELECT `_RETURN`, preserving its exact output layout; modifying WITH in
+that SELECT rule action is rejected. Explicit DML
+rules are consulted at each reached view layer before automatic write lowering;
+fresh action targets retain their own CHECK OPTION enforcement. Recursion,
+ON CONFLICT and RETURNING restrictions use PostgreSQL 18 diagnostics rather
+than partial execution. Top action WITH bodies, and an INSERT source SELECT's
+own WITH bodies, cannot reference OLD/NEW; nested correlated WITHs are not
+blanket-banned.
+
+Native rule DDL is autocommit-only, including prepared execution; this differs
+from PostgreSQL transactional DDL. MERGE events/actions, procedural triggers
+and LISTEN/NOTIFY transport remain unavailable. Persistent rules participate
+in dependency cleanup and post-data logical Dump/Restore.
+DO UPDATE actions implicitly capture dependencies on every target column present
+in their initial EXCLUDED targetlist, independently of actual column ACL reads.
+Later-added unreferenced columns can be dropped; initial captured columns require
+ordinary RESTRICT/CASCADE handling. DO NOTHING has no such implicit EXCLUDED capture.
+See [rule tests](../reference/views/README.md#rewrite-rules) and
+[CREATE RULE](https://www.postgresql.org/docs/18/sql-createrule.html).
+
 ## Data-modifying CTEs
 
 Nonrecursive modifying WITH uses the installed INSERT/UPDATE/DELETE/MERGE
@@ -165,8 +228,11 @@ Nested modifying WITH and referenced no-RETURNING output are rejected. Ordinary
 views reject modifying WITH at execution, including held statements; materialized
 views and cursors reject it at held preparation. Existing CTAS/SELECT INTO remain
 admitted consumers. CTAS WITH NO DATA creates empty schema without executing the
-query or its modifiers. Recursive/SEARCH/CYCLE, rule/trigger/FDW and hierarchy
-provider exclusions remain unchanged. No portable same-row overlap winner or
+query or its modifiers. Recursive/SEARCH/CYCLE, trigger/FDW and hierarchy
+provider exclusions remain unchanged. Rule expansion must leave exactly one
+admitted auxiliary query; zero/multiple expansions retain the documented
+INSTEAD NOTHING/conditional/ALSO/multi-statement restrictions. A single SELECT
+replacement remains lazy when unused. No portable same-row overlap winner or
 sibling execution order is promised. See [query ownership](QUERIES.md) and
 [PostgreSQL restrictions](https://www.postgresql.org/docs/18/queries-with.html#QUERIES-WITH-MODIFYING).
 
@@ -327,8 +393,8 @@ The native physical fields are explicit boundaries, not approximated storage:
   physical user tablespaces. User table/MV/partition replica-identity defaults
   likewise do not implement replication.
 - `relhastriggers` is false: native FK execution is logical, not PostgreSQL's
-  internal trigger machinery. View `_RETURN` compatibility flags do not add
-  general CREATE RULE execution or a trigger catalog.
+  internal trigger machinery. `relhasrules` describes installed user rules and
+  view `_RETURN` definitions; query rewriting does not introduce a trigger catalog.
 
 `relhasindex` and `relhassubclass` are immutable lazy publication histories;
 removing the last actual index/child does not clear them. All nineteen represented

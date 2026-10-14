@@ -1,0 +1,189 @@
+package engine
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+)
+
+func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+	e.mu.Lock()
+	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	if count != 0 {
+		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
+	}
+	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
+	if err != nil {
+		return fail(err)
+	}
+	var table parser.ObjectName
+	var name string
+	switch s := stmt.(type) {
+	case *parser.CreateRule:
+		table, name = s.Table, s.Name.Text
+	case *parser.AlterRule:
+		table, name = s.Table, s.Name.Text
+	case *parser.DropRule:
+		table, name = s.Table, s.Name.Text
+	}
+	ref, err := e.resolveRelationReference(auth, table, true)
+	if err != nil {
+		if s, ok := stmt.(*parser.DropRule); ok && s.IfExists && renameMissing(err) {
+			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`relation "%s" does not exist, skipping`, objectNameText(table)))
+		}
+		return fail(err)
+	}
+	if ref != scope.lockedRef {
+		return fail(ErrCatalogReplaced)
+	}
+	old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	index := ruleIndex(old, name)
+	if s, ok := stmt.(*parser.DropRule); ok && index < 0 && !(old.view != nil && name == "_RETURN") {
+		if s.IfExists {
+			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`rule "%s" for relation "%s" does not exist, skipping`, name, old.name))
+		}
+		return fail(ruleMissing(name, old))
+	}
+	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		return fail(err)
+	}
+	if old.relationKind == materializedViewRelation {
+		return fail(sqlError("0A000", "rules on materialized views are not supported"))
+	}
+	if old.relationKind != tableRelation && old.relationKind != partitionedRelation && old.relationKind != viewRelation {
+		return fail(tableKind(old, "change"))
+	}
+	next := *old
+	next.rules = slices.Clone(old.rules)
+	var sources []queryLeaf
+	switch s := stmt.(type) {
+	case *parser.CreateRule:
+		if strings.EqualFold(s.Event, "SELECT") {
+			if old.relationKind != viewRelation {
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`relation "%s" cannot have ON SELECT rules`, old.name), Detail: "This operation is not supported for tables."})
+			}
+			if !s.Instead || len(s.Actions) == 0 {
+				return fail(sqlError("0A000", "rules on SELECT must have action INSTEAD SELECT"))
+			}
+			if len(s.Actions) > 1 {
+				return fail(sqlError("0A000", "multiple actions for rules on SELECT are not implemented"))
+			}
+			query, ok := s.Actions[0].(*parser.Select)
+			if !ok {
+				return fail(sqlError("0A000", "rules on SELECT must have action INSTEAD SELECT"))
+			}
+			if s.Condition != nil {
+				return fail(sqlError("0A000", "event qualifications are not implemented for rules on SELECT"))
+			}
+			if name != "_RETURN" {
+				return fail(sqlError("42P17", fmt.Sprintf(`view rule for "%s" must be named "_RETURN"`, old.name)))
+			}
+			if !s.Replace {
+				return fail(sqlError("55000", fmt.Sprintf(`"%s" is already a view`, old.name)))
+			}
+			creation := &parser.CreateView{Name: s.Table, Query: query, Replace: true, Pos: s.Pos}
+			var analysis parser.Statement = creation
+			if parser.HasModifyingCTE(query) {
+				analysis = query
+			}
+			b, err := e.describeWithRule(scope.op.Context(), analysis, auth, ObjectRef{}, scope.input, scope.op, nil, nil, &ruleNamespace{relation: old, ref: ref, event: "SELECT"})
+			if err != nil {
+				return fail(err)
+			}
+			if parser.HasModifyingCTE(query) {
+				return fail(sqlError("0A000", "rules on SELECT must not contain data-modifying statements in WITH"))
+			}
+			if err := ruleResultCheck(old, b.query.Root.Schema(), true); err != nil {
+				return fail(err)
+			}
+			temporary := old.view.temporary != (SessionToken{})
+			definition, err := e.freezeViewDefinitionLocked(auth, query, b, old.view.barrier, old.view.invoker, old.view.rule, viewRelation, temporary)
+			if err != nil {
+				return fail(err)
+			}
+			definition.options = old.view.options
+			definition.checkOption = old.view.checkOption
+			next.view = definition
+			sources = b.querySources
+		} else {
+			if name == "_RETURN" {
+				return fail(sqlError("42P17", "non-view rule must not be named \"_RETURN\""))
+			}
+			if index >= 0 && !s.Replace {
+				return fail(ruleDuplicate(name, old))
+			}
+			definition, err := e.bindRuleDefinitionLocked(scope, auth, old, ref, s)
+			if err != nil {
+				return fail(err)
+			}
+			if index >= 0 {
+				definition.OID = old.rules[index].OID
+				next.rules[index] = definition
+			} else {
+				definition.OID, err = e.allocateOIDLocked()
+				if err != nil {
+					return fail(err)
+				}
+				next.rules = append(next.rules, definition)
+			}
+			for _, action := range definition.actions {
+				sources = append(sources, action.binding.querySources...)
+			}
+			if definition.conditionPresentation != nil {
+				for _, source := range definition.conditionPresentation.sources {
+					d := auth.catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+					sources = append(sources, queryLeaf{ref: source.ref, relation: d})
+				}
+			}
+		}
+	case *parser.AlterRule:
+		if old.view != nil && name == "_RETURN" {
+			return fail(sqlError("42P17", "renaming an ON SELECT rule is not allowed"))
+		}
+		if index < 0 {
+			return fail(ruleMissing(name, old))
+		}
+		if ruleIndex(old, s.Rename.Text) >= 0 || old.view != nil && s.Rename.Text == "_RETURN" {
+			return fail(ruleDuplicate(s.Rename.Text, old))
+		}
+		next.rules[index].Name = s.Rename.Text
+	case *parser.DropRule:
+		if old.view != nil && name == "_RETURN" {
+			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop rule _RETURN on view %s because view %s requires it", old.name, old.name), Hint: fmt.Sprintf("You can drop view %s instead.", old.name)})
+		}
+		next.rules = append(next.rules[:index], next.rules[index+1:]...)
+	}
+	slices.SortFunc(next.rules, func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
+	next.revision, err = e.revisionLocked()
+	if err != nil {
+		return fail(err)
+	}
+	if next.view != old.view {
+		next.view.quoteRevision = next.revision
+	}
+	stage := e.BeginCatalogStage(auth.catalog)
+	stage.authorizeLocked(auth, scope.op.session)
+	for _, source := range sources {
+		stage.querySources = append(stage.querySources, source.relation)
+	}
+	e.mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
+	if scope.replacementRead {
+		e.replacementMu.RUnlock()
+		scope.replacementRead = false
+	}
+	if err = stage.Replace(&next); err == nil {
+		var prepared *PreparedCatalogPublication
+		prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
+		if err == nil {
+			_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+		}
+	}
+	if err != nil {
+		return Result{}, err
+	}
+	scope.completed = true
+	return Result{}, nil
+}

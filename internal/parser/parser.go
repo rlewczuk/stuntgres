@@ -108,6 +108,9 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 // retaining parentheses and ORDER/bounds on the original source. Set arms keep
 // query expressions; original input, options and absolute positions stay authoritative.
 func (l *lexer) validateInsertValues(values *ValuesQuery) bool {
+	if l.ruleDefinition {
+		return true
+	}
 	replay := &lexer{input: l.input, offset: values.Pos.Offset + len("values"), options: l.options,
 		backslashEscapes: l.backslashEscapes, insertScalarEntry: true, insertScalarEnd: values.rowEnd}
 	if parseLexer(replay) != 0 || replay.err != nil {

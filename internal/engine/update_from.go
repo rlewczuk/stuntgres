@@ -47,8 +47,8 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	// source or target. Only the recursion path detects cycles; shared views
 	// retain each occurrence's row marks without a permission cache.
 	var active []ObjectRef
-	var authorize func(ObjectRef, queryRowMark) error
-	authorize = func(ref ObjectRef, mark queryRowMark) error {
+	var authorize func(ObjectRef, authorization.PrincipalRef, queryRowMark) error
+	authorize = func(ref ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
 		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if !ok || ref.owner != e.owner || ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
@@ -62,7 +62,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			}
 		}
 		mark = effectiveQueryRowMark(relation, mark)
-		if err := authorizeViewSourceSnapshot(auth, ref, relation.view, invoker, mark); err != nil {
+		if err := authorizeViewSourceSnapshot(auth, ref, relation.view, sourceInvoker, mark); err != nil {
 			return err
 		}
 		active = append(active, ref)
@@ -75,7 +75,9 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			if err != nil {
 				return err
 			}
-			if err := authorize(use, viewLeafRowMark(relation.view, i, mark)); err != nil {
+			// Nested invoker views retain this occurrence's original invoker;
+			// each definer view selects its own owner in the canonical check.
+			if err := authorize(use, sourceInvoker, viewLeafRowMark(relation.view, i, mark)); err != nil {
 				return err
 			}
 		}
@@ -83,7 +85,11 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	}
 	for _, leaf := range leaves {
 		if !leaf.analysisOnly {
-			if err := authorize(leaf.ref, mergeQueryRowMark(inherited, leaf.mark)); err != nil {
+			principal := leaf.principal
+			if principal == (authorization.PrincipalRef{}) {
+				principal = invoker
+			}
+			if err := authorize(leaf.ref, principal, mergeQueryRowMark(inherited, leaf.mark)); err != nil {
 				return nil, err
 			}
 		}

@@ -4,6 +4,8 @@ package parser
 %union {
  tok lexeme
  stmt Statement
+ statements []Statement
+ rule *CreateRule
  insertStmt *Insert
  copyStmt *Copy
  copyOption CopyOption
@@ -247,6 +249,7 @@ package parser
 %token <tok> INCLUDE TABLESPACE
 %token <tok> EXCLUDE
 %token <tok> POLICY
+%token <tok> RULE ALSO INSTEAD NOTIFY
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -323,6 +326,12 @@ package parser
 %type <stmt> truncate_table
 %type <tok> truncate_identity
 %type <stmt> create_policy alter_policy drop_policy
+%type <stmt> create_rule alter_rule drop_rule rule_action
+%type <rule> rule_head
+%type <tok> rule_event
+%type <expr> rule_condition
+%type <desc> rule_instead
+%type <statements> rule_actions rule_action_list
 %type <tok> policy_command policy_option
 %type <desc> policy_permissive
 %type <grantGrantees> policy_roles
@@ -596,7 +605,7 @@ package parser
 %type <sequenceOption> identity_option identity_set_option
 %type <override> insert_override
 %type <stmt> merge
-%type <stmt> cte_body with_mutation
+%type <stmt> cte_body with_mutation with_rule_mutation
 %type <mergeArms> merge_arms
 %type <mergeArm> merge_arm merge_insert
 %type <expr> merge_condition
@@ -662,8 +671,10 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | alter_conversion | drop_conversion
  | refresh_materialized_view
  | create_policy | alter_policy | drop_policy
+ | create_rule | alter_rule | drop_rule
  | alter_composite | drop_composite | alter_table_of
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
+ | NOTIFY { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  ;
@@ -675,6 +686,34 @@ tablespace_owner: /* empty */ {$$=nil}
 tablespace_location: KW_U {if $1.text!="location" {sqllex.(*lexer).syntax($1);return 1}} ;
 tablespace_options: /* empty */ {$$=nil}
  | WITH '(' maintenance_index_option_list ')' {$$=$3} ;
+rule_head: CREATE RULE name AS ON rule_event TO relation_name {
+ sqllex.(*lexer).ruleDefinition=true
+ $$=&CreateRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Event:$6.text,Table:$8,Pos:$1.pos}
+} | CREATE OR replace_word RULE name AS ON rule_event TO relation_name {
+ sqllex.(*lexer).ruleDefinition=true
+ $$=&CreateRule{Name:Identifier{Text:$5.text,Pos:$5.pos},Event:$8.text,Table:$10,Replace:true,Pos:$1.pos}
+} ;
+create_rule: rule_head rule_condition DO rule_instead rule_actions {
+ $1.Condition=$2;$1.Instead=$4;$1.Actions=$5;$$=$1
+ sqllex.(*lexer).ruleDefinition=false
+} ;
+rule_event: SELECT | INSERT | UPDATE | DELETE ;
+rule_condition: /* empty */ {$$=nil} | WHERE target_or {$$=$2} ;
+rule_instead: /* empty */ {$$=false} | ALSO {$$=false} | INSTEAD {$$=true} ;
+rule_actions: NOTHING {$$=nil} | rule_action {$$=[]Statement{$1}}
+ | '(' rule_action_list ')' {$$=$2} | '(' rule_action_list ';' ')' {$$=$2} ;
+rule_action_list: rule_action {$$=[]Statement{$1}} | rule_action_list ';' rule_action {$$=append($1,$3)} ;
+rule_action: select | insert | update | delete | with_rule_mutation
+ | NOTIFY name {$$=&Notify{Channel:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos}}
+ | NOTIFY name ',' STRING {$$=&Notify{Channel:Identifier{Text:$2.text,Pos:$2.pos},Payload:$4.text,Pos:$1.pos}} ;
+alter_rule: ALTER RULE name ON relation_name RENAME TO name {
+ $$=&AlterRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Rename:Identifier{Text:$8.text,Pos:$8.pos},Pos:$1.pos}
+} ;
+drop_rule: DROP RULE name ON relation_name drop_mode {
+ $$=&DropRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Mode:$6,Pos:$1.pos}
+} | DROP RULE IF EXISTS name ON relation_name drop_mode {
+ $$=&DropRule{Name:Identifier{Text:$5.text,Pos:$5.pos},Table:$7,IfExists:true,Mode:$8,Pos:$1.pos}
+} ;
 create_policy: CREATE POLICY name ON relation_name policy_permissive policy_command policy_roles policy_using policy_check {
  $$=&CreatePolicy{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Permissive:$6,Command:$7.text,Roles:$8,Using:$9,Check:$10,Pos:$1.pos}
 } ;
@@ -1657,7 +1696,7 @@ merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPo
  | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
  | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
  | INSERT DEFAULT VALUES { $$=MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
-delete: DELETE FROM relation_name delete_alias delete_using mutation_where returning { if $5==nil {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
+delete: DELETE FROM relation_name delete_alias delete_using mutation_where returning { if $5==nil && !sqllex.(*lexer).ruleDefinition {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_using mutation_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
@@ -1923,9 +1962,10 @@ cte_list: cte_definition { $$=[]CommonTableExpression{$1} }
  | cte_list ',' cte_definition { $$=append($1,$3) } ;
 cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4} } ;
 cte_body: query_select { $$=$1 } | insert | update | delete | merge | with_mutation ;
-with_mutation: with_clause insert { $2.(*Insert).With=$1.Definitions;$2.(*Insert).WithRecursive=$1.Recursive;$$=$2 }
+with_rule_mutation: with_clause insert { $2.(*Insert).With=$1.Definitions;$2.(*Insert).WithRecursive=$1.Recursive;$$=$2 }
  | with_clause update { $2.(*Update).With=$1.Definitions;$2.(*Update).WithRecursive=$1.Recursive;$$=$2 }
- | with_clause delete { $2.(*Delete).With=$1.Definitions;$2.(*Delete).WithRecursive=$1.Recursive;$$=$2 }
+ | with_clause delete { $2.(*Delete).With=$1.Definitions;$2.(*Delete).WithRecursive=$1.Recursive;$$=$2 } ;
+with_mutation: with_rule_mutation { $$=$1 }
  | with_clause merge { $2.(*Merge).With=$1.Definitions;$2.(*Merge).WithRecursive=$1.Recursive;$$=$2 } ;
 cte_materialization: /* empty */ { $$=CTEDefault }
  | MATERIALIZED { $$=CTEMaterialized }
@@ -2289,7 +2329,7 @@ setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
-window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY
+window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
@@ -2317,6 +2357,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | COLLATION
  | EXCLUDE
  | POLICY
+ | RULE | ALSO | INSTEAD | NOTIFY
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | WITHIN | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;

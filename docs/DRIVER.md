@@ -388,6 +388,21 @@ supply fresh result metadata, even for empty results; already returned rows reta
 their prior metadata. No-output DML has no result-shape fence, but RETURNING does,
 and a rejected shape publishes no write effects.
 
+Rule definition changes participate in the same transitive prepared-analysis
+fences. Reuse expands current rules and rechecks the caller, event owner and
+action-source privileges; it does not retain grants or an executed producer.
+The original parameter/RETURNING signature remains authoritative when actions
+target different relations, and compatible `_RETURN` replacement refreshes a
+held view query without changing its described layout.
+
+Direct Query may expose rule SELECT-action result sets. An actual Go-held
+non-RETURNING INSERT retains empty result metadata/no action rowsets while those
+actions still execute; repeating direct Query is not prepared coverage. All
+actions share the original request's clock, timeouts and one publication.
+Rule utility preparation is quiet; native DDL admission occurs at execution and
+remains autocommit-only. See the [owning public scenarios](../reference/views/README.md#rewrite-rules).
+
+
 `pg_catalog.pg_class` uses the PostgreSQL 18 34-column order rather than its former
 native ten-column schema. Positional full-star consumers must update destinations;
 named projections avoid this arity/order upgrade. Catalog readers capture current

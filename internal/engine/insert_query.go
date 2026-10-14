@@ -34,6 +34,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	var query *BoundQuery
 	var err error
 	if sel := s.Source.Select; sel != nil {
+		out.insertSubquerySource = true
 		binder.queryAuth = &auth
 		// INSERT's target is an error namespace entry, not a correlation
 		// source. Keep it hidden when entering the shared SELECT binder.
@@ -46,6 +47,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources
 	} else {
+		out.insertSubquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
 		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.identities) != 0)
 	}
 	if err != nil {

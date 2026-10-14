@@ -10,6 +10,19 @@ type cteCommandExecution struct {
 	definition *cteDefinition
 	execution  preparedCommandExecution
 	mutation   int
+	statement  parser.Statement
+	ruleOwner  bool
+	scratch    ruleCommandScratch
+}
+
+type preparedCTEProgram struct {
+	binding        binding
+	auth           AuthorizationView
+	commands       []cteCommandExecution
+	main           preparedCommandExecution
+	mainScratch    ruleCommandScratch
+	mainMutation   int
+	normalizedRefs []ObjectRef
 }
 
 // This dispatch never binds, imports parameters, creates a scope or publishes.
@@ -19,6 +32,41 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 	if len(b.ctes) == 0 {
 		return e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, nil)
 	}
+	var prepared preparedCTEProgram
+	if _, err := e.prepareCTECommandsLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared); err != nil {
+		return Result{}, err
+	}
+	e.mu.Lock()
+	return e.executePreparedCTECommandsLocked(scope, statement, &prepared, parameters, creationStage, creationDescriptor)
+}
+
+// Prepare the complete auxiliary/primary tree without executing any command.
+// Enter held; all outcomes release Engine.mu.
+func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *relationDescriptor, prepared *preparedCTEProgram) (Result, error) {
+	if len(b.ctes) == 0 {
+		if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared.main); err != nil {
+			return Result{}, err
+		}
+		prepared.binding, prepared.auth = b, auth
+		prepared.mainScratch, prepared.mainMutation = scope.ruleScratch(), scope.activeMutation
+		return Result{}, nil
+	}
+	if err := e.normalizeRuleCTEsLocked(scope, auth, statement, &b); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	// Normalized rule auxiliaries select one preparation policy for the entire
+	// auxiliary/primary program, even when the primary has no rules of its own.
+	if len(b.ruleCTEs) != 0 {
+		evaluation.planStaticOperators = true
+		evaluation.specializeRuleParameters = true
+	}
+	normalizedRefs, err := e.admitRuleCTEsLocked(scope, statement, &b)
+	if err != nil {
+		return Result{}, err
+	}
+	originalRuleAuth := scope.ruleActionAuth
+	defer func() { scope.ruleActionAuth = originalRuleAuth }()
 	main := scope.activeMutation
 	defer scope.activateMutation(main)
 	count, primaryTag := 0, ""
@@ -41,27 +89,63 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 		if definition.mutation == nil {
 			continue
 		}
+		syntax, commandBinding, commandAuth := definition.statement, *definition.mutation, auth
+		rewrite := b.ruleCTEs[definition]
+		if rewrite != nil {
+			if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
+				continue
+			}
+			syntax, commandBinding, commandAuth = rewrite.command.syntax, rewrite.command.binding, rewrite.command.auth
+			scope.ruleActionAuth = &rewrite.command.auth
+		} else {
+			scope.ruleActionAuth = originalRuleAuth
+		}
 		index := scope.mutationIndex(definition.statement)
+		if rewrite != nil {
+			index = rewrite.mutation
+		}
 		if index < 0 {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing admitted CTE target")
 		}
 		scope.activateMutation(index)
-		command := cteCommandExecution{definition: definition, mutation: index, execution: preparedCommandExecution{primaryTag: primaryTag}}
+		command := cteCommandExecution{definition: definition, statement: syntax, ruleOwner: rewrite != nil, mutation: index, execution: preparedCommandExecution{primaryTag: primaryTag}}
 		evaluation.quoteCaptures.sealed = false
-		if _, err := e.executeBoundCommandLocked(scope, definition.statement, *definition.mutation, auth, parameters, evaluation, nil, nil, &command.execution); err != nil {
+		if _, err := e.executeBoundCommandLocked(scope, syntax, commandBinding, commandAuth, parameters, evaluation, nil, nil, &command.execution); err != nil {
 			return Result{}, err
 		}
+		command.scratch = scope.ruleScratch()
 		commands = append(commands, command)
 		e.mu.Lock()
 	}
 	scope.activateMutation(main)
+	scope.ruleActionAuth = originalRuleAuth
 	preparedMain := preparedCommandExecution{primaryTag: primaryTag}
 	evaluation.quoteCaptures.sealed = false
 	if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &preparedMain); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
+	prepared.binding, prepared.auth, prepared.commands = b, auth, commands
+	prepared.main, prepared.mainScratch, prepared.mainMutation = preparedMain, scope.ruleScratch(), main
+	prepared.normalizedRefs = normalizedRefs
+	return Result{}, nil
+}
+
+// Enter held; execute only already prepared commands with the original stage.
+func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, statement parser.Statement, prepared *preparedCTEProgram, parameters []sqltype.Value, creationStage *CatalogStage, creationDescriptor *relationDescriptor) (result Result, failure error) {
+	b, auth, commands := prepared.binding, prepared.auth, prepared.commands
+	scope.activeMutation = prepared.mainMutation
+	scope.installRuleScratch(prepared.mainScratch)
+	if len(b.ctes) == 0 {
+		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
+	}
+	originalRuleAuth := scope.ruleActionAuth
+	main := prepared.mainMutation
+	normalizedRefs := prepared.normalizedRefs
+	defer func() {
+		scope.activateMutation(main)
+		scope.ruleActionAuth = originalRuleAuth
+	}()
 	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -90,7 +174,7 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 	}
 	collectAuth := auth
 	collectAuth.recaptureCatalog(scope.inheritanceRead(auth.catalog))
-	refs, err := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, leaves, nil, scope.op.session.token, queryRowMark{})
+	refs, err := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, leaves, normalizedRefs, scope.op.session.token, queryRowMark{})
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -114,16 +198,40 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 		}
 		source = &querySource{materialized: true, flatCount: 1, authority: scope.authority, locks: scope.queryLocks}
 	}
-	owner := &cteInvocation{frame: b.ctes[0].owner, state: queryState{source: source, parameters: parameters, input: scope.input, output: scope.output, locking: source.locks != nil}}
-	owner.state.ctes = owner
+	previousOwner := scope.cteInvocation
+	owner := previousOwner
+	findOwner := func(frame uint32) *cteInvocation {
+		for current := owner; current != nil; current = current.parent {
+			if current.frame == frame {
+				return current
+			}
+		}
+		return nil
+	}
+	addOwners := func(definitions []*cteDefinition) {
+		for _, definition := range definitions {
+			if findOwner(definition.owner) != nil {
+				continue
+			}
+			current := &cteInvocation{frame: definition.owner, parent: owner, state: queryState{source: source, parameters: parameters, input: scope.input, output: scope.output, locking: source.locks != nil}}
+			current.state.ctes = current
+			owner = current
+		}
+	}
+	addOwners(b.ctes)
+	for i := range commands {
+		addOwners(commands[i].execution.binding.ctes)
+	}
 	scope.cteInvocation = owner
 	defer func() {
-		if err := owner.close(); failure == nil {
-			failure = err
+		for current := owner; current != previousOwner; current = current.parent {
+			if err := current.close(); failure == nil {
+				failure = err
+			}
+			current.state.releaseMemberships()
 		}
-		owner.state.releaseMemberships()
 		source.close()
-		scope.cteInvocation = nil
+		scope.cteInvocation = previousOwner
 		if failure != nil {
 			if result.Rows != nil {
 				result.Rows.Close()
@@ -133,12 +241,21 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 	}()
 	for i := range commands {
 		command := &commands[i]
-		scope.activateMutation(command.mutation)
-		output, err := e.executePreparedCommandLocked(scope, command.definition.statement, &command.execution, parameters, nil, nil)
+		scope.activeMutation = command.mutation
+		scope.installRuleScratch(command.scratch)
+		scope.ruleActionAuth = originalRuleAuth
+		if command.ruleOwner {
+			scope.ruleActionAuth = &command.execution.auth
+		}
+		output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
 		if err != nil {
 			return Result{}, err
 		}
-		if err := owner.completeMutation(command.definition, output); err != nil {
+		commandOwner := findOwner(command.definition.owner)
+		if commandOwner == nil {
+			return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
+		}
+		if err := commandOwner.completeMutation(command.definition, output); err != nil {
 			return Result{}, err
 		}
 		e.mu.Lock()
@@ -152,7 +269,9 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 		}
 	}
 	scope.activateMutation(main)
-	return e.executePreparedCommandLocked(scope, statement, &preparedMain, parameters, creationStage, creationDescriptor)
+	scope.installRuleScratch(prepared.mainScratch)
+	scope.ruleActionAuth = originalRuleAuth
+	return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 }
 
 func (o *cteInvocation) completeMutation(definition *cteDefinition, result Result) error {

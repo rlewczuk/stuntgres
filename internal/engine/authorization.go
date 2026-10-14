@@ -638,18 +638,32 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 		if source.analysisOnly {
 			continue
 		}
-		if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.SelectPrivilege, source.uses); err != nil {
+		sourceAuth := v
+		if source.principal != (authorization.PrincipalRef{}) {
+			sourceAuth.state.CurrentUser = source.principal
+			if err := sourceAuth.roles.ValidatePrincipal(source.principal); err != nil {
+				return err
+			}
+		}
+		if err := sourceAuth.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.SelectPrivilege, source.uses); err != nil {
 			return err
 		}
 	}
 	for _, source := range sources {
+		sourceAuth := v
+		if source.principal != (authorization.PrincipalRef{}) {
+			sourceAuth.state.CurrentUser = source.principal
+			if err := sourceAuth.roles.ValidatePrincipal(source.principal); err != nil {
+				return err
+			}
+		}
 		if effectiveQueryRowMark(source.relation, source.mark).mode != 0 {
-			if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.UpdatePrivilege, nil); err != nil {
+			if err := sourceAuth.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
 		if source.relation.relationKind == viewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
-			if err := v.checkViewRowMarks(source.relation, source.mark, v.state.CurrentUser); err != nil {
+			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.state.CurrentUser); err != nil {
 				return err
 			}
 		}

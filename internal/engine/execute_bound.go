@@ -31,6 +31,12 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
 		e.mu.Unlock()
+		if evaluation.planStaticOperators && deleting {
+			b, err = ruleMutationProducerDemand(b)
+			if err != nil {
+				return Result{}, err
+			}
+		}
 		if b.conflict != nil {
 			if b.conflict.predicate != nil {
 				b.conflict.predicate, err = normalizeConflictPredicate(&evaluation, b.conflict.predicate)
@@ -87,7 +93,19 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if b.merge != nil {
 			err = preflightMerge(&evaluation, b.merge, auth.catalog)
 		} else if b.update != nil {
-			b.update, err = preflightUpdate(&evaluation, b.update)
+			if evaluation.planStaticOperators {
+				b.update, err = preflightUpdate(&evaluation, b.update, func(prepared *boundUpdate) (LogicalNode, error) {
+					demandBinding := b
+					demandBinding.update = prepared
+					demanded, err := ruleMutationProducerDemand(demandBinding)
+					if err != nil {
+						return nil, err
+					}
+					return demanded.update.from, nil
+				})
+			} else {
+				b.update, err = preflightUpdate(&evaluation, b.update)
+			}
 			if err == nil && b.update.from != nil {
 				err = validateQueryJoinExecution(&evaluation, b.update.from, auth.catalog, 0)
 			}
@@ -184,6 +202,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
+		}
+		if scope.ruleActionAuth != nil {
+			auth.state.CurrentUser = scope.ruleActionAuth.state.CurrentUser
+			if err = auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
 		}
 	}
 	switch stmt.(type) {
@@ -303,6 +328,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	// Static operator planning belongs to preparation, never to a later row,
+	// derived provider, or runtime conditional invocation.
+	evaluation.planStaticOperators = false
+	evaluation.specializeRuleParameters = false
 	execution := preparedCommandExecution{binding: b, auth: auth, evaluation: evaluation, queryRoot: queryRoot, expressions: expressions}
 	if prepared != nil {
 		execution.primaryTag = prepared.primaryTag
@@ -437,7 +466,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err := selectQuerySources(ctx, source); err != nil {
 				return Result{}, err
 			}
-			if b.viewWrite != nil {
+			if b.viewWrite != nil || b.ruleTemplate {
 				source = freezeViewWriteSources(scope, source, b.querySources)
 			}
 			b.query = &BoundQuery{Root: queryRoot}
@@ -475,7 +504,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err := selectQuerySources(ctx, evaluation.query.source); err != nil {
 				return Result{}, err
 			}
-			if b.viewWrite != nil {
+			if b.viewWrite != nil || b.ruleTemplate {
 				evaluation.query.source = freezeViewWriteSources(scope, evaluation.query.source, b.querySources)
 			}
 			defer evaluation.query.source.close()
@@ -630,6 +659,9 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		if err := selectQuerySources(ctx, source); err != nil {
 			return Result{}, err
+		}
+		if b.ruleTemplate {
+			source = freezeViewWriteSources(scope, source, b.querySources)
 		}
 		rows, count, queryErr := finalizeSelectQuery(ctx, queryRoot, source, canonical, op.parallelWorkers)
 		if queryErr != nil {

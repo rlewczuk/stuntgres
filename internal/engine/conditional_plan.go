@@ -24,6 +24,67 @@ func decisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
 	return sqltype.Value{}, false, nil
 }
 
+// Searched CASE has a physical-literal decision requiring no expression,
+// conversion, provider or domain evaluation. Demand and simplification share it.
+func literalSearchedCaseMatch(condition BoundExpr) (known, match bool, err error) {
+	literal, ok := condition.(literalExpression)
+	if !ok {
+		return false, false, nil
+	}
+	if literal.value.IsNull() {
+		return true, false, nil
+	}
+	match, err = literal.value.Boolean()
+	return err == nil, match, err
+}
+
+// This walk discovers payload reads without advancing any scalar preflight
+// frontier. Unknown branches retain conservative demand; only the canonical
+// physical literal policies exclude children.
+func walkDemandedBoundExpression(node BoundExpr, visit func(BoundExpr)) {
+	if node == nil {
+		return
+	}
+	visit(node)
+	walk := func(child BoundExpr) { walkDemandedBoundExpression(child, visit) }
+	switch e := node.(type) {
+	case caseExpression:
+		if e.test != nil {
+			boundExpressionChildren(node, walk)
+			return
+		}
+		for _, arm := range e.arms {
+			walk(arm.condition)
+			known, match, err := literalSearchedCaseMatch(arm.condition)
+			if err != nil || !known {
+				walk(arm.result)
+			} else if match {
+				walk(arm.result)
+				return
+			}
+		}
+		walk(e.otherwise)
+	case conditionalExpression:
+		if e.kind != parser.Coalesce {
+			boundExpressionChildren(node, walk)
+			return
+		}
+		for _, arg := range e.args {
+			walk(arg)
+			if literal, ok := arg.(literalExpression); ok && !literal.value.IsNull() {
+				return
+			}
+		}
+	case logicalExpression:
+		walk(e.left)
+		if _, decisive, err := decisiveLogicalValue(&e); err != nil || !decisive {
+			walk(e.right)
+		}
+	default:
+		boundExpressionChildren(node, walk)
+	}
+}
+
 // simplifyConditional folds only immutable SQL constants, never runtime domain
 // truth. Imported parameters remain runtime-owned even without row dependence.
 func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
@@ -111,10 +172,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			known, match := false, false
 			if condition, ok := arm.condition.(literalExpression); ok {
 				if e.test == nil {
-					known = true
-					if !condition.value.IsNull() {
-						match, err = condition.value.Boolean()
-					}
+					known, match, err = literalSearchedCaseMatch(arm.condition)
 				} else if test, ok := e.test.(literalExpression); ok {
 					known = true
 					var view sqltype.Value

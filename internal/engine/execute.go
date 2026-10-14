@@ -47,6 +47,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
 			}
 		}
+	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
+		return e.executeRule(scope, stmt, count)
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return e.executePolicy(scope, stmt, count)
 	case *parser.CreateIndex:
@@ -256,8 +258,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if b.viewWrite != nil {
 		e.mu.Unlock()
-		if err := scope.acquireViewWriteTarget(b.viewWrite); err != nil {
-			return Result{}, err
+		if b.viewWrite.base.relationKind != viewRelation {
+			if err := scope.acquireViewWriteTarget(b.viewWrite); err != nil {
+				return Result{}, err
+			}
 		}
 		e.mu.Lock()
 		auth, err = e.statementAuthorizationLocked(op, stmt)
@@ -362,6 +366,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	if err := scope.validateQuerySources(b.querySources); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -484,6 +492,19 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, boundary
 		}
 	}
+	if relation := bindingRuleRelation(b); relation != nil && len(relation.rules) != 0 {
+		return e.executeRuleProgramLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)
+	}
+	return e.executeBoundLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)
+}
+
+// The caller owns Engine.mu. Every return releases it. Rule programs reuse this
+// executor without importing parameters again or opening another statement.
+func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
+	op := scope.op
+	ctx := op.Context()
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
+	var err error
 	var creationStage *CatalogStage
 	var creationDescriptor *relationDescriptor
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {

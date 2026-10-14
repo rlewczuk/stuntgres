@@ -296,6 +296,12 @@ func modifyingTag(stmt parser.Statement) string {
 		return "DROP OWNED"
 	case *parser.RefreshMaterializedView:
 		return "REFRESH MATERIALIZED VIEW"
+	case *parser.CreateRule:
+		return "CREATE RULE"
+	case *parser.AlterRule:
+		return "ALTER RULE"
+	case *parser.DropRule:
+		return "DROP RULE"
 	case *parser.CreatePolicy:
 		return "CREATE POLICY"
 	case *parser.AlterPolicy:
@@ -474,6 +480,8 @@ func explicitUtility(stmt parser.Statement) bool {
 	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:
 		return true
 	case *parser.RefreshMaterializedView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
+		return true
+	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true

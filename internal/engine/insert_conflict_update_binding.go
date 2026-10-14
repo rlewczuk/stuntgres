@@ -14,6 +14,18 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	binder.targetName, binder.targetAlias = b.relation.name, s.Alias.Text
 	binder.updateParameters = true
 	defer func() { binder.updateParameters = false; binder.updateInputParameters = nil }()
+	// Conflict UPDATE owns a fresh lexical namespace: the rule's formal
+	// OLD/NEW entries remain diagnostic candidates, not executable columns.
+	ruleNamespace, previousNamespace, previousHidden := binder.ruleNamespace, binder.queryNamespace, binder.queryHidden
+	if ruleNamespace != nil {
+		binder.ruleNamespace = nil
+		binder.queryHidden = append(append([]queryQualifier(nil), previousHidden...),
+			queryQualifier{name: "old", original: "old", lateralForbidden: true},
+			queryQualifier{name: "new", original: "new", lateralForbidden: true})
+	}
+	defer func() {
+		binder.ruleNamespace, binder.queryNamespace, binder.queryHidden = ruleNamespace, previousNamespace, previousHidden
+	}()
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
 	excluded := rebaseQueryNamespace(target, len(b.relation.columns))

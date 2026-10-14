@@ -75,6 +75,14 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 		if !ok {
 			continue
 		}
+		if len(d.rules) != 0 {
+			var err error
+			d, err = remapRules(view, d, mapping, ref, typ, collation)
+			if err != nil {
+				return err
+			}
+			next.descriptors[address] = d
+		}
 		if typesOnly && next.aclItemImport == nil && !catalogExpressionTypesChanged(d, typ) {
 			continue
 		}

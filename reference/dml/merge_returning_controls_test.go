@@ -72,7 +72,7 @@ func TestReferenceMergeReturningControls(t *testing.T) {
 				t.Fatal("cancelled restore", e)
 			}
 			e = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("MERGE INTO t USING (VALUES(2)) s(k) ON t.k=s.k WHEN MATCHED THEN DELETE RETURNING t.id"))
-			fixture.AssertDiagnostic(t, e, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION"})
+			fixture.AssertDiagnostic(t, e, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION"})
 			canonical.Reset()
 			if e = stuntgres.Dump(p.Ctx, p.Native, &canonical); e != nil || !bytes.Equal(dump.Bytes(), canonical.Bytes()) {
 				t.Fatal("failed restore changed publication", e)

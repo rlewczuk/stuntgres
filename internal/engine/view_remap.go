@@ -48,6 +48,19 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	}
 	var next BoundExpr
 	switch n := node.(type) {
+	case assignmentValueExpression:
+		n.base, n.value = child(n.base), child(n.value)
+		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.target}, func(expr BoundExpr) (BoundExpr, bool, error) {
+			if expr == nil {
+				return nil, false, nil
+			}
+			return child(expr), true, err
+		}, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		if failure != nil {
+			return nil, failure
+		}
+		n.target = targets[0]
+		next = n
 	case unknownOutput:
 		// Captured contextual analysis carries immutable literal syntax only;
 		// it is not a persisted scalar value or a remappable object reference.
@@ -468,6 +481,7 @@ type viewQueryRemapper struct {
 	catalog        CatalogRead
 	referencesOnly bool
 	ctes           map[*cteDefinition]*cteDefinition
+	mutation       func(*cteDefinition) (binding, error)
 }
 
 func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
@@ -616,7 +630,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		if n.cte != nil {
 			copy.cte, err = m.cte(n.cte)
 		}
-		if err == nil {
+		if err == nil && n.query != nil {
 			query := *n.query
 			query.Root, err = m.nested(query.Root)
 			copy.query = &query
@@ -1069,6 +1083,13 @@ func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
 		}
 		query.Root = root
 		copy.query = &query
+	}
+	if old.mutation != nil && m.mutation != nil {
+		body, err := m.mutation(old)
+		if err != nil {
+			return nil, err
+		}
+		copy.mutation = &body
 	}
 	return &copy, nil
 }

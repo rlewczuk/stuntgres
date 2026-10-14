@@ -692,6 +692,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
+	ruleGroups, err := ruleDumpGroups(ctx, originalCatalog, originalRoles)
+	if err != nil {
+		return err
+	}
 	securityGroups, err := rowSecurityDumpGroups(ctx, catalog, domainRoles)
 	if err != nil {
 		return err
@@ -1264,6 +1268,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	// User rules are post-data: importing ordinary INSERT rows must not rewrite
+	// fixture data before every relation and original stored row exists.
+	for _, group := range ruleGroups {
+		if group.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(group.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = group.owner
+		}
+		if err := emit(group.sql); err != nil {
+			return err
+		}
+	}
 	// INHERITS reconstructs every inherited/merged declaration with rank zero.
 	// Repair only the lost metadata after all owner SQL, as genuine PostgreSQL
 	// catalog SQL under the authenticated administrator, not as replay comments.
@@ -1440,6 +1457,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only index rename and partition attachment")
 			}
 		case *parser.CreatePolicy:
+		case *parser.CreateRule:
 		case *parser.AlterTable:
 			if rowSecurityActions(s.Actions) {
 				break
@@ -1552,7 +1570,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
@@ -1568,6 +1586,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreatePolicy); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateRule); ok {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateSequence); ok {

@@ -75,6 +75,12 @@ type EvalContext struct {
 	pgRegex              sqltype.PGRegexExecution
 	quoteCaptures        *quoteCaptureCandidate
 	quoteOrigin          quoteOrigin
+	// Rule programs plan all commands before effects. This preparation-only
+	// mode admits static scalar operators without widening ordinary row demand.
+	planStaticOperators bool
+	// Separate rule-program permission: actual supplied Param leaves may become
+	// typed constants during preparation. Ordinary imported-param barriers stay.
+	specializeRuleParameters bool
 }
 type expressionInfo struct {
 	usage       sqltype.Usage
@@ -417,7 +423,32 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
 	}
+	if c.specializeRuleParameters && expression != nil && expression.Properties().ParameterDependent {
+		specialized, changed, err := specializeRuleParameterExpression(c, expression)
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			folded, foldedChanged, err := preflightCoercionsWithPolicy(c, specialized, decisiveDefaults)
+			return folded, changed || foldedChanged, err
+		}
+	}
 	switch e := expression.(type) {
+	case subqueryExpression:
+		if !c.planStaticOperators || e.cteDefinition || e.queryPlan == nil {
+			return e, false, nil
+		}
+		root, err := preflightQuery(c, e.queryPlan.Root)
+		if err != nil {
+			return nil, false, err
+		}
+		if root == e.queryPlan.Root {
+			return e, false, nil
+		}
+		query := *e.queryPlan
+		query.Root = root
+		e.queryPlan = &query
+		return e, true, nil
 	case domainValueExpression:
 		return e, false, nil
 	case installedCryptoFunctionExpression:
@@ -442,6 +473,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.Pgcrypto = next
 		}
 		return e, args != nil, nil
+	case assignmentValueExpression:
+		base, baseChanged, err := preflightCoercionsWithPolicy(c, e.base, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		value, valueChanged, err := preflightCoercionsWithPolicy(c, e.value, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		targets, err := preflightArrayTargetsWithPlanning(c, []*arrayAssignmentTarget{e.target}, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		changed := baseChanged || valueChanged || targets[0] != e.target
+		if changed {
+			e.base, e.value, e.target = base, value, targets[0]
+		}
+		return e, changed, nil
 	case installedFunctionExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
 		if changed {
@@ -875,16 +924,16 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		if arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
-		if decisiveDefaults {
-			_, leftConstant := left.(literalExpression)
-			_, rightConstant := right.(literalExpression)
-			p := e.Properties()
-			if leftConstant && (e.right == nil || rightConstant) && p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
+		if decisiveDefaults || c.planStaticOperators {
+			// Dependence belongs to the original analyzed recipe: an imported
+			// cast may now be a literal without making its parameter static.
+			p := expression.Properties()
+			if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && conditionalConstantInputs(e) {
 				value, err := e.Eval(c)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
-		// Ordinary consumers only materialize casts; arithmetic stays row-owned.
+		// Other consumers keep arithmetic at their existing row-owned frontier.
 		if leftChanged || rightChanged {
 			return e, true, nil
 		}
@@ -1548,6 +1597,7 @@ type expressionBinder struct {
 	relation              *relationDescriptor
 	insertTarget          *relationDescriptor // Diagnostic candidate only, never a source.
 	ref                   ObjectRef
+	ruleNamespace         *ruleNamespace
 	parameters            map[int]sqltype.Usage
 	formalParameters      []sqltype.Usage
 	executeParameters     bool
@@ -2191,6 +2241,13 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.ColumnExpr:
+			if pseudo, matched, err := b.ruleColumn(r); matched {
+				if err != nil {
+					return nil, err
+				}
+				node = pseudo
+				break
+			}
 			if b.defaultConsumer {
 				return nil, expressionError("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
 			}
@@ -2551,7 +2608,7 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 }
 
 func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolicy) (BoundExpr, error) {
-	if !b.defaultConsumer && b.queryNamespace == nil && b.returningAliases == nil {
+	if !b.defaultConsumer && b.queryNamespace == nil && b.returningAliases == nil && b.ruleNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
 		}

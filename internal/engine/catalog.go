@@ -117,6 +117,7 @@ type relationDescriptor struct {
 	notNullConstraints   []notNullConstraint
 	checkConstraints     []checkConstraint
 	policies             []policyDefinition
+	rules                []ruleDefinition
 	rlsEnabled           bool
 	rlsForced            bool
 	uniqueConstraints    []uniqueConstraint
@@ -323,6 +324,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return fmt.Errorf("stuntgres: row-security flags require a table")
 	}
 	if err := validatePolicies(v, r); err != nil {
+		return err
+	}
+	if err := validateRules(v, r); err != nil {
 		return err
 	}
 	if err := validateTypedAttachment(v, r); err != nil {
@@ -1334,6 +1338,11 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.policies) != 0 {
 				if err := validatePolicies(CatalogRead{owner: e, state: next}, relation); err != nil {
+					return ChangeSet{}, err
+				}
+			}
+			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.rules) != 0 {
+				if err := validateRules(CatalogRead{owner: e, state: next}, relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}

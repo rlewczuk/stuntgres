@@ -33,17 +33,35 @@ func viewCTEOrdinal(root LogicalNode, ordinal int) LogicalNode {
 }
 
 func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
+	prefix, err := r.withClauseSQL(ctx, catalog, s.With, s.WithRecursive)
+	if err != nil {
+		return "", err
+	}
+	text, err := r.selectQueryBodyColumnsSQL(ctx, catalog, s, project, columns, setOperand)
+	if err != nil {
+		return "", err
+	}
+	return prefix + text, nil
+}
+
+func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog CatalogRead, raw []parser.CommonTableExpression, recursive bool, bodyRenderer ...func(parser.Statement) (string, error)) (string, error) {
 	var definitions []string
-	for _, definition := range s.With {
-		selection, ok := definition.Query.(*parser.Select)
-		if !ok {
-			return "", fmt.Errorf("stuntgres: modifying WITH cannot be stored")
+	for _, definition := range raw {
+		var body string
+		var err error
+		if len(bodyRenderer) != 0 {
+			body, err = bodyRenderer[0](definition.Query)
+		} else {
+			selection, ok := definition.Query.(*parser.Select)
+			if !ok {
+				return "", fmt.Errorf("stuntgres: modifying WITH cannot be stored")
+			}
+			child := r.queries[selection]
+			if child == nil {
+				return "", fmt.Errorf("stuntgres: missing retained WITH body")
+			}
+			body, err = r.selectQueryColumnsSQL(ctx, catalog, selection, child, child.Schema(), false)
 		}
-		child := r.queries[selection]
-		if child == nil {
-			return "", fmt.Errorf("stuntgres: missing retained WITH body")
-		}
-		body, err := r.selectQueryColumnsSQL(ctx, catalog, selection, child, child.Schema(), false)
 		if err != nil {
 			return "", err
 		}
@@ -64,16 +82,12 @@ func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog Catalo
 		}
 		definitions = append(definitions, name+" AS "+hint+"("+body+")")
 	}
-	text, err := r.selectQueryBodyColumnsSQL(ctx, catalog, s, project, columns, setOperand)
-	if err != nil {
-		return "", err
+	if len(definitions) == 0 {
+		return "", nil
 	}
-	if len(definitions) != 0 {
-		modifier := "WITH "
-		if s.WithRecursive {
-			modifier = "WITH RECURSIVE "
-		}
-		text = modifier + strings.Join(definitions, ", ") + " " + text
+	modifier := "WITH "
+	if recursive {
+		modifier = "WITH RECURSIVE "
 	}
-	return text, nil
+	return modifier + strings.Join(definitions, ", ") + " ", nil
 }

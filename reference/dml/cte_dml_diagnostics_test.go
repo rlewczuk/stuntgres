@@ -104,13 +104,10 @@ func TestReferenceCTEDMLRestrictions(t *testing.T) {
 			cteDMLRoutes(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 				cteDMLSeed(t, p, b)
 				cteDMLRun(t, p, b, false, fixture.Exec("CREATE TABLE log(id INT)", 0))
-				if !b.PG {
-					cteDMLError(t, p, b, prepared, tc.rule, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "RULE"`, Position: "8"})
-					return
-				}
 				cteDMLRun(t, p, b, false, fixture.Exec(tc.rule, 0))
 				cteDMLError(t, p, b, prepared, "WITH d AS (DELETE FROM t) SELECT 7 AS n", fixture.Diagnostic{Code: "0A000", Message: tc.message})
 				cteDMLRun(t, p, b, false, fixture.Select("SELECT id FROM log", []string{"id"}, []string{"INT4"}, [][]any{}))
+				cteDMLRun(t, p, b, false, cteDMLBag("SELECT id,v FROM t", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(10)}, {int64(2), int64(20)}}))
 			})
 		})
 	}

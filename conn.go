@@ -172,9 +172,8 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 			err = scope.Finish(err)
 		}
 		err = c.terminalError(op.CommandError(err))
-		if err != nil && r.Rows != nil {
-			r.Rows.Close()
-			r.Rows = nil
+		if err != nil && !batch {
+			r.close()
 		}
 		notices := op.DetachNotices()
 		op.Done()
@@ -231,21 +230,32 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 				if current.Rows != nil {
 					current.Rows.Close()
 				}
+				for _, rows := range current.RowSets {
+					rows.Close()
+				}
 				return
 			}
 			r.Count = current.Count
 			if current.Rows != nil {
 				r.sets = append(r.sets, current.Rows)
 			}
+			r.sets = append(r.sets, current.RowSets...)
 		}
 		return
 	}
 	scope.Expected = expected
 	r.Result, err = scope.Execute(ast, len(values), frameImporter(values))
+	r.sets = r.RowSets
+	r.RowSets = nil
 	return
 }
 func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *engine.StatementDescription) (engine.Result, error) {
 	r, _, _, err := c.request(ctx, "", ast, args, false, false, expected)
+	for _, rows := range r.sets {
+		if closeErr := rows.Close(); err == nil {
+			err = closeErr
+		}
+	}
 	return r.Result, err
 }
 func (c *conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {

@@ -1,0 +1,184 @@
+package engine
+
+import (
+	"maps"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// Only command-local target/source scratch changes. Publication, the operation,
+// parameter frame, original signature, snapshot frontier and budget remain owned
+// by the original StatementScope and its one WriteStage/Finish.
+type ruleCommandScratch struct {
+	mutation   statementMutation
+	ref        ObjectRef
+	descriptor Descriptor
+	storage    *relationStorage
+	viewWrite  *viewWrite
+	sources    []queryLeaf
+	unique     *uniqueWriteBinding
+	conflict   *boundInsertConflict
+	returning  *insertReturningOutput
+	partition  *partitionInsertState
+	locks      *queryLockContext
+	admission  queryLockAdmission
+	auth       *AuthorizationView
+	quotes     *quoteCaptureCandidate
+}
+
+func (s *StatementScope) ruleScratch() ruleCommandScratch {
+	return ruleCommandScratch{mutation: s.statementMutation, ref: s.lockedRef, descriptor: s.lockedDescriptor, storage: s.lockedStorage, viewWrite: s.viewWrite, sources: s.querySources, unique: s.uniqueBinding, conflict: s.insertConflict, returning: s.insertReturning, partition: s.partitionInsert, locks: s.queryLocks, admission: s.queryLockAdmission, auth: s.ruleActionAuth, quotes: s.quoteCaptures}
+}
+func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
+	s.statementMutation = c.mutation
+	s.lockedRef, s.lockedDescriptor, s.lockedStorage = c.ref, c.descriptor, c.storage
+	s.viewWrite, s.querySources = c.viewWrite, c.sources
+	s.uniqueBinding, s.insertConflict, s.insertReturning, s.partitionInsert = c.unique, c.conflict, c.returning, c.partition
+	s.queryLocks, s.queryLockAdmission = c.locks, c.admission
+	s.ruleActionAuth = c.auth
+	s.quoteCaptures = c.quotes
+}
+
+func bindingRuleRelation(b binding) *relationDescriptor {
+	return b.physicalBinding().relation
+}
+
+func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
+	program := ruleProgram{count: -1, returning: -1}
+	count, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	program.count = count
+	if tag := modifyingTag(stmt); scope.owner.readOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
+		e.mu.Unlock()
+		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
+	}
+	// Original caller checks precede the extra rule-owner authority checks.
+	if err := auth.checkBinding(b, stmt); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	for i := range program.commands {
+		command := &program.commands[i]
+		if err := e.normalizeRuleCTEsLocked(scope, command.auth, command.syntax, &command.binding); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if err := command.auth.checkBinding(command.binding, command.syntax); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
+	refs, err := e.admitRuleCommandsLocked(scope, stmt, &program)
+	if err != nil {
+		return Result{}, err
+	}
+	if len(refs) != 0 {
+		if _, err := scope.acquireDataViewsLocked(e, refs); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
+	e.mu.Unlock()
+	original := scope.ruleScratch()
+	originalMutation := scope.activeMutation
+	originalWrites, originalDeletes := scope.ownWrites, scope.ownDeletes
+	originalView := scope.view
+	defer func() {
+		scope.installRuleScratch(original)
+		scope.activeMutation = originalMutation
+		scope.ownWrites, scope.ownDeletes = originalWrites, originalDeletes
+		if originalView != nil && scope.view != originalView {
+			originalView.Release()
+		}
+	}()
+	result := Result{}
+	failed := true
+	defer func() {
+		if failed {
+			if result.Rows != nil {
+				result.Rows.Close()
+			}
+			for _, rows := range result.RowSets {
+				rows.Close()
+			}
+		}
+	}()
+	prepared := make([]preparedCTEProgram, len(program.commands))
+	for i, command := range program.commands {
+		if err := scope.op.Context().Err(); err != nil {
+			return Result{}, err
+		}
+		physical := command.binding.physicalBinding()
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.ref, descriptor: physical.relation, storage: physical.storage, viewWrite: command.binding.viewWrite, sources: command.binding.querySources, auth: &program.commands[i].auth})
+		captures := &quoteCaptureCandidate{}
+		if command.binding.parameters.Count == 0 {
+			*captures = quoteCaptureCandidate{entries: candidate.quotes, private: quoteChanged}
+			captures.prune(command.auth.catalog)
+		}
+		evaluation := EvalContext{Context: scope.op.Context(), Parameters: parameters, statementScope: scope, catalog: command.auth.catalog, Input: scope.input, Output: scope.output, quoteCaptures: captures, planStaticOperators: true, specializeRuleParameters: true}
+		e.mu.Lock()
+		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, command.auth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
+			return Result{}, err
+		}
+	}
+	for i, command := range program.commands {
+		if err := scope.op.Context().Err(); err != nil {
+			return Result{}, err
+		}
+		scope.activeMutation = prepared[i].mainMutation
+		scope.installRuleScratch(prepared[i].mainScratch)
+		// Immutable prefix roots are visible to this program only. No owner merge
+		// or newer committed frontier is introduced between actions.
+		if originalView != nil {
+			data := *originalView.read()
+			data.own = maps.Clone(originalWrites)
+			if data.own == nil && len(scope.stage.rows) != 0 {
+				data.own = make(map[ObjectAddress][]rowVersion, len(scope.stage.rows))
+			}
+			for address, rows := range scope.stage.rows {
+				data.own[address] = mergePrivateRows(originalWrites[address], rows, false)
+			}
+			data.deleted = mergeDeletions(originalDeletes, scope.stage.deletes)
+			if scope.view != originalView {
+				scope.view.Release()
+			}
+			scope.view = newVisibilityView(&data)
+			scope.ownWrites, scope.ownDeletes = data.own, data.deleted
+		}
+		e.mu.Lock()
+		output, err := e.executePreparedCTECommandsLocked(scope, command.syntax, &prepared[i], parameters, nil, nil)
+		if err != nil {
+			if output.Rows != nil {
+				output.Rows.Close()
+			}
+			for _, rows := range output.RowSets {
+				rows.Close()
+			}
+			return Result{}, err
+		}
+		if i == program.count {
+			result.Count = output.Count
+		}
+		if output.Rows != nil {
+			if command.binding.returning != nil && (i == program.returning || i == program.count) {
+				result.Rows = output.Rows
+			} else if _, selecting := command.syntax.(*parser.Select); selecting && b.returning == nil && scope.Expected == nil {
+				result.RowSets = append(result.RowSets, output.Rows)
+			} else {
+				output.Rows.Close()
+			}
+		}
+		for _, rows := range output.RowSets {
+			if b.returning == nil && scope.Expected == nil {
+				result.RowSets = append(result.RowSets, rows)
+			} else {
+				rows.Close()
+			}
+		}
+	}
+	failed = false
+	return result, nil
+}

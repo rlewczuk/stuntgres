@@ -241,6 +241,28 @@ Canonical inheritance declarations place current inherited columns before local
 columns. After an inherited column was added later, this can differ from the
 source's live column order. Named row targets preserve values; reconstructed
 `SELECT *` metadata and CHECK failing-row details follow the reconstructed order.
+
+Persistent user rewrite rules are emitted in a post-data phase after referenced
+relations, views and rows exist. Restoring data therefore does not run their
+ALSO/INSTEAD actions. SQL reconstruction uses captured typed recipes and current
+relation/attribute/type names after rename, including rule conditions and actions;
+it does not evaluate NEW/default/volatile recipes during Dump. View `_RETURN`
+continues to use the existing view-definition representation.
+
+Action-owned WITH retains declaration order, aliases and materialization hints.
+Modifier bodies are rendered from their original typed mutation and frozen child
+presentation, including unused modifiers and renamed target columns. Their
+targets/dependencies/remapping are part of the persistent rule; enclosing live
+statement CTE spools remain execution-private and are never exported.
+
+Restricted Restore admits these rule declarations through the ordinary binder
+and current owner/dependency checks in its isolated candidate. Malformed rules,
+missing references, cancellation or final publication failure preserve the old
+database and eager results. Imported rule identities and nested source/type
+references share collision remapping with retained TEMP definitions; persistent
+rules are exported, session TEMP rules are not. Future prepared writes consume
+the restored definitions rather than replaying fixture history.
+
 Structural unknown-NULL provenance and raw temporal precision survive replay;
 destination sizing remains an executable coercion rather than a deparse-time value.
 Installed supported view options retain presence, lexical value and order through

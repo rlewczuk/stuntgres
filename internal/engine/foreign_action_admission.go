@@ -53,6 +53,12 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 	if err != nil {
 		return auth, err
 	}
+	if s.ruleActionAuth != nil {
+		auth.state.CurrentUser = s.ruleActionAuth.state.CurrentUser
+		if err = auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+			return AuthorizationView{}, err
+		}
+	}
 	if s.foreignActionAuth != nil {
 		auth.state.CurrentUser = s.foreignActionAuth.state.CurrentUser
 		if err = auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {

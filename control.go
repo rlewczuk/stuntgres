@@ -77,6 +77,9 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // Persistent policies disappear with their tables; live TEMP table policies
 // retain their identities. Incompatible live TEMP policy dependencies prevent
 // replacement rather than adopting new same-name persistent providers.
+// Live TEMP rules likewise retain their event/action identities and exact
+// dependency provenance. Incompatible dependencies refuse replacement; retained
+// rule references advance to the installed catalog lifetime without importing IDs.
 // Temporary views retain exact source identities. Invalidated persistent table
 // or view providers prevent replacement; unchanged pinned catalog providers survive.
 // Same-owner temporary FK action graphs retain exact definition/parent/key/list
@@ -112,6 +115,9 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Persistent policies referencing TEMP objects are rejected before writer I/O.
 // Protected raw rows are exported before independent enabled/forced flag ALTERs;
 // policy-expression enforcement remains unsupported.
+// Ordinary rewrite rules are emitted after persistent definitions and data.
+// TEMP event rules are omitted; persistent rules referencing TEMP providers
+// are rejected before writer I/O rather than exporting dangling dependencies.
 // Valid FK declarations use ordinary CREATE syntax; invalid NOT NULL, CHECK and
 // FK definitions follow ordinary data in eligible ALTER TABLE ADD statements.
 // Native Restore handles valid FK forward references/cycles independently of
@@ -140,7 +146,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
 // SCHEMA, CREATE COLLATION (and ALTER COLLATION), CREATE [DEFAULT] CONVERSION
 // (and ALTER CONVERSION), CREATE TYPE AS ENUM, CREATE DOMAIN,
-// CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY, registered CREATE EXTENSION providers,
+// CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, registered CREATE EXTENSION providers,
 // parameter-free scalar INSERT (including integer
 // arithmetic), database-local COMMENT, sequence OWNED BY associations, generated
 // SELECT setval(name,value,is_called), and named owner directives succeed.
@@ -174,6 +180,9 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // Policy conditions and provider identities remap atomically;
 // live TEMP policies retain their table lifetime and incompatible dependencies
 // refuse replacement. Policies and enabled/forced flag ALTERs import independently.
+// Ordinary rules bind in the isolated import catalog and become live only with
+// atomic installation. Retained live TEMP rules keep their exact providers and
+// identities; incompatible providers refuse replacement rather than rebinding.
 // Strict native extension-owner comments require complete symbolic member
 // identities and preexisting named principals, never imported OID authority.
 // Missing/mismatching metadata or target principal drop/recreation rejects final

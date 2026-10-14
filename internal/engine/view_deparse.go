@@ -543,6 +543,21 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog CatalogRead, path 
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing view column occurrence")
 	}
+	if column.ruleSide != 0 {
+		d, ok := catalog.state.descriptors[ObjectAddress{ClassID: column.ruleRef.Address.ClassID, ObjectID: column.ruleRef.Address.ObjectID}].(*relationDescriptor)
+		if !ok {
+			return "", ErrCatalogReplaced
+		}
+		name, err := deparseAttribute(d, column.ruleRef.Address.SubID)
+		if err != nil {
+			return "", err
+		}
+		side := "OLD"
+		if column.ruleSide == 2 {
+			side = "NEW"
+		}
+		return side + "." + name, nil
+	}
 	owner := v.frames[column.frame]
 	if owner == nil {
 		return "", fmt.Errorf("stuntgres: missing view column frame")

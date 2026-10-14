@@ -5,6 +5,15 @@ import "stuntgres/internal/sqltype"
 func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping map[ObjectAddress]ObjectAddress, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation collationRemapper) (*viewDefinition, error) {
 	typ = recordTypeMapper(typ, collation)
 	definition := *original
+	if len(original.columns) != 0 {
+		definition.columns = make(map[viewLiteralPath]viewColumn, len(original.columns))
+		for path, column := range original.columns {
+			if column.ruleSide != 0 {
+				column.ruleRef = ref(column.ruleRef)
+			}
+			definition.columns[path] = column
+		}
+	}
 	if collation != nil && len(original.collations) != 0 {
 		definition.collations = make(map[viewLiteralPath]uint32, len(original.collations))
 		for path, id := range original.collations {

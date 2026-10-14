@@ -227,6 +227,8 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *relationDescri
 }
 
 func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, stmt parser.Statement) error {
+	scope.rlsTargetDenied = false
+	scope.rlsProposal, scope.rlsMergeInsert, scope.rlsMergeUpdate = rlsUnrestricted, rlsUnrestricted, rlsUnrestricted
 	if b.relation == nil {
 		return nil
 	}
@@ -250,6 +252,9 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
 	if err != nil {
 		return err
+	}
+	if scope.ruleActionAuth != nil {
+		auth.state.CurrentUser = scope.ruleActionAuth.state.CurrentUser
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)

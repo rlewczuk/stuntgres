@@ -120,6 +120,26 @@ no cleanup on rejected admission. Plan/sequence-cache discard is an irreversible
 physical-owner effect; TEMP removal instead uses normal private catalog/storage
 roots and is recoverable. Pool reuse is never implicit session cleanup.
 
+## Rewrite-rule publication
+
+Native CREATE/REPLACE/ALTER RENAME/DROP RULE follows the standalone view/policy
+utility boundary: execution in an explicit transaction is rejected with0A000
+before catalog mutation. PostgreSQL's transactional rule DDL is not claimed.
+
+Rewritten DML is one original statement, not a multi-command message. Expansion,
+recursion/restriction checks and every action's static preflight/current-owner
+authorization precede effects. Original and action mutations share the same
+operation, timeout budget, command clock, WriteStage and sole Finish. Top-level
+successive actions observe required predecessor staged effects without publishing
+them or admitting unrelated peer commits midway.
+
+Modifying CTE auxiliaries retain their original entry snapshot and completed
+RETURNING spool identity even when a rule changes the executable target or
+mutation kind; no per-auxiliary rule-stage snapshot refresh occurs. Primary
+output/count remains primary. A later action, primary constraint, cancellation
+or publication failure discards all original/action row effects. Ordinary
+transaction/savepoint recovery and non-MVCC sequence behavior remain unchanged.
+
 ## Statement failure and savepoint recovery
 
 An admitted SQL error, binding/preparation failure or statement cancellation

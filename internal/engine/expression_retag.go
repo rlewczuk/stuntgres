@@ -46,6 +46,9 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		return node, false, nil
 	}
 	info := boundExpressionInfo(node)
+	if leaf != nil {
+		info.properties = rewrittenIntrinsicProperties(node)
+	}
 	typ := retainedType(info.usage.Type)
 	if typ == nil && info.usage.Type != nil {
 		return nil, false, fmt.Errorf("stuntgres: invalid remapped expression type")
@@ -79,25 +82,30 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		changed = changed || next != ref
 		return next
 	}
+	mapChild := func(old BoundExpr) (BoundExpr, bool, error) {
+		next, replaced, failure := mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
+		changed = changed || replaced
+		if next != nil && (leaf != nil || replaced) {
+			info.properties = mergeExpressionProperties(info.properties, next.Properties())
+		}
+		return next, replaced, failure
+	}
 	child := func(old BoundExpr) BoundExpr {
 		if err != nil {
 			return old
 		}
 		var next BoundExpr
-		var replaced bool
-		next, replaced, err = mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
-		changed = changed || replaced
+		next, _, err = mapChild(old)
 		return next
 	}
 	children := func(old []BoundExpr) []BoundExpr {
 		var args []BoundExpr
 		for i, arg := range old {
-			next, replaced, failure := mapBoundExpression(view, arg, retainedType, queryMapper, leaf, collations...)
+			next, replaced, failure := mapChild(arg)
 			if failure != nil {
 				err = failure
 				return old
 			}
-			changed = changed || replaced
 			if replaced {
 				if args == nil {
 					args = append([]BoundExpr(nil), old...)
@@ -112,11 +120,27 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case assignmentValueExpression:
+		n.base, n.value = child(n.base), child(n.value)
+		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.target}, mapChild, func(usage sqltype.Usage) (sqltype.Usage, error) {
+			usage.Type = retainedType(usage.Type)
+			usage.Collation = comparisonCollation(usage.Collation)
+			return usage, err
+		})
+		if failure != nil {
+			return nil, false, failure
+		}
+		changed = changed || targets[0] != n.target
+		n.target = targets[0]
+		n.expressionInfo = info
+		rebound = n
 	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
 		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
+		n.Info = functionInfo(info)
 		rebound = n
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		n.RegexpCall, err = mapRegexpChildren(n.RegexpCall, view, info, child)
+		n.Info = functionInfo(info)
 		rebound = n
 	case seriesExpression:
 		n.args = children(n.args)
@@ -178,14 +202,17 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		}
 		rebound = n
 	case viewQualificationExpression:
-		return mapViewQualification(n, func(child BoundExpr) (BoundExpr, bool, error) {
-			return mapBoundExpression(view, child, retainedType, queryMapper, leaf, collations...)
-		})
+		mapped, replaced, failure := mapViewQualification(n, mapChild)
+		if failure != nil {
+			return nil, false, failure
+		}
+		changed = changed || replaced
+		n = mapped.(viewQualificationExpression)
+		n.expressionInfo = info
+		rebound = n
 	case rowExpression:
 		var replaced bool
-		n, replaced, err = mapRowAnalysis(n, func(old BoundExpr) (BoundExpr, bool, error) {
-			return mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
-		})
+		n, replaced, err = mapRowAnalysis(n, mapChild)
 		changed = changed || replaced
 		n.expressionInfo = info
 		rebound = n
@@ -205,7 +232,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	case arrayExpression:
 		var elements []BoundExpr
 		for i, old := range n.elements {
-			next, replaced, failure := mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
+			next, replaced, failure := mapChild(old)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -227,9 +254,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		rebound = n
 	case subscriptExpression:
 		var replaced bool
-		n, replaced, err = mapSubscript(n, func(old BoundExpr) (BoundExpr, bool, error) {
-			return mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
-		})
+		n, replaced, err = mapSubscript(n, mapChild)
 		if err != nil {
 			return nil, false, err
 		}
@@ -266,6 +291,15 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 				copy.Root = root
 				n.queryPlan = &copy
 				changed = true
+				if leaf != nil {
+					visitCTEQuery(root, func(LogicalNode) {}, func(expr BoundExpr) {
+						properties := expr.Properties()
+						info.properties.Volatility = max(info.properties.Volatility, properties.Volatility)
+						info.properties.ParameterDependent = info.properties.ParameterDependent || properties.ParameterDependent
+						info.properties.DomainDependent = info.properties.DomainDependent || properties.DomainDependent
+						info.properties.RuntimeDomainConversion = info.properties.RuntimeDomainConversion || properties.RuntimeDomainConversion
+					}, true)
+				}
 			}
 		}
 		var comparisons []comparisonExpression
@@ -353,8 +387,8 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.expressionInfo = info
 		rebound = n
 	case columnExpression:
-		n.expressionInfo = info
 		n.virtual = child(n.virtual)
+		n.expressionInfo = info
 		rebound = n
 	case returningColumnExpression:
 		if n.value != nil {
@@ -398,7 +432,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 	case groupingExpression:
 		var args []BoundExpr
 		for i, arg := range n.args {
-			next, replaced, failure := mapBoundExpression(view, arg, retainedType, queryMapper, leaf, collations...)
+			next, replaced, failure := mapChild(arg)
 			if failure != nil {
 				return nil, false, failure
 			}
@@ -1032,9 +1066,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		ref, conflict := n.predicate.InputCollation()
 		ref = comparisonCollation(ref)
 		var replaced bool
-		n, replaced, err = mapScalarArrayChildren(n, func(old BoundExpr) (BoundExpr, bool, error) {
-			return mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
-		})
+		n, replaced, err = mapScalarArrayChildren(n, mapChild)
 		changed = changed || replaced
 		if !changed {
 			return node, false, err

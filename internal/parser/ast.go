@@ -17,6 +17,47 @@ type CreateTablespace struct {
 
 func (*CreateTablespace) statement() {}
 
+// Rules retain their ordered query commands as one outer SQL utility.
+type CreateRule struct {
+	Name             Identifier
+	Table            ObjectName
+	Event            string
+	Condition        Expr
+	Actions          []Statement
+	Replace, Instead bool
+	Pos              Position
+}
+
+func (*CreateRule) statement() {}
+
+type AlterRule struct {
+	Name   Identifier
+	Table  ObjectName
+	Rename Identifier
+	Pos    Position
+}
+
+func (*AlterRule) statement() {}
+
+type DropRule struct {
+	Name     Identifier
+	Table    ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropRule) statement() {}
+
+// Notify is recognized only as a rule action; transport is not an engine service.
+type Notify struct {
+	Channel Identifier
+	Payload string
+	Pos     Position
+}
+
+func (*Notify) statement() {}
+
 // Policy conditions are optional definitions, not enforcement-time fallbacks.
 type CreatePolicy struct {
 	Name         Identifier

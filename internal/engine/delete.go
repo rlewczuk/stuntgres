@@ -252,7 +252,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if err := selectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
 		}
-		if b.viewWrite != nil {
+		if b.viewWrite != nil || b.ruleTemplate {
 			inputs = freezeViewWriteSources(s, inputs, b.querySources)
 		}
 		defer inputs.close()

@@ -18,11 +18,11 @@ type boundUpdate struct {
 
 // Reuse the shared coercion traversal; only changed execution branches are
 // copied. In particular, imported-frame literals never replace analyzed nodes.
-func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error) {
-	return preflightUpdateWithPlanning(c, original, true)
+func preflightUpdate(c *EvalContext, original *boundUpdate, sourceDemand ...func(*boundUpdate) (LogicalNode, error)) (*boundUpdate, error) {
+	return preflightUpdateWithPlanning(c, original, true, sourceDemand...)
 }
 
-func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool) (*boundUpdate, error) {
+func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (LogicalNode, error)) (*boundUpdate, error) {
 	result := original
 	var assignments []BoundExpr
 	targets, err := preflightArrayTargetsWithPlanning(c, original.arrayTargets, planConstants)
@@ -65,7 +65,14 @@ func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planCons
 		}
 	}
 	if original.from != nil {
-		folded, err := preflightQuery(c, original.from)
+		from := original.from
+		if c.planStaticOperators && len(sourceDemand) != 0 {
+			from, err = sourceDemand[0](result)
+			if err != nil {
+				return nil, err
+			}
+		}
+		folded, err := preflightQuery(c, from)
 		if err != nil {
 			return nil, err
 		}
@@ -256,7 +263,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := selectQuerySources(ctx, from); err != nil {
 			return Result{}, err
 		}
-		if b.viewWrite != nil {
+		if b.viewWrite != nil || b.ruleTemplate {
 			from = freezeViewWriteSources(s, from, b.querySources)
 		}
 		defer from.close()

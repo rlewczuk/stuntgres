@@ -99,6 +99,11 @@ func definitionOIDUsed(descriptor Descriptor, id OID) bool {
 	if d.view != nil && d.view.rule == id {
 		return true
 	}
+	for _, r := range d.rules {
+		if r.OID == id {
+			return true
+		}
+	}
 	for _, p := range d.policies {
 		if p.OID == id {
 			return true
@@ -157,6 +162,9 @@ func reserveDefinitionOIDs(reserved map[OID]bool, descriptor Descriptor) {
 	if d.view != nil {
 		reserved[d.view.rule] = true
 	}
+	for _, r := range d.rules {
+		reserved[r.OID] = true
+	}
 	for _, p := range d.policies {
 		reserved[p.OID] = true
 	}
@@ -209,6 +217,11 @@ func validateDefinitionOIDs(view CatalogRead) error {
 		}
 		if d.view != nil {
 			if err := claim(d.view.rule); err != nil {
+				return err
+			}
+		}
+		for _, r := range d.rules {
+			if err := claim(r.OID); err != nil {
 				return err
 			}
 		}
@@ -283,6 +296,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			claimed[d.view.rule] = true
 		}
 		if ns, ok := next.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
+			for _, r := range d.rules {
+				claimed[r.OID] = true
+			}
 			for _, p := range d.policies {
 				claimed[p.OID] = true
 			}
@@ -350,15 +366,39 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	uniqueMapping := make(map[OID]OID)
+	var constraintMapping map[ObjectAddress]ObjectAddress
+	recordConstraint := func(old, next OID) {
+		if old == next {
+			return
+		}
+		if constraintMapping == nil {
+			constraintMapping = make(map[ObjectAddress]ObjectAddress)
+		}
+		constraintMapping[ObjectAddress{ClassID: 2606, ObjectID: old}] = ObjectAddress{ClassID: 2606, ObjectID: next}
+	}
 	for _, old := range relations {
 		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
 			continue
 		}
-		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.foreignKeys)+len(old.defaults)+len(old.generations)+len(old.policies) == 0 {
+		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.foreignKeys)+len(old.defaults)+len(old.generations)+len(old.policies)+len(old.rules) == 0 {
 			continue
 		}
 		d := *old
 		changed, nullCopied, checkCopied, defaultCopied := false, false, false, false
+		for i, r := range old.rules {
+			id, err := remint(r.OID)
+			if err != nil {
+				return err
+			}
+			if id == r.OID {
+				continue
+			}
+			if len(d.rules) != 0 && &d.rules[0] == &old.rules[0] {
+				d.rules = append([]ruleDefinition(nil), old.rules...)
+			}
+			d.rules[i].OID = id
+			changed = true
+		}
 		for i, p := range old.policies {
 			id, err := remint(p.OID)
 			if err != nil {
@@ -386,6 +426,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				nullCopied = true
 			}
 			d.notNullConstraints[i].OID = id
+			recordConstraint(def.OID, id)
 			changed = true
 		}
 		for i, def := range old.checkConstraints {
@@ -401,6 +442,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				checkCopied = true
 			}
 			d.checkConstraints[i].OID = id
+			recordConstraint(def.OID, id)
 			changed = true
 		}
 		for i, def := range old.uniqueConstraints {
@@ -416,6 +458,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				d.uniqueConstraints = append([]uniqueConstraint(nil), old.uniqueConstraints...)
 			}
 			d.uniqueConstraints[i].OID = id
+			recordConstraint(def.OID, id)
 			index, ok := next.descriptors[def.Index].(*relationDescriptor)
 			if !ok || index.sqlIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported unique index")
@@ -440,6 +483,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				d.exclusionConstraints = append([]exclusionConstraint(nil), old.exclusionConstraints...)
 			}
 			d.exclusionConstraints[i].OID = id
+			recordConstraint(def.OID, id)
 			index, ok := next.descriptors[def.Index].(*relationDescriptor)
 			if !ok || index.sqlIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported exclusion index")
@@ -463,6 +507,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				d.foreignKeys = append([]foreignKeyConstraint(nil), old.foreignKeys...)
 			}
 			d.foreignKeys[i].OID = id
+			recordConstraint(def.OID, id)
 			changed = true
 		}
 		for attr, def := range old.defaults {
@@ -529,6 +574,25 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 		if changed != nil {
 			next.descriptors[changed.address] = changed
+		}
+	}
+	if len(constraintMapping) != 0 {
+		view := CatalogRead{owner: e, state: next}
+		for address, descriptor := range next.descriptors {
+			parent, ok := descriptor.(*relationDescriptor)
+			if !ok || len(parent.rules) == 0 {
+				continue
+			}
+			if namespace, ok := next.descriptors[parent.namespace].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+				continue
+			}
+			remapped, err := remapRuleConstraintIdentities(view, parent, constraintMapping)
+			if err != nil {
+				return err
+			}
+			if remapped != parent {
+				next.descriptors[address] = remapped
+			}
 		}
 	}
 	return nil

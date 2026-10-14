@@ -272,6 +272,7 @@ type StatementScope struct {
 	self                           *StatementScope
 	owner                          *transactionOwner
 	op                             *Operation
+	ruleActionAuth                 *AuthorizationView
 	authority                      *queryAuthority
 	stage                          WriteStage
 	view                           *VisibilityView
@@ -712,6 +713,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, err
 	}
 	switch stmt.(type) {
+	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
+		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.CreateTable, *parser.DropTable, *parser.CreateView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterComposite, *parser.DropComposite:
 		// Definition utilities have no result signature. Resolve ownership, read-only
 		// precedence and persistent-DDL exclusions only when actually executing.

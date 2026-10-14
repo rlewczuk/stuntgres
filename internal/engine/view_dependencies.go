@@ -83,9 +83,58 @@ func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *
 	return edges
 }
 
+// Attached constraints have catalog identities but no standalone descriptors.
+// Resolve them from their canonical parent metadata, never a spelling registry.
+func constraintName(parent *relationDescriptor, address ObjectAddress) string {
+	if parent == nil || address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
+		return ""
+	}
+	for _, c := range parent.uniqueConstraints {
+		if c.OID == address.ObjectID {
+			return c.Name
+		}
+	}
+	for _, c := range parent.exclusionConstraints {
+		if c.OID == address.ObjectID {
+			return c.Name
+		}
+	}
+	for _, c := range parent.checkConstraints {
+		if c.OID == address.ObjectID {
+			return c.Name
+		}
+	}
+	for _, c := range parent.notNullConstraints {
+		if c.OID == address.ObjectID {
+			return c.Name
+		}
+	}
+	for _, c := range parent.foreignKeys {
+		if c.OID == address.ObjectID {
+			return c.Name
+		}
+	}
+	return ""
+}
+
+func constraintParent(catalog CatalogRead, address ObjectAddress) *relationDescriptor {
+	if address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
+		return nil
+	}
+	for _, descriptor := range catalog.state.descriptors {
+		if parent, ok := descriptor.(*relationDescriptor); ok && constraintName(parent, address) != "" {
+			return parent
+		}
+	}
+	return nil
+}
+
 func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAddress) string {
 	base := target
 	base.SubID = 0
+	if parent := constraintParent(catalog, base); parent != nil {
+		return "constraint " + dependencyIdentifier(constraintName(parent, base)) + " on table " + dependencyRelationName(catalog, parent, path)
+	}
 	if d, ok := catalog.state.descriptors[base].(*namespaceDescriptor); ok {
 		return "schema " + dependencyIdentifier(d.name)
 	}
@@ -235,6 +284,7 @@ func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, chec
 		}
 	}
 	dependents = append(dependents, policyDependentLabels(catalog, policyTargets, path)...)
+	dependents = append(dependents, ruleDependentLabels(catalog, policyTargets, path)...)
 	for _, edge := range defaults {
 		label := "default value for column " + dependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalog, edge.relation, path)
 		dependents = append(dependents, supportedDependent{oid: edge.relation.defaults[edge.attribute].OID, target: edge.target, label: label})
@@ -341,7 +391,7 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 		return err
 	}
 	visibleForeign := slices.ContainsFunc(foreign, func(edge domainDependency) bool { return !edge.automatic })
-	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policyDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 && !visibleForeign {
+	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policyDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 && len(ruleDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 && !visibleForeign {
 		return stageForeignKeyDependentsLocked(stage, foreign)
 	}
 	if mode == parser.DropRestrict {
@@ -351,6 +401,9 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 		return err
 	}
 	if err := stagePolicyDependents(stage, expanded, mode); err != nil {
+		return err
+	}
+	if err := stageRuleDependents(stage, expanded, mode); err != nil {
 		return err
 	}
 	activeEdges := edges[:0]

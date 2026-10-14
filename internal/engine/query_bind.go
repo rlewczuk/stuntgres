@@ -130,6 +130,27 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		if star, ok := raw.(parser.StarExpr); ok {
+			if b.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
+				path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: target}
+				if b.viewStars == nil {
+					b.viewStars = make(map[viewLiteralPath][]viewColumn)
+				}
+				b.viewStars[path] = nil
+				for _, column := range b.ruleNamespace.relation.columns {
+					name := star.Qualifier
+					name.Parts = []parser.Identifier{star.Qualifier.Parts[0], {Text: column.Name}}
+					expression, _, err := b.ruleColumn(parser.ColumnExpr{Name: name, Pos: star.Pos})
+					if err != nil {
+						return nil, err
+					}
+					pseudo := expression.(columnExpression)
+					projection = append(projection, expression)
+					targetNames = append(targetNames, column.Name)
+					literalTargets = append(literalTargets, -1)
+					b.viewStars[path] = append(b.viewStars[path], viewColumn{ruleRef: pseudo.origin, ruleSide: pseudo.frame})
+				}
+				continue
+			}
 			columns := namespace.columns
 			frame := b.frameID()
 			starPath := viewLiteralPath{query: frame, clause: viewTargetLiteral, target: target}
@@ -337,7 +358,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
 		regclassOutput = regclassOutput || result.Usage.Type.ContainsCatalogIdentifier()
 		result.Name = targetNames[i]
-		if c, ok := expr.(columnExpression); ok && c.frame == b.frameID() {
+		if c, ok := expr.(columnExpression); ok && c.scope == 1 && c.frame == b.frameID() {
 			result = namespace.frame[c.slot]
 			result.Name = targetNames[i]
 		}

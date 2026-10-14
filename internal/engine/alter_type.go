@@ -162,6 +162,13 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	if err := policyTypeChangeError(auth.catalog, target); err != nil {
 		return fail(err)
 	}
+	if path, pathErr := e.lookupPath(auth, relationLookup); pathErr != nil {
+		return fail(pathErr)
+	} else if dependents := ruleDependentLabels(auth.catalog, []ObjectAddress{target}, path); len(dependents) != 0 {
+		d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
+		d.Detail = fmt.Sprintf(`%s depends on column "%s"`, dependents[0].label, a.Column.Text)
+		return fail(d)
+	}
 	if edges := viewDependencyClosure(auth.catalog, []ObjectAddress{target}, stage); len(edges) != 0 {
 		view := edges[0].view
 		name := view.name
