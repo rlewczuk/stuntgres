@@ -7,10 +7,14 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) *derivedNode {
+func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) LogicalNode {
 	switch n := viewFromRoot(root).(type) {
 	case *derivedNode:
 		if n.cte != nil && match(n) {
+			return n
+		}
+	case *worktableScanNode:
+		if match(&n.derivedNode) {
 			return n
 		}
 	case *joinNode:
@@ -21,10 +25,10 @@ func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) *derivedNode {
 	}
 	return nil
 }
-func viewCTETable(root LogicalNode, table *parser.TableReference) *derivedNode {
+func viewCTETable(root LogicalNode, table *parser.TableReference) LogicalNode {
 	return viewCTEScan(root, func(n *derivedNode) bool { return n.table == table })
 }
-func viewCTEOrdinal(root LogicalNode, ordinal int) *derivedNode {
+func viewCTEOrdinal(root LogicalNode, ordinal int) LogicalNode {
 	return viewCTEScan(root, func(n *derivedNode) bool { return n.ordinal == ordinal })
 }
 
@@ -65,7 +69,11 @@ func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog Catalo
 		return "", err
 	}
 	if len(definitions) != 0 {
-		text = "WITH " + strings.Join(definitions, ", ") + " " + text
+		modifier := "WITH "
+		if s.WithRecursive {
+			modifier = "WITH RECURSIVE "
+		}
+		text = modifier + strings.Join(definitions, ", ") + " " + text
 	}
 	return text, nil
 }

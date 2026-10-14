@@ -209,6 +209,7 @@ package parser
 %token <tok> IF EXISTS
 %token <tok> ANY SOME ROW
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
+%token <tok> RECURSIVE
 %token <tok> GRANT REVOKE ADMIN INHERIT OPTION GRANTED
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
@@ -287,7 +288,8 @@ package parser
 /* These membership tokens were IDENT before promotion. Preserve IDENT's
  * existing type-tail decision, exactly as for REINDEX above. */
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U KW_C CONVERSION ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
+/* RECURSIVE likewise retains KW_U's contextual identifier/type-tail precedence. */
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -1915,20 +1917,21 @@ query_set: query_intersection { $$=$1 }
  | query_set EXCEPT set_modifier query_intersection { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
-with_clause: WITH cte_list { $$=cteClause{Definitions:$2,Pos:$1.pos} } ;
+with_clause: WITH cte_list { $$=cteClause{Definitions:$2,Pos:$1.pos} }
+ | WITH RECURSIVE cte_list { $$=cteClause{Definitions:$3,Recursive:true,Pos:$1.pos} } ;
 cte_list: cte_definition { $$=[]CommonTableExpression{$1} }
  | cte_list ',' cte_definition { $$=append($1,$3) } ;
 cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4} } ;
 cte_body: query_select { $$=$1 } | insert | update | delete | merge | with_mutation ;
-with_mutation: with_clause insert { $2.(*Insert).With=$1.Definitions;$$=$2 }
- | with_clause update { $2.(*Update).With=$1.Definitions;$$=$2 }
- | with_clause delete { $2.(*Delete).With=$1.Definitions;$$=$2 }
- | with_clause merge { $2.(*Merge).With=$1.Definitions;$$=$2 } ;
+with_mutation: with_clause insert { $2.(*Insert).With=$1.Definitions;$2.(*Insert).WithRecursive=$1.Recursive;$$=$2 }
+ | with_clause update { $2.(*Update).With=$1.Definitions;$2.(*Update).WithRecursive=$1.Recursive;$$=$2 }
+ | with_clause delete { $2.(*Delete).With=$1.Definitions;$2.(*Delete).WithRecursive=$1.Recursive;$$=$2 }
+ | with_clause merge { $2.(*Merge).With=$1.Definitions;$2.(*Merge).WithRecursive=$1.Recursive;$$=$2 } ;
 cte_materialization: /* empty */ { $$=CTEDefault }
  | MATERIALIZED { $$=CTEMaterialized }
  | NOT MATERIALIZED { $$=CTENotMaterialized } ;
 query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};if !sqllex.(*lexer).validateTies($1.Bounds,$1.Order,$1.Locking) {return 1};if $1.Values!=nil {$1.Values.Order=$1.Order;$1.Values.Bounds=$1.Bounds};$$=$1 }
- | with_clause query_set order query_tail { if len($2.With)!=0 {sqllex.(*lexer).failAt("42601","multiple WITH clauses not allowed",$1.Pos.Offset);return 1};$2.With=$1.Definitions;if $3!=nil {$2.Order=$3};if $4.Bounds!=nil {$2.Bounds=$4.Bounds};if $4.Locking!=nil {$2.Locking=$4.Locking};if !sqllex.(*lexer).validateTies($2.Bounds,$2.Order,$2.Locking) {return 1};$$=$2 } ;
+ | with_clause query_set order query_tail { if len($2.With)!=0 {sqllex.(*lexer).failAt("42601","multiple WITH clauses not allowed",$1.Pos.Offset);return 1};$2.With=$1.Definitions;$2.WithRecursive=$1.Recursive;if $3!=nil {$2.Order=$3};if $4.Bounds!=nil {$2.Bounds=$4.Bounds};if $4.Locking!=nil {$2.Locking=$4.Locking};if !sqllex.(*lexer).validateTies($2.Bounds,$2.Order,$2.Locking) {return 1};$$=$2 } ;
 select_query: query_select { $$=$1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }
@@ -2261,6 +2264,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | CONVERSION
+ | RECURSIVE
  | string_word
  | TRUNCATE | CONTINUE
  | COPY
@@ -2295,6 +2299,7 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | CONVERSION
+ | RECURSIVE
  | string_word
  | TRUNCATE | CONTINUE
  | COPY
@@ -2319,6 +2324,7 @@ generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | CONVERSION
+ | RECURSIVE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | COPY
  | ORDINALITY | LATERAL

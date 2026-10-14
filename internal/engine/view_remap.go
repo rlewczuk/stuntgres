@@ -430,7 +430,11 @@ func remapViewQueryMapped(view CatalogRead, node LogicalNode, ref func(ObjectRef
 	if len(collations) != 0 {
 		collation = collations[0]
 	}
-	return (&viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}).query(node)
+	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
+	if _, ok := node.(*projectNode); ok {
+		return mapper.nested(node)
+	}
+	return mapper.query(node)
 }
 
 type viewQueryRemapper struct {
@@ -451,15 +455,20 @@ func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
 	if root := m.queries[project]; root != nil {
 		return root, nil
 	}
-	root, err := m.query(node)
-	if err != nil {
-		return nil, err
-	}
 	if m.queries == nil {
 		m.queries = make(map[*projectNode]LogicalNode)
 	}
-	m.queries[project] = root
-	return root, nil
+	// Register the query identity before recursive-definition remapping can
+	// encounter its canonical project again. Self scans remain opaque leaves.
+	copy := *project
+	m.queries[project] = &copy
+	root, err := m.query(node)
+	if err != nil {
+		delete(m.queries, project)
+		return nil, err
+	}
+	copy = *root.(*projectNode)
+	return &copy, nil
 }
 
 func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
@@ -571,51 +580,49 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges), viewOrdinal: n.viewOrdinal, correlatedRight: n.correlatedRight, frame: n.frame, correlationPrefix: n.correlationPrefix, captures: n.captures, presenceSlot: n.presenceSlot}
 	case *singletonNode:
 		next = &singletonNode{querySchema: schema}
-	case *derivedNode:
-		query := *n.query
-		query.Root, err = m.nested(query.Root)
+	case *worktableScanNode:
 		copy := *n
-		copy.querySchema, copy.query = schema, &query
-		if n.cte != nil && err == nil {
-			if m.ctes == nil {
-				m.ctes = make(map[*cteDefinition]*cteDefinition)
-			}
-			definition := m.ctes[n.cte]
-			if definition == nil {
-				d := *n.cte
-				canonical := *d.query
-				canonical.Root, err = m.nested(canonical.Root)
-				if err != nil {
-					return nil, err
-				}
-				d.query = &canonical
-				definition = &d
-				m.ctes[n.cte] = definition
-			}
-			copy.cte = definition
+		copy.querySchema = schema
+		copy.cte, err = m.cte(n.cte)
+		next = &copy
+	case *derivedNode:
+		copy := *n
+		copy.querySchema = schema
+		if n.cte != nil {
+			copy.cte, err = m.cte(n.cte)
+		}
+		if err == nil {
+			query := *n.query
+			query.Root, err = m.nested(query.Root)
+			copy.query = &query
 		}
 		next = &copy
 	case *projectNode:
 		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), analysisExpressions: expressions(n.analysisExpressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax, cteOwner: n.cteOwner, hasTargetSet: n.hasTargetSet}
-	case *setNode:
-		copy := *n
+	case *setNode, *recursiveUnionNode:
+		set := querySetNode(node)
+		copy := *set
 		copy.querySchema = schema
+		var definition *cteDefinition
+		if recursive, ok := node.(*recursiveUnionNode); ok {
+			definition, err = m.cte(recursive.definition)
+		}
 		if err == nil {
 			var left LogicalNode
-			left, err = m.nested(n.left)
+			left, err = m.nested(set.left)
 			if err == nil {
 				copy.left = left.(*projectNode)
 			}
 		}
 		if err == nil {
 			var right LogicalNode
-			right, err = m.nested(n.right)
+			right, err = m.nested(set.right)
 			if err == nil {
 				copy.right = right.(*projectNode)
 			}
 		}
-		copy.leftExpressions = expressions(n.leftExpressions)
-		copy.rightExpressions = expressions(n.rightExpressions)
+		copy.leftExpressions = expressions(set.leftExpressions)
+		copy.rightExpressions = expressions(set.rightExpressions)
 		copy.grouping = nil
 		if !(copy.operation == "union" && copy.all) {
 			copy.grouping = make([]sqltype.Grouping, len(schema))
@@ -625,7 +632,11 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				}
 			}
 		}
-		next = &copy
+		if definition != nil {
+			next = &recursiveUnionNode{setNode: copy, definition: definition}
+		} else {
+			next = &copy
+		}
 	case *distinctNode:
 		copy := *n
 		copy.querySchema = schema
@@ -726,20 +737,26 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			copy.calls[i] = call
 			switch p := call.provider.(type) {
 			case *orderedSetProvider:
-				provider:=*p
-				p=&provider
-				p.usage=usage(p.usage)
-				p.input,p.fraction=typ(p.input),typ(p.fraction)
-				if err==nil {
-					inputUsage:=usage(call.argument.ResultUsage())
-					if err==nil {p.comparison,err=sqltype.BindOrdering(inputUsage)}
+				provider := *p
+				p = &provider
+				p.usage = usage(p.usage)
+				p.input, p.fraction = typ(p.input), typ(p.fraction)
+				if err == nil {
+					inputUsage := usage(call.argument.ResultUsage())
+					if err == nil {
+						p.comparison, err = sqltype.BindOrdering(inputUsage)
+					}
 				}
-				if err==nil&&p.operation==aggregatePercentileCont&&p.input.ID()==sqltype.Interval {
-					p.subtract,err=sqltype.BindArithmetic(sqltype.ArithmeticSubtract,p.input,p.input,p.input)
-					if err==nil {p.multiply,err=sqltype.BindArithmetic(sqltype.ArithmeticMultiply,p.input,p.fraction,p.input)}
-					if err==nil {p.add,err=sqltype.BindArithmetic(sqltype.ArithmeticAdd,p.input,p.input,p.input)}
+				if err == nil && p.operation == aggregatePercentileCont && p.input.ID() == sqltype.Interval {
+					p.subtract, err = sqltype.BindArithmetic(sqltype.ArithmeticSubtract, p.input, p.input, p.input)
+					if err == nil {
+						p.multiply, err = sqltype.BindArithmetic(sqltype.ArithmeticMultiply, p.input, p.fraction, p.input)
+					}
+					if err == nil {
+						p.add, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, p.input, p.input, p.input)
+					}
 				}
-				copy.calls[i].provider=p
+				copy.calls[i].provider = p
 			case countProvider:
 				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
@@ -840,7 +857,9 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if call.separator != nil {
 				copy.calls[i].separator = expression(call.separator)
 			}
-			if call.direct!=nil {copy.calls[i].direct=expression(call.direct)}
+			if call.direct != nil {
+				copy.calls[i].direct = expression(call.direct)
+			}
 			if call.filter != nil {
 				copy.calls[i].filter = expression(call.filter)
 			}
@@ -1005,4 +1024,36 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 		reserved[rule] |= ruleOID | claimedOID
 	}
 	return e.remapDefinitionOIDsLocked(next)
+}
+
+func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
+	if mapped := m.ctes[old]; mapped != nil {
+		return mapped, nil
+	}
+	if m.ctes == nil {
+		m.ctes = make(map[*cteDefinition]*cteDefinition)
+	}
+	copy := *old
+	m.ctes[old] = &copy
+	copy.schema = append(querySchema(nil), old.schema...)
+	for i := range copy.schema {
+		copy.schema[i].Usage.Type = m.typ(copy.schema[i].Usage.Type)
+		if m.collation != nil {
+			collation, err := m.collation(copy.schema[i].Usage.Collation)
+			if err != nil {
+				return nil, err
+			}
+			copy.schema[i].Usage.Collation = collation
+		}
+	}
+	if old.query != nil {
+		query := *old.query
+		root, err := m.nested(query.Root)
+		if err != nil {
+			return nil, err
+		}
+		query.Root = root
+		copy.query = &query
+	}
+	return &copy, nil
 }

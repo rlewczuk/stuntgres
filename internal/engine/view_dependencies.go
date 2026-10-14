@@ -509,21 +509,15 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				}
 			}
 		case *setNode:
-			width := len(n.Schema())
-			if n.left == nil || n.right == nil || len(n.left.Schema()) != width || len(n.right.Schema()) != width || len(n.leftExpressions) != width || len(n.rightExpressions) != width {
-				return fmt.Errorf("stuntgres: invalid stored set width")
+			if err := validateStoredSetNode(n); err != nil {
+				return err
 			}
-			if n.operation != "union" && n.operation != "intersect" && n.operation != "except" {
-				return fmt.Errorf("stuntgres: invalid stored set operation")
+		case *recursiveUnionNode:
+			if n.definition == nil || !n.definition.recursive {
+				return fmt.Errorf("stuntgres: invalid stored recursive definition")
 			}
-			grouped := !(n.operation == "union" && n.all)
-			if grouped && len(n.grouping) != width || !grouped && len(n.grouping) != 0 {
-				return fmt.Errorf("stuntgres: invalid stored set grouping")
-			}
-			for i, column := range n.Schema() {
-				if n.leftExpressions[i] == nil || n.rightExpressions[i] == nil || n.leftExpressions[i].ResultUsage() != column.Usage || n.rightExpressions[i].ResultUsage() != column.Usage {
-					return fmt.Errorf("stuntgres: invalid stored set coercion")
-				}
+			if err := validateStoredSetNode(&n.setNode); err != nil {
+				return err
 			}
 		case *limitNode:
 			for _, expr := range []BoundExpr{n.offset, n.count} {
@@ -666,6 +660,10 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			if n.query == nil || n.query.Root == nil || len(n.Schema()) != len(n.query.Root.Schema()) {
 				return fmt.Errorf("stuntgres: invalid stored derived frame")
 			}
+		case *worktableScanNode:
+			if n.query != nil || n.cte == nil || !n.cte.recursive || len(n.Schema()) != len(n.cte.outputSchema()) {
+				return fmt.Errorf("stuntgres: invalid stored worktable identity")
+			}
 		case *projectNode, *evaluationNode, *filterNode, *sortNode, *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *singletonNode:
 		default:
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
@@ -768,6 +766,26 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 	for frame, project := range projects {
 		if project.syntax != nil && project.syntax.Locking != nil && !marked[frame] {
 			return fmt.Errorf("stuntgres: missing stored view rowmark")
+		}
+	}
+	return nil
+}
+
+func validateStoredSetNode(n *setNode) error {
+	width := len(n.Schema())
+	if n.left == nil || n.right == nil || len(n.left.Schema()) != width || len(n.right.Schema()) != width || len(n.leftExpressions) != width || len(n.rightExpressions) != width {
+		return fmt.Errorf("stuntgres: invalid stored set width")
+	}
+	if n.operation != "union" && n.operation != "intersect" && n.operation != "except" {
+		return fmt.Errorf("stuntgres: invalid stored set operation")
+	}
+	grouped := !(n.operation == "union" && n.all)
+	if grouped && len(n.grouping) != width || !grouped && len(n.grouping) != 0 {
+		return fmt.Errorf("stuntgres: invalid stored set grouping")
+	}
+	for i, column := range n.Schema() {
+		if n.leftExpressions[i] == nil || n.rightExpressions[i] == nil || n.leftExpressions[i].ResultUsage() != column.Usage || n.rightExpressions[i].ResultUsage() != column.Usage {
+			return fmt.Errorf("stuntgres: invalid stored set coercion")
 		}
 	}
 	return nil

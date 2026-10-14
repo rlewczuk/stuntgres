@@ -222,7 +222,7 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 func storedScheduledPayloadDemand(root LogicalNode, retained []BoundExpr) (LogicalNode, error) {
 	input := func(node LogicalNode) LogicalNode {
 		switch node.(type) {
-		case *projectNode, *derivedNode, *joinNode, *setNode:
+		case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
 			return nil
 		}
 		left, right := queryInputs(node)
@@ -288,7 +288,7 @@ func storedScheduledPayloadDemand(root LogicalNode, retained []BoundExpr) (Logic
 			}
 		case *evaluationNode:
 			// Its payload reads are demanded only through live owner slots.
-		case *projectNode, *derivedNode, *joinNode, *setNode:
+		case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
 			// These are separate projection/cache frames.
 		default:
 			queryExpressions(node, demand)

@@ -861,6 +861,7 @@ type dropTarget struct {
 
 type Insert struct {
 	With          []CommonTableExpression
+	WithRecursive bool
 	Name          ObjectName
 	Alias         Identifier
 	Targets       []InsertTarget
@@ -904,14 +905,15 @@ func (*Insert) statement() {}
 
 // Merge uses the ordinary query and mutation expression machinery.
 type Merge struct {
-	With      []CommonTableExpression
-	Name      ObjectName
-	Alias     Identifier
-	Source    FromItem
-	On        Expr
-	Arms      []MergeArm
-	Returning *Returning
-	Pos       Position
+	With          []CommonTableExpression
+	WithRecursive bool
+	Name          ObjectName
+	Alias         Identifier
+	Source        FromItem
+	On            Expr
+	Arms          []MergeArm
+	Returning     *Returning
+	Pos           Position
 }
 
 type MergeMatch uint8
@@ -969,14 +971,15 @@ func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSour
 }
 
 type Delete struct {
-	With      []CommonTableExpression
-	Name      ObjectName
-	Alias     Identifier
-	Using     FromItem
-	Where     Expr
-	CurrentOf *Identifier
-	Returning *Returning
-	Pos       Position
+	With          []CommonTableExpression
+	WithRecursive bool
+	Name          ObjectName
+	Alias         Identifier
+	Using         FromItem
+	Where         Expr
+	CurrentOf     *Identifier
+	Returning     *Returning
+	Pos           Position
 }
 
 // Mutations own exactly one qualifier; CURRENT OF is not a Boolean expression.
@@ -1001,15 +1004,16 @@ type ReturningAlias struct {
 }
 
 type Update struct {
-	With        []CommonTableExpression
-	Name        ObjectName
-	Alias       Identifier
-	From        FromItem
-	Assignments []UpdateAssignment
-	Where       Expr
-	CurrentOf   *Identifier
-	Returning   *Returning
-	Pos         Position
+	With          []CommonTableExpression
+	WithRecursive bool
+	Name          ObjectName
+	Alias         Identifier
+	From          FromItem
+	Assignments   []UpdateAssignment
+	Where         Expr
+	CurrentOf     *Identifier
+	Returning     *Returning
+	Pos           Position
 }
 type UpdateAssignment struct {
 	Target Identifier
@@ -1021,6 +1025,7 @@ func (*Update) statement() {}
 
 type Select struct {
 	With          []CommonTableExpression
+	WithRecursive bool
 	From          FromItem
 	Values        *ValuesQuery
 	Targets       []Expr
@@ -1060,6 +1065,7 @@ type CommonTableExpression struct {
 // multiple-WITH diagnostics rather than overwriting the existing clause.
 type cteClause struct {
 	Definitions []CommonTableExpression
+	Recursive   bool
 	Pos         Position
 }
 
@@ -1749,11 +1755,11 @@ type FunctionExpr struct {
 	Window             *WindowSpec
 	// Selected time providers retain modifiers only for ordinary-function
 	// diagnostics; these fields never authorize aggregate/window execution.
-	Star     bool
-	Distinct bool
-	All      bool
-	Order    []OrderKey
-	Filter   Expr
+	Star      bool
+	Distinct  bool
+	All       bool
+	Order     []OrderKey
+	Filter    Expr
 	Within    bool
 	WithinPos Position
 }

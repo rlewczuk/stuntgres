@@ -27,8 +27,10 @@ effects: nested modifying WITH, missing RETURNING, duplicate/forward/alias names
 rowmarks and malformed suffixes. CREATE VIEW fails at held execution; materialized
 views and cursors fail at held preparation. CTAS/SELECT INTO use atomic creation
 and modifier effects; CTAS WITH NO DATA creates empty schema without executing
-the query. Genuine PostgreSQL recursive/rule restriction phases coexist with
-explicit native existing syntax boundaries, not fake provider success.
+the query. Recursive DML self-reference is rejected on both backends with42P19,
+the complete PostgreSQL diagnostic and unchanged target rows, through direct and
+held-preparation routes. PostgreSQL rule restriction phases still coexist with
+explicit native rule-syntax boundaries, not fake provider success.
 
 Prepared tests cover quiet Prepare, all-body/main formal parameters, fresh
 invocations, current ACL/read-only and incompatible result shape. Atomicity

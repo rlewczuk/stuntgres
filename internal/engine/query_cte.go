@@ -25,6 +25,7 @@ type cteProducer struct {
 	opened, done, closed bool
 	affected             int64 // Completed modifier count, never added to primary results.
 	failure              error
+	recursion            *recursiveUnionStage
 }
 
 func (o *cteInvocation) close() error {
@@ -91,6 +92,11 @@ func (p *cteProducer) ensure(ctx context.Context, index int) (bool, error) {
 			}
 			break
 		}
+		// Recursive output and worktable generations already borrow this
+		// producer's append-only tuples; do not evaluate or copy them again.
+		if p.recursion != nil {
+			continue
+		}
 		p.inner.evaluation.setContext(ctx)
 		p.inner.evaluation.bindQueryRow(p.inner.source, p.inner.index(i))
 		p.inner.evaluation.orderValues = p.inner.orderRow(i)
@@ -150,7 +156,7 @@ func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexe
 		source = &querySource{flat: producer.source.flat, flatWidth: producer.source.flatWidth, flatCount: producer.source.flatCount, materialized: true, authority: producer.source.authority, scope: producer.source.scope, locks: producer.source.locks}
 		establishSourcePresence(source, n.presenceSlot)
 	}
-	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
+	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}, onFailure: producer.fail}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		index := len(out.selection)
 		present, err := producer.ensure(ctx, index)

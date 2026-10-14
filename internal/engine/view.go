@@ -616,6 +616,8 @@ func frozenNamespaceNode(root LogicalNode) (uint8, int) {
 			return viewDerivedNamespace, node.ordinal
 		}
 		return viewDerivedNamespace, int(node.query.Root.(*projectNode).frame)
+	case *worktableScanNode:
+		return viewDerivedNamespace, node.ordinal
 	}
 	return 0, 0
 }

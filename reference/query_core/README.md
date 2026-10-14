@@ -160,3 +160,58 @@ for all hints while an independently reachable marked aggregate sibling retains
 native's mandatory conflict frontier, then releases grants on transaction end.
 The program is a temporary session artifact, not a committed scaffold. Permanent
 `TestReferenceQueryCTEFeatureSmoke` additionally runs in both selected modes.
+
+### Recursive CTE verification
+
+`TestReferenceQueryRecursiveCTEWorktable`, `Equality`, `Scope`, `Diagnostics`,
+`Demand`, `Lifecycle`, `Stored`, `FeatureSmoke` and `ReviewDiagnostics` share independently specified
+bags, metadata, counts, whole diagnostic records and lifecycle assertions across
+the native and pinned PostgreSQL18.0 fixtures. Ordering is required only where SQL
+provides a complete ORDER BY. Zero-column recursive UNION retains occurrences like
+ALL; positive-width recursive keys still include columns omitted by the parent.
+MERGE's own recursive modifier is rejected. Local recursive SELECT consumers use
+the established MERGE count codec convention (native real count/lib-pq zero), with
+exact persisted rows proving INSERT/UPDATE effects on both backends.
+
+`ReviewDiagnostics` specifies body-WITH self-reference precedence over recursive
+decorations, SubLink context overriding anchors/nullable joins/prohibited set
+operands, and subselect-before-testexpr reference positions. It checks complete
+42P19 records with ASCII/UTF-8 character positions across direct/prepared Query
+and Exec, unchanged sentinel rows after errors, and harmless body-WITH/shadow
+controls with bags and raw metadata. Ordinary source-admission order is unchanged.
+
+Run each command from the assigned worktree with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceQueryRecursiveCTE(Worktable|Equality|Scope|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceQueryRecursiveCTE(Worktable|Equality|Scope|Diagnostics)$'
+make check RUN='^TestReferenceQueryRecursiveCTE(Demand|Lifecycle|Stored|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceQueryRecursiveCTE(Demand|Lifecycle|Stored|FeatureSmoke)$'
+make check RUN='^TestReferenceQueryRecursiveCTEReviewDiagnostics$'
+make check REFERENCE=1 RUN='^TestReferenceQueryRecursiveCTEReviewDiagnostics$'
+make check RUN='^Test(QueryRecursiveCTE|CTEParserRecursive)'
+make check RACE=1 RUN='^TestQueryRecursiveCTE(CurrentGenerationAndSharing|DemandCancellationAndClose)$'
+make check RUN='^TestReferenceQueryRecursiveCTEFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceQueryRecursiveCTEFeatureSmoke$'
+```
+
+Private tests exercise lexical identity/prewalk, anchor Usage, opaque graph
+edges, current-generation buffers, replay sharing, typed collision resolution,
+zero-width occurrence handling, live-pass cancellation/close ownership and
+immutable rewrite/foreign remap and exact stored namespace-node identity.
+Synthetic enum outputs use unknown nullability, not stored-column nullability.
+Transaction failure scenarios precreate their target outside BEGIN and prove
+rollback of staged rows, preserving native utility-in-transaction boundaries.
+Public scenarios retain running server/native
+cancellation, prepared argument/dependency freshness, failure atomicity, catalog
+invariance and native persistent/retained-output controls.
+
+The part handoff additionally supplies a session-only standalone public
+`recursive-cte-smoke.go`. Its argv is
+`go run \"$SESSION_TMP/recursive-cte-smoke.go\"` with an external900-second deadline.
+It is not a tracked script or a replacement for selected dual-mode proof.
+The smoke also checks body-WITH self-reference before a competing ORDER BY,
+anchor SubLink context and IN subselect-before-testexpr exact diagnostics, plus
+harmless body-WITH and local-shadow positive bags. These supplement, not replace,
+the shared `ReviewDiagnostics` scenario.
+

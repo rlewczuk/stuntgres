@@ -53,12 +53,19 @@ type setArm struct {
 }
 
 func openSetArm(ctx context.Context, state *queryState, project *projectNode, expressions []BoundExpr, schema []ColumnDescriptor) (setArm, error) {
+	return openSetArmScratch(ctx, state, project, expressions, schema, nil)
+}
+
+func openSetArmScratch(ctx context.Context, state *queryState, project *projectNode, expressions []BoundExpr, schema []ColumnDescriptor, scratch []sqltype.Value) (setArm, error) {
 	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, hashOwner: state.membershipOwner()}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {
 		return setArm{}, err
 	}
-	return setArm{inner: inner, expressions: expressions, schema: schema, row: make([]sqltype.Value, len(schema))}, nil
+	if scratch == nil {
+		scratch = make([]sqltype.Value, len(schema))
+	}
+	return setArm{inner: inner, expressions: expressions, schema: schema, row: scratch}, nil
 }
 
 func (a *setArm) Close() error { return a.inner.Close() }

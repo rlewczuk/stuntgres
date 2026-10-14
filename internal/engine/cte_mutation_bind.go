@@ -211,7 +211,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 	oldCTEs := len(b.cteBindings)
 	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()
 	if definitions := parser.StatementWith(statement); len(definitions) != 0 {
-		if _, err := b.bindCTEDefinitions(definitions); err != nil {
+		if _, err := b.bindCTEDefinitions(definitions, parser.StatementWithRecursive(statement)); err != nil {
 			return binding{}, err
 		}
 	}

@@ -92,9 +92,6 @@ func TestReferenceCTEDMLRestrictions(t *testing.T) {
 			cteDMLSeed(t, p, b)
 			q := "WITH RECURSIVE d AS (DELETE FROM t USING d WHERE t.id=d.id RETURNING t.id) SELECT * FROM d"
 			want := fixture.Diagnostic{Code: "42P19", Message: `recursive query "d" must not contain data-modifying statements`, Position: "16"}
-			if !b.PG {
-				want = fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "d"`, Position: "16"}
-			}
 			cteDMLError(t, p, b, prepared, q, want)
 		})
 	})

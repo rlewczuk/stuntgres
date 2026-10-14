@@ -18,6 +18,10 @@ type cteDefinition struct {
 	references int
 	hint       parser.CTEMaterialization
 	volatile   bool
+	recursive  bool
+	syntax     *parser.Select
+	name       string
+	columns    []parser.Identifier
 	position   parser.Position
 }
 type cteBinding struct {
@@ -26,7 +30,7 @@ type cteBinding struct {
 }
 
 func (d *cteDefinition) folded() bool {
-	return d.mutation == nil && !d.volatile && d.hint != parser.CTEMaterialized && (d.hint == parser.CTENotMaterialized || d.references == 1)
+	return !d.recursive && d.mutation == nil && !d.volatile && d.hint != parser.CTEMaterialized && (d.hint == parser.CTENotMaterialized || d.references == 1)
 }
 
 func (d *cteDefinition) outputSchema() querySchema {
@@ -47,19 +51,30 @@ func futureCTEError(err error, name string) error {
 	return &copy
 }
 
-func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTableExpression) ([]*cteDefinition, error) {
-	var definitions []*cteDefinition
-	for _, raw := range rawDefinitions {
+func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTableExpression, recursive bool) ([]*cteDefinition, error) {
+	analysis, err := parser.AnalyzeRecursiveCTEs(&parser.Select{With: rawDefinitions, WithRecursive: recursive})
+	if err != nil {
+		return nil, err
+	}
+	definitions := make([]*cteDefinition, len(rawDefinitions))
+	for _, index := range analysis.Order {
+		raw := rawDefinitions[index]
 		start := len(b.querySources)
-		definition := &cteDefinition{owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos}
+		definition := &cteDefinition{owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, name: raw.Name.Text, columns: raw.Columns, recursive: analysis.Recursive[index]}
 		if selection, ok := raw.Query.(*parser.Select); ok {
 			b.cteSelectBodies = true
 			if selection.Values != nil {
 				return nil, expressionError("0A000", "WITH bodies must be SELECT queries", raw.Name.Pos)
 			}
 			b.cteAnalysisDepth++
+			oldRecursive := b.recursiveDefinition
+			if definition.recursive {
+				definition.syntax = selection
+				b.recursiveDefinition = definition
+			}
 			query, err := b.bindSelect(selection, false)
 			b.cteAnalysisDepth--
+			b.recursiveDefinition = oldRecursive
 			if err != nil {
 				return nil, err
 			}
@@ -99,7 +114,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				definition.mutation.returning.schema = aliased
 			}
 		}
-		definitions = append(definitions, definition)
+		definitions[index] = definition
 		b.cteBindings = append(b.cteBindings, cteBinding{raw.Name.Text, definition})
 	}
 	return definitions, nil
@@ -111,7 +126,20 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, d *cteDefin
 	}
 	d.references++
 	schema := d.outputSchema()
-	scan := &derivedNode{querySchema: schema, query: d.query, cte: d, table: table, ordinal: -1 - b.cteScanOrdinal, scanFrame: b.frameID(), demand: make([]bool, len(schema))}
+	var scan *derivedNode
+	var root LogicalNode
+	if d.recursive && d.query == nil {
+		self := &worktableScanNode{}
+		scan, root = &self.derivedNode, self
+		if b.recursiveFrames == nil {
+			b.recursiveFrames = make(map[uint32]bool)
+		}
+		b.recursiveFrames[b.frameID()] = true
+	} else {
+		scan = &derivedNode{}
+		root = scan
+	}
+	*scan = derivedNode{querySchema: schema, query: d.query, cte: d, table: table, ordinal: -1 - b.cteScanOrdinal, scanFrame: b.frameID(), demand: make([]bool, len(schema))}
 	b.cteScanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
@@ -120,7 +148,7 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, d *cteDefin
 	name := table.Name.Parts[0].Text
 	qualifier := queryQualifier{name: name, original: name, columns: columns}
 	b.queryHidden = append(b.queryHidden, qualifier)
-	return scan, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
+	return root, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
 }
 
 // Runtime demand omits unused definitions, while PostgreSQL's static folding

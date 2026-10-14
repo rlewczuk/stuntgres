@@ -116,6 +116,17 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			copy.leftExpressions, copy.rightExpressions = leftExpressions, rightExpressions
 			out = &copy
 		}
+	case *recursiveUnionNode:
+		left, right := child(n.left), child(n.right)
+		leftExpressions, rightExpressions := args(n.leftExpressions), args(n.rightExpressions)
+		if changed && err == nil {
+			copy := *n
+			copy.left, copy.right = left.(*projectNode), right.(*projectNode)
+			copy.leftExpressions, copy.rightExpressions = leftExpressions, rightExpressions
+			out = &copy
+		}
+	case *worktableScanNode:
+		return node, nil
 	case *sourceNode, *singletonNode:
 		return node, nil
 	case *projectNode:
@@ -307,10 +318,10 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 						nextCall.argument = next
 					} else if j == 1 {
 						nextCall.separator = next
-					} else if j==2 {
+					} else if j == 2 {
 						nextCall.filter = next
 					} else {
-						nextCall.direct=next
+						nextCall.direct = next
 					}
 				}
 			}

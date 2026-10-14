@@ -508,7 +508,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
 - Temporal providers retain exclusions for timezone age/finite inquiries,
   epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
   resolution and custom/generic optimizer-plan switching are not implemented.
-- Recursive CTEs and general lateral derived sources are excluded.
+- Recursive SELECT CTEs support UNION/UNION ALL worktable iteration and parent
+  demand with existing type/equality providers. SEARCH/CYCLE, recursive modifying
+  definitions, and general lateral derived sources remain excluded. MERGE rejects
+  its own WITH RECURSIVE; a recursive SELECT inside its derived source is admitted.
   Window providers are row_number(), count(*) and
   existing integer/numeric/floating sum(expr); MONEY/INTERVAL SUM, expression-count
   windows, DISTINCT/call-local aggregate ORDER and window aggregate filters remain excluded.

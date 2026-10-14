@@ -32,6 +32,8 @@ unwrap:
 		slot = &n.presenceSlot
 	case *derivedNode:
 		slot = &n.presenceSlot
+	case *worktableScanNode:
+		slot = &n.presenceSlot
 	case *joinNode:
 		slot = &n.presenceSlot
 	case *functionFromNode:
@@ -130,6 +132,8 @@ func markPresenceTopology(root LogicalNode, slots []int) int {
 	case *valuesNode:
 		slot = n.presenceSlot
 	case *derivedNode:
+		slot = n.presenceSlot
+	case *worktableScanNode:
 		slot = n.presenceSlot
 	case *functionFromNode:
 		slot = n.presenceSlot

@@ -10,7 +10,7 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 	switch n := node.(type) {
 	case *sourceNode:
 		return appendQueryOccurrences(dst, querySourceAt(inputs, n.occurrence))
-	case *singletonNode, *valuesNode, *functionFromNode:
+	case *singletonNode, *valuesNode, *functionFromNode, *worktableScanNode:
 		return dst
 	case *joinNode:
 		return queryTreeOccurrences(n.right, inputs, queryTreeOccurrences(n.left, inputs, dst))
@@ -29,7 +29,7 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 		return queryTreeOccurrences(n.child, inputs, dst)
 	case *windowNode:
 		return dst // Windows consume their input and cannot carry row marks.
-	case *aggregateNode, *distinctNode, *distinctOnNode, *setNode:
+	case *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode:
 		return dst
 	case *rowLockNode:
 		return queryTreeOccurrences(n.child, inputs, dst)

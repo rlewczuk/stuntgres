@@ -171,7 +171,7 @@ func queryHasSetOutput(node LogicalNode) bool {
 			node = n.child
 		case *filterNode:
 			node = n.child
-		case *setNode:
+		case *setNode, *recursiveUnionNode:
 			return true
 		default:
 			return false
@@ -404,7 +404,7 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 		return 0 // Legal nonphysical inherited paths need no substitution scratch.
 	case *limitNode:
 		return queryLockRecheckWidth(n.child, inputs)
-	case *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *setNode:
+	case *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *worktableScanNode:
 		return 0 // Its input marks/provenance have already been consumed.
 	case *evaluationNode:
 		return queryLockRecheckWidth(n.child, inputs)
@@ -503,7 +503,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		return recheckLockedSource(evaluation.query.derived[n], rows, evaluation, scratch, offset)
 	case *valuesNode:
 		return frozen, true, nil
-	case *distinctNode, *distinctOnNode, *setNode:
+	case *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *worktableScanNode:
 		return frozen, true, nil // Its source marks were settled during materialization.
 	case *limitNode:
 		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)

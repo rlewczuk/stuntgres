@@ -66,8 +66,8 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	}
 	v := renderer
 	if s.Set != nil {
-		set, ok := viewFromRoot(project).(*setNode)
-		if !ok || set.left == nil || set.right == nil {
+		set := querySetNode(viewFromRoot(project))
+		if set == nil || set.left == nil || set.right == nil {
 			return "", fmt.Errorf("stuntgres: missing frozen set query")
 		}
 		if columns == nil {
@@ -595,9 +595,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return catalogLiteralSQL(ctx, catalog, literal)
 		}
 	}
-	currentOrderedSetDirect:=parent.orderedSetDirect
+	currentOrderedSetDirect := parent.orderedSetDirect
 	operand := func(expr parser.Expr, parent pgRenderParent) (string, error) {
-		parent.orderedSetDirect=parent.orderedSetDirect||currentOrderedSetDirect
+		parent.orderedSetDirect = parent.orderedSetDirect || currentOrderedSetDirect
 		childPath := path
 		childPath.argument = 0
 		return v.expressionSQLAt(ctx, catalog, expr, childPath, ordinal, parent)
@@ -831,7 +831,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	case parser.CastExpr:
 		literalPath := path
 		literalPath.node = *ordinal
-		text, err := operand(e.Child,pgRenderParent{orderedSetDirect:parent.orderedSetDirect})
+		text, err := operand(e.Child, pgRenderParent{orderedSetDirect: parent.orderedSetDirect})
 		if err != nil {
 			return "", err
 		}
@@ -847,12 +847,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
 		if parent.orderedSetDirect && usage.Type.IsArray() {
-			if literal,captured:=v.literals[literalPath];captured&&literal.ResultUsage()==usage {
+			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
 				// Like retained registry-array constants, this captured datum
 				// already renders its exact owning typed annotation. Elide only
 				// that duplicated leaf annotation; outer casts, conversions and
 				// domain annotations remain in the original cast chain.
-				return text,nil
+				return text, nil
 			}
 		}
 		if !v.presentation.deparse && (usage.Type.IsArray() || usage.Type.IsDomain()) && (usage.Type.ContainsRegclass() || usage.Type.ContainsRegrole() || usage.Type.ContainsRegObject()) {
@@ -1007,8 +1007,8 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if e.Star {
 			text = "*"
 		} else {
-			if e.Within&&len(e.Args)==1 {
-				text,err=operand(e.Args[0],pgRenderParent{functionArgument:true,orderedSetDirect:true})
+			if e.Within && len(e.Args) == 1 {
+				text, err = operand(e.Args[0], pgRenderParent{functionArgument: true, orderedSetDirect: true})
 			} else {
 				text, err = args(e.Args)
 			}
@@ -1023,7 +1023,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text += jsonAggregateFormatSQL(e.JSON.Input)
 		}
 		if len(e.Order) > 0 {
-			if e.Within {text+=") WITHIN GROUP ("}
+			if e.Within {
+				text += ") WITHIN GROUP ("
+			}
 			text += " ORDER BY "
 			for i, key := range e.Order {
 				if i > 0 {

@@ -410,7 +410,34 @@ SELECT definitions; execution privileges follow referenced SELECT subtrees. Virt
 no independent ObjectRef, storage, snapshot or ACL authority, and outer rowmarks
 do not propagate through them. Native opaque-consumer gating does not erase an
 independently reachable stored physical settlement/lock frontier; PostgreSQL can
-omit those extra grants. Recursive CTEs remain excluded.
+omit those extra grants.
+
+Recursive definitions bind anchor output before the recursive arm, requiring
+exact overall type/typmod/collation agreement. Unknown anchor outputs become TEXT
+at this boundary. Recursive WITH names are visible throughout the group; lexical
+dependency analysis topologically binds siblings and rejects mutual cycles.
+The self scan is an opaque typed identity edge, not a structural query cycle or
+physical/catalog dependency. Genuine recursion is never folded by any hint.
+
+Each invocation owns an iterative current/next worktable over immutable accepted
+tuple indexes. Anchor rows seed the first generation; the recursive arm sees only
+that generation, and an exhausted arm swaps the next generation into place.
+Positive-width UNION uses existing type-owned NULL-aware hash/equality on every
+output column across the whole result, with complete collision comparison.
+Unused outer columns cannot be pruned from recursive keys. ALL, and PostgreSQL18's
+zero-column recursive UNION, require no deduplication structure.
+Independent external readers replay the same frontier; every Execute/correlated
+invocation starts fresh. Positive parent LIMIT stops production, while a blocking
+parent may force a complete drain. LIMIT0 keeps metadata without opening the child.
+
+Iteration, duplicate rejection, coercion and replay remain cancellable. The first
+failure sticks, opened stages close once, and successful-path close failure vetoes
+the single existing statement publication. Views and native Dump/Restore retain
+symbolic definitions plus real persisted rows/dependencies, never worktable state.
+MERGE's own recursive modifier is rejected, independently of a local recursive
+SELECT in its derived source. SEARCH/CYCLE and recursive modifying definitions remain outside
+this execution owner. See [recursive design](design/PG18-QUERY-CTE-RECURSIVE.md).
+
 
 Modifying definitions are separate mandatory execution roots, not lazy SELECT
 projects. The existing command binders share one parameter/dependency owner;

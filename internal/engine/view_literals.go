@@ -225,7 +225,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if call, ok := b.aggregateCallAt(n); ok {
 				for i, arg := range r.Args {
 					expression := call.argument
-					if r.Within {expression=call.direct}
+					if r.Within {
+						expression = call.direct
+					}
 					if conversion, ok := expression.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
 						expression = conversion.child
 					}
@@ -711,8 +713,8 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 			continue
 		}
 		if s.Set != nil {
-			set, ok := viewFromRoot(project).(*setNode)
-			if !ok || set.left == nil || set.right == nil || set.left.syntax != s.Set.Left || set.right.syntax != s.Set.Right || set.operation != s.Set.Operator || set.all != s.Set.All {
+			set := querySetNode(viewFromRoot(project))
+			if set == nil || set.left == nil || set.right == nil || set.left.syntax != s.Set.Left || set.right.syntax != s.Set.Right || set.operation != s.Set.Operator || set.all != s.Set.All {
 				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
 			}
 			left, right := v.queries[s.Set.Left], v.queries[s.Set.Right]

@@ -1450,6 +1450,8 @@ type expressionBinder struct {
 	queryFrame, nextQueryFrame uint32
 	queryScopes                []queryBindingScope
 	cteBindings                []cteBinding
+	recursiveDefinition        *cteDefinition
+	recursiveFrames            map[uint32]bool
 	cteScanOrdinal             int
 	cteAnalysisDepth           int
 	cteExecutables             []*BoundQuery
@@ -1851,6 +1853,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.AggregateExpr:
+			if r.Window == nil && b.recursiveFrames[b.frameID()] {
+				return nil, expressionError("42P19", "aggregate functions are not allowed in a recursive query's recursive term", r.Pos)
+			}
 			if b.executeParameters {
 				if r.Window != nil {
 					return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)

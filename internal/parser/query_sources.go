@@ -12,7 +12,11 @@ import (
 // lexical query containing the leaf. Repeated references are not deduplicated.
 // Either callback may be nil; a callback error stops traversal.
 func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visitTable func(*TableReference, *Select) error, classify ...func(*TableReference, bool, string)) error {
-	var visible []string
+	return visitQuerySources(statement, visitQuery, visitTable, classify, nil, nil, "", false)
+}
+
+// recursiveLegality changes only SubLink context/order, never ordinary source admission.
+func visitQuerySources(statement Statement, visitQuery func(*Select) error, visitTable func(*TableReference, *Select) error, classify []func(*TableReference, bool, string), resolved func(*TableReference, *CommonTableExpression, string) error, visible []*CommonTableExpression, context string, recursiveLegality bool) error {
 	var pending []string
 	var query func(*Select) error
 	var queryBody func(*Select) error
@@ -94,9 +98,24 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			}
 			return expression(e.Right)
 		case SubqueryExpr:
+			if recursiveLegality {
+				old := context
+				context = "subquery"
+				err := query(e.Query)
+				context = old
+				if err != nil {
+					return err
+				}
+				return expression(e.Left)
+			}
 			if err := expression(e.Left); err != nil {
 				return err
 			}
+			old := context
+			if context == "" {
+				context = "subquery"
+			}
+			defer func() { context = old }()
 			return query(e.Query)
 		case FieldExpr:
 			return expression(e.Base)
@@ -108,8 +127,12 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			if err := expressions(e.Args); err != nil {
 				return err
 			}
-			if err:=orderKeys(e.Order);err!=nil {return err}
-			if err:=expression(e.Filter);err!=nil {return err}
+			if err := orderKeys(e.Order); err != nil {
+				return err
+			}
+			if err := expression(e.Filter); err != nil {
+				return err
+			}
 			return window(e.Window)
 		case AggregateExpr:
 			if err := expressions(e.Args); err != nil {
@@ -180,9 +203,12 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			if len(n.Name.Parts) == 1 {
 				name := n.Name.Parts[0].Text
 				for i := len(visible) - 1; i >= 0; i-- {
-					if visible[i] == name {
+					if visible[i].Name.Text == name {
 						if len(classify) != 0 {
 							classify[0](n, true, "")
+						}
+						if resolved != nil {
+							return resolved(n, visible[i], context)
 						}
 						return nil
 					}
@@ -216,12 +242,23 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		case *AliasReference:
 			return from(n.Input, s)
 		case *JoinReference:
+			old := context
+			if context == "" && (n.Kind == JoinRight || n.Kind == JoinFull) {
+				context = "outer join"
+			}
 			if err := from(n.Left, s); err != nil {
+				context = old
 				return err
+			}
+			context = old
+			if context == "" && (n.Kind == JoinLeft || n.Kind == JoinFull) {
+				context = "outer join"
 			}
 			if err := from(n.Right, s); err != nil {
+				context = old
 				return err
 			}
+			context = old
 			return expression(n.On)
 		}
 		return nil
@@ -234,12 +271,23 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			}
 		}
 		if s.Set != nil {
+			old := context
+			if context == "" && (s.Set.Operator == "intersect" && s.Set.All || s.Set.Operator == "except" && s.Set.All) {
+				context = s.Set.Operator
+			}
 			if err := query(s.Set.Left); err != nil {
+				context = old
 				return err
+			}
+			context = old
+			if context == "" && (s.Set.Operator == "intersect" && s.Set.All || s.Set.Operator == "except") {
+				context = s.Set.Operator
 			}
 			if err := query(s.Set.Right); err != nil {
+				context = old
 				return err
 			}
+			context = old
 			if err := order(s.Order); err != nil {
 				return err
 			}
@@ -290,6 +338,9 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		top := depth == 0
 		depth++
 		definitions := StatementWith(statement)
+		if _, ok := statement.(*Merge); ok && StatementWithRecursive(statement) {
+			return recursiveCTEError("42601", "WITH RECURSIVE is not supported for MERGE statement", Position{})
+		}
 		for i, definition := range definitions {
 			for _, prior := range definitions[:i] {
 				if definition.Name.Text == prior.Name.Text {
@@ -297,6 +348,17 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 				}
 			}
 			pending = append(pending, definition.Name.Text)
+		}
+		recursive := StatementWithRecursive(statement)
+		if resolved == nil && recursive {
+			if _, err := AnalyzeRecursiveCTEs(statement); err != nil {
+				return err
+			}
+		}
+		if recursive {
+			for i := range definitions {
+				visible = append(visible, &definitions[i])
+			}
 		}
 		for i, definition := range definitions {
 			if !top && ModifyingStatement(definition.Query) {
@@ -309,7 +371,9 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			if err := walk(definition.Query); err != nil {
 				return err
 			}
-			visible = append(visible, definition.Name.Text)
+			if !recursive {
+				visible = append(visible, &definitions[i])
+			}
 		}
 		pending = pending[:oldPending]
 		switch s := statement.(type) {

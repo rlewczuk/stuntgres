@@ -26,9 +26,11 @@ func queryHasPhysicalFrontier(node LogicalNode, inputs *querySource, consuming b
 		if n.cte != nil {
 			return false
 		}
+	case *worktableScanNode:
+		return false
 	case *sourceNode:
 		return sourceHasPhysicalFrontier(querySourceAt(inputs, n.occurrence), consuming)
-	case *sortNode, *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *limitNode, *windowNode:
+	case *sortNode, *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *limitNode, *windowNode:
 		consuming = true
 	}
 	left, right := queryInputs(node)
@@ -64,7 +66,7 @@ func sourceHasPhysicalFrontier(source *querySource, consuming bool) bool {
 
 func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPendingMark) []queryPendingMark {
 	switch n := node.(type) {
-	case *derivedNode:
+	case *derivedNode, *worktableScanNode:
 		// The derived projection frontier consumes its own child marks.
 		return dst
 	case *projectNode:

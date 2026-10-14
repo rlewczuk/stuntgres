@@ -3924,12 +3924,39 @@ locks. Existing native stored marked aggregate/blocking frontiers still run when
 independently reachable; dead qualification does not bypass their physical lock
 settlement.
 
-Recursive/SEARCH/CYCLE, standalone VALUES/TABLE CTE bodies and lateral derived
+SEARCH/CYCLE, standalone VALUES/TABLE CTE bodies and lateral derived
 queries remain excluded. See
 [WITH query contracts](https://www.postgresql.org/docs/18/queries.html) and
 [implementation design](docs/design/PG18-QUERY-CTE.md).
 Feature smoke: `make check RUN='^TestReferenceQueryCTEFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryCTEFeatureSmoke$'`.
+
+### Recursive CTEs — change note
+
+`WITH RECURSIVE` supports anchor/recursive-term `UNION [ALL | DISTINCT]`
+queries with an invocation-local worktable. Each pass reads only the preceding
+generation. Positive-width UNION deduplicates complete typed tuples, including
+NULLs, against all accepted generations; ALL allocates no deduplication state.
+PostgreSQL18's zero-column recursive UNION also retains occurrences like ALL.
+Parent LIMIT can stop an otherwise infinite stream; blocking consumers may drain it.
+Traversal order is not a portable promise.
+
+Anchor output establishes the recursive names and exact type/typmod/collation
+contract before the recursive arm binds. Forward siblings are topologically bound
+with lexical shadowing; mutual recursion and prohibited references/terms receive
+PostgreSQL diagnostics. Genuine recursion never folds, including NOT MATERIALIZED.
+Prepared/correlated executions own fresh generations, parameters and seen sets.
+Cancellation and late errors veto result/write publication. Stored views retain
+symbolic recursive definitions and physical dependencies, not runtime worktables.
+
+SELECT, INSERT, UPDATE and DELETE accept the recursive modifier. MERGE rejects
+its own `WITH RECURSIVE`, but can consume a derived recursive SELECT.
+Recursive modifying definitions and SEARCH/CYCLE remain excluded.
+See [recursive query design](docs/design/PG18-QUERY-CTE-RECURSIVE.md) and
+[selected dual-mode proof](reference/query_core/README.md#recursive-cte-verification).
+Feature smoke: `make check RUN='^TestReferenceQueryRecursiveCTEFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryRecursiveCTEFeatureSmoke$'`.
+
 
 ### Data-modifying CTEs — change note
 
@@ -3963,7 +3990,7 @@ AS WITH NO DATA does not execute its query at all: the destination is empty and
 auxiliary targets remain unchanged. This is not an exception to modifier
 completion inside an executing LIMIT 0 query.
 
-Native recursive/SEARCH/CYCLE and rule/trigger/FDW/hierarchy providers retain their
+SEARCH/CYCLE and rule/trigger/FDW/hierarchy providers retain their
 existing exclusions. PostgreSQL separately prohibits recursive DML self-reference
 and conditional INSTEAD, ALSO or multi-statement INSTEAD target rules.
 See [PostgreSQL modifying WITH](https://www.postgresql.org/docs/18/queries-with.html#QUERIES-WITH-MODIFYING)

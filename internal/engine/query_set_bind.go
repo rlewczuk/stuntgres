@@ -52,6 +52,9 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 }
 
 func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
+	if d := b.recursiveDefinition; d != nil && d.syntax == s {
+		return b.bindRecursiveSet(s, d)
+	}
 	leftQuery, err := b.bindSelect(s.Set.Left, true)
 	if err != nil {
 		return nil, err
@@ -60,6 +63,10 @@ func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
 	if err != nil {
 		return nil, err
 	}
+	return b.bindSetArms(s, leftQuery, rightQuery)
+}
+
+func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *BoundQuery) (*BoundQuery, error) {
 	left, right := leftQuery.Root.(*projectNode), rightQuery.Root.(*projectNode)
 	operation := strings.ToUpper(s.Set.Operator)
 	if len(left.Schema()) != len(right.Schema()) {

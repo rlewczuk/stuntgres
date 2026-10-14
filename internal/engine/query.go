@@ -129,6 +129,16 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		})
 	case *setNode:
 		return preflightSet(c, n)
+	case *recursiveUnionNode:
+		bound, err := preflightSet(c, &n.setNode)
+		if err != nil {
+			return nil, err
+		}
+		copy := *n
+		copy.setNode = *bound.(*setNode)
+		return &copy, nil
+	case *worktableScanNode:
+		return n, nil
 	case *distinctNode:
 		return preflightDistinct(c, n)
 	case *distinctOnNode:
@@ -732,6 +742,7 @@ type indexedStage struct {
 	closed             bool
 	produce            func(context.Context, *indexedStage) (bool, error)
 	finish             func() error
+	onFailure          func(error) error // Shared producers retain failures even before a reader pull.
 	done               bool
 	retain             bool
 	reset              func(*indexedStage) bool
@@ -867,6 +878,7 @@ func (s *indexedStage) Close() error {
 	}
 	s.produce = nil
 	s.reset = nil
+	s.onFailure = nil
 	s.release()
 	s.closed = true
 	s.terminal = nil
@@ -874,6 +886,9 @@ func (s *indexedStage) Close() error {
 }
 
 func (s *indexedStage) fail(err error) error {
+	if s.onFailure != nil {
+		err = s.onFailure(err)
+	}
 	_ = s.Close()
 	s.terminal = err
 	return err
@@ -909,6 +924,10 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		return openWindowNode(ctx, state, n)
 	case *setNode:
 		return openSetNode(ctx, state, n)
+	case *recursiveUnionNode:
+		return openRecursiveUnion(ctx, state, n)
+	case *worktableScanNode:
+		return openWorktableScan(ctx, state, n)
 	case *limitNode:
 		return openLimitNode(ctx, state, n)
 	case *evaluationNode:
@@ -1002,10 +1021,13 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		// HAVING rejection follows ordered-set finalization, including direct
 		// side effects/errors on empty global input. This is a local aggregate
 		// frontier, not a reason to force unrelated derived/WHERE producers.
-		finalizesOrderedSet:=false
-		if aggregate,ok:=n.child.(*aggregateNode);ok {
-			for _,call:=range aggregate.calls {
-				if _,ordered:=call.provider.(orderedSetFinalizer);ordered {finalizesOrderedSet=true;break}
+		finalizesOrderedSet := false
+		if aggregate, ok := n.child.(*aggregateNode); ok {
+			for _, call := range aggregate.calls {
+				if _, ordered := call.provider.(orderedSetFinalizer); ordered {
+					finalizesOrderedSet = true
+					break
+				}
 			}
 		}
 		if rejects && !finalizesOrderedSet && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {

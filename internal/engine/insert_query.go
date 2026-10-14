@@ -621,6 +621,8 @@ func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (Logical
 	switch n := node.(type) {
 	case *setNode:
 		return n, false // Every set retains source output/key/cardinality demand.
+	case *recursiveUnionNode:
+		return n, false // The full recursive tuple determines fixpoint identity.
 	case *distinctNode:
 		return n, false // Every projected slot participates in source cardinality.
 	case *distinctOnNode:

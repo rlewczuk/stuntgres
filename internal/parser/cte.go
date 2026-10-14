@@ -17,6 +17,22 @@ func StatementWith(statement Statement) []CommonTableExpression {
 	return nil
 }
 
+func StatementWithRecursive(statement Statement) bool {
+	switch s := statement.(type) {
+	case *Select:
+		return s.WithRecursive
+	case *Insert:
+		return s.WithRecursive
+	case *Update:
+		return s.WithRecursive
+	case *Delete:
+		return s.WithRecursive
+	case *Merge:
+		return s.WithRecursive
+	}
+	return false
+}
+
 func ModifyingStatement(statement Statement) bool {
 	switch statement.(type) {
 	case *Insert, *Update, *Delete, *Merge:

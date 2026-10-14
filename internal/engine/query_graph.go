@@ -13,6 +13,8 @@ func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 		return n.child, nil
 	case *setNode:
 		return n.left, n.right
+	case *recursiveUnionNode:
+		return n.left, n.right
 	case *projectNode:
 		return n.child, nil
 	case *filterNode:
@@ -65,6 +67,9 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 			args(n.template.scalars)
 		}
 	case *setNode:
+		args(n.leftExpressions)
+		args(n.rightExpressions)
+	case *recursiveUnionNode:
 		args(n.leftExpressions)
 		args(n.rightExpressions)
 	case *projectNode:

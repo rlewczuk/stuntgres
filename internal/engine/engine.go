@@ -501,7 +501,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	if _, selecting := stmt.(*parser.Select); !selecting {
 		if definitions := parser.StatementWith(stmt); len(definitions) != 0 {
 			var err error
-			binder.statementCTEs, err = binder.bindCTEDefinitions(definitions)
+			binder.statementCTEs, err = binder.bindCTEDefinitions(definitions, parser.StatementWithRecursive(stmt))
 			if err != nil {
 				return b, err
 			}
