@@ -941,6 +941,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.Plan.Name() == "||" {
 			return binary(n.Args[0], n.Args[1], "||", 5, parent)
 		}
+		if jsonbExistenceName(n.Plan.Name()) {
+			return binary(n.Args[0], n.Args[1], n.Plan.Name(), 5, parent)
+		}
 		if n.Syntax == parser.SQLFunctionSyntax {
 			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, n.Plan.Name(), child)
 		}

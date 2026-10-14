@@ -500,6 +500,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   an empty object; zero admitted rows yield SQL NULL.
   Adjacent operators/functions, generic JSON equality, SQL/JSON object aggregation
   and path/query execution remain excluded.
+- JSONB existence operators `jsonb ? text`, `jsonb ?| text[]` and
+  `jsonb ?& text[]` return BOOL and search only top-level object keys, immediate
+  array string elements or a primitive string, using exact decoded strings.
+  Object values and nested containers are not searched. Whole SQL NULL is strict;
+  request-array NULL elements are skipped. Empty/all-NULL requests yield false
+  for `?|` and true for `?&`; dimensions, bounds and duplicates do not matter.
+  Both unknown operands infer the fixed signature for `?` and `?&`. For `?|`,
+  one side must be typed: two unknown operands produce PostgreSQL 42725 because
+  of its built-in signature collision, without enabling geometric execution.
+  Invalid signatures use 42883; JSON and known TEXT do not implicitly become
+  JSONB. Stored consumers retain operator syntax through deparse/Dump/Restore.
+  Adjacent JSONB operators and SQL-callable `jsonb_exists*` remain excluded.
 - Selected §9.19 functions `array_position`, `array_positions`, `array_remove`,
   `array_replace` and operators `@>`, `<@`, `&&` consume existing array codecs
   and leaf equality providers. Functions are NULL-aware; membership is strict

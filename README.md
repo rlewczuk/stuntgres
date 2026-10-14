@@ -1580,6 +1580,15 @@ See [JSONB types](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONBFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONBFeatureSmoke$'`.
 
+Change note: JSONB `?`, `?|`, `?&` return BOOL for exact decoded top-level
+object keys, immediate array strings and primitive strings, never nested values.
+Whole SQL NULL is strict; NULL request elements are skipped, with empty ANY false
+and ALL true regardless of request bounds/shape. Unknown `?`/`?&` infer their
+fixed signatures; `?|` needs a typed side or reports 42725. Stored consumers,
+native replay and bounded structural cancellation use the immutable typed carrier.
+Feature smoke: `make check RUN='^TestReferenceJSONBExistsFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceJSONBExistsFeatureSmoke$' REFERENCE=1`.
+
 Change note: `json_typeof(json)` / `jsonb_typeof(jsonb)` return top-level kind
 TEXT, and `json_array_length(json)` / `jsonb_array_length(jsonb)` return immediate
 array counts as INT4. SQL NULL yields SQL NULL; JSON null yields nonnull kind

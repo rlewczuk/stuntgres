@@ -248,7 +248,9 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
 		return true
-	case functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.Binary[BoundExpr, *EvalContext, ExprProperties], functions.Random[BoundExpr, *EvalContext, ExprProperties], advisoryExpression, functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
+	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
+		return !jsonbExistenceName(n.Plan.Name())
+	case functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.Random[BoundExpr, *EvalContext, ExprProperties], advisoryExpression, functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		return true
 	default:
 		return false

@@ -76,7 +76,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
-		if n.Plan.Name() != "||" {
+		if n.Plan.Name() != "||" && !jsonbExistenceName(n.Plan.Name()) {
 			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 		}
 		left, err := r.sql(ctx, view, n.Args[0])
@@ -87,7 +87,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err != nil {
 			return "", err
 		}
-		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
+		return "(" + left + " OPERATOR(pg_catalog." + n.Plan.Name() + ") " + right + ")", nil
 	case functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
 	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:

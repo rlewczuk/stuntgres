@@ -20,6 +20,10 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	p := BinaryPlan{name: name, result: result, arity: len(args)}
 	ids, arity, id := [4]ID{Bytea, Bytea}, 2, Bytea
 	switch name {
+	case "?":
+		ids, id = [4]ID{JSONB, Text}, Bool
+	case "?|", "?&":
+		ids, id = [4]ID{JSONB, 1009}, Bool
 	case "json_typeof", "jsonb_typeof":
 		input := JSON
 		if name == "jsonb_typeof" {
@@ -207,6 +211,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	}
 	a := values[0]
 	switch p.name {
+	case "?", "?|", "?&":
+		return p.jsonbExistence(ctx, values[0], values[1])
 	case "json_typeof", "jsonb_typeof":
 		return p.jsonScalar(ctx, a)
 	case "json_object", "jsonb_object":

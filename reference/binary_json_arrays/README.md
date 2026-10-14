@@ -42,6 +42,43 @@ symbolic controls/default demand independently satisfied. Initial portable
 PostgreSQL observations do not prove these native phases; root quickcheck and
 post-integration finalcheck remain separate required gates.
 
+### JSONB existence
+
+`TestReferenceJSONBExists` covers only `jsonb ? text`, `jsonb ?| text[]` and
+`jsonb ?& text[]`: exact decoded top-level keys/immediate string elements/root
+strings, no object values or recursive search. Whole NULL is strict; NULL array
+elements are skipped and empty/all-NULL requests reduce to false/true. Request
+shape, bounds and duplicates are irrelevant. Unknown `?`/`?&` infer both inputs;
+two unknown `?|` inputs report full 42725, while either typed side disambiguates.
+Invalid signatures retain full 42883 records and source/namespace authorization.
+
+Direct/held typing, BOOL metadata, parameter recovery, consumers and atomicity
+use independent oracle contracts. Direct computed BOOL projections report
+unknown nullability (`false,false`) in both adapters; this does not change
+native catalog-column nullability. Native-only Dump/Reset/Restore and retained
+cursors are real controls; repeated restores must preserve both canonical Dump
+SQL and stored results, including array conversions, typmods and domain casts.
+Public `pg_get_viewdef` cast spelling is not a canonical native replay contract.
+Real mode replays actual emitted native SQL on PG.
+Active cancellation admits the reached `sqltype.jsonbExists` structural frame,
+joins cancellation, and proves SAME-owner held recovery, not parsing activity.
+No geometric execution or SQL-callable `jsonb_exists*` functions are introduced.
+
+Run each selection in native and real pinned modes (external 900-second deadline):
+
+```sh
+make check RUN='^TestReferenceJSONBExists(Values|Typing|Diagnostics|ConsumersControls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONBExists(Values|Typing|Diagnostics|ConsumersControls|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBExistsCancellation$' RACE=1
+make check RUN='^TestReferenceJSONBExistsFeatureSmoke$'
+make check RUN='^TestReferenceJSONBExistsFeatureSmoke$' REFERENCE=1
+```
+
+Smoke expects ordered object/nested/array/primitive/NULL results
+true/false/true/true/NULL, empty false/true, held cast-left `?|` recovery,
+full 42883, and stored definitions surviving real replay.
+Diagnostics separately verifies the complete unknown `?|` 42725 record.
+Whole-project Docker-free verification remains `make quickcheck`.
 
 ### JSON array length
 

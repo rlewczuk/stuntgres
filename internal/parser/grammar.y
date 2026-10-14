@@ -1745,8 +1745,8 @@ scalar: scalar_atom { $$=$1 }
  | scalar AT TIME ZONE scalar %prec AT { $$=TimeZoneExpr{Value:$1,Zone:$5,Pos:$2.pos} }
  | scalar AT LOCAL %prec AT { $$=TimeZoneExpr{Value:$1,Local:true,Pos:$2.pos} }
  | scalar SYMBOLIC_OPERATOR scalar { $$=arithmeticExpr($2,$1,$3) }
- | scalar SYMBOLIC_OPERATOR function { if $2.text!="||" && $2.text!="~" && $2.text!="~*" && $2.text!="!~" && $2.text!="!~*" && $2.text!="@>" && $2.text!="<@" && $2.text!="&&" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
- | function SYMBOLIC_OPERATOR scalar { if $2.text!="||" && $2.text!="~" && $2.text!="~*" && $2.text!="!~" && $2.text!="!~*" && $2.text!="@>" && $2.text!="<@" && $2.text!="&&" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
+ | scalar SYMBOLIC_OPERATOR function { if $2.text!="||" && $2.text!="~" && $2.text!="~*" && $2.text!="!~" && $2.text!="!~*" && $2.text!="@>" && $2.text!="<@" && $2.text!="&&" && $2.text!="?" && $2.text!="?|" && $2.text!="?&" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
+ | function SYMBOLIC_OPERATOR scalar { if $2.text!="||" && $2.text!="~" && $2.text!="~*" && $2.text!="!~" && $2.text!="!~*" && $2.text!="@>" && $2.text!="<@" && $2.text!="&&" && $2.text!="?" && $2.text!="?|" && $2.text!="?&" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
  | scalar qualified_operator quantifier select_with_parens %prec OPERATOR {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,$2,kind,$4.Query,false,$2.Parts[0].Pos)}
  | scalar qualified_operator quantifier '(' scalar_projection ')' %prec OPERATOR { $$=ArrayComparisonExpr{Left:$1,Right:$5,Name:$2,All:$3.text=="all",Pos:$2.Parts[0].Pos} }
