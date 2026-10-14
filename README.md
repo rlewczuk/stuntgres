@@ -2781,6 +2781,22 @@ ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
 excluded. See [registered extensions](https://www.postgresql.org/docs/18/sql.html)
 and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 
+Change note: read-only `pg_catalog.pg_collation` exposes all twelve PostgreSQL18
+identity fields from installed collation descriptors: names, namespace/owner,
+provider, determinism, encoding, libc categories, provider locale, ICU rules and
+recorded version. Its NAME and five TEXT attributes use catalog C collation950;
+ordinary user TEXT retains its database-default collation. Unavailable or
+inapplicable locale/version facts remain SQL NULL, distinct from a configured
+empty recorded version. Native `unicode` recorded version is unavailable, not
+copied from the PostgreSQL fixture's ICU library. PUBLIC reads include another
+owner's off-path identities; catalog observation does not grant provider execution
+or make those identities visible to name lookup. Held executions see fresh DDL
+metadata, while already returned native rows retain their captured values.
+Fixed release OIDs are exact; generated namespace/owner/collation identities are
+relational, not allocator-parity promises. This does not import system collations
+or add ICU/arbitrary-libc comparison semantics.
+See [pg_collation selected proof](reference/catalogs/README.md#pg_collation-selected-proof).
+
 Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
 `pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and
 `pg_conversion_is_visible(oid)` return strict nullable BOOL. Missing identities

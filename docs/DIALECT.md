@@ -490,6 +490,21 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `pg_attribute`, `pg_index`, `information_schema` or authentication catalogs.
   Native virtual catalog mutation and row locking are unavailable. Installed
   extension metadata does not provide arbitrary loading, installation or updates.
+- `pg_collation` is a PUBLIC read-only projection of installed collation
+  descriptors with twelve PostgreSQL18 columns: `oid`, `collname`,
+  `collnamespace`, `collowner`, `collprovider`, `collisdeterministic`,
+  `collencoding`, `collcollate`, `collctype`, `colllocale`, `collicurules`,
+  `collversion`. The first seven fields are nonnullable; the five TEXT fields
+  preserve exact configured strings versus unavailable/inapplicable SQL NULL.
+  NAME and TEXT attributes use catalog C collation950. Fixed seed OIDs are exact;
+  generated identities are checked through their actual namespace/owner
+  relationships, not PostgreSQL allocator parity. Reads do not filter by search
+  path, encoding applicability or collation ownership. Fresh held executions
+  reflect CREATE/ALTER/DROP; already returned native rows retain their snapshot.
+  Native `unicode.collversion` is NULL because ICU version data is unavailable.
+  Recorded version metadata need not equal the current provider version, and
+  an empty configured version is not NULL. Catalog readability does not supply
+  ICU/arbitrary-libc execution or import the host's collation inventory.
 - `pg_tablespace` is a public readonly builtin-only projection:
   `(1663,pg_default,10,NULL)` and `(1664,pg_global,10,NULL)` for named columns
   `oid,spcname,spcowner,spcoptions` (OID/NAME/OID/TEXT[]). Owner 10 is the canonical

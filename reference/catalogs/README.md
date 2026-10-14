@@ -6,6 +6,53 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_collation selected proof
+
+`TestReferencePGCollation` specifies the complete PostgreSQL18 twelve-column
+metadata contract, including populated and empty direct/prepared/held results,
+Context/plain routes, raw carriers, retained ColumnType descriptors and native
+known versus pq unavailable nullability. The PG-only `pg_attribute` witness and
+private `TestPGCollationShapeAndOwnership` independently require relation3456,
+attributes1–12, the release type vector and C950 on NAME/five TEXT attributes.
+The implicit catalog-C versus user-POSIX comparison rejects42P22 with its complete
+English diagnostic; explicit POSIX annotation succeeds. This observes catalog
+metadata through existing comparison semantics, not a new comparison provider.
+
+Seven selected fixed OIDs are asserted without claiming whole-host inventory
+parity. Provider/encoding and libc categories versus provider locale are exact.
+The pinned PostgreSQL18.0 fixture initializes `unicode.collversion` to `153.120`;
+native explicitly reports unavailable ICU version as NULL instead of inventing
+provider facts. Configured empty recorded versions remain nonnull empty strings.
+Fresh held reads cover CREATE, rename, namespace/owner changes and DROP;
+already returned native rows retain old values. PUBLIC catalog reads include
+another owner's off-path collation while name-discovery visibility remains false.
+Generated identities use positive distinct identities and actual namespace/owner
+relationships, not allocator goldens.
+
+Diagnostics cover missing columns/relation, malformed/out-of-range OIDs,
+analysis before an empty source, held malformed parameter failure and successful
+reuse, and native row-lock exclusions on populated/empty sources. Both adapters
+report the same unnamed-portal OID parameter Context. Existing
+`TestReferenceCollationAuthorization` supplies the readonly mutation witness.
+Private capture units additionally assert actual descriptor membership, typed
+NULL/empty distinctions, immutable old captures, unchanged catalog/OID/revision
+frontiers and cancellation without partial publication.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGCollation(Shape|Seeds|AttributeCollation|FreshMetadata|PublicRead|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestReferencePGCollation(Shape|Seeds|AttributeCollation|FreshMetadata|PublicRead|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestPGCollation(ShapeAndOwnership|Capture)$'
+make check RACE=1 RUN='^TestPGCollation(ShapeAndOwnership|Capture)$'
+# Permanent feature smoke:
+make check RUN='^TestReferencePGCollationFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGCollationFeatureSmoke$'
+```
+
+Smoke expects exact full `pg_c_utf8` metadata, fresh held lifecycle results,
+immutable native captured rows, implicit-comparison42P22, an explicit POSIX true
+control, and exact versus unavailable Unicode recorded versions. Locale
+population, ICU execution and arbitrary libc semantics remain outside this part.
+
 ### pg_database selected proof
 
 `TestReferencePGDatabase` independently specifies the PostgreSQL 18 eighteen-column

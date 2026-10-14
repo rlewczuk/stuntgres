@@ -191,6 +191,9 @@ func (e *Engine) initializeCatalogSources() error {
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
 			if spec.oid == 3456 {
 				d.columns[i].Nullable = i >= 7
+				if column.typ == sqltype.Text {
+					d.columns[i].Usage.Collation.ID = 950
+				}
 			}
 			if spec.oid == 1262 {
 				d.columns[i].Nullable = i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14
