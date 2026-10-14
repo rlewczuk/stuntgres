@@ -256,10 +256,14 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
   TIMESTAMP WITHOUT TIME ZONE bounds without successor canonicalization; finite
   output is quoted, valid written zones do not rotate civil fields, and explicit
   infinity remains distinct from omission. DateStyle and relative input follow
-  the timestamp subtype, while Dump emits ISO. Tstzrange, temporal multiranges
-  (including datemultirange) and multirange arrays remain lookup-only.
-  Daterange/tsrange add no range_agg/range_intersect_agg providers.
-  Tsrange scalar comparisons reject at analysis with42883, including domains,
+  the timestamp subtype, while Dump emits ISO. Tstzrange uses continuous UTC
+  instants ordered after timezone conversion; input/output uses session
+  TimeZone/DateStyle, analyzed literals freeze and binds decode afresh. Dump
+  emits ISO UTC offsets. Explicit infinity retains bounds distinct from omission.
+  Temporal multiranges (including datemultirange) and multirange arrays remain
+  lookup-only. Daterange/tsrange/tstzrange add no range_agg/range_intersect_agg
+  providers. Tsrange/tstzrange scalar comparisons reject at analysis with42883,
+  including domains,
   contextual unknown operands, NULL data and empty relations.
 - Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates, including
   implicit VARBIT inputs, but does not provide general bit casts, scalar

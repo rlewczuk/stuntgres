@@ -16,58 +16,59 @@ import (
 type ID uint32
 
 const (
-	Bool           ID = 16
-	Bytea          ID = 17
-	Char           ID = 18
-	Name           ID = 19
-	Int8           ID = 20
-	Int2           ID = 21
-	Int4           ID = 23
-	Regproc        ID = 24
-	Text           ID = 25
-	Oid            ID = 26
-	Xid            ID = 28
-	Cid            ID = 29
-	Xid8           ID = 5069
-	JSON           ID = 114
-	PgNodeTree     ID = 194
-	Cidr           ID = 650
-	Float4         ID = 700
-	Float8         ID = 701
-	Unknown        ID = 705
-	Money          ID = 790
-	Inet           ID = 869
-	NameArray      ID = 1003
-	ACLItem        ID = 1033
-	ACLItemArray   ID = 1034
-	BPChar         ID = 1042
-	VarChar        ID = 1043
-	Date           ID = 1082
-	Time           ID = 1083
-	Timestamp      ID = 1114
-	Timestamptz    ID = 1184
-	Interval       ID = 1186
-	Timetz         ID = 1266
-	Bit            ID = 1560
-	VarBit         ID = 1562
-	Numeric        ID = 1700
-	Regoper        ID = 2203
-	Regoperator    ID = 2204
-	Regclass       ID = 2205
-	Regtype        ID = 2206
-	Void           ID = 2278
-	UUID           ID = 2950
-	JSONB          ID = 3802
-	Regrole        ID = 4096
-	Int4Range      ID = 3904
-	NumRange       ID = 3906
-	TimestampRange ID = 3908
-	DateRange      ID = 3912
-	Int8Range      ID = 3926
-	JSONPath       ID = 4072
-	Int4Multirange ID = 4451
-	NumMultirange  ID = 4532
-	Int8Multirange ID = 4536
+	Bool             ID = 16
+	Bytea            ID = 17
+	Char             ID = 18
+	Name             ID = 19
+	Int8             ID = 20
+	Int2             ID = 21
+	Int4             ID = 23
+	Regproc          ID = 24
+	Text             ID = 25
+	Oid              ID = 26
+	Xid              ID = 28
+	Cid              ID = 29
+	Xid8             ID = 5069
+	JSON             ID = 114
+	PgNodeTree       ID = 194
+	Cidr             ID = 650
+	Float4           ID = 700
+	Float8           ID = 701
+	Unknown          ID = 705
+	Money            ID = 790
+	Inet             ID = 869
+	NameArray        ID = 1003
+	ACLItem          ID = 1033
+	ACLItemArray     ID = 1034
+	BPChar           ID = 1042
+	VarChar          ID = 1043
+	Date             ID = 1082
+	Time             ID = 1083
+	Timestamp        ID = 1114
+	Timestamptz      ID = 1184
+	Interval         ID = 1186
+	Timetz           ID = 1266
+	Bit              ID = 1560
+	VarBit           ID = 1562
+	Numeric          ID = 1700
+	Regoper          ID = 2203
+	Regoperator      ID = 2204
+	Regclass         ID = 2205
+	Regtype          ID = 2206
+	Void             ID = 2278
+	UUID             ID = 2950
+	JSONB            ID = 3802
+	Regrole          ID = 4096
+	Int4Range        ID = 3904
+	NumRange         ID = 3906
+	TimestampRange   ID = 3908
+	TimestamptzRange ID = 3910
+	DateRange        ID = 3912
+	Int8Range        ID = 3926
+	JSONPath         ID = 4072
+	Int4Multirange   ID = 4451
+	NumMultirange    ID = 4532
+	Int8Multirange   ID = 4536
 )
 
 type CollationDerivation uint8
@@ -275,6 +276,7 @@ func Builtins() []*Descriptor {
 		{Int8Range, Int8, Int8Multirange, "int8range"},
 		{DateRange, Date, 0, "daterange"},
 		{TimestampRange, Timestamp, 0, "tsrange"},
+		{TimestamptzRange, Timestamptz, 0, "tstzrange"},
 	} {
 		name := strings.ToUpper(family.name)
 		r := &Descriptor{id: family.rangeID, name: family.name, sql: name, database: name}
@@ -598,7 +600,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.aclitemInput(ctx, text, env)
 	case Inet, Cidr:
 		return d.networkInput(text)
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange:
+	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
 		return d.rangeInput(ctx, text, env)
 	case Int4Multirange, Int8Multirange, NumMultirange:
 		return d.multirangeInput(ctx, text, env)
@@ -847,7 +849,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return "", fmt.Errorf("invalid network value")
 		}
 		return v.network.output(d.id == Cidr), nil
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange:
+	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
 		return v.rangeOutput(env)
 	case Int4Multirange, Int8Multirange, NumMultirange:
 		return v.multirangeOutput(ctx, env)
@@ -1011,7 +1013,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return d.sql + " '" + text + "'", nil
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange:
+	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
 		text, err := v.rangeOutput(OutputEnvironment{})
 		if err != nil {
 			return "", err
@@ -1872,7 +1874,7 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == TimestampRange || right.id == TimestampRange || isMultirange(left.id) || isMultirange(right.id) {
+	if left.IsArray() || right.IsArray() || left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == TimestampRange || right.id == TimestampRange || left.id == TimestamptzRange || right.id == TimestamptzRange || isMultirange(left.id) || isMultirange(right.id) {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if IsTransactionIdentifier(left.id) || IsTransactionIdentifier(right.id) {

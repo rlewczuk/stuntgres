@@ -1173,3 +1173,19 @@ Use external900-second deadlines. Pinned18.0 discovery confirmed the independent
 specified bytes and SQL results. Both backends now run without discovery filters.
 This oracle evidence does not claim implemented or verified native support.
 
+### Timestamptz-range binary composition
+
+`TestReferenceTimestamptzRangeBinaryComposition` supplies handwritten range flags,
+endpoint lengths and signed8-byte UTC microseconds from the PostgreSQL2000 epoch.
+It checks exact input/output wire bytes, continuous adjacent bounds, explicit
+infinity versus omission, empty and NULL independently of backend encoders.
+
+```sh
+make check RUN='^TestReferenceTimestamptzRangeBinaryComposition$' REFERENCE=1
+make check RUN='^TestReferenceTimestamptzRangeBinaryComposition$'
+```
+
+Use external900-second deadlines. TSTZRANGE text reflects the session zone;
+binary endpoints remain UTC instants. Companion arrays and temporal multiranges
+remain outside native execution.
+

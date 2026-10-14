@@ -230,10 +230,19 @@ values while binds decode in each execution environment. Native TSRANGE exports
 string and string ScanType; pq exposes bytes and interface{} ScanType, with no
 Length/DecimalSize. NonISO Dump remains canonical ISO; plain/nested domains,
 named-composite fields and binary COPY compose through the existing provider.
-Range/multirange arrays, tstzrange, temporal multiranges and user-defined range
-creation remain outside native execution. TSRANGE adds no constructors, general
+TSTZRANGE extends the same continuous representation with UTC microsecond
+instants. Explicit zones rotate endpoints; omitted zones use the input session.
+Live output applies captured TimeZone and DateStyle, while SQLLiteral/Dump emits
+ISO UTC with explicit offsets. Prepared literals freeze the whole range; binds
+decode each execution. Equal offset spellings denote one instant; reversed UTC
+bounds fail even when civil spellings ascend. Native TSTZRANGE has the same
+string transport/metadata contract as TSRANGE, including plain/nested domains,
+composite fields, NULL and binary COPY. Native controls preserve held readers
+and reject failed replacements atomically across differing session environments.
+Range/multirange arrays, temporal multiranges and user-defined range creation
+remain outside native execution. TSRANGE/TSTZRANGE add no constructors, general
 casts, comparison/order/group/index providers or range aggregates.
-Scalar tsrange comparisons reject during analysis with42883, including
+Scalar tsrange/tstzrange comparisons reject during analysis with42883, including
 plain/nested-domain and contextual string/NULL operands. Empty relations and
 NULL data do not bypass capability admission. Internal endpoint normalization
 does not supply a SQL comparison provider.

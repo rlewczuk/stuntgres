@@ -59,7 +59,7 @@ func SameDatum(a, b Value) bool {
 		return a.aclitem.valid() && b.aclitem.valid() && a.aclitem == b.aclitem
 	case Inet, Cidr:
 		return a.network.valid(a.typ.BaseType().id == Cidr) && b.network.valid(b.typ.BaseType().id == Cidr) && a.network == b.network
-	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange:
+	case Int4Range, Int8Range, NumRange, DateRange, TimestampRange, TimestamptzRange:
 		return a.validRange() && b.validRange() && a.rangeDatum == b.rangeDatum
 	case Int4Multirange, Int8Multirange, NumMultirange:
 		if !a.validMultirange() || !b.validMultirange() || len(a.multirange.members) != len(b.multirange.members) {

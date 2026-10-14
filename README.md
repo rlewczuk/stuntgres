@@ -1400,13 +1400,27 @@ and fresh binds reuse timestamp capture; Dump always emits canonical ISO.
 Direct/prepared text/byte binds, TSRANGE metadata, nested-domain contextual
 replay, named-composite fields and binary COPY use existing ownership/staging.
 Actual Dump/Reset/Restore preserves held readers and rejects staged failures
-atomically. No tstzrange, temporal multirange, range arrays, constructors, general
-casts, comparison/index providers or new range aggregates are added.
+atomically. Temporal multiranges, range arrays, constructors, general casts,
+comparison/index providers and new range aggregates remain excluded.
 Scalar tsrange comparisons reject at analysis with42883, including plain/nested
 domains and contextual unknowns, rather than silently comparing unequal datums
 as equal. NULL and empty-table cases retain the same admission boundary.
 See [continuous timestamp ranges](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceTimestampRangeFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
+Change note: tstzrange columns extend the same continuous range datum with
+TIMESTAMP WITH TIME ZONE endpoints, ordered by their UTC instant. Written zones
+and session-local inputs reuse the scalar timezone provider; live output uses
+the captured TimeZone/DateStyle. Prepared literals freeze complete instants,
+while binds decode afresh. Inclusive/exclusive flags, adjacent-microsecond
+intervals, explicit infinity, omitted endpoints, empty and NULL remain distinct.
+Native TSTZRANGE metadata and string transport, plain/nested domains, composite
+fields, binary COPY and actual Dump/Reset/Restore reuse existing ownership.
+Dump always emits ISO UTC endpoints, independently of source/target sessions.
+No range operators, constructors, general casts, arrays, temporal multiranges
+or new aggregates are added. Feature smoke:
+`make check RUN='^TestReferenceTimestamptzRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
 Change note: daterange columns extend the common range datum with civil DATE

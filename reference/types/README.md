@@ -478,3 +478,36 @@ Dump, proving the boundary rejects before mutation rather than evaluating a
 constant comparison result.
 
 
+### TSTZRANGE oracle-first contract
+
+`TestReferenceTimestamptzRange` scenarios independently assert continuous UTC
+endpoint ordering, equal-instant singleton/empty normalization, inclusivity,
+adjacent microseconds, infinity versus omission and NULL. They exercise direct
+and held text/byte binds, raw TSTZRANGE metadata for builtin/plain/nested domains,
+complete grammar/subtype diagnostics and eager failure/late-tuple atomicity.
+TimeZone/DateStyle capture includes frozen literals versus fresh binds, DST gap
+and fold choices, offset seconds, all four output styles and transaction-relative
+input. Named composites and handwritten binary COPY reuse existing providers.
+
+Native control phases reuse the shared cycle: source New York/German presentation,
+target Tokyo/SQL presentation, actual ISO UTC Dump replay, deterministic redump,
+same/fresh Driver Restore, cancellation/I/O and failed staging, retained populated
+readers/metadata and successful TEXT-shaped replacement. Actual emitted SQL is
+replayed on pinned PostgreSQL in real mode. No discovery filters remain.
+Comparison scenarios independently assert real PostgreSQL BOOL results and the
+documented native42883 admission boundary, including NULL and empty relations.
+
+```sh
+make check RUN='^TestReferenceTimestamptzRange' REFERENCE=1
+make check RUN='^TestReferenceTimestamptzRange'
+make check RUN='^TestTimestamptzRange'
+make check RUN='^TestReferenceTimestamptzRangeFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceTimestamptzRangeFeatureSmoke$'
+```
+
+Use external900-second deadlines. Feature smoke asserts UTC ordering, continuous
+binds/NULL, frozen literals/fresh NY binds, exact malformed/reversed/NOTNULL atomic
+errors, nested-domain metadata and actual nonUTC control lifecycle. Pinned18.0
+initial discovery passed before implementation; native/final dual-mode proof is
+root-owned and is not implied by these commands or readiness.
+

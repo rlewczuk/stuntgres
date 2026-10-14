@@ -119,7 +119,7 @@ func rangeConsumeHeld(t *testing.T, rows *sql.Rows, check fixture.Step) {
 
 func rangeTransportType(name string) bool {
 	switch name {
-	case "INT4RANGE", "INT8RANGE", "NUMRANGE", "DATERANGE", "TSRANGE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE":
+	case "INT4RANGE", "INT8RANGE", "NUMRANGE", "DATERANGE", "TSRANGE", "TSTZRANGE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE":
 		return true
 	}
 	return false
