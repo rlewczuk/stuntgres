@@ -55,6 +55,66 @@ make check RUN='^TestReferenceSeriesFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferenceSeriesFeatureSmoke$'
 ```
 
+### Array target subscripts selected proof
+
+Permanent untagged `subscripts_*_test.go` definitions exercise both released
+`generate_subscripts` signatures in one shared backend body, with independent
+INT4 values/types and complete diagnostics/stages resolved against pinned
+PostgreSQL18.0. They cover 1D/multidimensional stored bounds, NULL elements,
+each strict NULL input, empty/absent dimensions, reverse, simple polymorphism,
+domains, naming/decorations and held parameter error/recovery.
+
+Composition and consumers cover existing target-SRF zip/NULL padding/nesting,
+group/sort/distinct/window-key lanes, views/CTAS/INSERT SELECT, late malformed
+array atomicity, and every argument's dependencies/authorization. Lifecycle
+uses real provider advancement and observed PostgreSQL server admission with
+joined cancellation workers. Controls retain eager rows/schema across actual
+native Dump/Reset/Restore, restore into a fresh Driver and replay the actual
+emitted supported SQL on PostgreSQL. Native FROM/ROWS FROM/ordinality/lateral
+and INSERT VALUES remain explicit capability failures, not parity claims.
+The PostgreSQL VALUES witness independently expects affected2 on each direct
+and prepared insertion, leaving ordered rows1,1,2,2.
+
+Frozen typed array literals own their replay cast. The subscripts dump path
+retains differing source casts without adding a redundant owning cast on each
+Restore; Controls asserts exact redump bytes and the internal Deparse unit
+checks matching/differing casts and original traversal ordinals.
+
+Oracle discovery observed pinned18.0 reverse at an exact INT32_MIN lower bound
+run until fixture cancellation and invalidate the connection. Do not repeat that
+hazardous query. Shared reverse lower-edge coverage uses INT32_MIN+1; internal
+`TestSubscriptsBounds` independently proves safe native exact-MIN reverse
+iteration and typed EOF/no wrap. Public ORDER BY proves the stated SQL ordering,
+not provider reverse direction; real internal cursor iteration proves direction.
+No release-defect emulation, array storage expansion or version repin is intended.
+
+Root runs each selected group in both modes, with external900s deadlines.
+Whole-project `make quickcheck` is additional Docker-free verification:
+
+```sh
+make check RUN='^TestSubscripts(Binding|Cursor|Bounds|ExpressionHooks|Deparse|Lowering|Cancellation|Finalization)$'
+make check RUN='^TestSubscriptsParser(Admission|Decorations|Restrictions)$'
+make check RUN='^TestReferenceSubscripts(Values|Binding|Diagnostics|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceSubscripts(Values|Binding|Diagnostics|Metadata)$'
+make check RUN='^TestReferenceSubscripts(Parameters|Composition|Restrictions|Boundaries)$'
+make check REFERENCE=1 RUN='^TestReferenceSubscripts(Parameters|Composition|Restrictions|Boundaries)$'
+make check RUN='^TestReferenceSubscripts(Consumers|Controls|Lifecycle|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceSubscripts(Consumers|Controls|Lifecycle|FeatureSmoke)$'
+make check RACE=1 RUN='^TestReferenceSubscripts(Parameters|Controls|Lifecycle)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceSubscripts(Parameters|Controls|Lifecycle)$'
+```
+
+The actual feature smoke asserts direct indices−2,−1,0; prepared dimension-two
+descending5,4,3; typed empty results; peer padding; held malformed input followed
+by valid recovery; late INSERT SELECT failure leaving sentinel99; and native
+symbolic/materialized control roundtrips plus actual PostgreSQL dump replay.
+Expected success is exit0 and quiet package success output after all assertions:
+
+```sh
+make check RUN='^TestReferenceSubscriptsFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceSubscriptsFeatureSmoke$'
+```
+
 ### Math constants selected proof
 
 Permanent untagged `reference/numeric/math_constants_*_test.go` scenarios cover

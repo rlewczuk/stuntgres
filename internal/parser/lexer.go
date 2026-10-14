@@ -882,7 +882,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == SELECTED_FUNC && strings.EqualFold(token.lexeme.text, "json_object") {
 		token.code = CHECK_FUNC
 	}
-	if token.code == IDENT && (JSONFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series")) {
+	if token.code == IDENT && (JSONFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts")) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {
@@ -1076,7 +1076,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	// Selected time, enum and delay calls reuse failure-only decorations;
 	// their binder rejects aggregate modifiers after resolving the operands.
-	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
+	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
@@ -1109,7 +1109,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.generationDepth > 0 && !extractFieldIdentifier {
 		forbiddenCall := false
 		switch token.lexeme.text {
-		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "unnest":
+		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "generate_subscripts", "unnest":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
 			forbiddenCall = next.code == int('(')
@@ -1128,7 +1128,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				code, message = "42803", "grouping operations are not allowed in column generation expressions"
 			case "row_number", "rank", "dense_rank":
 				code, message = "42809", "window function "+token.lexeme.text+" requires an OVER clause"
-			case "generate_series", "unnest":
+			case "generate_series", "generate_subscripts", "unnest":
 				code, message = "0A000", "set-returning functions are not allowed in column generation expressions"
 			}
 			if l.generationRestriction == nil {

@@ -13,7 +13,7 @@ func isStringSet(expr BoundExpr) bool {
 }
 func isQuerySet(expr BoundExpr) bool {
 	switch expr.(type) {
-	case regexpSetExpression, jsonKeysExpression, seriesExpression:
+	case regexpSetExpression, jsonKeysExpression, seriesExpression, subscriptsExpression:
 		return true
 	}
 	return isStringSet(expr)
@@ -38,6 +38,8 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
 	case seriesExpression:
 		return call.args
+	case subscriptsExpression:
+		return call.args
 	case stringExpression:
 		return call.args
 	case regexpSetExpression:
@@ -57,6 +59,12 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 	case seriesExpression:
 		if len(args) != len(call.args) {
 			return nil, fmt.Errorf("stuntgres: invalid series arguments")
+		}
+		call.args = args
+		return call, nil
+	case subscriptsExpression:
+		if len(args) != len(call.args) {
+			return nil, fmt.Errorf("stuntgres: invalid subscripts arguments")
 		}
 		call.args = args
 		return call, nil

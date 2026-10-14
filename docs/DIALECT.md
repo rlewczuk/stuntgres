@@ -293,6 +293,15 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
   PostgreSQL success in those contexts is not a native capability claim.
   Window PARTITION/ORDER keys are legal; window frames and scalar restricted
   owners retain exact SRF placement diagnostics.
+- `generate_subscripts(anyarray, integer [, boolean])` uses the same bounded
+  SELECT-target SRF lane and existing view/CTAS/INSERT SELECT consumers. It reads
+  one dimension's stored bounds, returning INT4 without element inspection.
+  Native FROM/ROWS FROM/ordinality/lateral and INSERT VALUES expansion remain
+  excluded, regardless of PostgreSQL success. Simple anyarray requires a known
+  array identity; the fixed result does not infer an untyped first operand.
+  Existing array storage limits are unchanged. Native bounds arithmetic safely
+  terminates at INT32_MIN in reverse, unlike the observed pinned18.0 defect;
+  see [the release exception](QUERIES.md#array-target-subscripts).
 - Selected scalar/set JSON processing includes `json_typeof`, `jsonb_typeof`,
   `json_array_length`, `jsonb_array_length`, `json_object_keys` and
   `jsonb_object_keys`, each taking its matching JSON family. Kinds/keys return

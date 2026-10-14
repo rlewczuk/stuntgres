@@ -109,6 +109,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case seriesExpression:
 		args(e.args)
+	case subscriptsExpression:
+		args(e.args)
 	case logicalExpression:
 		walk(e.left)
 		walk(e.right)

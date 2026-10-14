@@ -98,6 +98,13 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return b.bindSeries(raw, visible)
 	}
+	if strings.EqualFold(name, "generate_subscripts") {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		return b.bindSubscripts(raw, visible)
+	}
 	if parser.JSONFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

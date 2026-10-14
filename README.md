@@ -62,6 +62,22 @@ implying execution or custom operator DDL support. Ordinary output is symbolic;
 logical dumps use typed numeric identities to preserve overloaded and unknown
 OIDs losslessly. Companion arrays remain lookup-only.
 
+## Array target subscripts — change note
+
+`generate_subscripts(anyarray, integer [, boolean])` expands SELECT targets into
+the valid INT4 subscripts of one array dimension, including stored lower bounds
+and NULL elements. Reverse=true walks those indices backwards. Any NULL input,
+an empty array, or an absent/nonpositive dimension emits no rows while retaining
+INT4 result metadata. Array elements are not inspected or coerced.
+
+Calls share existing target-SRF nesting, zip/typed-NULL padding, held statement,
+view, CTAS and INSERT SELECT consumers. Each invocation owns constant-space
+bounds state; LIMIT stops demand. Native Dump/Reset/Restore retains symbolic
+views and materialized rows, not a live cursor. FROM/ROWS FROM/ordinality/lateral
+and INSERT VALUES expansion remain native exclusions. See
+[query contracts](docs/QUERIES.md#array-target-subscripts) and
+[selected proof and feature smoke](reference/numeric/README.md#array-target-subscripts-selected-proof).
+
 ## Phase 1 server — change note
 
 Build and create an account with explicit database grants:

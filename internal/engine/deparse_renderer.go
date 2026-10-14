@@ -682,6 +682,18 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			}
 		}
 		return pgIdentifier("generate_series") + "(" + strings.Join(args, ", ") + ")", nil
+	case subscriptsExpression:
+		argRenderer := r
+		argRenderer.showImplicit = true
+		args := make([]string, len(n.args))
+		for i, arg := range n.args {
+			var err error
+			args[i], err = argRenderer.sql(ctx, arg, pgRenderParent{})
+			if err != nil {
+				return "", err
+			}
+		}
+		return pgIdentifier("generate_subscripts") + "(" + strings.Join(args, ", ") + ")", nil
 	case jsonKeysExpression:
 		argRenderer := r
 		argRenderer.showImplicit = true

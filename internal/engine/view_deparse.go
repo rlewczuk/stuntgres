@@ -1124,6 +1124,25 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return fields[0], nil
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if name == "generate_subscripts" && !v.presentation.deparse {
+			parts := make([]string, len(e.Args))
+			for i, arg := range e.Args {
+				var text string
+				var err error
+				if i == 0 {
+					argumentPath := path
+					argumentPath.argument = 0
+					text, err = v.subscriptsArraySQLAt(ctx, catalog, arg, argumentPath, ordinal)
+				} else {
+					text, err = operand(arg, pgRenderParent{functionArgument: true})
+				}
+				if err != nil {
+					return "", err
+				}
+				parts[i] = text
+			}
+			return "pg_catalog.generate_subscripts(" + strings.Join(parts, ", ") + ")", nil
+		}
 		if parser.ArraySearchFunctionName(name) {
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {
@@ -1343,7 +1362,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
 		}
-		if name == "generate_series" || stringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "jsonb_object" || parser.JSONFunctionName(name) || jsonCreateKind(name) != 0 {
+		if name == "generate_series" || name == "generate_subscripts" || stringVariadicFunctionName(name) || name == "format" || name == "json_object" || name == "jsonb_object" || parser.JSONFunctionName(name) || jsonCreateKind(name) != 0 {
 			functionName := "pg_catalog." + name
 			if v.presentation.deparse {
 				functionName = v.presentation.identifier(name)

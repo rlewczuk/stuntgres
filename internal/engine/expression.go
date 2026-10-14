@@ -595,6 +595,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
+	case subscriptsExpression:
+		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+		})
 	case jsonKeysExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.args[0], decisiveDefaults)
 		if changed {

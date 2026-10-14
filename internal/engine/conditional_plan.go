@@ -337,6 +337,10 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
+	case subscriptsExpression:
+		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, arg, decisiveDefaults)
+		})
 	case jsonKeysExpression:
 		arg, failure := child(e.args[0])
 		err = failure

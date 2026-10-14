@@ -106,6 +106,48 @@ are not native executable providers. Series FROM/ROWS FROM/ordinality/lateral
 and INSERT VALUES expansion remain explicit native capability exclusions.
 Public coverage and commands live in [reference/numeric](../reference/numeric/README.md#integer-target-series-selected-proof).
 
+## Array target subscripts
+
+`generate_subscripts(anyarray, integer)` and its three-argument Boolean-reverse
+overload return INT4 indices for the selected dimension. They use stored lower
+bounds and selected extent, not flattened element count: NULL elements still
+have subscripts. Omitted reverse is false; true visits upper to lower.
+Empty arrays, dimension <=0 or greater than rank, and any typed NULL input
+produce no rows with stable INT4 metadata.
+
+This is simple `anyarray` polymorphism. The first operand must independently
+supply an array type; untyped NULL, string or parameter cannot infer that identity
+from dimension, reverse or output. An outer domain over an array is flattened for
+matching; an array of domain elements keeps its array identity. Smallint dimension
+can widen to INT4; bigint, numeric and text cannot implicitly narrow. Explicit
+`$1::integer[]` is the held parameter route. Every argument is analyzed and every
+demanded invocation evaluates its arguments once in source order before strict
+emptiness, so a NULL array does not erase another child's runtime error or privilege.
+Existing immutable planning may still simplify constant strict scalar wrappers.
+
+The execution-private bounds cursor is constant-space and does not copy array
+payloads or inspect elements. Existing target-SRF zip/padding, nested stages,
+group/sort/distinct and legal window keys remain the owners. Held executions open
+fresh state. Views retain symbolic calls; CTAS and INSERT SELECT materialize
+ordinary INT4 rows, with late errors/cancellation preserving statement atomicity.
+Native controls replay supported views and literal persisted rows under the
+existing Restore whitelist.
+Typed array literals own their subscripts replay cast; matching source casts do
+not grow on successive Dump/Restore rounds, while differing casts are retained.
+
+Native FROM/ROWS FROM/WITH ORDINALITY/lateral and INSERT VALUES expansion remain
+explicit exclusions even where PostgreSQL executes them. Scalar restricted
+owners retain existing SRF placement diagnostics.
+
+**Pinned release safety exception:** PostgreSQL18.0 oracle discovery observed
+reverse iteration with lower bound INT32_MIN fail to terminate before fixture
+cancellation. The shared reverse boundary witness therefore uses INT32_MIN+1.
+Native int64 cursor arithmetic safely emits the exact INT32_MIN endpoint once
+and terminates; an internal real-cursor unit proves this without emulating the
+release defect or repeating the hazardous PostgreSQL query. The existing array
+storage upper-bound exclusion remains unchanged.
+See [selected proof](../reference/numeric/README.md#array-target-subscripts-selected-proof).
+
 ## Analysis and execution-private planning
 
 Preparation describes inputs and outputs without running producers, defaults,

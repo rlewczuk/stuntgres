@@ -147,6 +147,50 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		}
 		cursor.exhausted = cursor.step > 0 && cursor.current > cursor.stop || cursor.step < 0 && cursor.current < cursor.stop
 		return cursor, nil
+	case subscriptsExpression:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if len(call.args) != 2 && len(call.args) != 3 {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid subscripts arguments")
+		}
+		var values [3]sqltype.Value
+		null := false
+		for i, arg := range call.args {
+			value, err := arg.Eval(c)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			values[i] = value
+			null = null || value.IsNull()
+		}
+		cursor := functionSetCursor{kind: functionSeriesCursor, initialized: true, exhausted: true, step: 1}
+		if null {
+			return cursor, nil
+		}
+		dimension, err := values[1].Integer()
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		if dimension <= 0 || dimension > int64(values[0].ArrayRank()) {
+			return cursor, nil
+		}
+		reverse := false
+		if len(call.args) == 3 {
+			reverse, err = values[2].Boolean()
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+		}
+		dim := values[0].ArrayDimension(int(dimension) - 1)
+		lower := int64(dim.Lower)
+		upper := lower + int64(dim.Length) - 1
+		cursor.current, cursor.stop = lower, upper
+		if reverse {
+			cursor.current, cursor.stop, cursor.step = upper, lower, -1
+		}
+		cursor.exhausted = dim.Length == 0
+		return cursor, nil
 	case jsonKeysExpression:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err

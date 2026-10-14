@@ -121,6 +121,10 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
+	case subscriptsExpression:
+		n.args = children(n.args)
+		n.expressionInfo = info
+		rebound = n
 	case jsonKeysExpression:
 		n.args = children(n.args)
 		if err != nil {
