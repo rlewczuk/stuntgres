@@ -198,9 +198,16 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		call.operation = windowNumber
 	case "sum":
 		call.operation = windowSum
-		call.provider, _ = b.sumProvider(argument.ResultUsage().Type)
-		if call.provider == nil {
+		// Ordinary SUM has additional providers; windows remain numeric-only.
+		switch argument.ResultUsage().Type.ID() {
+		case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
+		default:
 			return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
+		}
+		var err error
+		call.provider, _, err = b.sumProvider(argument.ResultUsage().Type)
+		if err != nil {
+			return nil, err
 		}
 	}
 	expr := &windowExpression{expressionInfo: b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true}), slot: -1, frame: b.frameID(), call: len(b.windowCalls)}

@@ -54,31 +54,32 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 	if err != nil {
 		return nil, err
 	}
-	provider, operation := b.sumProvider(arg.ResultUsage().Type)
-	if provider == nil {
-		if err := b.argumentOwner.nestingError(); err != nil {
-			return nil, err
-		}
-		// Retain the established clause diagnostic, without an interval executor.
-		if b.aggregateClause == "RETURNING" {
-			return nil, expressionError("42803", "aggregate functions are not allowed in RETURNING", raw.Pos)
-		}
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+	provider, operation, err := b.sumProvider(arg.ResultUsage().Type)
+	if err != nil {
+		return nil, err
 	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
 	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
 }
 
-func (b *expressionBinder) sumProvider(typ *sqltype.Descriptor) (aggregateProvider, aggregateOperation) {
+func (b *expressionBinder) sumProvider(typ *sqltype.Descriptor) (aggregateProvider, aggregateOperation, error) {
 	switch typ.ID() {
 	case sqltype.Int2, sqltype.Int4:
-		return integralSumProvider{typ, b.typ(sqltype.Int8).Usage()}, aggregateIntegralSum
+		return integralSumProvider{typ, b.typ(sqltype.Int8).Usage()}, aggregateIntegralSum, nil
 	case sqltype.Int8, sqltype.Numeric:
-		return numericSumProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericSum
+		return numericSumProvider{typ, b.typ(sqltype.Numeric).Usage()}, aggregateNumericSum, nil
 	case sqltype.Float4, sqltype.Float8:
-		return floatSumProvider{typ, typ.Usage()}, aggregateFloatSum
+		return floatSumProvider{typ, typ.Usage()}, aggregateFloatSum, nil
+	case sqltype.Money:
+		bound, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, typ, typ, typ)
+		if err != nil {
+			return nil, aggregateMoneySum, err
+		}
+		return moneySumProvider{typ.Usage(), bound}, aggregateMoneySum, nil
+	case sqltype.Interval:
+		return intervalSumProvider{typ.Usage()}, aggregateIntervalSum, nil
 	}
-	return nil, aggregateCount
+	return nil, aggregateCount, nil
 }
 
 // Resolve/coerce SUM's existing callable without constructing a provider or
@@ -102,7 +103,7 @@ func (b *expressionBinder) resolveSumSignature(raw parser.AggregateExpr, name pa
 	}
 	typ = typ.BaseType()
 	switch typ.ID() {
-	case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8, sqltype.Interval:
+	case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8, sqltype.Money, sqltype.Interval:
 		return b.coerceConditional(operand, typ.Usage(), raw.Name)
 	default:
 		return nil, sumSignatureError(name, raw.Pos, types, len(raw.Order))

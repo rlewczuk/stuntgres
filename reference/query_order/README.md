@@ -130,7 +130,7 @@ nonexecuting while their analyzed child graphs retain authorization/dependencies
 Internal mechanics units supplement the public contracts; quickcheck remains
 whole-project Docker-free verification, not a substitute for selected real proof.
 SUM is limited to existing integer/numeric/floating providers. count(expr),
-FILTER, DISTINCT, call-local aggregate ORDER, INTERVAL SUM and other window
+FILTER, DISTINCT, call-local aggregate ORDER, MONEY/INTERVAL SUM and other window
 providers retain their exclusions.
 
 ### Set operations

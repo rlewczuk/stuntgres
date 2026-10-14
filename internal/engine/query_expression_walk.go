@@ -222,7 +222,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	// signatures before INSERT VALUES rejection; other aggregates stay unchanged.
 	if clause == "INSERT VALUES" {
 		switch call.operation {
-		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum,
+		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum, aggregateMoneySum, aggregateIntervalSum,
 			aggregateBitAnd, aggregateBitOr, aggregateBitXor,
 			aggregateJSON, aggregateJSONStrict, aggregateJSONArray, aggregateJSONArrayAbsent, aggregateJSONObject, aggregateJSONObjectStrict:
 			clause = "VALUES"

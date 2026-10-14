@@ -50,3 +50,22 @@ func TestSumGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestSumQuotedResolution(t *testing.T) {
+	for _, name := range []string{"SUM", "Sum"} {
+		for _, suffix := range []string{"(1)", "(DISTINCT 1 ORDER BY 1)"} {
+			q := `SELECT "` + name + `"` + suffix
+			statements, err := Parse(q)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(q, statements, err)
+			}
+			call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+			if !ok || len(call.Name.Parts) != 1 || call.Name.Parts[0].Text != name || call.CompositeCandidate || call.ResolutionOnly || len(call.Args) != 1 {
+				t.Fatal("lost exact-name ordinary resolution and field eligibility", q, call)
+			}
+			if call.Distinct != (suffix == "(DISTINCT 1 ORDER BY 1)") {
+				t.Fatal("lost modified ordinary call", q, call)
+			}
+		}
+	}
+}

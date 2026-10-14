@@ -746,6 +746,15 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				p.input = typ(p.input)
 				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
+			case moneySumProvider:
+				p.usage = usage(p.usage)
+				if err == nil {
+					p.bound, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, p.usage.Type, p.usage.Type, p.usage.Type)
+				}
+				copy.calls[i].provider = p
+			case intervalSumProvider:
+				p.usage = usage(p.usage)
+				copy.calls[i].provider = p
 			case anyValueProvider:
 				p.usage = usage(p.usage)
 				copy.calls[i].provider = p

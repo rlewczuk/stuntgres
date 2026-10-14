@@ -258,6 +258,16 @@ or provider errors veto the entire native result or write batch. No spill or
 general optimizer machinery is implied. Grouping, distinct and windows remain
 serial; the bounded SELECT scan path described above is the parallel exception.
 
+Ordinary MONEY and INTERVAL SUM use that same aggregate pipeline. MONEY retains
+exact signed minor units and reports22003 `money out of range` on transition
+overflow. INTERVAL independently checks months, days and microseconds, preserving
+calendar components and exact time units without normalization or AVG division.
+Its transitions still check finite overflow after infinity; opposite infinity
+signs and range failures report22008 `interval out of range`. Both ignore NULL,
+return a typed NULL for global empty/all-NULL input, and return base-family
+nullable results with typmod -1. Views re-own the MONEY arithmetic binding and
+both provider descriptors. Neither overload is admitted to native windows.
+
 The occurrence producer stops nonblocking stages at demanded survivors without
 pushing outer predicates through a view or replaying effects across its boundary.
 Blocking stages drain qualified input when demanded. Zero-count execution opens
@@ -306,7 +316,7 @@ analyzed child graph retains authorization and dependency ownership.
 Integer inputs widen to bigint (smallint/integer) or numeric (bigint);
 numeric/real/double retain their existing SUM result types.
 Arguments participate in authorization, grouping, capture and descriptor remap
-even when runtime membership is empty. General window providers, INTERVAL SUM,
+even when runtime membership is empty. General window providers, MONEY/INTERVAL SUM,
 count(expr), FILTER, DISTINCT and call-local aggregate ORDER remain excluded.
 Native array/tree aggregate ordering and distinct capability limits are separate
 from their represented structural equality. Range aggregation does not add general

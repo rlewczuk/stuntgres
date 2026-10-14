@@ -910,7 +910,7 @@ All four EXCLUDE modes mask completed membership: CURRENT ROW removes the curren
 occurrence, GROUP its ORDER peers, TIES its other peers, and NO OTHERS removes none.
 Without window ORDER all partition rows are peers, including for ROWS masks.
 Empty count is nonnullable bigint0; empty SUM is nullable NULL. SUM reuses existing
-integer/numeric/real/double providers; INTERVAL, window FILTER, count(expr),
+integer/numeric/real/double providers; MONEY and INTERVAL, window FILTER, count(expr),
 DISTINCT, call-local aggregate ORDER and other window providers remain excluded.
 See [window queries](https://www.postgresql.org/docs/18/queries.html).
 Feature smoke: `make check RUN='^TestReferenceQueryWindowRangeFeatureSmoke$'`;
@@ -3312,10 +3312,27 @@ arithmetic. No unordered transition order is promised. Direct/prepared calls,
 FILTER/DISTINCT/ALL/in-call ordering and stored views use the ordinary eager
 aggregate pipeline. Unknown unary arguments give42725; invalid signatures,
 including zero/star/multiple arguments, give42883. UPDATE/VALUES/RETURNING
-remain forbidden clauses. Runtime INTERVAL SUM and windows remain excluded;
-typed INTERVAL SUM in RETURNING retains42803. Public feature smoke:
+remain forbidden clauses. MONEY and INTERVAL windows remain excluded.
+Public numeric feature smoke:
 `make check RUN='^TestReferenceNumericSumSmoke$'`
 and `make check REFERENCE=1 RUN='^TestReferenceNumericSumSmoke$'`.
+Change note: ordinary `sum(MONEY)` returns MONEY and `sum(INTERVAL)` returns
+unrestricted INTERVAL. Both omit SQL NULL and return one typed NULL for global
+empty/all-NULL input; empty grouped input returns no rows. MONEY accumulates
+exact signed minor units (`12.34 + 56.78` gives `$69.12` under C monetary locale)
+and rejects overflow with22003 `money out of range`. INTERVAL keeps months,
+days and microseconds distinct (`1 mon + 30 days` gives `1 mon 30 days`,
+and `1 day + 24 hours` gives `1 day 24:00:00`) without AVG scaling or binary64
+rounding. Component overflow, reserved infinity tuples and opposite infinity
+signs fail with22008 `interval out of range`; one infinity sign does not bypass
+finite-transition range checks. FILTER, DISTINCT, local ORDER, grouping,
+direct/prepared parameters, stored views and native control round trips use the
+existing ordinary aggregate pipeline. Results are nullable, base-typed,
+typmod -1 and origin-free. No unordered transition order is promised.
+Both new ordinary overloads remain excluded from numeric-only native windows.
+See [independent SUM coverage](reference/aggregates/README.md#money-and-interval-sum).
+Feature smoke: `make check RUN='^TestReferenceMoneyIntervalSumFeatureSmoke$'`
+and `make check RUN='^TestReferenceMoneyIntervalSumFeatureSmoke$' REFERENCE=1`.
 `any_value(anyelement)` returns an arbitrary non-NULL input of its concrete type,
 or typed NULL for empty/all-NULL input. It preserves the datum representation
 and collation, but not input typmod or physical origin; metadata is nullable.

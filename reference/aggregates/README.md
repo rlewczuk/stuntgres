@@ -6,6 +6,57 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### MONEY and INTERVAL SUM
+
+The untagged `money_interval_sum_*_test.go` scenarios specify ordinary
+`sum(money)` and `sum(interval)` independently of native output. MONEY retains
+exact signed minor units; INTERVAL retains separate calendar and time components
+without AVG division. Both return typed NULL for empty/all-NULL input and
+base-family nullable results with unrestricted typmod. Native windows remain
+numeric-only: MONEY and INTERVAL window SUM are explicitly unsupported.
+
+| Scenario suffix | Independent contract |
+| --- | --- |
+| `Values` | Exact minor units and interval components, values above 2^53, cancellation to non-NULL zero, empty/all-NULL/grouped results, FILTER/DISTINCT/local ORDER and unchanged numeric overloads. |
+| `Metadata` | Before-Next labels/types/raw carriers/ScanType/nullable/unsized metadata, global and grouped empty results, unrestricted result typmod and base-domain inputs. |
+| `Boundaries` | Both money endpoints and overflow directions, interval month/day/time endpoints and overflow, reserved physical tuples, infinity signs and finite overflow after infinity. |
+| `Diagnostics` | Full portable diagnostic records, Unicode positions, invalid family/signature/arity, child/FILTER/nesting/context precedence, forbidden VALUES with no prefix publication and namespace resolution. |
+| `QuotedFieldFallback` | Exact-case quoted SUM/Sum MONEY/INTERVAL composite-field projection, typed-NULL projection and missing scalar-signature diagnostics; quoted case variants are not aliases for the aggregate. |
+| `QuotedArity` | Quoted SUM/Sum with 100/101 MONEY/INTERVAL arguments, direct/prepared complete diagnostics and Unicode positions: 100 yields missing signature, 101 yields54023 without Hint, and missing children precede the limit. |
+| `Parameters` | Direct/prepared/SAME-held success, NULL, range and typed-input failure, healthy recovery and repeated positional parameters. |
+| `Consumers` | Repeated SUM versus AVG, scalar/HAVING/ORDER/CTE/derived/correlated consumers, stored grouped views, INSERT SELECT cardinality and failed-write atomicity. |
+| `Lifecycle` | Retained old cursor versus fresh SAME-held execution, live IntervalStyle, empty/all-NULL/range/recovery and native ordinary cancellation. |
+| `Controls` | Native Dump/Reset/Restore/redump, failed/canceled replacement atomicity, retained cursor, rebound held view, independent Driver restore and PostgreSQL replay of actual native-emitted SQL; missing emitted SQL is a failure, never substituted portable setup. |
+| `Authorization` | Real argument/FILTER/ORDER and hidden reads even on empty input, unrelated-column denial, public grants/revokes and held recovery. |
+| `WindowBoundary` | PostgreSQL window results beside the unchanged native unsupported MONEY/INTERVAL window boundary and a positive numeric window control. |
+| `FeatureSmoke` | Direct/prepared exact sums, empty and above-2^53 results, calendar distinctions, SAME-held NULL/error/recovery and complete money/interval overflow diagnostics. |
+
+Root runs these small selectors with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceMoneyIntervalSum(Values|Metadata|Boundaries|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceMoneyIntervalSum(Parameters|Consumers|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReferenceMoneyIntervalSum(Controls|Authorization|WindowBoundary|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceNumericSumAuthorization$' REFERENCE=1
+make check RUN='^TestReferenceMoneyIntervalSum(QuotedFieldFallback|QuotedArity)$' REFERENCE=1
+```
+
+Run the same selectors without `REFERENCE=1` for selected native proof; both
+modes are required after any affected change. Private provider/type units
+supplement, never replace, the public scenarios:
+
+```sh
+make check RUN='^Test(MoneySumProvider|IntervalSumProvider|IntervalAggregateSumResult)'
+make check RUN='^TestSumQuotedResolution$'
+make check RUN='^TestReferenceMoneyIntervalSumFeatureSmoke$'
+make check RUN='^TestReferenceMoneyIntervalSumFeatureSmoke$' REFERENCE=1
+```
+
+The migrated `TestReferenceNumericSumAuthorization` includes the complete
+initially empty `sum_secret` assertion set alongside its populated and SAME-held
+authorization phases. Public GRANT/REVOKE replaces the superseded private-ACL
+SQL test. Controls replay only actual native-emitted SQL, not a portable stand-in.
+
 ### JSON object aggregates
 
 The untagged `json_object_aggregate_*_test.go` scenarios specify the four ordinary

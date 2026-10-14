@@ -404,7 +404,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		selectedName := parser.AdvisorySessionFunctionName(name)
 		if !selectedName {
-			for _, selected := range [...]string{"convert", "convert_from", "convert_to", "encode", "decode", "to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "pg_size_bytes", "pg_size_pretty", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte"} {
+			for _, selected := range [...]string{"sum", "convert", "convert_from", "convert_to", "encode", "decode", "to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "pg_size_bytes", "pg_size_pretty", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte"} {
 				if len(name) == len(selected) && strings.EqualFold(name, selected) {
 					selectedName = true
 					break

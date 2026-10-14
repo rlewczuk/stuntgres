@@ -38,6 +38,8 @@ const (
 	aggregateIntegralSum
 	aggregateNumericSum
 	aggregateFloatSum
+	aggregateMoneySum
+	aggregateIntervalSum
 	aggregateArrayScalar
 	aggregateArrayArray
 	aggregateRangeUnion

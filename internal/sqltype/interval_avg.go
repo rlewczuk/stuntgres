@@ -5,9 +5,9 @@ import (
 	"math"
 )
 
-// IntervalAvgState owns one group's checked physical component sums. It does
-// not normalize months/days/time into a duration or inherit operand typmods.
-// Its zero value is an empty aggregate; Result never changes the state.
+// IntervalAvgState owns one group's checked physical component sums for AVG
+// and SUM. It does not normalize components or inherit operand typmods.
+// Its zero value is empty; neither finalizer changes the state.
 type IntervalAvgState struct {
 	count                              int64
 	months, days                       int32
@@ -63,4 +63,24 @@ func (s *IntervalAvgState) Result(d *Descriptor) (Value, error) {
 		return Null(d), nil
 	}
 	return scaleFiniteInterval(s.months, s.days, s.time, float64(s.count), d, true)
+}
+
+// SumResult retains exact calendar and time components without AVG scaling.
+func (s *IntervalAvgState) SumResult(d *Descriptor) (Value, error) {
+	if s == nil || d == nil || d.ID() != Interval {
+		return Value{}, fmt.Errorf("invalid interval sum descriptor or state")
+	}
+	if s.positiveInfinity && s.negativeInfinity {
+		return Value{}, failure("22008", "interval out of range")
+	}
+	if s.positiveInfinity {
+		return IntervalValue(d, math.MaxInt32, math.MaxInt32, math.MaxInt64)
+	}
+	if s.negativeInfinity {
+		return IntervalValue(d, math.MinInt32, math.MinInt32, math.MinInt64)
+	}
+	if s.count == 0 {
+		return Null(d), nil
+	}
+	return IntervalValue(d, s.months, s.days, s.time)
 }

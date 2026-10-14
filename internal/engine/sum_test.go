@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 	"reflect"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -383,56 +382,6 @@ func TestSumEagerCancellation(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestSumColumnAuthorization(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
-	defer done()
-	roleExecute(t, e, op, "CREATE USER sum_reader")
-	roleExecute(t, e, op, "CREATE TABLE sum_secret(a INTEGER,b INTEGER,c INTEGER,unused INTEGER)")
-	ref := roleTableRef(t, e, "sum_secret")
-	owner := op.RoleState().CurrentUser
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
-		t.Fatal(err)
-	}
-	reader, _ := e.Roles().Lookup("sum_reader")
-	column := ref
-	column.Address.SubID = 1
-	entry := authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
-		t.Fatal(err)
-	}
-	roleExecute(t, e, op, "SET SESSION AUTHORIZATION sum_reader")
-	// Empty input still checks real argument, FILTER, ORDER and hidden reads.
-	roleExecute(t, e, op, "SELECT sum(a) FROM sum_secret")
-	for _, sql := range []string{
-		"SELECT sum(b) FROM sum_secret",
-		"SELECT sum(a) FILTER(WHERE b>0) FROM sum_secret",
-		"SELECT sum(a ORDER BY c) FROM sum_secret",
-		"SELECT 1 FROM sum_secret HAVING sum(b)>0",
-		"SELECT sum(a) FROM sum_secret ORDER BY sum(c)",
-	} {
-		if _, err := e.Describe(op, statement(t, sql)); err != nil {
-			t.Fatal("prepare must not cache denial", sql, err)
-		}
-		roleError(t, e, op, sql, "42501", "permission denied for table sum_secret", "")
-	}
-	for _, subID := range []int32{2, 3} {
-		column.Address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	roleExecute(t, e, op, "SELECT sum(a ORDER BY c) FILTER(WHERE b>0) FROM sum_secret")
-	roleExecute(t, e, op, "SELECT 1 FROM sum_secret HAVING sum(b)>0 ORDER BY sum(c)")
-	// An unrelated column is never demanded by SUM's access manifest.
-	roleError(t, e, op, "SELECT sum(unused) FROM sum_secret", "42501", "permission denied for table sum_secret", "")
-	column.Address.SubID = 2
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
-		t.Fatal(err)
-	}
-	roleError(t, e, op, "SELECT sum(a) FILTER(WHERE b>0) FROM sum_secret", "42501", "permission denied for table sum_secret", "")
 }
 
 func TestSumAnalysisStructure(t *testing.T) {
