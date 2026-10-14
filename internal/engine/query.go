@@ -1261,6 +1261,8 @@ type finalRows struct {
 	regtypeOutput     map[uint32]string
 	regprocOutput     map[uint32]string
 	regroleOutput     map[uint32]string
+	operatorOutput    map[operatorOutputKey]string
+	operatorGroups    operatorGroups
 	aclAuthority      *sqltype.ACLAuthority
 	aclitemOutput     map[uint32]string
 	anonymous         [][]sqltype.Value
@@ -1309,6 +1311,8 @@ func (r *finalRows) release() {
 	r.regtypeOutput = nil
 	r.regprocOutput = nil
 	r.regroleOutput = nil
+	r.operatorOutput = nil
+	r.operatorGroups = nil
 	r.aclitemOutput = nil
 	r.aclAuthority = nil
 }

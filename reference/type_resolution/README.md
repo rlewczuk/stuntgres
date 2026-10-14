@@ -52,6 +52,51 @@ nonempty dump, retained/restored values and identical redump only after validati
 Remove the temporary program after recording evidence; never commit its source.
 Selected proofs do not replace whole-project quickcheck or post-merge finalcheck.
 
+### Operator OID aliases
+
+The `TestReferenceRegOperator...` definitions cover name-only and exact ordered
+signature resolution, prefix NONE, complete released builtin identities, direct
+and held parameters, metadata, complete diagnostics, and real private namespace
+and operand-type authorization. Independent expectations/provenance live in
+`docs/design/regoperator-pg18-inventory.tsv` and `regoperator-pg18-oracle.md`.
+Custom operator creation/catalog projection is a genuine PostgreSQL-only
+mechanism witness, not native custom DDL or execution support.
+
+Pinned oracle discovery is complete in the root's tests-1 through tests-4 reports;
+tests-5 records the failing native-before-production regression. No discovery
+filter/logging remains. Both aliases' typed-nil byte binds are SQL NULL. The
+native unsupported CREATE OPERATOR boundary independently asserts the observed
+42601 primary and Position8, plus unchanged sentinel data.
+
+Review-remedy discovery is recorded in tests-13/14: pinned complete competing
+diagnostics and NBSP records preceded the observed native/parser/prepared failures.
+`ParserEdges` preserves all six literal/parameter/runtime routes, while
+`PreparedAnalysis` covers public mixed-alias values, held recovery and snapshots.
+Internal `TestRegOperatorPrepared...` units additionally use real typed catalog
+descriptors to prove ordered operand manifests, direct shared-cell validation,
+atomic group publication and unchanged captures under unrelated role changes.
+Those internal descriptors do not extend public custom operator DDL support.
+
+Root verifies the identical completed definitions with an external 900-second
+deadline for each command:
+
+```sh
+make check RUN='^TestReferenceRegOperator(ValuesMetadata|Signatures|Diagnostics|ParserEdges|NamespaceAuthorization|Inventory|ExternalBoundary|PreparedLifetime|PreparedAnalysis|Persistence|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceRegOperator(ValuesMetadata|Signatures|Diagnostics|ParserEdges|NamespaceAuthorization|Inventory|ExternalBoundary|PreparedLifetime|PreparedAnalysis|Persistence|FeatureSmoke)$'
+make check RUN='^TestRegOperator'
+make check RUN='^TestRegOperator(Signature|Prepared)'
+make check RACE=1 RUN='^Test(RegOperatorPrepared|ReferenceRegOperator(PreparedLifetime|PreparedAnalysis|Persistence))'
+make check RUN='^TestReferenceRegOperatorFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRegOperatorFeatureSmoke$'
+```
+
+Persistence replays the actual emitted native dump on PostgreSQL, not constructed
+SQL. Smoke covers unique/ambiguous names, exact ordered signatures, unary NONE,
+held parameter failure/recovery, metadata, private-schema denial, numeric dump
+roundtrips, retained strings and failed-tuple atomicity. These definitions and
+implementation are not passing evidence until root exercises the gates.
+
+
 ### Transaction and command identifiers
 
 The shared XID definitions independently assert canonical unsigned input/output,

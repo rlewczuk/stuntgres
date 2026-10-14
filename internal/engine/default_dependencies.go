@@ -53,7 +53,7 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 				if err := validateCollationProvider(view, ref); err != nil {
 					return err
 				}
-			} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject {
+			} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject {
 				return fmt.Errorf("stuntgres: invalid default provider kind")
 			}
 		}

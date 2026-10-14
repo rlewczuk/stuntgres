@@ -56,6 +56,7 @@ func (e formatExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output.Regtype = c.liveScope()
 	output.Regrole = c.liveScope()
 	output.Regproc = c.liveScope()
+	output.Operator = c.liveScope()
 	output.ACLItem = c.liveScope()
 	text, err := formatText(c.Context, pattern, values, e.int4, output)
 	if err != nil {

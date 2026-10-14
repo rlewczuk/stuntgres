@@ -10,9 +10,11 @@ import (
 
 type regtypeConstant struct {
 	offset    int
+	operator  sqltype.ID
 	id        uint32
 	value     sqltype.Value
 	qualified []ObjectAddress
+	operands  []expressionDependency
 }
 type regtypeAnalysis struct {
 	constants []regtypeConstant
@@ -43,9 +45,16 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 	if cell.role != auth.state.CurrentUser || cell.database != auth.session.databaseName || !sameSequenceEnvironment(cell.path, path) {
 		return false, nil
 	}
-	// Only qualified namespaces consulted by this literal group add authority
-	// beyond the effective path. Referent drops and unrelated role DDL do not.
+	// Qualified namespaces add authority beyond the path. Named operator
+	// operands also retain definition stamps; ordinary REGTYPE referent drops
+	// and unrelated role DDL keep their existing behavior.
 	for _, constant := range cell.constants {
+		for _, operand := range constant.operands {
+			d := auth.catalog.state.descriptors[operand.ref.Address]
+			if d == nil || operand.ref.owner != e.owner || operand.ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.revision {
+				return false, nil
+			}
+		}
 		for _, namespace := range constant.qualified {
 			if auth.catalog.state.descriptors[namespace] == nil {
 				return false, nil
@@ -66,7 +75,7 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 	found := false
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, c := range b.expected.regtypes.constants {
-			if c.offset == pos.Offset {
+			if c.offset == pos.Offset && c.operator == 0 {
 				constant, found = c, true
 				break
 			}
@@ -95,7 +104,7 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, constant := range b.expected.regtypes.constants {
-			if constant.offset == pos.Offset && constant.value.Type() != nil {
+			if constant.offset == pos.Offset && constant.operator == 0 && constant.value.Type() != nil {
 				value, err := constant.value.Retag(u.Type)
 				if err != nil {
 					return sqltype.Value{}, err
@@ -125,7 +134,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 }
 
 func (b *expressionBinder) foldRegtypeConstant(child BoundExpr, plan sqltype.CoercionPlan, info expressionInfo) (BoundExpr, bool, error) {
-	if info.usage.Type.BaseType().ID() != sqltype.Regtype || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters || b.materializedDefinition) {
+	if (info.usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.usage.Type.BaseType().ID())) || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters || b.materializedDefinition) {
 		return nil, false, nil
 	}
 	p := child.Properties()
@@ -142,11 +151,21 @@ func (b *expressionBinder) foldRegtypeConstant(child BoundExpr, plan sqltype.Coe
 		return nil, true, err
 	}
 	if !value.IsNull() {
-		id, err := value.TypeOID()
+		var id uint32
+		var err error
+		if sqltype.IsOperatorAlias(value.Type().BaseType().ID()) {
+			id, err = value.OperatorOID()
+		} else {
+			id, err = value.TypeOID()
+		}
 		if err != nil {
 			return nil, true, err
 		}
-		b.regtypeConstants = append(b.regtypeConstants, regtypeConstant{offset: info.pos.Offset, id: id})
+		constant := regtypeConstant{offset: info.pos.Offset, id: id}
+		if sqltype.IsOperatorAlias(value.Type().BaseType().ID()) {
+			constant.operator = value.Type().BaseType().ID()
+		}
+		b.regtypeConstants = append(b.regtypeConstants, constant)
 	}
 	return literalExpression{info, value}, true, nil
 }

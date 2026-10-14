@@ -231,6 +231,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			switch t := d.(type) {
 			case *databaseDescriptor:
 				continue // Destination attachment authority is never serialized.
+			case *operatorDescriptor:
+				if !pgDependPinned(catalog, t.address) {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: dump cannot serialize custom operator identity")
+				}
+				continue
 			case *procedureDescriptor:
 				if t.conversion.Name() != "" {
 					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {

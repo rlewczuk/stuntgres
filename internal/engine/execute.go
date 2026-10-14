@@ -276,6 +276,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.regroleInput != nil {
 		scope.input.Regrole = b.regroleInput
 	}
+	if b.operatorInput != nil {
+		scope.input.Operator = b.operatorInput
+	}
 	if b.aclitemInput != nil {
 		scope.input.ACLItem = b.aclitemInput
 	}
@@ -300,6 +303,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		if usage.Type.ContainsRegrole() && scope.input.Regrole == nil {
 			scope.input.Regrole = capturedRegroleInput{roles: auth.roles}
+		}
+		if usage.Type.ContainsOperatorAlias() && scope.input.Operator == nil {
+			scope.input.Operator, err = e.captureOperatorInput(auth, op)
+			if err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
 		}
 		if usage.Type.ContainsACLItem() && scope.input.ACLItem == nil {
 			scope.input.ACLItem = e.captureACLItemInput(auth, op)

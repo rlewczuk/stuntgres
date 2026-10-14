@@ -367,6 +367,8 @@ type StatementScope struct {
 	identity                    identitySnapshot
 	currentSchemaResult         sqltype.Value
 	deparsePath                 []ObjectAddress
+	operatorOutput              map[operatorOutputKey]string
+	operatorGroups              operatorGroups
 }
 
 type WriteStage struct {

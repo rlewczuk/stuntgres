@@ -57,7 +57,7 @@ func BindGrouping(usage Usage) (Grouping, error) {
 		return g, nil
 	}
 	switch base.id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Money, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, Regtype, Regproc, Regrole, JSONB:
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Money, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass, Regtype, Regproc, Regrole, Regoper, Regoperator, JSONB:
 	default:
 		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + usage.Type.DiagnosticName()}
 	}
@@ -165,7 +165,7 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 		return groupingTextEqual(ctx, a.text, b.text)
 	}
 	switch a.typ.BaseType().id {
-	case Xid, Cid, Regtype, Regproc, Regrole:
+	case Xid, Cid, Regtype, Regproc, Regrole, Regoper, Regoperator:
 		return a.oid == b.oid, ctx.Err()
 	case Xid8:
 		return a.integer == b.integer, ctx.Err()
@@ -260,7 +260,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 			integerHash(uint64(hi))
 			integerHash(lo)
 		}
-	case Oid, Xid, Cid, Regtype, Regproc, Regrole:
+	case Oid, Xid, Cid, Regtype, Regproc, Regrole, Regoper, Regoperator:
 		integerHash(uint64(v.oid))
 	case Bool:
 		if v.boolean {

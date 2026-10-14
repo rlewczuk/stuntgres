@@ -54,6 +54,14 @@ FROM/ordinality/lateral and INSERT VALUES expansion. See
 [query contracts](docs/QUERIES.md#integer-target-series) and
 [selected proof and feature smoke](reference/numeric/README.md#integer-target-series-selected-proof).
 
+Change note: scalar REGOPER and REGOPERATOR retain unsigned operator OIDs through
+direct/held values, distinct metadata and native logical Dump/Restore. Name-only
+input requires uniqueness; signature input preserves exact operand order and
+prefix NONE. All PostgreSQL 18 builtin operator identities are available without
+implying execution or custom operator DDL support. Ordinary output is symbolic;
+logical dumps use typed numeric identities to preserve overloaded and unknown
+OIDs losslessly. Companion arrays remain lookup-only.
+
 ## Phase 1 server — change note
 
 Build and create an account with explicit database grants:

@@ -246,6 +246,7 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output.Regtype = c.liveScope()
 	output.Regrole = c.liveScope()
 	output.Regproc = c.liveScope()
+	output.Operator = c.liveScope()
 	output.ACLItem = c.liveScope()
 	input := c.Input
 	if input.Regrole == nil {
@@ -2251,7 +2252,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		if err := b.captureTypeDiagnosticInput(policy.expected.Type); err != nil {
 			return nil, err
 		}
-		if policy.expected.Type.ContainsRegclass() || policy.expected.Type.ContainsRegtype() || policy.expected.Type.ContainsRegrole() {
+		if policy.expected.Type.ContainsRegclass() || policy.expected.Type.ContainsRegtype() || policy.expected.Type.ContainsRegrole() || policy.expected.Type.ContainsOperatorAlias() {
 			if err := b.captureElementInput(); err != nil {
 				return nil, err
 			}
@@ -2379,7 +2380,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
-	if target.Type.ContainsRegclass() || target.Type.ContainsRegtype() || target.Type.ContainsRegrole() {
+	if target.Type.ContainsRegclass() || target.Type.ContainsRegtype() || target.Type.ContainsRegrole() || target.Type.ContainsOperatorAlias() {
 		if err := b.captureElementInput(); err != nil {
 			return nil, err
 		}
@@ -2448,7 +2449,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		// a type mismatch, not an unimplemented scalar provider. This only
 		// selects the diagnostic below; it adds no coercion capability.
 		if !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
-			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
+			if !sqltype.IsOperatorAlias(source.Type.BaseType().ID()) && !sqltype.IsOperatorAlias(target.Type.BaseType().ID()) {
+				return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
+			}
 		}
 		if raw.Syntax == parser.FunctionCast {
 			return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
@@ -2685,6 +2688,12 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if u.Type.ID() == sqltype.Regtype {
 		return b.regtypeConstant(text, pos)
 	}
+	if sqltype.IsOperatorAlias(u.Type.ID()) {
+		return b.operatorConstant(text, u.Type, pos)
+	}
+	if u.Type.ContainsOperatorAlias() {
+		return b.operatorCompoundConstant(text, u, pos)
+	}
 	if u.Type.ID() == sqltype.Regclass {
 		node, _, err := b.bindRegclass(parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: text, Pos: pos}})
 		if err != nil {
@@ -2713,7 +2722,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			}
 			return c.value.Retag(u.Type)
 		}
-		if u.Type.ContainsRegclass() || u.Type.ContainsRegtype() || u.Type.ContainsRegrole() {
+		if u.Type.ContainsRegclass() || u.Type.ContainsRegtype() || u.Type.ContainsRegrole() || u.Type.ContainsOperatorAlias() {
 			if err := b.captureElementInput(); err != nil {
 				return sqltype.Value{}, err
 			}
@@ -2806,7 +2815,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 }
 
 func (b *expressionBinder) captureElementInput() error {
-	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil {
+	if b.input.Regclass != nil && b.input.Regtype != nil && b.input.Regrole != nil && b.input.Operator != nil {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
@@ -2824,6 +2833,9 @@ func (b *expressionBinder) captureElementInput() error {
 	}
 	if b.input.Regrole == nil {
 		b.input.Regrole = capturedRegroleInput{roles: auth.roles}
+	}
+	if err == nil && b.input.Operator == nil {
+		b.input.Operator, err = b.engine.captureOperatorInput(auth, b.op)
 	}
 	return err
 }

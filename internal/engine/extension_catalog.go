@@ -96,6 +96,9 @@ func descriptorNameKey(d Descriptor) NameKey {
 	if p, ok := d.(*procedureDescriptor); ok {
 		key.Signature = string(p.signature)
 	}
+	if operator, ok := d.(*operatorDescriptor); ok {
+		key.Signature = operator.signature()
+	}
 	return key
 }
 

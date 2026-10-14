@@ -25,6 +25,7 @@ type capturedRegtypeInput struct {
 	position  parser.Position
 	portal    string
 	qualified *[]ObjectAddress
+	resolved  *[]expressionDependency
 }
 
 func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *Operation) (capturedRegtypeInput, error) {
@@ -63,6 +64,10 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 		}
 		return value.OID()
 	}
+	return r.resolveTypeName(ctx, text)
+}
+
+func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) (uint32, error) {
 	op := r.op
 	if r.authority != nil {
 		op = nil
@@ -198,6 +203,12 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 			warning.Context = r.portal
 			op.emitNotice(levelWarning, *warning)
 		}
+	}
+	if r.resolved != nil {
+		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+		d := r.auth.catalog.state.descriptors[address]
+		ref := ObjectRef{owner: r.auth.engine.owner, Epoch: r.auth.catalog.Epoch(), Address: address}
+		*r.resolved = append(*r.resolved, expressionDependency{ref: ref, revision: d.Revision()})
 	}
 	return uint32(typ.ID()), nil
 }

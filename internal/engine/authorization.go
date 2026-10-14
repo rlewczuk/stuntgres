@@ -479,7 +479,7 @@ func (v AuthorizationView) CheckCreate(ref ObjectRef) error {
 func validateACL(r authorization.Read, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
-	case *tsTemplateDescriptor:
+	case *tsTemplateDescriptor, *operatorDescriptor:
 		return nil
 	case *typeDescriptor:
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
@@ -519,7 +519,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 }
 func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	switch t := d.(type) {
-	case *tsTemplateDescriptor:
+	case *tsTemplateDescriptor, *operatorDescriptor:
 		return nil
 	case *typeDescriptor:
 		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {

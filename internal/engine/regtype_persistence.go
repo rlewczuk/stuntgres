@@ -60,10 +60,14 @@ func walkRegtypeReferences(view CatalogRead, value sqltype.Value, record func(Ob
 }
 
 func (r scalarRenderer) recordRegtypeReferences(view CatalogRead, value sqltype.Value) error {
-	return walkRegtypeReferences(view, value, func(address ObjectAddress) error {
+	record := func(address ObjectAddress) error {
 		r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 		return nil
-	})
+	}
+	if err := walkRegtypeReferences(view, value, record); err != nil {
+		return err
+	}
+	return walkOperatorReferences(view, value, record)
 }
 
 func remapRegtypeDatum(value sqltype.Value, destination func(OID) OID) (sqltype.Value, error) {

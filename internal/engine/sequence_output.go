@@ -77,6 +77,9 @@ func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []Obj
 	if err := captureRegtypeOutputValue(rows, catalog, path, value); err != nil {
 		return err
 	}
+	if err := captureOperatorOutputValue(rows, catalog, path, value); err != nil {
+		return err
+	}
 	if value.IsNull() || !value.Type().ContainsRegclass() {
 		return nil
 	}

@@ -210,7 +210,7 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 				continue
 			}
 			provider, ok := view.Descriptor(address)
-			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != RelationObject && provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != ProcedureObject) {
+			if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (provider.Kind() != RelationObject && provider.Kind() != TypeObject && provider.Kind() != CollationObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject) {
 				return fmt.Errorf("stuntgres: invalid check provider dependency")
 			}
 			if provider.Kind() == CollationObject {
@@ -434,7 +434,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 				}
 			} else {
 				target, ok := view.Descriptor(address)
-				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != RelationObject && target.Kind() != TypeObject && target.Kind() != CollationObject && target.Kind() != ProcedureObject) {
+				if !ok || !storedReferenceEpochValid(view, d, dep.ref) || (target.Kind() != RelationObject && target.Kind() != TypeObject && target.Kind() != CollationObject && target.Kind() != ProcedureObject && target.Kind() != OperatorObject) {
 					return fmt.Errorf("stuntgres: invalid check provider dependency")
 				}
 				if target.Kind() == CollationObject {

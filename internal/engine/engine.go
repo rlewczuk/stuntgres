@@ -116,6 +116,7 @@ type binding struct {
 	regtypeConstants      []regtypeConstant
 	regtypeInput          sqltype.RegtypeResolver
 	regroleInput          sqltype.RegroleResolver
+	operatorInput         sqltype.OperatorResolver
 	aclitemInput          sqltype.ACLItemResolver
 	typeDiagnosticName    func(sqltype.ID) string
 	enumMemberSafe        func(sqltype.ID, int64) bool
@@ -179,6 +180,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(databaseProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(operatorProvider{}); err != nil {
+		return nil, err
+	}
 	comment := "text search dictionary that removes accents"
 	if err := e.registerExtension("unaccent", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUnaccent}); err != nil {
 		return nil, err
@@ -230,6 +234,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.state.descriptors[d.Address()] = d
 		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
+	e.initializeOperators()
 	e.initializeDatabase(database)
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
@@ -865,6 +870,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.regtypeConstants = binder.regtypeConstants
 	b.regtypeInput = binder.input.Regtype
 	b.regroleInput = binder.input.Regrole
+	b.operatorInput = binder.input.Operator
 	b.aclitemInput = binder.input.ACLItem
 	b.typeDiagnosticName = binder.input.TypeDiagnosticName
 	b.enumMemberSafe = binder.input.EnumMemberSafe

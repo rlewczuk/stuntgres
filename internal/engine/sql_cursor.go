@@ -171,11 +171,17 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	c.state.output.Regclass, c.state.output.Regtype = nil, nil
 	c.state.output.Regproc = nil
 	c.state.output.Regrole = nil
+	c.state.output.Operator = nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
 	if reader, ok := c.state.input.Regtype.(capturedRegtypeInput); ok {
 		reader.op, reader.authority = nil, c.authority
 		reader.qualified = nil
 		c.state.input.Regtype = reader
+	}
+	if reader, ok := c.state.input.Operator.(capturedOperatorInput); ok {
+		reader.types.op, reader.types.authority = nil, c.authority
+		reader.types.qualified, reader.qualified = nil, nil
+		c.state.input.Operator = reader
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err

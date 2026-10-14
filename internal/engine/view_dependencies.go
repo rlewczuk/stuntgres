@@ -95,6 +95,9 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 	if d, ok := catalog.state.descriptors[base].(*extensionDescriptor); ok {
 		return "extension " + dependencyIdentifier(d.name)
 	}
+	if _, ok := catalog.state.descriptors[base].(*operatorDescriptor); ok {
+		return "operator " + operatorSpelling(catalog, path, collectOperatorGroups(catalog), base.ObjectID, sqltype.Regoperator)
+	}
 	if d, ok := catalog.state.descriptors[base].(*procedureDescriptor); ok {
 		name := dependencyIdentifier(d.name)
 		visible := path == nil

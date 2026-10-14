@@ -61,7 +61,7 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		size = 1
 	case Int2:
 		size = 2
-	case Int4, Oid, Xid, Cid, Regclass, Regtype, Regrole, Float4, Date:
+	case Int4, Oid, Xid, Cid, Regclass, Regtype, Regrole, Regoper, Regoperator, Float4, Date:
 		size = 4
 	case Int8, Xid8, Float8, Money, Time, Timetz, Timestamp, Timestamptz:
 		size = 8
@@ -89,9 +89,9 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 		v.integer = int64(int32(binary.BigEndian.Uint32(p)))
 	case Int8, Xid8, Money:
 		v.integer = int64(binary.BigEndian.Uint64(p))
-	case Oid, Xid, Cid, Regtype, Regrole:
+	case Oid, Xid, Cid, Regtype, Regrole, Regoper, Regoperator:
 		v.oid = binary.BigEndian.Uint32(p)
-		if d.id == Regtype || d.id == Regrole {
+		if d.id == Regtype || d.id == Regrole || IsOperatorAlias(d.id) {
 			v.integer = 1
 		}
 	case Regclass:
@@ -254,7 +254,7 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 		return binary32(binary64(dst, uint64(v.integer)), uint32(v.west)), nil
 	case Interval:
 		return binary32(binary32(binary64(dst, uint64(v.integer)), uint32(v.days)), uint32(v.months)), nil
-	case Oid, Xid, Cid, Regtype, Regproc, Regrole:
+	case Oid, Xid, Cid, Regtype, Regproc, Regrole, Regoper, Regoperator:
 		return binary32(dst, v.oid), nil
 	case Regclass:
 		n, err := strconv.ParseUint(v.text, 10, 32)

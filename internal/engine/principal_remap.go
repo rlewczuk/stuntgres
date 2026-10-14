@@ -48,8 +48,8 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	}
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
-		case *databaseDescriptor, *tsTemplateDescriptor:
-			// Retained attachment authority is already local; templates have no owner.
+		case *databaseDescriptor, *tsTemplateDescriptor, *operatorDescriptor:
+			// Attachment authority is local; templates and operator identities have no owner.
 		case *extensionDescriptor:
 			n := *d
 			var err error

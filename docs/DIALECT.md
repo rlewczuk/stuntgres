@@ -315,6 +315,13 @@ CREATE/ALTER/DROP CONVERSION, ownership, schema moves and directed default looku
 are supported. Arbitrary function definitions/external conversion ABIs and wire
 transcoding remain excluded. REGPROC is a catalog-derived identity/output carrier
 with OID/TEXT inspection casts, not generic named input or a storage declaration.
+REGOPER/REGOPERATOR provide the complete released builtin operator identity
+inventory, exact signature lookup and captured symbolic output, including
+lookup-only operand type identities. This does not add execution providers,
+CREATE/ALTER/DROP OPERATOR, a native pg_operator projection, to_regoper/
+to_regoperator, or arbitrary implementation-function execution. Quoted custom
+operator DDL/catalog/dependency mechanisms are explicitly PostgreSQL-only
+reference phases; native algorithm units cover quoted output and path masking.
 Conversion utilities retain the native explicit-transaction DDL exclusion at
 Execute, not Prepare. Read-only execution reports `25006` before that exclusion
 or object resolution. DROP retires the actual conversion provider atomically;

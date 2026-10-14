@@ -76,7 +76,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if v != nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: unnormalized byte argument")
 		}
-		if sqltype.IsTransactionIdentifier(target.Type.ID()) {
+		if sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) {
 			return sqltype.Null(target.Type), nil
 		}
 		if target.Type.ContainsACLItem() || sqltype.IsNetwork(target.Type.ID()) || target.Type.ID() == sqltype.Int4Multirange || target.Type.ID() == sqltype.Int8Multirange || target.Type.ID() == sqltype.NumMultirange || target.Type.ID() == sqltype.Int4Range || target.Type.ID() == sqltype.Int8Range || target.Type.ID() == sqltype.NumRange || target.Type.ID() == sqltype.DateRange || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
@@ -208,7 +208,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Inet, sqltype.Cidr:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
-	case sqltype.Regtype, sqltype.Regproc, sqltype.Regrole:
+	case sqltype.Regtype, sqltype.Regproc, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Xid, sqltype.Cid, sqltype.Xid8:
 		text, err := v.Type().Output(ctx, v)
@@ -277,7 +277,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.DateRange, sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Regrole, sqltype.Char:
+	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.DateRange, sqltype.Money, sqltype.Bit, sqltype.VarBit, sqltype.JSON, sqltype.JSONB, sqltype.JSONPath, sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Regtype, sqltype.Regproc, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

@@ -239,6 +239,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			environment := input
 			environment.Regclass, environment.Regtype = b.regclassInput, b.regtypeInput
 			environment.Regrole = b.regroleInput
+			environment.Operator = b.operatorInput
 			environment.ACLItem = b.aclitemInput
 			evaluation := EvalContext{Context: ctx, Input: environment}
 			for _, expressions := range b.expressions {

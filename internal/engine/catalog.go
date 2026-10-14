@@ -70,6 +70,7 @@ const (
 	TSTemplateObject
 	TSDictionaryObject
 	DatabaseObject
+	OperatorObject
 )
 
 type Descriptor interface {

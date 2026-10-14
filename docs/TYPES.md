@@ -45,7 +45,7 @@ and reports `interface{}` ScanType where native exports strings.
 | Timestamp infinities | Fresh owned `[]byte` |
 | BYTEA | Fresh owned `[]byte` |
 | Executable arrays, composites, ranges and multiranges | Canonical `string` |
-| REGCLASS, REGTYPE, REGROLE | Captured symbolic `string` |
+| REGCLASS, REGTYPE, REGROLE, REGOPER, REGOPERATOR | Captured symbolic `string` |
 | ACLITEM | Captured canonical `string` |
 
 Numeric I/O never roundtrips through binary float. FLOAT4 input uses its own
@@ -325,6 +325,41 @@ native CHECK expressions requiring array equality still fail42883, and domain
 CHECK/default declarations still hit their existing0A000 capability boundary.
 Those analysis errors precede the stored-Const dependency walk. The reference
 grid retains exact PostgreSQL outcomes independently from these native limits.
+
+REGOPER (2203) and REGOPERATOR (2204) are concrete unsigned four-byte operator
+identities with distinct metadata and string ScanType. REGOPER name input requires
+one visible signature; REGOPERATOR uses an exact ordered pair of operand type
+identities, with bare NONE for the missing left operand of a prefix operator.
+The complete PostgreSQL 18 builtin inventory is independent of native executable
+operator providers. Numeric text accepts absent identities too; zero prints `0`,
+not `-`, and remains distinct from SQL NULL. Typed-nil bytes bind as SQL NULL.
+Quoted/schema-qualified input follows SQL identifier rules; output leaves symbols
+raw and quotes only schemas/types when needed. Signature separation trims only
+the six ASCII scanner whitespace bytes, never Unicode padding. Qualified-name
+syntax precedes the closing delimiter check, and each operand resolves before
+later operand syntax is examined. An empty leading operand is an invalid type
+name; a trailing comma instead requires another type name.
+Held operator literals share the REGTYPE analysis cell, keyed by source offset
+and target alias. Named REGOPERATOR operands retain their exact type identities
+and definition revisions alongside namespace authority; relevant changes reanalyze
+the complete literal group before successful publication. NONE and numeric input
+invent no operand dependency. Unrelated changes preserve reusable captures.
+Previously returned values, metadata and finalized symbolic rows remain snapshots
+across successful refresh or failed reanalysis.
+
+Integral input and OID conversions are implicit; conversions to INT4/INT8 are
+assignment casts. REGOPER and REGOPERATOR implicitly retag the same OID. Explicit
+TEXT/VARCHAR input and character output use catalog-owned I/O, not implicit text
+input or arbitrary cross-alias conversions. Existing binary COPY carries four
+network-order bytes. Companion arrays 2208/2209 remain lookup-only.
+Scalar domains over either alias (including domain chains) remain executable;
+their associated arrays remain lookup-only as well. Negative INT4 input preserves
+its unsigned OID bits, while negative or overflowing INT8 input reports
+`22003: OID out of range`, including explicit casts.
+Native logical Dump uses explicit typed numeric OID literals, preserving builtin,
+zero and unknown identities losslessly even when ordinary overloaded REGOPER
+output such as `pg_catalog.+` cannot be parsed unambiguously.
+
 
 Internal CHAR catalog output uses string transport, not BPCHAR semantics or a
 physical ABI. High-byte output is printable escaped text. Nonnull VOID result

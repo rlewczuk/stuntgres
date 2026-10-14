@@ -276,7 +276,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
 				id := literal.usage.Type.ID()
-				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && id != sqltype.Bit {
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && !sqltype.IsOperatorAlias(id) && id != sqltype.Bit {
 					declaration, err := catalogTypeDeclaration(view, literal.usage)
 					if err != nil {
 						return "", err
@@ -307,7 +307,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			// literal syntax already preserves it (including canonical B literals).
 			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
 				id := literal.usage.Type.ID()
-				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && id != sqltype.Bit || id == sqltype.Text && i > 0 && n.rawUnknown[i/64]&(uint64(1)<<uint(i%64)) == 0 {
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass && id != sqltype.Regtype && !sqltype.IsOperatorAlias(id) && id != sqltype.Bit || id == sqltype.Text && i > 0 && n.rawUnknown[i/64]&(uint64(1)<<uint(i%64)) == 0 {
 					declaration, err := catalogTypeDeclaration(view, literal.usage)
 					if err != nil {
 						return "", err
@@ -340,6 +340,9 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 		return "NULL::unknown", nil
 	}
 	literal, err := u.Type.SQLLiteral(ctx, n.value)
+	if err == nil && sqltype.IsOperatorAlias(u.Type.ID()) {
+		return "CAST(" + literal + " AS " + u.Type.SQLName() + ")", nil
+	}
 	if err == nil && sqltype.IsTransactionIdentifier(u.Type.ID()) {
 		return "CAST(" + literal + " AS " + u.Type.SQLName() + ")", nil
 	}
