@@ -46,6 +46,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"usename", sqltype.Name}, {"usesysid", sqltype.Oid}, {"usecreatedb", sqltype.Bool}, {"usesuper", sqltype.Bool}, {"userepl", sqltype.Bool}, {"usebypassrls", sqltype.Bool}, {"passwd", sqltype.Text}, {"valuntil", sqltype.Timestamptz}, {"useconfig", sqltype.ID(1009)}}},
+		{pgCursorsOID, "pg_cursors", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"name", sqltype.Text}, {"statement", sqltype.Text}, {"is_holdable", sqltype.Bool}, {"is_binary", sqltype.Bool}, {"is_scrollable", sqltype.Bool}, {"creation_time", sqltype.Timestamptz}}},
 		{12005, "pg_timezone_names", []struct {
 			name string
 			typ  sqltype.ID
@@ -151,7 +155,7 @@ func (e *Engine) initializeCatalogSources() error {
 			d.acl.Entries[0].Grantor = d.owner
 			d.attributeHighWater = 5
 		}
-		d.virtualView = spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
+		d.virtualView = spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
 			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
 			if !ok {

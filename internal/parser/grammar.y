@@ -761,7 +761,7 @@ discard: DISCARD ALL { $$=&Discard{Category:DiscardAll,Pos:$1.pos} }
    switch $2.text {case "plans":case "sequences":category=DiscardSequences;default:sqllex.(*lexer).syntax($2);return 1}
    $$=&Discard{Category:category,Pos:$1.pos}
  } ;
-declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Scroll:CursorScroll($3),Query:$7,Hold:$5,Pos:$1.pos} } ;
+declare_cursor: DECLARE name cursor_scroll CURSOR cursor_hold FOR query_select { $$=&DeclareCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Scroll:CursorScroll($3),Query:$7,Hold:$5,Source:sqllex.(*lexer).input,Pos:$1.pos} } ;
 cursor_scroll: /* empty */ { $$=int64(CursorScrollDefault) }
  | NO SCROLL { $$=int64(CursorNoScroll) }
  | SCROLL { $$=int64(CursorScrollEnabled) } ;

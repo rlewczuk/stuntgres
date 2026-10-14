@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -456,5 +457,95 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 			}
 			sessionSQL(t, s, "COMMIT")
 		})
+	}
+}
+
+func TestSQLCursorMetadataInstall(t *testing.T) {
+	s := sessionStart(t, New(), nil)
+	sessionSQL(t, s, "CREATE TABLE metadata_failure(i INTEGER)")
+	sessionSQL(t, s, "INSERT INTO metadata_failure VALUES(2)")
+	executeAt := func(query string, instant time.Time) {
+		t.Helper()
+		op, err := s.Acquire(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer op.Done()
+		op.commandStart = instant
+		result, err := s.Engine().Execute(op, statement(t, query), 0, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Rows != nil {
+			if err := result.Rows.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	birth := time.Date(2024, 4, 5, 6, 7, 8, 123456000, time.UTC)
+	executeAt("BEGIN", birth)
+	source := " /* retained */ DECLARE clocked NO SCROLL CURSOR WITH HOLD FOR SELECT 1 AS i"
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Engine().Describe(op, statement(t, source))
+	op.Done()
+	if err != nil || len(s.cursors.entries) != 0 {
+		t.Fatal("Describe installs declaration metadata", err)
+	}
+	declarationTime := birth.Add(time.Hour)
+	executeAt(source, declarationTime)
+	cursor := s.cursors.entries["clocked"]
+	check := func() {
+		t.Helper()
+		instant, err := cursor.created.TimestampTime()
+		if err != nil || !instant.Equal(declarationTime) || cursor.statement != source || !cursor.hold || cursor.scroll {
+			t.Fatalf("declaration metadata changed: source=%q instant=%v error=%v", cursor.statement, instant, err)
+		}
+	}
+	check()
+	executeAt("FETCH 1 FROM clocked", birth.Add(2*time.Hour))
+	check()
+	executeAt("COMMIT", birth.Add(3*time.Hour))
+	if !cursor.promoted || cursor.source != nil || cursor.root != nil {
+		t.Fatal("HOLD not promoted")
+	}
+	check()
+	executeAt("BEGIN", birth.Add(4*time.Hour))
+	executeAt("ROLLBACK", birth.Add(5*time.Hour))
+	if s.cursors.entries["clocked"] != cursor {
+		t.Fatal("later transaction removed held metadata")
+	}
+	check()
+	sessionSQL(t, s, "CLOSE clocked")
+	if len(s.cursors.entries) != 0 {
+		t.Fatal("CLOSE retains metadata")
+	}
+
+	// Producer failure releases execution but not registry metadata. Recovery
+	// keeps the older declaration's stamp, until an actual CLOSE removes it.
+	sessionSQL(t, s, "BEGIN")
+	executeAt("DECLARE failed NO SCROLL CURSOR FOR SELECT 10/(i-2) AS i FROM metadata_failure", declarationTime)
+	failed := s.cursors.entries["failed"]
+	stamp := failed.created
+	sessionSQL(t, s, "SAVEPOINT recover")
+	cursorUnitError(t, s, "FETCH ALL FROM failed", "22012", "division by zero")
+	sessionSQL(t, s, "ROLLBACK TO recover")
+	if s.cursors.entries["failed"] != failed || failed.source != nil || failed.created != stamp || failed.statement == "" {
+		t.Fatal("failed producer loses declaration metadata")
+	}
+	sessionSQL(t, s, "CLOSE failed")
+	sessionSQL(t, s, "SAVEPOINT canceled")
+	ctx, cancel := context.WithCancel(context.Background())
+	op, err = s.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	result, err := s.Engine().Execute(op, statement(t, "DECLARE canceled NO SCROLL CURSOR FOR SELECT 1"), 0, nil)
+	op.Done()
+	if !errors.Is(err, context.Canceled) || result.Rows != nil || len(s.cursors.entries) != 0 {
+		t.Fatal("canceled declaration publishes metadata", result, err)
 	}
 }

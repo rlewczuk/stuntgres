@@ -832,3 +832,62 @@ absolute/relative traversal, quiet MOVE counts, held prepared movement, detached
 rows and closed-name 34000. Whole-project Docker-free verification remains
 `make quickcheck`, after edits finish; final integration verification remains the
 root's `make finalcheck`, not a replacement for selected dual-mode evidence.
+
+### Session cursor metadata selected proof
+
+The untagged `TestReferencePGCursors` definitions use the shared public fixture
+and independently specified metadata, rows, counts and full diagnostics. Select
+small groups from the repository root, each with an external900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGCursors(Metadata|SourcesAndTime)$'
+make check REFERENCE=1 RUN='^TestReferencePGCursors(OwnerAndMotion|Lifecycle)$'
+make check REFERENCE=1 RUN='^TestReferencePGCursors(SessionAndControls|Diagnostics|FeatureSmoke)$'
+```
+
+Repeat these same selectors without `REFERENCE=1` for native proof. Every changed
+definition requires both modes. Filter assertions to scenario-owned names:
+PostgreSQL's observer/protocol portals are not native SQL DECLARE cursors.
+Omitted SCROLL's plan-dependent PostgreSQL behavior and native forward-only
+limitation are asserted separately; explicit SCROLL/NO SCROLL shares the contract.
+
+```sh
+make check RUN='^TestSQLCursor(DeclarationSource|MetadataInstall)$'
+make check RUN='^TestPGCursors(Source|Catalog)$'
+make check RACE=1 RUN='^TestReferencePGCursors(OwnerAndMotion|SessionAndControls|FeatureSmoke)$'
+make check RUN='^TestReferencePGCursorsFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePGCursorsFeatureSmoke$'
+```
+
+The smoke observes exact full declaration text/options/nonzero bracketed timestamp
+only in the owning physical session. FETCH returns row1, MOVE skips row2, and
+NEXT returns row3 while metadata remains unchanged. CLOSE removes the row; HOLD
+creating COMMIT preserves its tuple and saved position; owner DISCARD ALL clears
+metadata without clearing the independently held peer cursor.
+`TestReferencePGCursorsOwnerAndMotion/role_and_definer` keeps independent same-name
+HOLD cursors on two physical pins outside explicit transactions. Their complete
+direct and stored-view metadata tuples/instants remain unchanged as the sessions
+swap effective actor/definer roles and RESET ROLE. The ordinary view is explicitly
+owned by the definer, with SELECT granted to the actor; the peer never sees the
+owner-only cursor. Role/view setup precedes cursor installation, and cleanup resets
+roles/closes cursors before fixture schema teardown and role removal.
+The view is fully qualified. PostgreSQL alone receives explicit public-schema
+USAGE grants to restore visibility removed by fixture schema recreation; native
+public already grants USAGE, so this does not claim native schema-GRANT support.
+Actual role assertions use the NAME-typed current_user result without a cast.
+Native-only phases check detached metadata, ordinary precancellation and Dump
+exclusion. After Reset/Restore, fresh metadata retains the tuple/instant while
+actual FETCH remains fenced with ErrCatalogReplaced. Pool return is not physical
+cleanup.
+Shared catalog SQL checks pg_class view kind and six attributes using the builtin
+pg_catalog namespace OID11. Native pg_namespace, pg_type and pg_class.reltype
+remain unavailable; no adjacent catalog feature is required. Native row/array
+ownership and reciprocal element associations are checked through internal
+catalog APIs; an additional PostgreSQL-only catalog phase independently checks
+the real row/array relationships.
+Private units supplement public routes with controlled declaration/transaction/
+first-demand clocks, producer teardown, owned descriptor validation, builtin
+timestamp descriptor reownership without datum/registry mutation, and canceled
+materialization with no partial publication. Parser generation and whole-project
+`make quickcheck` remain root-owned after edits; selected proof is still required.
+

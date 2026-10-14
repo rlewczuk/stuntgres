@@ -10297,7 +10297,7 @@ sqldefault:
 	case 169:
 		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
 		{
-			sqlVAL.stmt = &DeclareCursor{Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Scroll: CursorScroll(sqlDollar[3].integer), Query: sqlDollar[7].selectStmt, Hold: sqlDollar[5].desc, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.stmt = &DeclareCursor{Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Scroll: CursorScroll(sqlDollar[3].integer), Query: sqlDollar[7].selectStmt, Hold: sqlDollar[5].desc, Source: sqllex.(*lexer).input, Pos: sqlDollar[1].tok.pos}
 		}
 	case 170:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]

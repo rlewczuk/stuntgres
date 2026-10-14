@@ -13,6 +13,18 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Session cursor metadata — change note
+
+`pg_catalog.pg_cursors` exposes the physical session's supported SQL DECLARE
+cursors: canonical name, complete original declaration input, holdability,
+binary/scroll flags and declaration statement-start `creation_time`.
+Metadata reads do not fetch, move or produce cursor rows. FETCH/MOVE and HOLD
+promotion preserve the tuple; CLOSE, DISCARD ALL and physical teardown remove it.
+Healthy pool reuse preserves it. See [driver cursor contracts](docs/DRIVER.md#sql-cursors--change-note)
+and [native limits](docs/DIALECT.md#sql-cursor-metadata).
+Feature smoke: `make check RUN='^TestReferencePGCursorsFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGCursorsFeatureSmoke$'`.
+
 ## Phase 1 server — change note
 
 Build and create an account with explicit database grants:

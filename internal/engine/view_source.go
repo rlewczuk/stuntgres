@@ -25,6 +25,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 	switch d.relationKind {
 	case catalogRelation:
 		switch d.address.ObjectID {
+		case pgCursorsOID:
+			cursors := scope.op.session.cursors
+			e.mu.Unlock()
+			return capturePGCursors(ctx, ref, d, cursors)
 		case 12081, 12085:
 			catalog, registry := scope.commentCatalog, e.extensions
 			e.mu.Unlock()

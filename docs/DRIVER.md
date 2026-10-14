@@ -72,7 +72,8 @@ pinned counterpart:
 Pin `*sql.Conn` for owner cleanup. Execute standalone `DISCARD ALL` **before**
 `Conn.Close` returns it to the pool. Reborrowing that same physical connection
 then sees captured setting defaults, no SQL prepared names/TEMP objects/sequence
-memories and released session advisory holds. Peers and durable data are unchanged.
+memories, no SQL cursors or their pg_cursors metadata, and released session
+advisory holds. Peers and durable data are unchanged.
 Without explicit cleanup, healthy reuse intentionally preserves these resources:
 `ResetSession` is still a health check, never automatic DISCARD or rollback.
 
@@ -211,6 +212,31 @@ is fully eager; each successful cursor fetch likewise returns an eager detached
 batch with complete schema, including empty and zero-column results.
 Closing Go Rows or Stmt does not close or rewind the named cursor.
 
+`pg_catalog.pg_cursors` has six ordered columns: name TEXT, statement TEXT,
+is_holdable BOOL, is_binary BOOL, is_scrollable BOOL and creation_time TIMESTAMPTZ.
+Each row belongs to the physical querying session, also through prepared SELECT,
+joins and stored views. Metadata observation never demands the producer or moves
+the cursor. Exhausted and recovered-failed entries remain visible until removal.
+
+The statement is the complete original submitted input, preserving whitespace,
+comments, semicolons and placeholders. Direct batches retain the whole message
+in every declared entry. Driver Prepare installs nothing; each successful
+execution captures its own declaration statement-start instant, independent of
+transaction birth and the first effective FETCH. Commands in one direct message
+share that message-start stamp. FETCH/MOVE, HOLD promotion and changes to TimeZone
+preserve the instant; SELECT applies its current timezone to the representation.
+
+CLOSE and CLOSE ALL remove rows. Nonhold transaction completion removes rows;
+HOLD creating commit retains them, creating abort removes them, and later rollback
+preserves already-promoted entries. Savepoint rollback removes newer declarations,
+but never rewinds older motion or resurrects CLOSE. DISCARD PLANS and healthy
+pool reuse preserve metadata; DISCARD ALL and physical teardown clear it.
+Dump excludes it. After Reset/Restore, metadata remains observable with the same
+facts and instant under current builtin type ownership; this does not rebind
+cursor execution. Actual FETCH/MOVE retains the existing catalog-replacement
+fence. Previously detached metadata results remain immutable after any of these
+transitions.
+
 Live execution retains its query tree and uncaptured demand position. Rewind
 can rescan node-specific volatile input while preserving order caches; there
 is no universal target-freezing, redraw or one-expression-draw-per-row promise.
@@ -263,6 +289,8 @@ Feature smoke: `make check RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorMoveFeatureSmoke$'`.
 HOLD smoke: `make check RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceSQLCursorHoldFeatureSmoke$'`.
+Metadata smoke: `make check RUN='^TestReferencePGCursorsFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGCursorsFeatureSmoke$'`.
 
 ## SQL prepared statements — change note
 

@@ -20,6 +20,19 @@ is a local administrator of its independently owned in-memory databases.
 See [commands and security](../README.md#phase-1-server--change-note) and
 [selected server proof](../reference/sessions/README.md#phase-1-server-selected-proof).
 
+## SQL cursor metadata
+
+Native `pg_cursors` describes supported SQL DECLARE cursors only, not PostgreSQL
+wire/SPI portals. Standalone `pg_cursor()` is not implemented. All native entries
+have is_binary=false; BINARY cursor syntax is unavailable.
+Explicit SCROLL/NO SCROLL reflects the actual supported motion. Omitted SCROLL
+remains forward-only natively, whereas PostgreSQL chooses scrollability according
+to its query plan. Catalog observation does not change that choice or cursor
+position. It is physical-session-local, not a role-global cursor inventory.
+Healthy driver ResetSession is a health check, not metadata cleanup; use explicit
+DISCARD ALL or physical connection teardown. Native Reset/Restore are catalog
+replacement/fencing controls, not session reset.
+
 ## Storage and native controls
 
 Databases and prepared transactions are process-local. There is no WAL, crash

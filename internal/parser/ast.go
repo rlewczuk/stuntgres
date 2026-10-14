@@ -1137,6 +1137,7 @@ const (
 type DeclareCursor struct {
 	Name   Identifier
 	Query  *Select
+	Source string
 	Hold   bool
 	Scroll CursorScroll
 	Pos    Position
@@ -1740,17 +1741,17 @@ type FunctionExpr struct {
 
 // JSONFormat retains explicit SQL/JSON clauses and their diagnostic positions.
 type JSONFormat struct {
-	Pos Position
-	Encoding string
+	Pos         Position
+	Encoding    string
 	EncodingPos Position
 }
 
 type JSONArrayAggregateOptions struct {
-	Input *JSONFormat
-	Absent bool
-	NullPos Position
+	Input     *JSONFormat
+	Absent    bool
+	NullPos   Position
 	Returning *TypeName
-	Output *JSONFormat
+	Output    *JSONFormat
 }
 
 // AggregateExpr retains ordinary aggregate arguments and call-local modifiers.

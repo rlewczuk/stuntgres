@@ -28,6 +28,8 @@ type sqlCursor struct {
 	ordinal                                     uint64
 	epoch                                       CatalogEpoch
 	hold, promoted                              bool
+	statement                                   string
+	created                                     sqltype.Value
 	values                                      []sqltype.Value
 	count                                       int
 	storeOffset                                 int64
@@ -150,10 +152,19 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if r.ordinal == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: cursor declaration counter exhausted")
 	}
+	timestampType, ok := s.commentCatalog.LookupType(sqltype.Timestamptz)
+	if !ok {
+		return Result{}, fmt.Errorf("stuntgres: missing cursor creation timestamp type")
+	}
+	created, err := sqltype.TimestampFromTime(timestampType, s.statementStart)
+	if err != nil {
+		return Result{}, err
+	}
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.epoch, hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
 		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, visibilityCatalog: s.visibilityCatalog,
 		visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
+	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
 	c.state = queryState{source: source, parameters: parameters, input: s.input, output: s.output, locking: source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}
 	// Presentation readers stored in query frames must not retain this admission.

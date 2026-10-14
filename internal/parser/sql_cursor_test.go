@@ -157,3 +157,39 @@ func TestSQLCursorHoldGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestSQLCursorDeclarationSource(t *testing.T) {
+	for _, source := range []string{
+		" \n/* intact */ DECLARE \"Mixed\" SCROLL CURSOR WITH HOLD FOR SELECT $1::integer; \n",
+		"BEGIN; DECLARE \"Mixed\" SCROLL CURSOR WITH HOLD FOR SELECT $1::integer; DECLARE second NO SCROLL CURSOR FOR SELECT 2; COMMIT;",
+	} {
+		statements, err := Parse(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		count := 0
+		for _, statement := range statements {
+			cursor, ok := statement.(*DeclareCursor)
+			if !ok {
+				continue
+			}
+			count++
+			if cursor.Source != source || cursor.Query == nil {
+				t.Fatalf("lost original declaration input: %#v", cursor)
+			}
+			if cursor.Name.Text == "Mixed" && (!cursor.Hold || cursor.Scroll != CursorScrollEnabled || source[cursor.Pos.Offset:cursor.Pos.Offset+7] != "DECLARE") {
+				t.Fatalf("source retention changed declaration meaning: %#v", cursor)
+			}
+			if cursor.Name.Text == "second" && (cursor.Hold || cursor.Scroll != CursorNoScroll) {
+				t.Fatalf("batch options borrowed from another declaration: %#v", cursor)
+			}
+		}
+		want := 1
+		if len(statements) > 1 {
+			want = 2
+		}
+		if count != want {
+			t.Fatalf("declarations %d want %d", count, want)
+		}
+	}
+}
