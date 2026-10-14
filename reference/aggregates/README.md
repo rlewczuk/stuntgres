@@ -40,6 +40,13 @@ rows versus fresh executions, metadata before Next, view deparse/rebinding,
 consumer atomicity, actual cancellation admission and native Dump/Reset/Restore
 are separate contracts. Controls replay only actual emitted native SQL on PG;
 FeatureSmoke reuses substantive scenarios, including that control body.
+ActiveCancellation keeps the ordinary 30-second scenario deadline and requires
+observed native aggregate-sort/worker or PostgreSQL query admission before cancel.
+It seeds only 64 rows and reuses three ordered, parameter-bounded inputs: limit64
+creates 262144 nonconstant sums for direct/prepared active cancellation. After
+each bounded worker join, the same owner independently verifies the seed and the
+same held statement uses limit2, yielding eight inputs with median4.5. Recovery
+does not repeat a large successful sort merely to demonstrate connection reuse.
 Controls also retains nested/direct/computed fraction-array casts and typed NULLs
 through emitted-SQL replay and stable redump, without stripping real conversions.
 PlainRoutes uses actual DB/Tx plain methods and separate Context companions,
