@@ -6,6 +6,65 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Parallel SELECT scan contract
+
+The shared `TestReferenceQueryParallel*` scenarios specify exact occurrence bags
+(including duplicate and NULL multiplicities), empty/singleton/partition-boundary
+inputs, direct and held prepared execution, hidden/expression sort keys,
+execution-time worker settings, serial safety effects, eager native failure versus
+PostgreSQL streaming failure, cancellation and retained output ownership.
+Expectations are independently specified, not learned from native output.
+SQL parity does not prove that either backend launched workers: private engine
+instrumentation must establish actual concurrent evaluation, exact-once ranges,
+snapshot/pin isolation, sorted-run merge and joined cancellation separately.
+
+Run these selected batches with an external 900-second deadline, in both modes
+after every affected change:
+
+```sh
+make check RUN='^TestReferenceQueryParallel(Bags|MergeOrder|Settings)$'
+make check REFERENCE=1 RUN='^TestReferenceQueryParallel(Bags|MergeOrder|Settings)$'
+make check RUN='^TestReferenceQueryParallel(Safety|Errors|Cancellation|Lifecycle|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceQueryParallel(Safety|Errors|Cancellation|Lifecycle|FeatureSmoke)$'
+make check RUN='^TestReferenceSettingsBuiltinRegistry$'
+make check REFERENCE=1 RUN='^TestReferenceSettingsBuiltinRegistry$'
+make check RUN='^TestReference(TimezoneBuiltinRegistryDescriptions|FormatEncodingSettings|SettingsShowAllPlaceholdersAndLifecycle)$'
+make check REFERENCE=1 RUN='^TestReference(TimezoneBuiltinRegistryDescriptions|FormatEncodingSettings|SettingsShowAllPlaceholdersAndLifecycle)$'
+```
+
+Complete native registry consumers independently include the new default2 and
+released description, retaining exact cardinality, ordering and completeness
+checks. Genuine PostgreSQL pg_settings projections include the same definition;
+host-registration lifecycle phases remain explicitly native-only.
+
+
+Initial oracle discovery follows the shared testing guide's temporary PG-only
+backend filter; the completed definitions run both available backends.
+The PostgreSQL oracle is the existing pinned 18.0 UTF8/C fixture. No cost settings,
+EXPLAIN assertion or PostgreSQL background-worker scheduling claim is involved.
+Worker configuration is a ceiling, not a guarantee of dispatch.
+
+Private proofs gate two workers inside real filter/target Eval (not elapsed time
+or goroutine counts), verify disjoint occurrences and independent snapshot pins,
+publish peer writes while workers are paused, and prove primary-error cancellation
+joins blocked siblings. Sorted singleton-run comparison failure distinguishes
+leader merge from worker-local sorting.
+
+```sh
+make check RACE=1 RUN='^TestQueryParallel(Partition|ConcurrentExecution|Snapshot|Eligibility|Cancellation|ErrorIdentity|Merge|Ownership)$'
+make check RUN='^TestReferenceQueryParallelFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceQueryParallelFeatureSmoke$'
+```
+
+`TestReferenceQueryParallelFeatureSmoke` is the committed public smoke scenario.
+It independently checks held settings/parameters, duplicate/NULL bags, ordered
+IDs, late division failure and subsequent execution, and LOCAL/RESET restoration.
+`TestReferenceQueryParallelSafety` covers lazy sequence cursor draws;
+`TestReferenceQueryParallelLifecycle` covers retained output through peer mutations.
+Actual concurrent worker evaluation is established by the private gated proofs above.
+
+
+
 ### Subquery regression and instrumentation coverage
 
 `reference/query_core/query_subquery_*_test.go` contains the shared direct/prepared,

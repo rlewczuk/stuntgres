@@ -98,6 +98,28 @@ Native eager rows, early result-set skipping, metadata and context cancellation
 are not promises about lib/pq streaming or transport disposal. Adapter differences
 remain explicit in [driver contracts](DRIVER.md).
 
+## Parallel execution
+
+Parallel work is limited to eager top-level read-only SELECT over one persistent
+ordinary physical sequential table source, optional filtering/sorting and
+audited row-local scalar projections. Unsupported plans transparently retain
+their serial executor. Writes (including SELECT write sources), row locks,
+SQL cursors/suspended execution, nested queries, temporary/catalog/sequence/view
+sources, inheritance/partition append, index candidates, joins, grouping,
+distinct, windows, CTEs, LIMIT/OFFSET, virtual generated reads and unaudited
+functions do not dispatch parallel workers. Stored generated datums can be read.
+Sequence/session effects and restricted random functions remain serial; volatility
+alone is not a PostgreSQL parallel-safety classification.
+
+`max_parallel_workers_per_gather` is a session integer ceiling (default 2,
+0..1024), captured at command admission, with ordinary RESET/LOCAL/transaction
+semantics. Actual workers are additionally bounded by selected input and native
+resources; ceilings 0/1 and fewer than two occurrences stay serial. No optimizer
+cost controls, forced plans, global worker pool or PostgreSQL worker processes
+are supplied. Gather promises no row order; supported ORDER BY merges sorted
+worker runs with the serial typed comparator. Cancellation joins all workers
+and discards unexposed output, preserving the primary error.
+
 ## Tables, hierarchies and materializations
 
 RANGE `ALTER TABLE ... ATTACH PARTITION` accepts an existing ordinary or

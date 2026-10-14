@@ -685,6 +685,10 @@ type queryState struct {
 	ctes            *cteInvocation
 	hashOwner       *queryState
 	memberships     map[subqueryMembershipKey]*subqueryMembership
+	// Only the positive SELECT coordinator activates these on a physical leaf.
+	executionContext   context.Context
+	scanRange          bool
+	scanStart, scanEnd int
 }
 
 // Physical child stages borrow the actual execution owner. Rescanning a parent
@@ -708,30 +712,35 @@ func (s *queryState) releaseMemberships() {
 }
 
 type indexedStage struct {
-	source           *querySource
-	selection        []int
-	hashCandidates   *hashCandidateSelection
-	permutation      []int
-	orderValues      []sqltype.Value
-	cacheOccurrences []int
-	cacheWidth       int
-	pending          []queryPendingMark
-	schema           []ColumnDescriptor
-	expressions      []BoundExpr
-	evaluation       EvalContext
-	position         int
-	terminal         error
-	closed           bool
-	produce          func(context.Context, *indexedStage) (bool, error)
-	finish           func() error
-	done             bool
-	retain           bool
-	reset            func(*indexedStage) bool
+	source             *querySource
+	selection          []int
+	hashCandidates     *hashCandidateSelection
+	permutation        []int
+	orderValues        []sqltype.Value
+	cacheOccurrences   []int
+	cacheWidth         int
+	pending            []queryPendingMark
+	schema             []ColumnDescriptor
+	expressions        []BoundExpr
+	evaluation         EvalContext
+	position           int
+	terminal           error
+	closed             bool
+	produce            func(context.Context, *indexedStage) (bool, error)
+	finish             func() error
+	done               bool
+	retain             bool
+	reset              func(*indexedStage) bool
+	scanRange          bool
+	scanStart, scanEnd int
 }
 
 func (s indexedStage) count() int {
 	if s.selection != nil {
 		return len(s.selection)
+	}
+	if s.scanRange {
+		return s.scanEnd - s.scanStart
 	}
 	return s.source.count()
 }
@@ -741,6 +750,9 @@ func (s indexedStage) index(i int) int {
 	}
 	if s.selection != nil {
 		return s.selection[i]
+	}
+	if s.scanRange {
+		return s.scanStart + i
 	}
 	return i
 }
@@ -975,7 +987,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 			}
 		}
-		return indexedStage{source: source, schema: n.Schema()}, nil
+		return indexedStage{source: source, schema: n.Schema(), scanRange: state.scanRange, scanStart: state.scanStart, scanEnd: state.scanEnd}, nil
 	case *filterNode:
 		evaluation := state.evaluation(ctx)
 		rejects, err := queryPredicateRejectsAll(&evaluation, n.predicate)
@@ -1079,6 +1091,9 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			child.selection = make([]int, child.count())
 			for i := range child.selection {
 				child.selection[i] = i
+				if child.scanRange {
+					child.selection[i] += child.scanStart
+				}
 			}
 		}
 		if n.cacheWidth != 0 {
@@ -1126,44 +1141,16 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			indices = child.permutation
 		}
 		err = mergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
-			if err := ctx.Err(); err != nil {
-				return 0, err
-			}
 			leftIndex, rightIndex := a, b
+			var leftValues, rightValues []sqltype.Value
 			if child.permutation != nil {
 				leftIndex, rightIndex = child.selection[a], child.selection[b]
+				leftValues = child.orderValues[a*n.cacheWidth : (a+1)*n.cacheWidth]
+				rightValues = child.orderValues[b*n.cacheWidth : (b+1)*n.cacheWidth]
 			}
-			for _, key := range n.keys {
-				var left, right sqltype.Value
-				if key.cache >= 0 {
-					left, right = child.orderValues[a*n.cacheWidth+key.cache], child.orderValues[b*n.cacheWidth+key.cache]
-				} else {
-					// View sources may reuse one scratch row. Capture the first
-					// datum before requesting the second borrowed row.
-					left = child.source.row(leftIndex)[key.slot]
-					right = child.source.row(rightIndex)[key.slot]
-				}
-				if left.IsNull() && right.IsNull() {
-					continue
-				}
-				if left.IsNull() || right.IsNull() {
-					if left.IsNull() == key.nullsFirst {
-						return -1, nil
-					}
-					return 1, nil
-				}
-				sign, err := key.comparison.Compare(ctx, left, right, state.input)
-				if err != nil {
-					return 0, err
-				}
-				if sign != 0 {
-					if key.desc {
-						sign = -sign
-					}
-					return sign, nil
-				}
-			}
-			return 0, ctx.Err()
+			return compareQueryOrder(ctx, n.keys, state.input,
+				querySortRow{source: child.source, index: leftIndex, values: leftValues},
+				querySortRow{source: child.source, index: rightIndex, values: rightValues})
 		})
 		transferred = err == nil
 		child.reset = nil

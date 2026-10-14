@@ -13,6 +13,17 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+Change note: supported read-only SELECT scans now execute concurrently in-process
+over one immutable statement snapshot. `max_parallel_workers_per_gather` defaults
+to 2 (range 0..1024); zero disables dispatch, and the setting is a ceiling rather
+than a worker-count promise. Unordered results remain bags; supported ORDER BY
+uses sorted worker runs and an ordered merge. Workers own evaluator state and
+independent snapshot pins, and all workers join before success or error returns.
+Writes, row locks, SQL cursors and unsafe/unsupported execution graphs remain
+serial. This is not PostgreSQL background-worker scheduling or parallel
+index/join/aggregate machinery. See [query contracts](docs/QUERIES.md#parallel-select-scans)
+and [selected proof](reference/query_core/README.md#parallel-select-scan-contract).
+
 ## Session cursor metadata — change note
 
 `pg_catalog.pg_cursors` exposes the physical session's supported SQL DECLARE

@@ -79,7 +79,9 @@ func (c *EvalContext) liveScope() *StatementScope {
 	return c.statementScope
 }
 func (c *EvalContext) setContext(ctx context.Context) {
-	if c.query != nil && c.query.source != nil && c.query.source.authority != nil {
+	if c.query != nil && c.query.executionContext != nil {
+		c.Context = c.query.executionContext
+	} else if c.query != nil && c.query.source != nil && c.query.source.authority != nil {
 		c.Context = c.query.source.authority
 	} else {
 		c.Context = ctx

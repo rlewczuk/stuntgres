@@ -23,6 +23,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.nonstandardStrings = !standard
 	timeout := s.settings.typedValue("statement_timeout").number
 	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").number) * time.Millisecond
+	op.parallelWorkers = int(s.settings.typedValue("max_parallel_workers_per_gather").number)
 	transactionTimeout := s.settings.typedValue("transaction_timeout").number
 	op.noticeThreshold, _ = messageLevel(s.settings.value(clientMinMessages.Name))
 	op.commandAdmission = true

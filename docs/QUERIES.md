@@ -30,6 +30,48 @@ errors. Exported mutable bytes detach from internal values and other exports.
 Rows remain valid across later writes, transaction completion and native
 Reset/Restore, but retained snapshots grant no publication authority.
 
+## Parallel SELECT scans
+
+The eager top-level SELECT entry can partition one ordinary persistent physical
+table's already-selected visible occurrences into disjoint balanced intervals.
+All workers share the original immutable statement frontier, physical prefixes,
+parameters and admitted environments; each owns a distinct view-release handle,
+source header, query state, evaluator, presence scratch, selections, ordering
+caches and output buffer. There is no complete input-table copy or mutable
+evaluator shared between workers. Own updates/deletes and retained visibility
+are partitioned by logical occurrence, not raw committed offsets.
+
+`max_parallel_workers_per_gather` defaults to 2, accepts 0..1024, and is captured
+under the session settings lock at command admission. Held prepared SELECTs use
+fresh execution-time settings and parameters. Zero disables workers; one and
+empty/singleton scans stay serial. Actual dispatch is bounded by input size and
+native CPU resources, with no PostgreSQL process scheduler or optimizer costs.
+
+Gather combines qualifying occurrences without an SQL order guarantee.
+Supported ORDER BY sorts worker-local runs and performs a genuine sorted-run
+head merge with the same fallible typed comparator as serial sort. Direction,
+NULL placement, hidden keys and expression-cache identity are preserved; complete
+key peers have no additional ordering promise. Final projection and merge finish
+before publication; public Next never evaluates a target or resumes a worker.
+
+Positive eligibility is deliberately conservative: one physical sequential source,
+optional filter/sort and audited row-local scalar expressions. Writes, row locks,
+live SQL cursors, nested queries, temporary/catalog/sequence/view sources,
+index candidates, append/join/group/distinct/window/CTE/bounds, virtual generated
+reads and unaudited functions keep the existing serial path. Stored generated
+values can be read. Sequence/settings effects and restricted random functions
+are not mistaken for safe work merely because of their volatility annotation.
+
+The first execution error cancels sibling evaluators without replacing its
+diagnostic with shutdown cancellation. Worker contexts retain live admission
+authority but observe owned sibling cancellation. All stages and independent
+worker pins close, and every started worker joins, before scope completion,
+ordered merge or result publication. A final context fence vetoes success.
+Direct output owns its final source pin/selection; computed output releases
+unneeded inputs. Caller cancellation remains an ordinary Go context error;
+the command's own timeout retains SQLSTATE 57014 and its timeout diagnostic.
+
+
 ## Analysis and execution-private planning
 
 Preparation describes inputs and outputs without running producers, defaults,
@@ -178,8 +220,9 @@ Sort, grouping, distinct and window work use execution-local caches/state and
 finish before native cursor publication. Metadata and finalized values survive
 source changes and native controls. Aggregate state is never persisted by Dump;
 views remap both input and result descriptor authority. Late argument, comparator
-or provider errors veto the entire native result or write batch. No spill,
-parallel execution or general optimizer machinery is implied.
+or provider errors veto the entire native result or write batch. No spill or
+general optimizer machinery is implied. Grouping, distinct and windows remain
+serial; the bounded SELECT scan path described above is the parallel exception.
 
 The occurrence producer stops nonblocking stages at demanded survivors without
 pushing outer predicates through a view or replaying effects across its boundary.

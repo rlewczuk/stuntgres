@@ -999,7 +999,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if err := selectQuerySources(ctx, source); err != nil {
 			return Result{}, err
 		}
-		rows, count, queryErr := finalizeQuery(ctx, queryRoot, source, canonical)
+		rows, count, queryErr := finalizeSelectQuery(ctx, queryRoot, source, canonical, op.parallelWorkers)
 		if queryErr != nil {
 			return Result{}, queryErr
 		}

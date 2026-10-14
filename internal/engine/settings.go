@@ -110,6 +110,7 @@ var builtinSettings = []SettingDefinition{
 	{Name: "quote_all_identifiers", Type: SettingBoolean, BootDefault: "off", Description: "When generating SQL fragments, quote all identifiers."},
 	{Name: "statement_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any statement."},
 	{Name: "lock_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any wait for a lock."},
+	{Name: "max_parallel_workers_per_gather", Type: SettingInteger, IntegerMax: 1024, BootDefault: "2", Description: "Sets the maximum number of parallel processes per executor node."},
 	{Name: "transaction_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},
 	{Name: "idle_in_transaction_session_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed idle time between queries, when in a transaction."},
 	{Name: "idle_session_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed idle time between queries, when not in a transaction."},
