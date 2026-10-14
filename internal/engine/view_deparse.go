@@ -595,7 +595,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return catalogLiteralSQL(ctx, catalog, literal)
 		}
 	}
+	currentOrderedSetDirect:=parent.orderedSetDirect
 	operand := func(expr parser.Expr, parent pgRenderParent) (string, error) {
+		parent.orderedSetDirect=parent.orderedSetDirect||currentOrderedSetDirect
 		childPath := path
 		childPath.argument = 0
 		return v.expressionSQLAt(ctx, catalog, expr, childPath, ordinal, parent)
@@ -829,7 +831,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	case parser.CastExpr:
 		literalPath := path
 		literalPath.node = *ordinal
-		text, err := child(e.Child)
+		text, err := operand(e.Child,pgRenderParent{orderedSetDirect:parent.orderedSetDirect})
 		if err != nil {
 			return "", err
 		}
@@ -843,6 +845,15 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		usage, ok := v.castUsages[path]
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
+		}
+		if parent.orderedSetDirect && usage.Type.IsArray() {
+			if literal,captured:=v.literals[literalPath];captured&&literal.ResultUsage()==usage {
+				// Like retained registry-array constants, this captured datum
+				// already renders its exact owning typed annotation. Elide only
+				// that duplicated leaf annotation; outer casts, conversions and
+				// domain annotations remain in the original cast chain.
+				return text,nil
+			}
 		}
 		if !v.presentation.deparse && (usage.Type.IsArray() || usage.Type.IsDomain()) && (usage.Type.ContainsRegclass() || usage.Type.ContainsRegrole() || usage.Type.ContainsRegObject()) {
 			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
@@ -996,7 +1007,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if e.Star {
 			text = "*"
 		} else {
-			text, err = args(e.Args)
+			if e.Within&&len(e.Args)==1 {
+				text,err=operand(e.Args[0],pgRenderParent{functionArgument:true,orderedSetDirect:true})
+			} else {
+				text, err = args(e.Args)
+			}
 			if err != nil {
 				return "", err
 			}
@@ -1008,6 +1023,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text += jsonAggregateFormatSQL(e.JSON.Input)
 		}
 		if len(e.Order) > 0 {
+			if e.Within {text+=") WITHIN GROUP ("}
 			text += " ORDER BY "
 			for i, key := range e.Order {
 				if i > 0 {

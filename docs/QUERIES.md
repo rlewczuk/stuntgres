@@ -310,6 +310,56 @@ return a typed NULL for global empty/all-NULL input, and return base-family
 nullable results with typmod -1. Views re-own the MONEY arithmetic binding and
 both provider descriptors. Neither overload is admitted to native windows.
 
+### Ordered-set aggregates
+
+`percentile_cont(fraction) WITHIN GROUP (ORDER BY input)` returns FLOAT8 or
+INTERVAL. `percentile_disc` retains its admitted sortable input type, and `mode()`
+returns the most frequent input. ASC/DESC and NULLS syntax are retained, but NULL
+inputs are always ignored. An ORDER BY number is a constant, not an output
+ordinal. FILTER FALSE/NULL suppresses aggregated-input evaluation.
+
+Percentile direct arguments are evaluated once against each final group-key
+frame, not once per source row. They participate in dependencies, privileges and
+call identity but do not choose the aggregate's semantic owner. Ungrouped direct
+columns are errors. Empty global and all-filtered groups still evaluate direct
+expressions; keyed empty input has no group, and HAVING rejection occurs after
+finalization. Distinct volatile calls remain independent.
+
+Scalar fractions require [0,1], with NULL returning NULL and invalid values
+raising22003 even on empty input. FLOAT8-array fractions retain dimensions, lower
+bounds, repetition, original element order and NULL elements. Empty input returns
+SQL NULL before array-element validation; nonempty input with an empty fraction
+array returns a typed empty array. Direct-expression errors precede those exits.
+
+Discrete percentiles select ceil(fraction*N), with zero selecting the first
+value. Continuous percentiles interpolate rank fraction*(N-1), returning exact
+rank hits unchanged. FLOAT8 uses raw IEEE `lo + p*(hi-lo)` without fused or
+weighted-endpoint rewriting. INTERVAL reuses calendar arithmetic: descending .25
+between2months and0 yields `2 mons -15 days`, not normalized `1 mon 15 days`.
+Mode compares sorted equality runs and retains the first longest run; thus ASC
+chooses the least tied value and DESC the greatest. Comparator-equal but
+representation-distinct values have no portable representative promise.
+
+After admitted input evaluation and the once-per-group direct expression,
+percentile preparation resolves NULL/empty exits and validates fractions before
+allocating sort indices or comparing inputs. Scalar validation still precedes
+empty-input return; array empty-input return still precedes element validation.
+Array fractions are validated once in original flattened order, without a
+fraction workspace or error-path result allocation. Only a nonterminal decision
+sorts. Its finalizer borrows the executor datum buffer and sorted row indices,
+without copying or replaying values into another provider buffer. Necessary array
+output filling does not revalidate fractions. Preparation, sorting, direct
+evaluation, array processing and mode scanning check cancellation before any
+result or INSERT batch is published. Views retain WITHIN syntax and
+remap direct/input/result/comparison identities through ordinary native controls.
+Captured array constants in direct-argument subtrees already own their exact
+typed annotation. Rendering does not add another identical leaf annotation on
+dump replay; explicit outer casts, input conversions and domain casts remain.
+Registered C/POSIX and builtin bytewise collation providers remain authoritative;
+no additional array leaf codecs, collation providers or general ordering families
+are enabled.
+
+
 The occurrence producer stops nonblocking stages at demanded survivors without
 pushing outer predicates through a view or replaying effects across its boundary.
 Blocking stages drain qualified input when demanded. Zero-count execution opens

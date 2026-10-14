@@ -314,13 +314,29 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			return indexedStage{}, err
 		}
 		row := group.keys
+		// Direct arguments use the final group-key frame, never an input row.
+		evaluation.Row=row
 		for p, call := range n.calls {
-			if len(call.order) > 0 {
-				if err := replayOrderedAggregate(ctx, state, call, group.states[p], group.ordered[p]); err != nil {
-					return indexedStage{}, err
+			var value sqltype.Value
+			var err error
+			if provider, ordered:=call.provider.(orderedSetFinalizer); ordered {
+				var direct sqltype.Value
+				if call.direct!=nil {direct,err=call.direct.Eval(&evaluation)}
+				if err==nil {err=ctx.Err()}
+				if err!=nil {return indexedStage{},err}
+				var prepared orderedSetPreparation
+				prepared,err=provider.PrepareOrdered(ctx,direct,len(group.ordered[p])/call.stageWidth)
+				if err==nil {
+					if prepared.terminal {value=prepared.value} else {
+						var input orderedAggregateInput
+						input,err=sortOrderedAggregate(ctx,state,call,group.ordered[p])
+						if err==nil {value,err=provider.FinalizeOrdered(ctx,prepared,input,state.input)}
+					}
 				}
+			} else {
+				if len(call.order)>0 {err=replayOrderedAggregate(ctx,state,call,group.states[p],group.ordered[p])}
+				if err==nil {value,err=call.provider.Finalize(ctx,group.states[p])}
 			}
-			value, err := call.provider.Finalize(ctx, group.states[p])
 			if err != nil {
 				return indexedStage{}, err
 			}
@@ -369,7 +385,7 @@ func findQueryGroup(ctx context.Context, grouping []sqltype.Grouping, keys []sql
 	return -1, ctx.Err()
 }
 
-func replayOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, aggregateState any, tuples []sqltype.Value) error {
+func sortOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, tuples []sqltype.Value) (orderedAggregateInput,error) {
 	width := call.stageWidth
 	indices := make([]int, len(tuples)/width)
 	for i := range indices {
@@ -403,9 +419,16 @@ func replayOrderedAggregate(ctx context.Context, state *queryState, call aggrega
 		}
 		return 0, ctx.Err()
 	}); err != nil {
-		return err
+		return orderedAggregateInput{},err
 	}
-	for _, index := range indices {
+	return orderedAggregateInput{values:tuples,indices:indices,width:width},ctx.Err()
+}
+
+func replayOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, aggregateState any, tuples []sqltype.Value) error {
+	input,err:=sortOrderedAggregate(ctx,state,call,tuples)
+	if err!=nil {return err}
+	width:=input.width
+	for _, index := range input.indices {
 		if err := ctx.Err(); err != nil {
 			return err
 		}

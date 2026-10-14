@@ -1834,7 +1834,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if r.Schema != nil {
 				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 			}
-			if r.Window != nil {
+			if r.Within && !orderedSetName(r.Name) {return b.rejectOrdinaryWithin(r)}
+			if r.Window != nil && !orderedSetName(r.Name) {
 				var err error
 				node, err = b.bindWindow(r, name)
 				if err != nil {
@@ -1881,7 +1882,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
 			var err error
-			if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
+			if orderedSetName(r.Name) {
+				node,err=b.bindOrderedSet(r,name)
+			} else if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
 				node, err = b.bindBooleanAggregate(r, name)
 			} else if r.Name == "avg" {
 				node, err = b.bindAvg(r, name)

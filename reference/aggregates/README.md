@@ -6,6 +6,102 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Ordered-set aggregates
+
+The untagged `ordered_set_*_test.go` scenarios specify all seven percentile/mode
+overloads independently of native output. They cover ranks and direction, shaped
+fraction arrays, NULL/empty precedence, interval/IEEE interpolation, ties and all
+admitted scalar/executable array carriers. Explicit PG-positive/native capability
+witnesses distinguish unavailable ordering and array codecs; NAME, REGCLASS,
+REGTYPE, REGROLE, REGPROC, REGPROCEDURE, REGCOLLATION and REGNAMESPACE arrays use
+existing supported codecs. REGCOLLATION, REGNAMESPACE, REGCONFIG and REGDICTIONARY
+also have admitted scalar discrete/mode providers. REGCONFIG/REGDICTIONARY arrays
+remain lookup-only, alongside MONEY, internal CHAR, operator-alias, network and
+transaction-ID array boundaries. Text-search alias witnesses use admitted zero
+identities, not unsupported native name lookup or an adjacent codec expansion.
+Carrier rows and actual cursor metadata
+do not depend on incidental `pg_typeof` introspection; internal CHAR uses the
+existing `pg_class.relkind` route and provider units. Enum raw values use the
+shared exact PQ []byte/native string assertions, and PQ's unknown XID8 database
+type name is asserted separately from native XID8 identity.
+REGCOLLATION scalar and array metadata preserve the empty PostgreSQL adapter type
+name separately from exact raw alias payloads; REGNAMESPACE names remain visible
+in the [pinned lib/pq type map](https://raw.githubusercontent.com/lib/pq/v1.12.3/oid/types.go).
+Diagnostics compare complete portable fields and character locations, including actual Prepare versus
+parameter-execution stages. Array, all six range, all three admitted multirange,
+and BIT/VARBIT ordering boundaries use existing typed table-column routes rather
+than incidental explicit-cast admission. Registry-array raw extensions validate
+exact native strings/PQ byte payloads on both scans and recorder streams.
+Private-tree ordering uses a scenario-specific `pg_attrdef.adbin` catalog carrier,
+not unsupported text input or PostgreSQL's version-dependent serialized tree.
+
+Direct/group ownership, all-child privileges, held parameters/rights, retained
+rows versus fresh executions, metadata before Next, view deparse/rebinding,
+consumer atomicity, actual cancellation admission and native Dump/Reset/Restore
+are separate contracts. Controls replay only actual emitted native SQL on PG;
+FeatureSmoke reuses substantive scenarios, including that control body.
+Controls also retains nested/direct/computed fraction-array casts and typed NULLs
+through emitted-SQL replay and stable redump, without stripping real conversions.
+PlainRoutes uses actual DB/Tx plain methods and separate Context companions,
+including quiet held preparation, parameter errors/recovery on the same statement,
+typed global/keyed empty schemas, shaped arrays, global-empty/keyed-empty INSERT
+SELECT counts and late-error atomicity. Tx failures are isolated by existing
+savepoints, not hidden by fresh statements or simulated Conn plain methods.
+Metadata asserts native and PQ ScanTypes for all seven overloads on populated,
+global-empty and grouped-empty cursors. CustomMetadata applies one complete
+before-Next callback to populated, all-NULL, global-empty and keyed-empty enum/domain
+scalar and array results, with exact raw adapter checks. Private units freeze one
+binding catalog and assert complete result Usage/pointer, owner/namespace/principal
+and associated-array leaf relationships, both comparisons' full input-collation
+authority, provenance and computed origins.
+Controls restores/replays NAME, symbolic registry-array, enum and domain query-view
+results with retained NULL fraction cells, including REGCOLLATION/REGNAMESPACE
+scalar/array values bound from stored symbolic inputs. The collation uses the
+actual restored alias object; namespace output remains symbolic. No enum-array
+materialization or text-search array codec is enabled.
+Precedence includes standalone/INSERT VALUES and INSERT/UPDATE RETURNING failures,
+complete diagnostics on direct/prepared Query/Exec, and unchanged destination rows.
+DirectArguments pits admitted row-dependent input division errors against NULL or
+invalid scalar/array fractions; FALSE/NULL FILTER companions preserve direct
+validation and empty-input array precedence. FeatureSmoke reuses these bodies.
+
+GrammarContexts covers the three additional WITHIN shift decisions: attaching a
+clause before reducing a selected scalar projection, a completed aggregate call,
+or an index function. The parser-only direct index-function witness uses qualified
+unquoted `pg_catalog.overlaps`, which retains OVERLAPS rather than the index lexer's
+CHECK_FUNC rewrite. Public index witnesses use PostgreSQL-required parentheses;
+the broader direct native parser route does not claim PostgreSQL acceptance.
+Wrong-object diagnostics and zero created indexes accompany nested/FILTER/OVER
+calls and preserved WITHIN/MODE identifiers. Non-public parser units assert the
+actual lexical and AST routes; no generated-state file is kept.
+Qualified wrong-object diagnostics retain the complete supplied callee name.
+
+Run each selected command with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceOrderedSetAggregate(Values|Sorting|Types|Metadata|CustomMetadata|Arrays|Mode|Intervals|NullEmpty|Boundaries|CarrierBoundaries|CarrierArrays)$'
+make check RUN='^TestReferenceOrderedSetAggregate(Values|Sorting|Types|Metadata|CustomMetadata|Arrays|Mode|Intervals|NullEmpty|Boundaries|CarrierBoundaries|CarrierArrays)$' REFERENCE=1
+make check RUN='^TestReferenceOrderedSetAggregate(DirectArguments|Diagnostics|DiagnosticRoutes|Precedence|Parameters|PlainRoutes|GrammarContexts|Ownership|Collations)$'
+make check RUN='^TestReferenceOrderedSetAggregate(DirectArguments|Diagnostics|DiagnosticRoutes|Precedence|Parameters|PlainRoutes|GrammarContexts|Ownership|Collations)$' REFERENCE=1
+make check RUN='^TestReferenceOrderedSetAggregate(Views|Consumers|Privileges|HeldRights|Lifecycle|Cancellation|ActiveCancellation|Controls)$'
+make check RUN='^TestReferenceOrderedSetAggregate(Views|Consumers|Privileges|HeldRights|Lifecycle|Cancellation|ActiveCancellation|Controls)$' REFERENCE=1
+make check RUN='^TestReferenceOrderedSetAggregate(Cancellation|ActiveCancellation|Lifecycle|Controls)$' RACE=1
+make check RUN='^TestOrderedSetAggregate'
+make check RUN='^TestReferenceOrderedSetAggregateFeatureSmoke$'
+make check RUN='^TestReferenceOrderedSetAggregateFeatureSmoke$' REFERENCE=1
+```
+
+Provider/borrowed-buffer/group-frame units exercise non-public functions only,
+including terminal pre-sort decisions with a real comparator-entry probe, exact
+result authority, cancellation at real preparation, sort, mode, direct, array and
+percentile phases, and source release with no published rows/count. Preparation
+precedes sort allocation/comparison after input evaluation and one direct
+evaluation; it validates original array order once, with no fraction workspace.
+Selected proof is not
+whole-project verification; root also runs `make quickcheck` and post-integration
+`make finalcheck` under the shared testing guide.
+
+
 ### MONEY and INTERVAL SUM
 
 The untagged `money_interval_sum_*_test.go` scenarios specify ordinary

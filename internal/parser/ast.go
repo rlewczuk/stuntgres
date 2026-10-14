@@ -1742,6 +1742,8 @@ type FunctionExpr struct {
 	All      bool
 	Order    []OrderKey
 	Filter   Expr
+	Within    bool
+	WithinPos Position
 }
 
 // JSONFormat retains explicit SQL/JSON clauses and their diagnostic positions.
@@ -1766,6 +1768,9 @@ type AggregateExpr struct {
 	Args      []Expr
 	Order     []OrderKey
 	Distinct  bool
+	Variadic  bool
+	Within    bool
+	WithinPos Position
 	Filter    Expr
 	Schema    *Identifier
 	Window    *WindowSpec

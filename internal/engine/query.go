@@ -251,6 +251,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		}
 		var calls []aggregateCall
 		for i, call := range n.calls {
+			// Ordered-set direct expressions remain group-finalization owned:
+			// preflight must not evaluate them for absent keyed groups.
 			for j, expression := range [3]BoundExpr{call.argument, call.separator, call.filter} {
 				if expression == nil {
 					continue
@@ -995,7 +997,16 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		if err != nil {
 			return indexedStage{}, err
 		}
-		if rejects && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
+		// HAVING rejection follows ordered-set finalization, including direct
+		// side effects/errors on empty global input. This is a local aggregate
+		// frontier, not a reason to force unrelated derived/WHERE producers.
+		finalizesOrderedSet:=false
+		if aggregate,ok:=n.child.(*aggregateNode);ok {
+			for _,call:=range aggregate.calls {
+				if _,ordered:=call.provider.(orderedSetFinalizer);ordered {finalizesOrderedSet=true;break}
+			}
+		}
+		if rejects && !finalizesOrderedSet && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
 			// Only child-reachable consumed physical marks require the eager
 			// input frontier. Unrelated semantic context, identity-only manifests
 			// and unopened opaque CTE bodies do not demand this child.

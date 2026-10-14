@@ -177,7 +177,7 @@ package parser
 %token <tok> TRUNCATE CONTINUE
 %token <tok> ARRAY
 %token <tok> HAVING
-%token <tok> FILTER
+%token <tok> FILTER WITHIN
 %token <tok> JSON_ARRAYAGG JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING JSON_ABSENT JSON_NULL
 %token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE PRIMARY
@@ -304,7 +304,7 @@ package parser
 /* A parenthesized scalar stays on the scalar path; Boolean grouping uses
  * target_or only when a logical/comparison continuation requires it. */
 %nonassoc ')'
-%nonassoc FILTER
+%nonassoc FILTER WITHIN
 %nonassoc OVER
 %type <windowSpec> window_spec
 %type <windowOver> over_clause
@@ -519,7 +519,7 @@ package parser
 %type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument
-%type <expr> aggregate_call aggregate_application
+%type <expr> aggregate_call aggregate_within aggregate_application
 %type <tok> json_arrayagg_head
 %type <jsonFormat> json_format
 %type <jsonOptions> json_null_policy json_returning
@@ -2016,6 +2016,7 @@ function_argument: operand { $$=$1 } | function { $$=$1 } ;
 function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
  | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
+ | function WITHIN GROUP '(' ORDER BY order_keys ')' { var ok bool;$$,ok=withinCall(sqllex,$1,$2,$7);if !ok{return 1} }
  | function over_clause { call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
  | function_argument_list { $$=$1 }
@@ -2177,8 +2178,10 @@ optional_count_rows: /* empty */ { $$=false } | count_rows { $$=true } ;
 count_values: conditional_value { $$=[]Expr{$1} } | count_values ',' conditional_value { $$=append($1,$3) } ;
 /* One call grammar serves scalar and FETCH inputs. FILTER attaches to the
  * actual call, not to a parenthesized or otherwise composed scalar expression. */
-aggregate_application: aggregate_call %prec ')' { $$=$1 }
- | aggregate_call FILTER '(' WHERE target_or ')' { switch call:=$1.(type) {case AggregateExpr:call.Filter=$5;call.FilterPos=$2.pos;$$=call;case FunctionExpr:call.Filter=$5;$$=call;default:sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1} }
+aggregate_within: aggregate_call { $$=$1 }
+ | aggregate_call WITHIN GROUP '(' ORDER BY order_keys ')' { var ok bool;$$,ok=withinCall(sqllex,$1,$2,$7);if !ok{return 1} } ;
+aggregate_application: aggregate_within %prec ')' { $$=$1 }
+ | aggregate_within FILTER '(' WHERE target_or ')' { switch call:=$1.(type) {case AggregateExpr:call.Filter=$5;call.FilterPos=$2.pos;$$=call;case FunctionExpr:call.Filter=$5;$$=call;default:sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1} }
  | aggregate_application over_clause { switch call:=$1.(type) {case AggregateExpr:if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call;case FunctionExpr:if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call;default:sqllex.(*lexer).syntax($2.token);return 1} } ;
 aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType($1),[]Expr{$2},$1) }
  | qualified_call_head target_or ')' { $$=ordinaryCall(sqllex,$1,[]Expr{$2},lexeme{text:$1.Name,pos:$1.Pos}) }
@@ -2246,7 +2249,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
- | ESCAPE | FILTER
+ | ESCAPE | FILTER | WITHIN
  | membership_keyword
  | ROLE_PASSWORD | ROLE_CONNECTION | ROLE_VALID | ROLE_ENCRYPTED | ROLE_UNENCRYPTED
  | CURRENT_DATETIME_FUNC %prec NAME_LIST
@@ -2285,7 +2288,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | COLLATION
  | EXCLUDE
  | POLICY
- | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
+ | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | WITHIN | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;
 generic_word: generic_word_without_exists | EXISTS ;
@@ -2303,7 +2306,7 @@ generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH 
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
  | membership_keyword
  | SIMILAR
- | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START
+ | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA | FILTER | WITHIN | TX_TIME_FUNC | OVERLAPS | OVER | PARTITION | WINDOW | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE
  | PRIMARY ;

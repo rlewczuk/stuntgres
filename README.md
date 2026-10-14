@@ -33,6 +33,21 @@ See [catalog lifecycle](docs/TABLES.md#constraint-catalog-projection) and
 Feature smoke: `make check RUN='^TestReferencePGConstraintFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGConstraintFeatureSmoke$'`.
 
+Change note: ordered-set `percentile_cont`, `percentile_disc`, and `mode` execute
+`WITHIN GROUP (ORDER BY expression [ASC|DESC])` through the ordinary grouping
+pipeline. Percentiles accept scalar FLOAT8 or shaped FLOAT8-array fractions;
+continuous results are FLOAT8 or INTERVAL, while discrete/mode results retain
+the admitted sortable input type. NULL inputs are ignored. Direct fractions run
+once per executed group, including an empty global group, and must use grouped
+columns. Mode ties choose the first sorted value. Interval interpolation retains
+calendar components, rather than normalizing equivalent representations.
+Percentile terminal decisions and fraction validation precede sorting, without
+skipping admitted input evaluation or the once-per-group direct expression.
+Existing ordering/array-codec capability limits remain explicit; see
+[ordered-set contracts](docs/QUERIES.md#ordered-set-aggregates) and
+[selected proof](reference/aggregates/README.md#ordered-set-aggregates).
+Feature smoke: `make check RUN='^TestReferenceOrderedSetAggregateFeatureSmoke$'`
+and `make check RUN='^TestReferenceOrderedSetAggregateFeatureSmoke$' REFERENCE=1`.
 
 Change note: supported read-only SELECT scans now execute concurrently in-process
 over one immutable statement snapshot. `max_parallel_workers_per_gather` defaults

@@ -725,6 +725,21 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		for i, call := range n.calls {
 			copy.calls[i] = call
 			switch p := call.provider.(type) {
+			case *orderedSetProvider:
+				provider:=*p
+				p=&provider
+				p.usage=usage(p.usage)
+				p.input,p.fraction=typ(p.input),typ(p.fraction)
+				if err==nil {
+					inputUsage:=usage(call.argument.ResultUsage())
+					if err==nil {p.comparison,err=sqltype.BindOrdering(inputUsage)}
+				}
+				if err==nil&&p.operation==aggregatePercentileCont&&p.input.ID()==sqltype.Interval {
+					p.subtract,err=sqltype.BindArithmetic(sqltype.ArithmeticSubtract,p.input,p.input,p.input)
+					if err==nil {p.multiply,err=sqltype.BindArithmetic(sqltype.ArithmeticMultiply,p.input,p.fraction,p.input)}
+					if err==nil {p.add,err=sqltype.BindArithmetic(sqltype.ArithmeticAdd,p.input,p.input,p.input)}
+				}
+				copy.calls[i].provider=p
 			case countProvider:
 				p.usage = usage(p.usage)
 				copy.calls[i].provider = p
@@ -825,6 +840,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if call.separator != nil {
 				copy.calls[i].separator = expression(call.separator)
 			}
+			if call.direct!=nil {copy.calls[i].direct=expression(call.direct)}
 			if call.filter != nil {
 				copy.calls[i].filter = expression(call.filter)
 			}

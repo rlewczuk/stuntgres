@@ -597,6 +597,17 @@ func (b *expressionBinder) noteFunctionSignature(name parser.ObjectName, pos par
 }
 
 func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, error) {
+	if raw.Within {
+		combined:=raw
+		combined.CompositeCandidate=false
+		combined.Args=make([]parser.Expr,0,len(raw.Args)+len(raw.Order))
+		combined.Args=append(combined.Args,raw.Args...)
+		for _,key:=range raw.Order {combined.Args=append(combined.Args,key.Expr)}
+		combined.Within,combined.Order,combined.Window=false,nil,nil
+		if _,err:=b.bindFunction(combined);err!=nil {return nil,err}
+		name:=objectNameText(raw.Name)
+		return nil,expressionError("42809","WITHIN GROUP specified, but "+name+" is not an aggregate function",raw.Pos)
+	}
 	eligible := len(raw.Name.Parts) == 1 && len(raw.Args) == 1 && len(raw.ArgNames) == 0 && !raw.Variadic && !raw.ResolutionOnly && raw.Syntax == parser.OrdinaryFunctionSyntax && raw.Filter == nil && raw.Window == nil && !raw.Star && !raw.Distinct && !raw.All && len(raw.Order) == 0
 	previousProjection := b.functionProjection
 	b.functionProjection = functionProjectionScope{}

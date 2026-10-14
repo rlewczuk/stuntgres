@@ -308,6 +308,9 @@ type pgRenderParent struct {
 	unary      bool
 	// Function arguments need no grouping around COLLATE or a cast chain.
 	functionArgument bool
+	// Only ordered-set direct argument subtrees own fraction literals; ordinary
+	// function/aggregate operands never acquire this canonicalization context.
+	orderedSetDirect bool
 }
 
 func pgOperatorPriority(op string) int {

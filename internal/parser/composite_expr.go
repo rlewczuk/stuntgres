@@ -36,7 +36,7 @@ func ordinaryCall(l sqlLexer, typ TypeName, args []Expr, callee lexeme) Expr {
 
 func modifiedOrdinaryCall(typ TypeName, args []Expr, star, distinct, all, variadic bool, order []OrderKey) Expr {
 	if ordinaryAggregate(typ.Name) {
-		return AggregateExpr{Name: typ.Name, Schema: typ.Schema, Args: args, Star: star, Distinct: distinct, Order: order, Pos: typ.Pos}
+		return AggregateExpr{Name: typ.Name, Schema: typ.Schema, Args: args, Star: star, Distinct: distinct, Variadic: variadic, Order: order, Pos: typ.Pos}
 	}
 	parts := []Identifier{{Text: typ.Name, Pos: typ.Pos}}
 	if typ.Schema != nil {
@@ -67,5 +67,33 @@ func quotedAggregateName(name string) bool {
 	return strings.EqualFold(name, "sum") || strings.EqualFold(name, "json_agg") || strings.EqualFold(name, "jsonb_agg") ||
 		strings.EqualFold(name, "json_agg_strict") || strings.EqualFold(name, "jsonb_agg_strict") ||
 		strings.EqualFold(name, "json_object_agg") || strings.EqualFold(name, "jsonb_object_agg") ||
-		strings.EqualFold(name, "json_object_agg_strict") || strings.EqualFold(name, "jsonb_object_agg_strict")
+		strings.EqualFold(name, "json_object_agg_strict") || strings.EqualFold(name, "jsonb_object_agg_strict") ||
+		strings.EqualFold(name, "percentile_cont") || strings.EqualFold(name, "percentile_disc") || strings.EqualFold(name, "mode")
+}
+
+// WITHIN owns the aggregate input order, rather than an ordinary in-call order.
+func withinCall(l sqlLexer, expr Expr, token lexeme, order []OrderKey) (Expr, bool) {
+	var distinct, variadic bool
+	var prior []OrderKey
+	switch call := expr.(type) {
+	case AggregateExpr:
+		distinct, variadic, prior = call.Distinct, call.Variadic, call.Order
+	case FunctionExpr:
+		distinct, variadic, prior = call.Distinct, call.Variadic, call.Order
+	default:
+		l.(*lexer).syntax(token)
+		return nil, false
+	}
+	message := ""
+	if len(prior)>0 { message="cannot use multiple ORDER BY clauses with WITHIN GROUP" } else if distinct { message="cannot use DISTINCT with WITHIN GROUP" } else if variadic { message="cannot use VARIADIC with WITHIN GROUP" }
+	if message!="" { l.(*lexer).failAt("42601",message,token.pos.Offset); return nil,false }
+	switch call := expr.(type) {
+	case AggregateExpr:
+		call.Within,call.WithinPos,call.Order=true,token.pos,order
+		return call,true
+	case FunctionExpr:
+		call.Within,call.WithinPos,call.Order=true,token.pos,order
+		return call,true
+	}
+	panic("unreachable WITHIN call")
 }

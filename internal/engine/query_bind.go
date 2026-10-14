@@ -446,6 +446,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
+		for i,call:=range b.aggregates {
+			if call.direct==nil {continue}
+			direct,err:=b.rewriteOrderedSetDirect(call.direct,keys)
+			if err!=nil {return nil,err}
+			b.aggregates[i].direct=direct
+		}
 		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates)+1)
 		for i, key := range keys {
 			schema[i] = ColumnDescriptor{Usage: key.ResultUsage()}

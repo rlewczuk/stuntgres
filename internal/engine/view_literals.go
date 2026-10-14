@@ -225,6 +225,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if call, ok := b.aggregateCallAt(n); ok {
 				for i, arg := range r.Args {
 					expression := call.argument
+					if r.Within {expression=call.direct}
 					if conversion, ok := expression.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
 						expression = conversion.child
 					}

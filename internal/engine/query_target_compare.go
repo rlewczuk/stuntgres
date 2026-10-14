@@ -252,7 +252,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 		}
 		for i, call := range n.calls {
 			other := o.calls[i]
-			if call.operation != other.operation || call.provider.ResultUsage() != other.provider.ResultUsage() || call.stageWidth != other.stageWidth || len(call.distinct) != len(other.distinct) || !same(call.argument, other.argument) || !same(call.separator, other.separator) || !same(call.filter, other.filter) || !c.order(b, call.order, other.order) {
+			if call.operation != other.operation || call.provider.ResultUsage() != other.provider.ResultUsage() || call.stageWidth != other.stageWidth || len(call.distinct) != len(other.distinct) || !same(call.argument, other.argument) || !same(call.separator, other.separator) || !same(call.direct, other.direct) || !same(call.filter, other.filter) || !c.order(b, call.order, other.order) {
 				return false
 			}
 		}

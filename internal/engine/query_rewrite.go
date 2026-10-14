@@ -295,7 +295,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			}
 			nextCall := call
 			callChanged := false
-			for j, expr := range [3]BoundExpr{call.argument, call.separator, call.filter} {
+			for j, expr := range [4]BoundExpr{call.argument, call.separator, call.filter, call.direct} {
 				if expr == nil || err != nil {
 					continue
 				}
@@ -307,8 +307,10 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 						nextCall.argument = next
 					} else if j == 1 {
 						nextCall.separator = next
-					} else {
+					} else if j==2 {
 						nextCall.filter = next
+					} else {
+						nextCall.direct=next
 					}
 				}
 			}

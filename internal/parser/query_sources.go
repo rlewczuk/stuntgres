@@ -108,6 +108,8 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			if err := expressions(e.Args); err != nil {
 				return err
 			}
+			if err:=orderKeys(e.Order);err!=nil {return err}
+			if err:=expression(e.Filter);err!=nil {return err}
 			return window(e.Window)
 		case AggregateExpr:
 			if err := expressions(e.Args); err != nil {

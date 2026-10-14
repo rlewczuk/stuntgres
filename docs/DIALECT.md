@@ -466,6 +466,23 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   NAME-array/private-tree extrema, retain native capability exclusions.
 - Enum-array results cannot be persisted by query-created tables or materialized
   views. Other admitted enum/domain-array carriers do not remove this exclusion.
+- Ordered-set `percentile_cont`, `percentile_disc`, and `mode` support WITHIN
+  GROUP sorting and FILTER, not OVER or hypothetical/custom aggregates.
+  Continuous scalar/array results support FLOAT8 and INTERVAL; discrete arrays
+  require an executable associated-array codec. Scalar discrete/mode inputs use
+  all admitted ordering providers, including networks, enums, domains and scalar
+  REGCOLLATION/REGNAMESPACE/REGCONFIG/REGDICTIONARY aliases.
+  NAME, REGCLASS, REGTYPE, REGROLE, REGPROC, REGPROCEDURE, REGCOLLATION and
+  REGNAMESPACE result arrays use existing executable codecs and actual catalog
+  output authority. Internal CHAR, MONEY, REGOPER/REGOPERATOR,
+  REGCONFIG/REGDICTIONARY, network and transaction-ID arrays retain their existing
+  codec/catalog-carrier boundaries. Text-search scalar admission does not enable
+  unsupported native name lookup or its lookup-only arrays. Internal CHAR uses
+  admitted `pg_catalog.pg_class.relkind` expressions/providers, not unsupported
+  user-table/CAST routes or an invented pg_type catalog.
+  Arrays, composite records, ranges/multiranges, bit strings and private trees
+  do not acquire general ordering providers. ORDER BY USING, arbitrary collation
+  providers, primary-key functional dependency and spill remain excluded.
 - Temporal providers retain exclusions for timezone age/finite inquiries,
   epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
   resolution and custom/generic optimizer-plan switching are not implemented.

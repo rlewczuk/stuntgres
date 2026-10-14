@@ -562,7 +562,7 @@ var keywords = [...]keyword{
 	{"whitespace", Unreserved, true, 0},
 	{"window", Reserved, false, WINDOW},
 	{"with", Reserved, false, WITH},
-	{"within", Unreserved, false, 0},
+	{"within", Unreserved, false, WITHIN},
 	{"without", Unreserved, false, WITHOUT},
 	{"work", Unreserved, true, WORK},
 	{"wrapper", Unreserved, true, 0},

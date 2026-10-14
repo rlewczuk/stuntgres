@@ -20,7 +20,7 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (BoundE
 
 func aggregateOrdering(usage sqltype.Usage, pos parser.Position, distinct bool) (sqltype.Comparison, error) {
 	base := usage.Type.BaseType()
-	if base.IsArray() || base.ID() == sqltype.PgNodeTree ||
+	if base.IsArray() || base.IsComposite() || base.ID() == sqltype.PgNodeTree ||
 		base.ID() == sqltype.Bit || base.ID() == sqltype.VarBit ||
 		base.ID() == sqltype.Int4Range || base.ID() == sqltype.Int8Range || base.ID() == sqltype.NumRange || base.ID() == sqltype.DateRange || base.ID() == sqltype.TimestampRange || base.ID() == sqltype.TimestamptzRange ||
 		base.ID() == sqltype.Int4Multirange || base.ID() == sqltype.Int8Multirange || base.ID() == sqltype.NumMultirange {
@@ -65,11 +65,14 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, err
 		}
 	}
-	call.order = make([]sortKey, len(raw.Order))
+	if _, ordered:=call.provider.(orderedSetFinalizer); !ordered {
+		call.order = make([]sortKey, len(raw.Order))
+	}
 	if len(raw.Order) > 0 {
 		call.stageWidth = 2
 	}
 	for i, key := range raw.Order {
+		if _, ordered:=call.provider.(orderedSetFinalizer); ordered { break }
 		expression, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
 		if err != nil {
 			return nil, err
@@ -214,7 +217,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
-	if a.operation != other.operation || a.includeNulls != other.includeNulls || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.filter, other.filter) {
+	if a.operation != other.operation || a.includeNulls != other.includeNulls || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.direct, other.direct) || !b.sameGroupExpression(a.filter, other.filter) {
 		return false
 	}
 	for i, key := range a.order {
