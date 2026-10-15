@@ -37,7 +37,7 @@ func (p BinaryPlan) evaluateBits(ctx context.Context, values []Value) (Value, er
 		}
 		return Integer(p.result.Type, count)
 	case "substring":
-		lo, hi, err := binarySubstringRange(len(source), values[1:])
+		lo, hi, err := substringRange(len(source), values[1:])
 		if err != nil {
 			return Value{}, err
 		}

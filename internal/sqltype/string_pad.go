@@ -9,7 +9,20 @@ import (
 
 // StringIntegerArgument identifies numeric roles, excluding TEXT conversion.
 func StringIntegerArgument(name string, index int) bool {
-	return StringBaseConversion(name) && index == 0 || name == "chr" && index == 0 || name == "overlay" && index >= 2 || name == "split_part" && index == 2 || (name == "lpad" || name == "rpad" || name == "repeat") && index == 1
+	switch name {
+	case "chr":
+		return index == 0
+	case "overlay":
+		return index >= 2
+	case "split_part":
+		return index == 2
+	case "lpad", "rpad", "repeat", "left", "right":
+		return index == 1
+	case "substring", "substr":
+		return index == 1 || index == 2
+	default:
+		return StringBaseConversion(name) && index == 0
+	}
 }
 
 // PostgreSQL's varlena allocation includes a four-byte header. Padding reserves

@@ -16,31 +16,21 @@ func TestReferenceBinarySliceCapabilityBoundaries(t *testing.T) {
 			}
 			for _, backend := range p.Backends() {
 				for _, tc := range []struct {
-					q, name, typ string
-					value        any
+					q, typ string
+					value  any
 				}{
-					{"SELECT substring('abcdef' FROM 2 FOR 3) AS v", "substring", "TEXT", "bcd"},
-					{"SELECT substring('abcdef','bcd') AS v", "substring", "TEXT", "bcd"},
-					{"SELECT substr('abcdef',2,3) AS v", "substr", "TEXT", "bcd"},
-					{"SELECT overlay('abcdef' PLACING 'XY' FROM 3) AS v", "overlay", "TEXT", "abXYef"},
-					{"SELECT position('cd' IN 'abcdef') AS v", "position", "INT4", int64(3)},
-					{"SELECT trim(' abc ') AS v", "btrim", "TEXT", "abc"},
+					{"SELECT substring('abcdef' FROM 2 FOR 3) AS v", "TEXT", "bcd"},
+					{"SELECT substring('abcdef','bcd') AS v", "TEXT", "bcd"},
+					{"SELECT substr('abcdef',2,3) AS v", "TEXT", "bcd"},
+					{"SELECT overlay('abcdef' PLACING 'XY' FROM 3) AS v", "TEXT", "abXYef"},
+					{"SELECT position('cd' IN 'abcdef') AS v", "INT4", int64(3)},
+					{"SELECT trim(' abc ') AS v", "TEXT", "abc"},
 				} {
-					if backend.PG || tc.q == "SELECT substring('abcdef','bcd') AS v" || tc.name == "btrim" || tc.name == "position" || tc.name == "overlay" {
-						step := fixture.Select(tc.q, []string{"v"}, []string{tc.typ}, [][]any{{tc.value}})
-						run(t, p.Ctx, backend.DB, backend.Recorder, step)
-						run(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(step))
-					} else {
-						step := fixture.ImplicitError(tc.q, fixture.Diagnostic{Code: "0A000", Message: "text overloads of " + tc.name + " are unsupported", Position: "8"})
-						step.SelectRows = true
-						step.ErrorStage = "execute"
-						run(t, p.Ctx, backend.DB, backend.Recorder, step)
-						step.ErrorStage = "prepare"
-						run(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(step))
-					}
+					step := fixture.Select(tc.q, []string{"v"}, []string{tc.typ}, [][]any{{tc.value}})
+					run(t, p.Ctx, backend.DB, backend.Recorder, step)
+					run(t, p.Ctx, backend.DB, backend.Recorder, fixture.Prepared(step))
 				}
-				// Both regex substring overloads are supported;
-				// positional TEXT remains a native capability boundary.
+				// Positional and both matching substring overloads share the fixture.
 				for _, q := range []string{`SELECT substring('abc','%','#') AS v`, `SELECT substring('abc' FROM '%' FOR '#') AS v`, `SELECT substring('abc' SIMILAR '%' ESCAPE '#') AS v`} {
 					s := fixture.Select(q, []string{"v"}, []string{"TEXT"}, [][]any{{"abc"}})
 					run(t, p.Ctx, backend.DB, backend.Recorder, s)

@@ -8,6 +8,26 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## Text slicing
+
+Text `left`/`right` and positional `substring`/`substr` use INT4 codepoint
+indexes/counts, with one-based substring positions. Positions below one clip
+after calculating the end from the original start; omitted count means to-end.
+Negative substring counts raise22011 `negative substring length not allowed`;
+strict NULL input suppresses that provider error. Negative left/right counts
+drop characters from the opposite end. The pinned18.0 INT_MIN exception is
+explicit: `right` retains its source, while `left` returns empty TEXT.
+
+No implicit BIGINT/numeric/float/TEXT-to-INT4 cast is added. Unknown parameters
+select existing overloads during analysis: two-argument `substring` prefers the
+POSIX TEXT pattern, three-argument prefers SIMILAR TEXT pattern/escape; use
+integer type information for positional slicing. `substr` has no regex
+overload. Output is unrestricted TEXT and does not normalize or combine
+graphemes. BYTEA slicing keeps byte units and its existing DEFAULT boundary;
+BIT slicing keeps logical bit units. Native controls replay symbolic selected
+calls, not an expanded arbitrary SQL import language.
+See [selected proof and smoke](../reference/strings/README.md#text-slicing-selected-proof).
+
 ## Identifier strings
 
 `parse_ident(str text, strict boolean DEFAULT true)` splits qualified identifier

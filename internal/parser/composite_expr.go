@@ -61,7 +61,9 @@ func selectedScalarCall(l sqlLexer, callee lexeme, call FunctionExpr) (FunctionE
 // jsonb_objectagg, which is deliberately not a registered function or alias.
 // Eligible one-argument composite-field fallback still uses exact-name resolution.
 func ordinarySignatureName(name string) bool {
-	return strings.EqualFold(name, "sum") || strings.EqualFold(name, "json_agg") || strings.EqualFold(name, "jsonb_agg") ||
+	return strings.EqualFold(name, "left") || strings.EqualFold(name, "right") ||
+		strings.EqualFold(name, "substring") || strings.EqualFold(name, "substr") ||
+		strings.EqualFold(name, "sum") || strings.EqualFold(name, "json_agg") || strings.EqualFold(name, "jsonb_agg") ||
 		strings.EqualFold(name, "json_agg_strict") || strings.EqualFold(name, "jsonb_agg_strict") ||
 		strings.EqualFold(name, "json_object_agg") || strings.EqualFold(name, "jsonb_object_agg") ||
 		strings.EqualFold(name, "json_object_agg_strict") || strings.EqualFold(name, "jsonb_object_agg_strict") ||

@@ -680,9 +680,6 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		if n.Syntax == parser.SQLFunctionSyntax {
-			return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
-		}
 		return `"substring"(` + source + ", " + pattern + ")", nil
 	case functions.SimilarSubstring[BoundExpr, *EvalContext, ExprProperties]:
 		source, err := child(n.Args[0])
@@ -978,7 +975,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		if n.Syntax == parser.OrdinaryStringSyntax || n.Syntax == parser.PrefixStringSyntax {
 			name := n.Plan.Name()
-			if name == "normalize" || name == "overlay" {
+			if name == "normalize" || name == "overlay" || name == "left" || name == "right" || name == "substring" {
 				name = quoteIdentifier(name)
 			} else if name == "position" {
 				name = r.identifier(name)

@@ -1794,6 +1794,7 @@ const (
 	PositionStringSyntax
 	OverlayStringSyntax
 	PrefixStringSyntax
+	SubstringStringSyntax
 )
 
 type FunctionExpr struct {

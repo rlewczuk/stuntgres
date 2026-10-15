@@ -133,12 +133,24 @@ func TestReferenceSimilarReviewDefaultBoundaries(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, want)
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`DROP TABLE default_posix_boundary`, 0))
 			}
+			for _, prepared := range []bool{false, true} {
+				create := fixture.Exec(`CREATE TABLE default_text_boundary(v TEXT DEFAULT substring('abc',1,2))`, 0)
+				create.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, create)
+				insert := fixture.Exec(`INSERT INTO default_text_boundary DEFAULT VALUES`, 1)
+				insert.Prepared = prepared
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, insert)
+				want := fixture.Select(`SELECT v FROM default_text_boundary`, []string{"v"}, []string{"TEXT"}, [][]any{{"ab"}})
+				want.Prepared = prepared
+				want.CheckMetadata = similarReferenceDeclaredMetadata(b.PG)
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, want)
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(`DROP TABLE default_text_boundary`, 0))
+			}
 			// The remaining exclusions are native boundaries, not PG exclusions.
 			if b.PG {
 				return
 			}
 			for _, expression := range []string{
-				`substring('abc',1,2)`,
 				`substring('abc'::bytea,1,2)`,
 				`length('abc'::bytea)`,
 			} {

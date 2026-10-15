@@ -1928,8 +1928,6 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | INNER '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | JOIN '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | NATURAL '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | LEFT '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | RIGHT '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | FULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | OUTER '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }

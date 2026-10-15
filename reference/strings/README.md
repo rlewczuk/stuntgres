@@ -30,6 +30,55 @@ scenarios exercise the lifecycle remedy directly; no additional standalone
 string smoke program is needed for this test-only change. Selected proof does
 not replace whole-project Docker-free quickcheck or postmerge finalcheck.
 
+### Text slicing selected proof
+
+`TestReferenceStringSlice*` covers `left`, `right`, positional
+`substring`/`substr`, and the existing POSIX/SIMILAR substring overloads.
+Independent cases specify codepoint boundaries, negative end counts, omitted
+counts, strict NULLs, text coercion, TEXT metadata, English diagnostics,
+held-parameter recovery, query/stored consumers, authorization, statement
+atomicity and native Dump/Reset/Restore. The cancellation scenario proves the
+ordinary adapter boundary; `TestStringSliceCancellationAndAllocations`
+separately exercises actual provider count/cut polling and allocation-free views.
+`Metadata` checks the complete unconstrained-TEXT descriptor on populated,
+NULL and empty computed/view results through direct, prepared and reused held
+statements. `Controls` repeats the stored-view descriptor checks across retained
+Rows and replacement. Known-to-end provider slices retain byte suffixes without
+rescanning them; `TestStringSliceBoundedSuffixWork` protects those bounded paths.
+
+```sh
+make check RUN='^TestReferenceStringSlice' REFERENCE=1
+make check RUN='^TestReferenceStringSlice'
+make check RUN='^TestReferenceStringSliceFeatureSmoke$'
+make check RUN='^TestReferenceStringSliceFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceStringSlice(Cancellation|Atomicity|Controls)$' RACE=1
+```
+
+Selected private-provider/parser/binder proof and affected existing regressions:
+
+```sh
+make check RUN='^(TestStringSlice|TestBinarySliceIntervals|TestBinarySliceStrictOwnersAndCancellation|TestBitStringFunctions)'
+make check RUN='^TestReference(BinarySliceCapabilityBoundaries|SimilarReviewDefaultBoundaries|PosixDiagnostics|PosixCapturePartitions|PosixHeldParameters|PosixTypeCollationDemand|SimilarExtraction|SimilarExtractionCollation)$'
+make check RUN='^TestReference(BinarySliceCapabilityBoundaries|SimilarReviewDefaultBoundaries|PosixDiagnostics|PosixCapturePartitions|PosixHeldParameters|PosixTypeCollationDemand|SimilarExtraction|SimilarExtractionCollation)$' REFERENCE=1
+```
+
+Use an external 900-second deadline per command. The same definitions run on
+both backends without discovery filters. Pinned PostgreSQL18.0 returns the
+original source for `right(source,-2147483648)` and empty TEXT for
+`left(source,-2147483648)`, including ASCII, Unicode and empty-source witnesses.
+Unknown two-argument `substring` selects POSIX; unknown three-argument calls
+select SIMILAR. `Inference`, `ResolutionDiagnostics` and `Rendering` retain
+the independently encoded pinned values, full English diagnostics/stages and
+compact/pretty stored rendering. Excess SIMILAR separators raise2200C with
+the SQL-function Context, not the malformed-POSIX-pattern2201B diagnostic.
+
+The feature smoke independently expects `(Aé🙂, 🙂Z, ab, cde, o, oob)` with
+six TEXT columns from new end/positional calls plus both matching overloads.
+It also demands a `substr` DEFAULT yielding `bcd`, checks that a failed22011
+UPDATE preserves `(1,bcd)`, and reuses a held positional statement with changed
+integer parameters. Native controls have no invented PostgreSQL equivalent;
+their emitted SQL is replayed on PostgreSQL in real mode.
+
 ### Identifier parsing selected proof
 
 The nine `TestReferenceStringIdent*` definitions in `string_ident_values_test.go`,

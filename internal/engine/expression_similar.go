@@ -102,7 +102,7 @@ func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operand
 		props.DomainDependent = props.DomainDependent || p.DomainDependent
 		props.RuntimeDomainConversion = props.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	wrapper := functions.SimilarSubstringWrapper(raw.Args, b.defaultConsumer)
+	wrapper := raw.Syntax == parser.OrdinaryFunctionSyntax || functions.SimilarSubstringWrapper(raw.Args, b.defaultConsumer)
 	info, err := b.collatedInfo(b.info(text, raw.Pos, props), args[:]...)
 	if err != nil {
 		return nil, err

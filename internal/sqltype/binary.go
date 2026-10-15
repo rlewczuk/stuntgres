@@ -408,7 +408,7 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return Binary(p.result.Type, raw)
 	}
 	if p.name == "substring" || p.name == "substr" {
-		lo, hi, err := binarySubstringRange(len(a.text), values[1:])
+		lo, hi, err := substringRange(len(a.text), values[1:])
 		if err != nil {
 			return Value{}, err
 		}
@@ -510,9 +510,9 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	return Binary(p.result.Type, a.text[start:end])
 }
 
-// binarySubstringRange shares INT4 clipping for raw octets and canonical bits.
+// substringRange shares INT4 clipping across octets, bits and text boundaries.
 // Addition precedes lower-bound clipping; positive INT4 overflow means to-end.
-func binarySubstringRange(size int, indexes []Value) (lo, hi int64, err error) {
+func substringRange(size int, indexes []Value) (lo, hi int64, err error) {
 	start := indexes[0].integer
 	end := int64(size) + 1
 	if len(indexes) == 2 {

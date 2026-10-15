@@ -1334,7 +1334,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			if err != nil {
 				return "", err
 			}
-			if e.Syntax == parser.SQLFunctionSyntax {
+			if e.Syntax == parser.SQLFunctionSyntax && !v.presentation.deparse {
 				return "SUBSTRING(" + source + " FROM " + pattern + ")", nil
 			}
 			functionName := `pg_catalog."substring"`
@@ -1469,6 +1469,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				return name + "(" + text + ")", err
 			}
 			return "pg_catalog." + name + "(" + text + ")", err
+		case "left", "right", "substring", "substr":
+			functionName := "pg_catalog." + quoteIdentifier(name)
+			if v.presentation.deparse {
+				functionName = v.presentation.identifier(name)
+			}
+			return functionName + "(" + text + ")", err
 		case "num_nulls", "num_nonnulls", "convert", "convert_from", "convert_to", "encode", "decode", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
 			if v.presentation.deparse {
 				return name + "(" + text + ")", err

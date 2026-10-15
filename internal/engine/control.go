@@ -2080,7 +2080,11 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 				if r.Syntax != parser.SimilarEscapeFunctionSyntax || len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) < 1 || len(r.Args) > 2 || r.Variadic {
 					return fmt.Errorf("stuntgres: invalid restore scalar")
 				}
-			case "substring":
+			case "left", "right":
+				if len(r.Args) != 2 || r.Variadic {
+					return fmt.Errorf("stuntgres: invalid restore scalar")
+				}
+			case "substring", "substr":
 				if (len(r.Args) != 2 && len(r.Args) != 3) || r.Variadic {
 					return fmt.Errorf("stuntgres: invalid restore scalar")
 				}

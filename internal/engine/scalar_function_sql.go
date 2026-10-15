@@ -229,7 +229,11 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if n.Syntax != parser.OrdinaryStringSyntax {
 			return stringSpecialSQL(n, parts)
 		}
-		return "pg_catalog." + n.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
+		name := n.Plan.Name()
+		if name == "left" || name == "right" || name == "substring" {
+			name = quoteIdentifier(name)
+		}
+		return "pg_catalog." + name + "(" + strings.Join(parts, ", ") + ")", nil
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		return arrayRandomSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
 	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:

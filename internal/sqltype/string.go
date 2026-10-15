@@ -213,6 +213,10 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		if len(args) != 2 || result != result.Type.Usage() || result.Type.ID() != Int4 || !textual[0] || !textual[1] {
 			return p, fmt.Errorf("invalid string search signature")
 		}
+	case "left", "right", "substring", "substr":
+		if (len(args) != 2 && !(len(args) == 3 && (name == "substring" || name == "substr"))) || result.Type.ID() != Text || result.Typmod != -1 || !textual[0] || textual[1] || textual[2] || textual[3] {
+			return p, fmt.Errorf("invalid text slice signature")
+		}
 	case "lpad", "rpad":
 		if (len(args) != 2 && len(args) != 3) || result.Type.ID() != Text || !textual[0] || textual[1] || len(args) == 3 && !textual[2] {
 			return p, fmt.Errorf("invalid string padding signature")
@@ -353,6 +357,9 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 	}
 	if p.result.Type.ID() == Int4 {
 		return p.evaluateLength(ctx, texts)
+	}
+	if p.name == "left" || p.name == "right" || p.name == "substring" || p.name == "substr" {
+		return p.evaluateSlice(ctx, texts, values)
 	}
 	if p.name == "lpad" || p.name == "rpad" || p.name == "repeat" || p.name == "reverse" {
 		return p.evaluatePadding(ctx, texts, values)

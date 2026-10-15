@@ -169,8 +169,13 @@ func SelectStringFunction[E any](name string, visible, variadic bool, args []Arg
 	search := name == "position" || name == "strpos"
 	replacement := name == "replace" || name == "translate" || name == "starts_with" || name == "overlay"
 	split := name == "split_part" || name == "string_to_array" || name == "string_to_table"
-	valid := visible && (!variadic || split || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse" || name == "md5")
+	slice := name == "left" || name == "right" || name == "substring" || name == "substr"
+	valid := visible && (!variadic || slice || split || count || search || replacement || name == "lpad" || name == "rpad" || name == "repeat" || name == "reverse" || name == "md5")
 	switch {
+	case name == "left" || name == "right":
+		valid = valid && len(args) == 2
+	case name == "substring" || name == "substr":
+		valid = valid && (len(args) == 2 || len(args) == 3)
 	case name == "split_part":
 		valid = valid && len(args) == 3
 	case name == "string_to_array" || name == "string_to_table":

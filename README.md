@@ -26,6 +26,20 @@ languages are advertised.
 See [native limits](docs/DIALECT.md#pg_language-supported-language-metadata) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_language-selected-proof).
 
+## Text slicing — change note
+
+`left`, `right`, positional `substring` and `substr` slice TEXT by Unicode
+codepoints, not bytes or grapheme clusters. Negative left/right counts omit
+characters from the opposite end; omitted substring counts run to the end.
+Explicit negative substring counts raise22011. Results are unconstrained TEXT;
+CHAR padding is trimmed by its TEXT conversion, while VARCHAR spaces remain.
+The pinned PostgreSQL18.0 boundary `right(text,-2147483648)` retains the source,
+whereas `left` with that count is empty. Existing POSIX/SIMILAR substring
+overloads retain their distinct matching and collation contracts.
+Calls compose in query/write/stored expressions and native replay.
+See [native limits](docs/DIALECT.md#text-slicing) and
+[selected proof and feature smoke](reference/strings/README.md#text-slicing-selected-proof).
+
 ## Operator-class catalog — change note
 
 `pg_catalog.pg_opclass` exposes the nine PostgreSQL operator-class metadata
@@ -3123,9 +3137,9 @@ Trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
 Known BYTEA operands infer unknown byte arguments; inferred Go binds remain raw
 octets. Selected functions share query/write/CHECK/view consumers and native
 replay, preserving SQL-syntax provenance in compact/pretty CHECK deparsing.
-Positional TEXT substring and encoding-aware length,
-BYTEA DEFAULT functions and direct byteacat remain excluded; the three-TEXT
-SQL-SIMILAR and two-TEXT POSIX substring overloads are supported. No new cast edges or byteapos alias are added.
+Encoding-aware BYTEA length, BYTEA DEFAULT functions and direct byteacat remain
+excluded. Positional TEXT substring and the three-TEXT SQL-SIMILAR/two-TEXT
+POSIX overloads are supported. No new cast edges or byteapos alias are added.
 Core strings provide TEXT trim/concatenation siblings through the shared dispatch.
 `length`, `char_length`/`character_length`, `octet_length` and `bit_length`
 also measure strings; `strpos(source,needle)` and SQL POSITION search them.
@@ -4043,8 +4057,8 @@ UTF8 code points and include newlines. BPCHAR predicate sources retain padding.
 three-TEXT ordinary/qualified `substring(s,p,e)` return the separator capture,
 the entire matching source without separators, or TEXT NULL for no match/NULL.
 Extraction's inner matcher uses database-default C collation; predicate classes
-honor the selected builtin identity. Adjacent regex functions and
-positional TEXT substring remain excluded.
+honor the selected builtin identity. Positional TEXT substring uses the separate
+INT4 character-slicing overload; this does not expand the regex grammar.
 Hostile patterns can consume substantial time and memory. Set a context deadline;
 native execution polls cancellation and checks a 64 MiB IR/scratch/state ceiling,
 not a PostgreSQL-identical complexity threshold or universal linear-time promise.

@@ -51,12 +51,9 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return b.bindPosixSubstring(raw, operands)
 	case functions.BinarySimilarSubstring:
 		return b.bindSimilarSubstring(raw, operands)
+	case functions.BinaryTextSubstring:
+		return b.finishStringFunction(raw, visible, operands)
 	case functions.BinaryTextUnsupported:
-		if selection.IntegerPositions {
-			if err := functions.CoerceBinaryTextPositions(b, operands, types.Integer); err != nil {
-				return nil, err
-			}
-		}
 		return nil, expressionError("0A000", "text overloads of "+name+" are unsupported", raw.Pos)
 	case functions.BinaryBitsUnsupported:
 		return nil, expressionError("0A000", "bit overloads of "+name+" are unsupported", raw.Pos)

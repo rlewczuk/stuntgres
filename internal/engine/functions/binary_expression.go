@@ -108,7 +108,7 @@ func BinaryTextType(d *sqltype.Descriptor) bool {
 	return false
 }
 func BinaryDefaultAllowed(name string, count int) bool {
-	return name == "substring" && (count == 2 || count == 3)
+	return (name == "substring" || name == "substr") && (count == 2 || count == 3)
 }
 
 // BinaryBitCandidate identifies only the released measurement/slice overloads.
@@ -272,16 +272,16 @@ const (
 	BinaryCall BinaryRoute = iota
 	BinaryPosixSubstring
 	BinarySimilarSubstring
+	BinaryTextSubstring
 	BinaryTextUnsupported
 	BinaryFunctionsUnsupported
 	BinaryBitsUnsupported
 )
 
 type BinarySelection struct {
-	Route            BinaryRoute
-	Family           sqltype.ID
-	Resolution       Resolution
-	IntegerPositions bool
+	Route      BinaryRoute
+	Family     sqltype.ID
+	Resolution Resolution
 }
 type binarySelectionKind uint8
 
@@ -308,24 +308,6 @@ func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, 
 		selected.Selection.Family = sqltype.Bit
 		selected.kind = binaryCoercionSelection
 		selected.Demand = BinaryArgumentDemand(name, sqltype.Bit, args, true)
-		return selected
-	}
-	if defaultConsumer && !bits {
-		textual := true
-		for _, arg := range args {
-			textual = textual && BinaryTextType(arg.Usage.Type)
-		}
-		if !textual {
-			selected.Selection.Route = BinaryFunctionsUnsupported
-			return selected
-		}
-		if !visible {
-			return missing
-		}
-		selected.Selection.Route = BinarySimilarSubstring
-		if len(args) == 2 {
-			selected.Selection.Route = BinaryPosixSubstring
-		}
 		return selected
 	}
 	switch name {
@@ -404,10 +386,9 @@ func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, 
 			return selected
 		}
 		if textual {
-			selected.Selection.IntegerPositions = true
-			selected.Demand = binaryTypeDemand(sqltype.Int4)
+			selected.Selection.Route = BinaryTextSubstring
+			return selected
 		}
-		textual = textual || regex
 	}
 	if textual {
 		selected.Selection.Route = BinaryTextUnsupported
@@ -415,6 +396,10 @@ func PrepareBinary[E any](name string, visible, variadic, defaultConsumer bool, 
 	}
 	if len(args) != arity {
 		return missing
+	}
+	if defaultConsumer {
+		selected.Selection.Route = BinaryFunctionsUnsupported
+		return selected
 	}
 	known := false
 	for _, arg := range args {
@@ -524,12 +509,4 @@ func CoerceBinaryArguments[E any, B ArgumentCoercer[E]](b B, name string, family
 		args[i] = arg
 	}
 	return args, nil
-}
-func CoerceBinaryTextPositions[E any, B ArgumentCoercer[E]](b B, arguments []Argument[E], integer sqltype.Usage) error {
-	for _, argument := range arguments[1:] {
-		if _, err := b.CoerceArgument(argument, CoercionRequest{Intent: LikeArgument, Target: integer}); err != nil {
-			return err
-		}
-	}
-	return nil
 }

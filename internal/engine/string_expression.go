@@ -194,6 +194,9 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 	if name == "overlay" && raw.Syntax == parser.SQLFunctionSyntax {
 		raw.StringSyntax = parser.OverlayStringSyntax
 	}
+	if name == "substring" && raw.Syntax == parser.SQLFunctionSyntax {
+		raw.StringSyntax = parser.SubstringStringSyntax
+	}
 	return b.stringNode(name, result, raw.Pos, args, selection.Textual, raw.StringSyntax)
 }
 
@@ -312,6 +315,8 @@ func stringSpecialSQL(n functions.String[BoundExpr, *EvalContext, ExprProperties
 		}
 		return renderBinaryCall(n.Plan.Name(), parser.SQLFunctionSyntax, parts, n.Plan.Name(), func(s string) (string, error) { return s, nil })
 	case parser.OverlayStringSyntax:
+		return renderBinaryCall(n.Plan.Name(), parser.SQLFunctionSyntax, parts, n.Plan.Name(), func(s string) (string, error) { return s, nil })
+	case parser.SubstringStringSyntax:
 		return renderBinaryCall(n.Plan.Name(), parser.SQLFunctionSyntax, parts, n.Plan.Name(), func(s string) (string, error) { return s, nil })
 	case parser.PrefixStringSyntax:
 		if n.Plan.Name() != "starts_with" || len(parts) != 2 {
