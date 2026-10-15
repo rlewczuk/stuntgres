@@ -1866,6 +1866,24 @@ See [JSON processing](https://www.postgresql.org/docs/18/functions-json.html#FUN
 Feature smoke: `make check RUN='^TestReferenceJSONTypeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
+Change note: `json_strip_nulls(target json, strip_in_arrays boolean DEFAULT false)`
+recursively removes null-valued object fields. The default retains array nulls;
+true removes null array elements recursively, but never removes bare JSON null
+or empty containers. SQL NULL in either argument returns SQL NULL. Processing
+emits compact JSON, decodes/re-escapes strings and keys, and preserves surviving
+duplicate members, member order and raw numeric spelling. Original JSON storage
+remains unchanged. Named/reordered calls and direct/held prepared parameters
+retain JSON result metadata and ordinary column authorization. An explicit
+final scalar VARIADIC marker does not expand arrays; with named arguments its
+last written argument must map to the last supplied formal position.
+PostgreSQL 18.0 classifies the function STRICT STABLE, not immutable:
+DEFAULT/CHECK/view consumers work, while generated columns, expression indexes
+and index predicates reject it. Native Dump/Reset/Restore retains symbolic
+calls, written defaults/labels and detached results. This adds neither
+`jsonb_strip_nulls` nor generic JSON equality or SQL/JSON execution.
+Feature smoke: `make check RUN='^TestReferenceJSONStripNullsFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
 Change note: numrange columns extend the common range representation with exact
 continuous NUMERIC endpoints. `(4,5)` remains nonempty; `[1.0,1.00]` preserves
 both scales, and `[1.0,1.00)` becomes empty. Explicit numeric Infinity/NaN

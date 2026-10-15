@@ -129,6 +129,52 @@ one sequence value. Direct and prepared executions use fresh sequences.
 Both completed definitions run every available backend with independently
 specified expectations; no discovery filters remain.
 
+### JSON null-field stripping
+
+`TestReferenceJSONStripNulls` specifies the JSON-only `json_strip_nulls(target,
+strip_in_arrays DEFAULT false)` contract: recursive object stripping, optional
+array stripping, bare JSON null versus SQL NULL, empty containers, duplicate
+members, raw numeric spelling and processing-time string normalization/errors.
+Shared direct/held prepared scenarios assert independent rows, metadata, counts,
+English diagnostics, SQLSTATE, character locations and analysis/execution stages.
+The function is STRICT STABLE in PostgreSQL 18.0, so generated/index consumers
+reject it while DEFAULT/CHECK/view expressions remain symbolic and replayable.
+Explicit scalar-final VARIADIC preserves fixed-formal resolution, not expansion;
+named reordered final-target VARIADIC has the independently pinned 42883 record.
+The `FullJoin` regression checks direct/prepared TEXT equality keys containing
+both formal dependencies, including reordered named calls, and independently
+expects matched and null-extended rows `(1,10)`, `(2,NULL)`, `(NULL,20)`.
+`TestJSONStripNullsJoinDependencies` additionally checks target-only, flag-only,
+NULL-target, same-side and cross-side masks in child-frame slots; strict NULL
+and written argument order never erase the Boolean formal's dependency.
+
+Root observed the pinned PostgreSQL contract before production implementation
+and the native missing-feature failure afterward. These observations do not
+replace completed dual-mode proof. No discovery filters remain. Native control
+phases use real Dump/Reset/Restore, retained rows and actual emitted SQL replay
+on PostgreSQL; public cancellation preserves ordinary native context errors
+and independently observes PostgreSQL admission through the common fixture.
+
+Run each selected set both without and with `REFERENCE=1`, under an external
+900-second deadline:
+
+```sh
+make check RUN='^TestReferenceJSONStripNulls(Values|Nulls|Lexical)$'
+make check RUN='^TestReferenceJSONStripNulls(Typing|TypingVariadic|Parameters|Diagnostics|Unicode)$'
+make check RUN='^TestReferenceJSONStripNulls(Consumers|FullJoin|Metadata|ACL|Stable)$'
+make check RUN='^TestReferenceJSONStripNulls(Controls|Atomicity|Cancellation|FeatureSmoke)$'
+make check RUN='^TestJSONStripNulls.*$'
+make check RUN='^TestReferenceJSONStripNulls(Parameters|Controls|Cancellation)$' RACE=1
+```
+
+Feature smoke: `make check RUN='^TestReferenceJSONStripNullsFeatureSmoke$'`
+and the identical command with `REFERENCE=1`. Expected results include exact
+nested stripping with retained/default and removed/true array nulls, JSON-null
+and SQL-NULL metadata/scans, held named parameters, full invalid-input and
+nonimmutable-index diagnostics, constraint atomicity and real native replay.
+The expected output is quiet exit zero, not a feature-specific printed message.
+Whole-project `make quickcheck` and post-integration finalcheck remain root gates.
+
 ### Bit string measurements and slices
 
 The `TestReferenceBitStringFunctions` family specifies the seven functions in

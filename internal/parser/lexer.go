@@ -1563,7 +1563,7 @@ func JSONBSetFunctionName(name string) bool {
 // JSONFunctionName admits only the selected ordinary JSON processing calls.
 // Case-insensitive syntax admission does not change quoted resolution spelling.
 func JSONFunctionName(name string) bool {
-	for _, selected := range [...]string{"json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text"} {
+	for _, selected := range [...]string{"json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_strip_nulls"} {
 		if strings.EqualFold(name, selected) {
 			return true
 		}

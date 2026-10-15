@@ -2081,7 +2081,9 @@ function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{
 function_args: /* empty */ { $$=FunctionExpr{} }
  | function_argument_list { $$=$1 }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
- | function_argument_list ',' VARIADIC function_argument { $$=appendFunctionArgument($1,$4,Identifier{});$$.Variadic=true } ;
+ | VARIADIC name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$4,Identifier{Text:$2.text,Pos:$2.pos});$$.Variadic=true }
+ | function_argument_list ',' VARIADIC function_argument { $$=appendFunctionArgument($1,$4,Identifier{});$$.Variadic=true }
+ | function_argument_list ',' VARIADIC name EQUALS_GREATER function_argument { $$=appendFunctionArgument($1,$6,Identifier{Text:$4.text,Pos:$4.pos});$$.Variadic=true } ;
 function_argument_list: function_argument { $$=FunctionExpr{Args:[]Expr{$1}} }
  | name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
  | function_argument_list ',' function_argument { $$=appendFunctionArgument($1,$3,Identifier{}) }

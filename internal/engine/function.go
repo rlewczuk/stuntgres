@@ -57,6 +57,13 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return b.bindJSONBSet(raw, visible)
 	}
+	if strings.EqualFold(name, "json_strip_nulls") {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		return b.bindJSONStripNulls(raw, visible)
+	}
 	if parser.JSONFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

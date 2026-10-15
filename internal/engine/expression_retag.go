@@ -626,6 +626,18 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		rebound = mapped
+	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		rebound = n
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])

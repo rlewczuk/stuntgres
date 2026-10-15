@@ -1378,7 +1378,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || parser.JSONBSetFunctionName(name) {
+		if name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) {
 			functionName, identifier := "pg_catalog."+name, quoteIdentifier
 			if v.presentation.deparse {
 				functionName, identifier = v.presentation.identifier(name), v.presentation.identifier
@@ -1392,7 +1392,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				if len(e.ArgNames) > i && e.ArgNames[i].Text != "" {
 					text = identifier(e.ArgNames[i].Text) + " => " + text
 				}
-				if parser.JSONBSetFunctionName(name) && e.Variadic && i == len(e.Args)-1 {
+				if (parser.JSONBSetFunctionName(name) || name == "json_strip_nulls") && e.Variadic && i == len(e.Args)-1 {
 					text = "VARIADIC " + text
 				}
 				parts[i] = text

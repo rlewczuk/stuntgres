@@ -1184,6 +1184,20 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
+	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
+		anyChanged := false
+		for i, arg := range e.Arguments() {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.Args[i] = folded
+				anyChanged = true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
 		for i, arg := range e.Arguments() {

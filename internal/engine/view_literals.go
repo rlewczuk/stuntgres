@@ -669,6 +669,17 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Arguments())
 		}
+		if n, ok := bound.(functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]); ok {
+			if len(r.Args) != n.WrittenCount {
+				return fmt.Errorf("stuntgres: mismatched JSON stripping syntax")
+			}
+			for i, arg := range r.Args {
+				if err := child(arg, n.Args[n.WrittenSlots[i]]); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if n, ok := bound.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONB replacement syntax")

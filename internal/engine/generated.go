@@ -278,6 +278,8 @@ func generationImmutable(node BoundExpr) bool {
 		return !n.IntrinsicStable() && both(n.Value, n.Zone)
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Arguments())
+	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
+		return false
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
@@ -450,6 +452,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
@@ -812,6 +816,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())

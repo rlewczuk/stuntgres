@@ -716,6 +716,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   function-only lateral sources and stored/native replay share existing stages.
   These signatures admit `from_json` named notation; `jsonb_each*`, array
   expansion and record-population functions remain excluded.
+  `json_strip_nulls(target json, strip_in_arrays boolean DEFAULT false)` returns
+  JSON after recursively removing null-valued object fields. Default false
+  retains array nulls; true removes them recursively. Bare JSON null and empty
+  containers survive; SQL NULL in either formal returns SQL NULL. Processing
+  compacts punctuation and decodes/re-escapes keys/strings, preserving surviving
+  duplicate members, source order and raw numeric tokens without changing stored
+  input. Named/reordered/default calls retain JSON metadata and symbolic replay.
+  Explicit scalar-final VARIADIC is accepted without array expansion; a named
+  final written argument must map to the last supplied formal position.
+  This PostgreSQL 18.0 function is STRICT STABLE: DEFAULT/CHECK/view consumers
+  are supported, but generated columns and expression/predicate indexes reject
+  it as nonimmutable. No `jsonb_strip_nulls` or JSON equality provider is added.
   JSON array aggregates `json_agg`, `jsonb_agg`, their `_strict` variants and
   `json_arrayagg` use ordinary grouping/FILTER/local ordering. SQL NULL is included
   by ordinary variants and omitted by strict/default ABSENT ON NULL; JSON null is
