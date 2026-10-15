@@ -59,8 +59,12 @@ func TestGroupingArrayStructureAndScalarClasses(t *testing.T) {
 			if equal, err := g.Equal(ctx, Null(d), Null(d)); err != nil || !equal {
 				t.Fatal(equal, err)
 			}
-			if _, err := BindComparison(d, d, d.Usage().Collation, false); err == nil {
-				t.Fatal("ordinary array comparison expanded")
+			comparison, err := BindComparison(d, d, d.Usage().Collation, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if equal, err := comparison.EqualValues(ctx, a, b, InputEnvironment{}); err != nil || equal != tc.equal {
+				t.Fatal("ordinary array equality", equal, err)
 			}
 			if _, err := BindOrdering(d.Usage()); err == nil {
 				t.Fatal("ordinary array ordering expanded")

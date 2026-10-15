@@ -35,7 +35,7 @@ func TestArrayCompareTypeCompatibility(t *testing.T) {
 		{"enum_domain", domain, enum, false},
 		{"enum_domain_identity", domain, domain, false},
 		{"json", types[JSON], types[JSON], false},
-		{"ordinary_array", array, array, false},
+		{"ordinary_array", array, array, true},
 		{"incompatible", types[Int4], types[Bool], false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

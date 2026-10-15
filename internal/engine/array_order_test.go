@@ -1,0 +1,65 @@
+package engine
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func TestArrayOrderOwnerRebinding(t *testing.T) {
+	e := New()
+	ctx := context.Background()
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	array, boolean := b.typ(1007), b.typ(sqltype.Bool)
+	value, err := array.Input(ctx, "{1,NULL}", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operand := literalExpression{expressionInfo: b.info(array.Usage(), parser.Position{}, ExprProperties{}), value: value}
+	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, array, array, boolean, sqltype.CollationRef{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := comparisonExpression{expressionInfo: b.info(boolean.Usage(), parser.Position{}, ExprProperties{}), left: operand, right: operand, predicate: predicate, operator: "="}
+	target := New()
+	fresh := map[sqltype.ID]*sqltype.Descriptor{
+		1007:         eType(t, target, 1007),
+		sqltype.Int4: eType(t, target, sqltype.Int4),
+		sqltype.Bool: eType(t, target, sqltype.Bool),
+	}
+	mapped, changed, err := retagBoundTypes(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		if next := fresh[d.ID()]; next != nil {
+			return next
+		}
+		return d
+	}, nil)
+	if err != nil || !changed {
+		t.Fatal("comparison remap", changed, err)
+	}
+	rebound := mapped.(comparisonExpression)
+	if rebound.ResultUsage().Type != fresh[sqltype.Bool] || rebound.left.ResultUsage().Type != fresh[1007] || predicate.Equal(rebound.predicate) {
+		t.Fatal("comparison retained old authority")
+	}
+	for _, entry := range []struct {
+		owner *Engine
+		node  comparisonExpression
+	}{{e, original}, {target, rebound}} {
+		node := entry.node
+		result, err := node.Eval(&EvalContext{Context: ctx})
+		if err != nil {
+			t.Fatal(err)
+		}
+		truth, err := TruthOf(result)
+		if err != nil || truth != True {
+			t.Fatal(truth, err)
+		}
+		if _, err := defaultSQL(ctx, entry.owner.CatalogRead(), node); err != nil {
+			t.Fatal("independently rebound stored validation", err)
+		}
+	}
+	if original.left.ResultUsage().Type != array {
+		t.Fatal("remap mutated source")
+	}
+}

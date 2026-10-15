@@ -794,7 +794,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		ref, conflict := n.predicate.InputCollation()
 		predicate, err := sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.elementType(), u.Type, ref, conflict)
-		if err != nil || predicate != n.predicate {
+		if err != nil || !predicate.Equal(n.predicate) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate binding")
 		}
 		return renderScalarArrayComparison(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
@@ -821,7 +821,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		ref, conflict := n.predicate.InputCollation()
 		predicate, err := sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.right.ResultUsage().Type, u.Type, ref, conflict)
-		if err != nil || predicate != n.predicate {
+		if err != nil || !predicate.Equal(n.predicate) {
 			return "", fmt.Errorf("stuntgres: invalid default predicate binding")
 		}
 		left, err := r.sql(ctx, view, n.left)
@@ -880,7 +880,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		ref, conflict := n.equality.InputCollation()
 		predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.left.ResultUsage().Type, n.right.ResultUsage().Type, u.Type, ref, conflict)
-		if err != nil || predicate != n.equality {
+		if err != nil || !predicate.Equal(n.equality) {
 			return "", fmt.Errorf("stuntgres: invalid default distinct binding")
 		}
 		left, err := r.sql(ctx, view, n.left)

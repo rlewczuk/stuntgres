@@ -207,8 +207,15 @@ func TestArrayDelegatedDelimiterAndNestedDomain(t *testing.T) {
 	if _, err := BindOrdering(nested.Usage()); err == nil {
 		t.Fatal("array ordering admitted")
 	}
-	if _, err := BindComparison(nested, nested, nested.Usage().Collation, false); err == nil {
-		t.Fatal("array comparison admitted")
+	comparison, err := BindComparison(nested, nested, nested.Usage().Collation, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if equal, err := comparison.EqualValues(ctx, value, value, InputEnvironment{}); err != nil || !equal {
+		t.Fatal("nested array equality", equal, err)
+	}
+	if sign, err := comparison.Compare(ctx, value, value, InputEnvironment{}); err != nil || sign != 0 {
+		t.Fatal("nested array ordering", sign, err)
 	}
 	if StringScalar(nested) || StringScalar(whole) {
 		t.Fatal("array scalar string admission")

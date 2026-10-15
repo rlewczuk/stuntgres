@@ -126,9 +126,9 @@ Context. Bootstrap output uses the current identity's name, not the actor's name
 
 Scalar SQL comparison supplies only `=`. ACL-array `=` and `<>`/`!=` preserve
 element order, dimensions and lower bounds; matching NULL elements are equal,
-and a whole-array NULL remains strict NULL. Ordering is unavailable. This does
-not admit unrelated array comparison, native grouping/search/hash providers,
-or scalar ACL binary receive/send.
+and a whole-array NULL remains strict NULL. ACL ordering is unavailable.
+ACL equality does not grant native grouping/hash or scalar ACL binary
+receive/send providers.
 
 Explicit ACL output casts to sized `varchar`/`char` use character truncation
 semantics, including domain coercions; assignments retain overlength rejection.
@@ -352,7 +352,17 @@ element domains remain), or the exact catalog typed-NULL carrier above.
 Unknown first operands do not infer from dimension, result or Go values.
 Explicit VARIADIC decoration does not expand an otherwise matching call.
 Stored scalar and native replacement routes preserve mapped descriptor ownership
-without introducing array comparison, leaf equality or additional codecs.
+without introducing new leaf equality providers or additional codecs.
+
+Ordinary array `=`, `<>`/`!=`, `<`, `<=`, `>`, `>=` require the same physical
+array descriptor after whole-domain peeling. Array element-domain and enum
+identities remain distinct. Compare row-major elements first, then count, rank,
+all dimension lengths and all lower bounds. Equality requires identical shape;
+NULL elements equal each other and sort after non-NULL elements. Whole NULL
+arrays produce typed BOOL NULLs. Equality and ordering demand separate existing
+leaf providers, with shape-first equality and provider-first ordering. String
+collation is demanded only by actual non-NULL leaf pairs. These SQL operators
+do not add array-key ordering/index opclasses or missing element providers.
 
 Named composites atomically publish their type, nonstorage backing relation,
 stable attributes and executable associated array. Native output and ScanType
@@ -594,11 +604,10 @@ and domain coercions remain subject to the same check. Role values create no
 role dependency. Held literals retain analyzed identity through role recreation;
 ordinary full analysis invalidation (`DISCARD PLANS`) resolves again. Held input
 parameters and runtime conversion use current execution authority.
-This does not add general array-to-array equality or constrained domains:
-native CHECK expressions requiring array equality still fail42883, and domain
-CHECK/default declarations still hit their existing0A000 capability boundary.
-Those analysis errors precede the stored-Const dependency walk. The reference
-grid retains exact PostgreSQL outcomes independently from these native limits.
+REGROLE array CHECK equality now uses ordinary array comparison and reaches the
+same scalar-Const restriction as other stored consumers. Opaque array payloads
+remain distinct from scalar REGROLE constructor children. This does not change
+domain CHECK/default declaration admission or add a missing leaf provider.
 
 REGCONFIG (3734) and REGDICTIONARY (3769) are concrete unsigned four-byte
 text-search object identities, exported as strings with matching database type

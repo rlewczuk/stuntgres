@@ -57,7 +57,7 @@ func (e ArraySearch[E, C, P]) Validate() error {
 	}
 	ref, conflict := e.Plan.InputCollation()
 	plan, err := sqltype.BindArraySearch(e.Plan.Name(), e.Args[0].ResultUsage().Type, e.Usage.Type, e.Plan.Integer(), ref, conflict)
-	if err != nil || plan != e.Plan {
+	if err != nil || !plan.Equal(e.Plan) {
 		return fmt.Errorf("stuntgres: invalid stored array search provider")
 	}
 	return nil

@@ -64,6 +64,19 @@ func ResolveEquality(left, right *Descriptor) (EqualitySignature, error) {
 	if right != nil {
 		r = right.BaseType().ID()
 	}
+	// Generic array equality uses simple anyarray identity, not numeric common
+	// type promotion. Whole domains peel, but element-domain identities do not.
+	if left != nil && left.BaseType().IsArray() || right != nil && right.BaseType().IsArray() {
+		known := left
+		if known == nil {
+			known = right
+		}
+		array := known.BaseType()
+		if left != nil && left.BaseType() != array || right != nil && right.BaseType() != array {
+			return EqualitySignature{}, failure("42883", "incompatible equality operands")
+		}
+		return EqualitySignature{array.ID(), array.ID()}, nil
+	}
 	for _, s := range equalitySignatures {
 		if left != nil && right != nil && s.Left == l && s.Right == r || left == nil && right != nil && s.Left == r && s.Right == r || right == nil && left != nil && s.Left == l && s.Right == l {
 			return s, nil

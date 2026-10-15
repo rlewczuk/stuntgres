@@ -144,12 +144,10 @@ func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, r
 		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
 	}
 	wantLeft, wantRight := b.comparisonCoercionTypes(lt, rt)
-	// ACL has an equality provider, not the total-order provider probed below.
-	// Resolve unsupported scalar operators before converting contextual text.
-	if wantLeft == wantRight && wantLeft.ContainsACLItem() {
-		scalar := wantLeft.ID() == sqltype.ACLItem
-		array := wantLeft.IsArray() && wantLeft.Element().BaseType().ID() == sqltype.ACLItem
-		if scalar && raw.Name.Parts[len(raw.Name.Parts)-1].Text != "=" || !scalar && !array {
+	// Scalar ACL has equality only. Arrays use the generic SQL signature and
+	// retain their own demand-driven element equality/comparison capability.
+	if wantLeft == wantRight && wantLeft.ID() == sqltype.ACLItem {
+		if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "=" {
 			return nil, nil, b.comparisonError(sqlError("42883", "operator does not exist"), originalLeft, originalRight, raw)
 		}
 		return lt, rt, nil
@@ -234,14 +232,18 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
-	arrayType, found := b.definitionArray(rt)
-	if !found || !arrayType.Concrete() {
-		return nil, expressionError("0A000", "unsupported array element type", raw.Pos)
-	}
-	target := arrayType.Usage()
-	if right.node != nil && element == rt {
-		// Preserve the original array's element typmod/collation/domain input.
+	var target sqltype.Usage
+	if right.node != nil && element != nil && element.BaseType() == rt {
+		// The existing RHS already carries the resolved physical element.
+		// Retain its exact domain/array generations, typmod and collation;
+		// an array-valued element need not have an array-of-array provider.
 		target = right.node.ResultUsage()
+	} else {
+		arrayType, found := b.definitionArray(rt)
+		if !found || !arrayType.Concrete() {
+			return nil, expressionError("0A000", "unsupported array element type", raw.Pos)
+		}
+		target = arrayType.Usage()
 	}
 	r, err := b.coerceConditional(right, target, name)
 	if err != nil {

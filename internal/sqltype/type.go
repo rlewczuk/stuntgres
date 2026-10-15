@@ -1919,6 +1919,9 @@ type Comparison struct {
 	defaultBtreeOpclass    uint32
 	inputCollation         CollationRef
 	collationIndeterminate bool
+	element                *Comparison
+	missingEquality        bool
+	missingOrdering        bool
 }
 
 // DefaultBtreeOpclass identifies the provider admitted by BindOrdering.
@@ -1970,9 +1973,9 @@ func (p Comparison) SessionDependent() bool {
 	return p.left != nil && p.right != nil && p.left.BaseType().id != p.right.BaseType().id && (p.left.BaseType().id == Timestamptz || p.right.BaseType().id == Timestamptz)
 }
 
-// CheckComparisonTypes validates scalar provider compatibility during analysis,
-// before contextual input conversion. Collation and executable descriptor
-// identity remain the responsibility of the final BindComparison call.
+// CheckComparisonTypes validates SQL operand compatibility during analysis,
+// before contextual input conversion. Array signatures are independent of
+// demand-driven element capabilities; BindComparison retains their authority.
 func CheckComparisonTypes(left, right *Descriptor) error {
 	_, err := bindComparisonTypes(left, right)
 	return err
@@ -2005,6 +2008,12 @@ func BindComparison(left, right *Descriptor, collation CollationRef, indetermina
 		return Comparison{}, fmt.Errorf("invalid comparison collation")
 	}
 	p.inputCollation, p.collationIndeterminate = collation, indeterminate
+	if left.BaseType().IsArray() {
+		p.element, err = bindArrayComparisonElement(left.BaseType(), collation, indeterminate)
+		if err != nil {
+			return Comparison{}, err
+		}
+	}
 	return p, nil
 }
 
@@ -2015,6 +2024,12 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 	}
 	if left.BaseType().IsComposite() || right.BaseType().IsComposite() {
 		return p, failure("0A000", "composite comparison is unsupported")
+	}
+	if left.BaseType().IsArray() || right.BaseType().IsArray() {
+		if !left.BaseType().IsArray() || left.BaseType() != right.BaseType() {
+			return p, failure("42883", "incompatible comparison operands")
+		}
+		return p, nil
 	}
 	// Enum operators are polymorphic over actual enum types. Domains are not
 	// enum inputs, even when both operands name the same domain over an enum.
@@ -2028,7 +2043,7 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() || left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == TimestampRange || right.id == TimestampRange || left.id == TimestamptzRange || right.id == TimestamptzRange || isMultirange(left.id) || isMultirange(right.id) {
+	if left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == TimestampRange || right.id == TimestampRange || left.id == TimestamptzRange || right.id == TimestamptzRange || isMultirange(left.id) || isMultirange(right.id) {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if IsTransactionIdentifier(left.id) || IsTransactionIdentifier(right.id) {
@@ -2066,6 +2081,12 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
+	}
+	if err := p.demandOrdering(); err != nil {
+		return 0, err
+	}
+	if p.element != nil {
+		return p.compareArrays(ctx, a, b, input)
 	}
 	if p.collationIndeterminate {
 		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
@@ -2213,8 +2234,8 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	return 0, nil
 }
 
-// ComparisonPredicate is a strict SQL predicate over the nonnull ordering
-// provider. NULL policy belongs here, not in Comparison or its sorting callers.
+// ComparisonPredicate applies strict whole-value SQL NULL policy over a bound
+// equality or ordering provider.
 type ComparisonOperator uint8
 
 const (
@@ -2227,11 +2248,9 @@ const (
 )
 
 type ComparisonPredicate struct {
-	operands      Comparison
-	result        *Descriptor
-	operator      ComparisonOperator
-	aclEquality   bool
-	aclArrayOrder bool
+	operands Comparison
+	result   *Descriptor
+	operator ComparisonOperator
 }
 
 func (p ComparisonPredicate) SessionDependent() bool { return p.operands.SessionDependent() }
@@ -2262,14 +2281,11 @@ func BindComparisonPredicate(operator ComparisonOperator, left, right, result *D
 	if operator > CompareGreaterEqual || !left.Concrete() || !right.Concrete() || result == nil || result.id != Bool || !result.Concrete() {
 		return ComparisonPredicate{}, fmt.Errorf("invalid comparison predicate")
 	}
-	if left.ContainsACLItem() || right.ContainsACLItem() {
-		scalar := left.BaseType().ID() == ACLItem && right.BaseType().ID() == ACLItem
-		array := left.BaseType().IsArray() && right.BaseType().IsArray() && left.BaseType().Element().BaseType().ID() == ACLItem && right.BaseType().Element().BaseType().ID() == ACLItem
-		if left.BaseType() != right.BaseType() || collation != (CollationRef{}) || indeterminate || !scalar && !array || scalar && operator != CompareEqual {
+	if left.BaseType().ID() == ACLItem || right.BaseType().ID() == ACLItem {
+		if left.BaseType() != right.BaseType() || collation != (CollationRef{}) || indeterminate || operator != CompareEqual {
 			return ComparisonPredicate{}, failure("42883", "incompatible comparison operands")
 		}
-		ordering := array && operator != CompareEqual && operator != CompareNotEqual
-		return ComparisonPredicate{operands: Comparison{left: left, right: right}, result: result, operator: operator, aclEquality: !ordering, aclArrayOrder: ordering}, nil
+		return ComparisonPredicate{operands: Comparison{left: left, right: right}, result: result, operator: operator}, nil
 	}
 	if err := CheckComparisonOperator(operator, left, right); err != nil {
 		return ComparisonPredicate{}, err
@@ -2291,11 +2307,8 @@ func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value, input Inp
 	if a.null || b.null {
 		return Null(p.result), nil
 	}
-	if p.aclArrayOrder {
-		return Value{}, failure("42883", "could not identify a comparison function for type aclitem")
-	}
-	if p.aclEquality {
-		equal, err := aclEquality(ctx, a, b)
+	if p.operator == CompareEqual || p.operator == CompareNotEqual {
+		equal, err := p.operands.EqualValues(ctx, a, b, input)
 		if err != nil {
 			return Value{}, err
 		}
@@ -2310,10 +2323,6 @@ func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value, input Inp
 	}
 	var truth bool
 	switch p.operator {
-	case CompareEqual:
-		truth = sign == 0
-	case CompareNotEqual:
-		truth = sign != 0
 	case CompareLess:
 		truth = sign < 0
 	case CompareLessEqual:

@@ -430,11 +430,11 @@ func fullJoinCondition(c *EvalContext, join *joinNode, expr BoundExpr, negate bo
 					return fullJoinFacts{}, err
 				}
 				if !view.IsNull() && !condition.IsNull() {
-					sign, err := arm.equality.Compare(c.Context, view, condition, c.Input)
+					equal, err := arm.equality.EqualValues(c.Context, view, condition, c.Input)
 					if err != nil {
 						return fullJoinFacts{}, err
 					}
-					match = sign == 0
+					match = equal
 				}
 			}
 			if match {

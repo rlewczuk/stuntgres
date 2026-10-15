@@ -155,8 +155,22 @@ func TestACLItemEqualityAdmission(t *testing.T) {
 		}
 	}
 	for _, typ := range []*sqltype.Descriptor{d, array} {
-		if _, err := sqltype.BindComparison(typ, typ, sqltype.CollationRef{}, false); err == nil {
-			t.Fatal("ACL gained total ordering")
+		comparison, err := sqltype.BindComparison(typ, typ, sqltype.CollationRef{}, false)
+		if typ == d {
+			if err == nil {
+				t.Fatal("scalar ACL gained total ordering")
+			}
+		} else {
+			if err != nil {
+				t.Fatal(err)
+			}
+			empty, err := array.Input(context.Background(), "{}", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := comparison.Compare(context.Background(), empty, empty, sqltype.InputEnvironment{}); err == nil {
+				t.Fatal("ACL array gained demanded ordering")
+			}
 		}
 		if _, err := sqltype.BindGrouping(typ.Usage()); err == nil {
 			t.Fatal("ACL gained bounded native grouping")

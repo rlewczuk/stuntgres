@@ -276,9 +276,9 @@ Native phases exercise real Dump/Reset/Restore, cross-Driver target-role remappi
 retained metadata/cursors, failure/cancellation atomicity and actual emitted-dump
 replay on PostgreSQL18.0. Role provisioning is fixture setup, not an extension of
 authentication/ACL/role DDL scope.
-CHECK-grid native array-to-array equality failures and domain-constraint admission
-failures are independently asserted broader capability boundaries; PostgreSQL
-still verifies the admitted array/domain shapes and exact scalar-Const ban.
+CHECK-grid array equality uses shared ordinary array providers and preserves the
+exact scalar-Const ban; native-only missing-array-operator assertions are removed.
+Existing domain-constraint admission boundaries remain independently asserted.
 DEFAULT/VIEW shapes exercise native numeric/runtime/opaque-array distinctions.
 Unknown-role Restore failures assert full independent diagnostics against the
 corresponding pinned SQL replay: ERROR/ERROR, exact42704 primary, character

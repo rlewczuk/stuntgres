@@ -50,11 +50,11 @@ func (e caseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				return sqltype.Value{}, err
 			}
 			if !view.IsNull() && !condition.IsNull() {
-				sign, err := arm.equality.Compare(c.Context, view, condition, c.Input)
+				equal, err := arm.equality.EqualValues(c.Context, view, condition, c.Input)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
-				match = sign == 0
+				match = equal
 			}
 		} else if !condition.IsNull() {
 			match, err = condition.Boolean()
@@ -100,11 +100,11 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
-			sign, err := e.comparison.Compare(c.Context, left, right, c.Input)
+			equal, err := e.comparison.EqualValues(c.Context, left, right, c.Input)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			if sign == 0 {
+			if equal {
 				return sqltype.Null(e.usage.Type), nil
 			}
 		}
@@ -311,6 +311,11 @@ func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, po
 // Extrema retain ordering authority separately from scalar equality. Identifier
 // types without ordering remain describable, but never acquire a fake comparator.
 func bindExtremaComparison(usage sqltype.Usage, indeterminate bool) (sqltype.Comparison, bool, error) {
+	// Array SQL comparison does not expand the independently bounded extrema
+	// consumer. Preserve its previous analysis failure, including domains.
+	if usage.Type.BaseType().IsArray() {
+		return sqltype.Comparison{}, false, sqlError("42883", "incompatible comparison operands")
+	}
 	if usage.Type.BaseType().IsEnum() || sqltype.IsTransactionIdentifier(usage.Type.BaseType().ID()) {
 		comparison, err := sqltype.BindOrdering(usage)
 		if err != nil && (usage.Type.BaseType().ID() == sqltype.Xid || usage.Type.BaseType().ID() == sqltype.Cid) {

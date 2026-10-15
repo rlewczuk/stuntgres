@@ -686,9 +686,17 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `ANY`/`SOME`/`ALL` reuse existing scalar comparison providers; array forms
   additionally require a concrete associated array and executable array codec.
   SOME is ANY; every form returns BOOL with SQL NULL semantics.
+  Existing array-valued-domain RHS elements retain their original concrete array
+  codec and element authority when the resolved physical element type matches.
+  Inner arrays are comparison operands, not flattened outer elements; this
+  does not add an array-of-array type or storage provider.
   Empty lists are syntax errors, unlike empty-array ANY/ALL reductions.
-  This does not introduce ordinary array-to-array comparison/order, custom
-  operators, new element providers or general §9.19 array operators/functions.
+  Ordinary same-actual-type array comparisons separately use row-major elements,
+  then count/rank/all lengths/all bounds. NULL elements equal each other and sort
+  last; whole-array NULL is strict. Element equality and ordering are separate,
+  demand-driven capabilities; non-NULL collatable leaf pairs demand collation.
+  This adds no custom operators, missing element providers, array-key ordering/
+  index opclasses or general §9.19 array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
 - Integer/bigint `generate_series` executes through SELECT-target expansion
@@ -825,14 +833,13 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   select a common compatible leaf; operators require the same actual array type
   after outer-domain unwrapping. JSON has no equality provider: fast paths can
   avoid that demand, but non-NULL membership demands equality even for empties.
-  An element that is itself array-valued through a domain retains the native
-  `0A000: unsupported array element type` boundary at reached equality demand;
-  PostgreSQL supports that equality, but native ordinary array comparison is
-  excluded. Earlier NULL/empty function fast paths remain available.
-  Other array operators/functions, ordinary equality outside ACL arrays,
-  array ordering/hash, custom overloads and new element providers remain excluded.
-- General array operators/functions and NAME-array comparison/order remain
-  bounded. Aggregate DISTINCT/order on arrays and private `pg_node_tree`, and
+  Elements that are array-valued through domains reuse ordinary array equality,
+  including shape/bounds and NULL-element handling. Earlier NULL/empty function
+  fast paths remain available. Other array operators/functions, array-key
+  ordering/index opclasses, custom overloads and new element providers remain
+  excluded.
+- General array operators/functions remain bounded. Aggregate DISTINCT/order
+  on arrays and private `pg_node_tree`, and
   NAME-array/private-tree extrema, retain native capability exclusions.
 - Enum-array results cannot be persisted by query-created tables or materialized
   views. Other admitted enum/domain-array carriers do not remove this exclusion.

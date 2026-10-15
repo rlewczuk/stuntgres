@@ -178,9 +178,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 					var view sqltype.Value
 					view, err = arm.testPlan.Apply(c.Context, test.value, c.Input, c.Output)
 					if err == nil && !view.IsNull() && !condition.value.IsNull() {
-						var sign int
-						sign, err = arm.equality.Compare(c.Context, view, condition.value, c.Input)
-						match = sign == 0
+						match, err = arm.equality.EqualValues(c.Context, view, condition.value, c.Input)
 					}
 				}
 				if err != nil {

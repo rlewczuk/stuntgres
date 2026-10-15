@@ -77,7 +77,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		for i, provider := range e.ordering {
-			if provider != o.ordering[i] {
+			if !provider.Equal(o.ordering[i]) {
 				return false
 			}
 		}
@@ -99,7 +99,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 				return false
 			}
 			for i, provider := range e.ordering {
-				if provider != o.ordering[i] {
+				if !provider.Equal(o.ordering[i]) {
 					return false
 				}
 			}
@@ -108,7 +108,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			if !same(c.left, o.comparisons[i].left) {
 				return false
 			}
-			if comparison != nil && (c.predicate != o.comparisons[i].predicate || !same(c.right, o.comparisons[i].right)) {
+			if comparison != nil && (!c.predicate.Equal(o.comparisons[i].predicate) || !same(c.right, o.comparisons[i].right)) {
 				return false
 			}
 		}
@@ -253,7 +253,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return ok && sameRegexpCall(e.RegexpCall, o.RegexpCall, same)
 	case scalarArrayComparisonExpression:
 		o, ok := other.(scalarArrayComparisonExpression)
-		if !ok || e.predicate != o.predicate || e.operator != o.operator || e.namespace != o.namespace || e.all != o.all || !same(e.left, o.left) || !same(e.array, o.array) || len(e.items) != len(o.items) {
+		if !ok || !e.predicate.Equal(o.predicate) || e.operator != o.operator || e.namespace != o.namespace || e.all != o.all || !same(e.left, o.left) || !same(e.array, o.array) || len(e.items) != len(o.items) {
 			return false
 		}
 		for i, item := range e.items {
@@ -292,7 +292,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return ok && e.Plan.Name() == o.Plan.Name() && sameRecordUsage(e.ResultUsage(), o.ResultUsage()) && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
-		return ok && e.predicate == o.predicate && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.predicate.Equal(o.predicate) && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
 	case logicalExpression:
 		o, ok := other.(logicalExpression)
 		return ok && e.op == o.op && e.queryRight == o.queryRight && same(e.left, o.left) && same(e.right, o.right)
@@ -304,7 +304,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return ok && e.truth == o.truth && e.not == o.not && same(e.child, o.child)
 	case distinctExpression:
 		o, ok := other.(distinctExpression)
-		return ok && e.equality == o.equality && e.not == o.not && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.equality.Equal(o.equality) && e.not == o.not && same(e.left, o.left) && same(e.right, o.right)
 	case caseExpression:
 		o, ok := other.(caseExpression)
 		if !ok || len(e.arms) != len(o.arms) || !same(e.test, o.test) || !same(e.otherwise, o.otherwise) {
@@ -312,14 +312,14 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		}
 		for i, arm := range e.arms {
 			otherArm := o.arms[i]
-			if arm.testPlan != otherArm.testPlan || arm.equality != otherArm.equality || arm.testUsage != otherArm.testUsage || !same(arm.condition, otherArm.condition) || !same(arm.result, otherArm.result) {
+			if !arm.testPlan.Equal(otherArm.testPlan) || !arm.equality.Equal(otherArm.equality) || arm.testUsage != otherArm.testUsage || !same(arm.condition, otherArm.condition) || !same(arm.result, otherArm.result) {
 				return false
 			}
 		}
 		return true
 	case conditionalExpression:
 		o, ok := other.(conditionalExpression)
-		if !ok || e.kind != o.kind || e.missingOrdering != o.missingOrdering || e.comparison != o.comparison || len(e.args) != len(o.args) {
+		if !ok || e.kind != o.kind || e.missingOrdering != o.missingOrdering || !e.comparison.Equal(o.comparison) || len(e.args) != len(o.args) {
 			return false
 		}
 		for i := range e.args {
@@ -479,7 +479,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return true
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties])
-		if !ok || e.Plan != o.Plan || e.Namespace != o.Namespace || len(e.Args) != len(o.Args) {
+		if !ok || !e.Plan.Equal(o.Plan) || e.Namespace != o.Namespace || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {

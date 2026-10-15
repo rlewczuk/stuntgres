@@ -61,7 +61,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, no
 				}
 				ref, conflict := arm.equality.InputCollation()
 				comparison, err := sqltype.BindComparison(arm.testUsage.Type, arm.condition.ResultUsage().Type, ref, conflict)
-				if err != nil || comparison != arm.equality {
+				if err != nil || !comparison.Equal(arm.equality) {
 					return "", fmt.Errorf("stuntgres: invalid stored CASE equality")
 				}
 			}
@@ -115,7 +115,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, no
 			} else {
 				comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}
-			if err != nil || comparison != e.comparison || missingOrdering != e.missingOrdering {
+			if err != nil || !comparison.Equal(e.comparison) || missingOrdering != e.missingOrdering {
 				return "", fmt.Errorf("stuntgres: invalid stored conditional comparison")
 			}
 		}

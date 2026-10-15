@@ -3,7 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -88,15 +87,6 @@ func TestReferenceRegroleStoredShapes(t *testing.T) {
 					q = fmt.Sprintf("CREATE TABLE %s(r %s CHECK(r=%s))", name, shape.typ, shape.expression)
 				}
 				t.Run(name, func(t *testing.T) {
-					if !b.PG && consumer == "check" && (shape.typ == "regrole[]" || shape.typ == "rr_array_domain") {
-						// Native array-to-array equality is a broader capability
-						// boundary, reached before this consumer's Const walk.
-						want := fixture.ControlsReferenceDiagnostic("42883", "operator does not exist: "+shape.typ+" = "+shape.typ)
-						want.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
-						want.Position = fixture.Position(strings.Index(q, "=") + 1)
-						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ErrorDiagnostic(q, want))
-						return
-					}
 					if shape.banned {
 						fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ErrorDiagnostic(q, fixture.ControlsReferenceDiagnostic("0A000", "constant of the type regrole cannot be used here")))
 						return

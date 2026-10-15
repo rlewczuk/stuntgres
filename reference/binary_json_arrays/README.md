@@ -664,7 +664,8 @@ not capabilities asserted by this family.
 `array_dims`, `array_length`, `array_lower`, `array_upper`, `array_ndims`
 and `cardinality` independently of backend parity. The existing
 `TestReferenceArraySmoke` retains its array storage, input, atomicity and
-native-control assertions and requires shared direct/prepared length results.
+native-control assertions and requires shared direct/prepared length and ordinary
+array-equality results. Native array-key ordering remains a separate exclusion.
 
 The shape contract includes multidimensional and non-1 bounds, NULL elements,
 zero-rank empty arrays, whole NULL, missing/nonpositive/NULL dimensions,
@@ -741,10 +742,10 @@ duplicate multiplicity, never matches NULL elements and is strict for whole NULL
 arrays. Compatible function leaves can widen; independently different operator
 array types do not. Equality-provider lookup and actual collation comparison
 have distinct demand boundaries, including JSON empty/NULL and NULL-only strings.
-When a domain element is itself array-valued, reached equality retains native
-`0A000: unsupported array element type`, independently of PostgreSQL's supported
-result. Earlier NULL/empty/search fast paths remain usable. This does not invent
-missing PostgreSQL equality or add an ordinary native array comparator.
+Array-valued domain elements reuse ordinary array equality, including nested
+shape/bounds/NULL semantics. TypesAndFrames asserts shared positive position,
+positions, removal, replacement and existing membership results, preserving
+the earlier NULL/empty/search fast paths. No missing leaf provider is invented.
 
 TypesAndFrames exercises actual held Prepare handles across varied parameters,
 execution error and same-handle recovery. StoredConsumers covers defaults,
@@ -786,8 +787,8 @@ duplicate containment and flattened multidimensional overlap, NULL/empty
 metadata, exact rank/NULL-start diagnostics, same-held-statement recovery and
 stored/native-control round trips. Component proof supplements public scenarios:
 `make check RUN='^TestArraySearch(Values|Demand|Immutability|Cancellation|Parser|ViewCoercions)$'`.
-Ordinary array comparison/order/hash, adjacent array functions, new element
-codecs/equality providers and unsupported collation backends remain excluded.
+Array-key ordering/index opclasses, adjacent array functions, new element codecs/
+equality providers and unsupported collation backends remain excluded.
 
 ### JSONB text-array object construction
 
@@ -854,7 +855,7 @@ The shared `TestReferenceArrayCompare*` scenarios cover §9.25 scalar
 expression. Independently specified rows/types/full diagnostics cover NULL,
 empty arrays, comparable scalar elements, direct and prepared routes, metadata,
 held frames and recovery. There is no backend discovery filter.
-Array-to-array comparison/order remains excluded.
+Ordinary array comparisons are covered separately below.
 Array forms require both a scalar comparator and an existing concrete associated
 array/codec. MONEY/INET/CIDR scalar-list positives retain their explicit native
 array-element capability failures; catalog association alone is not execution.
@@ -903,6 +904,75 @@ reduction, complete shape/operator diagnostics and valid recovery. These command
 describe required proof, not a claim that the definitions have been verified.
 Whole-project verification remains `make quickcheck`; selected race proof may
 add `RACE=1` to AuthorityAndControls. Native controls are not PostgreSQL APIs.
+
+### Ordinary array comparisons
+
+`TestReferenceArrayOrderValues` checks all seven spellings with independent
+Boolean vectors: row-major first differences, equal-prefix element count, rank,
+all dimension lengths before all lower bounds (including the rank-three
+anti-interleaving witness), NULL elements/arrays, empty arrays and existing leaf
+semantics. Typed arrays require the same actual array identity; scalar quantified
+cross-width numeric comparisons remain valid. Domain/enum generations are
+retained, not compared by coincident names or numeric IDs.
+
+`TypingDiagnostics` checks direct/Prepare failure phases, exact English records
+and character positions, visibility-aware domain/enum array names (including
+hidden qualified names), missing JSON/JSONPath/ACL element providers, lazy implicit
+collation conflicts, malformed contextual input and all-child authorization.
+Equality checks shape before demanding the element equality provider; ordering
+demands its distinct comparison provider before scanning even an empty array.
+Collation is demanded only at a non-NULL collatable leaf pair. A whole NULL array
+is strict; NULL elements equal each other and sort after non-NULL elements.
+
+`Metadata` covers BOOL metadata before iteration and after close, empty/all-NULL
+results and actual held frames with malformed-input recovery.
+`ConsumersControls` exercises stored defaults/generated/CHECK/view and Boolean
+expression indexes, CASE/NULLIF, grouped/distinct Boolean results, joins,
+correlation, mutations, atomicity, rename/rebind, actual Dump/Reset/Restore,
+deterministic redump, retained rows/metadata and unmodified PostgreSQL dump replay.
+Stored enum-array provider ownership uses scalar domain-over-enum columns with
+transient `ARRAY[a]`/`ARRAY[b]` operands in generated/view comparisons. This keeps
+enum/domain-array storage admission unchanged while exercising dump/rebind and
+same-name domain/owner recreation over a new enum provider. The original enum
+remains live: unsupported enum deletion is not needed or expanded.
+`Cancellation` uses admitted direct/prepared sleep requests with an ordinary
+array predicate, same physical connection and preheld recovery. Deterministic
+provider units separately prove cancellation inside comparison traversal.
+Array-key ordering/index opclasses and missing leaf providers remain excluded;
+existing grouping/hash admission is unchanged.
+
+`TestReferenceArrayOrderQuantifiedArrayBoundary` exercises ANY/SOME/ALL over
+existing array-valued-domain RHS elements. The original concrete RHS array,
+element-domain generations, typmod and collation are retained when its physical
+element matches the resolved comparison type; no array-of-array provider is
+invented. Independent equality/ordering reductions cover constructor/literal,
+chained-domain and outer-domain carriers, whole NULL, all-NULL elements, empty
+arrays (including NULL left operands), typed parameters, decisive/UNKNOWN mixes
+and inner-array prefix ordering. Direct/prepared results have exact BOOL metadata
+with no source, a populated source and an empty `WHERE FALSE` result.
+
+Run each selected batch in both modes (external 900-second deadlines):
+
+```sh
+make check RUN='^TestReferenceArrayOrder(Values|TypingDiagnostics|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceArrayOrder(Values|TypingDiagnostics|Metadata)$'
+make check RUN='^TestReferenceArrayOrder(ConsumersControls|Cancellation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceArrayOrder(ConsumersControls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceArrayOrderQuantifiedArrayBoundary$'
+make check REFERENCE=1 RUN='^TestReferenceArrayOrderQuantifiedArrayBoundary$'
+make check RUN='^TestReferenceArraySmoke$'
+make check REFERENCE=1 RUN='^TestReferenceArraySmoke$'
+make check RUN='^TestArrayOrder(Provider|Demand|PlanEquality|Cancellation|OwnerRebinding)$'
+```
+
+The permanent `TestReferenceArrayOrderFeatureSmoke` entry point checks direct
+BOOL metadata/results, held value/NULL/recovery frames, quantified empty/unknown
+identities, exact incompatible-signature diagnostics and same-DB recovery.
+Its repository commands are listed above; session-only executable invocations
+and observations belong in the part's verification evidence, not this checkout.
+
+These are required proof commands/expectations, not unobserved passing claims.
+Whole-project Docker-free verification remains `make quickcheck`.
 
 ### Array aggregation
 

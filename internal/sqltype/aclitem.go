@@ -287,33 +287,6 @@ func aclEquality(ctx context.Context, a, b Value) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	if a.typ.BaseType().IsArray() {
-		if a.array == nil || b.array == nil {
-			return false, fmt.Errorf("invalid aclitem array")
-		}
-		if len(a.array.dimensions) != len(b.array.dimensions) || len(a.array.elements) != len(b.array.elements) {
-			return false, nil
-		}
-		for i, dimension := range a.array.dimensions {
-			if dimension != b.array.dimensions[i] {
-				return false, nil
-			}
-		}
-		for i, element := range a.array.elements {
-			other := b.array.elements[i]
-			if element.null || other.null {
-				if element.null != other.null {
-					return false, nil
-				}
-				continue
-			}
-			equal, err := aclEquality(ctx, element, other)
-			if err != nil || !equal {
-				return equal, err
-			}
-		}
-		return true, nil
-	}
 	if !a.aclitem.valid() || !b.aclitem.valid() {
 		return false, fmt.Errorf("invalid aclitem equality value")
 	}

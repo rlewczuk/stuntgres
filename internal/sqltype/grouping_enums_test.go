@@ -114,8 +114,8 @@ func TestGroupingEnumMemberDomainsAndRecursiveArrays(t *testing.T) {
 	if _, err := BindComparison(domain, domain, CollationRef{}, false); err == nil {
 		t.Fatal("ordinary polymorphic enum domain operands widened")
 	}
-	if _, err := BindComparison(array, array, CollationRef{}, false); err == nil {
-		t.Fatal("ordinary enum-array comparison widened")
+	if _, err := BindComparison(array, array, CollationRef{}, false); err != nil {
+		t.Fatal("ordinary enum-array comparison absent", err)
 	}
 	if _, err := BindOrdering(array.Usage()); err == nil {
 		t.Fatal("ordinary enum-array ordering widened")

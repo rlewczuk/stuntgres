@@ -504,7 +504,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 			newProvider, err := sqltype.BindOrdering(newDomain.Usage())
-			if err != nil || original.comparison != oldProvider || reminted.comparison != newProvider {
+			if err != nil || !original.comparison.Equal(oldProvider) || !reminted.comparison.Equal(newProvider) {
 				t.Fatal("stored extrema provider ownership", err)
 			}
 			if &original.args[0] == &reminted.args[0] {

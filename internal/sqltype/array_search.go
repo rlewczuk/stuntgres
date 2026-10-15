@@ -16,6 +16,10 @@ type ArraySearchPlan struct {
 	missing                sqlstate.Error
 }
 
+func (p ArraySearchPlan) Equal(other ArraySearchPlan) bool {
+	return p.name == other.name && p.array == other.array && p.result == other.result && p.integer == other.integer && p.missing == other.missing && p.comparison.Equal(other.comparison)
+}
+
 func BindArraySearch(name string, array, result, integer *Descriptor, collation CollationRef, conflict bool) (ArraySearchPlan, error) {
 	if !array.Concrete() || !array.IsArray() || !result.Concrete() || !integer.Concrete() || integer.ID() != Int4 {
 		return ArraySearchPlan{}, fmt.Errorf("invalid array search signature")
@@ -54,11 +58,6 @@ func BindArraySearch(name string, array, result, integer *Descriptor, collation 
 	plan := ArraySearchPlan{name: name, array: array, result: result, integer: integer, comparison: comparison}
 	if err != nil {
 		plan.missing = sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + array.Element().DiagnosticName()}
-		if element.IsArray() {
-			// This leaf has PostgreSQL equality, but native array-to-array
-			// comparison is an explicit capability boundary, not missing SQL equality.
-			plan.missing.Code, plan.missing.Message = "0A000", "unsupported array element type"
-		}
 	}
 	return plan, nil
 }
@@ -82,8 +81,7 @@ func (p ArraySearchPlan) equal(ctx context.Context, a, b Value, env InputEnviron
 		return a.IsNull() && b.IsNull(), nil
 	}
 	a.typ, b.typ = p.comparison.left, p.comparison.right
-	sign, err := p.comparison.Compare(ctx, a, b, env)
-	return sign == 0, err
+	return p.comparison.EqualValues(ctx, a, b, env)
 }
 
 func (p ArraySearchPlan) Evaluate(ctx context.Context, args []Value, env InputEnvironment) (Value, error) {

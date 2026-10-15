@@ -83,6 +83,30 @@ See [window contracts](docs/QUERIES.md) and
 Feature smoke: `make check RUN='^TestReferenceQueryWindowNtileFeatureSmoke$'`
 and `make check RUN='^TestReferenceQueryWindowNtileFeatureSmoke$' REFERENCE=1`.
 
+## Array comparisons — change note
+
+Ordinary `=`, `<>`/`!=`, `<`, `<=`, `>`, and `>=` compare existing executable
+arrays of the same actual array type. Elements are visited in row-major order;
+the first difference wins, then element count, rank, all dimension lengths,
+and all lower bounds break ties. Equality requires identical shape and contents.
+NULL elements compare equal to one another and sort after non-NULL elements;
+a whole-array NULL gives a BOOL NULL.
+
+Element equality and ordering remain separate capabilities. Equality checks
+shape before demanding its element provider; ordering demands its provider even
+for empty arrays. String collation is demanded only for a real non-NULL leaf
+pair. Existing nested array-valued domain search/membership consumers reuse
+equality. This does not add missing leaf providers, array-key ordering/index
+opclasses, or new containment operations. ANY/SOME/ALL keep their SQL
+three-valued reductions and empty-array identities.
+An existing RHS whose elements are array-valued domains retains its concrete
+array identity: quantified comparisons compare the inner arrays and reduce the
+results without flattening them or requiring a new array-of-array type.
+
+Feature smoke: `make check RUN='^TestReferenceArrayOrderFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceArrayOrderFeatureSmoke$'`.
+See [array ordering coverage](reference/binary_json_arrays/README.md#ordinary-array-comparisons).
+
 ## Array dimensions and cardinality — change note
 
 The selected PostgreSQL §9.19 scalar functions `array_dims(anyarray)`,
@@ -508,10 +532,10 @@ Position uses actual subscripts and an inclusive optional start. Search/removal
 require one dimension, while replacement/membership accept rectangular arrays;
 containment ignores dimensions, ordering and duplicate multiplicity.
 Direct/prepared/held and supported stored-expression routes preserve metadata,
-all-child privileges and demand-driven provider/collation errors. This does not
-enable general array comparison/order, other §9.19 functions or new leaf providers.
-Array-valued domain elements retain an explicit native `0A000` boundary when
-equality is demanded; earlier NULL/empty/search fast paths are preserved.
+all-child privileges and demand-driven provider/collation errors. Nested
+array-valued domain elements now reuse ordinary array equality; NULL/empty/search
+fast paths remain intact. No new leaf providers or adjacent §9.19 functions
+are implied.
 See [array search testing](reference/binary_json_arrays/README.md#array-search-and-membership).
 Feature smoke: `make check RUN='^TestReferenceArraySearchFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceArraySearchFeatureSmoke$'`.
@@ -523,8 +547,8 @@ scalar comparator. Results preserve SQL NULL semantics: empty arrays yield false
 ANY/SOME and true for ALL, even with a NULL left operand; a NULL array yields
 NULL. Direct/prepared queries and supported stored-expression consumers retain
 Boolean metadata and all-child authorization/dependencies. This is PostgreSQL
-§9.25 scalar reduction, distinct from existing §9.24 subquery membership; it
-does not add ordinary array-to-array comparison/order or the §9.19 inventory.
+§9.25 scalar reduction, distinct from existing §9.24 subquery membership and
+ordinary array-to-array comparisons; it does not add the §9.19 inventory.
 See [selected array comparison proof](reference/binary_json_arrays/README.md#scalar-list-and-array-comparisons).
 Feature smoke: `make check RUN='^TestReferenceArrayCompareFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceArrayCompareFeatureSmoke$'`.

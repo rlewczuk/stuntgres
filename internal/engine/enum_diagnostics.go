@@ -12,6 +12,9 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if typ == nil {
 		return "unknown"
 	}
+	if typ.IsArray() {
+		return b.diagnosticTypeName(typ.Element()) + "[]"
+	}
 	if !typ.IsUserDefined() {
 		return typ.DiagnosticName()
 	}

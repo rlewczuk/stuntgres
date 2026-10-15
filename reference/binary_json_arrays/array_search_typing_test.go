@@ -173,19 +173,18 @@ func TestReferenceArraySearchTypesAndFrames(t *testing.T) {
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					q := "SELECT " + tc.expression + " AS v"
-					if b.PG {
-						raw := tc.typ
-						if raw == "" {
-							raw = "_INT4"
+					typ, raw := tc.typ, tc.typ
+					if typ == "" {
+						raw = "_INT4"
+						if !b.PG {
+							typ = "_AS_LEAF_ARRAY"
 						}
-						s := fixture.ArrayReferenceSelect(q, []string{"v"}, []string{tc.typ}, []string{raw}, [][]any{{tc.want}}, b.PG)
-						arraySearchBoth(t, p, b, c, s)
-					} else {
-						arraySearchBoth(t, p, b, c, arraySearchRuntimeError(q, "0A000", "unsupported array element type"))
 					}
+					s := fixture.ArrayReferenceSelect(q, []string{"v"}, []string{typ}, []string{raw}, [][]any{{tc.want}}, b.PG)
+					arraySearchBoth(t, p, b, c, s)
 				})
 			}
-			// An unavailable native comparator must not defeat earlier fast paths.
+			// NULL and empty fast paths remain independent of nested equality.
 			arraySearchBoth(t, p, b, c, fixture.Select("SELECT array_position("+a+",NULL::as_leaf_array,NULL) AS p,array_positions(NULL::as_leaf_array[],NULL::as_leaf_array) AS ps,NULL::as_leaf_array[] && "+a+" AS overlap", []string{"p", "ps", "overlap"}, []string{"INT4", "_INT4", "BOOL"}, [][]any{{nil, nil, nil}}))
 			typ := "_AS_LEAF_ARRAY"
 			if b.PG {

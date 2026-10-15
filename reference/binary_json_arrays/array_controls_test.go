@@ -79,10 +79,9 @@ func TestReferenceArraySmoke(t *testing.T) {
 			run(s)
 			run(fixture.Prepared(s))
 		}
+		arrayCompareBoth(t, p, b, c, fixture.Select("SELECT i=i AS same FROM public.array_smoke ORDER BY id", []string{"same"}, []string{"BOOL"}, [][]any{{true}, {true}}))
 		if !b.PG {
-			for _, q := range []string{"SELECT i FROM public.array_smoke ORDER BY i", "SELECT i=i FROM public.array_smoke"} {
-				run(fixture.Error(q, "42883"))
-			}
+			run(fixture.Error("SELECT i FROM public.array_smoke ORDER BY i", "42883"))
 			fixture.ArrayReferenceNativeRoundtrip(t, p, c, b, check)
 		}
 		functionQuery := "SELECT array_length(i,1) AS n FROM public.array_smoke ORDER BY id"

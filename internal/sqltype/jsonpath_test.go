@@ -274,10 +274,24 @@ func TestJSONPathSQLCapabilitiesRejected(t *testing.T) {
 	}
 	for _, d := range []*Descriptor{types[JSONPath], types[4073], domain} {
 		t.Run(d.Name(), func(t *testing.T) {
-			if _, err := BindComparison(d, d, CollationRef{}, false); err == nil {
-				t.Fatal("SQL comparison admitted")
+			comparison, err := BindComparison(d, d, CollationRef{}, false)
+			if d.IsArray() {
+				if err != nil {
+					t.Fatal(err)
+				}
+				empty, err := d.Input(context.Background(), "{}", -1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = comparison.EqualValues(context.Background(), empty, empty, InputEnvironment{})
+				var missing *sqlstate.Error
+				if !errors.As(err, &missing) || missing.Code != "42883" || missing.Message != "could not identify an equality operator for type jsonpath" {
+					t.Fatal(err)
+				}
+			} else if err == nil {
+				t.Fatal("scalar SQL comparison admitted")
 			}
-			_, err := BindOrdering(d.Usage())
+			_, err = BindOrdering(d.Usage())
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != "could not identify an ordering operator for type "+d.DiagnosticName() || diagnostic.Hint != "Use an explicit ordering operator or modify the query." || diagnostic.Position != "" {
 				t.Fatalf("ordering diagnostic: %#v (%v)", diagnostic, err)
