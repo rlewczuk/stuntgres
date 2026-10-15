@@ -206,6 +206,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args[:])
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
+	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:

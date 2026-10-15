@@ -1028,6 +1028,32 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Already executable composite/domain-composite array elements expand their
   member layout in FROM; present NULL composites remain present member-NULL rows.
   Target output keeps one logical composite column. This adds no RECORD provider.
+- Selected array transformations are `array_append`, `array_prepend`, `array_cat`,
+  `array_fill`, `array_reverse`, `array_sort`, `trim_array`, and `array_to_string`.
+  The three array `||` overloads share compatible leaf typing with push/cat;
+  known array plus unknown selects cat, including eager unknown array input.
+  Push accepts empty/one-dimensional arrays and retains their lower bound.
+  Cat permits equal rank or a rank difference of one, requiring exact trailing
+  dimensions/bounds. NULL/empty cat inputs retain the other input; push inserts
+  NULL elements. Fill uses the value's actual associated array, checked INT4[]
+  dimensions and optional bounds, not a fabricated array-of-array identity.
+  Reverse/sort move whole first-axis slices, retaining all bounds; trim removes
+  first-axis slices and rebases every retained bound to 1, even for count zero.
+  Sort defaults to ascending/NULL last; descending defaults to NULL first, with
+  an independent third flag. Flags are strict; multidimensional inner NULLs use
+  ordinary array comparison. Empty/singleton sort does not demand ordering.
+  Composite ordering retains its existing native 0A000 exclusion; composite
+  shape-only transforms, scalar output, and empty/singleton sort do not add a
+  comparator. WITHIN GROUP on these selected functions reaches missing-signature
+  diagnostics without enabling an ordered-set transform overload.
+  Only two/three-argument sort has named formals (`"array"`, `descending`,
+  `nulls_first`), evaluated in formal order and retained in written replay slots.
+  To-string flattens storage order and outputs raw scalar elements, omitting
+  NULLs unless a non-NULL replacement is supplied; an empty replacement still
+  emits separators. It is always STABLE and uses coherent captured output
+  settings/catalog spelling; the other seven operations are IMMUTABLE.
+  Shape-only operations add no comparison/output provider. Existing stored
+  scalar consumers and native replacement owners retain exact type generations.
 - Selected scalar array inspection includes `array_dims(anyarray)` returning
   TEXT, `array_ndims(anyarray)` and `cardinality(anyarray)` returning INT4,
   and `array_length/lower/upper(anyarray, integer)` returning INT4. These read
@@ -1245,9 +1271,10 @@ reader refreshes against the current catalog instead; eager captured rows stay
 unchanged. No catalog fence is relaxed for metadata queries.
 
 ANYARRAY support is limited to the exact canonical typed-NULL catalog result,
-with driver metadata, NULL transport through ordinary projections/subqueries,
-and input to the six selected array shape inspectors, producing concrete scalar
-NULLs without inferring a leaf type.
+with driver metadata and NULL transport through ordinary projections/subqueries.
+The six shape inspectors produce concrete scalar NULLs. Reverse, sort and trim
+preserve the ANYARRAY NULL result; to-string produces TEXT NULL without inferring
+a leaf. Compatible push/cat and fill do not acquire a pseudo-array association.
 It remains non-concrete and unavailable as a declared storage, domain, parameter,
 cast or generic comparison/ordering type. Catalog mutation and row locks retain
 their native `0A000` exclusions. See [selected proof and smoke](../reference/catalogs/README.md#pg_attribute-selected-proof).

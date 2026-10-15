@@ -6,6 +6,20 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Array concatenation consumer
+
+`TestReferenceStringCoreArrayConcat` replaces the obsolete missing-array-operator
+boundary. It preserves both directions of text/`current_schemas(false)` concat,
+their distinct TEXT[]/NAME[] results, PostgreSQL raw scan metadata, and all four
+context/noncontext direct/prepared routes.
+
+```sh
+make check RUN='^TestReferenceStringCoreArrayConcat$'
+make check RUN='^TestReferenceStringCoreArrayConcat$' REFERENCE=1
+```
+
+Use an external 900-second deadline for each selected command.
+
 ### String split selected proof
 
 Untagged public `reference/strings/string_split_*_test.go` scenarios use the

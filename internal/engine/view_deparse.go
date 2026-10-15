@@ -653,7 +653,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				simple = v.presentation.pretty && parent.functionArgument
 			case parser.FunctionExpr:
 				call := expr.(parser.FunctionExpr)
-				simple = len(call.Name.Parts) != 0 && (parser.ArraySearchFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) || parser.ArrayInspectFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text))
+				simple = len(call.Name.Parts) != 0 && (parser.ArrayTransformFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) || parser.ArraySearchFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) || parser.ArrayInspectFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text))
 			}
 			return r.cast(text, usage, simple)
 		}
@@ -907,7 +907,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			simpleSleepCall := false
 			if call, ok := e.Child.(parser.FunctionExpr); ok {
 				name := call.Name.Parts[len(call.Name.Parts)-1].Text
-				simpleSleepCall = name == "pg_sleep" || name == "pg_sleep_for" || name == "pg_sleep_until" || parser.ArraySearchFunctionName(name) || parser.ArrayInspectFunctionName(name)
+				simpleSleepCall = name == "pg_sleep" || name == "pg_sleep_for" || name == "pg_sleep_until" || parser.ArrayTransformFunctionName(name) || parser.ArraySearchFunctionName(name) || parser.ArrayInspectFunctionName(name)
 			}
 			return r.cast(text, usage, simpleColumn || simpleLiteral || simpleSleepCall || v.presentation.pretty && parent.functionArgument && nestedCast)
 		}
@@ -949,7 +949,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		leftParent.unary = len(e.Args) == 1
 		operatorOperand := func(index int, parent pgRenderParent) (string, error) {
-			if arrayMembershipName(spelling) {
+			if arrayMembershipName(spelling) || spelling == "||" {
 				return selectedOperand(index, e.Args[index], parent)
 			}
 			return operand(e.Args[index], parent)
@@ -1252,12 +1252,15 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return "pg_catalog.generate_subscripts(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if parser.ArraySearchFunctionName(name) || parser.ArrayInspectFunctionName(name) {
+		if parser.ArrayTransformFunctionName(name) || parser.ArraySearchFunctionName(name) || parser.ArrayInspectFunctionName(name) {
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {
 				text, err := selectedOperand(i, arg, pgRenderParent{functionArgument: true})
 				if err != nil {
 					return "", err
+				}
+				if len(e.ArgNames) != 0 && e.ArgNames[i].Text != "" {
+					text = quoteIdentifier(e.ArgNames[i].Text) + " => " + text
 				}
 				parts[i] = text
 			}

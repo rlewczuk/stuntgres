@@ -108,6 +108,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return functions.Regexp[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, nil
 	}
+	if parser.ArrayTransformFunctionName(name) {
+		return b.bindArrayTransform(raw)
+	}
 	if parser.ArrayRandomFunctionName(name) {
 		return b.bindArrayRandom(raw)
 	}

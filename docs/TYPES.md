@@ -32,6 +32,8 @@ The one non-concrete result exception is the canonical nullable ANYARRAY column
 `pg_attribute.attmissingval`: native exports SQL NULL as nil with database type
 ANYARRAY and `interface{}` ScanType. The six selected array shape inspectors
 accept this exact already-typed NULL and return concrete TEXT/INT4 NULLs.
+Reverse, sort and trim retain its ANYARRAY NULL metadata; array-to-string
+returns TEXT NULL. Compatible push/cat reject it, and fill has no association.
 This does not admit nonnull ANYARRAY values, ordinary declarations, casts,
 domains, parameters or generic operators.
 
@@ -419,6 +421,17 @@ Unknown first operands do not infer from dimension, result or Go values.
 Explicit VARIADIC decoration does not expand an otherwise matching call.
 Stored scalar and native replacement routes preserve mapped descriptor ownership
 without introducing new leaf equality providers or additional codecs.
+
+Array append/prepend/cat and the three array `||` overloads select compatible
+leaf types and actual catalog-associated arrays. Agreed leaf domains survive;
+mixed domain/base inputs use existing common typing. Fill instead uses its
+known value's actual associated array. No ordinary array-of-array identity is
+invented. Reverse/sort preserve shape and every bound; trim removes first-axis
+items and rebases all retained bounds to 1. Sort compares full first-axis
+slices, with scalar NULL placement distinct from inner slice NULL ordering.
+To-string emits flattened raw scalar output under the captured statement
+environment, not array quoting or driver export. It is STABLE even for INT4[];
+the seven other transformations are IMMUTABLE.
 
 `array_sample` and `array_shuffle` retain the physical input array family after
 outer-domain peeling, including logical element-domain identity. Selection

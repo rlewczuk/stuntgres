@@ -208,6 +208,32 @@ Feature smoke: `make check RUN='^TestReferenceArrayOrderFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceArrayOrderFeatureSmoke$'`.
 See [array ordering coverage](reference/binary_json_arrays/README.md#ordinary-array-comparisons).
 
+## Array construction and transformation — change note
+
+`array_append`, `array_prepend`, `array_cat` and the three array `||` overloads
+select a compatible element type through existing catalog array associations.
+NULL arrays act as empty inputs for element insertion; concatenation retains
+the other array for NULL or empty inputs. A known array beside an unknown `||`
+operand selects array concatenation, not element insertion.
+
+`array_fill` constructs checked rectangular shapes with optional lower bounds.
+`array_reverse` and `array_sort` move complete first-axis slices and preserve
+all bounds. Sorting supports descending and independent NULL placement; inner
+NULL elements of multidimensional slices follow ordinary array comparison.
+`trim_array` removes first-axis items and resets every retained lower bound to 1.
+Inputs remain immutable, including shared no-op results.
+
+`array_to_string` flattens storage order, omits NULL elements unless a non-NULL
+replacement is supplied, and uses each element's actual scalar output under
+the coherent statement settings/catalog environment. It is always STABLE;
+the other seven functions and array concatenation are IMMUTABLE. Named sort
+arguments evaluate in formal order while stored SQL retains their written slots.
+No new array-of-array identities, leaf providers or array index opclasses are added.
+
+Feature smoke: `make check RUN='^TestReferenceArrayTransformFeatureSmoke$'`
+and `make check RUN='^TestReferenceArrayTransformFeatureSmoke$' REFERENCE=1`.
+See [selected contracts](reference/binary_json_arrays/README.md#array-construction-and-transformation-contracts).
+
 ## Array sample, shuffle and unnest — change note
 
 `array_sample(anyarray, integer)` selects first-axis items without replacement;

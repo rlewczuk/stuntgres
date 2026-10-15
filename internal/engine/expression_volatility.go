@@ -182,6 +182,12 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return merge(children(n.Value, n.Zone), v)
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		return merge(children(n.Args...), Volatile)
+	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		v := children(n.Args...)
+		if n.IntrinsicStable() {
+			v = merge(v, Stable)
+		}
+		return v
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:

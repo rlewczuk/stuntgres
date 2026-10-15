@@ -67,7 +67,9 @@ func ArrayReferenceSelect(query string, names, types, raw []string, rows [][]any
 				continue
 			}
 			want := reflect.TypeFor[string]()
-			if pg {
+			// The catalog's NULL-only pseudo carrier has no concrete array
+			// codec; native deliberately exposes interface{} just like pq.
+			if pg || types[i] == "ANYARRAY" {
 				want = reflect.TypeFor[any]()
 			}
 			if columns[i].ScanType() != want {

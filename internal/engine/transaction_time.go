@@ -106,7 +106,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties], functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties], functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties], functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

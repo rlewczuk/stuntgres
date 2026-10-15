@@ -156,7 +156,7 @@ func (c *EvalContext) FunctionStringOutput() sqltype.OutputEnvironment {
 	scope := c.liveScope()
 	output.Regclass, output.Regtype, output.Regproc = scope, scope, scope
 	output.Regrole, output.Regcollation, output.Regnamespace = scope, scope, scope
-	output.Operator = scope
+	output.Operator, output.ACLItem = scope, scope
 	output.RegTS = scope
 	return output
 }
@@ -1403,6 +1403,15 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
 		return next, changed, err
+	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		next, changed, err := mapArrayTransformChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
+		return folded, changed || replaced, err
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		next, changed, err := mapArrayInspectChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)

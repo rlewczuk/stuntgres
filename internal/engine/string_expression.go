@@ -230,6 +230,9 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 	if err != nil {
 		return nil, err
 	}
+	if node, selected, err := b.selectArrayConcat(raw, operands, visible); selected {
+		return node, err
+	}
 	textual, binary, resolution := functions.SelectStringConcat(visible, types)
 	if binary != 0 {
 		var binaryTypes functions.BinaryTypes

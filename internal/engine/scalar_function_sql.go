@@ -225,6 +225,13 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		return "pg_catalog." + n.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		return arrayRandomSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		return arrayTransformSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+			if namespace != "" {
+				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
+			}
+			return name
+		})
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return arrayInspectSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:

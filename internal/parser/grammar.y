@@ -1886,6 +1886,7 @@ transaction_time_args: function_args { $$=$1 }
  | function_argument_list ORDER BY order_keys { $$=$1;$$.Order=$4 } ;
 transaction_time_base: transaction_time_head transaction_time_args ')' { $$=$2;$$.Name=$1.Name;$$.Pos=$1.Pos } ;
 transaction_time_filtered: transaction_time_base %prec ')' { $$=$1 }
+ | transaction_time_base WITHIN GROUP '(' ORDER BY order_keys ')' {if !ArrayTransformFunctionName($1.Name.Parts[len($1.Name.Parts)-1].Text) {sqllex.(*lexer).syntax($2);return 1};call,ok:=withinCall(sqllex,$1,$2,$7);if !ok{return 1};$$=call.(FunctionExpr)}
  | transaction_time_base FILTER '(' WHERE target_or ')' { $$=$1;$$.Filter=$5 } ;
 /* Keep selected decorations ordered and nonrepeating. Invalid continuations
  * fail at their token rather than falling through to generic bare-label guards. */

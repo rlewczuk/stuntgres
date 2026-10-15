@@ -252,6 +252,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties], unnestExpression:
 		return false
+	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:

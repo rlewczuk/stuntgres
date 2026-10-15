@@ -964,7 +964,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
-	if token.code == IDENT && (ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text)) {
+	if token.code == IDENT && (ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
 	if token.code == IDENT && (enumFunctionName(token.lexeme.text) || jsonCreateFunction(token.lexeme.text)) {
@@ -1155,7 +1155,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = TX_TIME_FUNC
 		}
 	}
-	if token.code == SELECTED_FUNC && (enumFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text)) {
+	if token.code == SELECTED_FUNC && (enumFunctionName(token.lexeme.text) || ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text)) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {
@@ -1188,7 +1188,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	// Selected time, enum and delay calls reuse failure-only decorations;
 	// their binder rejects aggregate modifiers after resolving the operands.
-	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || JSONBSetFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || strings.EqualFold(token.lexeme.text, "unnest") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
+	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || JSONBSetFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || strings.EqualFold(token.lexeme.text, "unnest") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
@@ -1779,6 +1779,14 @@ func TransactionTimeFunctionName(name string) bool {
 	return strings.EqualFold(name, "now") || strings.EqualFold(name, "transaction_timestamp") ||
 		strings.EqualFold(name, "statement_timestamp") || strings.EqualFold(name, "clock_timestamp") ||
 		strings.EqualFold(name, "timeofday")
+}
+
+func ArrayTransformFunctionName(name string) bool {
+	switch strings.ToLower(name) {
+	case "array_append", "array_prepend", "array_cat", "array_fill", "array_reverse", "array_sort", "trim_array", "array_to_string":
+		return true
+	}
+	return false
 }
 
 func ArraySearchFunctionName(name string) bool {

@@ -73,6 +73,98 @@ not an input conversion workload. Success is the selected package passing
 these assertions; no separate output banner or fabricated PostgreSQL control
 equivalent is expected. All backends run without oracle-discovery filters.
 
+### Array construction and transformation contracts
+
+`TestReferenceArrayTransform` specifies `array_append`, `array_prepend`,
+`array_cat`, `array_fill`, `array_reverse`, `array_sort`, `trim_array`,
+`array_to_string` and the three related array `||` overloads. The same completed
+scenario bodies run on every available backend. Definitions alone do not
+establish native support or passing dual-mode proof.
+
+Independent expectations encode pinned PostgreSQL 18.0 values, complete
+diagnostics/stages and explicit backend metadata differences. In particular,
+pq reports an empty database type name for user-defined associated arrays;
+native metadata retains its named array identity. Shared single-projection
+queries assert that public metadata directly; additional PostgreSQL-only
+`pg_typeof` probes retain the independent SQL identity observations without
+requiring an unrelated native builtin. Named sort calls quote the reserved `"array"`
+parameter; unquoted spelling remains an exact syntax-error witness. Side effects
+assert formal argument evaluation order (array before descending), not written
+named-argument order. STABLE `array_to_string` is rejected by generated-column
+and index immutable consumers at execution, including prepared DDL.
+
+The implementation reuses immutable typed payloads, existing compatible
+coercion/comparison and scalar output authorities. Reverse/sort preserve all
+bounds; trim rebases all retained bounds, including count zero. Empty/singleton
+sort avoids ordering-provider demand; scalar JSON sort errors use 0A000 while
+multidimensional slice comparison errors use 42883. The exact catalog ANYARRAY
+NULL carrier remains limited to the observed simple-polymorphic NULL routes
+and explicitly retains interface{} ScanType on both backends, not the native
+string ScanType of concrete arrays.
+Composite ordering retains the documented native `0A000` boundary, independently
+of PostgreSQL's successful composite sort. Composite reverse, fill, push/cat,
+trim, serialization and empty/singleton sort remain positive shared witnesses.
+A same-held typed composite-array parameter proves no ordering demand for
+empty/singleton inputs, execution-stage rejection for two native items,
+PostgreSQL's independently sorted rows, NULL propagation and recovery.
+Named-order sequence arguments use scalar modulo and explicit INT4-to-BOOL
+casts: formal calls 3 and 4 produce false and true, respectively, retaining
+the formal-order `{1,2}` result and final sequence value 4. Catalog ANYARRAY
+probes explicitly cast regclass to oid rather than demanding a new cross-type
+comparison overload. Selected WITHIN GROUP decoration reaches signature lookup,
+not generic ordered-set execution.
+No new leaf codecs, ordinary array-of-array identities or index opclasses are
+part of this family. Official PostgreSQL 18 §9.19 and REL_18_0 array/varlena
+implementations ground the independent cases; the runtime oracle remains 18.0.
+
+Package-only behavior units use the selector
+`^TestArrayTransform(Kernels|SortAuthority|DomainPayload|ProviderOrder|OutputAndVolatility|ResolverOwners|NamedAndConcatSelection|CollationRemap)$`:
+
+```sh
+make check RUN='^TestArrayTransform(Kernels|SortAuthority|DomainPayload|ProviderOrder|OutputAndVolatility|ResolverOwners|NamedAndConcatSelection|CollationRemap)$'
+```
+
+They supplement the required public dual-mode definitions; they do not replace
+the PostgreSQL proof. Existing text/bytea/bit concatenation and array search,
+inspection and comparison feature selectors remain required regression checks.
+
+`TestReferenceArrayTransformACLMutation` independently asserts ACL-item scalar
+output in literal and parameterized `INSERT ... VALUES`, direct and prepared:
+each write affects one row and stores exact TEXT without array braces. Matching
+SELECT controls remain explicit. The fixture's authenticated grantor is
+`postgres` natively (`=r/postgres`) and `stuntgres` on pinned PostgreSQL
+(`=r/stuntgres`); expectations are fixed separately, never learned or normalized
+from returned values.
+
+```sh
+make check RUN='^TestReferenceArrayTransformACLMutation$' REFERENCE=1
+make check RUN='^TestReferenceArrayTransformACLMutation$'
+```
+
+Run each bounded selection in native mode and again with `REFERENCE=1` for
+the real pinned PostgreSQL backend (external deadline 900 seconds per command):
+
+```sh
+make check RUN='^TestReferenceArrayTransform(Concat|Typing|Fill)$'
+make check RUN='^TestReferenceArrayTransform(Concat|Typing|Fill)$' REFERENCE=1
+make check RUN='^TestReferenceArrayTransform(FirstAxis|Sort|Serialization)$'
+make check RUN='^TestReferenceArrayTransform(FirstAxis|Sort|Serialization)$' REFERENCE=1
+make check RUN='^TestReferenceArrayTransform(Diagnostics|HeldMetadata)$'
+make check RUN='^TestReferenceArrayTransform(Diagnostics|HeldMetadata)$' REFERENCE=1
+make check RUN='^TestReferenceArrayTransform(StoredReplay|AuthorityControls|FeatureSmoke)$'
+make check RUN='^TestReferenceArrayTransform(StoredReplay|AuthorityControls|FeatureSmoke)$' REFERENCE=1
+```
+
+The standalone feature selector is `^TestReferenceArrayTransformFeatureSmoke$`;
+it checks all eight functions, bounds, NULL ordering, serialization, exact
+shape errors, held recovery and stored replay, rather than aliasing a baseline.
+Stored recipes are proved by behavioral rename checks and execution of actual
+emitted SQL, not exact deparse text or native formatting.
+The failed staged-restore witness uses an actual `trim_array` INSERT expression;
+all eight selected calls are admitted by the recursive restore scalar owner,
+while parameters remain prohibited. Actual emitted Dump SQL and retained-cursor
+roundtrips are still exercised, never replaced with hand-written replay.
+
 ### JSON extraction
 
 The `TestReferenceJSONExtract` family specifies JSON-only `->`, `->>`, `#>`,

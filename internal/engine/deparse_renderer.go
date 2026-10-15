@@ -604,6 +604,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			simpleFunctionCall = true
 		case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 			simpleFunctionCall = true
+		case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+			simpleFunctionCall = !call.Operator
 		case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 			simpleFunctionCall = true
 		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
@@ -860,6 +862,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return text.String(), nil
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		return function(n.Kind.Name(), n.Args, true)
+	case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+		inputRenderer := r
+		inputRenderer.showImplicit = true
+		return arrayTransformSQL(n, func(child BoundExpr) (string, error) {
+			return inputRenderer.sql(ctx, child, pgRenderParent{functionArgument: true})
+		}, operator)
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return function(n.Kind.Name(), n.Args, true)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:

@@ -117,7 +117,6 @@ func TestStringCoreMissingOperatorOwner(t *testing.T) {
 	engine := New()
 	for _, tc := range []struct{ query, message, position string }{
 		{"SELECT 1 || 2", "operator does not exist: integer || integer", "10"},
-		{"SELECT 'x'::text||current_schemas(false)", "operator does not exist: text || name[]", "17"},
 	} {
 		binder := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]

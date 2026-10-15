@@ -423,6 +423,8 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
+		case functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]:
+			return selectedArrayArguments(r.Args, n.Args)
 		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 			return selectedArrayArguments(r.Args, n.Args)
 		case rowComparisonExpression:
@@ -784,6 +786,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 		if n, ok := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
+		}
+		if n, ok := bound.(functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return selectedArrayArguments(r.Args, n.Args)
 		}
 		if n, ok := bound.(functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
