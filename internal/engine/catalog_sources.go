@@ -104,6 +104,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"castsource", sqltype.Oid}, {"casttarget", sqltype.Oid}, {"castfunc", sqltype.Oid}, {"castcontext", sqltype.Char}, {"castmethod", sqltype.Char}}},
+		{pgLanguageOID, "pg_language", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"lanname", sqltype.Name}, {"lanowner", sqltype.Oid}, {"lanispl", sqltype.Bool}, {"lanpltrusted", sqltype.Bool}, {"lanplcallfoid", sqltype.Oid}, {"laninline", sqltype.Oid}, {"lanvalidator", sqltype.Oid}, {"lanacl", sqltype.ACLItemArray}}},
 		{2616, "pg_opclass", []struct {
 			name string
 			typ  sqltype.ID
@@ -264,6 +268,9 @@ func (e *Engine) initializeCatalogSources() error {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
+			if spec.oid == pgLanguageOID {
+				d.columns[i].Nullable = i == 8
+			}
 			if spec.oid == 3079 {
 				d.columns[i].Nullable = i >= 6
 				if column.typ == sqltype.Text || column.typ == sqltype.ID(1009) {
@@ -345,6 +352,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == pgLanguageOID {
+		return capturePGLanguage(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 2616 {
 		return capturePGOpclass(ctx, catalog, ref, source)

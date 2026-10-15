@@ -6,6 +6,60 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_language selected proof
+
+The `TestReferencePGLanguage` definitions specify the complete native
+internal-only bag `(12,internal,10,false,false,0,0,2246,NULL)` independently.
+The pinned PostgreSQL18.0 oracle separately asserts the released bootstrap
+`internal`, `c` and `sql` tuples; native c/sql/plpgsql absence is a capability
+boundary, not an assertion about PostgreSQL's installed languages. Handler and
+validator IDs remain OID metadata; no language DDL or execution is exercised.
+
+Shape/Metadata/CatalogLinks cover all nine columns, backend raw codecs,
+ScanType/nullability/length/decimal metadata before iteration on populated and
+empty cursors, owner/attribute/class/table-summary relationships and
+direct/new-prepared/actual-held name/OID predicates. Both backends assert
+`pg_class.reltype` resolves to the pg_language REGTYPE identity. PostgreSQL also
+joins `pg_type` to assert reciprocal row/array relationships; native has no
+`pg_type` SQL projection, so its actual row/array descriptor ownership and links
+are checked privately before and after Reset. Diagnostics and Permissions
+assert complete English error records and stages, native immutable mutation/
+row-lock boundaries, preserved rows/sentinel and ordinary-role PUBLIC reads.
+HeldExecution adds native ordinary-context cancellation and recovery.
+Lifecycle retains a populated native cursor across staged-failure/canceled/
+successful Reset/Restore, checks fresh held queries, and replays an actual
+native user dump on PostgreSQL with exact sentinel and language properties.
+The private capture-ownership test supplements these public witnesses with
+typed NULL ownership, foreign-generation rejection and independent row storage.
+
+Run each bounded group in both modes, with an external 900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGLanguage(Inventory|Shape|Metadata|CatalogLinks)$'
+make check RUN='^TestReferencePGLanguage(Inventory|Shape|Metadata|CatalogLinks)$'
+make check REFERENCE=1 RUN='^TestReferencePGLanguage(Diagnostics|Permissions|HeldExecution|Lifecycle)$'
+make check RUN='^TestReferencePGLanguage(Diagnostics|Permissions|HeldExecution|Lifecycle)$'
+make check RUN='^Test(PGLanguageCaptureOwnership|PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
+make check REFERENCE=1 RUN='^TestReferencePGTableViewsBuiltins$'
+make check RUN='^TestReferencePGTableViewsBuiltins$'
+make check RACE=1 RUN='^TestReferencePGLanguage(HeldExecution|Lifecycle)$'
+```
+
+Permanent feature smoke reuses these scenario helpers, not a duplicate test body:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGLanguageFeatureSmoke$'
+make check RUN='^TestReferencePGLanguageFeatureSmoke$'
+```
+
+Expected success is quiet exit0/package `ok` with exact internal row and metadata,
+held empty-to-populated rebinding, PUBLIC reads, catalog linkage, exact
+missing-column diagnostic, native availability/immutability and a real
+Dump/Reset/Restore sentinel round trip with a retained populated language row.
+PostgreSQL independently checks its supported bootstrap subset and user-dump
+replay; it does not inherit native-only control or immutability assertions.
+Selected dual-mode proof and smoke supplement whole-project quickcheck.
+
 ### pg_opclass selected proof
 
 The `TestReferencePGOpclass` scenarios specify the nine released columns,

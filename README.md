@@ -13,6 +13,19 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Language catalog — change note
+
+`pg_catalog.pg_language` exposes the nine PostgreSQL language metadata columns
+through ordinary direct/prepared queries, catalog discovery and PUBLIC reads.
+Native availability is deliberately limited to `internal`: OID12, owner10,
+`lanispl=false`, `lanpltrusted=false`, call/inline handler OIDs0,
+validator OID2246 and NULL language ACL. The validator is metadata, not an
+executable validation service. SQL, C and PL/pgSQL language runtimes, language/
+routine DDL and external handler execution remain unavailable; no such native
+languages are advertised.
+See [native limits](docs/DIALECT.md#pg_language-supported-language-metadata) and
+[selected proof and feature smoke](reference/catalogs/README.md#pg_language-selected-proof).
+
 ## Operator-class catalog — change note
 
 `pg_catalog.pg_opclass` exposes the nine PostgreSQL operator-class metadata

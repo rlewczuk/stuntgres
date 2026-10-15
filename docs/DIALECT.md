@@ -1372,6 +1372,51 @@ It remains non-concrete and unavailable as a declared storage, domain, parameter
 cast or generic comparison/ordering type. Catalog mutation and row locks retain
 their native `0A000` exclusions. See [selected proof and smoke](../reference/catalogs/README.md#pg_attribute-selected-proof).
 
+## pg_language supported language metadata
+
+`pg_catalog.pg_language` is relation2612, with these nine columns in order:
+
+| Column | SQL type | Native nullable |
+|---|---|---|
+| oid | oid | no |
+| lanname | name | no |
+| lanowner | oid | no |
+| lanispl | boolean | no |
+| lanpltrusted | boolean | no |
+| lanplcallfoid | oid | no |
+| laninline | oid | no |
+| lanvalidator | oid | no |
+| lanacl | aclitem[] | yes |
+
+The complete native inventory is exactly
+`(12,'internal',10,false,false,0,0,2246,NULL)`. Fixed owner10 is the bootstrap
+role, named `postgres` natively. NAME uses C collation950; every column has
+typmod−1. The initialized row/array types retain ordinary catalog ownership and
+relationships; `pg_class.reltype` identifies the row type through REGTYPE.
+Native `pg_type` SQL projection remains unavailable. The language relation
+appears as an indexed catalog table in `pg_class`
+and `pg_tables`, not `pg_views`; this does not synthesize physical indexes or
+TOAST storage.
+
+Handler, inline-handler and validator columns are OID, not REGPROC. Zero handler
+OIDs are nonnull metadata. Validator2246 identifies `fmgr_internal_validator`
+through existing lookup-only routine identity support; it does not add an
+executable validator or an executable `pg_proc` row. NULL `lanacl` means default
+language privileges, not an empty ACL and not a grant to execute internal
+functions. PUBLIC SELECT on the catalog relation is a separate table privilege.
+
+Native `c`, `sql`, `plpgsql` and other external procedural languages are absent:
+bounded builtin/extension providers do not supply a general language runtime.
+Language/routine DDL, DO, handler/validator execution and external native ABI
+loading remain outside this catalog. Catalog INSERT/UPDATE/DELETE fail with
+`0A000` / `catalog source mutation is unsupported`, even for zero-match
+predicates. Row locks fail with `0A000` /
+`row locking is not supported for virtual catalog relations`. PostgreSQL itself
+uses table permissions for ordinary-reader writes; its catalogs are not claimed
+universally immutable. Held native results retain their row/types across
+Reset/Restore, while held statements read the replacement catalog.
+See [selected proof and smoke](../reference/catalogs/README.md#pg_language-selected-proof).
+
 ## pg_opclass supported operator classes
 
 `pg_catalog.pg_opclass` is a read-only PUBLIC catalog with the released nine
