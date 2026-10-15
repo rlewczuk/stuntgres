@@ -1,0 +1,441 @@
+package engine
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
+)
+
+type objectIdentity struct {
+	kind, schema, name, identity, description string
+	names, args                               []string
+	found                                     bool
+}
+
+// These are released address classes, not a whitelist of native providers.
+// Recognized classes without owned instances still have correct missing results.
+func objectAddressClassKind(class OID) (string, bool) {
+	switch class {
+	case 1259:
+		return "relation", true
+	case 1255:
+		return "routine", true
+	case 1247:
+		return "type", true
+	case 2615:
+		return "schema", true
+	case 3456:
+		return "collation", true
+	case 2607:
+		return "conversion", true
+	case 3079:
+		return "extension", true
+	case 3764:
+		return "text search template", true
+	case 3600:
+		return "text search dictionary", true
+	case 1262:
+		return "database", true
+	case 1260:
+		return "role", true
+	case 2606:
+		return "constraint", true
+	case 2604:
+		return "default value", true
+	case 2618:
+		return "rule", true
+	case 3256:
+		return "policy", true
+	case 1213:
+		return "tablespace", true
+	case 2605:
+		return "cast", true
+	case 2616:
+		return "operator class", true
+	case 2753:
+		return "operator family", true
+	case 2617:
+		return "operator", true
+	case 2612:
+		return "language", true
+	case 2601:
+		return "access method", true
+	case 2328:
+		return "foreign-data wrapper", true
+	case 1417:
+		return "server", true
+	case 1418:
+		return "user mapping", true
+	case 2620:
+		return "trigger", true
+	case 3466:
+		return "event trigger", true
+	case 6104:
+		return "publication", true
+	case 6100:
+		return "subscription", true
+	case 3381:
+		return "statistics object", true
+	case 2613, 2995:
+		return "large object", true
+	case 3601:
+		return "text search parser", true
+	case 3602:
+		return "text search configuration", true
+	case 826:
+		return "default acl", true
+	case 1261:
+		return "role membership", true
+	case 2602:
+		return "operator of access method", true
+	case 2603:
+		return "function of access method", true
+	case 3576:
+		return "transform", true
+	case 6243:
+		return "parameter ACL", true
+	case 6106:
+		return "publication relation", true
+	case 6237:
+		return "publication namespace", true
+	}
+	return "", false
+}
+func objectNamespace(view CatalogRead, namespace ObjectAddress) (actual, canonical string) {
+	if ns, ok := view.state.descriptors[namespace].(*namespaceDescriptor); ok {
+		actual, canonical = ns.name, ns.name
+		if ns.temporary != (SessionToken{}) {
+			canonical = "pg_temp"
+		}
+	}
+	return
+}
+func objectRelationKind(view CatalogRead, d *relationDescriptor) string {
+	switch pgClassKind(view, d) {
+	case "S":
+		return "sequence"
+	case "v":
+		return "view"
+	case "m":
+		return "materialized view"
+	case "c":
+		return "composite type"
+	case "i", "I":
+		return "index"
+	}
+	return "table"
+}
+func objectAttributeName(view CatalogRead, d *relationDescriptor, sub int32) string {
+	sub = int32(int16(sub))
+	for i, attr := range d.attributes {
+		if attr == sub {
+			return d.columns[i].Name
+		}
+	}
+	if old, ok := d.droppedAttributes[sub]; ok {
+		return old.name
+	}
+	if sub < 0 && sub >= -6 && hasSystemAttributes(view, d) {
+		return [...]string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"}[-sub-1]
+	}
+	return ""
+}
+func objectQualifiedType(view CatalogRead, id OID) string {
+	return regtypeSpellingMode(view, nil, id, true)
+}
+
+func identifyAddress(view CatalogRead, roles authorization.Read, path []ObjectAddress, a ObjectAddress) (objectIdentity, error) {
+	kind, known := objectAddressClassKind(a.ClassID)
+	if !known {
+		return objectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
+	}
+	r := objectIdentity{kind: kind}
+	key := a
+	key.SubID = 0
+	d := view.state.descriptors[key]
+	if a.ClassID == ProcedureClassID {
+		p, ok := routineIdentityByOID(view, a.ObjectID)
+		if !ok {
+			return r, nil
+		}
+		r.found = true
+		r.kind = objectRoutineKind(p.id)
+		ns, _ := objectNamespace(view, ObjectAddress{ClassID: NamespaceClassID, ObjectID: p.namespace})
+		r.schema = pgIdentifier(ns)
+		r.names = []string{ns, p.name}
+		if p.signature != "" {
+			for arg := range strings.SplitSeq(string(p.signature), ",") {
+				id, _ := strconv.ParseUint(arg, 10, 32)
+				r.args = append(r.args, objectQualifiedType(view, OID(id)))
+			}
+		}
+		r.identity = pgIdentifier(ns) + "." + pgIdentifier(p.name) + "(" + strings.Join(r.args, ",") + ")"
+		r.description = "function " + routineSpelling(view, path, p.id, true, false)
+		return r, nil
+	}
+	if a.ClassID == 1260 {
+		role, ok := roles.Find(view.owner.authorizationDomain.Principal(uint64(a.ObjectID)))
+		if !ok {
+			return r, nil
+		}
+		r.found = true
+		r.name = pgIdentifier(role.Name)
+		r.identity = r.name
+		r.names = []string{role.Name}
+		r.description = "role " + r.name
+		return r, nil
+	}
+	if a.ClassID == 1213 {
+		name := ""
+		if a.ObjectID == 1663 {
+			name = "pg_default"
+		}
+		if a.ObjectID == 1664 {
+			name = "pg_global"
+		}
+		if name == "" {
+			return r, nil
+		}
+		r.found = true
+		r.name = name
+		r.identity = name
+		r.names = []string{name}
+		r.description = "tablespace " + name
+		return r, nil
+	}
+	if a.ClassID == 2605 {
+		for i := range sqltype.CastMetadataCount() {
+			fact, _ := sqltype.CastMetadataAt(i)
+			if OID(fact.OID) != a.ObjectID {
+				continue
+			}
+			source, target := objectQualifiedType(view, OID(fact.Source)), objectQualifiedType(view, OID(fact.Target))
+			r.found = true
+			r.names = []string{source}
+			r.args = []string{target}
+			r.identity = "(" + source + " AS " + target + ")"
+			r.description = "cast from " + regtypeSpelling(view, path, OID(fact.Source)) + " to " + regtypeSpelling(view, path, OID(fact.Target))
+			break
+		}
+		return r, nil
+	}
+	if a.ClassID == 2616 || a.ClassID == 2753 {
+		var name string
+		var method uint32
+		if a.ClassID == 2616 {
+			for i := range sqltype.IndexClassMetadataCount() {
+				fact, _ := sqltype.IndexClassMetadataAt(i)
+				if OID(fact.OID) == a.ObjectID {
+					name, method = fact.Name, fact.Method
+					break
+				}
+			}
+		} else if fact, ok := sqltype.IndexFamilyMetadataByOID(uint32(a.ObjectID)); ok {
+			name, method = fact.Name, fact.Method
+		}
+		if name == "" {
+			return r, nil
+		}
+		am := "btree"
+		if method == 405 {
+			am = "hash"
+		}
+		r.found = true
+		r.schema = "pg_catalog"
+		r.name = pgIdentifier(name)
+		r.names = []string{am, "pg_catalog", name}
+		r.identity = "pg_catalog." + r.name + " USING " + am
+		r.description = kind + " " + r.name + " for access method " + am
+		return r, nil
+	}
+	if a.ClassID == 2606 || a.ClassID == 2604 || a.ClassID == 2618 || a.ClassID == 3256 {
+		return identifyOwnedAddress(view, path, a, r), nil
+	}
+	if d == nil {
+		return r, nil
+	}
+	r.found = true
+	actual, canonical := objectNamespace(view, d.Namespace())
+	if actual != "" {
+		r.schema = pgIdentifier(actual)
+	}
+	r.name = pgIdentifier(d.Name())
+	r.identity = r.name
+	r.names = []string{d.Name()}
+	if actual != "" {
+		r.identity = pgIdentifier(canonical) + "." + r.name
+		r.names = []string{canonical, d.Name()}
+	}
+	display := r.identity
+	if actual == "" || namedObjectVisible(view, path, d) {
+		display = r.name
+	}
+	switch d := d.(type) {
+	case *namespaceDescriptor:
+		_, canonical = objectNamespace(view, d.address)
+		r.identity = pgIdentifier(canonical)
+		r.names = []string{canonical}
+		display = r.name
+	case *relationDescriptor:
+		r.kind = objectRelationKind(view, d)
+		display = regclassSpelling(view, path, d.address.ObjectID)
+		if a.SubID != 0 {
+			r.kind += " column"
+			attr := objectAttributeName(view, d, a.SubID)
+			if attr == "" {
+				return objectIdentity{kind: r.kind}, nil
+			}
+			r.identity += "." + pgIdentifier(attr)
+			r.names = append(r.names, attr)
+			r.description = "column " + attr + " of " + objectRelationKind(view, d) + " " + display
+			return r, nil
+		}
+	case *typeDescriptor:
+		r.identity = objectQualifiedType(view, a.ObjectID)
+		r.names = []string{r.identity}
+		display = regtypeSpelling(view, path, a.ObjectID)
+	case *operatorDescriptor:
+		r.name = ""
+		left, right := "NONE", "NONE"
+		if d.left != 0 {
+			left = objectQualifiedType(view, d.left)
+			r.args = append(r.args, left)
+		}
+		if d.right != 0 {
+			right = objectQualifiedType(view, d.right)
+			r.args = append(r.args, right)
+		}
+		r.identity = pgIdentifier(canonical) + "." + d.name + "(" + left + "," + right + ")"
+		display = d.name
+		if !namedObjectVisible(view, path, d) {
+			display = pgIdentifier(canonical) + "." + display
+		}
+		humanLeft, humanRight := "NONE", "NONE"
+		if d.left != 0 {
+			humanLeft = regtypeSpelling(view, path, d.left)
+		}
+		if d.right != 0 {
+			humanRight = regtypeSpelling(view, path, d.right)
+		}
+		display += "(" + humanLeft + "," + humanRight + ")"
+	}
+	r.description = r.kind + " " + display
+	return r, nil
+}
+
+// Owned definitions retain their actual owning relation/type OIDs. They are not
+// descriptors and never get an invented namespace or simple-name field.
+func identifyOwnedAddress(view CatalogRead, path []ObjectAddress, a ObjectAddress, r objectIdentity) objectIdentity {
+	for _, descriptor := range view.state.descriptors {
+		if domain, ok := descriptor.(*typeDescriptor); ok && a.ClassID == 2606 {
+			for _, check := range domain.domainChecks {
+				if check.OID != a.ObjectID {
+					continue
+				}
+				r.found = true
+				r.kind = "domain constraint"
+				ns, _ := objectNamespace(view, domain.Namespace())
+				r.schema = pgIdentifier(ns)
+				typeName := objectQualifiedType(view, OID(domain.typ.ID()))
+				r.identity = pgIdentifier(check.Name) + " on " + typeName
+				r.names = []string{typeName}
+				r.args = []string{check.Name}
+				r.description = "constraint " + check.Name
+				return r
+			}
+		}
+		d, ok := descriptor.(*relationDescriptor)
+		if !ok {
+			continue
+		}
+		name, sub := ownedAddressName(d, a)
+		if name == "" {
+			continue
+		}
+		r.found = true
+		actual, canonical := objectNamespace(view, d.namespace)
+		relation := pgIdentifier(canonical) + "." + pgIdentifier(d.name)
+		r.names = []string{canonical, d.name, name}
+		description := objectRelationKind(view, d) + " " + regclassSpelling(view, path, d.address.ObjectID)
+		switch a.ClassID {
+		case 2606:
+			r.kind = "table constraint"
+			r.schema = pgIdentifier(actual)
+			r.identity = pgIdentifier(name) + " on " + relation
+			r.description = "constraint " + name + " on " + description
+		case 2604:
+			attr := objectAttributeName(view, d, sub)
+			r.names[2] = attr
+			r.identity = "for " + relation + "." + pgIdentifier(attr)
+			r.description = "default value for column " + attr + " of " + description
+		case 2618:
+			r.identity = pgIdentifier(name) + " on " + relation
+			r.description = "rule " + name + " on " + description
+		case 3256:
+			r.identity = pgIdentifier(name) + " on " + relation
+			r.description = "policy " + name + " on " + description
+		}
+		return r
+	}
+	return r
+}
+func ownedAddressName(d *relationDescriptor, a ObjectAddress) (string, int32) {
+	switch a.ClassID {
+	case 2606:
+		for _, x := range d.notNullConstraints {
+			if x.OID == a.ObjectID {
+				return x.Name, 0
+			}
+		}
+		for _, x := range d.checkConstraints {
+			if x.OID == a.ObjectID {
+				return x.Name, 0
+			}
+		}
+		for _, x := range d.uniqueConstraints {
+			if x.OID == a.ObjectID {
+				return x.Name, 0
+			}
+		}
+		for _, x := range d.exclusionConstraints {
+			if x.OID == a.ObjectID {
+				return x.Name, 0
+			}
+		}
+		for _, x := range d.foreignKeys {
+			if x.OID == a.ObjectID {
+				return x.Name, 0
+			}
+		}
+	case 2604:
+		for sub, x := range d.defaults {
+			if x.OID == a.ObjectID {
+				return "default", sub
+			}
+		}
+		for sub, x := range d.generations {
+			if x.OID == a.ObjectID {
+				return "generation", sub
+			}
+		}
+	case 2618:
+		if d.view != nil && d.view.rule == a.ObjectID {
+			return "_RETURN", 0
+		}
+		for _, x := range d.rules {
+			if x.OID == a.ObjectID {
+				return x.Name, 0
+			}
+		}
+	case 3256:
+		for _, x := range d.policies {
+			if x.OID == a.ObjectID {
+				return x.Name, 0
+			}
+		}
+	}
+	return "", 0
+}

@@ -12,6 +12,7 @@ import (
 type functionFromNode struct {
 	querySchema
 	calls                  []BoundExpr
+	scalarNull             []bool // Execution-only strict scalar plans; analyzed calls retain the stage layout.
 	ordinality, correlated bool
 	frame                  uint32
 	viewOrdinal            int
@@ -124,10 +125,55 @@ func (s *functionSetInvocation) close() {
 	}
 	s.cursors = nil
 }
-func openFunctionInvocation(c *EvalContext, calls []BoundExpr) (functionSetInvocation, error) {
-	s := functionSetInvocation{cursors: make([]functionSetCursor, len(calls))}
-	for i, call := range calls {
-		cursor, err := openFunctionCall(c, call)
+func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, error) {
+	// Plan every child before simplifying a source call. Keep the analyzed
+	// call carrier: it owns aliases, record expansion and the fixed stage width.
+	planned, err := rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) {
+		return preflightCoercions(c, expr)
+	})
+	if err != nil {
+		return nil, err
+	}
+	source := planned.(*functionFromNode)
+	var scalarNull []bool
+	for i, expr := range source.calls {
+		call, ok := expr.(objectAddressExpression)
+		if !ok || call.op != describeObject {
+			continue
+		}
+		next, _, err := simplifyConditional(c, call, false)
+		if err != nil {
+			return nil, err
+		}
+		if randomLiteralNull(next) {
+			if scalarNull == nil {
+				scalarNull = make([]bool, len(source.calls))
+			}
+			scalarNull[i] = true
+		}
+	}
+	if scalarNull == nil && source.scalarNull == nil {
+		return source, nil
+	}
+	copy := *source
+	copy.scalarNull = scalarNull
+	return &copy, nil
+}
+
+func (n *functionFromNode) openCall(c *EvalContext, i int) (functionSetCursor, error) {
+	if n.scalarNull != nil && n.scalarNull[i] {
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: sqltype.Null(n.calls[i].ResultUsage().Type), kind: functionScalarCursor, initialized: true}, nil
+	}
+	return openFunctionCall(c, n.calls[i])
+}
+
+func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInvocation, error) {
+	s := functionSetInvocation{cursors: make([]functionSetCursor, len(n.calls))}
+	for i := range n.calls {
+		cursor, err := n.openCall(c, i)
 		if err != nil {
 			s.close()
 			return functionSetInvocation{}, err
@@ -282,6 +328,12 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{each: cursor, kind: functionJSONEachCursor, initialized: true}, nil
+	case objectAddressExpression:
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
 	case commitTimestampExpression:
 		value, err := call.Eval(c)
 		if err != nil {
@@ -499,7 +551,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 			if state.functionRecheck != nil {
 				invocation, err = state.functionRecheck.cache.open(&evaluation, n)
 			} else {
-				invocation, err = openFunctionInvocation(&evaluation, n.calls)
+				invocation, err = openFunctionInvocation(&evaluation, n)
 			}
 			if err != nil {
 				return false, err
@@ -710,8 +762,17 @@ func validateFunctionFromLayout(n *functionFromNode) error {
 	if len(n.calls) == 0 {
 		return fmt.Errorf("stuntgres: empty function source")
 	}
+	if n.scalarNull != nil && len(n.scalarNull) != len(n.calls) {
+		return fmt.Errorf("stuntgres: invalid function source scalar plan")
+	}
 	offset := 0
-	for _, call := range n.calls {
+	for i, call := range n.calls {
+		if n.scalarNull != nil && n.scalarNull[i] {
+			scalar, ok := call.(objectAddressExpression)
+			if !ok || scalar.op != describeObject || call.ResultUsage().Type.ID() != sqltype.Text {
+				return fmt.Errorf("stuntgres: invalid function source scalar plan")
+			}
+		}
 		width := functionFromCallWidth(call)
 		if !validFunctionSourceCall(call) || width < 0 || offset+width > len(n.Schema()) {
 			return fmt.Errorf("stuntgres: invalid function source layout")

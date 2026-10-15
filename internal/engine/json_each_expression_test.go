@@ -122,7 +122,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []BoundExpr{series, marker}
-		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, calls)
+		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -150,7 +150,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal("exhausted source", present, err)
 		}
 		// The same invocation in a SELECT stage stores one record slot.
-		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, []BoundExpr{marker})
+		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []BoundExpr{marker}})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1318,6 +1318,39 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `information_schema` or authentication catalogs.
   Native virtual catalog mutation and row locking are unavailable. Installed
   extension metadata does not provide arbitrary loading, installation or updates.
+- Object identity/address inquiries implement the documented PostgreSQL18
+  signatures of `pg_identify_object`, `pg_identify_object_as_address`,
+  `pg_get_object_address`, and `pg_describe_object` through typed STABLE, STRICT
+  expressions and released OUT records. Authoritative kinds include represented
+  relations/columns/types, namespaces, collations/conversions, extension members,
+  roles/current attachment database, owned constraints/defaults/generation
+  recipes/rules/policies, builtin tablespaces/casts/operator classes, complete
+  fixed routine/operator aliases and families already referenced by operator
+  classes. Address-only metadata does not advertise new execution, DDL or SQL
+  catalog providers. Objects without an owned identity are not manufactured.
+  Numeric inquiry has no owner/table-SELECT requirement; qualified symbolic
+  lookup retains schema access checks. Numeric stale results are kind-specific;
+  a dropped attribute still describes its PostgreSQL tombstone, while a dropped
+  relation yields `relation` plus NULL identity fields. Missing symbolic names
+  error. Structured arrays preserve raw components; machine SQL-type spelling is
+  distinct from identifier quoting (for example `json` versus name `"json"`).
+  Human descriptions use visibility-sensitive spelling and raw column names.
+  Unary operator output omits the absent operand in its argument array;
+  explicitly passing `NONE` as an inverse type argument is a syntax error.
+  Temporary schema canonical identity `pg_temp` is not itself accepted by the
+  schema inverse lookup. Native replay preserves symbolic recipes and ordinary
+  TEXT/TEXT[] values, not an automatic interpretation/remap of raw OID data.
+  DEFAULT/CHECK inquiries request their consuming statement's catalog snapshot.
+  Scalar describe with a constant NULL eliminates sibling runtime effects after
+  argument analysis/planning, including FROM calls with their analyzed aliases,
+  one NULL row and ordinality intact. RECORD calls and nonconstant NULL retain
+  reached argument evaluation. This does not fold or cache non-NULL STABLE results.
+  Inverse type-argument arrays check NULL and parse syntax per element in order,
+  before later length validation and type resolution.
+  Native prepared statements retain the existing catalog-replacement fence;
+  fresh preparation resolves restored authority while retained cursor values
+  and metadata remain unchanged.
+  See the [object-address contracts and selected proof](../reference/object_address/README.md#testing).
 - `pg_collation` is a PUBLIC read-only projection of installed collation
   descriptors with twelve PostgreSQL18 columns: `oid`, `collname`,
   `collnamespace`, `collowner`, `collprovider`, `collisdeterministic`,

@@ -932,6 +932,29 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			changed = true
 		}
 		expression = e
+	case objectAddressExpression:
+		e.properties = ExprProperties{Volatility: Stable}
+		for i, arg := range e.args {
+			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i], changed = node, true
+			}
+			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+		}
+		// PostgreSQL eliminates strict scalar calls with a constant NULL,
+		// but leaves RECORD calls and nonconstant NULL inputs intact.
+		// Simplify every child first so reached planning errors retain precedence.
+		if e.op == describeObject {
+			for _, arg := range e.args {
+				if randomLiteralNull(arg) {
+					return literalExpression{boundExpressionInfo(e), sqltype.Null(e.usage.Type)}, true, nil
+				}
+			}
+		}
+		expression = e
 	case objectACLExpression:
 		e.properties = ExprProperties{Volatility: Stable}
 		for i, arg := range e.args {
@@ -1454,7 +1477,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
-	case commitTimestampExpression:
+	case commitTimestampExpression, objectAddressExpression:
 		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return literal(e.Arg)

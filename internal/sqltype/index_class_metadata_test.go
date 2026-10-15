@@ -177,3 +177,37 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 		}
 	}
 }
+
+func TestIndexFamilyMetadataAuthority(t *testing.T) {
+	seen := map[uint32]IndexFamilyMetadata{}
+	keys := map[struct {
+		method uint32
+		name   string
+	}]uint32{}
+	for i := range IndexClassMetadataCount() {
+		class, _ := IndexClassMetadataAt(i)
+		family, ok := IndexFamilyMetadataByOID(class.Family)
+		if !ok || family.OID != class.Family || family.Method != class.Method || family.Name == "" {
+			t.Fatal("unresolved owned family", class, family, ok)
+		}
+		key := struct {
+			method uint32
+			name   string
+		}{family.Method, family.Name}
+		if old := keys[key]; old != 0 && old != family.OID {
+			t.Fatal("duplicate family symbolic identity", old, family)
+		}
+		keys[key] = family.OID
+		seen[family.OID] = family
+	}
+	for _, want := range []IndexFamilyMetadata{{1976, 403, "integer_ops"}, {1977, 405, "integer_ops"}, {434, 403, "datetime_ops"}, {1974, 403, "network_ops"}, {1994, 403, "text_ops"}, {1995, 405, "text_ops"}, {2229, 405, "text_pattern_ops"}} {
+		if got := seen[want.OID]; got != want {
+			t.Fatal("released family", got, want)
+		}
+	}
+	for _, id := range []uint32{0, 397, 627, 999999} {
+		if got, ok := IndexFamilyMetadataByOID(id); ok || got != (IndexFamilyMetadata{}) {
+			t.Fatal("unowned family advertised", id, got, ok)
+		}
+	}
+}

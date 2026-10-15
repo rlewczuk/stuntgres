@@ -272,7 +272,7 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		return !jsonbExistenceName(n.Plan.Name()) && !jsonbContainmentName(n.Plan.Name())
-	case namespaceInquiryExpression, blockingInquiryExpression, accessInquiryExpression, objectACLExpression:
+	case namespaceInquiryExpression, blockingInquiryExpression, accessInquiryExpression, objectACLExpression, objectAddressExpression:
 		return true
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.Random[BoundExpr, *EvalContext, ExprProperties], advisoryExpression, functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		return true

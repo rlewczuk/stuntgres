@@ -157,6 +157,36 @@ JSONPath execution and JSON equality are not added.
 See [JSON contracts](reference/binary_json_arrays/README.md#json-extraction)
 and [JSONB contracts and smoke](reference/binary_json_arrays/README.md#jsonb-extraction).
 
+## Object identity and address — change note
+
+`pg_identify_object(oid,oid,integer)`, `pg_identify_object_as_address(oid,oid,integer)`,
+`pg_get_object_address(text,text[],text[])`, and `pg_describe_object(oid,oid,integer)`
+are STRICT, STABLE typed expressions. The three record functions expose their
+released OUT labels/types in scalar, member/expanded and FROM calls. Structured
+names are raw array components, not SQL text split on dots; table columns use
+class1259 and stable attribute numbers. Renames change display, not identity.
+
+Inquiries use existing catalog, owned-definition and fixed alias authorities,
+including lookup-only routines/operators and already referenced operator families.
+They do not grant execution or add object providers/SQL catalogs. Numeric inquiry
+does not require ownership or table SELECT; qualified symbolic lookup retains
+schema access checks. Missing symbolic names error, while missing numeric
+identities retain class-specific kind/NULL behavior. Dropped column addresses
+retain PostgreSQL's tombstone name until the parent relation disappears.
+Machine identities quote names; human column descriptions preserve PostgreSQL's
+raw attribute wording rather than universally quoting every component.
+
+Symbolic stored views, DEFAULT/CHECK recipes and returned TEXT/TEXT[] data use
+existing native replay. Persisted inquiries request the consuming statement's
+catalog snapshot. Scalar describe with a constant NULL is simplified without
+evaluating volatile siblings; RECORD calls and nonconstant NULL retain reached
+argument effects. Type-argument arrays report syntax/NULL errors sequentially.
+Raw numeric OID data is not automatically a remapped reference; no new dump
+section is needed for these stateless functions.
+See [authority, exceptions and selected proof](reference/object_address/README.md#testing).
+Feature smoke: `make check RUN='^TestReferenceObjectAddressFeatureSmoke$'`,
+also with `REFERENCE=1`.
+
 ## Object ACL inquiry — change note
 
 `pg_get_acl(classid oid, objid oid, objsubid integer)` is a strict STABLE

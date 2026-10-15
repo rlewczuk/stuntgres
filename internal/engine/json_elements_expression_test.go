@@ -123,7 +123,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []BoundExpr{series, marker}
-		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, calls)
+		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -147,7 +147,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
-		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, []BoundExpr{marker})
+		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []BoundExpr{marker}})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -8,6 +8,12 @@ import (
 )
 
 func regtypeSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
+	return regtypeSpellingMode(view, path, id, false)
+}
+
+// Machine object identities qualify nonspecial SQL type names, including the
+// canonical temporary namespace alias, without changing ordinary regtype output.
+func regtypeSpellingMode(view CatalogRead, path []ObjectAddress, id OID, qualified bool) string {
 	if id == 0 {
 		return "-"
 	}
@@ -16,7 +22,7 @@ func regtypeSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
 		return strconv.FormatUint(uint64(id), 10)
 	}
 	if typ.IsArray() {
-		return regtypeSpelling(view, path, OID(typ.Element().ID())) + "[]"
+		return regtypeSpellingMode(view, path, OID(typ.Element().ID()), qualified) + "[]"
 	}
 	switch typ.ID() {
 	case sqltype.Bool:
@@ -56,10 +62,15 @@ func regtypeSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
 	}
 	d := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: id}]
 	name := regclassIdentifier(d.Name())
-	if namedObjectVisible(view, path, d) {
+	if !qualified && namedObjectVisible(view, path, d) {
 		return name
 	}
-	return regclassIdentifier(view.state.descriptors[d.Namespace()].Name()) + "." + name
+	namespace := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+	schema := namespace.name
+	if qualified && namespace.temporary != (SessionToken{}) {
+		schema = "pg_temp"
+	}
+	return regclassIdentifier(schema) + "." + name
 }
 
 func (s *StatementScope) FormatRegtype(id uint32) (string, error) {

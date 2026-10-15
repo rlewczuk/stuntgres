@@ -91,7 +91,7 @@ func standaloneType(raw TypeName) TypeName {
 		raw.Name, raw.System = "varchar", true
 	case "bit varying":
 		raw.Name, raw.System = "varbit", true
-	case "numeric", "bit", "time", "timestamp", "interval":
+	case "numeric", "bit", "time", "timestamp", "interval", "json":
 		raw.System = true
 	}
 	return raw

@@ -101,3 +101,108 @@ func IndexClassMetadataAt(index int) (IndexClassMetadata, bool) {
 	} // anyenum, never a concrete user enum identity.
 	return IndexClassMetadata{OID: class.OID(), Method: fact.method, Family: fact.family, Input: input, KeyType: fact.keyType, Name: class.Name, Default: !fact.nondefault}, true
 }
+
+// IndexFamilyMetadata identifies an already referenced family, not a new index
+// provider or SQL catalog. Released names cannot be derived from class names.
+type IndexFamilyMetadata struct {
+	OID, Method uint32
+	Name        string
+}
+
+func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
+	var name string
+	var method uint32
+	switch oid {
+	case 424:
+		name, method = "bool_ops", 403
+	case 428:
+		name, method = "bytea_ops", 403
+	case 429:
+		name, method = "char_ops", 403
+	case 1994:
+		name, method = "text_ops", 403
+	case 1976:
+		name, method = "integer_ops", 403
+	case 426:
+		name, method = "bpchar_ops", 403
+	case 1989:
+		name, method = "oid_ops", 403
+	case 5067:
+		name, method = "xid8_ops", 403
+	case 1970:
+		name, method = "float_ops", 403
+	case 434:
+		name, method = "datetime_ops", 403
+	case 1996:
+		name, method = "time_ops", 403
+	case 2000:
+		name, method = "timetz_ops", 403
+	case 1982:
+		name, method = "interval_ops", 403
+	case 1988:
+		name, method = "numeric_ops", 403
+	case 2099:
+		name, method = "money_ops", 403
+	case 2968:
+		name, method = "uuid_ops", 403
+	case 1974:
+		name, method = "network_ops", 403
+	case 4033:
+		name, method = "jsonb_ops", 403
+	case 2095:
+		name, method = "text_pattern_ops", 403
+	case 2097:
+		name, method = "bpchar_pattern_ops", 403
+	case 3522:
+		name, method = "enum_ops", 403
+	case 2222:
+		name, method = "bool_ops", 405
+	case 2223:
+		name, method = "bytea_ops", 405
+	case 431:
+		name, method = "char_ops", 405
+	case 1995:
+		name, method = "text_ops", 405
+	case 1977:
+		name, method = "integer_ops", 405
+	case 427:
+		name, method = "bpchar_ops", 405
+	case 1990:
+		name, method = "oid_ops", 405
+	case 5032:
+		name, method = "xid8_ops", 405
+	case 2225:
+		name, method = "xid_ops", 405
+	case 2226:
+		name, method = "cid_ops", 405
+	case 1971:
+		name, method = "float_ops", 405
+	case 435:
+		name, method = "date_ops", 405
+	case 1997:
+		name, method = "time_ops", 405
+	case 2040:
+		name, method = "timestamp_ops", 405
+	case 1999:
+		name, method = "timestamptz_ops", 405
+	case 2001:
+		name, method = "timetz_ops", 405
+	case 1983:
+		name, method = "interval_ops", 405
+	case 1998:
+		name, method = "numeric_ops", 405
+	case 2969:
+		name, method = "uuid_ops", 405
+	case 4034:
+		name, method = "jsonb_ops", 405
+	case 2229:
+		name, method = "text_pattern_ops", 405
+	case 2231:
+		name, method = "bpchar_pattern_ops", 405
+	case 3523:
+		name, method = "enum_ops", 405
+	default:
+		return IndexFamilyMetadata{}, false
+	}
+	return IndexFamilyMetadata{OID: oid, Method: method, Name: name}, true
+}

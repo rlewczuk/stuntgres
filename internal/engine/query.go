@@ -118,7 +118,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	}
 	switch n := node.(type) {
 	case *functionFromNode:
-		return rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) { return preflightCoercions(c, expr) })
+		return preflightFunctionFrom(c, n)
 	case *setProjectNode:
 		return preflightQuerySet(c, n)
 	case *windowNode:

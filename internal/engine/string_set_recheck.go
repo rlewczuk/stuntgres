@@ -172,12 +172,12 @@ func (c *functionRecheckCache) open(evaluation *EvalContext, node *functionFromN
 		c.functions[node] = cached
 	}
 	invocation := functionSetInvocation{cursors: make([]functionSetCursor, len(node.calls))}
-	for i, call := range node.calls {
+	for i := range node.calls {
 		if !cached[i].dependent && cached[i].ready {
 			invocation.cursors[i] = cached[i].cursor
 			continue
 		}
-		cursor, err := openFunctionCall(evaluation, call)
+		cursor, err := node.openCall(evaluation, i)
 		if err != nil {
 			invocation.close()
 			return functionSetInvocation{}, err

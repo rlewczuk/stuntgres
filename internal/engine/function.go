@@ -15,6 +15,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if parser.ObjectAddressFunctionName(name) {
+		return b.bindObjectAddress(raw)
+	}
 	if strings.EqualFold(name, "pg_get_acl") {
 		return b.bindObjectACL(raw)
 	}

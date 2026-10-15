@@ -1180,6 +1180,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return function(name, n.args, true)
 	case currentSchemasExpression:
 		return function("current_schemas", []BoundExpr{n.arg}, true)
+	case objectAddressExpression:
+		return n.sql(r.identifier(n.op.name()), func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		})
 	case objectACLExpression:
 		return n.sql(r.identifier("pg_get_acl"), func(arg BoundExpr) (string, error) {
 			argRenderer := r

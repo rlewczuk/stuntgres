@@ -229,7 +229,7 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 		if err := validateFunctionFromLayout(node); err != nil {
 			t.Fatal(err)
 		}
-		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, node.calls)
+		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -281,7 +281,7 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			if err := validateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-column layout", err)
 			}
-			invocation, err := openFunctionInvocation(&EvalContext{Context: ctx}, node.calls)
+			invocation, err := openFunctionInvocation(&EvalContext{Context: ctx}, node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -332,7 +332,7 @@ func TestArrayRelationalTypedDefinitionClasses(t *testing.T) {
 	// Identical zero-field physical spans must not erase named-versus-OUT
 	// result identity. Domains use the physical base's classification.
 	for _, tc := range []struct {
-		typ *sqltype.Descriptor
+		typ     *sqltype.Descriptor
 		message string
 	}{
 		{integer, `a column definition list is only allowed for functions returning "record"`},

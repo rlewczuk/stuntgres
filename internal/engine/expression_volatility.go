@@ -196,6 +196,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 			v = merge(v, Stable)
 		}
 		return v
+	case objectAddressExpression:
+		return merge(children(n.args[:]...), Stable)
 	case commitTimestampExpression:
 		return Volatile
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:

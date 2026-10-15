@@ -21,6 +21,8 @@ func isQuerySet(expr BoundExpr) bool {
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
+	case objectAddressExpression:
+		return true
 	case commitTimestampExpression:
 		return true
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
@@ -44,7 +46,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 // by validFunctionSourceCall after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {
 	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
-		parser.CommitTimestampFunctionName(name) ||
+		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) ||
 		name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
 
@@ -74,6 +76,9 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 	if err != nil {
 		return nil, err
 	}
+	if _, ok := expr.(objectAddressExpression); ok {
+		b.catalogSnapshot = true
+	}
 	if !isQuerySet(expr) && b.fromSetObservation != before {
 		return nil, nestedFromSetError(b.fromSetObservation.pos)
 	}
@@ -81,6 +86,8 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 }
 func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
+	case objectAddressExpression:
+		return call.args[:]
 	case commitTimestampExpression:
 		if call.arg != nil {
 			return []BoundExpr{call.arg}
@@ -116,6 +123,12 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 }
 func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, error) {
 	switch call := expr.(type) {
+	case objectAddressExpression:
+		if len(args) != 3 {
+			return nil, fmt.Errorf("stuntgres: invalid object address arguments")
+		}
+		copy(call.args[:], args)
+		return call, nil
 	case commitTimestampExpression:
 		if len(args) != 0 {
 			if call.arg == nil || len(args) != 1 {

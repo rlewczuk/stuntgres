@@ -91,6 +91,13 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 	if err != nil {
 		return 0, err
 	}
+	return r.resolveParsedTypeName(ctx, raw, op)
+}
+
+// Object-address lists parse every type syntax before resolving catalog names.
+// Keeping resolution here preserves the same authority, typmods and diagnostics
+// without reparsing or maintaining a second type resolver.
+func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *Operation) (uint32, error) {
 	parts := raw.Parts
 	if len(parts) == 0 {
 		if raw.Schema != nil {

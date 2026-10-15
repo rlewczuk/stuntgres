@@ -360,6 +360,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid stored current_schemas signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []BoundExpr{n.arg})
+	case objectAddressExpression:
+		if r.commentSnapshot != nil {
+			*r.commentSnapshot = true
+		}
+		return n.sql("pg_catalog."+n.op.name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 	case objectACLExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: object ACL inquiries are unsupported in stored defaults")
