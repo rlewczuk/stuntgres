@@ -921,7 +921,11 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if n.right != nil {
 				rt = n.right.ResultUsage().Type
 			}
-			n.provider, err = sqltype.BindBitwise(n.operator, n.left.ResultUsage().Type, rt)
+			if info.usage.Type.ID() == sqltype.Bit {
+				n.bits, err = sqltype.BindBitStringBitwise(n.operator, n.left.ResultUsage().Type, rt)
+			} else {
+				n.provider, err = sqltype.BindBitwise(n.operator, n.left.ResultUsage().Type, rt)
+			}
 		}
 		n.expressionInfo = info
 		rebound = n

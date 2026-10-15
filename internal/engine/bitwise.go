@@ -12,6 +12,7 @@ type bitwiseExpression struct {
 	expressionInfo
 	left, right BoundExpr
 	provider    sqltype.Bitwise
+	bits        sqltype.BitStringBitwise
 	operator    sqltype.BitwiseOperator
 	namespace   string
 }
@@ -22,11 +23,17 @@ func (e bitwiseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.right == nil {
+		if e.usage.Type.ID() == sqltype.Bit {
+			return e.bits.Unary(c.Context, a)
+		}
 		return e.provider.Unary(c.Context, a)
 	}
 	b, err := e.right.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err
+	}
+	if e.usage.Type.ID() == sqltype.Bit {
+		return e.bits.Binary(c.Context, a, b)
 	}
 	return e.provider.Binary(c.Context, a, b)
 }
@@ -41,6 +48,9 @@ func bitwiseConstantNull(node BoundExpr) bool {
 
 func integralBitwiseType(t *sqltype.Descriptor) bool {
 	return t != nil && (t.BaseType().ID() == sqltype.Int2 || t.BaseType().ID() == sqltype.Int4 || t.BaseType().ID() == sqltype.Int8)
+}
+func bitStringType(t *sqltype.Descriptor) bool {
+	return t != nil && (t.BaseType().ID() == sqltype.Bit || t.BaseType().ID() == sqltype.VarBit)
 }
 func bitwiseName(name string) bool {
 	for _, c := range name {
@@ -126,50 +136,72 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 	if (op == sqltype.BitwiseNot) != (len(raw.Args) == 1) {
 		return nil, missing()
 	}
-	if lt != nil && !integralBitwiseType(lt) || rt != nil && !integralBitwiseType(rt) {
-		return nil, missing()
-	}
+	bitSignature := bitStringType(lt) || bitStringType(rt)
 	target, rightTarget := lt, lt
-	if op == sqltype.BitwiseNot {
-		if lt == nil {
-			return nil, ambiguous()
+	if bitSignature {
+		switch op {
+		case sqltype.BitwiseNot:
+			if !bitStringType(lt) {
+				return nil, missing()
+			}
+			rightTarget = nil
+		case sqltype.BitwiseShiftLeft, sqltype.BitwiseShiftRight:
+			if !bitStringType(lt) || rt != nil && rt.ID() != sqltype.Int2 && rt.ID() != sqltype.Int4 {
+				return nil, missing()
+			}
+			rightTarget = b.typ(sqltype.Int4)
+		default:
+			if lt != nil && !bitStringType(lt) || rt != nil && !bitStringType(rt) {
+				return nil, missing()
+			}
+			rightTarget = b.typ(sqltype.Bit)
 		}
-		rightTarget = nil
-	} else if op == sqltype.BitwiseShiftLeft || op == sqltype.BitwiseShiftRight {
-		if rt != nil && rt.ID() == sqltype.Int8 {
+		target = b.typ(sqltype.Bit)
+	} else {
+		if lt != nil && !integralBitwiseType(lt) || rt != nil && !integralBitwiseType(rt) {
 			return nil, missing()
 		}
-		if lt == nil {
-			if rt == nil || rt.ID() == sqltype.Int2 {
+		if op == sqltype.BitwiseNot {
+			if lt == nil {
 				return nil, ambiguous()
 			}
-			target = rt
-		}
-		rightTarget = b.typ(sqltype.Int4)
-	} else {
-		if target == nil {
-			target = rt
-		}
-		if target == nil {
-			return nil, ambiguous()
-		}
-		rank := func(t *sqltype.Descriptor) int {
-			if t == nil {
-				return 0
+			rightTarget = nil
+		} else if op == sqltype.BitwiseShiftLeft || op == sqltype.BitwiseShiftRight {
+			if rt != nil && rt.ID() == sqltype.Int8 {
+				return nil, missing()
 			}
-			switch t.ID() {
-			case sqltype.Int2:
-				return 1
-			case sqltype.Int4:
-				return 2
-			default:
-				return 3
+			if lt == nil {
+				if rt == nil || rt.ID() == sqltype.Int2 {
+					return nil, ambiguous()
+				}
+				target = rt
 			}
+			rightTarget = b.typ(sqltype.Int4)
+		} else {
+			if target == nil {
+				target = rt
+			}
+			if target == nil {
+				return nil, ambiguous()
+			}
+			rank := func(t *sqltype.Descriptor) int {
+				if t == nil {
+					return 0
+				}
+				switch t.ID() {
+				case sqltype.Int2:
+					return 1
+				case sqltype.Int4:
+					return 2
+				default:
+					return 3
+				}
+			}
+			if rank(rt) > rank(target) {
+				target = rt
+			}
+			rightTarget = target
 		}
-		if rank(rt) > rank(target) {
-			target = rt
-		}
-		rightTarget = target
 	}
 	finish := func(o comparisonOperand, t *sqltype.Descriptor) (BoundExpr, error) {
 		n, err := b.finalizeOperand(o, t)
@@ -206,7 +238,13 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 		p.DomainDependent = p.DomainDependent || rp.DomainDependent
 		p.RuntimeDomainConversion = p.RuntimeDomainConversion || rp.RuntimeDomainConversion
 	}
-	provider, err := sqltype.BindBitwise(op, target, rightTarget)
+	var provider sqltype.Bitwise
+	var bits sqltype.BitStringBitwise
+	if bitSignature {
+		bits, err = sqltype.BindBitStringBitwise(op, target, rightTarget)
+	} else {
+		provider, err = sqltype.BindBitwise(op, target, rightTarget)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -214,5 +252,5 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	return bitwiseExpression{b.info(target.Usage(), parser.ExpressionStart(raw), p), l, r, provider, op, namespace}, nil
+	return bitwiseExpression{b.info(target.Usage(), parser.ExpressionStart(raw), p), l, r, provider, bits, op, namespace}, nil
 }

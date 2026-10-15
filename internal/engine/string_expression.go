@@ -231,9 +231,9 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 		return nil, err
 	}
 	textual, binary, resolution := functions.SelectStringConcat(visible, types)
-	if binary {
+	if binary != 0 {
 		var binaryTypes functions.BinaryTypes
-		return b.finishBinary("||", sqltype.Bytea, raw.Pos, operands[:], parser.OrdinaryFunctionSyntax, &binaryTypes)
+		return b.finishBinary("||", binary, raw.Pos, operands[:], parser.OrdinaryFunctionSyntax, &binaryTypes)
 	}
 	if resolution != functions.Resolved {
 		if resolution == functions.Missing {

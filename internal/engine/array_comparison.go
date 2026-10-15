@@ -167,6 +167,8 @@ func (b *expressionBinder) comparisonCoercionTypes(lt, rt *sqltype.Descriptor) (
 		return t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8
 	}
 	switch {
+	case bitStringType(lt) && bitStringType(rt) && lt.ID() != rt.ID():
+		lt, rt = b.typ(sqltype.VarBit), b.typ(sqltype.VarBit)
 	case lt.ID() == sqltype.Xid && rt.ID() == sqltype.Int2:
 		rt = b.typ(sqltype.Int4)
 	case lt.ID() == sqltype.Inet && rt.ID() == sqltype.Cidr,

@@ -214,7 +214,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return ok && e.plan.Equal(o.plan) && (checkDefinitionEquality || e.mode == o.mode) && same(e.child, o.child)
 	case bitwiseExpression:
 		o, ok := other.(bitwiseExpression)
-		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.provider == o.provider && e.bits == o.bits && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Local == o.Local && same(e.Value, o.Value) && (e.Local || same(e.Zone, o.Zone))

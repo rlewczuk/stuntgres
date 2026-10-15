@@ -62,7 +62,11 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		arity, id = 1, Text
 	case "sha224", "sha256", "sha384", "sha512", "reverse":
 		arity = 1
-	case "||", "btrim", "ltrim", "rtrim":
+	case "||":
+		if len(args) > 0 && args[0].Type != nil && args[0].Type.ID() == VarBit {
+			ids, id = [4]ID{VarBit, VarBit}, VarBit
+		}
+	case "btrim", "ltrim", "rtrim":
 	case "position":
 		id = Int4
 	case "substring", "substr":
@@ -208,6 +212,9 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	}
 	if p.args[0].Type.ID() == Bit {
 		return p.evaluateBits(ctx, values)
+	}
+	if p.args[0].Type.ID() == VarBit {
+		return p.concatenateBits(ctx, values[0], values[1])
 	}
 	a := values[0]
 	switch p.name {

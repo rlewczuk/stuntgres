@@ -253,9 +253,15 @@ func StringPrefixViable(visible bool, count int, types [2]*sqltype.Descriptor) b
 	}
 	return valid
 }
-func SelectStringConcat(visible bool, types [2]*sqltype.Descriptor) (textual [2]bool, binary bool, resolution Resolution) {
+func SelectStringConcat(visible bool, types [2]*sqltype.Descriptor) (textual [2]bool, binary sqltype.ID, resolution Resolution) {
+	bit := func(t *sqltype.Descriptor) bool {
+		return t != nil && (t.BaseType().ID() == sqltype.Bit || t.BaseType().ID() == sqltype.VarBit)
+	}
+	if visible && (bit(types[0]) && (types[1] == nil || bit(types[1])) || bit(types[1]) && types[0] == nil) {
+		return textual, sqltype.VarBit, Resolved
+	}
 	if visible && ((types[0] != nil && types[0].BaseType().ID() == sqltype.Bytea && (types[1] == nil || types[1].BaseType().ID() == sqltype.Bytea)) || (types[1] != nil && types[1].BaseType().ID() == sqltype.Bytea && types[0] == nil)) {
-		return textual, true, Resolved
+		return textual, sqltype.Bytea, Resolved
 	}
 	signatures := [3][2]bool{{true, true}, {true, false}, {false, true}}
 	var candidates [3]int
@@ -319,11 +325,11 @@ func SelectStringConcat(visible bool, types [2]*sqltype.Descriptor) (textual [2]
 	}
 	if count != 1 {
 		if count == 0 {
-			return textual, false, Missing
+			return textual, 0, Missing
 		}
-		return textual, false, Ambiguous
+		return textual, 0, Ambiguous
 	}
-	return signatures[candidates[0]], false, Resolved
+	return signatures[candidates[0]], 0, Resolved
 }
 
 func StringArgumentAnalysis(name string, index int) AnalysisRequest {

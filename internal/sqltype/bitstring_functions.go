@@ -91,3 +91,37 @@ func (p BinaryPlan) evaluateBits(ctx context.Context, values []Value) (Value, er
 	}
 	panic("invalid selected bit plan")
 }
+
+// PostgreSQL's VARBITMAXLEN is INT_MAX - BITS_PER_BYTE + 1, independent
+// of the much smaller maximum declared typmod.
+func bitStringConcatSize(left, right int) (int, error) {
+	if left > math.MaxInt32-7-right {
+		return 0, failure("54000", "bit string length exceeds the maximum allowed (2147483640)")
+	}
+	return left + right, nil
+}
+
+func (p BinaryPlan) concatenateBits(ctx context.Context, a, b Value) (Value, error) {
+	size, err := bitStringConcatSize(len(a.text), len(b.text))
+	if err != nil {
+		return Value{}, err
+	}
+	if len(a.text) == 0 {
+		return b, nil
+	}
+	if len(b.text) == 0 {
+		return a, nil
+	}
+	var out strings.Builder
+	out.Grow(size)
+	if err := stringWrite(ctx, &out, a.text); err != nil {
+		return Value{}, err
+	}
+	if err := stringWrite(ctx, &out, b.text); err != nil {
+		return Value{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
+	}
+	return Value{typ: p.result.Type, text: out.String()}, nil
+}

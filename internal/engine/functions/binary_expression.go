@@ -226,12 +226,14 @@ func binaryTypeDemand(id sqltype.ID) BinaryDemand {
 		return 16
 	case sqltype.Text:
 		return 32
+	case sqltype.VarBit:
+		return 64
 	}
 	return 0
 }
 func (d BinaryDemand) Needs(id sqltype.ID) bool { return d&binaryTypeDemand(id) != 0 }
 
-type BinaryTypes struct{ Bytea, Bit, Integer, Bigint, Name, Text sqltype.Usage }
+type BinaryTypes struct{ Bytea, Bit, VarBit, Integer, Bigint, Name, Text sqltype.Usage }
 
 func (t *BinaryTypes) Usage(id sqltype.ID) sqltype.Usage {
 	switch id {
@@ -239,6 +241,8 @@ func (t *BinaryTypes) Usage(id sqltype.ID) sqltype.Usage {
 		return t.Bytea
 	case sqltype.Bit:
 		return t.Bit
+	case sqltype.VarBit:
+		return t.VarBit
 	case sqltype.Int4:
 		return t.Integer
 	case sqltype.Int8:
@@ -508,9 +512,9 @@ func CoerceBinaryArguments[E any, B ArgumentCoercer[E]](b B, name string, family
 	for i, argument := range arguments {
 		target := types.Usage(BinaryArgumentID(name, i, family))
 		intent := LikeArgument
-		if target.Type.ID() == sqltype.Bit {
-			// Function formals are unrestricted even when a same-descriptor
-			// stored source carries BIT(n); preserve width only on the child.
+		if target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
+			// Bit-string formals are unrestricted; preserve a stored source's
+			// declared width only on the child.
 			intent = SizeFormalArgument
 		}
 		arg, err := b.CoerceArgument(argument, CoercionRequest{Intent: intent, Target: target})

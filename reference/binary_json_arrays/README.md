@@ -6,6 +6,53 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Bit-string scalar operators
+
+`TestReferenceBitOperators` covers only `||`, `&`, `|`, `#`, unary `~`,
+`<<`, `>>` and scalar comparisons (`=`, `<>`/`!=`, `<`, `<=`, `>`, `>=`).
+BIT/VARBIT concatenation returns VARBIT/-1; bitwise operations return BIT/-1;
+predicates return BOOL. Input declarations do not constrain expression width.
+AND/OR/XOR require equal actual lengths with exact 22026 English diagnostics.
+Different widths are legal for concat and lexical comparison. Shifts retain
+width, reverse with negative counts and zero-fill for counts at/beyond width,
+including INT32_MIN; integral shifts retain their separate modulo behavior.
+
+Independent witnesses include empty/9-/65-bit payloads, all family pairings,
+contextual literals/NULLs/parameters, complete diagnostics and API error stages,
+analysis despite NULL/empty input, row-sibling evaluation, assignment and late
+write atomicity, raw codecs/live metadata, SAME-held bind/error/NULL recovery,
+and symbolic defaults/generated/check/view replay. Native stored view columns
+retain known nullable metadata; ordinary computed projections and pq metadata
+report unknown nullability. Native control phases use actual Dump/Reset/Restore
+and replay the emitted SQL on PostgreSQL. `StoredNullFamilies` additionally pins
+admitted BIT NULL, VARBIT NULL and nonnull VARBIT expression transports without
+introducing bit casts. Grouping/hash, aggregate DISTINCT, ordering/index,
+windows, arrays, general casts and get_bit/set_bit remain separate boundaries.
+
+Run the same completed definitions in native and pinned PostgreSQL modes from
+the repository root, with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceBitOperators(Values|Shifts|Comparisons|Typing|Diagnostics|MetadataAndHeld|StoredReplay|StoredNullFamilies|FeatureSmoke)$'
+make check RUN='^TestReferenceBitOperators(Values|Shifts|Comparisons|Typing|Diagnostics|MetadataAndHeld|StoredReplay|StoredNullFamilies|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestBitStringOperators'
+make check RUN='^TestReferenceBitOperators(MetadataAndHeld|StoredReplay|StoredNullFamilies)$' RACE=1
+```
+
+Focused feature smoke (not a whole-suite alias):
+
+```sh
+make check RUN='^TestReferenceBitOperatorsFeatureSmoke$'
+make check RUN='^TestReferenceBitOperatorsFeatureSmoke$' REFERENCE=1
+```
+
+Smoke independently expects concat1000101101, AND00001, OR11101, XOR11100,
+NOT01110, left shift3→01000 and right shift2→00100; all six comparisons,
+lexical prefix/leading-zero witnesses, typed NULL, exact mismatch22026 and
+SAME-held recovery, VARBIT/BIT/BOOL metadata, and integer1<<32→1. Expected
+successful checks are quiet exit zero; recorded root verification, not these
+commands or source expectations, establishes exercised evidence.
+
 ### Bit string measurements and slices
 
 The `TestReferenceBitStringFunctions` family specifies the seven functions in

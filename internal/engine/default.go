@@ -561,7 +561,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return "CAST(" + child + " AS " + declaration + ")", nil
 	case bitwiseExpression:
-		if !integralBitwiseType(u.Type) || u != u.Type.Usage() || n.left == nil || n.left.ResultUsage() != u {
+		if u != u.Type.Usage() || n.left == nil || n.left.ResultUsage() != u {
 			return "", fmt.Errorf("stuntgres: invalid default bitwise operands")
 		}
 		var rightType *sqltype.Descriptor
@@ -571,9 +571,16 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", fmt.Errorf("stuntgres: invalid default bitwise right usage")
 			}
 		}
-		provider, err := sqltype.BindBitwise(n.operator, u.Type, rightType)
-		if err != nil || provider != n.provider {
-			return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
+		if u.Type.ID() == sqltype.Bit {
+			provider, err := sqltype.BindBitStringBitwise(n.operator, u.Type, rightType)
+			if err != nil || provider != n.bits || n.provider != (sqltype.Bitwise{}) {
+				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
+			}
+		} else {
+			provider, err := sqltype.BindBitwise(n.operator, u.Type, rightType)
+			if err != nil || provider != n.provider || n.bits != (sqltype.BitStringBitwise{}) {
+				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
+			}
 		}
 		operator := [...]string{"&", "|", "#", "~", "<<", ">>"}[n.operator]
 		if n.namespace != "" {
@@ -585,7 +592,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", err
 			}
 			cu := child.ResultUsage()
-			if literal, ok := child.(literalExpression); ok && (cu.Type.ID() != sqltype.Int4 || literal.value.IsNull()) {
+			if literal, ok := child.(literalExpression); ok && cu.Type.ID() != sqltype.Bit && (cu.Type.ID() != sqltype.Int4 || literal.value.IsNull()) {
 				declaration, err := catalogTypeDeclaration(view, cu)
 				if err != nil {
 					return "", err

@@ -13,6 +13,20 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Bit-string scalar operators — change note
+
+BIT/VARBIT support concatenation `||`, equal-actual-width `&`, `|`, `#`,
+unary `~`, length-preserving `<<`/`>>`, and scalar comparisons. Concatenation
+returns unrestricted VARBIT; bitwise operations return unrestricted BIT.
+Negative shift counts reverse direction, and shifting by the width or farther
+fills with zeroes rather than applying integral modulo-count rules.
+Comparison is lexical over every digit, with shorter prefixes first; leading
+zeroes and different widths remain significant. NULL operands yield typed NULL.
+Stored defaults/generated expressions/checks/views use the existing replay path.
+Bit casts, arrays, ordering/index/grouping providers and aggregate DISTINCT
+remain outside this scalar feature.
+See [contracts and selected smoke](reference/binary_json_arrays/README.md#bit-string-scalar-operators).
+
 ## Array dimensions and cardinality — change note
 
 The selected PostgreSQL §9.19 scalar functions `array_dims(anyarray)`,
@@ -1440,7 +1454,8 @@ Change note: PostgreSQL BIT and BIT VARYING/VARBIT scalar storage preserves
 leading zeroes, empty values and NULL through direct/prepared statements,
 textual parameters, metadata and native Dump/Restore. Raw B/X literals and
 assignment enforce exact fixed widths or varying maxima; no padding/truncation
-or bit casts/operators/arrays are introduced. See
+or bit casts/arrays are introduced by storage. Scalar operators are described
+in the [operator contracts](reference/binary_json_arrays/README.md#bit-string-scalar-operators). See
 [bit strings](https://www.postgresql.org/docs/18/datatype-bit.html).
 Expanded feature smoke (including stored-format replay, modifiers and parameter lifecycle): `make check RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceBitstring(FeatureSmoke|StoredFormatReplay|ModifierExpressions|RepeatedVaryingWidths|HeldSelectArguments)$'`.
@@ -1892,8 +1907,8 @@ Direct/prepared/held queries, groups/HAVING, integer DISTINCT/ALL/FILTER/local
 ordering, INSERT SELECT atomicity and stored-view native replacement share the
 existing typed paths. BIT ordering by an independent integer key is admitted;
 BIT DISTINCT retains42883, BIT/VARBIT local ordering and bitwise windows retain
-explicit capability boundaries. No general bit casts, operators, scalar
-functions, comparison/index providers or arrays are added.
+explicit capability boundaries. General bit casts, grouping/index providers
+and arrays remain excluded; scalar operators/functions have separate contracts.
 INSERT VALUES still forbids these aggregates with42803 after child, FILTER and
 signature analysis; invalid statements publish no rows, including a valid first
 row followed by a forbidden aggregate.
@@ -2534,7 +2549,8 @@ independently of input width; destination assignment still enforces its own widt
 These immutable functions are strict. Negative overlay counts can duplicate bits,
 substring positive INT4 end overflow clips to the end, and empty-source position
 returns zero, even for an empty needle. Stored calls remain symbolic through
-Dump/Restore. No bit access functions, `substr(bit)` alias or operators are added.
+Dump/Restore. Bit access functions and the `substr(bit)` alias remain excluded;
+scalar operators have their [own contract](reference/binary_json_arrays/README.md#bit-string-scalar-operators).
 See [PostgreSQL bit functions](https://www.postgresql.org/docs/18/functions-bitstring.html).
 Feature smoke: `make check RUN='^TestReferenceBitStringFunctionsFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.

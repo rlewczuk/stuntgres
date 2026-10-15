@@ -612,12 +612,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   contextual unknown operands, NULL data and empty relations.
 - Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates and selected
   scalar `bit_count`, `bit_length`, `length`, `octet_length`, `overlay`,
-  `position`, and `substring`, including implicit VARBIT inputs. General bit
-  casts, scalar operators, get_bit/set_bit, substr alias, comparison/index
-  providers and bit arrays remain excluded. Unordered BIT
-  aggregate DISTINCT retains the absent equality-provider error; BIT/VARBIT
-  local ordering and bitwise windows remain excluded. Ordering by an independent
-  integer key does not require bit comparison. Raw internal CHAR declarations
+  `position`, and `substring`, including implicit VARBIT inputs. Scalar `||`
+  returns unrestricted VARBIT; `&`, `|`, `#`, `~`, `<<`, `>>` return
+  unrestricted BIT. AND/OR/XOR require equal actual lengths (22026); concat
+  and comparisons permit unequal widths. Shifts preserve width, reverse for
+  negative counts and zero-fill at/beyond the width, unlike integral masking.
+  Scalar `=`, `<>`/`!=`, `<`, `<=`, `>`, `>=` compare logical digits lexically,
+  including leading zeroes and prefix lengths; NULL is strict. General bit
+  casts, get_bit/set_bit, substr alias, ordering/index/grouping providers and
+  bit arrays remain excluded. Unordered BIT aggregate DISTINCT retains the
+  absent equality-provider error; BIT/VARBIT local ordering and bitwise windows
+  remain excluded. Ordering by an independent integer key does not require bit
+  comparison. Raw internal CHAR declarations
   remain excluded even where real catalog/query-derived values have codecs.
 - XID/CID/XID8 are externally supplied scalar identifiers, not generated system
   attributes or integer/OID aliases. XID supports equality/inequality (including

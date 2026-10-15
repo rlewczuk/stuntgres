@@ -168,10 +168,18 @@ providers and OS networking are not supplied by scalar storage.
 BIT/VARBIT byte binds are textual digits, never packed bits. Typed-nil bytes are
 NULL; nonnil empty bytes can represent a nonnull empty value. Metadata reports
 bit length where available, not byte length or numeric precision.
-Computed BIT substring/overlay results have unrestricted typmod -1, not the
-source column's width or a dynamic result-length typmod. Destination BIT/VARBIT
-assignment independently checks width. Bit measurements count logical digits;
-octet_length rounds up by eight, and bit_count returns INT8 (other measures INT4).
+Computed BIT substring/overlay and bitwise operator results have unrestricted
+typmod -1, not the source column's width or a dynamic result-length typmod.
+Concatenating any admitted BIT/VARBIT pair produces unrestricted VARBIT;
+different widths are legal. Destination BIT/VARBIT assignment independently
+checks width without resizing. AND/OR/XOR require equal actual widths, NOT
+complements every digit, and shifts use INTEGER counts, retain width, reverse
+for negative counts and zero-fill at/beyond the width (no integral count mask).
+Scalar comparisons are lexical over the canonical digit sequence, not numeric
+or zero-padded: `B'1' > B'01'` and `B'1' < B'10'`. NULL remains typed NULL.
+These scalar comparisons do not admit bit ordering, grouping or index providers.
+Bit measurements count logical digits; octet_length rounds up by eight, and
+bit_count returns INT8 (other measures INT4).
 
 UUID bindings use the ordinary converter/Valuer path. Bytes are textual UUID
 input, not binary sixteen-byte values; Go UUID structs/arrays are not added.

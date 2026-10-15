@@ -70,3 +70,45 @@ func TestBitStringFunctionsSelection(t *testing.T) {
 		t.Fatal(selection)
 	}
 }
+
+func TestBitStringOperatorsConcatSelection(t *testing.T) {
+	types := formatUnitTypes()
+	for _, tc := range []struct {
+		left, right sqltype.ID
+		family      sqltype.ID
+		textual     [2]bool
+	}{
+		{sqltype.Bit, sqltype.Bit, sqltype.VarBit, [2]bool{}},
+		{sqltype.Bit, sqltype.VarBit, sqltype.VarBit, [2]bool{}},
+		{sqltype.VarBit, sqltype.Bit, sqltype.VarBit, [2]bool{}},
+		{sqltype.VarBit, sqltype.VarBit, sqltype.VarBit, [2]bool{}},
+		{sqltype.Bit, 0, sqltype.VarBit, [2]bool{}},
+		{0, sqltype.Bit, sqltype.VarBit, [2]bool{}},
+		{sqltype.VarBit, 0, sqltype.VarBit, [2]bool{}},
+		{0, sqltype.VarBit, sqltype.VarBit, [2]bool{}},
+		{sqltype.Bit, sqltype.Text, 0, [2]bool{false, true}},
+		{sqltype.Text, sqltype.Bit, 0, [2]bool{true, false}},
+		{0, 0, 0, [2]bool{true, true}},
+		{sqltype.Bytea, sqltype.Bytea, sqltype.Bytea, [2]bool{}},
+		{sqltype.Bytea, 0, sqltype.Bytea, [2]bool{}},
+	} {
+		operands := [2]*sqltype.Descriptor{types[tc.left], types[tc.right]}
+		textual, family, resolution := SelectStringConcat(true, operands)
+		if resolution != Resolved || family != tc.family || textual != tc.textual {
+			t.Fatal(tc, textual, family, resolution)
+		}
+		if _, _, resolution := SelectStringConcat(false, operands); resolution != Missing {
+			t.Fatal("invisible concat", tc, resolution)
+		}
+	}
+	supplied := BinaryTypes{VarBit: types[sqltype.VarBit].Usage()}
+	if supplied.Usage(sqltype.VarBit) != types[sqltype.VarBit].Usage() ||
+		!BinaryResultDemand("||", sqltype.VarBit).Needs(sqltype.VarBit) {
+		t.Fatal("VARBIT demand lost")
+	}
+	args := []Argument[struct{}]{{Usage: types[sqltype.Bit].Usage()}, {Usage: types[sqltype.VarBit].Usage()}}
+	if !BinaryArgumentDemand("||", sqltype.VarBit, args, false).Needs(sqltype.VarBit) ||
+		!BinaryArgumentsViable("||", sqltype.VarBit, args, &supplied) {
+		t.Fatal("VARBIT concat coercion not viable")
+	}
+}

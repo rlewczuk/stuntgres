@@ -117,6 +117,9 @@ func (b *expressionBinder) supplyBinaryTypes(demand functions.BinaryDemand, type
 	if demand.Needs(sqltype.Bit) && types.Bit.Type == nil {
 		types.Bit = b.typ(sqltype.Bit).Usage()
 	}
+	if demand.Needs(sqltype.VarBit) && types.VarBit.Type == nil {
+		types.VarBit = b.typ(sqltype.VarBit).Usage()
+	}
 	if demand.Needs(sqltype.Int4) && types.Integer.Type == nil {
 		types.Integer = b.typ(sqltype.Int4).Usage()
 	}

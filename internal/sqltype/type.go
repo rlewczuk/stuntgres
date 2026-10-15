@@ -2200,7 +2200,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		}
 	case Name:
 		return p.inputCollation.CompareText(ctx, a.text, b.text)
-	case Bytea, Char:
+	case Bytea, Char, Bit, VarBit:
 		return strings.Compare(a.text, b.text), nil
 	case Bool:
 		if !a.boolean && b.boolean {
