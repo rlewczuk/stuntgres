@@ -110,7 +110,7 @@ func (b *expressionBinder) resolveSQLJSONObjectAggregate(raw parser.AggregateExp
 		if options.Returning.Setof {
 			return fail(sqlError("0A000", "returning SETOF types is not supported in SQL/JSON functions"))
 		}
-		returning, err = b.engine.resolveAnnotationTypeInput(*options.Returning, b.op, false, false, true, true)
+		returning, err = b.engine.resolveAnnotationTypeInput(*options.Returning, b.op, false, false, true, true, false)
 		if err != nil {
 			return fail(err)
 		}

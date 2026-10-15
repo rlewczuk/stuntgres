@@ -48,7 +48,7 @@ func TestMathSignatures(t *testing.T) {
 				}
 			}
 			v[i] = Null(usages[i].Type)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil || got != Null(types[tc.result]) {
 				t.Fatal("typed strict NULL", tc, got, err)
 			}
@@ -113,7 +113,7 @@ func TestMathNumericRoundScale(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := p.Evaluate(ctx, a, b)
+		v, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -126,7 +126,7 @@ func TestMathNumericRoundScale(t *testing.T) {
 		p, _ := BindMath(name, types[Numeric].Usage(), types[Numeric].Usage(), types[Int4].Usage())
 		a, _ := types[Numeric].Input(ctx, "1.23", -1)
 		b, _ := types[Int4].Input(ctx, "2147483647", -1)
-		v, err := p.Evaluate(ctx, a, b)
+		v, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 		text, e := types[Numeric].Output(ctx, v)
 		if err != nil || e != nil || text != "1.23"+strings.Repeat("0", 16381) {
 			t.Fatal("scale clamp", name, len(text), err, e)
@@ -135,7 +135,7 @@ func TestMathNumericRoundScale(t *testing.T) {
 	p, _ := BindMath("round", types[Numeric].Usage(), types[Numeric].Usage(), types[Int4].Usage())
 	a, _ := types[Numeric].Input(ctx, "5.5e131071", -1)
 	b, _ := types[Int4].Input(ctx, "-131072", -1)
-	_, err := p.Evaluate(ctx, a, b)
+	_, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "value overflows numeric format" {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestMathNumericRoundScale(t *testing.T) {
 				d = types[Int4]
 			}
 			p, _ := BindMath(name, d.Usage(), types[Numeric].Usage())
-			v, err := p.Evaluate(ctx, a, Value{})
+			v, err := p.Evaluate(ctx, []Value{a, Value{}}[:p.arity], InputEnvironment{})
 			if err != nil || (d.id == Int4 && !v.null) || (d.id == Numeric && v != a) {
 				t.Fatal(name, special, v, err)
 			}
@@ -188,7 +188,7 @@ func TestMathSignModulo(t *testing.T) {
 			t.Fatal(err)
 		}
 		originalA, originalB := a, b
-		v, err := p.Evaluate(ctx, a, b)
+		v, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -209,7 +209,7 @@ func TestMathSignModulo(t *testing.T) {
 		for _, tc := range [][3]int64{{9, 4, 1}, {-9, 4, -1}, {9, -4, 1}, {-9, -4, -1}, {minimum, -1, 0}} {
 			a, _ := Integer(types[id], tc[0])
 			b, _ := Integer(types[id], tc[1])
-			got, err := p.Evaluate(ctx, a, b)
+			got, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 			if err != nil || got.integer != tc[2] {
 				t.Fatal(id, tc, got, err)
 			}
@@ -219,7 +219,7 @@ func TestMathSignModulo(t *testing.T) {
 		p, _ := BindMath("mod", types[id].Usage(), types[id].Usage(), types[id].Usage())
 		a, _ := types[id].Input(ctx, "1", -1)
 		b, _ := types[id].Input(ctx, "0", -1)
-		_, err := p.Evaluate(ctx, a, b)
+		_, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}
 		if !errors.As(err, &got) || *got != want {
@@ -230,7 +230,7 @@ func TestMathSignModulo(t *testing.T) {
 		p, _ := BindMath(name, types[Float8].Usage(), types[Float8].Usage())
 		for _, n := range []float64{-3.5, -2.5, -0.5, math.Copysign(0, -1), 0, 2.5, 3.5, math.Inf(-1), math.Inf(1), math.NaN()} {
 			a, _ := Float(types[Float8], n)
-			got, err := p.Evaluate(ctx, a, Value{})
+			got, err := p.Evaluate(ctx, []Value{a, Value{}}[:p.arity], InputEnvironment{})
 			want := math.RoundToEven(n)
 			if name == "trunc" {
 				want = math.Trunc(n)
@@ -258,14 +258,14 @@ func TestMathCancellation(t *testing.T) {
 	p, _ := BindMath("mod", types[Numeric].Usage(), types[Numeric].Usage(), types[Numeric].Usage())
 	a, _ := types[Numeric].Input(context.Background(), "1e131071", -1)
 	b, _ := types[Numeric].Input(context.Background(), "3e-16383", -1)
-	_, err := p.Evaluate(ctx, a, b)
+	_, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	for _, checkpoint := range []int{2, 3, 4} {
 		ctx := &mathCheckpointContext{Context: context.Background(), remaining: checkpoint}
 		originalA, originalB := a, b
-		_, err := p.Evaluate(ctx, a, b)
+		_, err := p.Evaluate(ctx, []Value{a, b}[:p.arity], InputEnvironment{})
 		if !errors.Is(err, context.Canceled) || a != originalA || b != originalB {
 			t.Fatal("large exact work cancellation checkpoint", checkpoint, err)
 		}

@@ -16,6 +16,9 @@ type functionTestExpression interface {
 type functionTestContext struct{ context.Context }
 
 func (c *functionTestContext) FunctionContext() context.Context { return c.Context }
+func (c *functionTestContext) FunctionInput() sqltype.InputEnvironment {
+	return sqltype.InputEnvironment{}
+}
 func (c *functionTestContext) FunctionLiteralNull(e functionTestExpression) bool {
 	argument, ok := e.(functionTestArgument)
 	return ok && argument.literal && argument.value.IsNull()

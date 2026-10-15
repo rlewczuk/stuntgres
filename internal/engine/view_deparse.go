@@ -862,11 +862,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
-		if !v.presentation.deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB) {
+		if !v.presentation.deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB) {
 			switch e.Child.(type) {
 			case parser.LiteralExpr, parser.TypedLiteralExpr:
 				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
-					// The captured array, JSON or JSONB datum emits its owning typed cast.
+					// Captured array, enum, JSON and JSONB datums emit their owning typed cast.
 					// Elide only this exact leaf annotation, not outer casts,
 					// domain checks, typmod changes or actual conversions.
 					return text, nil

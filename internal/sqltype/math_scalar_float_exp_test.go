@@ -22,13 +22,13 @@ func TestMathScalarExpSubnormals(t *testing.T) {
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			p, v := scalarProvider(t, "exp", Float8, tc.input)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil || math.Float64bits(got.floating) != tc.bits {
 				t.Fatalf("exp(%s) actual=%g bits=%016x want=%016x error=%v", tc.input, got.floating, math.Float64bits(got.floating), tc.bits, err)
 			}
 		})
 	}
 	p, v := scalarProvider(t, "exp", Float8, "-745.1332191019412")
-	_, err := p.Evaluate(context.Background(), v[0], v[1])
+	_, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 	scalarError(t, err, "22003", "value out of range: underflow")
 }

@@ -69,9 +69,9 @@ func CoerceSizeArgument[E any, B ArgumentCoercer[E]](b B, operand Argument[E], t
 
 // NewSize retains the selected unmodified formal usage independently of the
 // argument's coercion metadata, which may preserve a domain's numeric typmod.
-func NewSize[E Expression[C], C LiteralContext[E], P any](info Info[P], name string, arg E, formal sqltype.Usage) (Math[E, C, P], error) {
+func NewSize[E Expression[C], C MathContext[E], P any](info Info[P], name string, arg E, formal sqltype.Usage) (Math[E, C, P], error) {
 	plan, err := sqltype.BindMath(name, info.Usage, formal)
-	return Math[E, C, P]{info, plan, []E{arg}}, err
+	return Math[E, C, P]{Info: info, Plan: plan, Args: []E{arg}}, err
 }
 func SizeResult(name string) sqltype.ID {
 	if name == "pg_size_bytes" {

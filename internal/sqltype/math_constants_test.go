@@ -98,7 +98,7 @@ func TestMathConstantsProvider(t *testing.T) {
 				inputs = []string{tc.input}
 			}
 			p, values := scalarProvider(t, tc.name, Float8, inputs...)
-			got, err := p.Evaluate(context.Background(), values[0], values[1])
+			got, err := p.Evaluate(context.Background(), values[:p.arity], InputEnvironment{})
 			if err != nil || got.Type() != p.result.Type || got.IsNull() || !mathTrigMatches(got.floating, tc.want, tc.ulps) {
 				t.Fatalf("%s(%s) actual=%g bits=%016x want=%g bits=%016x error=%v", tc.name, tc.input, got.floating, math.Float64bits(got.floating), tc.want, math.Float64bits(tc.want), err)
 			}
@@ -112,7 +112,7 @@ func TestMathConstantsProvider(t *testing.T) {
 		{"exp", "-746", "underflow"},
 	} {
 		p, v := scalarProvider(t, tc.name, Float8, tc.input)
-		got, err := p.Evaluate(context.Background(), v[0], v[1])
+		got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 		scalarError(t, err, "22003", "value out of range: "+tc.category)
 		if got != (Value{}) {
 			t.Fatal("failure published datum", got)
@@ -120,11 +120,11 @@ func TestMathConstantsProvider(t *testing.T) {
 	}
 	for _, name := range []string{"cbrt", "degrees", "radians", "erf", "erfc", "gamma"} {
 		p, v := scalarProvider(t, name, Float8, "NaN")
-		got, err := p.Evaluate(context.Background(), v[0], v[1])
+		got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 		if err != nil || !math.IsNaN(got.floating) {
 			t.Fatal(name, got, err)
 		}
-		got, err = p.Evaluate(context.Background(), Null(v[0].typ), Value{})
+		got, err = p.Evaluate(context.Background(), []Value{Null(v[0].typ), Value{}}[:p.arity], InputEnvironment{})
 		if err != nil || got != Null(p.result.Type) {
 			t.Fatal(name, got, err)
 		}
@@ -162,7 +162,7 @@ func TestMathConstantsSignatures(t *testing.T) {
 			if _, err := BindMath(name, u, foreign.Usage()); err == nil {
 				t.Fatal("foreign argument owner", name)
 			}
-			if _, err := p.Evaluate(context.Background(), Null(&foreign), Value{}); err == nil {
+			if _, err := p.Evaluate(context.Background(), []Value{Null(&foreign), Value{}}[:p.arity], InputEnvironment{}); err == nil {
 				t.Fatal("foreign datum owner", name)
 			}
 		} else if _, err := BindMath(name, u, u); err == nil {
@@ -174,7 +174,7 @@ func TestMathConstantsSignatures(t *testing.T) {
 			t.Fatal("typmodded result accepted")
 		}
 	}
-	if _, err := (MathPlan{}).Evaluate(context.Background(), Value{}, Value{}); err == nil {
+	if _, err := (MathPlan{}).Evaluate(context.Background(), nil, InputEnvironment{}); err == nil {
 		t.Fatal("zero plan accepted")
 	}
 }
@@ -188,7 +188,7 @@ func TestMathConstantsCancellation(t *testing.T) {
 			inputs = []string{"1"}
 		}
 		p, v := scalarProvider(t, name, Float8, inputs...)
-		got, err := p.Evaluate(ctx, v[0], v[1])
+		got, err := p.Evaluate(ctx, v[:p.arity], InputEnvironment{})
 		if !errors.Is(err, context.Canceled) || got != (Value{}) {
 			t.Fatal(name, got, err)
 		}

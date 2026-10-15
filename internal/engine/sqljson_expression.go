@@ -124,7 +124,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 		if raw.Returning.Setof {
 			return nil, sqlError("0A000", "returning SETOF types is not supported in SQL/JSON functions")
 		}
-		returning, err = b.engine.resolveAnnotationTypeInput(*raw.Returning, b.op, false, false, true, true)
+		returning, err = b.engine.resolveAnnotationTypeInput(*raw.Returning, b.op, false, false, true, true, false)
 		if err != nil {
 			return nil, err
 		}

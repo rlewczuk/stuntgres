@@ -594,7 +594,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return true
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.Math[BoundExpr, *EvalContext, ExprProperties])
-		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+		if !ok || !e.Plan.Equal(o.Plan) || e.WrapperContext != o.WrapperContext || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {

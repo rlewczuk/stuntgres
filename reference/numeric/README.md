@@ -6,6 +6,74 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Logarithms, roots, powers and buckets
+
+Untagged `math_log_power_*_test.go` scenarios specify all seven selected functions
+and released overloads through direct, prepared, held and SQL-prepared routes.
+Numeric goldens retain exact decimal digits/scales, including near-one and
+1000-place inputs. Finite irrational FLOAT8 targets permit at most2ULP; NaN,
+infinity and signed-zero categories are exact. Expected records were resolved
+against pinned PostgreSQL18.0, never inferred from native output.
+
+Full diagnostics retain absent arithmetic Position, function-start lookup
+positions, portal parameter Context and the distinct numeric unary log/log10
+SQL-wrapper Context for constants/binds versus column inputs. A literal NULL
+argument does not suppress a demanded logarithm error in a sibling expression.
+Four-argument buckets cover exact decimal boundaries, reversed bounds, safe
+floating extremes, validation precedence and actual count-plus-one overflow.
+Threshold proof covers existing text/date/timestamp/enum/domain types, mixed
+common types, duplicate/rightmost matches, NaNs and real rank/NULL/comparator
+errors, including missing comparison on empty arrays. Ascending sortedness is
+a precondition: no sortedness validation or invented error is supplied.
+Enum-array annotations are admitted only while analyzing the selected threshold
+argument, consuming existing providers without enabling general enum-array
+casts/storage/domain bases or unrelated function arguments. Empty/NULL/bound
+threshold arrays and symbolic stored enum comparisons exercise that boundary.
+
+Consumer proof exercises stored/default/generated/CHECK/view expressions,
+conditional/grouping traversal and late-write atomicity. Native control phases
+genuinely Dump/Reset/Restore, preserve old cursors/descriptors, consume a power
+default after replacement, reject a later invalid replacement atomically and
+restore into a distinct catalog allocation. Real mode replays actual native Dump
+SQL on PostgreSQL. Provider/component units assert owner generations, collations,
+all four source-order operands, strictness and deterministic cancellation.
+Deterministic redump compares the complete emitted SQL before/after replacement;
+failure output includes both dumps. Captured enum literals own their exact
+replay cast, so matching leaf annotations do not accumulate another cast on
+Restore. Outer conversions, domain checks and public deparse presentation remain
+unchanged.
+
+Root runs each group in both modes, with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceMathLogPower(Binding|Metadata|HeldParameters|SQLPrepared)$'
+make check REFERENCE=1 RUN='^TestReferenceMathLogPower(Binding|Metadata|HeldParameters|SQLPrepared)$'
+make check RUN='^TestReferenceMathLogPower(Values|NumericPrecision|IEEE|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceMathLogPower(Values|NumericPrecision|IEEE|Diagnostics)$'
+make check RUN='^TestReferenceMathLogPower(Buckets|BucketDiagnostics|Thresholds|ThresholdDiagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceMathLogPower(Buckets|BucketDiagnostics|Thresholds|ThresholdDiagnostics)$'
+make check RUN='^TestReferenceMathLogPower(Consumers|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceMathLogPower(Consumers|Controls|FeatureSmoke)$'
+make check RUN='^TestMath(LogPower(Provider|Signatures|Cancellation|ThresholdOwnership)|FourArgumentTraversal)$'
+make check RUN='^TestSize(Provider(Signatures|OwnershipAndCancellation)|NumericScratchAndScanner)$'
+make check RACE=1 RUN='^TestReferenceMathLogPower(HeldParameters|Controls)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceMathLogPower(HeldParameters|Controls)$'
+```
+
+The actual feature smoke independently expects FLOAT8 results0,0,2,3,8,2;
+NUMERIC binary log `6.0000000000000000`; ascending/reversed/duplicate-threshold
+buckets2,2,3; held sqrt error/recovery; stored four-argument and threshold calls;
+and actual native lifecycle/default replay. Expected success is quiet exit0:
+
+```sh
+make check RUN='^TestReferenceMathLogPowerFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceMathLogPowerFeatureSmoke$'
+```
+
+Whole-project Docker-free verification remains `make quickcheck`; post-merge
+`make finalcheck` remains separate. Selected proof is required for every changed
+definition, including migrated Math provider callers; never use `make refcheck`.
+
 ### FROM SRF selected proof
 
 Untagged `srf_from_*_test.go` scenarios assert independent direct/prepared

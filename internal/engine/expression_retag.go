@@ -929,6 +929,8 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
+		ref, conflict := n.Plan.InputCollation()
+		ref = comparisonCollation(ref)
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -941,7 +943,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				return node, false, fmt.Errorf("stuntgres: invalid remapped math argument")
 			}
 		}
-		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		n, err = n.Reconstruct(functionInfo(info), n.Args, ref, conflict)
+		if err == nil {
+			n.WrapperContext = mathWrapperContext(n.Plan.Name(), n.Args)
+		}
 		rebound = n
 	case visibilityInquiryExpression:
 		n.arg = child(n.arg)

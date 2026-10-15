@@ -33,7 +33,7 @@ func TestMathHyperbolicSignatures(t *testing.T) {
 					t.Fatal("accepted invalid usage", bad)
 				}
 			}
-			got, err := plan.Evaluate(context.Background(), Null(u.Type), Value{})
+			got, err := plan.Evaluate(context.Background(), []Value{Null(u.Type), Value{}}[:plan.arity], InputEnvironment{})
 			if err != nil || got != Null(u.Type) {
 				t.Fatal("strict typed NULL", got, err)
 			}
@@ -41,7 +41,7 @@ func TestMathHyperbolicSignatures(t *testing.T) {
 			cancel()
 			a, _ := Float(u.Type, 0)
 			for _, input := range []Value{a, Null(u.Type)} {
-				got, err := plan.Evaluate(ctx, input, Value{})
+				got, err := plan.Evaluate(ctx, []Value{input, Value{}}[:plan.arity], InputEnvironment{})
 				if !errors.Is(err, context.Canceled) || got.typ != nil {
 					t.Fatal("cancellation before NULL/domain", got, err)
 				}
@@ -52,7 +52,7 @@ func TestMathHyperbolicSignatures(t *testing.T) {
 			}
 			foreignValue, _ := Float(other.Type, 1)
 			for _, input := range []Value{foreignValue, {}} {
-				if _, err := plan.Evaluate(context.Background(), input, Value{}); err == nil {
+				if _, err := plan.Evaluate(context.Background(), []Value{input, Value{}}[:plan.arity], InputEnvironment{}); err == nil {
 					t.Fatal("accepted invalid value owner", input)
 				}
 			}
@@ -123,7 +123,7 @@ func TestMathHyperbolicValues(t *testing.T) {
 			t.Fatal(err)
 		}
 		a, _ := Float(d, tc.input)
-		got, err := plan.Evaluate(context.Background(), a, Value{})
+		got, err := plan.Evaluate(context.Background(), []Value{a, Value{}}[:plan.arity], InputEnvironment{})
 		if err != nil || got.typ != d || !mathTrigMatches(got.floating, tc.want, tc.ulps) {
 			t.Fatalf("%s(%g) got=%g want=%g err=%v", tc.name, tc.input, got.floating, tc.want, err)
 		}
@@ -146,7 +146,7 @@ func TestMathHyperbolicDomains(t *testing.T) {
 		}
 		for _, input := range tc.inputs {
 			a, _ := Float(d, input)
-			_, err := plan.Evaluate(context.Background(), a, Value{})
+			_, err := plan.Evaluate(context.Background(), []Value{a, Value{}}[:plan.arity], InputEnvironment{})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatal(tc.name, input, err)

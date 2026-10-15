@@ -835,9 +835,11 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if args != nil {
 			e.Args = args
 		}
-		for _, arg := range e.Args {
-			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+		if !selectedLogPowerName(e.Plan.Name()) {
+			for _, arg := range e.Args {
+				if randomLiteralNull(arg) {
+					return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				}
 			}
 		}
 		expression = e

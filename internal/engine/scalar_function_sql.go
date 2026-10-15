@@ -310,7 +310,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args)
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
-		if len(n.Args) > 2 {
+		if len(n.Args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored math arity")
 		}
 		for _, arg := range n.Args {

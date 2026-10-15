@@ -9,15 +9,16 @@ import (
 // MathPlan is an immutable provider for the selected exact SQL signatures.
 // Usages retain their catalog owner; results never inherit an argument typmod.
 type MathPlan struct {
-	name   string
-	args   [2]Usage
-	arity  int
-	result Usage
+	name       string
+	args       [4]Usage
+	arity      int
+	result     Usage
+	comparison Comparison
 }
 
 func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 	p := MathPlan{name: name, arity: len(args), result: result}
-	if len(args) > 2 || len(args) == 0 && name != "pi" {
+	if len(args) > 4 || len(args) == 0 && name != "pi" {
 		return p, fmt.Errorf("invalid math signature")
 	}
 	if name == "pi" {
@@ -51,6 +52,16 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		valid = len(args) == 1 && id == Text
 	case "pg_size_pretty":
 		valid = len(args) == 1 && (id == Int8 || id == Numeric)
+	case "ln", "log10", "sqrt":
+		valid = len(args) == 1 && (id == Numeric || id == Float8)
+	case "log":
+		valid = (len(args) == 1 && (id == Numeric || id == Float8)) || (len(args) == 2 && id == Numeric && args[1] == args[0])
+	case "power":
+		valid = len(args) == 2 && (id == Numeric || id == Float8) && args[1] == args[0]
+	case "lgamma":
+		valid = len(args) == 1 && id == Float8
+	case "width_bucket":
+		valid = len(args) == 4 && (id == Numeric || id == Float8) && args[1] == args[0] && args[2] == args[0] && args[3].Type.id == Int4
 	case "sign", "ceil", "ceiling", "floor", "exp":
 		valid = len(args) == 1 && (id == Numeric || id == Float8)
 	case "cbrt", "degrees", "radians", "erf", "erfc", "gamma", "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh":
@@ -64,7 +75,7 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		return p, fmt.Errorf("invalid math signature")
 	}
 	resultID := id
-	if name == "scale" || name == "min_scale" {
+	if name == "scale" || name == "min_scale" || name == "width_bucket" {
 		resultID = Int4
 	} else if name == "factorial" {
 		resultID = Numeric
@@ -79,6 +90,9 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 	if resultID == id && result.Type != args[0].Type {
 		return p, fmt.Errorf("mismatched math descriptor owner")
 	}
+	if name == "width_bucket" && result.Type != args[3].Type {
+		return p, fmt.Errorf("mismatched bucket result owner")
+	}
 	return p, nil
 }
 
@@ -86,9 +100,14 @@ func (p MathPlan) Name() string { return p.name }
 
 func (p MathPlan) ResultUsage() Usage { return p.result }
 
-func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
-	if !p.result.Valid() || p.result != p.result.Type.Usage() || (p.arity != 0 && a.typ != p.args[0].Type) || (p.arity == 2 && b.typ != p.args[1].Type) {
+func (p MathPlan) Evaluate(ctx context.Context, values []Value, input InputEnvironment) (Value, error) {
+	if !p.result.Valid() || p.result != p.result.Type.Usage() || len(values) != p.arity {
 		return Value{}, fmt.Errorf("invalid math values")
+	}
+	for i, value := range values {
+		if value.typ != p.args[i].Type {
+			return Value{}, fmt.Errorf("invalid math value owner")
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
@@ -99,11 +118,45 @@ func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
 		}
 		return Float(p.result.Type, math.Pi)
 	}
-	if a.null || (p.arity == 2 && b.null) {
-		return Null(p.result.Type), nil
+	for _, value := range values {
+		if value.null {
+			return Null(p.result.Type), nil
+		}
+	}
+	if p.name == "width_bucket" {
+		if p.arity == 2 {
+			return p.thresholdBucket(ctx, values[0], values[1], input)
+		}
+		return widthBucket(ctx, p.result.Type, values[0], values[1], values[2], values[3].integer)
+	}
+	a := values[0]
+	var b Value
+	if p.arity > 1 {
+		b = values[1]
 	}
 	id := a.typ.id
 	switch p.name {
+	case "lgamma", "ln", "log", "log10", "power", "sqrt":
+		if id == Numeric {
+			switch p.name {
+			case "power":
+				return numericPower(ctx, a, b)
+			case "sqrt":
+				return numericSqrt(ctx, a)
+			case "ln":
+				return numericLn(ctx, a)
+			default:
+				if p.arity == 1 {
+					return numericLog(ctx, Value{typ: a.typ, text: "1", exponent: 1}, a)
+				}
+				return numericLog(ctx, a, b)
+			}
+		}
+		n, err := logarithmRootPower(p.name, a.floating, b.floating)
+		if err != nil {
+			return Value{}, err
+		}
+		return Float(p.result.Type, n)
 	case "pg_size_bytes":
 		return sizeBytes(ctx, p.result, a.text)
 	case "pg_size_pretty":

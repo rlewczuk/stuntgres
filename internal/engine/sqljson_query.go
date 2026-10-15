@@ -39,7 +39,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundE
 		if raw.Returning.Setof {
 			return nil, sqlError("0A000", "returning SETOF types is not supported in SQL/JSON functions")
 		}
-		returning, err = b.engine.resolveAnnotationTypeInput(*raw.Returning, b.op, false, false, true, true)
+		returning, err = b.engine.resolveAnnotationTypeInput(*raw.Returning, b.op, false, false, true, true, false)
 		if err != nil {
 			return nil, err
 		}

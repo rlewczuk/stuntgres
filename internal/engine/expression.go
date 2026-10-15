@@ -1806,6 +1806,9 @@ type expressionPolicy struct {
 	booleanConstruct string
 	// String-family textual roles alone admit internal CHAR annotations.
 	stringInput bool
+	// Only width_bucket's threshold argument consumes existing enum arrays.
+	// This is not permission for generic casts, storage or domain declarations.
+	thresholdArrayInput bool
 	// Selected string INSERT rows analyze occurrences before target assignment.
 	deferAssignment bool
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
@@ -2926,7 +2929,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
 	var target sqltype.Usage
 	var err error
-	if outerPolicy.stringInput {
+	if outerPolicy.thresholdArrayInput {
+		target, err = b.engine.resolveAnnotationTypeInput(raw.TypeName, b.op, unknownNull, false, false, false, true)
+	} else if outerPolicy.stringInput {
 		target, err = b.engine.resolveStringAnnotationType(raw.TypeName, b.op, unknownNull)
 	} else {
 		target, err = b.engine.resolveAnnotationType(raw.TypeName, b.op, unknownNull)
@@ -2956,7 +2961,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 			return nil, err
 		}
 	}
-	policy := expressionPolicy{context: projectionContext}
+	policy := expressionPolicy{context: projectionContext, thresholdArrayInput: outerPolicy.thresholdArrayInput}
 	switch child := raw.Child.(type) {
 	case parser.LiteralExpr:
 		if child.Value.Kind == parser.StringValue || child.Value.Kind == parser.NullValue {
@@ -3629,7 +3634,9 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 	if annotation, ok := raw.(parser.CastExpr); ok && unknownNullSyntax(raw) {
 		var target sqltype.Usage
 		var err error
-		if policy.stringInput {
+		if policy.thresholdArrayInput {
+			target, err = b.engine.resolveAnnotationTypeInput(annotation.TypeName, b.op, true, false, false, false, true)
+		} else if policy.stringInput {
 			target, err = b.engine.resolveStringAnnotationType(annotation.TypeName, b.op, true)
 		} else {
 			target, err = b.engine.resolveAnnotationType(annotation.TypeName, b.op, true)

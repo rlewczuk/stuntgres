@@ -46,7 +46,7 @@ func TestMathScalarExactMagnitudeBoundaries(t *testing.T) {
 		input, want string
 	}{{Int2, "32767", "32767"}, {Int4, "2147483647", "2147483647"}, {Int8, "9223372036854775807", "9223372036854775807"}, {Numeric, "-9007199254740993.00100", "9007199254740993.00100"}} {
 		p, v := scalarProvider(t, "abs", tc.id, tc.input)
-		got, err := p.Evaluate(context.Background(), v[0], v[1])
+		got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,6 +56,6 @@ func TestMathScalarExactMagnitudeBoundaries(t *testing.T) {
 		}
 	}
 	p, v := scalarProvider(t, "exp", Numeric, "5999.9999999999999999999999")
-	_, err := p.Evaluate(context.Background(), v[0], v[1])
+	_, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 	scalarError(t, err, "22003", "value overflows numeric format")
 }

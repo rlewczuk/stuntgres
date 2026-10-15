@@ -42,7 +42,7 @@ func mathConstantsGammaReviewBoundaries(t *testing.T) {
 			if math.Float64bits(values[0].floating) != tc.inputBits {
 				t.Fatal("input identity", values[0])
 			}
-			got, err := plan.Evaluate(context.Background(), values[0], values[1])
+			got, err := plan.Evaluate(context.Background(), values[:plan.arity], InputEnvironment{})
 			if tc.category != "value" {
 				scalarError(t, err, "22003", "value out of range: "+tc.category)
 				if got != (Value{}) {

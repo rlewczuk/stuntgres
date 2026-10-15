@@ -1090,6 +1090,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
+	case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
+		if token.code == IDENT {
+			token.code = SELECTED_FUNC
+		}
 	case "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
@@ -1199,6 +1203,15 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || JSONBSetFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || strings.EqualFold(token.lexeme.text, "unnest") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
+	}
+	// Selected logarithm/root/bucket calls are scalar operands, including
+	// DEFAULTs, and retain ordinary failure-only aggregate decorations.
+	if (token.code == SELECTED_FUNC || token.code == CHECK_FUNC) && mathLogPowerFunction(token.lexeme.text) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = TX_TIME_FUNC
+		}
 	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
 	// Outside that actual call context, existing capability guards remain.
@@ -1696,7 +1709,16 @@ func trigFunction(name string) bool {
 }
 
 func mathConstantFunction(name string) bool {
-	for _, builtin := range [...]string{"cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "exp"} {
+	for _, builtin := range [...]string{"lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket", "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "exp"} {
+		if strings.EqualFold(name, builtin) {
+			return true
+		}
+	}
+	return false
+}
+
+func mathLogPowerFunction(name string) bool {
+	for _, builtin := range [...]string{"lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket"} {
 		if strings.EqualFold(name, builtin) {
 			return true
 		}

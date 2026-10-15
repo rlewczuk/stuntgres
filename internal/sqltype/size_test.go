@@ -22,12 +22,12 @@ func TestSizeProviderSignatures(t *testing.T) {
 				if p.ResultUsage() != result.Usage() {
 					t.Fatal("result owner", p)
 				}
-				v, err := p.Evaluate(context.Background(), Null(arg), Value{})
+				v, err := p.Evaluate(context.Background(), []Value{Null(arg)}, InputEnvironment{})
 				if err != nil || v != Null(result) {
 					t.Fatal("strict NULL", v, err)
 				}
 				foreign := *arg
-				if _, err := p.Evaluate(context.Background(), Null(&foreign), Value{}); err == nil {
+				if _, err := p.Evaluate(context.Background(), []Value{Null(&foreign)}, InputEnvironment{}); err == nil {
 					t.Fatal("accepted foreign value owner")
 				}
 				if _, err := BindMath(name, result.Usage(), arg.Usage(), arg.Usage()); err == nil {
@@ -76,7 +76,7 @@ func TestSizeProviderOwnershipAndCancellation(t *testing.T) {
 		}
 		original := a
 		for range 2 {
-			got, err := p.Evaluate(context.Background(), a, Value{})
+			got, err := p.Evaluate(context.Background(), []Value{a}, InputEnvironment{})
 			if err != nil {
 				t.Fatal(tc, err)
 			}
@@ -87,10 +87,10 @@ func TestSizeProviderOwnershipAndCancellation(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := p.Evaluate(ctx, a, Value{}); !errors.Is(err, context.Canceled) {
+		if _, err := p.Evaluate(ctx, []Value{a}, InputEnvironment{}); !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled provider", err)
 		}
-		if _, err := p.Evaluate(ctx, Null(types[tc.arg]), Value{}); !errors.Is(err, context.Canceled) {
+		if _, err := p.Evaluate(ctx, []Value{Null(types[tc.arg])}, InputEnvironment{}); !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled NULL provider", err)
 		}
 	}
@@ -107,7 +107,7 @@ func TestSizeNumericScratchAndScanner(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, input := range []string{"1 KB", "1 KiB", "1_000kB", "0x10", "1e", "1e+"} {
-		_, err := p.Evaluate(context.Background(), String(types[Text], input), Value{})
+		_, err := p.Evaluate(context.Background(), []Value{String(types[Text], input)}, InputEnvironment{})
 		var state interface{ SQLState() string }
 		if !errors.As(err, &state) || state.SQLState() != "22023" {
 			t.Fatal(input, err)

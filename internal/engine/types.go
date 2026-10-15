@@ -303,16 +303,16 @@ func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unkno
 }
 
 func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
-	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false, false)
+	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false, false, false)
 }
 
 // String roles admit internal CHAR without admitting it as a column or a
 // general cast target. Lookup, permissions and modifier checks stay type-owned.
 func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
-	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true, false)
+	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true, false, false)
 }
 
-func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput, jsonReturning bool) (sqltype.Usage, error) {
+func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
 		switch name {
@@ -379,7 +379,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
-	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void {
+	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !thresholdArrayInput || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
@@ -445,7 +445,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 		}
 		array, ok := auth.definitionArray(d)
-		if !ok || d.IsEnum() {
+		if !ok || d.IsEnum() && !thresholdArrayInput {
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported array element type")
 		}
 		u.Type = array

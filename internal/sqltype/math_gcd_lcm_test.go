@@ -24,7 +24,7 @@ func TestMathGcdLcmProviderSignatures(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, pair := range [][2]Value{{Null(d), one}, {one, Null(d)}, {Null(d), Null(d)}} {
-				got, err := p.Evaluate(context.Background(), pair[0], pair[1])
+				got, err := p.Evaluate(context.Background(), pair[:p.arity], InputEnvironment{})
 				if err != nil || got != Null(d) {
 					t.Fatal("strict typed NULL", got, err)
 				}
@@ -59,7 +59,7 @@ func TestMathGcdLcmProviderSignatures(t *testing.T) {
 			if _, err := BindMath(name, foreign.Usage(), u, u); err == nil {
 				t.Fatal("accepted foreign result owner")
 			}
-			got, err := p.Evaluate(context.Background(), one, Null(&foreign))
+			got, err := p.Evaluate(context.Background(), []Value{one, Null(&foreign)}[:p.arity], InputEnvironment{})
 			if err == nil || got != (Value{}) {
 				t.Fatal("foreign NULL bypassed descriptor check", got, err)
 			}
@@ -71,7 +71,7 @@ func gcdLcmProviderValue(t *testing.T, name string, id ID, a, b, want string) {
 	t.Helper()
 	p, inputs := scalarProvider(t, name, id, a, b)
 	original := inputs
-	got, err := p.Evaluate(context.Background(), inputs[0], inputs[1])
+	got, err := p.Evaluate(context.Background(), inputs[:p.arity], InputEnvironment{})
 	if err != nil {
 		t.Fatal(name, id, a, b, err)
 	}
@@ -85,7 +85,7 @@ func gcdLcmProviderValue(t *testing.T, name string, id ID, a, b, want string) {
 	if inputs != original {
 		t.Fatal("mutated immutable operands")
 	}
-	again, err := p.Evaluate(context.Background(), inputs[1], inputs[0])
+	again, err := p.Evaluate(context.Background(), []Value{inputs[1], inputs[0]}[:p.arity], InputEnvironment{})
 	if err != nil || again != got || inputs != original {
 		t.Fatal("reversed operands/retained result", again, got, err)
 	}
@@ -116,7 +116,7 @@ func TestMathGcdLcmProviderInteger(t *testing.T) {
 			for _, pair := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				p, v := scalarProvider(t, tc.name, w.id, pair[0], pair[1])
 				original := v
-				got, err := p.Evaluate(context.Background(), v[0], v[1])
+				got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 				scalarError(t, err, "22003", w.message)
 				if got != (Value{}) || v != original {
 					t.Fatal("error published value or mutated operands")
@@ -157,7 +157,7 @@ func TestMathGcdLcmProviderNumeric(t *testing.T) {
 		for _, name := range []string{"gcd", "lcm"} {
 			p, v := scalarProvider(t, name, Numeric, special, "0")
 			for _, pair := range [][2]Value{{v[0], Null(v[1].typ)}, {Null(v[0].typ), v[0]}} {
-				got, err := p.Evaluate(context.Background(), pair[0], pair[1])
+				got, err := p.Evaluate(context.Background(), pair[:p.arity], InputEnvironment{})
 				if err != nil || got != Null(p.ResultUsage().Type) {
 					t.Fatal("nonfinite STRICT gate", got, err)
 				}
@@ -168,7 +168,7 @@ func TestMathGcdLcmProviderNumeric(t *testing.T) {
 	gcdLcmProviderValue(t, "gcd", Numeric, large, "2", "1")
 	p, v := scalarProvider(t, "lcm", Numeric, large, "2")
 	original := v
-	got, err := p.Evaluate(context.Background(), v[0], v[1])
+	got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 	scalarError(t, err, "22003", "value overflows numeric format")
 	if got != (Value{}) || v != original {
 		t.Fatal("numeric overflow publication/mutation")
@@ -182,7 +182,7 @@ func TestMathGcdLcmProviderCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			for _, pair := range [][2]Value{{v[0], v[1]}, {Null(v[0].typ), v[1]}} {
-				got, err := p.Evaluate(ctx, pair[0], pair[1])
+				got, err := p.Evaluate(ctx, pair[:p.arity], InputEnvironment{})
 				if got != (Value{}) || !errors.Is(err, context.Canceled) {
 					t.Fatal("pre-cancellation", got, err)
 				}
@@ -196,7 +196,7 @@ func TestMathGcdLcmProviderCancellation(t *testing.T) {
 		original := v
 		for _, checkpoint := range []int{2, 3, 4, 5, 6, 7, 8} {
 			ctx := &mathCheckpointContext{Context: context.Background(), remaining: checkpoint}
-			got, err := p.Evaluate(ctx, v[0], v[1])
+			got, err := p.Evaluate(ctx, v[:p.arity], InputEnvironment{})
 			if got != (Value{}) || !errors.Is(err, context.Canceled) || v != original {
 				t.Fatal("large exact checkpoint cancellation", name, checkpoint, got, err)
 			}

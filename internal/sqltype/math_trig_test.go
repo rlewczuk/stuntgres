@@ -71,14 +71,14 @@ func TestMathTrigSignatures(t *testing.T) {
 				if !binary && !pair[0].null {
 					continue
 				}
-				got, err := plan.Evaluate(context.Background(), pair[0], pair[1])
+				got, err := plan.Evaluate(context.Background(), pair[:plan.arity], InputEnvironment{})
 				if err != nil || got != Null(u.Type) {
 					t.Fatal("strict typed NULL", got, err)
 				}
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			got, err := plan.Evaluate(ctx, a, a)
+			got, err := plan.Evaluate(ctx, []Value{a, a}[:plan.arity], InputEnvironment{})
 			if !errors.Is(err, context.Canceled) || got.typ != nil {
 				t.Fatal("ordinary cancellation", got, err)
 			}
@@ -86,28 +86,28 @@ func TestMathTrigSignatures(t *testing.T) {
 			if errors.As(err, &diagnostic) {
 				t.Fatal("cancellation acquired SQLSTATE", err)
 			}
-			got, err = plan.Evaluate(ctx, Null(u.Type), Null(u.Type))
+			got, err = plan.Evaluate(ctx, []Value{Null(u.Type), Null(u.Type)}[:plan.arity], InputEnvironment{})
 			if !errors.Is(err, context.Canceled) || got.typ != nil {
 				t.Fatal("cancellation precedes strict NULL", got, err)
 			}
 			foreignValue, _ := Float(other.Type, 0.5)
-			if _, err := plan.Evaluate(context.Background(), foreignValue, a); err == nil {
+			if _, err := plan.Evaluate(context.Background(), []Value{foreignValue, a}[:plan.arity], InputEnvironment{}); err == nil {
 				t.Fatal("foreign first value")
 			}
 			if binary {
-				if _, err := plan.Evaluate(context.Background(), a, foreignValue); err == nil {
+				if _, err := plan.Evaluate(context.Background(), []Value{a, foreignValue}[:plan.arity], InputEnvironment{}); err == nil {
 					t.Fatal("foreign second value")
 				}
-				if _, err := plan.Evaluate(context.Background(), a, Value{}); err == nil {
+				if _, err := plan.Evaluate(context.Background(), []Value{a, Value{}}[:plan.arity], InputEnvironment{}); err == nil {
 					t.Fatal("missing second value")
 				}
 			}
-			if _, err := plan.Evaluate(context.Background(), Value{}, a); err == nil {
+			if _, err := plan.Evaluate(context.Background(), []Value{Value{}, a}[:plan.arity], InputEnvironment{}); err == nil {
 				t.Fatal("missing first value")
 			}
 		})
 	}
-	if _, err := (MathPlan{}).Evaluate(context.Background(), Value{}, Value{}); err == nil {
+	if _, err := (MathPlan{}).Evaluate(context.Background(), nil, InputEnvironment{}); err == nil {
 		t.Fatal("zero plan")
 	}
 }
@@ -187,7 +187,7 @@ func TestMathTrigValues(t *testing.T) {
 		a, _ := Float(d, tc.a)
 		b, _ := Float(d, tc.b)
 		beforeA, beforeB := math.Float64bits(a.floating), math.Float64bits(b.floating)
-		v, err := plan.Evaluate(context.Background(), a, b)
+		v, err := plan.Evaluate(context.Background(), []Value{a, b}[:plan.arity], InputEnvironment{})
 		if err != nil || v.typ != d || v.null || !mathTrigMatches(v.floating, tc.want, tc.ulps) {
 			t.Fatalf("%s(%g,%g): actual %g bits%x want %g bits%x err%v", tc.name, tc.a, tc.b, v.floating, math.Float64bits(v.floating), tc.want, math.Float64bits(tc.want), err)
 		}
@@ -207,7 +207,7 @@ func TestMathTrigDomainAndNaN(t *testing.T) {
 		}
 		for _, input := range []float64{-2, 2, math.Inf(-1), math.Inf(1), math.Nextafter(-1, math.Inf(-1)), math.Nextafter(1, math.Inf(1))} {
 			a, _ := Float(d, input)
-			v, err := plan.Evaluate(ctx, a, Value{})
+			v, err := plan.Evaluate(ctx, []Value{a, Value{}}[:plan.arity], InputEnvironment{})
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "input is out of range"}
 			if v.typ != nil || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -216,7 +216,7 @@ func TestMathTrigDomainAndNaN(t *testing.T) {
 		}
 		for _, input := range []float64{-1, 1, math.Nextafter(-1, 0), math.Nextafter(1, 0)} {
 			a, _ := Float(d, input)
-			v, err := plan.Evaluate(ctx, a, Value{})
+			v, err := plan.Evaluate(ctx, []Value{a, Value{}}[:plan.arity], InputEnvironment{})
 			if err != nil || v.typ != d || v.null || math.IsNaN(v.floating) || math.IsInf(v.floating, 0) {
 				t.Fatal("inside boundary", name, input, v, err)
 			}
@@ -239,7 +239,7 @@ func TestMathTrigDomainAndNaN(t *testing.T) {
 			pairs = append(pairs, [2]Value{infinity, nan}, [2]Value{nan, nan})
 		}
 		for _, pair := range pairs {
-			v, err := plan.Evaluate(ctx, pair[0], pair[1])
+			v, err := plan.Evaluate(ctx, pair[:plan.arity], InputEnvironment{})
 			if err != nil || v.typ != d || v.null || !math.IsNaN(v.floating) {
 				t.Fatal("NaN propagation", name, v, err)
 			}
@@ -317,7 +317,7 @@ func TestMathTrigDirectValues(t *testing.T) {
 		}
 		a, _ := Float(d, tc.input)
 		before := math.Float64bits(a.floating)
-		got, err := plan.Evaluate(context.Background(), a, Value{})
+		got, err := plan.Evaluate(context.Background(), []Value{a, Value{}}[:plan.arity], InputEnvironment{})
 		if err != nil || got.typ != d || got.null || !mathTrigMatches(got.floating, tc.want, tc.ulps) {
 			t.Fatalf("%s(%g): actual %g bits%x want %g bits%x err%v", tc.name, tc.input, got.floating, math.Float64bits(got.floating), tc.want, math.Float64bits(tc.want), err)
 		}
@@ -336,7 +336,7 @@ func TestMathTrigDirectDomainAndNaN(t *testing.T) {
 		}
 		for _, input := range []float64{math.Inf(-1), math.Inf(1)} {
 			a, _ := Float(d, input)
-			got, err := plan.Evaluate(context.Background(), a, Value{})
+			got, err := plan.Evaluate(context.Background(), []Value{a, Value{}}[:plan.arity], InputEnvironment{})
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "input is out of range"}
 			if got.typ != nil || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -344,7 +344,7 @@ func TestMathTrigDirectDomainAndNaN(t *testing.T) {
 			}
 		}
 		a, _ := Float(d, math.NaN())
-		got, err := plan.Evaluate(context.Background(), a, Value{})
+		got, err := plan.Evaluate(context.Background(), []Value{a, Value{}}[:plan.arity], InputEnvironment{})
 		if err != nil || got.typ != d || got.null || !math.IsNaN(got.floating) {
 			t.Fatal("direct NaN", name, got, err)
 		}

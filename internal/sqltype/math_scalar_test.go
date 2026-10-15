@@ -50,7 +50,7 @@ func TestMathScalarSignatures(t *testing.T) {
 						}
 					}
 					values[i] = Null(args[i].Type)
-					got, err := p.Evaluate(context.Background(), values[0], values[1])
+					got, err := p.Evaluate(context.Background(), values[:p.arity], InputEnvironment{})
 					if err != nil || got != Null(result) {
 						t.Fatal(got, err)
 					}
@@ -122,7 +122,7 @@ func TestMathScalarNumericValues(t *testing.T) {
 			}
 			p, v := scalarProvider(t, tc.name, Numeric, inputs...)
 			original := v
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -135,7 +135,7 @@ func TestMathScalarNumericValues(t *testing.T) {
 	for _, name := range []string{"ceil", "ceiling", "floor"} {
 		for _, special := range []string{"NaN", "Infinity", "-Infinity"} {
 			p, v := scalarProvider(t, name, Numeric, special)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil || got != v[0] {
 				t.Fatal(name, special, got, err)
 			}
@@ -144,7 +144,7 @@ func TestMathScalarNumericValues(t *testing.T) {
 	for _, a := range []string{"NaN", "Infinity", "-Infinity", "0", "2", "-2"} {
 		for _, b := range []string{"NaN", "Infinity", "-Infinity", "0", "2", "-2"} {
 			p, v := scalarProvider(t, "div", Numeric, a, b)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if b == "0" && a != "NaN" {
 				scalarError(t, err, "22012", "division by zero")
 				continue
@@ -201,7 +201,7 @@ func TestMathScalarErrorsAndBounds(t *testing.T) {
 				inputs = append(inputs, tc.b)
 			}
 			p, v := scalarProvider(t, tc.name, tc.id, inputs...)
-			_, err := p.Evaluate(context.Background(), v[0], v[1])
+			_, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			scalarError(t, err, tc.code, tc.message)
 		})
 	}
@@ -222,7 +222,7 @@ func TestMathScalarFactorial(t *testing.T) {
 	for _, tc := range []struct{ input, want string }{{"0", "1"}, {"1", "1"}, {"5", "120"}, {"20", "2432902008176640000"}, {"32177", scalarProduct(2, 32177).String()}} {
 		t.Run(tc.input, func(t *testing.T) {
 			p, v := scalarProvider(t, "factorial", Int8, tc.input)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -241,7 +241,7 @@ func TestMathScalarFloatAndInteger(t *testing.T) {
 			want  int64
 		}{{"-17", 17}, {"0", 0}, {"17", 17}} {
 			p, v := scalarProvider(t, "abs", id, tc.input)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil || got.integer != tc.want {
 				t.Fatal(id, tc, got, err)
 			}
@@ -253,7 +253,7 @@ func TestMathScalarFloatAndInteger(t *testing.T) {
 			want  float64
 		}{{"-17.5", 17.5}, {"-0", 0}, {"-Infinity", math.Inf(1)}, {"Infinity", math.Inf(1)}, {"NaN", math.NaN()}} {
 			p, v := scalarProvider(t, "abs", id, tc.input)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil || math.IsNaN(tc.want) != math.IsNaN(got.floating) || !math.IsNaN(tc.want) && (got.floating != tc.want || math.Signbit(got.floating)) {
 				t.Fatal(id, tc, got, err)
 			}
@@ -264,13 +264,13 @@ func TestMathScalarFloatAndInteger(t *testing.T) {
 		want        float64
 	}{{"abs", "-0", 0}, {"ceil", "-0.5", math.Copysign(0, -1)}, {"ceiling", "-0.5", math.Copysign(0, -1)}, {"floor", "-0", math.Copysign(0, -1)}, {"ceil", "42.8", 43}, {"floor", "-42.8", -43}, {"exp", "0", 1}, {"exp", "-Infinity", 0}, {"exp", "Infinity", math.Inf(1)}, {"exp", "NaN", math.NaN()}} {
 		p, v := scalarProvider(t, tc.name, Float8, tc.input)
-		got, err := p.Evaluate(context.Background(), v[0], v[1])
+		got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 		if err != nil || math.IsNaN(tc.want) != math.IsNaN(got.floating) || !math.IsNaN(tc.want) && (got.floating != tc.want || math.Signbit(got.floating) != math.Signbit(tc.want)) {
 			t.Fatal(tc, got, err)
 		}
 	}
 	p, v := scalarProvider(t, "exp", Float8, "1")
-	got, err := p.Evaluate(context.Background(), v[0], v[1])
+	got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 	if err != nil || math.Abs(got.floating-2.718281828459045) > 2*4.440892098500626e-16 {
 		t.Fatal(got, err)
 	}
@@ -285,7 +285,7 @@ func TestMathScalarCancellation(t *testing.T) {
 		p, v := scalarProvider(t, tc.name, tc.id, tc.inputs...)
 		for _, checkpoint := range []int{1, 2, 3, 4} {
 			ctx := &mathCheckpointContext{Context: context.Background(), remaining: checkpoint}
-			_, err := p.Evaluate(ctx, v[0], v[1])
+			_, err := p.Evaluate(ctx, v[:p.arity], InputEnvironment{})
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal(tc.name, checkpoint, err)
 			}

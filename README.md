@@ -3085,6 +3085,23 @@ Selected public checks: `make check RUN='^TestReferenceMathScalar'`,
 `make check RUN='^TestReferenceMathTrigDirectFeatureSmoke$'` and
 `make check RUN='^TestReferenceMathGcdLcm'`, each also with `REFERENCE=1`.
 
+Change note: `lgamma`, `ln`, `log`, `log10`, `power`, `sqrt` and `width_bucket`
+use the existing expression, namespace and stored-definition owners. Logarithms,
+roots and powers retain their documented NUMERIC/FLOAT8 overloads; binary `log`
+is NUMERIC-only and `lgamma` is FLOAT8-only (log of the absolute gamma value).
+Decimal logarithms/roots compute decimal digits directly rather than formatting
+a binary64 approximation. Four-argument buckets support ascending and reversed
+finite bounds with lower-inclusive, upper-exclusive buckets. The threshold-array
+overload accepts existing comparable element types and counts duplicate equal
+thresholds through the rightmost match. Thresholds must be sorted ascending:
+PostgreSQL does not validate sortedness, and unsorted inputs have unexpected
+results. Native stored/default/generated/CHECK/view expressions and symbolic
+Dump/Reset/Restore retain selected overloads and all four bucket arguments.
+See [mathematical functions](https://www.postgresql.org/docs/18/functions-math.html)
+and [selected proof](reference/numeric/README.md#logarithms-roots-powers-and-buckets).
+Feature smoke: `make check RUN='^TestReferenceMathLogPowerFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceMathLogPowerFeatureSmoke$'`.
+
 Change note: explicit BYTEA→TEXT (`v::text`, `CAST(v AS text)`, `text(v)`)
 uses the statement's `bytea_output`: lowercase hex by default, or PostgreSQL
 escape/octal output. Both textual input formats remain accepted in either mode.

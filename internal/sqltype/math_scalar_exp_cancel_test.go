@@ -31,7 +31,7 @@ func TestMathScalarExpComputationCancellation(t *testing.T) {
 	p, inputs := scalarProvider(t, "exp", Numeric, "1.0")
 	original := inputs
 	traversal := &mathScalarTraversalContext{Context: context.Background()}
-	got, err := p.Evaluate(traversal, inputs[0], inputs[1])
+	got, err := p.Evaluate(traversal, inputs[:p.arity], InputEnvironment{})
 	if err != nil || inputs != original {
 		t.Fatal("successful checkpoint traversal", got, err)
 	}
@@ -73,12 +73,12 @@ func TestMathScalarExpComputationCancellation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &mathScalarTraversalContext{Context: context.Background(), stop: tc.checkpoint}
-			partial, err := p.Evaluate(ctx, inputs[0], inputs[1])
+			partial, err := p.Evaluate(ctx, inputs[:p.arity], InputEnvironment{})
 			var diagnostic interface{ SQLState() string }
 			if !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || partial != (Value{}) || inputs != original {
 				t.Fatal("cancellation exposed a result or changed input", tc.checkpoint, partial, err)
 			}
-			reused, err := p.Evaluate(context.Background(), inputs[0], inputs[1])
+			reused, err := p.Evaluate(context.Background(), inputs[:p.arity], InputEnvironment{})
 			if err != nil || reused != got || inputs != original {
 				t.Fatal("provider reuse after cancellation", reused, err)
 			}

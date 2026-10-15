@@ -84,7 +84,7 @@ func TestMathScalarExpIndependent(t *testing.T) {
 		t.Run(tc.input, func(t *testing.T) {
 			want := scalarExpOracle(t, tc.input, tc.scale)
 			p, v := scalarProvider(t, "exp", Numeric, tc.input)
-			got, err := p.Evaluate(context.Background(), v[0], v[1])
+			got, err := p.Evaluate(context.Background(), v[:p.arity], InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}

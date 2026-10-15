@@ -1,15 +1,23 @@
 package functions
 
 import (
+	"errors"
 	"fmt"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type Math[E Expression[C], C LiteralContext[E], P any] struct {
+type MathContext[E any] interface {
+	LiteralContext[E]
+	FunctionInput() sqltype.InputEnvironment
+}
+
+type Math[E Expression[C], C MathContext[E], P any] struct {
 	Info[P]
-	Plan sqltype.MathPlan
-	Args []E
+	Plan           sqltype.MathPlan
+	Args           []E
+	WrapperContext string
 }
 
 func (e Math[E, C, P]) Eval(c C) (sqltype.Value, error) {
@@ -17,12 +25,14 @@ func (e Math[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	for _, arg := range e.Args {
-		if c.FunctionLiteralNull(arg) {
-			return sqltype.Null(e.Usage.Type), nil
+	if !selectedLogPower(e.Plan.Name()) {
+		for _, arg := range e.Args {
+			if c.FunctionLiteralNull(arg) {
+				return sqltype.Null(e.Usage.Type), nil
+			}
 		}
 	}
-	var values [2]sqltype.Value
+	var values [4]sqltype.Value
 	for i, arg := range e.Args {
 		v, err := arg.Eval(c)
 		if err != nil {
@@ -30,35 +40,61 @@ func (e Math[E, C, P]) Eval(c C) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
-	return e.Plan.Evaluate(ctx, values[0], values[1])
+	value, err := e.Plan.Evaluate(ctx, values[:len(e.Args)], c.FunctionInput())
+	if err != nil && e.WrapperContext != "" {
+		var diagnostic *sqlstate.Error
+		if errors.As(err, &diagnostic) {
+			copy := *diagnostic
+			copy.Context = e.WrapperContext
+			err = &copy
+		}
+	}
+	return value, err
 }
-func (e Math[E, C, P]) Reconstruct(info Info[P], args []E) (Math[E, C, P], error) {
-	if len(args) > 2 {
+func (e Math[E, C, P]) Reconstruct(info Info[P], args []E, ref sqltype.CollationRef, conflict bool) (Math[E, C, P], error) {
+	if len(args) > 4 {
 		return e, fmt.Errorf("stuntgres: invalid remapped math arity")
 	}
-	var usages [2]sqltype.Usage
+	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
-	plan, err := sqltype.BindMath(e.Plan.Name(), info.Usage, usages[:len(args)]...)
+	plan, err := bindMathProvider(e.Plan.Name(), info.Usage, usages[:len(args)], ref, conflict)
 	if err != nil {
 		return e, err
 	}
-	return Math[E, C, P]{info, plan, args}, nil
+	e.Info, e.Plan, e.Args = info, plan, args
+	return e, nil
 }
 func (e Math[E, C, P]) Validate() error {
-	if len(e.Args) > 2 {
+	if len(e.Args) > 4 {
 		return fmt.Errorf("stuntgres: invalid stored math arity")
 	}
-	var usages [2]sqltype.Usage
+	var usages [4]sqltype.Usage
 	for i, arg := range e.Args {
 		usages[i] = arg.ResultUsage()
 	}
-	plan, err := sqltype.BindMath(e.Plan.Name(), e.Usage, usages[:len(e.Args)]...)
-	if err != nil || plan != e.Plan {
+	ref, conflict := e.Plan.InputCollation()
+	plan, err := bindMathProvider(e.Plan.Name(), e.Usage, usages[:len(e.Args)], ref, conflict)
+	if err != nil || !plan.Equal(e.Plan) {
 		return fmt.Errorf("stuntgres: invalid stored math provider")
 	}
 	return nil
+}
+
+func bindMathProvider(name string, result sqltype.Usage, args []sqltype.Usage, ref sqltype.CollationRef, conflict bool) (sqltype.MathPlan, error) {
+	if name == "width_bucket" && len(args) == 2 {
+		return sqltype.BindWidthBucketThreshold(result, args[0], args[1], ref, conflict)
+	}
+	return sqltype.BindMath(name, result, args...)
+}
+
+func selectedLogPower(name string) bool {
+	switch name {
+	case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
+		return true
+	}
+	return false
 }
 
 type NumericTypes struct{ Int2, Int4, Int8, Float4, Float8, Numeric sqltype.Usage }
@@ -82,38 +118,48 @@ func (t NumericTypes) usage(id sqltype.ID) sqltype.Usage {
 }
 
 type MathSignature struct {
-	Args   [2]sqltype.ID
+	Args   [4]sqltype.ID
 	Arity  int
 	Result sqltype.ID
 }
 
 func mathSignatures(name string) []MathSignature {
-	unary := func(id sqltype.ID) MathSignature { return MathSignature{[2]sqltype.ID{id}, 1, id} }
+	unary := func(id sqltype.ID) MathSignature { return MathSignature{[4]sqltype.ID{id}, 1, id} }
 	switch name {
 	case "pi":
 		return []MathSignature{{Arity: 0, Result: sqltype.Float8}}
 	case "scale", "min_scale":
-		return []MathSignature{{[2]sqltype.ID{sqltype.Numeric}, 1, sqltype.Int4}}
+		return []MathSignature{{[4]sqltype.ID{sqltype.Numeric}, 1, sqltype.Int4}}
 	case "trim_scale":
 		return []MathSignature{unary(sqltype.Numeric)}
 	case "abs":
 		return []MathSignature{unary(sqltype.Int2), unary(sqltype.Int4), unary(sqltype.Int8), unary(sqltype.Float4), unary(sqltype.Float8), unary(sqltype.Numeric)}
 	case "div":
-		return []MathSignature{{[2]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
+		return []MathSignature{{[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
 	case "gcd", "lcm":
-		return []MathSignature{{[2]sqltype.ID{sqltype.Int4, sqltype.Int4}, 2, sqltype.Int4}, {[2]sqltype.ID{sqltype.Int8, sqltype.Int8}, 2, sqltype.Int8}, {[2]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
+		return []MathSignature{{[4]sqltype.ID{sqltype.Int4, sqltype.Int4}, 2, sqltype.Int4}, {[4]sqltype.ID{sqltype.Int8, sqltype.Int8}, 2, sqltype.Int8}, {[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
 	case "factorial":
-		return []MathSignature{{[2]sqltype.ID{sqltype.Int8}, 1, sqltype.Numeric}}
+		return []MathSignature{{[4]sqltype.ID{sqltype.Int8}, 1, sqltype.Numeric}}
+	case "ln", "log10", "sqrt":
+		return []MathSignature{unary(sqltype.Numeric), unary(sqltype.Float8)}
+	case "lgamma":
+		return []MathSignature{unary(sqltype.Float8)}
+	case "log":
+		return []MathSignature{unary(sqltype.Numeric), unary(sqltype.Float8), {[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
+	case "power":
+		return []MathSignature{{[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}, {[4]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, sqltype.Float8}}
+	case "width_bucket":
+		return []MathSignature{{[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric, sqltype.Numeric, sqltype.Int4}, 4, sqltype.Int4}, {[4]sqltype.ID{sqltype.Float8, sqltype.Float8, sqltype.Float8, sqltype.Int4}, 4, sqltype.Int4}}
 	case "sign", "ceil", "ceiling", "floor", "exp":
 		return []MathSignature{unary(sqltype.Numeric), unary(sqltype.Float8)}
 	case "cbrt", "degrees", "radians", "erf", "erfc", "gamma", "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh":
 		return []MathSignature{unary(sqltype.Float8)}
 	case "atan2", "atan2d":
-		return []MathSignature{{[2]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, sqltype.Float8}}
+		return []MathSignature{{[4]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, sqltype.Float8}}
 	case "round", "trunc":
-		return []MathSignature{unary(sqltype.Numeric), unary(sqltype.Float8), {[2]sqltype.ID{sqltype.Numeric, sqltype.Int4}, 2, sqltype.Numeric}}
+		return []MathSignature{unary(sqltype.Numeric), unary(sqltype.Float8), {[4]sqltype.ID{sqltype.Numeric, sqltype.Int4}, 2, sqltype.Numeric}}
 	case "mod":
-		return []MathSignature{{[2]sqltype.ID{sqltype.Int2, sqltype.Int2}, 2, sqltype.Int2}, {[2]sqltype.ID{sqltype.Int4, sqltype.Int4}, 2, sqltype.Int4}, {[2]sqltype.ID{sqltype.Int8, sqltype.Int8}, 2, sqltype.Int8}, {[2]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
+		return []MathSignature{{[4]sqltype.ID{sqltype.Int2, sqltype.Int2}, 2, sqltype.Int2}, {[4]sqltype.ID{sqltype.Int4, sqltype.Int4}, 2, sqltype.Int4}, {[4]sqltype.ID{sqltype.Int8, sqltype.Int8}, 2, sqltype.Int8}, {[4]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
 	}
 	return nil
 }
@@ -247,13 +293,19 @@ func SelectMath[E interface{ ResultUsage() sqltype.Usage }](prepared MathCandida
 	return candidates[0], Resolved
 }
 
-func CoerceMathArguments[E interface{ ResultUsage() sqltype.Usage }, B ArgumentCoercer[E]](b B, raw []parser.Expr, args []E, unknown []bool, signature MathSignature, types NumericTypes) error {
+func CoerceMathArguments[E interface{ ResultUsage() sqltype.Usage }, B ArgumentCoercer[E]](b B, name string, raw []parser.Expr, args []E, unknown []bool, signature MathSignature, types NumericTypes) error {
 	for i, arg := range args {
 		argument := Argument[E]{Expression: arg, Raw: raw[i]}
 		if !unknown[i] {
 			argument.Usage = arg.ResultUsage()
 		}
-		node, err := b.CoerceArgument(argument, CoercionRequest{Intent: DirectFormalArgument, Target: types.usage(signature.Args[i]), PreserveProperties: true, AtRaw: true})
+		intent := DirectFormalArgument
+		if _, parameter := raw[i].(parser.ParameterExpr); parameter && unknown[i] && selectedLogPower(name) {
+			// Occurrence-sensitive inference uses the existing parameter owner.
+			// Literals and already typed arguments keep ordinary formal coercion.
+			intent = FinalizeArgument
+		}
+		node, err := b.CoerceArgument(argument, CoercionRequest{Intent: intent, Target: types.usage(signature.Args[i]), PreserveProperties: true, AtRaw: true})
 		if err != nil {
 			return err
 		}
@@ -261,11 +313,14 @@ func CoerceMathArguments[E interface{ ResultUsage() sqltype.Usage }, B ArgumentC
 	}
 	return nil
 }
-func NewMath[E Expression[C], C LiteralContext[E], P any](info Info[P], name string, args []E) (Math[E, C, P], error) {
-	var usages [2]sqltype.Usage
+func NewMath[E Expression[C], C MathContext[E], P any](info Info[P], name string, args []E) (Math[E, C, P], error) {
+	if len(args) > 4 {
+		return Math[E, C, P]{}, fmt.Errorf("invalid math arity")
+	}
+	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindMath(name, info.Usage, usages[:len(args)]...)
-	return Math[E, C, P]{info, plan, args}, err
+	return Math[E, C, P]{Info: info, Plan: plan, Args: args}, err
 }

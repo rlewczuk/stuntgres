@@ -28,6 +28,30 @@ BIT slicing keeps logical bit units. Native controls replay symbolic selected
 calls, not an expanded arbitrary SQL import language.
 See [selected proof and smoke](../reference/strings/README.md#text-slicing-selected-proof).
 
+## Logarithms, roots, powers and buckets
+
+Selected NUMERIC logarithms and roots use decimal kernels with release-selected
+display scales, not FLOAT8 round trips. FLOAT8 finite transcendental last bits
+can vary with libm; exact domains, IEEE categories and zero signs remain part of
+the contract. Binary `log` has no FLOAT8 signature; `lgamma` has no NUMERIC
+signature. Existing implicit casts may still select an admitted formal type.
+
+Four-argument `width_bucket` follows pinned PostgreSQL18.0: any NaN operand or
+bound is rejected, bounds must be finite and unequal, and count must be positive.
+Maximum INT4 count is valid until an actual count-plus-one result overflows.
+The array overload uses existing comparable types and comparison/collation
+authority. Arrays must be one-dimensional and contain no NULL elements.
+**Ascending thresholds are a caller precondition, not a validated condition.**
+Unsorted thresholds yield PostgreSQL's binary-search behavior, not a sortedness
+error or mathematical bucket guarantee. Equal thresholds are allowed; physical
+array lower bounds do not change bucket numbering.
+The selected threshold argument can consume existing enum-associated arrays,
+including typed NULL/empty/bound arrays and symbolic stored calls. This narrow
+argument role does not enable enum-array columns, domain bases, general SELECT
+casts or unrelated function arguments. Existing enum descriptor ownership,
+association and logical-rank comparison remain authoritative.
+See [selected tests](../reference/numeric/README.md#logarithms-roots-powers-and-buckets).
+
 ## Identifier strings
 
 `parse_ident(str text, strict boolean DEFAULT true)` splits qualified identifier
