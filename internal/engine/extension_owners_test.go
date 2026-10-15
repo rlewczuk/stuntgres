@@ -42,6 +42,9 @@ func TestPgcryptoOwnerMetadata(t *testing.T) {
 		{Kind: "procedure", Name: "decrypt", Signature: "17,17,25", Owner: "postgres"},
 		{Kind: "procedure", Name: "encrypt_iv", Signature: "17,17,17,25", Owner: "postgres"},
 		{Kind: "procedure", Name: "decrypt_iv", Signature: "17,17,17,25", Owner: "postgres"},
+		{Kind: "procedure", Name: "gen_random_bytes", Signature: "23", Owner: "postgres"},
+		{Kind: "procedure", Name: "gen_random_uuid", Signature: "", Owner: "postgres"},
+		{Kind: "procedure", Name: "fips_mode", Signature: "", Owner: "postgres"},
 	}}
 	if err != nil || len(records) != 1 || !reflect.DeepEqual(records[0], expected) {
 		t.Fatal("owner metadata", records, err)
@@ -133,7 +136,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal("remapped procedure", err)
 		}
 		old := before.state.descriptors[original].(*procedureDescriptor)
-		if remapped.members[i] != proc.address || proc.extension != remapped.address || proc.namespace != old.namespace || proc.owner != old.owner || proc.crypto != old.crypto || proc.signature != old.signature || proc.result != old.result {
+		if remapped.members[i] != proc.address || proc.extension != remapped.address || proc.namespace != old.namespace || proc.owner != old.owner || proc.crypto != old.crypto || proc.signature != old.signature || proc.result != old.result || proc.strict != old.strict || proc.volatility != old.volatility {
 			t.Fatal("remapped member identity", proc)
 		}
 		if old.address != original || old.extension != ext.address || ext.members[i] != original {
@@ -218,5 +221,31 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	assertCall(query.(*projectNode).expressions[0])
 	if consumer.defaults[1].dependencies[0] != call.ref || call.procedure != before.state.descriptors[call.ref.Address] {
 		t.Fatal("source consumer mutated")
+	}
+	for _, name := range []string{"gen_random_bytes", "gen_random_uuid", "fips_mode"} {
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: name}}}}
+		if name == "gen_random_bytes" {
+			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 16}}}
+		}
+		node, err := binder.bindInstalledCrypto(raw)
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		original := node.(installedCryptoFunctionExpression)
+		project := &projectNode{querySchema: querySchema{{Name: "value", Usage: original.ResultUsage()}}, child: &valuesNode{}, expressions: []BoundExpr{original}}
+		query, err := remapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+		if err != nil {
+			t.Fatal(name, err)
+		}
+		actual := query.(*projectNode).expressions[0].(installedCryptoFunctionExpression)
+		if actual.ref.Address != mapping[original.ref.Address] || actual.ref.Epoch != next.epoch || actual.procedure != next.descriptors[actual.ref.Address] || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != Volatile || !closedPgcryptoDefault(actual) {
+			t.Fatal("relocated random/FIPS recipe", name, actual)
+		}
+		if err := actual.validate(view); err != nil {
+			t.Fatal(name, err)
+		}
+		if original.procedure != before.state.descriptors[original.ref.Address] || original.ref.Address == actual.ref.Address {
+			t.Fatal("source random/FIPS identity changed")
+		}
 	}
 }

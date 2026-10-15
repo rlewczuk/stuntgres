@@ -106,7 +106,7 @@ func TestReferencePgcryptoConsumersAndControls(t *testing.T) {
 		run(check)
 		run(view)
 		run(nested)
-		pgcryptoReplayOverloads(t, p, c, r)
+		pgcryptoReplayOverloads(t, p, c, r, pg)
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Statement: held, SQL: heldSQL}, r, fixture.Select(heldSQL, []string{"digest"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, sha)}}, "abc", "sha256"))
 		run(fixture.Exec("INSERT INTO pgcrypto_stored(id,v) VALUES(3,'abc')", 1))
 		run(failure)
@@ -143,7 +143,7 @@ func TestReferencePgcryptoConsumersAndControls(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, target, targetRecord, check)
 		fixture.RunStep(t, p.Ctx, target, targetRecord, view)
 		fixture.RunStep(t, p.Ctx, target, targetRecord, nested)
-		pgcryptoReplayOverloads(t, p, target, targetRecord)
+		pgcryptoReplayOverloads(t, p, target, targetRecord, pg)
 		pgcryptoForcedRelocation(t, p, c, target, r, targetRecord, dump.String(), check, view, nested, failure)
 		pgcryptoResult(t, p, target, targetRecord, "digest", "SELECT pgcrypto_part.digest('abc','sha256')", sha)
 		missing := fixture.CatalogControlPool(t, stuntgres.NewDriver(), "pgcrypto_missing_owner")
@@ -216,7 +216,7 @@ func pgcryptoInvalidOwnerDumps(t *testing.T, dump string) []string {
 		if err := json.Unmarshal(payload, &record); err != nil {
 			t.Fatal(err)
 		}
-		if record.Name != "pgcrypto" || record.Version != "1.4" || len(record.Members) != 11 {
+		if record.Name != "pgcrypto" || record.Version != "1.4" || len(record.Members) != 14 {
 			t.Fatal("unexpected pgcrypto manifest", record)
 		}
 		switch kind {

@@ -40,21 +40,37 @@ func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error
 		if count != 1 && count != 2 {
 			return PgcryptoPlan{}, fmt.Errorf("invalid crypto signature")
 		}
+	case "gen_random_bytes":
+		count = 1
+	case "gen_random_uuid":
+		count, resultID = 0, UUID
+	case "fips_mode":
+		count, resultID = 0, Bool
 	default:
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto function")
 	}
-	if len(args) != count || result.Type == nil || result.Type.ID() != resultID || args[0].Type == nil {
+	if len(args) != count || result.Type == nil || result.Type.ID() != resultID {
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto signature")
 	}
-	input := args[0].Type.ID()
-	rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
-	if rawAES && input != Bytea || !rawAES && input != Text && (input != Bytea || name != "digest" && name != "hmac") {
-		return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
+	var input ID
+	if count != 0 {
+		if args[0].Type == nil {
+			return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
+		}
+		input = args[0].Type.ID()
+		rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
+		if name == "gen_random_bytes" {
+			if input != Int4 {
+				return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
+			}
+		} else if rawAES && input != Bytea || !rawAES && input != Text && (input != Bytea || name != "digest" && name != "hmac") {
+			return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
+		}
 	}
 	plan := PgcryptoPlan{name: name, result: result, input: input, count: count}
 	for i, arg := range args {
 		want := input
-		if i == count-1 {
+		if i == count-1 && name != "gen_random_bytes" {
 			want = Text
 		}
 		if name == "gen_salt" && i == 1 {
@@ -141,8 +157,9 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 		}
 		return String(p.result.Type, hash), nil
 	}
-	if p.name == "gen_salt" {
-		return Value{}, fmt.Errorf("gen_salt requires entropy")
+	switch p.name {
+	case "gen_salt", "gen_random_bytes", "gen_random_uuid", "fips_mode":
+		return Value{}, fmt.Errorf("%s requires an execution provider", p.name)
 	}
 	algorithm, err := values[count-1].Text()
 	if err != nil {
@@ -229,6 +246,25 @@ func (p PgcryptoPlan) validateValues(values []Value) (bool, error) {
 		null = null || value.IsNull()
 	}
 	return null, nil
+}
+
+// PrepareRandomBytes checks the SQL count before any allocation or entropy.
+func (p PgcryptoPlan) PrepareRandomBytes(values ...Value) (int, bool, error) {
+	if p.name != "gen_random_bytes" {
+		return 0, false, fmt.Errorf("invalid random bytes plan")
+	}
+	null, err := p.validateValues(values)
+	if err != nil || null {
+		return 0, null, err
+	}
+	count, err := values[0].Integer()
+	if err != nil {
+		return 0, false, err
+	}
+	if count < 1 || count > 1024 {
+		return 0, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "39000", Message: "Length not in range"}
+	}
+	return int(count), false, nil
 }
 
 // PrepareSalt validates before the function carrier requests strong entropy.

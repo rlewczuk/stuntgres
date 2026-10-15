@@ -160,6 +160,7 @@ func pgcryptoFreshConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixtu
 type pgcryptoHeldCall struct {
 	statement *sql.Stmt
 	step      fixture.Step
+	rawUUID   bool
 }
 
 func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoHeldCall {
@@ -176,6 +177,8 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 		fixture.Select("SELECT pgcrypto_part.decrypt($1::bytea,$2::bytea,$3)", []string{"decrypt"}, []string{"BYTEA"}, [][]any{{"foo"}}, aesBytes(t, "f397f03d2819b7172b68d0706fda4693"), []byte("0123456789"), "aes"),
 		fixture.Select("SELECT pgcrypto_part.encrypt_iv($1::bytea,$2::bytea,$3::bytea,$4)", []string{"encrypt_iv"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, "2c24cb7da91d6d5699801268b0f5adad")}}, []byte("foo"), []byte("0123456"), []byte("abcd"), "aes"),
 		fixture.Select("SELECT pgcrypto_part.decrypt_iv($1::bytea,$2::bytea,$3::bytea,$4)", []string{"decrypt_iv"}, []string{"BYTEA"}, [][]any{{"foo"}}, aesBytes(t, "2c24cb7da91d6d5699801268b0f5adad"), []byte("0123456"), []byte("abcd"), "aes"),
+		fixture.Select("SELECT octet_length(pgcrypto_part.gen_random_bytes($1)) AS size", []string{"size"}, []string{"INT4"}, [][]any{{int64(32)}}, 32),
+		fixture.Select("SELECT pgcrypto_part.fips_mode() AS value", []string{"value"}, []string{"BOOL"}, [][]any{{pgcryptoRandomFIPSExpected(false)}}),
 	}
 	var held []pgcryptoHeldCall
 	for _, step := range calls {
@@ -184,7 +187,29 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { statement.Close() })
-		held = append(held, pgcryptoHeldCall{statement, step})
+		held = append(held, pgcryptoHeldCall{statement: statement, step: step})
 	}
+	q := "SELECT pgcrypto_part.gen_random_uuid() AS value"
+	statement, err := c.PrepareContext(p.Ctx, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { statement.Close() })
+	held = append(held, pgcryptoHeldCall{statement: statement, step: fixture.Step{Query: q}, rawUUID: true})
 	return held
+}
+
+// These retained-control callers are native-only. Validate unpredictable UUIDs
+// directly, rather than adding a cast outside the existing closed-source seam.
+func pgcryptoRunHeldCall(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, call pgcryptoHeldCall) {
+	t.Helper()
+	if call.rawUUID {
+		rows, err := call.statement.QueryContext(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pgcryptoRandomUUIDRows(t, rows, false)
+		return
+	}
+	fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: call.statement, SQL: call.step.Query}, r, call.step)
 }

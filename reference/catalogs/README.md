@@ -1081,18 +1081,20 @@ make check RUN='^TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataVa
 make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceAvailableExtensions(Transactions|Controls|JoinConsistency))$'
 ```
 
-### Pgcrypto hashing, passwords and raw AES selected proof
+### Pgcrypto hashing, passwords, raw AES and random/FIPS selected proof
 
 The native registry contains unaccent1.1, selected-type intarray1.5,
-selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs eleven
-genuine strict/parallel-safe overloads: four immutable BYTEA digest/HMAC members,
+selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs fourteen
+genuine parallel-safe overloads: four immutable BYTEA digest/HMAC members,
 immutable crypt(TEXT,TEXT), volatile gen_salt(TEXT[,INT4]) returning TEXT,
-and immutable encrypt/decrypt(BYTEA,BYTEA,TEXT) plus
-encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT) returning BYTEA.
-Exact name/signature/result/volatility pairs are asserted using
-public OID→REGPROCEDURE text identity, not OIDVECTOR/proargtypes. Namespace,
-positive distinct IDs, owner and membership edges remain independently asserted;
-PostgreSQL's full stock member inventory is not equated to native's selected eleven.
+immutable encrypt/decrypt(BYTEA,BYTEA,TEXT) plus
+encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT) returning BYTEA,
+volatile gen_random_bytes(INT4) returning BYTEA, gen_random_uuid() returning UUID
+and fips_mode() returning BOOL. All are STRICT except the non-STRICT UUID wrapper.
+Exact name/signature/result/volatility/strictness pairs are asserted using public
+OID→REGPROCEDURE text identity, not OIDVECTOR/proargtypes. Namespace, positive
+distinct IDs, owner and membership edges remain independently asserted;
+PostgreSQL's full stock inventory is not equated to native's selected fourteen.
 
 Fixed RFC/independently calculated digest/HMAC vectors cover empty, binary,
 UTF8, exact-block and oversized keys through direct/new/held prepared frames.
@@ -1110,7 +1112,7 @@ has no schema GRANT/REVOKE: the ordinary private schema initially denies the
 reader, then explicit ALTER SCHEMA OWNER enables both unqualified path lookup
 and qualified calls without changing the installed procedures' owners.
 
-Restore's strict owner manifest admits pgcrypto1.4 only with the complete eleven
+Restore's strict owner manifest admits pgcrypto1.4 only with the complete fourteen
 procedure name/signature pairs; dictionary/type members, duplicates, missing or
 extra members and foreign signatures are rejected. The existing unaccent1.1
 and intarray1.5 manifests retain their separate validation. Actual dumped
@@ -1128,10 +1130,11 @@ evidence of actual Restore collision handling.
 `TestReferencePgcryptoConsumersAndControls` includes a native-only real-pipeline
 relocation phase. An ordinary independent-Driver replay establishes candidate
 procedure identities. A second identically initialized destination allocates
-live TEMP sequences until all eleven procedure OIDs have actual cross-class
+live TEMP sequences until all fourteen procedure OIDs have actual cross-class
 collisions. Public Restore must relocate every imported procedure while retaining
 the TEMP OIDs, rows and generator capture. Fixed digest/HMAC, crypt and AES results,
-plus salt format/cost assertions, cover all eleven overloads after ordinary and collision replay. Defaults, CHECKs, generated
+plus salt format/cost, random bytes/UUID bits and actual FIPS assertions, cover all
+fourteen overloads after ordinary and collision replay. Defaults, CHECKs, generated
 columns, expression indexes, stored views and a nested scalar-subquery view
 remain executable. Procedure dependencies compare complete seven-field addresses
 resolved independently from the named default/generated attrdefs, CHECKs, index
@@ -1161,7 +1164,7 @@ Saved column metadata is rechecked after consumption without querying metadata
 on the exhausted cursor. The deliberately blocking final TEMP view adds its
 namespace/relation/rewrite identities, internal ownership edge and persistent
 projected-column dependency edges to the final refusal snapshot.
-Eleven held crypto statements are prepared after relocation. Every wrong-version,
+Fourteen held crypto statements are prepared after relocation. Every wrong-version,
 unknown-provider, malformed-manifest, late-SQL, cancellation, private-TEMP-placement
 and retained-dependent-TEMP-view refusal uses the same postcondition: unchanged
 persistent dump, procedure/consumer/owner identities, exact dependency tuples,
@@ -1183,6 +1186,66 @@ make check RUN='^TestPgcrypto(Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEn
 make check RUN='^(TestExtensionOwner(Metadata|ManifestAdmission)|TestIntarrayProviderIdentity)$'
 ```
 
+The random/FIPS scenarios independently assert1/16/1023/1024-byte outputs, typed
+BYTEA NULL, direct and reused prepared frames, metadata/raw adapter types, strong
+entropy independent of setseed, and exact39000 `Length not in range` diagnostics.
+Coercion failures retain their full logical diagnostics and literal UTF8 character
+positions; range failures occur on execution, including prepared literal calls.
+Bound invalid integer inputs share the exact parameter-import Context
+`unnamed portal parameter $1 = '...'` in native and pinned PostgreSQL modes.
+Later-row INSERT failure is statement-atomic and explicit transactions abort.
+Precancelled direct/prepared calls test only the native adapter guarantee:
+a fast PostgreSQL result can win lib/pq's cancellation race, so this is not a
+PostgreSQL server-cancellation or pinned-connection-health assertion.
+
+UUIDs are independently decoded to16 octets and checked for V4/variant bits,
+canonical text and native string versus PostgreSQL []byte representation.
+Core pg_catalog.gen_random_uuid remains available without installation. Ordered
+implicit/explicit catalog paths and qualified calls prove actual installed
+binding through default/view procedure dependencies, not just UUID value shape.
+All three installed random/FIPS members are volatile through reconstruction:
+defaults/views are valid, generated columns/expression indexes reject42P17.
+Native controls retain stored bytes/UUIDs without regeneration, old Rows/metadata,
+zero-argument recipes, actual installed dependencies, real held-statement rebinding
+and independent-driver collision relocation. Failed/cancelled replay is atomic;
+missing named destination owners are not silently substituted.
+Held UUID calls validate raw UUID values and metadata rather than introducing
+an unrelated closed-source UUID→TEXT cast. Relocation retains genuine unread
+eager database/sql.Rows and independently checks their value/type/metadata
+through successful and refused replay. This does not rebind SQL HOLD portals:
+their old FETCH/MOVE execution remains fenced by native catalog replacement.
+Trusted installer coverage uses PostgreSQL DROP EXTENSION versus native Reset
+before reinstalling, preserving the existing native extension-retirement boundary
+and explicit installed-schema ownership without adding schema ACL SQL.
+
+fips_mode returns actual active Go crypto/fips140.Enabled() in native mode, not
+algorithm availability, certification, host flags or query-time GODEBUG parsing.
+No OpenSSL installation is required. Pinned PostgreSQL's ordinary OpenSSL mode
+was observed false; native mode is intentionally not forced to match it.
+Use separate startup processes for native off/on proof, narrowly selected because
+older digest/password cases intentionally exercise non-FIPS algorithms. Preserve
+other necessary GODEBUG options explicitly if the environment requires them.
+The new feature smoke exercises installation, prepared byte frames/NULL/bounds,
+UUID raw bits/type and path-dependent procedure binding, FIPS BOOL, volatile
+consumers and native stored-value/recipe replay with old Rows. The native-control
+phases are not represented as PostgreSQL control operations.
+
+```sh
+make check RUN='^TestReferencePgcryptoRandom(Bytes|Diagnostics|Identity|UUID|FIPSMode|ConsumersAndControls|Relocation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoRandom(Bytes|Diagnostics|Identity|UUID|FIPSMode|ConsumersAndControls|Relocation|FeatureSmoke)$'
+make check RUN='^TestReferencePgcryptoRandomFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoRandomFeatureSmoke$'
+env GODEBUG=fips140=off make check RUN='^TestReferencePgcryptoRandomFIPSMode$'
+env GODEBUG=fips140=on make check RUN='^TestReferencePgcryptoRandomFIPSMode$'
+make check RACE=1 RUN='^TestReferencePgcryptoRandom(ConsumersAndControls|Relocation)$'
+make check RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke|Password(Identity|ConsumersAndControls|Relocation|FeatureSmoke))$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke|Password(Identity|ConsumersAndControls|Relocation|FeatureSmoke))$'
+make check RUN='^TestReferenceUUIDGeneration(Signatures|BitsMetadataAndOrder|StoredConsumersAndControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceUUIDGeneration(Signatures|BitsMetadataAndOrder|StoredConsumersAndControls|FeatureSmoke)$'
+make check RUN='^(TestPgcrypto(Random(Resolution|Evaluation|Cancellation|Binding)|ProviderIdentity|ExpressionIdentity|OwnerMetadata|ControlRemap|OverloadResolution|StrictDemand|Cancellation)|TestExtensionOwnerManifestAdmission|TestUUIDGenerationPacking)$'
+```
+
+
 Password witnesses use published PostgreSQL/Openwall vectors plus pinned18.0
 UTF8/C observations:2a versus historical2x octet expansion, 71/72/73-byte
 truncation including split UTF8, stored hashes, arbitrary ignored suffixes and
@@ -1191,7 +1254,7 @@ cost4 and cheap31, strong entropy independent of SQL reseeding, repeated held
 frames/rows/sessions, strict TEXT NULLs and exact coercion/failure stages.
 Non-bf crypt/generator exclusions assert explicit native0A000 independently
 of PostgreSQL DES fallback hashes and real non-bf generator success.
-`PasswordRelocation` additionally forces all eleven actual OID collisions while
+`PasswordRelocation` additionally forces all fourteen actual OID collisions while
 preserving stored random salts/hashes, crypt generated-column/view recipes and
 gen_salt defaults, exact dependency addresses, held members, future writes and
 failed replay atomicity. `PasswordConsumersAndControls` retains old TEXT Rows,
@@ -1232,7 +1295,7 @@ type-option precedence and complete logical diagnostics. Discovery filters and
 unknown-value logging are removed before native regression and final proof.
 Direct/new/held calls preserve BYTEA metadata and strict source-order demand.
 The AES consumer scenario independently resolves actual procedure dependencies
-for defaults/generated/CHECK/index/view/nested recipes, exercises all eleven
+for defaults/generated/CHECK/index/view/nested recipes, exercises all fourteen
 held/direct calls through Reset/Restore and forces actual cross-class collisions.
 Named owners, unread bytes/metadata, detached output ownership, live fresh writes
 and refused replay atomicity are public API witnesses, not serialized-cipher-state

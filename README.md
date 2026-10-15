@@ -4087,7 +4087,7 @@ See [fields, visibility and controls](https://www.postgresql.org/docs/18/catalog
 Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned counterpart.
 
-**Pgcrypto change note:** installed pgcrypto1.4 supplies eleven STRICT PARALLEL SAFE
+**Pgcrypto change note:** installed pgcrypto1.4 supplies fourteen PARALLEL SAFE
 scalar overloads: immutable digest(TEXT,TEXT), digest(BYTEA,TEXT),
 hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT) return raw BYTEA; immutable
 crypt(TEXT,TEXT) and volatile gen_salt(TEXT[,INT4]) return TEXT.
@@ -4102,6 +4102,9 @@ nopad requires block alignment. Malformed padding/length raises operation-specif
 while recognized excluded cipher modes are explicit native0A000 boundaries.
 Raw encryption supplies no integrity protection; see
 [PostgreSQL raw encryption functions](https://www.postgresql.org/docs/18/pgcrypto.html#PGCRYPTO-RAW-ENC-FUNCS).
+Volatile gen_random_bytes(INT4), gen_random_uuid() and fips_mode() return BYTEA,
+UUID and BOOL respectively. All selected members are STRICT except the
+zero-argument installed UUID wrapper, matching its PostgreSQL declaration.
 Supported digest/HMAC algorithms are md5, sha1, sha224, sha256, sha384 and sha512,
 including observed hyphenated SHA aliases and SHA2-256. TEXT hashes exact UTF8
 octets; BYTEA hashes arbitrary raw bytes. Builtin md5 still returns hexadecimal
@@ -4125,7 +4128,25 @@ random state. Volatile salts are valid defaults/views, not generated columns or
 expression indexes. Stored salts/hashes survive native replay without regeneration.
 Non-bf algorithms, including `$2b$`/`$2y$` dispatch, are native unsupported
 boundaries (0A000), not extra accepted bcrypt variants; `$2$` retains39000.
-No arbitrary OpenSSL algorithms, PGP, random-byte or FIPS functions are added.
+gen_random_bytes accepts1..1024 bytes, validates bounds before allocation/entropy,
+and returns typed BYTEA NULL for a NULL count. Invalid counts report39000
+`Length not in range`; unknown inputs use ordinary INT4 coercion and diagnostics.
+The installed UUID wrapper reuses core V4 generation and retains its own procedure
+dependency. Core pg_catalog.gen_random_uuid remains available without the extension.
+Implicit pg_catalog lookup wins by default; explicit
+`search_path=pgcrypto_part,pg_catalog` selects an installed wrapper in pgcrypto_part.
+fips_mode reports actual active Go crypto mode via crypto/fips140.Enabled(), not
+algorithm availability or a deployment certification claim. No OpenSSL installation
+is required; PostgreSQL reports its own OpenSSL mode, which can legitimately differ.
+All three new members are volatile defaults/view producers, never immutable
+generated-column/index expressions. Stored random bytes/UUIDs and executable
+installed recipes retain their values and identities through native replay.
+Arbitrary OpenSSL algorithms, PGP, provider configuration and
+shared-library loading remain excluded. Random/FIPS smoke:
+`make check RUN='^TestReferencePgcryptoRandomFeatureSmoke$'`;
+add `REFERENCE=1` for pinned PostgreSQL. Run the native actual-mode witness in
+separate processes with `env GODEBUG=fips140=off make check RUN='^TestReferencePgcryptoRandomFIPSMode$'`
+and `env GODEBUG=fips140=on make check RUN='^TestReferencePgcryptoRandomFIPSMode$'`.
 Raw AES smoke: `make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'`;
 add `REFERENCE=1` for pinned PostgreSQL. Password smoke:
 `make check RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'`;

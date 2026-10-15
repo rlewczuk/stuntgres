@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"crypto/fips140"
 	"crypto/rand"
 	"fmt"
 	"strings"
@@ -22,6 +23,8 @@ func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 	_, err := rand.Read(bytes)
 	return err
 }
+
+func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
 func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundExpr, error) {
 	var operands []functions.Argument[BoundExpr]
@@ -96,7 +99,25 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	if canonical == "encrypt_iv" || canonical == "decrypt_iv" {
 		signature = "17,17,17,25"
 	}
-	proc := procedureInNamespaces(auth.catalog, path, name, signature)
+	if canonical == "gen_random_bytes" {
+		signature = "23"
+	}
+	if canonical == "gen_random_uuid" || canonical == "fips_mode" {
+		signature = ""
+	}
+	var proc *procedureDescriptor
+	for i := range path.count() {
+		namespace := path.at(i)
+		// The implicit catalog precedes ordinary paths; explicit ordering can
+		// instead select the actual installed wrapper and its dependency.
+		if name == "gen_random_uuid" && namespace.ObjectID == PGCatalogNamespaceOID {
+			return b.bindUUIDGeneration(raw, true)
+		}
+		proc = procedureInNamespaces(auth.catalog, namespaceSelection{qualified: namespace}, name, signature)
+		if proc != nil {
+			break
+		}
+	}
 	if proc == nil || proc.crypto != stockPgcrypto {
 		return failure()
 	}
@@ -114,9 +135,18 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	result := bytea
-	if proc.result == 25 {
+	var result sqltype.Usage
+	switch proc.result {
+	case 17:
+		result = bytea
+	case 25:
 		result = text
+	case 2950:
+		result = b.typ(sqltype.UUID).Usage()
+	case 16:
+		result = b.typ(sqltype.Bool).Usage()
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid pgcrypto result")
 	}
 	call, err := functions.NewPgcrypto[BoundExpr, *EvalContext](functionInfo(b.info(result, raw.Pos, properties)), canonical, args)
 	if err != nil {
@@ -144,6 +174,12 @@ func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
 }
 
 func cryptoExpressionSignature(n installedCryptoFunctionExpression) procedureSignature {
+	if n.Plan.Name() == "gen_random_bytes" {
+		if len(n.Args) == 1 && n.Args[0].ResultUsage().Type.ID() == sqltype.Int4 {
+			return "23"
+		}
+		return ""
+	}
 	if n.Plan.Name() == "gen_salt" {
 		if len(n.Args) == 1 {
 			return "25"
@@ -188,7 +224,7 @@ func closedPgcryptoDefault(node BoundExpr) bool {
 			return false
 		}
 		member, ok := pgcryptoLookup(n.procedure.name, cryptoExpressionSignature(n))
-		if !ok || n.procedure.signature != member.signature || n.procedure.result != member.result || n.procedure.volatility != member.volatility {
+		if !ok || n.procedure.signature != member.signature || n.procedure.result != member.result || n.procedure.volatility != member.volatility || n.procedure.strict != member.strict {
 			return false
 		}
 	case coercionExpression, collationExpression, rowExpression, fieldExpression,

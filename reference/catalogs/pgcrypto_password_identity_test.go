@@ -31,7 +31,7 @@ func TestReferencePgcryptoPasswordIdentity(t *testing.T) {
 		pgcryptoInventory(t, p, c, owner, owner)
 		run(extensionMissing("SELECT crypt('foox','salt')", "crypt", "unknown, unknown"))
 		pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
-		pgcryptoReplayOverloads(t, p, c, r)
+		pgcryptoReplayOverloads(t, p, c, r, pg)
 		run(fixture.Exec("SET search_path TO pgcrypto_part,public", 0))
 		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
 		run(fixture.Exec("CREATE USER pgcrypto_owner", 0))

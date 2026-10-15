@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"context"
 	"math"
 	"runtime"
 	"stuntgres/internal/parser"
@@ -91,52 +92,64 @@ func (e UUIDGeneration[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	if err := c.FunctionUUIDReady(); err != nil {
 		return sqltype.Value{}, err
 	}
+	if e.Name != "uuidv7" {
+		return uuidGenerateV4(ctx, c, e.Usage.Type)
+	}
 	var ms uint64
 	var fraction int64
-	if e.Name == "uuidv7" {
-		ns := c.FunctionUUIDTime()
-		ms = uint64(ns / 1000000)
-		fraction = ns % 1000000
-		if len(e.Args) != 0 {
-			months, days, micros, err := shift.Interval()
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-			if uuidInfiniteInterval(months, days, micros) {
-				diagnostic := sqlError("22008", "interval out of range for UUID version 7").(*sqlstate.Error)
-				diagnostic.Detail = "UUID version 7 does not support infinite intervals."
-				return sqltype.Value{}, diagnostic
-			}
-			stamp, err := sqltype.TimestampValue(e.Timestamp, ns/1000-uuidEpochMicroseconds)
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-			shifted, err := e.Addition.Binary(ctx, stamp, shift, c.FunctionInput())
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-			us, err := shifted.Timestamp()
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-			ms, fraction, err = uuidShiftTimestamp(us, ns%1000)
-			if err != nil {
-				return sqltype.Value{}, err
-			}
+	ns := c.FunctionUUIDTime()
+	ms = uint64(ns / 1000000)
+	fraction = ns % 1000000
+	if len(e.Args) != 0 {
+		months, days, micros, err := shift.Interval()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if uuidInfiniteInterval(months, days, micros) {
+			diagnostic := sqlError("22008", "interval out of range for UUID version 7").(*sqlstate.Error)
+			diagnostic.Detail = "UUID version 7 does not support infinite intervals."
+			return sqltype.Value{}, diagnostic
+		}
+		stamp, err := sqltype.TimestampValue(e.Timestamp, ns/1000-uuidEpochMicroseconds)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		shifted, err := e.Addition.Binary(ctx, stamp, shift, c.FunctionInput())
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		us, err := shifted.Timestamp()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		ms, fraction, err = uuidShiftTimestamp(us, ns%1000)
+		if err != nil {
+			return sqltype.Value{}, err
 		}
 	}
 	var entropy [16]byte
-	randomBytes := entropy[:]
-	if e.Name == "uuidv7" {
-		randomBytes = entropy[8:]
-	}
-	if err := c.FunctionUUIDEntropy(randomBytes); err != nil {
+	if err := c.FunctionUUIDEntropy(entropy[8:]); err != nil {
 		return sqltype.Value{}, sqlError("XX000", "could not generate random values")
 	}
-	if e.Name == "uuidv7" {
-		return sqltype.UUIDValue(e.Usage.Type, uuidPackV7(ms, fraction, entropy, UUIDClockStep() == 977))
+	return sqltype.UUIDValue(e.Usage.Type, uuidPackV7(ms, fraction, entropy, UUIDClockStep() == 977))
+}
+
+// Core V4 and the installed pgcrypto alias use one entropy/packing path.
+func uuidGenerateV4(ctx context.Context, source interface{ FunctionUUIDEntropy([]byte) error }, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := ctx.Err(); err != nil {
+		return sqltype.Value{}, err
 	}
-	return sqltype.UUIDValue(e.Usage.Type, uuidPackV4(entropy))
+	var entropy [16]byte
+	if err := source.FunctionUUIDEntropy(entropy[:]); err != nil {
+		if canceled := ctx.Err(); canceled != nil {
+			return sqltype.Value{}, canceled
+		}
+		return sqltype.Value{}, sqlError("XX000", "could not generate random values")
+	}
+	if err := ctx.Err(); err != nil {
+		return sqltype.Value{}, err
+	}
+	return sqltype.UUIDValue(result, uuidPackV4(entropy))
 }
 func UUIDGenerationShape(raw parser.FunctionExpr, visible bool) bool {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text

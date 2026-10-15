@@ -689,13 +689,15 @@ arguments survive stored rendering, generated/default/CHECK/view consumers and
 native Dump/Reset/Restore; no always-on builtin aliases are installed.
 
 
-## Installed pgcrypto hashing, bcrypt passwords and raw AES
+## Installed pgcrypto hashing, bcrypt passwords, raw AES and random data
 
-Registered pgcrypto1.4 installs eleven scalar overloads: digest(TEXT,TEXT),
+Registered pgcrypto1.4 installs fourteen scalar overloads: digest(TEXT,TEXT),
 digest(BYTEA,TEXT), hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT),
 crypt(TEXT,TEXT), gen_salt(TEXT), gen_salt(TEXT,INT4),
-encrypt/decrypt(BYTEA,BYTEA,TEXT) and
-encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT). Digest/HMAC results
+encrypt/decrypt(BYTEA,BYTEA,TEXT), encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT),
+gen_random_bytes(INT4), gen_random_uuid() and fips_mode().
+The selected members are PARALLEL SAFE and STRICT except the zero-argument UUID
+wrapper, which is non-STRICT. Digest/HMAC results
 are raw BYTEA for md5, sha1, sha224, sha256, sha384 and sha512; TEXT input is
 exact UTF8 octets and BYTEA input is arbitrary binary. Unknown data/key operands
 prefer TEXT; known mixed TEXT/BYTEA HMAC has no overload. Salt count uses ordinary
@@ -728,9 +730,35 @@ documented non-bf generators are native0A000 boundaries.
 crypt is immutable; gen_salt is intrinsically volatile, including after stored
 expression reconstruction. Defaults/views may generate fresh salts; generated
 columns/expression indexes may not. Native controls preserve stored salt/hash
-data, exact eleven-member identities and executable recipes. Full OpenSSL
-inventory, other pgcrypto functions, configuration/FIPS and arbitrary
-shared-library loading remain excluded.
+data, exact fourteen-member identities and executable recipes.
+
+gen_random_bytes returns raw BYTEA of1..1024 bytes from strong entropy, independent
+of SQL random()/setseed(). Bounds are checked before allocation or entropy;
+invalid INT4 counts report39000 `Length not in range` with no invented detail or
+position. NULL count returns typed BYTEA NULL without entropy. Unknown input and
+SMALLINT use ordinary INT4 coercion; BIGINT/NUMERIC/TEXT/BOOL do not silently narrow.
+Entropy failure reportsXX000 `could not generate a random number`, separately
+from range errors; cancellation remains an ordinary context error.
+
+The installed gen_random_uuid() is the documented core V4 alias semantically,
+returns UUID with V4 version and RFC variant bits, and preserves its actual
+installed procedure identity/dependency. Core pg_catalog.gen_random_uuid() remains
+available without installation. Implicit pg_catalog wins on an ordinary path;
+an explicit installed namespace before pg_catalog selects the wrapper. Qualified
+calls select the named namespace, and stored installed recipes render that
+qualification rather than rewriting it to the core function.
+
+fips_mode() returns nonnull BOOL from the actual Go crypto/fips140.Enabled() mode.
+It does not parse environment settings at query time, claim certification or
+report OpenSSL state; no OpenSSL installation is required. PostgreSQL's own
+OpenSSL mode can legitimately differ. Process-startup GODEBUG=fips140=off/on
+witnesses are documented in the catalog reference Testing section.
+These three functions remain VOLATILE after reconstruction: defaults/views may
+use them, generated columns/expression indexes may not. Native controls preserve
+stored random values without regeneration, installed dependency addresses and
+fresh executable recipes, including independent-driver procedure relocation.
+Full OpenSSL inventory, other pgcrypto functions, provider configuration and
+arbitrary shared-library loading remain excluded.
 Pgcrypto members must carry only their genuine provider identity; simultaneous
 crypto/fuzzy markers are rejected by both manifest and descriptor admission.
 

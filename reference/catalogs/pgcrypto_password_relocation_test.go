@@ -95,7 +95,7 @@ func TestReferencePgcryptoPasswordRelocation(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, conn, record, check)
 			fixture.RunStep(t, p.Ctx, conn, record, stored)
 			for _, call := range held {
-				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: call.statement, SQL: call.step.Query}, record, call.step)
+				pgcryptoRunHeldCall(t, p, conn, record, call)
 			}
 			if !reflect.DeepEqual(destination, pgcryptoProcedureIDs(t, p, conn)) {
 				t.Fatal("password procedure identities changed")

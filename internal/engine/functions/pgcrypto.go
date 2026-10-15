@@ -11,16 +11,33 @@ import (
 func PgcryptoInput[E any](name string, args []Argument[E], text, bytea, integer sqltype.Usage) (sqltype.Usage, Resolution) {
 	count := 2
 	rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
-	if name == "hmac" || name == "encrypt" || name == "decrypt" {
+	switch name {
+	case "digest", "crypt":
+	case "hmac", "encrypt", "decrypt":
 		count = 3
-	} else if name == "encrypt_iv" || name == "decrypt_iv" {
+	case "encrypt_iv", "decrypt_iv":
 		count = 4
-	} else if name == "gen_salt" {
+	case "gen_salt":
 		if len(args) != 1 && len(args) != 2 {
 			return sqltype.Usage{}, Missing
 		}
 		count = len(args)
-	} else if name != "digest" && name != "crypt" {
+	case "gen_random_bytes":
+		if len(args) != 1 {
+			return sqltype.Usage{}, Missing
+		}
+		if args[0].Usage.Type != nil {
+			if _, err := sqltype.PlanCoercion(args[0].Usage, integer, sqltype.Implicit); err != nil {
+				return sqltype.Usage{}, Missing
+			}
+		}
+		return integer, Resolved
+	case "gen_random_uuid", "fips_mode":
+		if len(args) == 0 {
+			return text, Resolved
+		}
+		return sqltype.Usage{}, Missing
+	default:
 		return sqltype.Usage{}, Missing
 	}
 	if len(args) != count {
@@ -57,7 +74,7 @@ func CoercePgcryptoArguments[E any, B ArgumentCoercer[E]](b B, name string, args
 	children := make([]E, len(args))
 	for i, arg := range args {
 		target := input
-		if i == len(args)-1 {
+		if i == len(args)-1 && name != "gen_random_bytes" {
 			target = text
 		}
 		if name == "gen_salt" && i == 1 {
@@ -92,6 +109,59 @@ func (e Pgcrypto[E, C, P]) Eval(c C) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
+	switch e.Plan.Name() {
+	case "gen_random_bytes":
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		count, null, err := e.Plan.PrepareRandomBytes(values[:len(e.Args)]...)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if null {
+			return sqltype.Null(e.Usage.Type), nil
+		}
+		entropyContext, ok := any(c).(interface{ FunctionPgcryptoEntropy([]byte) error })
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("missing pgcrypto entropy context")
+		}
+		entropy := make([]byte, count) // Count was validated in1..1024 above.
+		if err := entropyContext.FunctionPgcryptoEntropy(entropy); err != nil {
+			if canceled := ctx.Err(); canceled != nil {
+				return sqltype.Value{}, canceled
+			}
+			return sqltype.Value{}, sqlError("XX000", "could not generate a random number")
+		}
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.Binary(e.Usage.Type, string(entropy))
+	case "gen_random_uuid":
+		source, ok := any(c).(interface {
+			FunctionUUIDReady() error
+			FunctionUUIDEntropy([]byte) error
+		})
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("missing UUID entropy context")
+		}
+		if err := source.FunctionUUIDReady(); err != nil {
+			return sqltype.Value{}, err
+		}
+		return uuidGenerateV4(ctx, source, e.Usage.Type)
+	case "fips_mode":
+		source, ok := any(c).(interface{ FunctionPgcryptoFIPSMode() bool })
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("missing pgcrypto FIPS context")
+		}
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		mode := source.FunctionPgcryptoFIPSMode()
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.Boolean(e.Usage.Type, mode), nil
+	}
 	if e.Plan.Name() == "gen_salt" {
 		if err := ctx.Err(); err != nil {
 			return sqltype.Value{}, err
@@ -124,7 +194,7 @@ func (e Pgcrypto[E, C, P]) Eval(c C) (sqltype.Value, error) {
 
 func NewPgcrypto[E Expression[C], C Context, P any](info Info[P], name string, args []E) (Pgcrypto[E, C, P], error) {
 	var usages [4]sqltype.Usage
-	if len(args) < 1 || len(args) > 4 {
+	if len(args) > 4 {
 		return Pgcrypto[E, C, P]{}, fmt.Errorf("invalid crypto call")
 	}
 	for i, arg := range args {

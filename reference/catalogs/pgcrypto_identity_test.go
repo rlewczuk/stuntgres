@@ -21,61 +21,7 @@ func pgcryptoInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, owner, expect
 	if err := c.QueryRowContext(p.Ctx, "SELECT e.oid,extnamespace,extversion,extrelocatable,rolname FROM pg_extension e JOIN pg_roles r ON r.oid=e.extowner WHERE extname='pgcrypto'").Scan(&ext, &ns, &version, &relocatable, &gotOwner); err != nil || ext <= 0 || ns <= 0 || version != "1.4" || !relocatable || gotOwner != owner {
 		t.Fatalf("extension identity %d %d %q %v %q: %v", ext, ns, version, relocatable, gotOwner, err)
 	}
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,proname,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE pronamespace=$1 AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv')", ns)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected := map[string]bool{
-		"digest:pgcrypto_part.digest(text,text)":                      false,
-		"digest:pgcrypto_part.digest(bytea,text)":                     false,
-		"hmac:pgcrypto_part.hmac(text,text,text)":                     false,
-		"hmac:pgcrypto_part.hmac(bytea,bytea,text)":                   false,
-		"crypt:pgcrypto_part.crypt(text,text)":                        false,
-		"gen_salt:pgcrypto_part.gen_salt(text)":                       false,
-		"gen_salt:pgcrypto_part.gen_salt(text,integer)":               false,
-		"encrypt:pgcrypto_part.encrypt(bytea,bytea,text)":             false,
-		"decrypt:pgcrypto_part.decrypt(bytea,bytea,text)":             false,
-		"encrypt_iv:pgcrypto_part.encrypt_iv(bytea,bytea,bytea,text)": false,
-		"decrypt_iv:pgcrypto_part.decrypt_iv(bytea,bytea,bytea,text)": false,
-	}
-	ids := map[int64]bool{}
-	for rows.Next() {
-		var id, ret int64
-		var name, signature, vol, parallel, memberOwner string
-		var strict bool
-		if err := rows.Scan(&id, &name, &signature, &ret, &vol, &strict, &parallel, &memberOwner); err != nil {
-			t.Fatal(err)
-		}
-		key := name + ":" + signature
-		seen, ok := expected[key]
-		wantRet, wantVol := int64(17), "i"
-		if name == "crypt" || name == "gen_salt" {
-			wantRet = 25
-		}
-		if name == "gen_salt" {
-			wantVol = "v"
-		}
-		if !ok || seen || id <= 0 || ids[id] || ret != wantRet || vol != wantVol || !strict || parallel != "s" || memberOwner != expectedMemberOwner {
-			t.Fatalf("procedure identity %d %s %d %s %v %s %s; expected member owner %s", id, key, ret, vol, strict, parallel, memberOwner, expectedMemberOwner)
-		}
-		expected[key] = true
-		ids[id] = true
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatal(err)
-	}
-	rows.Close()
-	for key, seen := range expected {
-		if !seen {
-			t.Fatal("missing signature", key)
-		}
-	}
-	for id := range ids {
-		var count int64
-		if err := c.QueryRowContext(p.Ctx, "SELECT count(*) FROM pg_depend WHERE classid=1255 AND objid=$1 AND objsubid=0 AND refclassid=3079 AND refobjid=$2 AND refobjsubid=0 AND deptype='e'", id, ext).Scan(&count); err != nil || count != 1 {
-			t.Fatal("actual procedure membership", id, count, err)
-		}
-	}
+	pgcryptoRandomInventory(t, p, c, false, expectedMemberOwner)
 }
 
 func TestReferencePgcryptoInstalledIdentity(t *testing.T) {

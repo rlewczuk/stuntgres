@@ -87,7 +87,7 @@ func pgcryptoPasswordConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	post := func(c *sql.Conn, r *fixture.Recorder) {
 		fixture.RunStep(t, p.Ctx, c, r, check)
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT s,h FROM pgcrypto_password_stored WHERE id=1", []string{"s", "h"}, []string{"TEXT", "TEXT"}, [][]any{{salt, hash}}))
-		pgcryptoReplayOverloads(t, p, c, r)
+		pgcryptoReplayOverloads(t, p, c, r, pg)
 	}
 	post(c, r)
 	fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{pgcryptoPasswordFoox}}, "foox", pgcryptoPasswordSalt))

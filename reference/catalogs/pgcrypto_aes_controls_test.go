@@ -86,9 +86,9 @@ func TestReferencePgcryptoAESConsumersAndControls(t *testing.T) {
 		}
 		pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
 		pgcryptoAESDependencies(t, p, c, r)
-		pgcryptoReplayOverloads(t, p, c, r)
+		pgcryptoReplayOverloads(t, p, c, r, pg)
 		for _, call := range allHeld {
-			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Statement: call.statement, SQL: call.step.Query}, r, call.step)
+			pgcryptoRunHeldCall(t, p, c, r, call)
 		}
 		for _, s := range []fixture.Step{stored, view, nested} {
 			run(s)

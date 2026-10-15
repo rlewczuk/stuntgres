@@ -30,22 +30,28 @@ generated consumers and control remapping remain engine responsibilities.
 Installed pgcrypto calls reuse this package's SQL-usage overload selection,
 formal coercion hooks and reconstructible `Pgcrypto` carrier. The engine separately
 owns installed procedure address, namespace/ACL, intrinsic volatility, dependency,
-replay identity and the narrow strong-entropy context capability.
-`internal/sqltype/pgcrypto.go` owns admitted signature/result plans, raw digest/HMAC
-and validated bf salt costs. The adjacent public-domain bcrypt kernel uses fixed
+replay identity and narrow strong-entropy/actual-FIPS context capabilities.
+`internal/sqltype/pgcrypto.go` owns admitted signature/result plans, raw digest/HMAC,
+validated bf salt costs and random-byte count bounds. The adjacent public-domain bcrypt kernel uses fixed
 Blowfish state, byte-oriented72-byte key expansion, PostgreSQL2a/2x semantics,
-canonical custom base64 and per-round cancellation. Six hashes return raw BYTEA;
-crypt/gen_salt return TEXT, with volatile gen_salt entropy requested once only
-after demanded children, strict NULL handling and name/count validation.
+canonical custom base64 and per-round cancellation. Six hashes return raw BYTEA.
 The same carrier supports the four BYTEA-only raw AES overloads, including four
 children for `_iv`; unknown raw slots infer BYTEA rather than HMAC's TEXT
 preference. `internal/sqltype/pgcrypto_aes.go` owns stdlib AES CBC/ECB, PKCS/none,
 fixed effective key/IV buffers, full padding validation and bounded cancellation.
 Neither the comparable signature plan nor the carrier retains frame key/IV/mode.
+crypt/gen_salt return TEXT. Volatile gen_salt and gen_random_bytes request
+entropy once only after demanded children, strict NULL handling and count/name
+validation. Random bytes validate1..1024 before using at most1024 bytes of scratch.
+The installed UUID wrapper and core V4 calls share one private generation helper,
+using the core entropy capability, V4 packer and UUID value constructor, while
+retaining the engine's distinct installed procedure identity.
+fips_mode obtains actual execution mode through the engine's crypto/fips140.Enabled()
+capability, not an environment parser, constant or OpenSSL dependency.
 All reached children run once in source order. Plans retain no password, salt,
 entropy or frame-specific algorithm across executions. Builtin md5 still returns
 hexadecimal TEXT.
-Closed gen_salt DEFAULT recipes use the same provider-identity and closed-tree
+Closed volatile pgcrypto DEFAULT recipes use the same provider-identity and closed-tree
 admission at binding and serialization; unrelated volatile producers and
 row/parameter/stage-dependent recipes remain excluded. This does not weaken
 the separate generated-column/expression-index immutability rules.

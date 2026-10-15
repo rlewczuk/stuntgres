@@ -15,20 +15,24 @@ type pgcryptoMember struct {
 	signature  procedureSignature
 	result     OID
 	volatility Volatility
+	strict     bool
 }
 
 var pgcryptoMembers = [...]pgcryptoMember{
-	{"digest", "25,25", 17, Immutable},
-	{"digest", "17,25", 17, Immutable},
-	{"hmac", "25,25,25", 17, Immutable},
-	{"hmac", "17,17,25", 17, Immutable},
-	{"crypt", "25,25", 25, Immutable},
-	{"gen_salt", "25", 25, Volatile},
-	{"gen_salt", "25,23", 25, Volatile},
-	{"encrypt", "17,17,25", 17, Immutable},
-	{"decrypt", "17,17,25", 17, Immutable},
-	{"encrypt_iv", "17,17,17,25", 17, Immutable},
-	{"decrypt_iv", "17,17,17,25", 17, Immutable},
+	{"digest", "25,25", 17, Immutable, true},
+	{"digest", "17,25", 17, Immutable, true},
+	{"hmac", "25,25,25", 17, Immutable, true},
+	{"hmac", "17,17,25", 17, Immutable, true},
+	{"crypt", "25,25", 25, Immutable, true},
+	{"gen_salt", "25", 25, Volatile, true},
+	{"gen_salt", "25,23", 25, Volatile, true},
+	{"encrypt", "17,17,25", 17, Immutable, true},
+	{"decrypt", "17,17,25", 17, Immutable, true},
+	{"encrypt_iv", "17,17,17,25", 17, Immutable, true},
+	{"decrypt_iv", "17,17,17,25", 17, Immutable, true},
+	{"gen_random_bytes", "23", 17, Volatile, true},
+	{"gen_random_uuid", "", 2950, Volatile, false},
+	{"fips_mode", "", 16, Volatile, true},
 }
 
 func pgcryptoLookup(name string, signature procedureSignature) (pgcryptoMember, bool) {
@@ -53,7 +57,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		}
 		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, owner: owner, result: member.result, volatility: member.volatility, strict: true, crypto: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, owner: owner, result: member.result, volatility: member.volatility, strict: member.strict, crypto: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
@@ -77,7 +81,7 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 			return invalid()
 		}
 		member, admitted := pgcryptoLookup(proc.name, proc.signature)
-		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || !proc.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
+		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || proc.strict != member.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		if i == 0 {

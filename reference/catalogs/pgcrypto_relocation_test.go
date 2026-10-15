@@ -15,7 +15,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder) {
+func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 	t.Helper()
 	pgcryptoResult(t, p, c, r, "digest", "SELECT pgcrypto_part.digest('abc','sha256')", pgcryptoDigestVectors[3].abc)
 	pgcryptoResult(t, p, c, r, "digest", "SELECT pgcrypto_part.digest($1::bytea,'sha256')", "5240672d7b51756b829ad0ef8d9468b7a078afa2f410484fd3892dab47becb72", []byte{0, 128, 255})
@@ -28,11 +28,22 @@ func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	pgcryptoResult(t, p, c, r, "decrypt", "SELECT pgcrypto_part.decrypt('\\xf397f03d2819b7172b68d0706fda4693'::bytea,'0123456789','aes')", "666f6f")
 	pgcryptoResult(t, p, c, r, "encrypt_iv", "SELECT pgcrypto_part.encrypt_iv('foo','0123456','abcd','aes')", "2c24cb7da91d6d5699801268b0f5adad")
 	pgcryptoResult(t, p, c, r, "decrypt_iv", "SELECT pgcrypto_part.decrypt_iv('\\x2c24cb7da91d6d5699801268b0f5adad'::bytea,'0123456','abcd','aes')", "666f6f")
+	rows, err := c.QueryContext(p.Ctx, "SELECT pgcrypto_part.gen_random_bytes(32)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pgcryptoRandomByteRows(t, rows, 32)
+	var raw any
+	if err := c.QueryRowContext(p.Ctx, "SELECT pgcrypto_part.gen_random_uuid()").Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	pgcryptoRandomUUIDShape(t, raw, pg)
+	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT pgcrypto_part.fips_mode() AS value", []string{"value"}, []string{"BOOL"}, [][]any{{pgcryptoRandomFIPSExpected(pg)}}))
 }
 
 func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string]int64 {
 	t.Helper()
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv')")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +63,7 @@ func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 11 {
+	if len(ids) != 14 {
 		t.Fatal("procedure inventory", ids)
 	}
 	return ids
@@ -147,7 +158,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		}
 	}
 	// Every sequence consumes a real catalog OID. Stop at the observed upper
-	// bound, and require actual collisions for all eleven procedures below.
+	// bound, and require actual collisions for all fourteen procedures below.
 	collisions := make(map[int64]string)
 	sequenceNamespaces := make(map[int64]int64)
 	for i := range 128 {
@@ -207,11 +218,11 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT oid::bigint AS oid,relnamespace::bigint AS namespace FROM pg_class WHERE relname=$1", []string{"oid", "namespace"}, []string{"INT8", "INT8"}, [][]any{{id, sequenceNamespaces[id]}}, collisions[id]))
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT count(*) FROM pg_proc WHERE oid=$1", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}, id))
 	}
-	pgcryptoReplayOverloads(t, p, c, r)
+	pgcryptoReplayOverloads(t, p, c, r, false)
 	consumerIDs := pgcryptoConsumerDependencies(t, p, c, r, destination)
 	cryptoHeld := pgcryptoHoldMembers(t, p, c)
 	for _, call := range cryptoHeld {
-		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Statement: call.statement, SQL: call.step.Query}, r, call.step)
+		pgcryptoRunHeldCall(t, p, c, r, call)
 	}
 	for _, step := range []fixture.Step{check, view, nested, fixture.Prepared(nested), failure} {
 		fixture.RunStep(t, p.Ctx, c, r, step)
@@ -262,9 +273,9 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT oid::bigint AS oid,relnamespace::bigint AS namespace FROM pg_class WHERE relname=$1", []string{"oid", "namespace"}, []string{"INT8", "INT8"}, [][]any{{id, sequenceNamespaces[id]}}, name))
 		}
 		for _, call := range cryptoHeld {
-			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Statement: call.statement, SQL: call.step.Query}, r, call.step)
+			pgcryptoRunHeldCall(t, p, c, r, call)
 		}
-		pgcryptoReplayOverloads(t, p, c, r)
+		pgcryptoReplayOverloads(t, p, c, r, false)
 		pgcryptoFreshConsumers(t, p, c, r, failure)
 		if extensionDump(t, p.Ctx, other) != before {
 			t.Fatal("consumer witness changed persistent data")

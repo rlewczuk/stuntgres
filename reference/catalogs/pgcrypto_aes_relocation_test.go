@@ -24,7 +24,7 @@ func pgcryptoAESRelocation(t *testing.T, p *fixture.Pair, source *sql.Conn, sour
 	original := pgcryptoProcedureIDs(t, p, source)
 	pgcryptoInventory(t, p, bc, "pgcrypto_owner", "pgcrypto_owner")
 	pgcryptoAESDependencies(t, p, bc, br)
-	pgcryptoReplayOverloads(t, p, bc, br)
+	pgcryptoReplayOverloads(t, p, bc, br, false)
 	for _, step := range []fixture.Step{stored, view, nested} {
 		fixture.RunStep(t, p.Ctx, bc, br, step)
 	}
@@ -83,9 +83,9 @@ func pgcryptoAESRelocation(t *testing.T, p *fixture.Pair, source *sql.Conn, sour
 		t.Helper()
 		pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
 		pgcryptoAESDependencies(t, p, c, r)
-		pgcryptoReplayOverloads(t, p, c, r)
+		pgcryptoReplayOverloads(t, p, c, r, false)
 		for _, call := range held {
-			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Statement: call.statement, SQL: call.step.Query}, r, call.step)
+			pgcryptoRunHeldCall(t, p, c, r, call)
 		}
 		for _, step := range []fixture.Step{stored, view, nested, failure} {
 			fixture.RunStep(t, p.Ctx, c, r, step)

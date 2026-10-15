@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"reflect"
 	"slices"
+	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestPgcryptoProviderIdentity(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.version != "1.4" || len(ext.members) != 11 || ext.Namespace() != (ObjectAddress{}) {
+	if ext.version != "1.4" || len(ext.members) != 14 || ext.Namespace() != (ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	seen := map[ObjectAddress]bool{}
@@ -39,17 +40,19 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		signature  procedureSignature
 		result     OID
 		volatility Volatility
+		strict     bool
 	}{
-		{"digest", "25,25", 17, Immutable}, {"digest", "17,25", 17, Immutable},
-		{"hmac", "25,25,25", 17, Immutable}, {"hmac", "17,17,25", 17, Immutable},
-		{"crypt", "25,25", 25, Immutable}, {"gen_salt", "25", 25, Volatile}, {"gen_salt", "25,23", 25, Volatile},
-		{"encrypt", "17,17,25", 17, Immutable}, {"decrypt", "17,17,25", 17, Immutable},
-		{"encrypt_iv", "17,17,17,25", 17, Immutable}, {"decrypt_iv", "17,17,17,25", 17, Immutable},
+		{"digest", "25,25", 17, Immutable, true}, {"digest", "17,25", 17, Immutable, true},
+		{"hmac", "25,25,25", 17, Immutable, true}, {"hmac", "17,17,25", 17, Immutable, true},
+		{"crypt", "25,25", 25, Immutable, true}, {"gen_salt", "25", 25, Volatile, true}, {"gen_salt", "25,23", 25, Volatile, true},
+		{"encrypt", "17,17,25", 17, Immutable, true}, {"decrypt", "17,17,25", 17, Immutable, true},
+		{"encrypt_iv", "17,17,17,25", 17, Immutable, true}, {"decrypt_iv", "17,17,17,25", 17, Immutable, true},
+		{"gen_random_bytes", "23", 17, Volatile, true}, {"gen_random_uuid", "", 2950, Volatile, false}, {"fips_mode", "", 16, Volatile, true},
 	}
 	for i, address := range ext.members {
 		proc := view.state.descriptors[address].(*procedureDescriptor)
 		want := expected[i]
-		if seen[address] || proc.name != want.name || proc.signature != want.signature || proc.owner != ext.owner || proc.namespace != ext.targetNamespace || proc.result != want.result || !proc.strict || proc.volatility != want.volatility {
+		if seen[address] || proc.name != want.name || proc.signature != want.signature || proc.owner != ext.owner || proc.namespace != ext.targetNamespace || proc.result != want.result || proc.strict != want.strict || proc.volatility != want.volatility {
 			t.Fatal(proc)
 		}
 		seen[address] = true
@@ -70,7 +73,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	if count != 11 {
+	if count != 14 {
 		t.Fatal(count)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
@@ -99,6 +102,24 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		}
 		if manifestFailure == nil {
 			t.Fatal("invalid pgcrypto member manifest accepted", bad)
+		}
+	}
+	for _, address := range ext.members[11:] {
+		original := view.state.descriptors[address].(*procedureDescriptor)
+		for _, mutate := range []func(*procedureDescriptor){
+			func(p *procedureDescriptor) { p.strict = !p.strict },
+			func(p *procedureDescriptor) { p.result = 25 },
+			func(p *procedureDescriptor) { p.signature = "25" },
+			func(p *procedureDescriptor) { p.crypto = &pgcryptoProvider{version: "1.4"} },
+		} {
+			bad := *original
+			mutate(&bad)
+			view.state.descriptors[address] = &bad
+			failure := stockPgcrypto.validate(view, ext)
+			view.state.descriptors[address] = original
+			if failure == nil {
+				t.Fatal("invalid random/FIPS member admitted", bad)
+			}
 		}
 	}
 	bad := *ext
@@ -211,5 +232,60 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ObjectAddress]ObjectAddress{aesCall.ref.Address: {ClassID: ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
 	if mappedAES.crypto != stockPgcrypto || mappedAES.signature != "17,17,17,25" || mappedAES.address == aesCall.ref.Address {
 		t.Fatal(mappedAES)
+	}
+	for _, v := range []struct {
+		name   string
+		result sqltype.ID
+	}{{"gen_random_bytes", sqltype.Bytea}, {"gen_random_uuid", sqltype.UUID}, {"fips_mode", sqltype.Bool}} {
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: v.name}}}}
+		if v.name == "gen_random_bytes" {
+			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 16}}}
+		}
+		bound, err := binder.bindInstalledCrypto(raw)
+		if err != nil {
+			t.Fatal(v.name, err)
+		}
+		call := bound.(installedCryptoFunctionExpression)
+		if call.ResultUsage().Type.ID() != v.result || plannedVolatility(call) != Volatile || !closedPgcryptoDefault(call) {
+			t.Fatal("random/FIPS properties", call)
+		}
+		if err := call.validate(e.CatalogRead()); err != nil {
+			t.Fatal(err)
+		}
+		var children []BoundExpr
+		boundExpressionChildren(call, func(child BoundExpr) { children = append(children, child) })
+		if len(children) != len(call.Args) {
+			t.Fatal("random/FIPS walk", children)
+		}
+		retagged, _, err := retagBoundTypes(e.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+		if err != nil {
+			t.Fatal(err)
+		}
+		actual := retagged.(installedCryptoFunctionExpression)
+		if err := actual.validate(e.CatalogRead()); err != nil {
+			t.Fatal(err)
+		}
+		if plannedVolatility(actual) != Volatile || !closedPgcryptoDefault(actual) {
+			t.Fatal("lost reconstructed volatility")
+		}
+		rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), actual)
+		if err != nil || !strings.Contains(rendered, v.name) || !strings.Contains(rendered, "public") {
+			t.Fatal(rendered, err)
+		}
+		refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), actual)
+		if err != nil || !slices.Contains(refs, call.ref.Address) {
+			t.Fatal(refs, err)
+		}
+		malformed := actual
+		malformed.Args = nil
+		if v.name == "gen_random_bytes" && malformed.validate(e.CatalogRead()) == nil {
+			t.Fatal("missing count admitted")
+		}
+		if v.name != "gen_random_bytes" {
+			malformed.Args = n.Args[:1]
+			if malformed.validate(e.CatalogRead()) == nil {
+				t.Fatal("extra zero-call argument admitted")
+			}
+		}
 	}
 }
