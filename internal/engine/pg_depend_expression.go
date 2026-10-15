@@ -52,6 +52,8 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		return
 	}
 	switch n := expr.(type) {
+	case installedLevenshteinFunctionExpression:
+		r.add(n.ref.Address)
 	case installedCryptoFunctionExpression:
 		r.add(n.ref.Address)
 	case installedFunctionExpression:

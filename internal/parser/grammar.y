@@ -544,7 +544,7 @@ package parser
 %type <row> conditional_args count_values
 %type <tok> conditional_word
 %type <tok> comparison_operator
-%type <call> function_args function_argument_list
+%type <call> function_args function_argument_list ordinary_named_arguments ordinary_mixed_arguments
 %type <call> transaction_time_head transaction_time_args transaction_time_base transaction_time_filtered transaction_time_call
 %type <predicate> truth_kind
 %type <selectStmt> projection projection_item
@@ -2086,6 +2086,17 @@ function_argument_list: function_argument { $$=FunctionExpr{Args:[]Expr{$1}} }
  | name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
  | function_argument_list ',' function_argument { $$=appendFunctionArgument($1,$3,Identifier{}) }
  | function_argument_list ',' name EQUALS_GREATER function_argument { $$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+/* Ordinary calls already have separate positional/aggregate productions.
+ * A named first argument disambiguates this shared notation-preserving list. */
+ordinary_named_arguments: name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
+ | ordinary_named_arguments ',' function_argument { $$=appendFunctionArgument($1,$3,Identifier{}) }
+ | ordinary_named_arguments ',' name EQUALS_GREATER function_argument { $$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+/* Transition from the existing positional routes at the first named argument.
+ * Keep the named tail's labels, including later malformed positional entries. */
+ordinary_mixed_arguments: target_or ',' ordinary_named_arguments {call:=FunctionExpr{Args:[]Expr{$1}};for i,arg:=range $3.Args {call=appendFunctionArgument(call,arg,$3.ArgNames[i])};$$=call}
+ | target_or ',' count_values ',' ordinary_named_arguments {call:=FunctionExpr{Args:append([]Expr{$1},$3...)};for i,arg:=range $5.Args {call=appendFunctionArgument(call,arg,$5.ArgNames[i])};$$=call}
+ | function ',' ordinary_named_arguments {call:=FunctionExpr{Args:[]Expr{$1}};for i,arg:=range $3.Args {call=appendFunctionArgument(call,arg,$3.ArgNames[i])};$$=call}
+ | function ',' count_values ',' ordinary_named_arguments {call:=FunctionExpr{Args:append([]Expr{$1},$3...)};for i,arg:=range $5.Args {call=appendFunctionArgument(call,arg,$5.ArgNames[i])};$$=call} ;
 function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
 string_function: STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
@@ -2269,7 +2280,10 @@ aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType(
  | cast_function '*' ')' { $$=modifiedOrdinaryCall(columnType($1),nil,true,false,false,false,nil) }
  | cast_function ')' { $$=ordinaryCall(sqllex,columnType($1),nil,$1) }
  | qualified_call_head ')' { $$=ordinaryCall(sqllex,$1,nil,lexeme{text:$1.Name,pos:$1.Pos}) }
- | cast_function name EQUALS_GREATER function_argument ')' { call:=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos,CompositeCandidate:true};$$=appendFunctionArgument(call,$4,Identifier{Text:$2.text,Pos:$2.pos}) }
+ | cast_function ordinary_named_arguments ')' { call:=$2;call.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};call.Pos=$1.pos;call.CompositeCandidate=true;$$=call }
+ | qualified_call_head ordinary_named_arguments ')' { call:=$2;call.Name=ObjectName{Parts:[]Identifier{*$1.Schema,{Text:$1.Name,Pos:$1.Pos}}};call.Pos=$1.Pos;call.CompositeCandidate=true;$$=call }
+ | cast_function ordinary_mixed_arguments ')' {call:=$2;call.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};call.Pos=$1.pos;call.CompositeCandidate=true;$$=call}
+ | qualified_call_head ordinary_mixed_arguments ')' {call:=$2;call.Name=ObjectName{Parts:[]Identifier{*$1.Schema,{Text:$1.Name,Pos:$1.Pos}}};call.Pos=$1.Pos;call.CompositeCandidate=true;$$=call}
  | cast_function DISTINCT count_values aggregate_order ')' { $$=modifiedOrdinaryCall(columnType($1),$3,false,true,false,false,$4) }
  | cast_function ALL count_values aggregate_order ')' { $$=modifiedOrdinaryCall(columnType($1),$3,false,false,true,false,$4) }
  | qualified_call_head DISTINCT count_values aggregate_order ')' { $$=modifiedOrdinaryCall($1,$3,false,true,false,false,$4) }

@@ -43,9 +43,9 @@ func daitchInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass::oid AND objid=$1 AND refclassid='pg_extension'::regclass::oid AND refobjid=$2 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}, proc, ext))
 	if !b.PG {
-		// Upstream installs additional functions; native deliberately installs
-		// only the selected overload, so total membership is native-only.
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass::oid AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}, ext))
+		// Upstream installs additional functions; native installs five selected
+		// overloads, so total membership is native-only.
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass::oid AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(5)}}, ext))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError("SELECT soundex('John')", fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: "8"}))
 	}
 }

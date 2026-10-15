@@ -36,6 +36,18 @@ once in source order before strict NULL handling; no algorithm is cached across
 parameter frames. Six standard-library hashes return raw BYTEA, distinct from
 builtin md5's hexadecimal TEXT.
 
+Installed fuzzystrmatch Levenshtein calls reuse shared SQL-usage analysis and
+formal coercion: TEXT,TEXT followed by INT4 costs/bound, with INT4 results.
+`Levenshtein` owns the immutable selected call, strict demand, reconstruction
+and validation; the engine wrapper owns installed identity/ACL/dependencies.
+The REL_18_0 kernel uses fixed local rune/row buffers, exact codepoint equality,
+empty-before-limit behavior, signed int32 intermediates and release band slides.
+No result/cost/bound cache or devel overflow guard is introduced.
+Ordinary named-argument parsing retains the complete argument/label list,
+including empty label slots for a positional prefix before a named suffix.
+The installed Levenshtein binder reuses shared malformed-label validation before
+missing-signature resolution; these overloads declare no SQL argument names.
+
 ## Testing
 
 Run from repository root; use `make check RUN='...'` for individual or small
@@ -52,6 +64,8 @@ make check RUN='^TestPgcrypto(OverloadResolution|RawVectors|StrictDemand|Cancell
 make check RUN='^TestDaitchMokotoff(PublishedCodes|Boundaries|Cancellation|ProviderIdentity|ExpressionIdentity|Remap)$'
 make check REFERENCE=1 RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
 make check RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
+make check RUN='^TestLevenshtein(Distance|Weights|Bounds|ReleaseInt32|Unicode|Cancellation|NamedArguments)$'
+make check RUN='^TestLevenshtein(ExpressionIdentity|Remap)$'
 ```
 
 Range inspection/hull carriers retain same-generation `sqltype` plans and at

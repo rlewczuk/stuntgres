@@ -593,6 +593,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case installedLevenshteinFunctionExpression:
+		o, ok := other.(installedLevenshteinFunctionExpression)
+		if !ok || e.ref != o.ref || e.procedure.revision != o.procedure.revision || e.Function != o.Function || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i := range e.Args {
+			if !same(e.Args[i], o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case installedCryptoFunctionExpression:
 		o, ok := other.(installedCryptoFunctionExpression)
 		if !ok || e.ref != o.ref || e.procedure.revision != o.procedure.revision || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
@@ -1172,6 +1183,15 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case installedLevenshteinFunctionExpression:
+		e.Args = append([]BoundExpr(nil), e.Args...)
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case installedCryptoFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1443,6 +1463,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
+			walk(arg)
+		}
+	case installedLevenshteinFunctionExpression:
 		for _, arg := range e.Args {
 			walk(arg)
 		}

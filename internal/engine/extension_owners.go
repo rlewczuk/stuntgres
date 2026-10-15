@@ -148,7 +148,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
-		expectedMembers = 1
+		expectedMembers = len(fuzzystrmatchMembers)
 	case record.Name == "pgcrypto" && record.Version == "1.4":
 		expectedMembers = 4
 	default:
@@ -188,7 +188,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 				valid = name != "" && member.Name == name
 			}
 			if record.Name == "fuzzystrmatch" {
-				valid = member.Name == "daitch_mokotoff" && member.Signature == "25"
+				valid = fuzzystrmatchResult(member.Name, procedureSignature(member.Signature)) != 0
 			}
 			if !valid {
 				return invalid()

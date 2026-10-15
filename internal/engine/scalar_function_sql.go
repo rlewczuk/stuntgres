@@ -12,6 +12,19 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node BoundExpr, u sqltype.Usage) (string, error) {
 	switch n := node.(type) {
+	case installedLevenshteinFunctionExpression:
+		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
+			return "", fmt.Errorf("stuntgres: invalid stored Levenshtein reference")
+		}
+		if err := n.validate(view); err != nil {
+			return "", err
+		}
+		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored Levenshtein namespace")
+		}
+		r.record(n.ref)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), n.Args)
 	case installedCryptoFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")

@@ -59,6 +59,25 @@ identity under the existing driver contract. No blanket DM stale-statement fence
 or retired builtin-TEXT alias capture is introduced.
 See [selected proof](../reference/catalogs/README.md#daitch-mokotoff-selected-proof).
 
+### Installed Levenshtein expressions
+
+The four selected `levenshtein` / `levenshtein_less_equal` overloads resolve
+through the same installed fuzzystrmatch authority. Shared argument analysis
+coerces the first two formals to TEXT and remaining cost/bound formals to INT4;
+known integer text inputs do not stringify, and known BIGINT/NUMERIC costs do
+not silently narrow. The functions-package typed carrier evaluates every
+demanded child once in source order before deciding strict typed INT4 NULL.
+Each evaluation owns fixed-size distance rows, with no parameter-frame cache.
+
+All child walkers, grouping identity, conditional/preflight reconstruction,
+stored renderers and control remappers retain the actual installed procedure
+and every argument. Namespace-qualified defaults, STORED generated columns,
+CHECKs and views remain executable after native replacement. Already returned
+INT4 rows/metadata retain their values; compatible held statements reanalyze
+under the existing driver contract, without a blanket replacement fence.
+See [selected proof](../reference/catalogs/README.md#levenshtein-selected-proof).
+
+
 ## Parallel SELECT scans
 
 The eager top-level SELECT entry can partition one ordinary persistent physical

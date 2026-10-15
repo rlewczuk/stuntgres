@@ -21,6 +21,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if strings.EqualFold(name, "digest") || strings.EqualFold(name, "hmac") {
 		return b.bindInstalledCrypto(raw)
 	}
+	if strings.EqualFold(name, "levenshtein") || strings.EqualFold(name, "levenshtein_less_equal") {
+		return b.bindInstalledLevenshtein(raw)
+	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
 		return b.bindSimilarEscape(raw)
 	}

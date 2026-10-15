@@ -1436,8 +1436,9 @@ and session_user before installation and after reset. The extension remains
 installer-owned (`dm_installer`); the procedure belongs to fixed bootstrap
 superuserOID10. Its exact declared name is native `postgres` versus pinned
 fixture initdb `stuntgres`, not the fixture's separate native-replay postgres role.
-Native membership deliberately has only this selected overload; PostgreSQL's
-additional extension functions are not falsely asserted absent on the oracle.
+Native fuzzystrmatch membership has five selected overloads: DM plus four
+Levenshtein signatures. PostgreSQL's additional functions are not falsely
+asserted absent on the oracle.
 The native-only adjacent soundex witness retains the existing capability
 diagnostic0A000 `functions are unsupported` at Position8, not a new missing-
 function42883 promise or adjacent-function implementation.
@@ -1469,4 +1470,62 @@ qualified off-path resolution, stored generated/view values and reusable held
 execution. Precanceled no-output/ordinary context-error assertions are native-only;
 pq fast precancellation has no stable nil-output guarantee. Selected proof does
 not replace whole-project quickcheck, standalone feature smoke or finalcheck.
+
+### Levenshtein selected proof
+
+The nine `TestReferenceLevenshtein` definitions independently specify distances,
+weighted substitutions, bounded exact/greater-than behavior, signed release
+int32 cases, Unicode character limits and empty bypass, strict NULL/demand,
+complete diagnostics and installed identity. Direct literals/binds, fresh
+Prepare and SAME held frames assert INT4 metadata/raw values and recovery after
+execution errors. Invalid INT4 bind failures retain the pinned PostgreSQL portal
+Context on both adapters through the existing parameter-input annotation policy.
+
+Diagnostics includes positional-prefix/named-suffix syntax in all four selected
+signatures and public/relocated qualification. The unnamed installed overloads
+still fail normal missing-signature resolution; carrying labels through the
+ordinary call grammar does not enable named matching. Parser units retain the
+prefix's empty label slots, suffix labels, value order and source coordinates.
+Bounds/ReleaseBoundedInt32 independently specifies six nonempty/max0 release
+overflow cases, covering wrapped cost sums, theoretical min/max products,
+substitution reduction, pruning-disable choices and active asymmetric residual
+slides/narrow-band extension. These pathological exact outputs are release
+witnesses, not ordinary mathematical bound or sentinel guarantees.
+
+Installation requires four genuine selected identities/extension edges on both
+backends, with total native membership5 including retained DM. Stored SQL uses a
+relocated provider in defaults/generated/CHECK/view, nested/CASE, grouping and
+join expressions. Failed atomic inserts leave original rows unchanged. Controls
+share the SQL setup, then use real native APIs for Dump ordering, exact
+five-member symbolic manifests, retained INT4 rows, held reanalysis, independent
+Driver/named-owner replay and failed/I/O/canceled Restore atomicity. PostgreSQL
+has no invented control equivalent.
+
+Run each small set in both modes after changes:
+```sh
+make check RUN='^TestReferenceLevenshtein(Distances|Costs|Bounds)$'
+make check REFERENCE=1 RUN='^TestReferenceLevenshtein(Distances|Costs|Bounds)$'
+make check RUN='^TestReferenceLevenshtein(UnicodeAndLength|NullAndDemand|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceLevenshtein(UnicodeAndLength|NullAndDemand|Diagnostics)$'
+make check RUN='^TestReferenceLevenshtein(Installation|StoredExpressions|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceLevenshtein(Installation|StoredExpressions|Controls)$'
+make check RUN='^TestReferenceDaitchMokotoff(Installation|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceDaitchMokotoff(Installation|Controls|FeatureSmoke)$'
+make check RUN='^TestLevenshtein(Distance|Weights|Bounds|ReleaseInt32|Unicode|Cancellation|ExpressionIdentity|Remap)$'
+make check RACE=1 RUN='^TestReferenceLevenshtein(NullAndDemand|Controls)$'
+```
+
+Use external900-second deadlines. The standalone public-consumer smoke is
+materialized outside the checkout from the session's
+`local://fuzzy-levenshtein-smoke.go` and run from the repository root:
+```sh
+timeout 900s go run "$SESSION_TMP/fuzzy-levenshtein-smoke.go"
+```
+It must exit silently0 after independently checking distance3, weighted3,
+bounded exact3/greater-than2, Unicode255/nonempty256 error/empty256 bypass,
+typed NULL, held weighted/bounded frames, retained DM codes and membership5,
+stored recipes, Dump/Reset/Restore, independent Driver replay and failed-Restore
+preservation. Selected proof and smoke do not replace whole-project Docker-free
+quickcheck or post-integration finalcheck.
+
 

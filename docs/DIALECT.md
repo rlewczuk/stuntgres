@@ -482,8 +482,9 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
 ## Daitch–Mokotoff installed function
 
-The fuzzystrmatch1.2 provider installs exactly one overload,
-`daitch_mokotoff(text) RETURNS text[]`, not the complete upstream extension.
+The fuzzystrmatch1.2 provider installs exactly five overloads:
+`daitch_mokotoff(text) RETURNS text[]` and the four INT4 Levenshtein signatures
+below, not the complete upstream extension.
 Installation is required; missing/off-path calls use normal function resolution.
 The immutable, strict, parallel-safe function emits all alternative six-digit
 codes in release order, with significant array element order and no truncation.
@@ -499,7 +500,34 @@ transactional installation and native ownership/remapping use the existing
 extension registry. Generated columns may consume this genuinely immutable
 function; a volatile child is still volatile. No dictionary/helper TEMP exclusion
 is inherited from unaccent. Availability's stock comment does not promise
-Soundex/Levenshtein/Metaphone or arbitrary loaders.
+Soundex/Metaphone or arbitrary loaders.
+
+### Levenshtein edit distance
+
+`levenshtein(text,text)` and `levenshtein(text,text,int,int,int)` compute
+edit distance; the optional weight triple is insertion/deletion/substitution.
+`levenshtein_less_equal(text,text,int)` and
+`levenshtein_less_equal(text,text,int,int,int,int)` take a final maximum bound.
+All four return INT4 and are immutable, strict and parallel-safe. Default costs
+are one. For ordinary nonnegative costs, bounded results are exact within the
+bound and greater than it outside; no particular sentinel is guaranteed.
+Negative bounds disable pruning.
+
+Exact Unicode codepoints are compared, without case folding, normalization or
+grapheme segmentation. Two nonempty operands exceeding255 characters fail22023
+`levenshtein argument exceeds maximum length of 255 characters`. Empty source
+or target returns the corresponding weighted insertion/deletion length before
+limit or bound checks, so an empty/256-character pair is accepted.
+
+Release compatibility follows the pinned PostgreSQL18.0 int32 arithmetic:
+signed costs, including negative values, are accepted and intermediate additions
+and products wrap. Bounded pruning remains release-specific with pathological
+costs; these are not recommended mathematical distance metrics. No newer-devel
+overflow22003 guard is substituted. Strict NULL retains INT4 metadata, while
+required sibling errors still execute. Genuine installed identities and all
+arguments survive stored rendering, generated/default/CHECK/view consumers and
+native Dump/Reset/Restore; no always-on builtin aliases are installed.
+
 
 ## Installed pgcrypto digest and HMAC
 

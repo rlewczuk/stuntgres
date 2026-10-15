@@ -526,6 +526,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return children(r.Args, written)
 		}
+		if n, ok := bound.(installedLevenshteinFunctionExpression); ok {
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(installedCryptoFunctionExpression); ok {
 			return children(r.Args, n.Args)
 		}

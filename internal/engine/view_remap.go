@@ -399,6 +399,15 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
+	case installedLevenshteinFunctionExpression:
+		n.Args = args(n.Args)
+		if ref != nil {
+			n.ref = ref(n.ref)
+		}
+		if err == nil {
+			n.Levenshtein, err = n.Reconstruct(n.Info, n.Args)
+		}
+		next = n
 	case installedCryptoFunctionExpression:
 		n.Args = args(n.Args)
 		if ref != nil {

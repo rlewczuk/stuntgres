@@ -34,12 +34,29 @@ func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFuncti
 func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	view := e.CatalogRead()
-	if len(ext.members) != 1 {
+	if len(ext.members) != 5 {
 		t.Fatal("member count", ext.members)
 	}
 	proc := view.state.descriptors[ext.members[0]].(*procedureDescriptor)
 	if proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.owner != ext.owner || proc.result != 1009 || proc.signature != "25" || proc.volatility != Immutable || !proc.strict || proc.fuzzy != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
+	}
+	expected := map[string]OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23}
+	addresses := map[ObjectAddress]bool{}
+	for _, address := range ext.members {
+		member := view.state.descriptors[address].(*procedureDescriptor)
+		key := member.name + ":" + string(member.signature)
+		if expected[key] == 0 || member.result != expected[key] || addresses[address] || member.owner != proc.owner || member.namespace != ext.targetNamespace || member.extension != ext.address || member.volatility != Immutable || !member.strict || member.fuzzy != stockFuzzystrmatch {
+			t.Fatal("selected member identity", member)
+		}
+		delete(expected, key)
+		addresses[address] = true
+		if err := (extensionCatalogProvider{ProcedureClassID}).Validate(view, member); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(expected) != 0 {
+		t.Fatal("missing selected members", expected)
 	}
 	for _, d := range []Descriptor{ext, proc} {
 		if err := (extensionCatalogProvider{d.Address().ClassID}).Validate(view, d); err != nil {
@@ -53,13 +70,13 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	members := 0
 	for _, edge := range edges {
 		if edge.referenced == ext.address && edge.deptype == 'e' {
-			if edge.dependent != proc.address {
+			if !addresses[edge.dependent] {
 				t.Fatal("foreign member edge")
 			}
 			members++
 		}
 	}
-	if members != 1 {
+	if members != 5 {
 		t.Fatal("membership edges", members)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
@@ -85,6 +102,12 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			t.Fatal("invalid membership admitted", members)
 		}
 	}
+	duplicate := *ext
+	duplicate.members = append([]ObjectAddress(nil), ext.members...)
+	duplicate.members[4] = duplicate.members[1]
+	if err := stockFuzzystrmatch.validate(view, &duplicate); err == nil {
+		t.Fatal("full-size duplicate inventory admitted")
+	}
 	metadata, err := extensionOwnerMetadata(view, e.roleRead(view, e.roles), ext)
 	if err != nil {
 		t.Fatal(err)
@@ -97,8 +120,19 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		}
 		return err
 	}})
-	if err != nil || len(records) != 1 || len(records[0].Members) != 1 || records[0].Members[0].Name != "daitch_mokotoff" || records[0].Members[0].Signature != "25" {
+	if err != nil || len(records) != 1 || len(records[0].Members) != 5 || records[0].Members[0].Name != "daitch_mokotoff" || records[0].Members[0].Signature != "25" {
 		t.Fatal("symbolic ownership", records, err)
+	}
+	symbolic := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true}
+	for _, member := range records[0].Members {
+		key := member.Name + ":" + member.Signature
+		if member.Kind != "procedure" || member.Owner != "postgres" || !symbolic[key] {
+			t.Fatal("symbolic member identity", member)
+		}
+		delete(symbolic, key)
+	}
+	if len(symbolic) != 0 {
+		t.Fatal("missing symbolic selected members", symbolic)
 	}
 	for _, payload := range []string{
 		`{"name":"fuzzystrmatch","schema":"public","version":"1.1","owner":"postgres","members":[]}`,
@@ -138,6 +172,11 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		closeOwner()
 		if e.state.descriptors[ext.address] != nil || e.state.descriptors[member] != nil {
 			t.Fatal("TEMP provider survived owner retirement")
+		}
+		for _, address := range ext.members {
+			if e.state.descriptors[address] != nil {
+				t.Fatal("TEMP selected member survived owner retirement", address)
+			}
 		}
 	})
 }

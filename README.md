@@ -3243,7 +3243,8 @@ excluded. See [registered extensions](https://www.postgresql.org/docs/18/sql.htm
 and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 
 Change note: `CREATE EXTENSION fuzzystrmatch [WITH SCHEMA schema]
-[VERSION '1.2']` installs only `daitch_mokotoff(text) RETURNS text[]`.
+[VERSION '1.2']` installs `daitch_mokotoff(text) RETURNS text[]` and the four
+Levenshtein overloads described below.
 This selected immutable, strict, parallel-safe provider preserves every six-digit
 alternative in PostgreSQL's element order: John returns `{160000,460000}` and
 Bierschbach returns all eight published codes. NULL, empty and unencodable-only
@@ -3256,10 +3257,27 @@ Views, text[] defaults/CHECKs and STORED generated columns retain actual immutab
 procedure dependencies; native controls remap providers and owned array elements
 while already returned rows keep their old arrays/metadata. Availability reports
 the real selected provider, not full upstream fuzzystrmatch member coverage.
-Soundex, Levenshtein, Metaphone, new array operators and general extension loaders
-are not added. This provider has no dictionary helpers, so unaccent's own-TEMP
+Soundex, Metaphone, new array operators and general extension loaders are not
+added. This provider has no dictionary helpers, so unaccent's own-TEMP
 helper-resolution restriction does not apply.
 See [selected proof](reference/catalogs/README.md#daitch-mokotoff-selected-proof).
+
+**Levenshtein edit distance — change note:** installed fuzzystrmatch1.2 adds
+`levenshtein(text,text)`, `levenshtein(text,text,int,int,int)`,
+`levenshtein_less_equal(text,text,int)` and
+`levenshtein_less_equal(text,text,int,int,int,int)`, each returning INT4.
+Weights are insertion/deletion/substitution, defaulting to one; the final
+bounded argument is the maximum distance. Kitten→sitting is3. Within a
+nonnegative bound the ordinary nonnegative-cost result is exact; outside it
+only a value greater than the bound is promised. Negative bounds compute the
+unbounded distance. Comparisons use exact Unicode codepoints without case
+folding or normalization. Two nonempty operands are limited to255 characters,
+not bytes; an empty operand bypasses that restriction and the bound. Strict
+NULL produces typed INT4 NULL after demanded siblings, not suppressed errors.
+Installation, qualified/search-path resolution, stored expressions and native
+control remapping retain genuine provider identities; DM remains available.
+See [Levenshtein selected proof](reference/catalogs/README.md#levenshtein-selected-proof).
+
 
 Change note: read-only `pg_catalog.pg_collation` exposes all twelve PostgreSQL18
 identity fields from installed collation descriptors: names, namespace/owner,
