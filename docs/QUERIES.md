@@ -333,6 +333,18 @@ wrapper places siblings in a real-row-only projection. Earlier failures prevent
 later events, and initialized cursors close without replacing the primary error.
 Key-demanded sets share their local expansion owner and window slots.
 
+`json_each(json)` and `json_each_text(json)` each own one record-valued cursor.
+SELECT expansion keeps one RECORD marker slot per call. FROM alone exposes the
+record's key/value members: immutable result usages determine contiguous spans,
+so mixed ROWS FROM advances each call once, pads every exhausted record member
+with its own typed NULL, and writes optional INT8 ordinality last. A present
+record with a NULL value is not an exhausted call. A composite function alias
+qualifies the member columns and denotes the whole row; it does not rename the
+first field unless an explicit positional column alias does so. Empty and SQL
+NULL inputs retain their schema before iteration. These selected calls reuse
+ordinary correlation, retained views and generation remapping, not independent
+key/value invocations or a separate function-source store.
+
 Correlated function sources use the actual predecessor frame and demanded inherited
 prefixes, with physical/version provenance separate from function outputs.
 Rendering publishes finalized predecessor slots, never future/right slots early.
@@ -340,6 +352,19 @@ Genuinely dependent RHS stages reopen per left row using one borrowed same-query
 context; lexical outer frames remain distinct. Ordinary queries do not allocate a
 separate regexp lift/output list. Planning can evaluate invariant scalar calls,
 but never executes a set provider without a selected input row.
+
+A whole, nonvolatile left-only WHERE restriction can gate predecessor rows
+before a directly correlated function RHS on an inner/cross join. Execution
+opens a private copied join with an ordinary left filter; the canonical bound
+tree, view literal paths, frames and source provenance remain unchanged, and
+the predicate is evaluated once rather than duplicated after expansion.
+Stage/domain-sensitive predicates, outer joins, merged columns, unsupported
+dependency forms and mandatory physical frontiers retain their original
+filter placement. Refreshed-row (EPQ) execution also retains its captured
+identity-keyed topology, even after the recheck clears physical locks; private
+join/filter copies must not replace its captured nodes. This is bounded
+function-input demand, not general predicate splitting or an optimizer that
+crosses subquery boundaries.
 
 Computed function rows have no physical row-lock identity. Rechecks refresh the
 physical contributor and rescan correlated sources; independent sources reuse

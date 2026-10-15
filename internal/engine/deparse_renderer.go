@@ -745,6 +745,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		argRenderer := r
+		argRenderer.showImplicit = true
+		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
+		if err != nil {
+			return "", err
+		}
+		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:

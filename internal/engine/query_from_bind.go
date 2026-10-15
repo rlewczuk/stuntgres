@@ -437,6 +437,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			} else if ordinality {
 				message = "WITH ORDINALITY cannot be used with a column definition list"
 				hint = "Put the column definition list inside ROWS FROM()."
+			} else if function, ok := root.(*functionFromNode); ok && len(function.calls) == 1 && function.calls[0].ResultUsage().Type.IsComposite() {
+				message = "a column definition list is redundant for a function with OUT parameters"
 			}
 			failure := expressionError("42601", message, n.Columns[0].Pos).(*sqlstate.Error)
 			failure.Hint = hint
@@ -462,7 +464,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			case *parser.FunctionFrom:
 				calls = len(function.Calls)
 			}
-			if calls == 1 {
+			function, composite := root.(*functionFromNode)
+			composite = composite && len(function.calls) == 1 && function.calls[0].ResultUsage().Type.IsComposite()
+			if calls == 1 && !composite {
 				ns.columns[0].descriptor.Name = n.Name.Text
 			}
 		}
@@ -922,7 +926,7 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 
 func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int) (LogicalNode, queryNamespace, error) {
 	calls := make([]BoundExpr, len(rawCalls))
-	schema := make([]ColumnDescriptor, len(calls))
+	schema := make([]ColumnDescriptor, 0, len(calls))
 	oldClause := b.aggregateClause
 	b.aggregateClause = "FROM"
 	defer func() { b.aggregateClause = oldClause }()
@@ -952,7 +956,14 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
 		}
 		calls[i] = expr
-		schema[i] = ColumnDescriptor{Name: name, Usage: calls[i].ResultUsage()}
+		if expr.ResultUsage().Type.IsComposite() {
+			for j := range functionFromCallWidth(expr) {
+				member := expr.ResultUsage().Type.CompositeMember(j)
+				schema = append(schema, ColumnDescriptor{Name: member.Name, Usage: member.Usage})
+			}
+		} else {
+			schema = append(schema, ColumnDescriptor{Name: name, Usage: expr.ResultUsage()})
+		}
 
 	}
 	if ordinality {
@@ -962,8 +973,8 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	for i, column := range schema {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1}
 	}
-	name := schema[0].Name
-	q := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !ordinality}
+	name := rawCalls[0].Name.Parts[len(rawCalls[0].Name.Parts)-1].Text
+	q := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !ordinality && !calls[0].ResultUsage().Type.IsComposite()}
 	if ordinal >= 0 {
 		for i, raw := range rawCalls {
 			bound := calls[i]

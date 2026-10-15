@@ -1067,6 +1067,15 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}
+		if join, ok := n.child.(*joinNode); ok && state.functionRecheck == nil && join.correlatedRight && !queryHasMandatoryPhysicalFrontier(n.child, state.source) {
+			if join := functionFromWhere(n.child, n.predicate); join != nil {
+				// Keep canonical/view literal paths intact. Only this execution
+				// filters predecessor rows before opening their correlated RHS.
+				// EPQ instead retains its captured, identity-keyed topology even
+				// after its physical locking frontier has been cleared.
+				return openQueryNode(ctx, state, join)
+			}
+		}
 		admitPGSequencesPredicate(n.child, state.source, n.predicate, 0, evaluation.Frame)
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {

@@ -29,7 +29,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalog Catalo
 		exposed = rendered.names
 		namespace := v.namespaces[captured.source.namespace-1]
 		root := v.namespaceRoot(namespace)
-		if function, ok := root.(*functionFromNode); ok && len(function.calls) == 1 && !function.ordinality && captured.kind == compositeExpansion {
+		if function, ok := root.(*functionFromNode); ok && len(function.calls) == 1 && !function.ordinality && !function.calls[0].ResultUsage().Type.IsComposite() && captured.kind == compositeExpansion {
 			// A namespace list is not a composite field selection on the
 			// function's scalar alias value. Replay its analyzed column slots.
 			scalarRoot = root

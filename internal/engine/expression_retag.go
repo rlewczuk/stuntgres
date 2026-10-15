@@ -163,6 +163,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		if changed {
+			n, err = n.Reconstruct(functionInfo(info), n.Args)
+		}
+		n.Info = functionInfo(info)
+		rebound = n
 	case installedCryptoFunctionExpression:
 		n.Args = children(n.Args)
 		if err != nil {

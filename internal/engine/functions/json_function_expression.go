@@ -25,6 +25,7 @@ func (e JSONKeys[E, C, P]) Reconstruct(info Info[P], args []E) (JSONKeys[E, C, P
 type JSONFunctionDefinition struct {
 	Input, Result  sqltype.ID
 	Keys           bool
+	Each           bool
 	ArgumentIntent CoercionIntent
 }
 
@@ -45,6 +46,8 @@ func JSONFunctionCall(name string, visible bool, count, names int) (JSONFunction
 		definition.Keys = true
 	case "jsonb_object_keys":
 		definition.Input, definition.Keys = sqltype.JSONB, true
+	case "json_each", "json_each_text":
+		definition.Each = true
 	default:
 		return JSONFunctionDefinition{}, Missing
 	}
@@ -65,4 +68,32 @@ func NewJSONKeys[E Expression[C], C Context, P any](info Info[P], name string, a
 		return JSONKeys[E, C, P]{}, err
 	}
 	return JSONKeys[E, C, P]{info, plan, []E{arg}}, nil
+}
+
+type JSONEach[E Expression[C], C Context, P any] struct {
+	Info[P]
+	Plan sqltype.JSONEachPlan
+	Args []E
+}
+
+func (e JSONEach[E, C, P]) Eval(c C) (sqltype.Value, error) {
+	if _, err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSON each set call")
+}
+func (e JSONEach[E, C, P]) Reconstruct(info Info[P], args []E) (JSONEach[E, C, P], error) {
+	if len(args) != 1 {
+		return JSONEach[E, C, P]{}, fmt.Errorf("invalid JSON each arguments")
+	}
+	plan, err := sqltype.BindJSONEach(e.Plan.Name(), args[0].ResultUsage(), info.Usage)
+	return JSONEach[E, C, P]{info, plan, args}, err
+}
+
+func NewJSONEach[E Expression[C], C Context, P any](info Info[P], name string, arg E) (JSONEach[E, C, P], error) {
+	plan, err := sqltype.BindJSONEach(name, arg.ResultUsage(), info.Usage)
+	if err != nil {
+		return JSONEach[E, C, P]{}, err
+	}
+	return JSONEach[E, C, P]{info, plan, []E{arg}}, nil
 }

@@ -38,6 +38,9 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		second, ok := b.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])
 		return ok && first.Plan.Name() == second.Plan.Name()
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		second, ok := b.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties])
+		return ok && first.Plan.Name() == second.Plan.Name() && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		_, ok := b.(functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties])
 		return ok

@@ -1776,10 +1776,26 @@ rejected when processed. Numeric spelling/range and retained JSON text are
 unchanged; processing does not convert to JSONB. Targets and bounded function
 FROM share expansion, LATERAL, ROWS FROM and WITH ORDINALITY machinery, including
 held prepared statements, metadata for empty results and stored-view/native replay.
-This does not add `jsonb_object_keys`, other JSON processing functions or general
-lateral derived queries. See [JSON processing](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
+General lateral derived queries remain excluded.
+See [JSON processing](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
 Feature smoke: `make check RUN='^TestReferenceJSONKeysFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONKeysFeatureSmoke$'`.
+
+Change note: `json_each(json)` and `json_each_text(json)` expand top-level
+object members into paired key/value records. SELECT targets expose one RECORD
+column; FROM exposes key TEXT and value JSON or TEXT. JSON output retains exact
+value spelling (including nested whitespace, numeric exponents and escapes);
+text output decodes strings and maps JSON null to SQL NULL. Both preserve
+duplicate member occurrences, decode keys and validate all strings, including
+nested strings returned as raw source. SQL NULL and empty objects produce no
+rows with complete metadata; arrays/scalars use PostgreSQL English 22023
+diagnostics without runtime cursor positions. Function aliases, record fields,
+target zip/padding, multi-column ROWS FROM padding, ordinality, lateral sources,
+held statements and stored/native replay use the ordinary query pipeline.
+Only named argument `from_json` is admitted. This does not add `jsonb_each*`,
+array expansion, record-population functions or general table functions.
+Feature smoke: `make check RUN='^TestReferenceJSONEachFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
 
 Change note: JSONB storage normalizes whitespace and key order, keeps the last
 decoded duplicate key, and preserves exact finite decimals and their display

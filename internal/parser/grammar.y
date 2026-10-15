@@ -511,7 +511,7 @@ package parser
 %type <functionTable> function_table function_table_base
 %type <call> function_table_call
 %type <functionTables> function_table_calls
-%type <identifiers> alias_columns using_columns
+%type <identifiers> alias_columns using_columns function_column_definition_tail
 %type <identifier> using_alias
 %type <joinKind> inner_join
 %type <desc> optional_outer
@@ -2152,10 +2152,10 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
 from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} }
- | from_base AS from_alias '(' using_columns type ')' {
+ | from_base AS from_alias '(' using_columns type function_column_definition_tail ')' {
     switch $1.(type) {
     case *FunctionTable, *FunctionFrom:
-       $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$5,HasColumnDefinitions:true,ColumnDefinitionType:$6}
+       $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:append($5,$7...),HasColumnDefinitions:true,ColumnDefinitionType:$6}
     default:
        sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1
     }
@@ -2177,6 +2177,12 @@ from_alias: name {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return
 alias_columns: /* empty */ { $$=nil } | '(' using_columns ')' { $$=$2 } ;
 using_columns: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | using_columns ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+/* Selected function sources reject definition lists during analysis. Consume
+ * every typed member here so the binder, rather than comma lookahead, owns that
+ * diagnostic and its first-column position. No record-definition provider is
+ * introduced; the first type remains the existing diagnostic syntax witness. */
+function_column_definition_tail: /* empty */ { $$=nil }
+ | function_column_definition_tail ',' name type { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 using_alias: /* empty */ { $$=nil } | AS from_alias { $$=&Identifier{Text:$2.text,Pos:$2.pos} } ;
 where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }

@@ -14,7 +14,7 @@ func isStringSet(expr BoundExpr) bool {
 }
 func isQuerySet(expr BoundExpr) bool {
 	switch expr.(type) {
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
 		return true
 	}
 	return isStringSet(expr)
@@ -25,7 +25,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 		return isStringSet(call)
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.ReturnsSet()
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
 		return true
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		return parser.JSONFunctionName(call.Plan.Name())
@@ -77,6 +77,8 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.Args
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
 	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
@@ -108,6 +110,12 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid JSON keys arguments")
+		}
+		call.Args = args
+		return call, nil
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		if len(args) != 1 {
+			return nil, fmt.Errorf("stuntgres: invalid JSON each arguments")
 		}
 		call.Args = args
 		return call, nil

@@ -605,17 +605,8 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				}
 			}
 		case *functionFromNode:
-			width := len(n.calls)
-			if n.ordinality {
-				width++
-			}
-			if len(n.calls) == 0 || len(n.Schema()) != width {
-				return fmt.Errorf("stuntgres: invalid stored string function frame")
-			}
-			for i, call := range n.calls {
-				if !validFunctionSourceCall(call) || call.ResultUsage() != n.Schema()[i].Usage {
-					return fmt.Errorf("stuntgres: invalid stored string function usage")
-				}
+			if err := validateFunctionFromLayout(n); err != nil {
+				return err
 			}
 		case *setProjectNode:
 			if n.child == nil || n.template == nil || n.template.group == nil || *n.template.group != n.frame ||

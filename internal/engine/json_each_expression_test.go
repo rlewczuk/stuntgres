@@ -1,0 +1,161 @@
+package engine
+
+import (
+	"context"
+	"strings"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONEach[BoundExpr, *EvalContext, ExprProperties] {
+	t.Helper()
+	b.aggregateClause = "SELECT"
+	b.queryNamespace = &queryNamespace{}
+	node, err := b.bindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker, ok := node.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties])
+	if !ok {
+		t.Fatalf("missing record marker: %T", node)
+	}
+	return marker
+}
+
+func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
+	engine := New()
+	view := engine.CatalogRead()
+	for _, name := range []string{"json_each", "json_each_text"} {
+		b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
+		original := jsonEachUnitMarker(t, b, name, `{"a":1}`)
+		valueID := sqltype.JSON
+		if name == "json_each_text" {
+			valueID = sqltype.Text
+		}
+		shape := original.ResultUsage().Type
+		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.typ(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.typ(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
+			t.Fatal("analysis shape", shape)
+		}
+		if !original.Properties().StageDependent || original.Properties().Volatility != Immutable || !b.queryHasTargetSet || !isQuerySet(original) || querySetDepth(original) != 1 {
+			t.Fatal("set properties", original)
+		}
+		fresh := jsonObjectUnitTypes()
+		mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+		if err != nil || !changed {
+			t.Fatal("record remap", changed, err)
+		}
+		next := mapped.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties])
+		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
+			t.Fatal("mixed-generation remap", next)
+		}
+		cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
+		if err != nil {
+			t.Fatal(err)
+		}
+		row, present, err := cursor.next(context.Background(), next.ResultUsage().Type)
+		cursor.close()
+		if err != nil || !present || row.Type() != next.ResultUsage().Type || row.CompositeField(0).Type() != fresh[sqltype.Text] || row.CompositeField(1).Type() != fresh[valueID] {
+			t.Fatal("remapped provider", row, present, err)
+		}
+		walked := 0
+		walkBoundExpression(original, func(n BoundExpr) {
+			if n == original.Args[0] {
+				walked++
+			}
+		})
+		if walked != 1 || plannedVolatility(original) != Immutable || !sameGroupExpression(original, original) {
+			t.Fatal("closed traversal", walked)
+		}
+		clone, err := remapBoundExpression(original, func(r ObjectRef) ObjectRef { return r }, nil)
+		if err != nil || !sameGroupExpression(original, clone) {
+			t.Fatal("stored reconstruction", clone, err)
+		}
+		folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, original)
+		if err != nil || !isQuerySet(folded) {
+			t.Fatal("preflight folded set", folded, err)
+		}
+		folded, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
+		if err != nil || !isQuerySet(folded) {
+			t.Fatal("simplifier folded set", folded, err)
+		}
+		text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+		if err != nil || !strings.Contains(text, name+"(") || !strings.Contains(text, "::json") {
+			t.Fatal("symbolic rendering", text, err)
+		}
+		other := jsonEachUnitMarker(t, b, name, `{"x":2}`)
+		root := &functionFromNode{calls: []BoundExpr{original}, querySchema: querySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, frame: 1}
+		rewritten, err := rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+			if n == original.Args[0] {
+				return other.Args[0], true, nil
+			}
+			return n, false, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rewritten.(*functionFromNode).calls[0].(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]).Args[0] != other.Args[0] || root.calls[0].(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]).Args[0] != original.Args[0] {
+			t.Fatal("mutated retained query")
+		}
+		if err := validateFunctionFromLayout(root); err != nil {
+			t.Fatal(err)
+		}
+		broken := *root
+		broken.querySchema = querySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
+		if err := validateFunctionFromLayout(&broken); err == nil {
+			t.Fatal("invalid leaf span accepted")
+		}
+	}
+}
+
+func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
+	engine := New()
+	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
+	for _, name := range []string{"json_each", "json_each_text"} {
+		marker := jsonEachUnitMarker(t, b, name, `{"a":null}`)
+		series, err := b.bindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 8}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := []BoundExpr{series, marker}
+		invocation, err := openFunctionInvocation(&EvalContext{Context: context.Background()}, calls)
+		if err != nil {
+			t.Fatal(err)
+		}
+		row := make([]sqltype.Value, 3)
+		present, err := invocation.nextFrom(context.Background(), calls, row)
+		if err != nil || !present {
+			t.Fatal(present, err)
+		}
+		key, _ := row[1].Text()
+		number, _ := row[0].Integer()
+		if number != 7 || key != "a" || row[2].IsNull() != (name == "json_each_text") {
+			t.Fatal("record presence/null conflated", row)
+		}
+		present, err = invocation.nextFrom(context.Background(), calls, row)
+		if err != nil || !present || !row[1].IsNull() || !row[2].IsNull() || row[1].Type() != b.typ(sqltype.Text) || row[2].Type() != marker.ResultUsage().Type.CompositeMember(1).Usage.Type {
+			t.Fatal("incorrect record padding", row, present, err)
+		}
+		number, _ = row[0].Integer()
+		if number != 8 {
+			t.Fatal("scalar offset", number)
+		}
+		present, err = invocation.nextFrom(context.Background(), calls, row)
+		invocation.close()
+		if err != nil || present {
+			t.Fatal("exhausted source", present, err)
+		}
+		// The same invocation in a SELECT stage stores one record slot.
+		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, []BoundExpr{marker})
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := make([]sqltype.Value, 1)
+		present, err = invocation.next(context.Background(), []BoundExpr{marker}, target, nil)
+		invocation.close()
+		if err != nil || !present || target[0].CompositeLen() != 2 {
+			t.Fatal("target flattened", target, present, err)
+		}
+	}
+}

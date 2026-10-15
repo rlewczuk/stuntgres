@@ -46,7 +46,7 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 }
 
 // scanJSON is the shared iterative grammar for input and selected processing.
-// Processing decodes only when collecting keys, without building a JSONB tree.
+// Processing retains selected top-level fields without building a JSONB tree.
 func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanResult) (Value, error) {
 	build := scan == nil && d.id == JSONB
 	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil}
@@ -59,12 +59,21 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 		builder.frames = frames[:0]
 	}
 	var pendingNumber string
+	var member jsonMember
+	memberActive := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return Value{}, err
 		}
-		// Processing validates ignored strings without retaining decoded text.
-		l.discard = scan != nil && !(len(stack) == 2 && (stack[len(stack)-1] == jsonObjectFirst || stack[len(stack)-1] == jsonObjectKey))
+		// A completed immediate value ends at the last consumed token, not
+		// at the next comma/brace or its surrounding whitespace.
+		if scan != nil && memberActive && len(stack) == 2 && stack[1] == jsonObjectNext {
+			member.end = l.end
+			scan.members = append(scan.members, member)
+			memberActive = false
+		}
+		// Validate ignored/nested strings without retaining their decoded text.
+		l.discard = scan != nil && !(len(stack) == 2 && (stack[1] == jsonObjectFirst || stack[1] == jsonObjectKey || scan.mode == jsonScanEachText && stack[1] == jsonObjectValue))
 		if err := l.next(); err != nil {
 			return Value{}, err
 		}
@@ -84,6 +93,10 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 			if err := scan.checkRoot(); err != nil {
 				return Value{}, err
 			}
+		}
+		if scan != nil && scan.mode != jsonScanKeys && len(stack) == 2 && state == jsonObjectValue {
+			member.start, member.kind, member.decoded = l.start, l.kind, l.decoded
+			memberActive = true
 		}
 		if state == jsonEnd && l.kind == 0 {
 			if scan != nil {
@@ -147,7 +160,11 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 				return Value{}, l.expected("string")
 			}
 			if scan != nil && len(stack) == 2 {
-				scan.keys = append(scan.keys, l.decoded)
+				if scan.mode == jsonScanKeys {
+					scan.keys = append(scan.keys, l.decoded)
+				} else {
+					member = jsonMember{key: l.decoded}
+				}
 			}
 			if build {
 				builder.frames[len(builder.frames)-1].key = l.decoded

@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
@@ -31,7 +32,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			operand = o
 		}
 	}
-	if name == "json_object_keys" {
+	if name == "json_object_keys" || name == "json_each" || name == "json_each_text" {
 		if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
 			return nil, err
 		}
@@ -40,7 +41,11 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	definition, resolution := functions.JSONFunctionCall(name, visible, len(raw.Args), len(raw.ArgNames))
+	namedCount := len(raw.ArgNames)
+	if (name == "json_each" || name == "json_each_text") && namedCount == 1 && raw.ArgNames[0].Text == "from_json" {
+		namedCount = 0
+	}
+	definition, resolution := functions.JSONFunctionCall(name, visible, len(raw.Args), namedCount)
 	if resolution != functions.Resolved {
 		return missing()
 	}
@@ -72,7 +77,21 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	}
 	properties := arg.Properties()
 	usage := b.typ(definition.Result).Usage()
-	if definition.Keys {
+	if definition.Each {
+		value := input.Usage()
+		if name == "json_each_text" {
+			value = b.typ(sqltype.Text).Usage()
+		}
+		shape, err := sqltype.RecordShape([]sqltype.CompositeMember{
+			{Attribute: 1, Name: "key", Usage: b.typ(sqltype.Text).Usage()},
+			{Attribute: 2, Name: "value", Usage: value},
+		})
+		if err != nil {
+			return nil, err
+		}
+		usage = shape.Usage()
+	}
+	if definition.Keys || definition.Each {
 		if err := b.stringSetAllowed(raw.Pos); err != nil {
 			return nil, err
 		}
@@ -81,6 +100,9 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
+		if definition.Each {
+			return functions.NewJSONEach[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
+		}
 		return functions.NewJSONKeys[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
 	}
 	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)

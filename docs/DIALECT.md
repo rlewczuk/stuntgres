@@ -678,6 +678,16 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Wrong-root length/keys use PostgreSQL English 22023 diagnostics with absent
   runtime Position. Key sets reuse target zip/padding and lateral FROM stages;
   scalar stored consumers and query key views retain symbolic calls on replay.
+  `json_each(json)` and `json_each_text(json)` return paired key/value records:
+  SELECT targets expose RECORD, while FROM exposes key TEXT and value JSON/TEXT.
+  Raw JSON spelling, internal nested whitespace and duplicate occurrences remain
+  intact; text strings decode and JSON null becomes SQL NULL only in the text
+  variant. Empty objects/SQL NULL return zero rows with full schema. Both validate
+  nested Unicode during processing and use exact array/scalar 22023 diagnostics.
+  Aliases, whole rows, multi-column ROWS FROM padding/ordinality, target-set zip,
+  function-only lateral sources and stored/native replay share existing stages.
+  These signatures admit `from_json` named notation; `jsonb_each*`, array
+  expansion and record-population functions remain excluded.
   JSON array aggregates `json_agg`, `jsonb_agg`, their `_strict` variants and
   `json_arrayagg` use ordinary grouping/FILTER/local ordering. SQL NULL is included
   by ordinary variants and omitted by strict/default ABSENT ON NULL; JSON null is

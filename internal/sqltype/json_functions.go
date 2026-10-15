@@ -5,14 +5,36 @@ import (
 	"fmt"
 )
 
+type jsonScanMode uint8
+
+const (
+	jsonScanKeys jsonScanMode = iota
+	jsonScanEach
+	jsonScanEachText
+)
+
+type jsonMember struct {
+	key, decoded string
+	start, end   int
+	kind         byte
+}
+
 type jsonScanResult struct {
-	root byte
-	keys []string
+	root    byte
+	mode    jsonScanMode
+	keys    []string
+	members []jsonMember
 }
 
 func (s *jsonScanResult) checkRoot() error {
 	if s.root == '{' {
 		return nil
+	}
+	if s.mode != jsonScanKeys {
+		if s.root == '[' {
+			return failure("22023", "cannot deconstruct an array as an object")
+		}
+		return failure("22023", "cannot deconstruct a scalar")
 	}
 	if s.root == '[' {
 		return failure("22023", "cannot call json_object_keys on an array")

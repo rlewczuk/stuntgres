@@ -53,6 +53,82 @@ SAME-held recovery, VARBIT/BIT/BOOL metadata, and integer1<<32→1. Expected
 successful checks are quiet exit zero; recorded root verification, not these
 commands or source expectations, establishes exercised evidence.
 
+### JSON object member expansion
+
+`TestReferenceJSONEach` independently specifies `json_each(json)` and
+`json_each_text(json)` ([PostgreSQL 18 JSON processing functions](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING)).
+The shared scenarios cover duplicate top-level members, decoded keys, retained
+JSON spelling/internal whitespace, decoded text strings, JSON null versus SQL
+NULL, empty sets, wrong roots, processing-time Unicode errors and full English
+diagnostics. SELECT targets retain one RECORD column; FROM exposes key TEXT and
+value JSON/TEXT, including before iteration on empty/NULL inputs. Multi-column
+ROWS FROM padding, ordinality, aliases/whole rows, lateral sources, target SRF
+zipping, grouping, stored views, CTAS, authorization, atomic INSERT SELECT,
+held-statement recovery, cancellation and actual native control replay have
+explicit expected rows/types/counts rather than backend-parity-only checks.
+The lifecycle witness distinguishes unfiltered late-array INSERT SELECT failure
+(no prefix writes) from a left-only WHERE restriction that excludes that source
+row before opening its correlated function. Typed multi-member definition lists
+are consumed before the exact OUT-parameter redundancy diagnostic at the first
+column name; malformed trailing definitions remain syntax errors.
+
+The shared expectations were exercised against pinned PostgreSQL 18.0 before
+production implementation. They retain exact Unicode diagnostics, phases,
+positions and command counts. JSON and RECORD use pq interface{} ScanType;
+raw payloads are owned bytes on pq and strings on native. The shared scenarios
+run every available backend, without discovery filters or observation logging.
+Oracle observations alone do not claim completed native or dual-mode proof.
+
+```sh
+make check RUN='^TestReferenceJSONEach(Values|Unicode|Typing|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceJSONEach(Metadata|QueryStructure)$' REFERENCE=1
+make check RUN='^TestReferenceJSONEach(ParametersAndLifecycle|Cancellation|AuthorityAndControls|FeatureSmoke)$' REFERENCE=1
+```
+
+Run the same three selectors without `REFERENCE=1` for native proof, and repeat
+both modes after affected edits. Selected lifecycle/cancellation/control race
+proof uses `make check RUN='^TestReferenceJSONEach(ParametersAndLifecycle|Cancellation|AuthorityAndControls)$' RACE=1`.
+Provider/engine invariants use `make check RUN='^TestJSONEach'`.
+Root owns execution with a 900-second external deadline; no agent refcheck.
+
+Feature smoke:
+
+```sh
+make check RUN='^TestReferenceJSONEachFeatureSmoke$'
+make check RUN='^TestReferenceJSONEachFeatureSmoke$' REFERENCE=1
+```
+
+Expected quiet exit zero: CREATE0/prepared INSERT3, duplicate key/value pairs
+with JSON null versus SQL NULL and text decoding, ordered ordinality1–3,
+empty/NULL metadata, one-column RECORD target, mixed scalar padding, reusable
+statement error/recovery, concrete-member views/CTAS/source rename, and actual
+native Dump/Reset/Restore/redump plus emitted SQL replay on the pinned oracle.
+Native control phases intentionally do not execute on PostgreSQL. Oracle
+observations cannot prove those phases or the Docker-free implementation.
+
+Focused predecessor-demand safety coverage:
+
+```sh
+make check RUN='^TestReferenceJSONEach(PredecessorDemand|VolatileDemand)$' REFERENCE=1
+make check RUN='^TestReferenceJSONEach(PredecessorDemand|VolatileDemand)$'
+```
+
+`PredecessorDemand` uses the same parameterized SELECT directly and through one
+held prepared statement: exclude an invalid array predecessor and return the
+object's two exact key/value rows; select the array and require the complete
+execution-time 22023 diagnostic; reuse successfully after the error and after a
+NULL-result qualification; select empty-object/SQL-NULL documents with full
+empty-result metadata. Both selected JSON functions share the same scenario.
+
+`VolatileDemand` has a three-member valid object and a whole WHERE predicate
+that is left-dependent (`s.id=$1`) and volatile (`nextval(sequence)<=$2`).
+With parameters1/2, the pinned PostgreSQL 18.0 post-expansion outcome is members
+a/b at ordinals1/2, sequence last_value3/is_called=true. Incorrect whole-predicate
+relocation to the predecessor would admit all three members and consume only
+one sequence value. Direct and prepared executions use fresh sequences.
+Both completed definitions run every available backend with independently
+specified expectations; no discovery filters remain.
+
 ### Bit string measurements and slices
 
 The `TestReferenceBitStringFunctions` family specifies the seven functions in

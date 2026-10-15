@@ -99,7 +99,7 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 		found = found || stringSplitFunction(name)
 		found = found || e.Syntax == SimilarEscapeFunctionSyntax
 		found = found || !datetimeOnly && (RangeInspectFunctionName(name) || UUIDExtractFunctionName(name))
-		found = found || !datetimeOnly && (RegexpFunctionName(name) || strings.EqualFold(name, "json_object_keys") || strings.EqualFold(name, "generate_series") || strings.EqualFold(name, "generate_subscripts"))
+		found = found || !datetimeOnly && (RegexpFunctionName(name) || strings.EqualFold(name, "json_object_keys") || strings.EqualFold(name, "json_each") || strings.EqualFold(name, "json_each_text") || strings.EqualFold(name, "generate_series") || strings.EqualFold(name, "generate_subscripts"))
 		if !found && !singletonArgument(e) {
 			return false, false
 		}

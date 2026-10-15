@@ -70,12 +70,14 @@ const (
 	functionOwnedSetCursor
 	functionScalarCursor
 	functionJSONKeysCursor
+	functionJSONEachCursor
 	functionSeriesCursor
 )
 
 type functionSetCursor struct {
 	cursor                 sqltype.StringFieldCursor
 	keys                   sqltype.JSONKeyCursor
+	each                   sqltype.JSONEachCursor
 	owned                  []sqltype.Value
 	position               int
 	scalar                 sqltype.Value
@@ -91,6 +93,9 @@ func (s *functionSetCursor) close() {
 	}
 	if s.initialized && s.kind == functionJSONKeysCursor {
 		s.keys.Close()
+	}
+	if s.initialized && s.kind == functionJSONEachCursor {
+		s.each.Close()
 	}
 	s.owned = nil
 	s.exhausted = true
@@ -208,6 +213,22 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{keys: cursor, kind: functionJSONKeysCursor, initialized: true}, nil
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if len(call.Args) != 1 {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSON each arguments")
+		}
+		value, err := call.Args[0].Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		cursor, err := call.Plan.Open(c.Context, value)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{each: cursor, kind: functionJSONEachCursor, initialized: true}, nil
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		if !validFunctionSourceCall(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
@@ -328,6 +349,8 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	var err error
 	if s.kind == functionJSONKeysCursor {
 		value, present, err = s.keys.Next(ctx)
+	} else if s.kind == functionJSONEachCursor {
+		value, present, err = s.each.Next(ctx)
 	} else {
 		value, present, err = s.cursor.Next(ctx)
 	}
@@ -341,12 +364,11 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	return value, true, nil
 }
 func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFromNode) (indexedStage, error) {
-	width := len(n.calls)
-	if n.ordinality {
-		width++
+	if n.frame == 0 {
+		return indexedStage{}, fmt.Errorf("stuntgres: invalid function source frame")
 	}
-	if n.frame == 0 || len(n.calls) == 0 || width != len(n.Schema()) {
-		return indexedStage{}, fmt.Errorf("stuntgres: invalid function source layout")
+	if err := validateFunctionFromLayout(n); err != nil {
+		return indexedStage{}, err
 	}
 	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}
 	establishSourcePresence(source, n.presenceSlot)
@@ -382,7 +404,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFro
 			}
 			opened = true
 		}
-		present, err := invocation.next(ctx, n.calls, frame, nil)
+		present, err := invocation.nextFrom(ctx, n.calls, frame)
 		if err != nil {
 			return false, err
 		}
@@ -571,4 +593,75 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 		}
 	}
 	return out, nil
+}
+
+// Result usages are the immutable source of FROM spans. Targets continue to
+// occupy one record-valued marker slot; only FROM expands member columns.
+func functionFromCallWidth(call BoundExpr) int {
+	if typ := call.ResultUsage().Type; typ.IsComposite() {
+		return typ.CompositeLen()
+	}
+	return 1
+}
+
+func validateFunctionFromLayout(n *functionFromNode) error {
+	if len(n.calls) == 0 {
+		return fmt.Errorf("stuntgres: empty function source")
+	}
+	offset := 0
+	for _, call := range n.calls {
+		width := functionFromCallWidth(call)
+		if !validFunctionSourceCall(call) || width < 1 || offset+width > len(n.Schema()) {
+			return fmt.Errorf("stuntgres: invalid function source layout")
+		}
+		for j := range width {
+			usage := call.ResultUsage()
+			if usage.Type.IsComposite() {
+				usage = usage.Type.CompositeMember(j).Usage
+			}
+			if usage != n.Schema()[offset+j].Usage {
+				return fmt.Errorf("stuntgres: invalid function source usage")
+			}
+		}
+		offset += width
+	}
+	if n.ordinality {
+		if offset >= len(n.Schema()) || n.Schema()[offset].Usage.Type.ID() != sqltype.Int8 {
+			return fmt.Errorf("stuntgres: invalid function source ordinality")
+		}
+		offset++
+	}
+	if offset != len(n.Schema()) {
+		return fmt.Errorf("stuntgres: invalid function source width")
+	}
+	return nil
+}
+
+func (s *functionSetInvocation) nextFrom(ctx context.Context, calls []BoundExpr, row []sqltype.Value) (bool, error) {
+	present, offset := false, 0
+	for i := range s.cursors {
+		typ := calls[i].ResultUsage().Type
+		value, ok, err := s.cursors[i].next(ctx, typ)
+		if err != nil {
+			return false, err
+		}
+		width := functionFromCallWidth(calls[i])
+		if typ.IsComposite() {
+			if ok && (value.IsNull() || value.Type() != typ || value.CompositeLen() != width) {
+				return false, fmt.Errorf("stuntgres: invalid function record")
+			}
+			for j := range width {
+				if ok {
+					row[offset+j] = value.CompositeField(j)
+				} else {
+					row[offset+j] = sqltype.Null(typ.CompositeMember(j).Usage.Type)
+				}
+			}
+		} else {
+			row[offset] = value
+		}
+		offset += width
+		present = present || ok
+	}
+	return present, ctx.Err()
 }

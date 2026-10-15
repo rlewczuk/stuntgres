@@ -284,6 +284,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties])
+		return ok && e.Plan.Name() == o.Plan.Name() && sameRecordUsage(e.ResultUsage(), o.ResultUsage()) && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
 		return ok && e.predicate == o.predicate && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -890,6 +893,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		e.Args = []BoundExpr{rewrite(e.Args[0])}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
@@ -1302,6 +1311,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Args[0])
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Args[0])
 	case comparisonExpression:
 		walk(e.left)

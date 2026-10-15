@@ -187,6 +187,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONKeys %s", n.Plan.Name())
 		err = args(n.Args)
+	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "JSONEach %s", n.Plan.Name())
+		err = args(n.Args)
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)
