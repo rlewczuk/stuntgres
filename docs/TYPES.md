@@ -221,6 +221,47 @@ OIDs with an empty database type name, and anonymous RECORD with `RECORD`.
 These logical result identities do not add an executable native `pg_typeof`
 provider.
 
+The five JSONB record conversion functions use declared composite/member usages,
+not JSON number-to-SQL numeric casts. Integer fields reject `1.5` rather than
+rounding; strings use decoded contents through the destination input codec,
+while JSONB fields preserve quoted JSON strings and canonical containers.
+JSON null becomes typed SQL NULL, including domain checks. Missing fields retain
+an existing base member or become checked typed NULL; nested objects preserve
+unspecified nested base members and arrays replace rather than merge.
+Physical source-table CHECK/NOT NULL/default declarations do not apply to its
+standalone row type. Existing domain CHECKs do apply; domain NOT NULL/default
+DDL retains its separate native exclusion.
+Validity saves destination-input failures and a domain's own constraint
+violation; it does not catch errors raised while executing a CHECK expression,
+even when their SQLSTATE also describes invalid input or another domain.
+
+Named composite scalar results retain the ordinary empty DatabaseTypeName and
+native string transport. Anonymous typed records expose RECORD; FROM expands
+declared members with their own types and typmods. SQL-NULL scalar records still
+produce one member-NULL FROM row; NULL/empty recordsets produce zero rows with
+the full declared schema. Native controls retain eager output descriptors and
+reown persistent member usages on restore.
+Prepared named casts in a populate base retain their analyzed type identity
+within the catalog owner/epoch, including through rename. Rebinding uses the
+current provider generation and normal type-use checks, not a stale-name retry.
+Captured composite literal replay owns exactly its leaf type annotation; outer
+casts and real conversions remain intact across native Dump/Restore.
+Static expansion, runtime datum shape and caller output shape are distinct.
+An anonymous populate result needs its own FROM definition for static expansion,
+even when ROW() supplies a registered runtime datum. Scalar ROW()-based
+conversion remains valid; genuine named zero-member results can expand to zero
+columns. Without static layout `(...).*` fails with `record type has not been
+registered`. Caller definitions never replace or inject layout into an inner
+expression: a real inner failure remains observable. An evaluated NULL
+anonymous base can use the outer caller descriptor; a non-NULL base instead
+supplies its actual conversion field names/usages, followed by caller tuple ABI
+validation and output relabeling.
+Caller ABI accepts only exact or implicit binary-compatible field types, not
+general assignment/implicit conversions. It preserves source conversion typmods;
+caller typmods describe output metadata without resizing values. Domain input
+checks still run at the source conversion seam, while binary domain-to-base
+output does not recheck them. Empty non-NULL recordsets validate their output
+ABI; SQL-NULL recordsets return no rows without inventing a result datum.
 
 JSONB containment `@>`/`<@` compares immutable structural nodes and returns
 BOOL with unknown computed nullability. Object keys match at the same depth;

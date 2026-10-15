@@ -568,10 +568,14 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 			from.rowTarget = n.Name.Text
 			from.rowTargetSQL = quoteIdentifier(n.Name.Text)
 		}
-		if v.functionSources {
-			return v.functionSourceAlias(from, n.Name.Text, n.Columns), nil
+		aliasName := n.Name.Text
+		if aliasName == "" {
+			aliasName = v.namespaceAlias(ns)
 		}
-		return v.aliasFrom(from, ns, n.Name.Text), nil
+		if v.functionSources {
+			return v.functionSourceAlias(from, aliasName, n.Columns), nil
+		}
+		return v.aliasFrom(from, ns, aliasName), nil
 	case *parser.JoinReference:
 		ordinal := ns.ordinal
 		bound := viewJoinAt(viewFromRoot(v.query.Root), ordinal)

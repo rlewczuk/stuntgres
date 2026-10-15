@@ -1,0 +1,374 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func (c *EvalContext) FunctionJSONBRecordInput() sqltype.InputEnvironment {
+	input := c.Input
+	input.DomainChecks = jsonbRecordDomainChecks{c}
+	return input
+}
+
+// PostgreSQL saves a domain's own constraint violation, not errors raised while
+// executing its CHECK expression. Keep that distinction across nested text
+// composite/array input as well as JSON-node conversion.
+type jsonbRecordDomainChecks struct{ evaluation *EvalContext }
+
+type jsonbRecordHardDomainError struct{ error }
+
+func (e jsonbRecordHardDomainError) Unwrap() error { return e.error }
+
+func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
+	err := c.evaluation.CheckDomain(ctx, target, value)
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	var diagnostic *sqlstate.Error
+	if errors.As(err, &diagnostic) && (diagnostic.Code == "23514" || diagnostic.Code == "23502") {
+		view := c.evaluation.domainCatalog()
+		if view.state != nil {
+			d, ok := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(target.ID())}].(*typeDescriptor)
+			if ok && d.typ == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.state.descriptors[d.namespace].Name() {
+				if diagnostic.Code == "23502" && diagnostic.Constraint == "" {
+					return err
+				}
+				// Inherited checks report the requested domain, but retain their
+				// declaring constraint name. Read only the captured generation.
+				for current := d; ; {
+					for _, check := range current.domainChecks {
+						if diagnostic.Constraint == check.Name {
+							return err
+						}
+					}
+					base := current.typ.DomainBase().Type
+					if !base.IsDomain() {
+						break
+					}
+					parent, found := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.ID())}].(*typeDescriptor)
+					if !found || parent.typ != base {
+						break
+					}
+					current = parent
+				}
+			}
+		}
+	}
+	// Soft-error classification deliberately examines the direct error, whereas
+	// ordinary SQL diagnostics and cancellation follow this unchanged cause.
+	return jsonbRecordHardDomainError{err}
+}
+
+func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	populate := name == "jsonb_populate_record" || name == "jsonb_populate_recordset" || name == "jsonb_populate_record_valid"
+	count := 1
+	if populate {
+		count = 2
+	}
+	operands := make([]functions.Argument[BoundExpr], len(raw.Args))
+	names := make([]string, len(raw.Args))
+	for i, arg := range raw.Args {
+		o, err := b.jsonbRecordArgument(arg, populate && i == 0)
+		if err != nil {
+			return nil, err
+		}
+		operands[i] = o
+		names[i] = "unknown"
+		if o.Usage.Type != nil {
+			names[i] = b.diagnosticTypeName(o.Usage.Type)
+		}
+		names[i] = functionNamedType(raw, i, names[i])
+	}
+	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
+		return nil, err
+	}
+	if len(raw.Args) > 100 {
+		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	if !visible || len(operands) != count || len(raw.ArgNames) != 0 || raw.Variadic {
+		return missing()
+	}
+	if populate && operands[0].Usage.Type == nil {
+		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+	}
+	input := b.typ(sqltype.JSONB).Usage()
+	if functions.ResolveJSONArgument(operands[count-1].Usage, input) != functions.Resolved {
+		return missing()
+	}
+	args := make([]BoundExpr, count)
+	if populate {
+		args[0] = operands[0].Expression
+	}
+	var err error
+	args[count-1], err = b.CoerceArgument(operands[count-1], functions.CoercionRequest{Intent: functions.LikeArgument, Target: input})
+	if err != nil {
+		return nil, err
+	}
+	decoration, message := "", "not an aggregate function"
+	switch {
+	case raw.Distinct:
+		decoration = "DISTINCT"
+	case len(raw.Order) != 0:
+		decoration = "ORDER BY"
+	case raw.Filter != nil:
+		decoration = "FILTER"
+	case raw.Window != nil:
+		decoration, message = "OVER", "not a window function nor an aggregate function"
+	}
+	if decoration != "" {
+		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	}
+	var result sqltype.Usage
+	unresolved := false
+	if populate {
+		result = operands[0].Usage
+		unresolved = result.Type.ID() == 2249
+	} else {
+		shape, err := sqltype.RecordShape(nil)
+		if err != nil {
+			return nil, err
+		}
+		result = shape.Usage()
+		unresolved = true
+	}
+	if err := b.captureTypeDiagnosticInput(result.Type); err != nil {
+		return nil, err
+	}
+	if result.Type.ContainsCatalogIdentifier() {
+		if err := b.captureElementInput(); err != nil {
+			return nil, err
+		}
+	}
+	if name == "jsonb_populate_record_valid" {
+		result = b.typ(sqltype.Bool).Usage()
+	}
+	properties := ExprProperties{Volatility: Stable, RuntimeDomainConversion: true}
+	for _, arg := range args {
+		properties = mergeExpressionProperties(properties, arg.Properties())
+	}
+	if name == "jsonb_populate_recordset" || name == "jsonb_to_recordset" {
+		if err := b.stringSetAllowed(raw.Pos); err != nil {
+			return nil, err
+		}
+		switch b.aggregateClause {
+		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
+			b.queryHasTargetSet = true
+		}
+		properties.StageDependent = true
+	}
+	call := functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(result, raw.Pos, properties)), Name: name, Args: args, Unresolved: unresolved}
+	return call.Reconstruct(call.Info, args)
+}
+
+func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumnDefinition) (sqltype.Usage, error) {
+	if len(raw) > 1600 {
+		return sqltype.Usage{}, expressionError("54011", "column definition lists can have at most 1600 entries", raw[0].Name.Pos)
+	}
+	members := make([]sqltype.CompositeMember, len(raw))
+	names := make(map[string]bool, len(raw))
+	duplicate := ""
+	for i, definition := range raw {
+		if names[definition.Name.Text] && duplicate == "" {
+			duplicate = definition.Name.Text
+		}
+		names[definition.Name.Text] = true
+		u, err := b.resolveFunctionColumnUsage(definition, false)
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		// Definition-only members remain dependencies even for empty/NULL calls
+		// and when their output is not projected by the surrounding query.
+		b.info(u, definition.Name.Pos, ExprProperties{})
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: definition.Name.Text, Usage: u}
+	}
+	if duplicate != "" {
+		return sqltype.Usage{}, sqlError("42701", "column name \""+duplicate+"\" specified more than once")
+	}
+	shape, err := sqltype.RecordShape(members)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	return shape.Usage(), nil
+}
+
+func jsonbRecordUnresolved(expr BoundExpr) bool {
+	call, ok := expr.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties])
+	return ok && call.Unresolved && call.ResultUsage().Type.ID() == 2249
+}
+
+func (b *expressionBinder) jsonbRecordArgument(raw parser.Expr, base bool) (functions.Argument[BoundExpr], error) {
+	previous := b.jsonbRecordBase
+	b.jsonbRecordBase = previous || base
+	defer func() { b.jsonbRecordBase = previous }()
+	return b.AnalyzeArgument(raw, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
+}
+
+// Only the analyzed projection is frozen. The function source keeps its current
+// complete schema and still converts every destination member before yielding.
+func (b *expressionBinder) jsonbRecordStarColumns(columns []queryColumn, frame uint32, star parser.StarExpr, qualified *queryQualifier) ([]queryColumn, error) {
+	if qualified != nil {
+		return b.jsonbRecordQualifierStar(columns, frame, star, *qualified)
+	}
+	if b.queryNamespace == nil {
+		return columns, nil
+	}
+	for _, qualifier := range b.queryNamespace.qualifiers {
+		var err error
+		columns, err = b.jsonbRecordQualifierStar(columns, frame, star, qualifier)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return columns, nil
+}
+
+func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame uint32, star parser.StarExpr, qualifier queryQualifier) ([]queryColumn, error) {
+	source, ok := qualifier.sourceRoot.(*functionFromNode)
+	if !ok || source.frame != frame {
+		return columns, nil
+	}
+	offset := 0
+	for _, expression := range source.calls {
+		width := functionFromCallWidth(expression)
+		if call, selected := expression.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]); selected && call.ResultUsage().Type.BaseType().IsComposite() {
+			if offset+width > len(qualifier.columns) {
+				return nil, fmt.Errorf("stuntgres: invalid JSONB record source span")
+			}
+			var err error
+			columns, err = b.jsonbRecordCallStar(columns, qualifier.columns[offset:offset+width], star, call)
+			if err != nil {
+				return nil, err
+			}
+		}
+		offset += width
+	}
+	return columns, nil
+}
+
+func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]) ([]queryColumn, error) {
+	usage := call.ResultUsage()
+	shape := usage.Type.BaseType()
+	key := preparedCompositeKey{offset: call.SourcePosition().Offset, kind: compositeSourceExpansion, projection: star.Pos.Offset}
+	captured, retained, err := b.retainedComposite(key, usage)
+	if err != nil {
+		return nil, err
+	}
+	first := 0
+	if len(source) != 0 {
+		first = source[0].slot
+	}
+	if !retained {
+		captured = compositeOccurrence{kind: compositeSourceExpansion, base: usage, attributes: make([]int32, 0, len(source)), names: make([]string, 0, len(source))}
+		for _, column := range columns {
+			index := column.slot - first
+			if index >= 0 && index < len(source) {
+				captured.attributes = append(captured.attributes, shape.CompositeMember(index).Attribute)
+				captured.names = append(captured.names, column.descriptor.Name)
+			}
+		}
+	}
+	if len(captured.names) != len(captured.attributes) {
+		return nil, fmt.Errorf("stuntgres: invalid retained JSONB record labels")
+	}
+	if b.composites == nil {
+		b.composites = make(map[preparedCompositeKey]compositeOccurrence)
+	}
+	b.composites[key] = captured
+	if !retained {
+		return columns, nil
+	}
+	for _, attribute := range captured.attributes {
+		if _, exists := shape.CompositeAttributeIndex(attribute); !exists {
+			return nil, sqlError("42703", fmt.Sprintf("attribute %d of type record has been dropped", attribute))
+		}
+	}
+	if len(source) == 0 {
+		return columns, nil
+	}
+	count, changed := 0, false
+	for _, column := range columns {
+		index := column.slot - first
+		if index >= 0 && index < len(source) {
+			if count >= len(captured.attributes) || captured.attributes[count] != shape.CompositeMember(index).Attribute || captured.names[count] != column.descriptor.Name {
+				changed = true
+			}
+			count++
+		}
+	}
+	if count != len(captured.attributes) {
+		changed = true
+	}
+	if !changed {
+		return columns, nil
+	}
+	next := make([]queryColumn, 0, len(columns))
+	emitted := false
+	for _, column := range columns {
+		index := column.slot - first
+		if index < 0 || index >= len(source) {
+			next = append(next, column)
+			continue
+		}
+		if emitted {
+			continue
+		}
+		for i, attribute := range captured.attributes {
+			member, _ := shape.CompositeAttributeIndex(attribute)
+			retainedColumn := source[member]
+			retainedColumn.descriptor.Name = captured.names[i]
+			next = append(next, retainedColumn)
+		}
+		emitted = true
+	}
+	return next, nil
+}
+
+// A retained base cast selects the current spelling of its original provider,
+// then goes through ordinary annotation resolution and privilege checks. Never
+// look up an old OID across a catalog owner/epoch boundary or retry a failed name.
+func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parser.TypeName, error) {
+	annotation := raw.TypeName
+	if !b.jsonbRecordBase || raw.Syntax == parser.FunctionCast || b.expected == nil {
+		return annotation, nil
+	}
+	view := b.bindingCatalog()
+	if b.expected.catalogOwner != view.owner || b.expected.catalogEpoch != view.Epoch() {
+		return annotation, nil
+	}
+	key := preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}
+	captured, found := b.expected.composites[key]
+	if !found {
+		return annotation, nil
+	}
+	if captured.kind != compositeRecordArgument || captured.base.Type == nil || !captured.base.Type.BaseType().IsComposite() {
+		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
+	}
+	current, _ := view.LookupType(captured.base.Type.ID())
+	usage := captured.base
+	usage.Type = current
+	if _, valid, err := b.retainedComposite(key, usage); err != nil || !valid {
+		return annotation, err
+	}
+	descriptor, ok := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(current.ID())}].(*typeDescriptor)
+	if !ok || descriptor.typ != current {
+		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
+	}
+	namespace := view.state.descriptors[descriptor.namespace]
+	if namespace == nil {
+		return annotation, fmt.Errorf("stuntgres: missing retained composite namespace")
+	}
+	annotation.Name, annotation.Quoted = descriptor.Name(), true
+	annotation.Schema = &parser.Identifier{Text: namespace.Name(), Pos: raw.TypeName.Pos}
+	return annotation, nil
+}

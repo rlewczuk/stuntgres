@@ -1684,6 +1684,14 @@ func JSONFunctionName(name string) bool {
 			return true
 		}
 	}
+	return JSONBRecordFunctionName(name)
+}
+
+func JSONBRecordFunctionName(name string) bool {
+	switch strings.ToLower(name) {
+	case "jsonb_populate_record", "jsonb_populate_recordset", "jsonb_to_record", "jsonb_to_recordset", "jsonb_populate_record_valid":
+		return true
+	}
 	return false
 }
 

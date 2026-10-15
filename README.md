@@ -40,6 +40,20 @@ Native fastpath is always false. Engine/Driver/opaque-DSN isolation is unchanged
 See [native mechanism boundaries](docs/DIALECT.md#live-lock-state) and
 [selected proof and smoke](reference/sessions/README.md#live-lock-state).
 
+## JSONB record conversion — change note
+
+`jsonb_populate_record`, `jsonb_populate_recordset`, `jsonb_to_record`,
+`jsonb_to_recordset` and `jsonb_populate_record_valid` convert JSONB objects
+into named composites or explicit typed records. Nested composites, rectangular
+arrays, member typmods and existing domain CHECKs use the ordinary type codecs.
+Missing fields retain a supplied base; explicit JSON null replaces it with
+typed SQL NULL. Every recordset row starts from the original base.
+Validity uses the same conversion, without swallowing setup or cancellation
+errors. Typed source definitions retain every member type through prepared
+execution, stored views and native Dump/Restore. JSON-text population functions
+and general scalar table functions are not added.
+See [contracts and feature smoke](reference/binary_json_arrays/README.md#jsonb-record-conversion).
+
 ## Language catalog — change note
 
 `pg_catalog.pg_language` exposes the nine PostgreSQL language metadata columns

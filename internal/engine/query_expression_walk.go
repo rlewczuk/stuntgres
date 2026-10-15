@@ -138,6 +138,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
 	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:

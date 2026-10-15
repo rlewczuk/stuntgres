@@ -317,6 +317,9 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (compositeExpan
 	if err != nil {
 		return compositeExpansionBinding{}, err
 	}
+	if jsonbRecordUnresolved(base) {
+		return compositeExpansionBinding{}, sqlError("42809", "record type has not been registered")
+	}
 	typ := base.ResultUsage().Type
 	if typ == nil || !typ.BaseType().IsComposite() {
 		name := "unknown"

@@ -622,6 +622,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
 	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:

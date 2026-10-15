@@ -305,18 +305,42 @@ LEFT joins preserve empty invocations with NULL extension; RIGHT/FULL reject
 actual join-left lateral captures, not uncorrelated sources. Nested lexical SRFs
 must appear at top level of FROM, while child SELECTs own their target SRFs.
 Ordinary source-call binding and nested placement validation precede semantic
-column-definition rejection. After successful analysis, multiple-function
-column-definition restrictions precede ordinality restrictions, then the
-resolved scalar/named-composite/OUT-record restriction. This does not enable
-new record-returning sources.
+column-definition restrictions. The selected JSONB record conversion sources
+accept complete typed definitions; unresolved record sources require them.
+Definitions resolve all member types, typmods and collations in declared order.
+Ordinary member names inside ROWS FROM reach function resolution before
+definition restrictions, so a missing function retains its signature diagnostic.
+Resolved calls still require an explicitly supported source provider; this
+diagnostic reachability does not add general scalar function sources.
+After successful call analysis, multiple-function top-level definition
+restrictions precede ordinality restrictions, then the resolved
+scalar/named-composite/OUT-record restriction. A definition is not a cast of an
+already named composite result. See the PostgreSQL table-function syntax below
+for per-member definitions with ROWS FROM and ordinality.
+Expanding an anonymous JSONB record result without its own static layout using
+`(...).*` is a binding error, including strict calls with SQL-NULL documents
+and runtime ROW() bases. It cannot silently select zero columns. Genuine named
+zero-member row types retain static expansion. Typed FROM output definitions
+never erase real inner evaluation: a NULL datum can use the outer descriptor,
+whereas a non-NULL record supplies its actual conversion layout before caller
+arity/type validation and positional output labels.
 Arguments evaluate once per demanded invocation; unopened sources do not run
-under LIMIT0. Native demand-driven execution need not reproduce PostgreSQL's
-physical FunctionScan materialization.
+under LIMIT0. JSONB recordsets convert their complete demanded invocation
+privately before exposing the first row, so a late bad member also fails under
+LIMIT1 or EXISTS. This does not change other providers' demand-driven execution.
+Prepared selected JSONB record sources retain analyzed star-projection member
+targets and labels when attributes are added. The source still converts its
+complete current destination, including added members not exposed by that
+projection. Other sources and the ordinary result-signature fence are unchanged.
+Renamed members retain their analyzed output labels; dropping a captured source
+target fails with 42703 (`attribute N of type record has been dropped`), not a
+fabricated NULL or a freshly expanded result contract.
 
 Symbolic source views, CTAS, INSERT SELECT and native control replay reuse their
-existing consumers and atomicity boundaries. No general scalar FROM capability,
-new providers/overloads, lateral derived queries or Restore whitelist entries
-are introduced. See [PostgreSQL table functions](https://www.postgresql.org/docs/18/queries-table-expressions.html#QUERIES-TABLEFUNCTIONS)
+existing consumers and atomicity boundaries. The selected JSONB record lane
+does not add general scalar FROM capability, lateral derived queries or
+Restore whitelist entries.
+See [PostgreSQL table functions](https://www.postgresql.org/docs/18/queries-table-expressions.html#QUERIES-TABLEFUNCTIONS)
 and [selected proof](../reference/numeric/README.md#from-srf-selected-proof).
 
 

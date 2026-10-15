@@ -332,6 +332,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || e.Name != o.Name || e.Unresolved != o.Unresolved || e.Definitions != o.Definitions || !sameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i, arg := range e.Args {
+			if !same(arg, o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
@@ -1087,6 +1098,16 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		args := make([]BoundExpr, len(e.Args))
+		for i, arg := range e.Args {
+			args[i] = rewrite(arg)
+		}
+		e.Args = args
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
@@ -1634,6 +1655,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		walk(e.args[0])
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Args[0])
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
+			walk(arg)
+		}
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Args[0])
 	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:

@@ -933,6 +933,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		return e.MapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+		})
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {
@@ -1872,6 +1876,7 @@ type expressionBinder struct {
 	expected              *StatementDescription
 	temporals             []temporalConstant
 	composites            map[preparedCompositeKey]compositeOccurrence
+	jsonbRecordBase       bool // Scope named cast identity to selected base trees.
 	domainValueUsage      *sqltype.Usage
 	functionProjection    functionProjectionScope
 	anyParameters         []parameterExpression
@@ -2966,15 +2971,25 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
 	var target sqltype.Usage
 	var err error
+	annotation := raw.TypeName
+	if b.jsonbRecordBase {
+		annotation, err = b.jsonbRecordCastAnnotation(raw)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if outerPolicy.thresholdArrayInput {
-		target, err = b.engine.resolveAnnotationTypeInput(raw.TypeName, b.op, unknownNull, false, false, false, true)
+		target, err = b.engine.resolveAnnotationTypeInput(annotation, b.op, unknownNull, false, false, false, true)
 	} else if outerPolicy.stringInput {
-		target, err = b.engine.resolveStringAnnotationType(raw.TypeName, b.op, unknownNull)
+		target, err = b.engine.resolveStringAnnotationType(annotation, b.op, unknownNull)
 	} else {
-		target, err = b.engine.resolveAnnotationType(raw.TypeName, b.op, unknownNull)
+		target, err = b.engine.resolveAnnotationType(annotation, b.op, unknownNull)
 	}
 	if err != nil {
 		return nil, err
+	}
+	if b.jsonbRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
+		b.captureComposite(preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}, target, nil)
 	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.

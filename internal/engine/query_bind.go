@@ -156,6 +156,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			starPath := viewLiteralPath{query: frame, clause: viewTargetLiteral, target: target}
 			var returningScope *queryBindingScope
 			newValues := false
+			var recordQualifier *queryQualifier
 			if len(star.Qualifier.Parts) != 0 {
 				returningScope, newValues = b.outerReturningScope(star.Qualifier)
 				if returningScope != nil {
@@ -167,9 +168,17 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 						return nil, err
 					}
 					columns, frame = q.columns, b.resolvedQueryFrame
+					recordQualifier = q
 				}
 			} else if s.From == nil {
 				return nil, expressionError("42601", "SELECT * with no tables specified is not valid", star.Pos)
+			}
+			if returningScope == nil {
+				frozenColumns, err := b.jsonbRecordStarColumns(columns, frame, star, recordQualifier)
+				if err != nil {
+					return nil, err
+				}
+				columns = frozenColumns
 			}
 			if b.noParameters || b.materializedDefinition {
 				if b.viewStars == nil {

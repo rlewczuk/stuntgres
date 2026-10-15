@@ -516,7 +516,7 @@ package parser
 %type <objectName> relation_name
 %type <fromItem> from_list joined_table from_atom from_base update_from delete_using
 %type <functionTable> function_table function_table_base
-%type <call> function_table_call rows_function_call
+%type <call> function_table_call rows_function_call rows_function_base
 %type <functionTables> function_table_calls
 %type <identifiers> alias_columns using_columns
 %type <functionColumnDefinitions> function_column_definition_tail
@@ -2222,8 +2222,14 @@ function_table_call: check_function_head function_args ')' {call,ok:=selectedSca
  | transaction_time_base {$$=$1} ;
 /* Per-call definitions belong only to ROWS FROM members. Keeping AS off the
  * ordinary call lets from_atom own both named aliases and top-level definitions. */
-rows_function_call: function_table_call {$$=$1}
- | function_table_call AS '(' name type column_collation function_column_definition_tail ')' {$$=$1;$$.ColumnDefinitions=append([]FunctionColumnDefinition{{Name:Identifier{Text:$4.text,Pos:$4.pos},Type:$5,Collation:$6}},$7...)} ;
+/* Ordinary names are parsed only inside ROWS FROM so resolution errors can
+ * precede typed-definition restrictions. This does not admit their execution:
+ * the binder still requires a selected source provider after call resolution. */
+rows_function_base: function_table_call {$$=$1}
+ | name '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+ | name '.' col_label '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos} ;
+rows_function_call: rows_function_base {$$=$1}
+ | rows_function_base AS '(' name type column_collation function_column_definition_tail ')' {$$=$1;$$.ColumnDefinitions=append([]FunctionColumnDefinition{{Name:Identifier{Text:$4.text,Pos:$4.pos},Type:$5,Collation:$6}},$7...)} ;
 function_table_calls: rows_function_call {$$=[]FunctionExpr{$1}}
  | function_table_calls ',' rows_function_call {$$=append($1,$3)} ;
 function_table_base: function_table_call {$$=&FunctionTable{Calls:[]FunctionExpr{$1},Pos:$1.Pos}}

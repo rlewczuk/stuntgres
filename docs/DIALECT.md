@@ -1114,7 +1114,7 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `cannot call jsonb_each on a non-object` / `cannot call jsonb_each_text on a
   non-object`, with absent runtime Position. Named `from_json` is admitted.
   JSON record conversion includes `json_populate_record`, `json_populate_recordset`,
-  `json_to_record` and `json_to_recordset`, not their JSONB counterparts. Named
+  `json_to_record` and `json_to_recordset`. Named
   composites and explicit typed AS lists support recursive field coercion,
   rectangular arrays, typmods, plain domains and existing scalar/array/composite
   domain CHECKs. Domain NOT NULL/default DDL retains its documented boundary.
@@ -1128,6 +1128,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   while strict SQL NULL can remain an unresolved RECORD NULL. Computed metadata
   is available even for empty results. Calls remain STABLE and use existing
   stored-expression/native replay, cancellation and atomic-publication paths.
+  JSONB record conversion adds `jsonb_populate_record`, `jsonb_populate_recordset`,
+  `jsonb_to_record`, `jsonb_to_recordset` and `jsonb_populate_record_valid`.
+  Named/table composite bases and explicit typed-AS layouts retain complete
+  member usages, including nested composites, arrays, typmods and existing
+  domain CHECKs. Missing keys preserve a non-NULL base member; explicit JSON
+  null replaces it. Every recordset row uses the original base. Typed-AS
+  definitions support the selected ROWS FROM/ordinality and lateral lanes.
+  Demanded recordsets validate privately before publishing their first row;
+  unopened LIMIT0 invocations remain unopened. These functions are STABLE;
+  only `jsonb_to_record` is catalog-strict. Validity returns false for typed
+  conversion errors, not setup/import/cancellation failures. With SQL NULL
+  JSONB, valid returns NULL for a NULL base and true for a non-NULL base.
   General table functions remain excluded; no implicit JSON-to-JSONB input
   conversion is added.
   JSON-only extraction includes `(json,text/int4) -> json/text` via `->`/`->>`,

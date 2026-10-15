@@ -137,6 +137,86 @@ then `(7,NULL)` and recovery; ordinal rows `(1,NULL,10,1)`, `(2,NULL,11,2)`,
 `(NULL,NULL,12,3)`; unchanged sentinel after a bad later row; and independently
 specified restored view/composite values on native and the actual PG replay.
 
+### JSONB record conversion
+
+`TestReferenceJSONBRecord` covers the five JSONB record functions through one
+public SQL/API body: named and explicit records, nested/base/NULL conversion,
+arrays and domains, typed definitions, recordset demand and lateral/ordinal
+composition, validity paired with ordinary conversion, complete diagnostics,
+metadata before iteration and same-held statement recovery.
+
+The same scenario bodies run on every available backend. Independent full
+diagnostic and metadata expectations include absent fields, execution phases
+and failed output publication. Shared CHECK domains exercise field, whole-row,
+inherited and missing/null checks. A separately asserted native domain-NOT-NULL
+DDL boundary does not bypass those shared conversion witnesses. Validity
+distinguishes saved conversion/constraint failures from exceptions raised by
+CHECK expressions, including nested text array/composite input. Native-only
+control phases exercise the public Reset/Dump/Restore APIs without inventing
+PostgreSQL control equivalents.
+`UnresolvedExpansion` distinguishes unknown static layouts from named empty
+records and runtime-registered ROW() values. `ComposedLayout` independently
+checks scalar/expansion/FROM phases, nested set placement, transitive inner
+evaluation, NULL caller context, runtime field names and caller arity. Real
+inner errors cannot be replaced by contextual NULLs or hidden zero-column output.
+`ComposedABI` pins directional binary compatibility, source-before-result error
+priority, domain-to-base versus base-to-domain, unsigned OID carrier bits,
+unresized values with caller typmod metadata, and empty-array versus SQL-NULL
+recordset ABI behavior. Arrays do not inherit binary compatibility from elements.
+`CatalogInput` covers catalog-dependent `regtype`/`regclass` destinations in
+explicit definitions, including recursive composites/arrays, contextual populate,
+direct/prepared/held execution and persistent view replay. JSON and JSONB record
+definitions share member type/collation resolution and captured catalog-input
+authority while retaining their existing diagnostic ordering.
+Contextual RECORD NULL arguments retain deferred identity; caller definitions
+own their executable layouts. Persistent execution recaptures destination input
+authority, and validation/remapping still require current-generation concrete
+member types rather than treating RECORD as a catalog storage identity.
+`ColumnBase` covers fresh conversion from stored composite-column bases for
+populate, recordset and valid, including recursive catalog-dependent fields.
+Original destination input is captured before valid changes its public type to
+BOOL. Literal, JSONB-parameter and stored-document calls, same-held error/recovery
+and six persistent consumers exercise this demand without incidental registry
+input casts or typed-AS definitions.
+
+```sh
+make check RUN='^TestReferenceJSONBRecord(Values|Nested|Valid)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecord(Definitions|Sets|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecord(Metadata|Held|HeldExpansion)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecord(StoredControls|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecordUnresolvedExpansion$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecord(ComposedLayout|ComposedABI)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecordCatalogInput$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecordColumnBase$' REFERENCE=1
+make check RUN='^TestReferenceJSONBRecord(Values|Nested|Valid)$'
+make check RUN='^TestReferenceJSONBRecord(Definitions|Sets|Diagnostics)$'
+make check RUN='^TestReferenceJSONBRecord(Metadata|Held|HeldExpansion)$'
+make check RUN='^TestReferenceJSONBRecord(StoredControls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONBRecordUnresolvedExpansion$'
+make check RUN='^TestReferenceJSONBRecord(ComposedLayout|ComposedABI)$'
+make check RUN='^TestReferenceJSONBRecordCatalogInput$'
+make check RUN='^TestReferenceJSONBRecordColumnBase$'
+make check RUN='^TestJSONBRecord(Conversion|ArraysDomains|Cancellation|Provider|Binding|DomainErrors|Expansion|SourceProjection|ArgumentIdentity|Replay|Layout|ResultPlan|Parser)$'
+make check RUN='^(TestJSONEachColumnDefinitionAST|TestJSONElementsFormalAndColumnDefinitionAST|TestArrayRelationalFromNormalization|TestSRFFromParser|TestSRFFromBinding)$'
+make check RUN='^TestReferenceJSONBRecord(Held|HeldExpansion|ComposedLayout|ComposedABI|StoredControls|Cancellation|CatalogInput|ColumnBase)$' RACE=1
+make check RUN='^TestReferenceJSONBRecord(Held|HeldExpansion|ComposedLayout|ComposedABI|StoredControls|Cancellation|CatalogInput|ColumnBase)$' RACE=1 REFERENCE=1
+make check RUN='^TestReferenceJSONBRecordFeatureSmoke$'
+make check RUN='^TestReferenceJSONBRecordFeatureSmoke$' REFERENCE=1
+```
+
+The feature smoke independently expects base-preserving `(1,keep)` / `(9,x)`,
+original-base recordset rows with ordinality 1–3, heterogeneous numeric(4,1)
+rounding to 12.3, explicit-null replacement, char(2) validity true/false and
+same-held success/empty/error/recovery. Persistent views retain full member
+types after source-column and owning-table rowtype renames/move. Held rename
+checks retain the same rowtype OID; standalone composite ADD ATTRIBUTE remains
+an independent shared phase. No standalone type-name rename/move DDL is added.
+The retained native phase uses actual Dump bytes, same/fresh Restore,
+deterministic redump, old cursor metadata and actual emitted SQL replay on
+PostgreSQL. Cancellation uses
+stored JSONB arrays with real provider/server admission, joined workers and
+sentinel checks after canceled/late-failing writes.
+
 ### JSONB containment
 
 The six `TestReferenceJSONBContainment` entrypoints specify structural `@>`

@@ -128,6 +128,24 @@ func captureRetainedExpressionInput(node BoundExpr, element func() error, diagno
 	switch node := node.(type) {
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		return diagnostic(node.Plan.Enum())
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		targets := [2]*sqltype.Descriptor{node.RecordUsage().Type}
+		if len(node.Args) == 2 {
+			targets[1] = node.Args[0].ResultUsage().Type
+		}
+		for i, target := range targets {
+			if target == nil || i == 1 && target == targets[0] {
+				continue
+			}
+			if target.ContainsCatalogIdentifier() {
+				if err := element(); err != nil {
+					return err
+				}
+			}
+			if err := diagnostic(target); err != nil {
+				return err
+			}
+		}
 	case coercionExpression:
 		target := node.ResultUsage().Type
 		characterInput := sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID())

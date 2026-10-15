@@ -16,6 +16,9 @@ func isQuerySet(expr BoundExpr) bool {
 	if record, ok := expr.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]); ok {
 		return record.Plan.ReturnsSet()
 	}
+	if call, ok := expr.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]); ok {
+		return call.ReturnsSet()
+	}
 	switch expr.(type) {
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, unnestExpression:
 		return true
@@ -24,7 +27,7 @@ func isQuerySet(expr BoundExpr) bool {
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
-	case objectAddressExpression:
+	case objectAddressExpression, functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case commitTimestampExpression, functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return true
@@ -93,6 +96,8 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.args[:]
 	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
 	case commitTimestampExpression:
 		if call.arg != nil {
 			return []BoundExpr{call.arg}
@@ -135,6 +140,8 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		copy(call.args[:], args)
 		return call, nil
 	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Reconstruct(call.Info, args)
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Reconstruct(call.Info, args)
 	case commitTimestampExpression:
 		if len(args) != 0 {

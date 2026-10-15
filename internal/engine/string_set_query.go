@@ -218,6 +218,19 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{record: cursor, kind: functionJSONRecordCursor, initialized: true}, nil
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		if call.ReturnsSet() {
+			values, err := call.EvalSet(c)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
+		}
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
 	case seriesExpression:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err

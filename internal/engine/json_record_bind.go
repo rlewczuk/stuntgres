@@ -139,15 +139,27 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 // schema expansion. Explicit definitions are occurrence authorities, not aliases.
 func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, call BoundExpr, definitions []parser.FunctionColumnDefinition) (BoundExpr, error) {
 	record, isRecord := call.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
-	anonymous := isRecord && call.ResultUsage().Type.ID() == 2249
+	jsonb, isJSONB := call.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties])
+	anonymous := (isRecord || isJSONB) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
-		if anonymous {
+		if isRecord && anonymous || jsonbRecordUnresolved(call) {
 			return nil, expressionError("42601", `a column definition list is required for functions returning "record"`, raw.Pos)
 		}
 		return call, nil
 	}
 	if !anonymous {
 		return nil, expressionError("42601", functionColumnDefinitionMessage(call), definitions[0].Name.Pos)
+	}
+	if isJSONB {
+		usage, err := b.bindJSONBRecordDefinition(definitions)
+		if err != nil {
+			return nil, err
+		}
+		info := jsonb.Info
+		info.Usage = usage
+		info.Property.DomainDependent = info.Property.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
+		jsonb.Definitions, jsonb.Unresolved = true, false
+		return jsonb.Reconstruct(info, jsonb.Args)
 	}
 	members := make([]sqltype.CompositeMember, len(definitions))
 	seen := make(map[string]bool, len(definitions))
@@ -156,21 +168,9 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 			return nil, sqlError("42701", `column name "`+definition.Name.Text+`" specified more than once`)
 		}
 		seen[definition.Name.Text] = true
-		u, err := b.engine.resolveAnnotationType(definition.Type, b.op, true)
+		u, err := b.resolveFunctionColumnUsage(definition, true)
 		if err != nil {
 			return nil, err
-		}
-		u, err = b.engine.resolveColumnCollation(u, definition.Collation, b.op)
-		if err != nil {
-			return nil, err
-		}
-		if err := b.captureTypeDiagnosticInput(u.Type); err != nil {
-			return nil, err
-		}
-		if u.Type.ContainsCatalogIdentifier() {
-			if err := b.captureElementInput(); err != nil {
-				return nil, err
-			}
 		}
 		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: definition.Name.Text, Usage: u}
 	}
@@ -184,6 +184,28 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 	info.Property.RuntimeDomainConversion = info.Property.RuntimeDomainConversion || sqltype.ContainsDomainChecks(shape)
 	record.Defined = true
 	return record.Reconstruct(info, record.Args)
+}
+
+// Both record providers resolve members through the same captured input
+// authority. Duplicate-name ordering remains with each provider's member loop.
+func (b *expressionBinder) resolveFunctionColumnUsage(definition parser.FunctionColumnDefinition, unknownNull bool) (sqltype.Usage, error) {
+	u, err := b.engine.resolveAnnotationType(definition.Type, b.op, unknownNull)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	u, err = b.engine.resolveColumnCollation(u, definition.Collation, b.op)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	if err := b.captureTypeDiagnosticInput(u.Type); err != nil {
+		return sqltype.Usage{}, err
+	}
+	if u.Type.ContainsCatalogIdentifier() {
+		if err := b.captureElementInput(); err != nil {
+			return sqltype.Usage{}, err
+		}
+	}
+	return u, nil
 }
 
 func functionDefinitionError(message, hint string, pos parser.Position) error {

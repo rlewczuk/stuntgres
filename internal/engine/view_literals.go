@@ -556,6 +556,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
+		if n, ok := bound.(functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
@@ -1134,8 +1137,9 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			if err := validateUsageCollation(catalog, usage); err != nil {
 				return err
 			}
-			typ, ok := catalog.LookupType(usage.Type.ID())
-			if !ok || typ != usage.Type {
+			// Contextual RECORD literals own occurrence layouts, not the
+			// catalog's lookup-only RECORD. Concrete leaves still must match.
+			if !validExpressionUsage(catalog, usage) {
 				return fmt.Errorf("stuntgres: foreign view literal type")
 			}
 			if ref := literal.regclassRef; ref != (ObjectRef{}) {

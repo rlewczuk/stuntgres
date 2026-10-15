@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func viewFunctionFromAt(root LogicalNode, ordinal int, selected bool) *functionFromNode {
@@ -38,8 +39,18 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog Catal
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
-		if record, ok := root.calls[i].(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]); ok && record.Defined {
-			shape := record.ResultUsage().Type
+		var shape *sqltype.Descriptor
+		switch record := root.calls[i].(type) {
+		case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+			if record.Defined {
+				shape = record.ResultUsage().Type
+			}
+		case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+			if record.Definitions {
+				shape = record.RecordUsage().Type.BaseType()
+			}
+		}
+		if shape != nil {
 			members := make([]string, shape.CompositeLen())
 			for j := range members {
 				member := shape.CompositeMember(j)

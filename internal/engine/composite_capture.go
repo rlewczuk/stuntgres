@@ -14,6 +14,8 @@ const (
 	compositeExpansion
 	compositeDotBuiltin
 	compositeWholeRow
+	compositeSourceExpansion
+	compositeRecordArgument
 )
 
 type wholeRowSource struct {
@@ -24,12 +26,14 @@ type compositeOccurrence struct {
 	kind       compositeOccurrenceKind
 	base       sqltype.Usage
 	attributes []int32
+	names      []string // Original exposed labels for a selected source star.
 	function   functions.NullCountKind
 	source     wholeRowSource
 }
 type preparedCompositeKey struct {
-	offset int
-	kind   compositeOccurrenceKind
+	offset     int
+	kind       compositeOccurrenceKind
+	projection int // Star offset; one source can occur in several target stars.
 }
 
 func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqltype.Usage) (compositeOccurrence, bool, error) {
@@ -69,8 +73,11 @@ func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 }
 
 func (captured compositeOccurrence) validate(catalog CatalogRead) error {
-	if captured.kind != compositeSelection && captured.kind != compositeExpansion && captured.kind != compositeDotBuiltin && captured.kind != compositeWholeRow || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeWholeRow && (len(captured.attributes) != 0 || captured.source.namespace == 0) || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function != functions.CountNulls && captured.function != functions.CountNonnulls) || captured.kind != compositeDotBuiltin && captured.function != 0 || !validExpressionUsage(catalog, captured.base) || captured.kind != compositeDotBuiltin && !captured.base.Type.BaseType().IsComposite() {
+	if captured.kind != compositeSelection && captured.kind != compositeExpansion && captured.kind != compositeDotBuiltin && captured.kind != compositeWholeRow && captured.kind != compositeSourceExpansion && captured.kind != compositeRecordArgument || captured.kind == compositeSelection && len(captured.attributes) != 1 || captured.kind == compositeRecordArgument && len(captured.attributes) != 0 || captured.kind == compositeWholeRow && (len(captured.attributes) != 0 || captured.source.namespace == 0) || captured.kind == compositeDotBuiltin && (len(captured.attributes) != 0 || captured.function != functions.CountNulls && captured.function != functions.CountNonnulls) || captured.kind != compositeDotBuiltin && captured.function != 0 || !validExpressionUsage(catalog, captured.base) || captured.kind != compositeDotBuiltin && !captured.base.Type.BaseType().IsComposite() {
 		return fmt.Errorf("stuntgres: invalid frozen composite authority")
+	}
+	if captured.kind == compositeSourceExpansion && len(captured.names) != len(captured.attributes) || captured.kind != compositeSourceExpansion && len(captured.names) != 0 {
+		return fmt.Errorf("stuntgres: invalid frozen source labels")
 	}
 	for i, attribute := range captured.attributes {
 		if _, ok := captured.base.Type.BaseType().CompositeAttributeIndex(attribute); !ok {

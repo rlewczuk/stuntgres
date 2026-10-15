@@ -194,6 +194,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONKeys %s", n.Plan.Name())
 		err = args(n.Args)
+	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		fmt.Fprintf(out, "JSONBRecord %s", n.Name)
+		err = args(n.Args)
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONBElements %s", n.Plan.Name())
 		err = args(n.Args)
