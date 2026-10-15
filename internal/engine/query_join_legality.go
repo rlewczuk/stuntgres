@@ -624,6 +624,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
 	case nullTestExpression:
 		children = []BoundExpr{e.child}
 	case truthTestExpression:

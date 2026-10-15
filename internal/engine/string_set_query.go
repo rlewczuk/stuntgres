@@ -71,6 +71,7 @@ const (
 	functionScalarCursor
 	functionJSONKeysCursor
 	functionJSONEachCursor
+	functionJSONElementsCursor
 	functionSeriesCursor
 	functionMultirangeCursor
 )
@@ -80,6 +81,7 @@ type functionSetCursor struct {
 	keys                   sqltype.JSONKeyCursor
 	each                   sqltype.JSONEachCursor
 	members                sqltype.MultirangeCursor
+	elements               sqltype.JSONElementsCursor
 	owned                  []sqltype.Value
 	position               int
 	scalar                 sqltype.Value
@@ -101,6 +103,9 @@ func (s *functionSetCursor) close() {
 	}
 	if s.initialized && s.kind == functionMultirangeCursor {
 		s.members.Close()
+	}
+	if s.initialized && s.kind == functionJSONElementsCursor {
+		s.elements.Close()
 	}
 	s.owned = nil
 	s.exhausted = true
@@ -256,6 +261,22 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if len(call.Args) != 1 {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSON elements arguments")
+		}
+		value, err := call.Args[0].Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		cursor, err := call.Plan.Open(c.Context, value)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{elements: cursor, kind: functionJSONElementsCursor, initialized: true}, nil
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		if !validFunctionSourceCall(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
@@ -380,6 +401,8 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 		value, present, err = s.each.Next(ctx)
 	} else if s.kind == functionMultirangeCursor {
 		value, present, err = s.members.Next(ctx)
+	} else if s.kind == functionJSONElementsCursor {
+		value, present, err = s.elements.Next(ctx)
 	} else {
 		value, present, err = s.cursor.Next(ctx)
 	}

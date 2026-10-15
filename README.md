@@ -1902,8 +1902,25 @@ diagnostics without runtime cursor positions. Function aliases, record fields,
 target zip/padding, multi-column ROWS FROM padding, ordinality, lateral sources,
 held statements and stored/native replay use the ordinary query pipeline.
 Only named argument `from_json` is admitted. This does not add `jsonb_each*`,
-array expansion, record-population functions or general table functions.
+record-population functions or general table functions.
 Feature smoke: `make check RUN='^TestReferenceJSONEachFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
+Change note: `json_array_elements(json)` and `json_array_elements_text(json)`
+expand immediate array members into scalar JSON or TEXT rows in source order.
+Nested values retain their exact internal spelling, whitespace, duplicates and
+numeric exponents. Raw JSON strings retain quotes/escapes; the text variant
+decodes immediate strings and emits SQL NULL for a JSON null member. Empty
+arrays and SQL NULL inputs yield no rows with full metadata. Raw expansion
+does not decode escaped Unicode; text expansion validates every string,
+including nested strings, before returning any member.
+SELECT labels use the function name; FROM columns use the scalar OUT name
+`value`, retained under a table-only alias and overridden by a column alias.
+Both signatures admit `from_json` named notation and ordinary direct/prepared,
+target/FROM/lateral/ordinality and symbolic stored/native-control routes.
+Wrong object/scalar roots report exact English 22023 diagnostics without a
+runtime position. JSONB expansion and record-population remain excluded.
+Feature smoke: `make check RUN='^TestReferenceJSONElementsFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
 Change note: JSONB storage normalizes whitespace and key order, keeps the last

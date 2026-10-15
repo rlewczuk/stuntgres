@@ -38,6 +38,51 @@ substitute for a variadic call during native or PostgreSQL replay.
 PostgreSQL has no native control API; those explicit phases run only natively.
 Successful proof requires all independent assertions, not parity alone.
 
+### JSON array elements
+
+The `TestReferenceJSONElements` scenarios specify the public contract of
+`json_array_elements(json)` and `json_array_elements_text(json)`: ordered
+top-level expansion, source-preserving nested serialization, decoded text
+strings, JSON-null versus SQL-NULL rows, empty schemas and scalar OUT naming.
+They also cover exact diagnostics, direct/fresh-prepared/SAME-held calls,
+lateral/target/ROWS FROM integration, write atomicity, authorization refresh,
+observed active cancellation and symbolic stored/native-control consumers.
+
+Raw JSON expansion never decodes string escapes; text expansion validates all
+strings before publishing a row, including nested strings returned as raw JSON
+text. Object/scalar roots have exact runtime 22023 diagnostics. The scalar OUT
+label is `value` in FROM even under a table-only alias; SELECT uses the function
+name. JSONB siblings and record-population functions remain excluded.
+Safe left-only conjuncts of an immediate inner function join's WHERE can
+restrict predecessor rows before expansion, including an uncorrelated function
+source. Volatile/unsafe residuals remain post-expansion: the fresh-prepared/direct
+two-source-row sequence witness consumes exactly three values, not six or one.
+This uses the existing function-source eligibility boundaries, not a change to
+ordinary Boolean evaluation.
+
+Selected commands (external deadline 900 seconds each):
+
+```sh
+make check RUN='^TestReferenceJSONElements(Values|NullMetadata|Typing|Unicode)$' REFERENCE=1
+make check RUN='^TestReferenceJSONElements(Values|NullMetadata|Typing|Unicode)$'
+make check RUN='^TestReferenceJSONElements(Diagnostics|QueryStructure)$' REFERENCE=1
+make check RUN='^TestReferenceJSONElements(Diagnostics|QueryStructure)$'
+make check RUN='^TestReferenceJSONElements(ParametersAndLifecycle|Cancellation|AuthorityAndControls)$' REFERENCE=1
+make check RUN='^TestReferenceJSONElements(ParametersAndLifecycle|Cancellation|AuthorityAndControls)$'
+make check RUN='^TestReferenceJSONElementsFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceJSONElementsFeatureSmoke$'
+make check RUN='^TestReferenceJSONElements(ParametersAndLifecycle|Cancellation|AuthorityAndControls)$' RACE=1
+make check RUN='^TestJSONElements'
+make check RUN='^TestJSONEachPredecessorFilterPlacement$'
+make check RUN='^TestReferenceJSONEach(PredecessorDemand|VolatileDemand)$'
+make check RUN='^TestReferenceJSONEach(PredecessorDemand|VolatileDemand)$' REFERENCE=1
+```
+
+Smoke expects exact mixed values/ordinal order, complete empty metadata,
+22023 wrong-root errors, held error/empty/NULL recovery, lateral expansion,
+renamed symbolic views and native retained rows/metadata plus dump replay.
+
+
 ### Bit-string scalar operators
 
 `TestReferenceBitOperators` covers only `||`, `&`, `|`, `#`, unary `~`,

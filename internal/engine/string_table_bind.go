@@ -14,7 +14,7 @@ func isStringSet(expr BoundExpr) bool {
 }
 func isQuerySet(expr BoundExpr) bool {
 	switch expr.(type) {
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
 		return true
 	}
 	return isStringSet(expr)
@@ -25,7 +25,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 		return isStringSet(call)
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.ReturnsSet()
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
 		return true
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.Operation() == sqltype.RangeConstruct
@@ -43,6 +43,14 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 func selectedFunctionSourceName(name string) bool {
 	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
 		name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
+}
+
+// A selected scalar OUT name controls the column label, not the range alias.
+func functionScalarOutName(expr BoundExpr) string {
+	if _, ok := expr.(functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]); ok {
+		return "value"
+	}
+	return ""
 }
 
 // FROM placement follows successful call completion, not lexical offsets.
@@ -84,6 +92,8 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
@@ -130,6 +140,12 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid JSON each arguments")
+		}
+		call.Args = args
+		return call, nil
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+		if len(args) != 1 {
+			return nil, fmt.Errorf("stuntgres: invalid JSON elements arguments")
 		}
 		call.Args = args
 		return call, nil

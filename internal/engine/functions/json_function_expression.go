@@ -26,6 +26,7 @@ type JSONFunctionDefinition struct {
 	Input, Result  sqltype.ID
 	Keys           bool
 	Each           bool
+	Elements       bool
 	ArgumentIntent CoercionIntent
 }
 
@@ -48,6 +49,11 @@ func JSONFunctionCall(name string, visible bool, count, names int) (JSONFunction
 		definition.Input, definition.Keys = sqltype.JSONB, true
 	case "json_each", "json_each_text":
 		definition.Each = true
+	case "json_array_elements", "json_array_elements_text":
+		definition.Elements = true
+		if name == "json_array_elements" {
+			definition.Result = sqltype.JSON
+		}
 	default:
 		return JSONFunctionDefinition{}, Missing
 	}
@@ -96,4 +102,33 @@ func NewJSONEach[E Expression[C], C Context, P any](info Info[P], name string, a
 		return JSONEach[E, C, P]{}, err
 	}
 	return JSONEach[E, C, P]{info, plan, []E{arg}}, nil
+}
+
+type JSONElements[E Expression[C], C Context, P any] struct {
+	Info[P]
+	Plan sqltype.JSONElementsPlan
+	Args []E
+}
+
+func (e JSONElements[E, C, P]) Eval(c C) (sqltype.Value, error) {
+	if _, err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSON elements set call")
+}
+
+func (e JSONElements[E, C, P]) Reconstruct(info Info[P], args []E) (JSONElements[E, C, P], error) {
+	if len(args) != 1 {
+		return JSONElements[E, C, P]{}, fmt.Errorf("invalid JSON elements arguments")
+	}
+	plan, err := sqltype.BindJSONElements(e.Plan.Name(), args[0].ResultUsage(), info.Usage)
+	return JSONElements[E, C, P]{info, plan, args}, err
+}
+
+func NewJSONElements[E Expression[C], C Context, P any](info Info[P], name string, arg E) (JSONElements[E, C, P], error) {
+	plan, err := sqltype.BindJSONElements(name, arg.ResultUsage(), info.Usage)
+	if err != nil {
+		return JSONElements[E, C, P]{}, err
+	}
+	return JSONElements[E, C, P]{info, plan, []E{arg}}, nil
 }

@@ -49,7 +49,8 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 // Processing retains selected top-level fields without building a JSONB tree.
 func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanResult) (Value, error) {
 	build := scan == nil && d.id == JSONB
-	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil}
+	elements := scan != nil && (scan.mode == jsonScanElements || scan.mode == jsonScanElementsText)
+	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil && scan.mode != jsonScanElements}
 	var local [32]jsonState
 	stack := local[:1]
 	stack[0] = jsonValue
@@ -70,16 +71,22 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 		if scan != nil && scan.extract != nil {
 			scan.extract.finish(&l, len(stack)-1, stack[len(stack)-1])
 		}
-		if scan != nil && scan.extract == nil && memberActive && len(stack) == 2 && stack[1] == jsonObjectNext {
+		if scan != nil && scan.extract == nil && memberActive && len(stack) == 2 && (stack[1] == jsonObjectNext || elements && stack[1] == jsonArrayNext) {
 			member.end = l.end
 			scan.members = append(scan.members, member)
 			memberActive = false
 		}
+		state := stack[len(stack)-1]
 		// Validate ignored/nested strings without retaining their decoded text.
-		l.discard = scan != nil && !(len(stack) == 2 && (stack[1] == jsonObjectFirst || stack[1] == jsonObjectKey || scan.mode == jsonScanEachText && stack[1] == jsonObjectValue))
+		l.discard = scan != nil
 		if scan != nil && scan.extract != nil {
-			depth, state := len(stack)-1, stack[len(stack)-1]
-			l.discard = !scan.extract.keepDecoded(depth, state)
+			l.discard = !scan.extract.keepDecoded(len(stack)-1, state)
+		} else if scan != nil && len(stack) == 2 {
+			if elements {
+				l.discard = scan.mode != jsonScanElementsText || (state != jsonArrayFirst && state != jsonArrayValue)
+			} else {
+				l.discard = state != jsonObjectFirst && state != jsonObjectKey && !(scan.mode == jsonScanEachText && state == jsonObjectValue)
+			}
 		}
 		if err := l.next(); err != nil {
 			return Value{}, err
@@ -94,7 +101,6 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 			builder.add(jsonbNode{kind: jsonbNumber, number: jsonbDecimal{digits: v.text, exponent: v.exponent, scale: v.scale, negative: v.negative}})
 			pendingNumber = ""
 		}
-		state := stack[len(stack)-1]
 		if scan != nil && scan.extract != nil {
 			if err := scan.extract.token(&l, len(stack)-1, state); err != nil {
 				return Value{}, err
@@ -106,7 +112,9 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 				return Value{}, err
 			}
 		}
-		if scan != nil && scan.extract == nil && scan.mode != jsonScanKeys && len(stack) == 2 && state == jsonObjectValue {
+		objectValue := !elements && state == jsonObjectValue
+		arrayValue := elements && (state == jsonArrayFirst || state == jsonArrayValue) && l.kind != ']'
+		if scan != nil && scan.extract == nil && scan.mode != jsonScanKeys && len(stack) == 2 && (objectValue || arrayValue) {
 			member.start, member.kind, member.decoded = l.start, l.kind, l.decoded
 			memberActive = true
 		}
@@ -171,7 +179,7 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 				}
 				return Value{}, l.expected("string")
 			}
-			if scan != nil && scan.extract == nil && len(stack) == 2 {
+			if scan != nil && scan.extract == nil && !elements && len(stack) == 2 {
 				if scan.mode == jsonScanKeys {
 					scan.keys = append(scan.keys, l.decoded)
 				} else {

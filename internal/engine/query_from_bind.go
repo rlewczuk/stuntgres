@@ -466,7 +466,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			}
 			function, composite := root.(*functionFromNode)
 			composite = composite && len(function.calls) == 1 && function.calls[0].ResultUsage().Type.IsComposite()
-			if calls == 1 && !composite {
+			hasScalarOut := function != nil && len(function.calls) == 1 && functionScalarOutName(function.calls[0]) != ""
+			if calls == 1 && !composite && !hasScalarOut {
 				ns.columns[0].descriptor.Name = n.Name.Text
 			}
 		}
@@ -962,6 +963,9 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 				schema = append(schema, ColumnDescriptor{Name: member.Name, Usage: member.Usage})
 			}
 		} else {
+			if out := functionScalarOutName(expr); out != "" {
+				name = out
+			}
 			schema = append(schema, ColumnDescriptor{Name: name, Usage: expr.ResultUsage()})
 		}
 

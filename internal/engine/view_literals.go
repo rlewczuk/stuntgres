@@ -515,6 +515,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
+		if n, ok := bound.(functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return children(r.Args, n.Args)
+		}
 		var regexp *functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties]
 		switch n := bound.(type) {
 		case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:

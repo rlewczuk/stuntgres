@@ -742,8 +742,8 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   nested Unicode during processing and use exact array/scalar 22023 diagnostics.
   Aliases, whole rows, multi-column ROWS FROM padding/ordinality, target-set zip,
   function-only lateral sources and stored/native replay share existing stages.
-  These signatures admit `from_json` named notation; `jsonb_each*`, array
-  expansion and record-population functions remain excluded.
+  These signatures admit `from_json` named notation; `jsonb_each*` and
+  record-population functions remain excluded.
   JSON-only extraction includes `(json,text/int4) -> json/text` via `->`/`->>`,
   `(json,text[]) -> json/text` via `#>`/`#>>`, and immutable variadic
   `json_extract_path` / `json_extract_path_text`. Object keys and integer array
@@ -760,6 +760,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   and `{"x":[0],"a":[10,20,30]} #> '{a,-1}'` yields 10, unlike chained lookup.
   Empty paths trim container outer whitespace; raw root scalars retain leading
   whitespace but drop trailing whitespace. JSONB extraction remains excluded.
+  `json_array_elements(json)` and `json_array_elements_text(json)` expand
+  immediate array members in source order as scalar JSON/TEXT rows. Nested
+  containers retain source spelling/whitespace/duplicates/numbers. Raw strings
+  keep quotes/escapes; TEXT strings decode, and JSON null maps to SQL NULL only
+  in TEXT output. Empty arrays and SQL NULL yield no rows with full metadata.
+  Raw expansion never decodes escaped Unicode; text expansion validates all
+  strings, even nested ones, before exposing a row. Wrong object/scalar roots
+  use PostgreSQL English 22023 diagnostics without runtime Position. FROM
+  uses scalar OUT label `value` even under a table-only alias; SELECT labels
+  use the function name. `from_json`, ordinality, target zip/nesting, lateral
+  sources and symbolic stored/native replay share existing stages. JSONB
+  expansion remains excluded.
   `json_strip_nulls(target json, strip_in_arrays boolean DEFAULT false)` returns
   JSON after recursively removing null-valued object fields. Default false
   retains array nulls; true removes them recursively. Bare JSON null and empty

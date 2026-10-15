@@ -177,6 +177,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		if changed {
+			n, err = n.Reconstruct(functionInfo(info), n.Args)
+		}
+		n.Info = functionInfo(info)
+		rebound = n
 	case installedLevenshteinFunctionExpression:
 		n.Args = children(n.Args)
 		if err != nil {

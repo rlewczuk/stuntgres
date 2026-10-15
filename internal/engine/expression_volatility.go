@@ -126,6 +126,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.Args...)
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
 	case nullTestExpression:
 		return children(n.child)
 	case truthTestExpression:

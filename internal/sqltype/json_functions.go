@@ -11,6 +11,8 @@ const (
 	jsonScanKeys jsonScanMode = iota
 	jsonScanEach
 	jsonScanEachText
+	jsonScanElements
+	jsonScanElementsText
 )
 
 type jsonMember struct {
@@ -30,6 +32,19 @@ type jsonScanResult struct {
 func (s *jsonScanResult) checkRoot() error {
 	if s.extract != nil {
 		return nil
+	}
+	if s.mode == jsonScanElements || s.mode == jsonScanElementsText {
+		if s.root == '[' {
+			return nil
+		}
+		name, kind := "json_array_elements", "scalar"
+		if s.mode == jsonScanElementsText {
+			name = "json_array_elements_text"
+		}
+		if s.root == '{' {
+			kind = "non-array"
+		}
+		return failure("22023", "cannot call "+name+" on a "+kind)
 	}
 	if s.root == '{' {
 		return nil

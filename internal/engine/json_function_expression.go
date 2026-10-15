@@ -32,7 +32,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			operand = o
 		}
 	}
-	if name == "json_object_keys" || name == "json_each" || name == "json_each_text" {
+	if name == "json_object_keys" || name == "json_each" || name == "json_each_text" || name == "json_array_elements" || name == "json_array_elements_text" {
 		if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
 			return nil, err
 		}
@@ -42,7 +42,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	}
 	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
 	namedCount := len(raw.ArgNames)
-	if (name == "json_each" || name == "json_each_text") && namedCount == 1 && raw.ArgNames[0].Text == "from_json" {
+	if (name == "json_each" || name == "json_each_text" || name == "json_array_elements" || name == "json_array_elements_text") && namedCount == 1 && raw.ArgNames[0].Text == "from_json" {
 		namedCount = 0
 	}
 	definition, resolution := functions.JSONFunctionCall(name, visible, len(raw.Args), namedCount)
@@ -70,7 +70,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	}
 	if decoration != "" {
 		diagnosticName := name
-		if name == "json_object_keys" {
+		if name == "json_object_keys" || definition.Elements {
 			diagnosticName = objectNameText(raw.Name)
 		}
 		return nil, expressionError("42809", decoration+" specified, but "+diagnosticName+" is "+message, raw.Pos)
@@ -91,7 +91,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		}
 		usage = shape.Usage()
 	}
-	if definition.Keys || definition.Each {
+	if definition.Keys || definition.Each || definition.Elements {
 		if err := b.stringSetAllowed(raw.Pos); err != nil {
 			return nil, err
 		}
@@ -100,6 +100,9 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
+		if definition.Elements {
+			return functions.NewJSONElements[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
+		}
 		if definition.Each {
 			return functions.NewJSONEach[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
 		}

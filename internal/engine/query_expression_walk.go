@@ -132,6 +132,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args)
 	case logicalExpression:
 		walk(e.left)
 		walk(e.right)
