@@ -252,6 +252,118 @@ nonimmutable-index diagnostics, constraint atomicity and real native replay.
 The expected output is quiet exit zero, not a feature-specific printed message.
 Whole-project `make quickcheck` and post-integration finalcheck remain root gates.
 
+### SQL/JSON constructors and predicates
+
+`TestReferenceSQLJSONArguments`, `Query`, `Conversion`, `Format`, `Returning`,
+`Unique`, `Predicates`, `Diagnostics`, `Parameters`, `Metadata`, `Authority`,
+`Stored`, `Controls`, `DomainPredicate`, `LegacyResolution` and `FeatureSmoke` specify SQL/JSON argument/query
+construction, conversion, recursive uniqueness, root-kind predicates, output
+coercions, exact diagnostic fields/stages, held statement recovery, descriptors,
+actual-column authorization and argument-sensitive stored-expression admission.
+Each suffix above follows `TestReferenceSQLJSON`.
+`ClauseBoundaries` checks that legacy argument calls cannot consume constructor
+clauses, empty objects accept only RETURNING, and member clauses survive.
+`OutputEncoding` checks argument/query/member/empty/serialize routes, exact
+BYTEA identity (including domain rejection), UTF8-only support, full diagnostics,
+Unicode positions and output-validation precedence. Both use the same direct
+and prepared public API routes on native and the unchanged pinned PostgreSQL.
+Selected proof is `make check RUN='^TestReferenceSQLJSON(ClauseBoundaries|OutputEncoding)$'`,
+also with `REFERENCE=1`.
+`EmptyObjectControls` independently checks default and explicit JSON/JSONB/TEXT/
+BYTEA empty-object views and stored defaults, then actual native Dump → Reset →
+Restore with deterministic redump and actual emitted-SQL PostgreSQL replay.
+Post-restore and post-replay inserts exercise the restored default recipes.
+`FromClauseBoundaries` requires syntax diagnostics for formatted legacy single/
+parallel-array calls in FROM and ROWS FROM, including qualified/quoted ordinary
+calls, direct/prepared stages and Unicode character positions. It does not
+enable scalar FROM providers. Selected proof and feature smoke:
+`make check RUN='^TestReferenceSQLJSON(EmptyObjectControls|FromClauseBoundaries)$'`,
+also with `REFERENCE=1`; passing independent assertions and quiet exit0 are the
+expected observations after remediation.
+
+`AssignmentControls` covers JSON/JSON_SCALAR defaults assigned to JSONB and the
+text-object-to-JSONB boundary where moving assignment into RETURNING changes
+null-key behavior. It consumes actual native Dump → Reset → Restore, requires
+deterministic redump and restored default insertions, and replays actual emitted
+SQL on pinned PostgreSQL. `PredicateUnicode` covers escaped NUL and invalid
+surrogate sequences in scalar/array/object keys and values, all root kinds,
+both polarities and WITH/WITHOUT UNIQUE through direct and prepared parameters.
+Without UNIQUE these syntactically valid sources classify normally; WITH UNIQUE
+returns false for decoding failure. Separate throwing input/constructor controls
+require full pinned Unicode diagnostics. Selected proof and remedy smoke:
+`make check RUN='^TestReferenceSQLJSON(AssignmentControls|PredicateUnicode)$'`
+and `make check REFERENCE=1 RUN='^TestReferenceSQLJSON(AssignmentControls|PredicateUnicode)$'`.
+Expect independent assertions and quiet exit0, not a rewritten replay script.
+Supplemental `TestSQLJSONReturningOwnershipRebind` exercises actual conversion
+and descriptor-generation reconstruction without losing constructor versus
+ordinary-assignment provenance:
+`make check RUN='^TestSQLJSONReturningOwnershipRebind$'`.
+
+Supplemental internal reached-work cancellation units are
+`TestSQLJSONRecursiveUniquenessReachedCancellation`,
+`TestSQLJSONProviderReachedCancellation` and
+`TestSQLJSONArrayQueryReachedCancellationCleanup`. They observe real decoded
+recursive duplicates, completed member work, and streamed query progress before
+canceling; no timer or production hook triggers cancellation. The query unit
+enters the actual subquery owner, observes closure of its real nested producer,
+preserves the primary cancellation over a cleanup failure, and recovers the
+same bound owner. These supplement, not replace, public held-owner recovery.
+
+Root discovery confirmed the completed initial definitions against pinned18.0
+and captured native missing-feature failures before production authorization.
+The shared scenarios have no backend discovery filter. Controls and expanded
+smoke additionally exercise actual native Dump/Reset/Restore, retained cursor
+values/descriptors, deterministic redump, late-error/hidden-parameter rejection,
+same-owner cancellation recovery and actual emitted-SQL PostgreSQL replay.
+New or changed definitions still require fresh selected proof in both modes;
+authoring and production readiness are not verification.
+Arguments includes complete runtime rejection contracts for array/composite/
+JSON keys and a positive Boolean key control. DomainPredicate retains direct
+and prepared analysis-time rejection, including typed NULL; Controls uses an
+explicit `::json` in its positive domain CHECK. Metadata preserves the existing
+adapter contracts: TEXT Length is `(MaxInt64, true)` on both backends; BYTEA
+Length is unavailable `(0, false)` natively and `(MaxInt64, true)` in pq.
+Predicates also cover parenthesized predicates as standalone scalar values,
+postfix casts, comparison operands, constructor values and VALUE keys. Restore
+must parse the same grouped predicate syntax before rejecting its hidden parameter;
+domain diagnostics use the type name visible on the effective search path.
+
+`JSON_SERIALIZE(jsonb)` intentionally differs from pinned PostgreSQL18.0:
+native must return valid canonical JSON text, not emulate the release's
+internal-representation defect. For the bounded input
+`' {"b":2,"a":1} '::jsonb`, Conversion independently expects native
+`{"a": 1, "b": 2}` and PostgreSQL U+0002 (`"\x02"`), using the same SQL and
+direct/prepared routes without cross-backend parity comparison.
+The [upstream report](https://www.postgresql.org/message-id/03583FE7-A5EE-407C-907D-67865F3F8BFC%40gmail.com)
+and [parser analysis](https://www.postgresql.org/message-id/CAGRkXqQXwh_gJmQE3PZj0v13omMPgFGBbb8TJoBFH8ECsAFCUg%40mail.gmail.com)
+identify a JSON coercion applied to a JSONB datum. The same bounded fixture
+also exercises explicit `RETURNING text` and input/output `FORMAT JSON`;
+an explicit `jsonb::json` cast is a separate canonical-text control on both
+backends, not a replacement for the defective route. Root discovery exercised
+the bounded default and explicit controls. These literals document only this
+fixture, not a portable JSONB layout or a general rule for reproducing bytes.
+
+Use these bounded selectors with an external 900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Arguments|Query|Conversion)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Format|Returning|Unique|Predicates)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Diagnostics|Parameters|Metadata|Authority)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Stored|Controls|DomainPredicate|LegacyResolution|FeatureSmoke)$'
+```
+
+Run the identical selectors without `REFERENCE=1` for native proof, and repeat
+both modes after implementation or test changes. Actual feature smoke:
+`make check RUN='^TestReferenceSQLJSONFeatureSmoke$'`, also with `REFERENCE=1`.
+The smoke covers held inserts, ordered correlation, omitted/zero-row distinction,
+JSON/JSONB/TEXT/BYTEA output, all root kinds, bounded independent JSONB
+serialization differences, same-held malformed/recovery, UNIQUE/null-key
+diagnostics, late-tuple atomicity, legacy resolution and the real control cycle.
+Expected observation is quiet package success after all assertions, not an
+invented SQL transcript. Selected race proof:
+`make check RACE=1 RUN='^TestReferenceSQLJSON(Parameters|Controls)$'`.
+Whole-project Docker-free proof remains `make quickcheck`.
+
 ### Bit string measurements and slices
 
 The `TestReferenceBitStringFunctions` family specifies the seven functions in

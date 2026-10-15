@@ -700,6 +700,10 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case installedFunctionExpression:
 		children = []BoundExpr{e.arg}
+	case sqlJSONExpression:
+		children = e.args
+	case jsonPredicateExpression:
+		children = []BoundExpr{e.child}
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:

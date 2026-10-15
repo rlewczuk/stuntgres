@@ -217,9 +217,49 @@ They construct immutable structural JSONB directly: normalized key order uses
 UTF8 byte length then bytes, and the last duplicate wins even when its value is
 NULL. Numeric-looking, Boolean-looking and JSON-looking text remains a string.
 Empty input produces a structural empty object. JSONB comparison/grouping and
-native logical controls use the same payload as typed JSONB input. SQL/JSON
-object syntax, other JSONB constructors and builtin catalog enumeration remain
-outside this feature.
+native logical controls use the same payload as typed JSONB input. Ordinary
+text-array overloads remain distinct from SQL/JSON object syntax.
+
+SQL/JSON `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR`, `JSON_SERIALIZE`
+and `IS [NOT] JSON` use typed values and the shared validating scanner. Arrays
+default to ABSENT ON NULL; objects default to NULL ON NULL. JSON null is not
+SQL NULL. Query arrays collect the ordered single target of an existing query:
+zero rows yield SQL NULL, while rows whose values are all omitted yield `[]`.
+FORMAT JSON validates and embeds source instead of quoting it; UTF8 BYTEA is
+supported. RETURNING applies ordinary string lengths and domain constraints.
+Constructor RETURNING and an enclosing column assignment are distinct conversions.
+Stored defaults retain outer casts: `JSON` and `JSON_SCALAR` never gain RETURNING,
+and JSON object construction followed by a JSONB cast is not direct JSONB construction.
+Output ENCODING requires the resolved type to be exactly BYTEA (a domain over
+BYTEA is not BYTEA for this clause), and only UTF8 is supported. This rule is
+shared by argument/query constructors and SQL/JSON aggregates. A non-BYTEA
+encoding declaration is rejected before checking whether its encoding is
+supported or its JSON_SERIALIZE return category is permitted.
+Legacy `JSON_OBJECT(array[, array])` calls do not accept constructor clauses,
+including FORMAT JSON, null/uniqueness policies or RETURNING. Nonempty member
+objects accept those applicable clauses; empty objects accept RETURNING only.
+Exact JSONB operands select JSONB constructor output unless RETURNING or an
+explicit output format chooses otherwise; domains do not implicitly select it.
+WITH UNIQUE KEYS compares decoded names recursively, independently per object.
+Predicates classify objects, arrays and scalar roots, including JSON null. Without
+UNIQUE they validate syntax without decoding escapes, so escaped NUL and unpaired
+surrogates remain valid JSON source. WITH UNIQUE requires decoding and returns false
+on Unicode validation failures, even in values rather than keys. Malformed JSON is
+also false; cancellation and unrelated execution failures propagate. Throwing
+constructor/input conversion paths retain their Unicode diagnostics.
+Object keys use scalar JSON spelling (including `true`/`false` for Boolean
+keys); arrays, composites and JSON/JSONB keys raise `22023`, rather than
+being cast to TEXT. `IS JSON` rejects domain inputs as distinct types; cast
+a domain explicitly to `json` (or another admitted base type) first.
+`JSON_SCALAR` conversion of arrays/composites is STABLE, so it is not allowed
+in generated expressions or expression indexes requiring immutability.
+
+Native `JSON_SERIALIZE(jsonb)` deliberately returns valid canonical JSON text.
+Pinned PostgreSQL 18.0 instead exposes U+0002 for the independently tested
+two-member object fixture. Native does not emulate binary storage bytes.
+See the [upstream report](https://www.postgresql.org/message-id/03583FE7-A5EE-407C-907D-67865F3F8BFC%40gmail.com)
+and [parser/coercion followup](https://www.postgresql.org/message-id/CAGRkXqQXwh_gJmQE3PZj0v13omMPgFGBbb8TJoBFH8ECsAFCUg%40mail.gmail.com).
+
 
 `json_array_length(json)` and `jsonb_array_length(jsonb)` count top-level array
 elements and return INT4 (native ScanType and raw integer cells are int64).

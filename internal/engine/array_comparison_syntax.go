@@ -156,6 +156,16 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 		if changed {
 			return r, true
 		}
+	case parser.SQLJSONExpr:
+		r.Args = args(r.Args)
+		if changed {
+			return r, true
+		}
+	case parser.JSONPredicateExpr:
+		r.Child = child(r.Child)
+		if changed {
+			return r, true
+		}
 	case parser.FunctionExpr:
 		r.Args, r.Order, r.Filter, r.Window = args(r.Args), order(r.Order), child(r.Filter), window(r.Window)
 		if changed {

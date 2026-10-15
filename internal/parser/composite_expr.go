@@ -51,10 +51,6 @@ func selectedScalarCall(l sqlLexer, callee lexeme, call FunctionExpr) (FunctionE
 	call.Name = ObjectName{Parts: []Identifier{{Text: callee.text, Pos: callee.pos}}}
 	call.Pos, call.ResolutionOnly = callee.pos, callee.resolutionOnly
 	if callee.keyword != nil && callee.text == "json_object" {
-		if len(call.Args) == 0 || call.Variadic {
-			l.(*lexer).failAt("0A000", "functions are unsupported", callee.pos.Offset)
-			return FunctionExpr{}, false
-		}
 		call.Name.Parts = []Identifier{{Text: "pg_catalog", Pos: callee.pos}, {Text: "json_object", Pos: callee.pos}}
 	}
 	return call, true

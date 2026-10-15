@@ -194,7 +194,40 @@ func numberValue(tok lexeme, sign string) Value {
 	return Value{Kind: IntegerValue, Integer: n, Pos: tok.pos}
 }
 
-func arithmeticExpr(tok lexeme, left, right Expr) Expr {
+// Grouping preserves the expression's grammar owner. Predicate/comparison
+// roots may feed target consumers and explicit casts, but not scalar operators
+// or the operand-only argument surface of selected projection calls.
+func scalarGrammarOperand(expr Expr) bool {
+	switch e := expr.(type) {
+	case PredicateExpr, LogicalExpr, JSONPredicateExpr, InListExpr, ArrayComparisonExpr:
+		return false
+	case OperatorExpr:
+		if len(e.Name.Parts) == 1 {
+			switch e.Name.Parts[0].Text {
+			case "=", "<>", "!=", "<", ">", "<=", ">=":
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// Selected projection calls retain their owner through grouping. Explicit
+// scalar postfixes and SQL/JSON keys are separate consumers.
+func (l *lexer) targetGrammarOperands(children ...Expr) bool {
+	for _, child := range children {
+		if call, ok := child.(FunctionExpr); ok && call.ProjectionOnly {
+			l.syntax(l.current)
+			return false
+		}
+	}
+	return true
+}
+
+func arithmeticExpr(l sqlLexer, tok lexeme, left, right Expr) Expr {
+	if !scalarGrammarOperand(left) || (right != nil && !scalarGrammarOperand(right)) {
+		l.(*lexer).syntax(tok)
+	}
 	args := []Expr{left}
 	if right != nil {
 		args = append(args, right)
@@ -226,7 +259,7 @@ func betweenExpr(a, lower, upper Expr, pos Position, negated, symmetric bool) Ex
 func negateExpr(l sqlLexer, tok lexeme, child Expr) Expr {
 	literal, ok := child.(LiteralExpr)
 	if !ok {
-		return arithmeticExpr(tok, child, nil)
+		return arithmeticExpr(l, tok, child, nil)
 	}
 	v := literal.Value
 	switch v.Kind {
@@ -250,7 +283,7 @@ func negateExpr(l sqlLexer, tok lexeme, child Expr) Expr {
 		numeric := strings.ContainsAny(text, ".eE") && !(strings.HasPrefix(text, "0x") || strings.HasPrefix(text, "0X"))
 		v, _ = integerValue(l, lexeme{text: text, numeric: numeric, pos: tok.pos}, sign)
 	default:
-		return arithmeticExpr(tok, child, nil)
+		return arithmeticExpr(l, tok, child, nil)
 	}
 	v.Pos = tok.pos
 	return LiteralExpr{Value: v}
@@ -483,6 +516,15 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 			}
 		}
 		return true
+	case SQLJSONExpr:
+		for _, arg := range r.Args {
+			if !l.scalarInputTree(arg) {
+				return false
+			}
+		}
+		return true
+	case JSONPredicateExpr:
+		return l.scalarInputTree(r.Child)
 	case FunctionExpr:
 		for _, arg := range r.Args {
 			if !l.scalarInputTree(arg) {

@@ -1245,6 +1245,13 @@ type parenthesizedQuery struct {
 	Pos   Position
 }
 
+// groupedPrimary retains the opening position for field and subscript syntax
+// without adding a grouping node to the persisted expression tree.
+type groupedPrimary struct {
+	Expr Expr
+	Pos  Position
+}
+
 // RowLockClause is one positioned trailing locking clause.
 type RowLockClause struct {
 	Mode    string
@@ -1798,6 +1805,7 @@ type FunctionExpr struct {
 	Variadic           bool
 	ResolutionOnly     bool // Absent ordinary call: diagnostics, never provider dispatch.
 	CompositeCandidate bool // Otherwise-unselected call; only typed composite resolution is admitted.
+	ProjectionOnly     bool // Selected-call grammar, not an operand even when grouped.
 	Syntax             FunctionSyntax
 	StringSyntax       StringSyntax
 	Window             *WindowSpec
@@ -1828,6 +1836,33 @@ type JSONAggregateOptions struct {
 	Returning *TypeName
 	Output    *JSONFormat
 }
+
+// SQLJSONExpr retains written SQL/JSON clauses without ordinary function lookup.
+type SQLJSONExpr struct {
+	Kind           string
+	Args           []Expr
+	Formats        []*JSONFormat
+	Query          *Select
+	Returning      *TypeName
+	Output         *JSONFormat
+	Absent, Unique bool
+	Members        bool
+	NullPos        Position
+	Pos            Position
+}
+
+func (SQLJSONExpr) expression()                {}
+func (e SQLJSONExpr) SourcePosition() Position { return e.Pos }
+
+type JSONPredicateExpr struct {
+	Child       Expr
+	Kind        string
+	Unique, Not bool
+	Pos         Position
+}
+
+func (JSONPredicateExpr) expression()                {}
+func (e JSONPredicateExpr) SourcePosition() Position { return e.Pos }
 
 // AggregateExpr retains ordinary aggregate arguments and call-local modifiers.
 type AggregateExpr struct {

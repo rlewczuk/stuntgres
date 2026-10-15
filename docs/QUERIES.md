@@ -30,6 +30,19 @@ errors. Exported mutable bytes detach from internal values and other exports.
 Rows remain valid across later writes, transaction completion and native
 Reset/Restore, but retained snapshots grant no publication authority.
 
+## SQL/JSON query arrays
+
+`JSON_ARRAY(query)` reuses the ordinary query binder, source capture and
+execution stages. Its query must expose exactly one target; SELECT, VALUES,
+WITH and set-query decorations retain their existing admission and ordering.
+Each outer occurrence and each held execution reopens the child query with its
+current parameters and correlation frame, never a cached first result. Values
+stream into the typed array writer without scalar-subquery cardinality limits.
+SQL NULL rows are omitted; zero rows yield SQL NULL and all-omitted rows yield
+`[]`. FORMAT JSON is per-row; RETURNING converts the finalized array. Actual
+query columns retain existing ACL/dependency capture and stored-query consumer
+restrictions. Stage closure and cancellation finish before any result escapes.
+
 ## Installed Daitch–Mokotoff expressions
 
 `daitch_mokotoff(text)` resolves only through installed fuzzystrmatch procedure

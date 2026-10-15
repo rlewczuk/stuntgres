@@ -447,6 +447,14 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.ref = ref(n.ref)
 		}
 		next = n
+	case sqlJSONExpression:
+		n.args = args(n.args)
+		if err == nil {
+			next, err = n.reconstruct(n.expressionInfo, n.args)
+		}
+	case jsonPredicateExpression:
+		n.child = child(n.child)
+		next = n
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		if err == nil {

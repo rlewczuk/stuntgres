@@ -158,15 +158,8 @@ func (b *expressionBinder) resolveJSONArrayAggregateSignature(raw parser.Aggrega
 		}
 		if options.Output != nil {
 			id = sqltype.JSON
-			if options.Output.Encoding != "" {
-				if returning.Type == nil || returning.Type.BaseType().ID() != sqltype.Bytea {
-					return fail(expressionError("0A000", "cannot set JSON encoding for non-bytea output types", options.Output.Pos))
-				}
-				if options.Output.Encoding != "UTF8" {
-					d := expressionError("0A000", "unsupported JSON encoding", options.Output.Pos).(*sqlstate.Error)
-					d.Hint = "Only UTF8 JSON encoding is supported."
-					return fail(d)
-				}
+			if err := validateJSONOutputFormat(returning, options.Output); err != nil {
+				return fail(err)
 			}
 		}
 		if options.Input != nil {
@@ -193,6 +186,23 @@ func (b *expressionBinder) resolveJSONArrayAggregateSignature(raw parser.Aggrega
 	}
 	usage := b.typ(id).Usage()
 	return arg, usage, returning, nil
+}
+
+// Encoding requires the resolved BYTEA identity, not a domain over BYTEA.
+// Owners call this before output planning, preserving their input error order.
+func validateJSONOutputFormat(returning sqltype.Usage, format *parser.JSONFormat) error {
+	if format == nil || format.Encoding == "" {
+		return nil
+	}
+	if returning.Type == nil || returning.Type.ID() != sqltype.Bytea {
+		return expressionError("0A000", "cannot set JSON encoding for non-bytea output types", format.Pos)
+	}
+	if format.Encoding != "UTF8" {
+		d := expressionError("0A000", "unsupported JSON encoding", format.Pos).(*sqlstate.Error)
+		d.Hint = "Only UTF8 JSON encoding is supported."
+		return d
+	}
+	return nil
 }
 
 func jsonReturningCoercion(source, target sqltype.Usage, format *parser.JSONFormat) (sqltype.CoercionPlan, error) {

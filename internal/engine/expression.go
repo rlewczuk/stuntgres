@@ -334,9 +334,9 @@ type coercionExpression struct {
 	child BoundExpr
 	plan  sqltype.CoercionPlan
 	mode  sqltype.CoercionContext
-	// The explicit conversion belongs to the enclosing ARRAY cast, not to a
-	// written cast at this element's raw syntax occurrence.
-	syntheticArrayElement bool
+	// The explicit conversion belongs to the enclosing ARRAY or ROW cast, not
+	// to a written cast at this element's raw syntax occurrence.
+	syntheticConstructorElement bool
 }
 
 // COLLATE changes analyzed usage only; values retain the same type and datum.
@@ -1553,6 +1553,33 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.Args = args
 			return e, true, nil
 		}
+	case sqlJSONExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			next, err := e.reconstruct(e.expressionInfo, args)
+			return next, true, err
+		}
+	case jsonPredicateExpression:
+		folded, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			e.child = folded
+			return e, true, nil
+		}
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
 		for i, arg := range e.Args {
@@ -2319,6 +2346,18 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if err != nil {
 				return nil, err
 			}
+		case parser.SQLJSONExpr:
+			var err error
+			node, err = b.bindSQLJSON(r)
+			if err != nil {
+				return nil, err
+			}
+		case parser.JSONPredicateExpr:
+			var err error
+			node, err = b.bindJSONPredicate(r)
+			if err != nil {
+				return nil, err
+			}
 		case parser.FunctionExpr:
 			if b.executeParameters && r.Window != nil {
 				return nil, expressionError("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
@@ -3018,6 +3057,10 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (stri
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.MergeActionExpr:
 		return "merge_action", true
+	case parser.SQLJSONExpr:
+		return r.Kind, true
+	case parser.JSONPredicateExpr:
+		return "?column?", false
 	case parser.FunctionExpr:
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.CallExpr:
@@ -3494,6 +3537,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 	switch raw.(type) {
 	case parser.InListExpr, parser.ArrayComparisonExpr:
 	case parser.RowExpr, parser.FieldExpr, parser.StarExpr, parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
+	case parser.SQLJSONExpr, parser.JSONPredicateExpr:
 	case parser.MergeActionExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")

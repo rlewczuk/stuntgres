@@ -87,6 +87,12 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || len(e.membership) != len(o.membership) || (comparison != nil && e.presenceOnly != o.presenceOnly) || len(e.comparisons) != len(o.comparisons) {
 			return false
 		}
+		if (e.jsonArray == nil) != (o.jsonArray == nil) {
+			return false
+		}
+		if e.jsonArray != nil && !same(e.jsonArray.input, o.jsonArray.input) {
+			return false
+		}
 		if comparison == nil {
 			if e.queryPlan.Root.(*projectNode).frame != o.queryPlan.Root.(*projectNode).frame {
 				return false
@@ -660,6 +666,20 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case installedFunctionExpression:
 		o, ok := other.(installedFunctionExpression)
 		return ok && e.ref == o.ref && e.procedure.revision == o.procedure.revision && same(e.arg, o.arg)
+	case sqlJSONExpression:
+		o, ok := other.(sqlJSONExpression)
+		if !ok || e.raw.Kind != o.raw.Kind || e.raw.Absent != o.raw.Absent || e.raw.Unique != o.raw.Unique || len(e.args) != len(o.args) {
+			return false
+		}
+		for i := range e.args {
+			if !same(e.args[i], o.args[i]) {
+				return false
+			}
+		}
+		return true
+	case jsonPredicateExpression:
+		o, ok := other.(jsonPredicateExpression)
+		return ok && e.kind == o.kind && e.unique == o.unique && e.not == o.not && same(e.child, o.child)
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || e.Kind != o.Kind || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
@@ -1286,6 +1306,17 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
 		expr = e
+	case sqlJSONExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
+	case jsonPredicateExpression:
+		e.child = rewrite(e.child)
+		stage(&e.expressionInfo)
+		expr = e
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1577,6 +1608,12 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case installedFunctionExpression:
 		walk(e.arg)
+	case sqlJSONExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
+	case jsonPredicateExpression:
+		walk(e.child)
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)

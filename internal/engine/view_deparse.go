@@ -1024,6 +1024,45 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text = "(" + text + ")"
 		}
 		return text, nil
+	case parser.JSONPredicateExpr:
+		text, err := child(e.Child)
+		if err != nil {
+			return "", err
+		}
+		return jsonPredicateRecipe(text, e.Kind, e.Unique, e.Not), nil
+	case parser.SQLJSONExpr:
+		parts := make([]string, len(e.Args))
+		for i, arg := range e.Args {
+			text, err := child(arg)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+			if i < len(e.Formats) {
+				parts[i] += jsonAggregateFormatSQL(e.Formats[i])
+			}
+		}
+		query := ""
+		if e.Query != nil {
+			var err error
+			query, err = v.selectQuerySQL(ctx, catalog, e.Query, v.queries[e.Query])
+			if err != nil {
+				return "", err
+			}
+		}
+		declaration := ""
+		if e.Returning != nil {
+			usage, ok := v.castUsages[path]
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing SQL/JSON returning usage")
+			}
+			var err error
+			declaration, err = catalogTypeDeclaration(catalog, usage)
+			if err != nil {
+				return "", err
+			}
+		}
+		return sqlJSONRecipe(e, parts, query, declaration), nil
 	case parser.AggregateExpr:
 		name := e.Name
 		if e.Schema != nil {

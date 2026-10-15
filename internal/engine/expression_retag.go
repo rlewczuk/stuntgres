@@ -363,6 +363,18 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				comparisons[i] = next.(comparisonExpression)
 			}
 		}
+		if n.jsonArray != nil {
+			copy := *n.jsonArray
+			copy.input = child(copy.input)
+			if err != nil {
+				return nil, false, err
+			}
+			copy.plan, err = sqltype.BindJSONArrayAggregate(copy.input.ResultUsage(), info.usage, true)
+			if err != nil {
+				return nil, false, err
+			}
+			n.jsonArray = &copy
+		}
 		if !changed {
 			return node, false, nil
 		}
@@ -836,6 +848,15 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)
 		n.Info = functionInfo(info)
+		rebound = n
+	case sqlJSONExpression:
+		n.args = children(n.args)
+		if err == nil {
+			rebound, err = n.reconstruct(info, n.args)
+		}
+	case jsonPredicateExpression:
+		n.child = child(n.child)
+		n.expressionInfo = info
 		rebound = n
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)

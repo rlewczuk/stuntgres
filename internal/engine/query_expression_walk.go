@@ -158,6 +158,10 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case installedFunctionExpression:
 		walk(e.arg)
+	case sqlJSONExpression:
+		args(e.args)
+	case jsonPredicateExpression:
+		walk(e.child)
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:

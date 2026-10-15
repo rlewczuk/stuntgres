@@ -56,12 +56,14 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	}
 	path.node = *ordinal
 	(*ordinal)++
-	// Contextual ARRAY element casts have an explicit executable plan, but no
-	// corresponding raw element node. The enclosing written ARRAY cast owns
-	// their annotation; associate the element syntax with its original child.
+	// Contextual ARRAY/ROW member casts have an executable plan but no raw
+	// member CastExpr. Their enclosing constructor owns the annotation.
 	for {
 		coercion, ok := bound.(coercionExpression)
-		if !ok || coercion.mode == sqltype.Explicit && !coercion.syntheticArrayElement {
+		if !ok || coercion.mode == sqltype.Explicit && !coercion.syntheticConstructorElement {
+			break
+		}
+		if constructor, ok := raw.(parser.SQLJSONExpr); ok && constructor.Returning != nil && coercion.mode == sqltype.Assignment {
 			break
 		}
 		if aggregate, ok := raw.(parser.AggregateExpr); ok && aggregate.JSON != nil && aggregate.JSON.Returning != nil && coercion.mode == sqltype.Assignment {
@@ -122,6 +124,32 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return child(r.Right, arrayExpression{elements: n.items})
 			}
 			return child(r.Right, n.array)
+		}
+	case parser.SQLJSONExpr:
+		if r.Returning != nil {
+			if b.viewCastUsages == nil {
+				b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+			}
+			b.viewCastUsages[path] = bound.ResultUsage()
+			if c, ok := bound.(coercionExpression); ok {
+				bound = c.child
+			}
+		}
+		if r.Query != nil {
+			if n, ok := bound.(subqueryExpression); ok {
+				return b.captureSubqueryLeft(nil, n, path, ordinal)
+			}
+		} else if n, ok := bound.(sqlJSONExpression); ok {
+			for i, arg := range r.Args {
+				if err := child(arg, sqlJSONSource(n.args[i])); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	case parser.JSONPredicateExpr:
+		if n, ok := bound.(jsonPredicateExpression); ok {
+			return child(r.Child, n.child)
 		}
 	case parser.SubqueryExpr:
 		if n, ok := bound.(subqueryExpression); ok {
@@ -1009,6 +1037,16 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			return err
 		}
 		return child(r.Right)
+	case parser.SQLJSONExpr:
+		if r.Query != nil {
+			if v.queries[r.Query] == nil {
+				return fmt.Errorf("stuntgres: missing frozen SQL/JSON query syntax")
+			}
+			return nil
+		}
+		return args(r.Args)
+	case parser.JSONPredicateExpr:
+		return child(r.Child)
 	case parser.SubqueryExpr:
 		if v.queries[r.Query] == nil {
 			return fmt.Errorf("stuntgres: missing frozen subquery syntax")

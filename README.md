@@ -645,6 +645,27 @@ ORDER BY, DISTINCT/ALL, multiple pairs and aggregate windows remain excluded.
 Feature smoke: `make check RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'`
 and `make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'`.
 
+Change note: SQL/JSON constructors and predicates support argument and ordered
+correlated query arrays, VALUE/colon object members, FORMAT JSON, RETURNING,
+NULL/ABSENT policies and recursive decoded-key uniqueness. Native
+`JSON_SERIALIZE(jsonb)` returns correct canonical JSON text, intentionally not
+the defective pinned PostgreSQL 18.0 bytes for the bounded two-member witness
+([report](https://www.postgresql.org/message-id/03583FE7-A5EE-407C-907D-67865F3F8BFC%40gmail.com),
+[followup](https://www.postgresql.org/message-id/CAGRkXqQXwh_gJmQE3PZj0v13omMPgFGBbb8TJoBFH8ECsAFCUg%40mail.gmail.com)).
+Object keys must be scalar, not arrays, composites or JSON values. Domain
+operands need an explicit admitted base-type cast for `IS JSON`; legacy
+one- and two-array `json_object` calls remain ordinary function overloads.
+They reject constructor clauses instead of discarding them; empty SQL/JSON objects
+accept RETURNING only. Output ENCODING consistently requires exact BYTEA (not
+a domain over BYTEA) and UTF8 across constructors and SQL/JSON aggregates.
+Stored recipes keep column-assignment casts outside constructors; these are not
+RETURNING clauses and do not change text-object construction into JSONB construction.
+Predicates without UNIQUE validate syntax without decoding Unicode escapes;
+WITH UNIQUE returns false for decoding failures, while throwing input/conversion
+routes retain their diagnostics and cancellation still propagates.
+Feature smoke: `make check RUN='^TestReferenceSQLJSONFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceSQLJSONFeatureSmoke$'`.
+
 Change note: `json_agg`, `jsonb_agg`, `json_agg_strict`, `jsonb_agg_strict`
 and SQL/JSON `json_arrayagg` collect values through the ordinary aggregate
 pipeline. Local ORDER BY fixes element order; ordinary variants include SQL NULL,
@@ -1856,7 +1877,7 @@ the existing typed seams, including generic JSON arrays and domains. JSON has
 no ordinary comparison/grouping/index-key provider, but supports INCLUDE payloads.
 Missing default classes report42704 even during atomic ALTER TYPE reconstruction.
 Unicode-escape physical EOF reports an invalid token, distinct from present nonhex
-digits. JSON operators, unselected JSON functions and SQL/JSON constructors remain excluded.
+digits. Unselected JSON operators and functions remain excluded.
 See [JSON types](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONFeatureSmoke$'`.
@@ -1868,8 +1889,8 @@ order, values are JSON strings (or JSON null for NULL elements), and whole-array
 SQL NULL is strict. Malformed shapes/counts and NULL keys use PostgreSQL diagnostics.
 Qualified explicit final `VARIADIC` array syntax selects these same signatures;
 it does not add a variadic overload. Stored consumers and native Dump/Restore
-retain symbolic calls. JSON remains noncomparable; SQL/JSON constructors and
-generic builtin catalog enumeration are unchanged.
+retain symbolic calls. JSON remains noncomparable; generic builtin catalog
+enumeration is unchanged.
 See [JSON construction](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
 Feature smoke: `make check RUN='^TestReferenceJSONObjectFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONObjectFeatureSmoke$'`.
@@ -1888,8 +1909,8 @@ independent of DateStyle; timestamptz and ordinary scalar output use live sessio
 settings. All eight functions are STABLE, including empty builders: defaults,
 checks and views retain symbolic calls, while immutable-only index/generated
 consumers reject them. Native Dump/Restore preserves typed stored operands.
-Arbitrary user JSON casts, SQL/JSON constructors and processing
-operators/aggregates are not added by this change. Composite arrays use the
+Arbitrary user JSON casts and unselected processing operators/aggregates are not
+added by this change. Composite arrays use the
 existing recursive conversion providers.
 Feature smoke (900 seconds each):
 `make check RUN='^TestReferenceJSONCreateFeatureSmoke$'`;
@@ -1986,8 +2007,8 @@ target-list sets zip and NULL-pad through the existing query stages.
 Wrong-root arguments use exact PostgreSQL shape diagnostics without a runtime
 Position. Scalar stored consumers and key query views retain symbolic calls
 through native Dump/Restore; existing namespace and actual-column authorization
-rules still apply. No adjacent JSON operators, constructors, general SQL/JSON
-execution or generic callable catalog is added.
+rules still apply. No adjacent JSON operators, path/query execution or generic
+callable catalog is added.
 See [JSON processing](https://www.postgresql.org/docs/18/functions-json.html#FUNCTIONS-JSON-PROCESSING).
 Feature smoke: `make check RUN='^TestReferenceJSONTypeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.

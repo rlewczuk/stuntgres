@@ -565,6 +565,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return "(" + text + ")", nil
 	case coercionExpression:
+		if constructor, ok := n.child.(sqlJSONExpression); ok && n.plan.IsJSONReturning() {
+			return r.sqlJSON(ctx, constructor, n.usage)
+		}
 		// Identifier leaves already retain their scalar annotation. A transparent
 		// relabel must not duplicate it around a genuine enclosing conversion.
 		if n.child != nil && sqltype.IsTransactionIdentifier(n.usage.Type.ID()) && n.child.ResultUsage() == n.usage {
@@ -585,7 +588,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 				return r.sql(ctx, n.child, parent)
 			}
 		}
-		if n.mode == sqltype.Assignment {
+		if n.mode == sqltype.Assignment && !sqlJSONResult(n.child) {
 			return r.sql(ctx, n.child, parent)
 		}
 		text, err := child(n.child)
@@ -1044,6 +1047,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []BoundExpr{n.arg}, true)
+	case sqlJSONExpression:
+		return r.sqlJSON(ctx, n, sqltype.Usage{})
+	case jsonPredicateExpression:
+		text, err := child(n.child)
+		if err != nil {
+			return "", err
+		}
+		return jsonPredicateRecipe(text, n.kind, n.unique, n.not), nil
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		parts := make([]string, len(n.Args))
 		for i, arg := range n.Args {

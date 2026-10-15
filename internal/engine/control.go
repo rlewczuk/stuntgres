@@ -2003,6 +2003,31 @@ func commentLiteral(text string) string {
 // parameter reached through the shared recursive visitor.
 func restoreScalar(raw parser.Expr, stored bool) error {
 	switch r := raw.(type) {
+	case parser.SQLJSONExpr:
+		for _, child := range r.Args {
+			if err := restoreScalar(child, stored); err != nil {
+				return err
+			}
+		}
+		if r.Query != nil {
+			return restoreSQLJSONQuery(r.Query, stored)
+		}
+		return nil
+	case parser.JSONPredicateExpr:
+		return restoreScalar(r.Child, stored)
+	case parser.SubqueryExpr:
+		if r.Left != nil {
+			if err := restoreScalar(r.Left, stored); err != nil {
+				return err
+			}
+		}
+		if err := restoreSQLJSONQuery(r.Query, stored); err != nil {
+			return err
+		}
+		if !stored {
+			return fmt.Errorf("stuntgres: invalid restore scalar")
+		}
+		return nil
 	case parser.FunctionExpr:
 		if !stored {
 			if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {

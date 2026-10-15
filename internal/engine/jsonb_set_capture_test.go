@@ -60,7 +60,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 		conversion := array.elements[0].(coercionExpression)
 		written := conversion.child.(coercionExpression)
 		length, known := written.usage.Length()
-		if conversion.mode != sqltype.Explicit || !conversion.syntheticArrayElement || written.syntheticArrayElement || written.mode != sqltype.Explicit || written.usage.Type.ID() != sqltype.VarChar || !known || length != 1 {
+		if conversion.mode != sqltype.Explicit || !conversion.syntheticConstructorElement || written.syntheticConstructorElement || written.mode != sqltype.Explicit || written.usage.Type.ID() != sqltype.VarChar || !known || length != 1 {
 			t.Fatal("conversion context or written origin changed", conversion, written)
 		}
 		plan, err := sqltype.PlanCoercion(written.ResultUsage(), conversion.ResultUsage(), sqltype.Explicit)

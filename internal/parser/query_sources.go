@@ -15,8 +15,13 @@ func VisitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	return visitQuerySources(statement, visitQuery, visitTable, classify, nil, nil, "", false)
 }
 
+// VisitQueryExpressions visits every raw scalar, including nested query bodies.
+func VisitQueryExpressions(statement Statement, inspect func(Expr) error) error {
+	return visitQuerySources(statement, nil, nil, nil, nil, nil, "", false, inspect)
+}
+
 // recursiveLegality changes only SubLink context/order, never ordinary source admission.
-func visitQuerySources(statement Statement, visitQuery func(*Select) error, visitTable func(*TableReference, *Select) error, classify []func(*TableReference, bool, string), resolved func(*TableReference, *CommonTableExpression, string) error, visible []*CommonTableExpression, context string, recursiveLegality bool) error {
+func visitQuerySources(statement Statement, visitQuery func(*Select) error, visitTable func(*TableReference, *Select) error, classify []func(*TableReference, bool, string), resolved func(*TableReference, *CommonTableExpression, string) error, visible []*CommonTableExpression, context string, recursiveLegality bool, inspect ...func(Expr) error) error {
 	var pending []string
 	var query func(*Select) error
 	var queryBody func(*Select) error
@@ -84,6 +89,11 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		return nil
 	}
 	expression = func(raw Expr) error {
+		if raw != nil && len(inspect) != 0 {
+			if err := inspect[0](raw); err != nil {
+				return err
+			}
+		}
 		switch e := raw.(type) {
 		case GroupingExpr:
 			return expressions(e.Args)
@@ -123,6 +133,16 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			return expressions(e.Fields)
 		case OperatorExpr:
 			return expressions(e.Args)
+		case SQLJSONExpr:
+			if err := expressions(e.Args); err != nil {
+				return err
+			}
+			if e.Query != nil {
+				return expression(SubqueryExpr{Query: e.Query, Pos: e.Pos})
+			}
+			return nil
+		case JSONPredicateExpr:
+			return expression(e.Child)
 		case FunctionExpr:
 			if err := expressions(e.Args); err != nil {
 				return err

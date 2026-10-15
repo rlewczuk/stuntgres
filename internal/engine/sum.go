@@ -146,6 +146,10 @@ func containsValuesAggregateAnalysis(raw parser.Expr) bool {
 		return containsValuesAggregateAnalysis(e.Child)
 	case parser.TimeZoneExpr:
 		return containsValuesAggregateAnalysis(e.Value) || !e.Local && containsValuesAggregateAnalysis(e.Zone)
+	case parser.SQLJSONExpr:
+		children = e.Args
+	case parser.JSONPredicateExpr:
+		children = []parser.Expr{e.Child}
 	case parser.FunctionExpr:
 		children = e.Args
 	case parser.CallExpr:

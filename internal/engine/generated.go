@@ -312,6 +312,10 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.Args)
 	case installedFunctionExpression:
 		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.arg})
+	case sqlJSONExpression:
+		return n.properties.Volatility == Immutable && args(n.args)
+	case jsonPredicateExpression:
+		return args([]BoundExpr{n.child})
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return false
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
@@ -489,6 +493,10 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]BoundExpr{n.arg})
+	case sqlJSONExpression:
+		return args(n.args)
+	case jsonPredicateExpression:
+		return args([]BoundExpr{n.child})
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:
@@ -861,6 +869,10 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.Args)
 	case installedFunctionExpression:
 		return args([]BoundExpr{n.arg})
+	case sqlJSONExpression:
+		return args(n.args)
+	case jsonPredicateExpression:
+		return args([]BoundExpr{n.child})
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin]:

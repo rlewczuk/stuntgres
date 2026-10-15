@@ -91,6 +91,12 @@ RETURNING conversion, exact cardinalities and before-Next JSONB metadata.
 RETURNING assignment-length failure on direct and SAME-held modifying routes.
 Complete diagnostics, nil result/count publication, unchanged sentinel data
 and subsequent healthy execution are independently asserted.
+`TestReferenceSQLJSONAggregateOutputEncoding` covers the shared ARRAYAGG and
+OBJECTAGG output-format validator on direct/prepared and window analysis routes:
+exact BYTEA identity, domain rejection, UTF8-only output, full positioned
+diagnostics and valid controls. The existing native window-provider boundary is
+unchanged. Run `make check RUN='^TestReferenceSQLJSONAggregateOutputEncoding$'`
+and the identical selector with `REFERENCE=1` for real pinned PostgreSQL.
 Cancellation observes active writer and root-sort admission before cancellation,
 joins each worker, checks no destination publication and recovers the same owner.
 It preloads 32768 unique integer rows once and uses a single ordered,

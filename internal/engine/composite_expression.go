@@ -104,6 +104,9 @@ func (b *expressionBinder) bindRow(raw parser.RowExpr, target sqltype.Usage, mod
 		if expected.Type != nil {
 			policy.context = functionArgumentContext
 			policy.mode = mode
+			// The enclosing ROW owns member conversion. Preserve its synthetic
+			// origin instead of manufacturing an unwritten member CastExpr.
+			policy.deferAssignment = true
 		}
 		node, err := b.bind(child, policy)
 		if err != nil {
@@ -137,7 +140,11 @@ func (b *expressionBinder) bindRow(raw parser.RowExpr, target sqltype.Usage, mod
 			fields[i], err = b.assignCompositeMember(field, target.Type.BaseType().CompositeMember(i).Usage, mode, pos)
 			if err != nil {
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
-					return nil, b.rowCoercionError(target, field.SourcePosition(), fmt.Sprintf("Cannot cast type %s to %s in column %d.", b.diagnosticTypeName(field.ResultUsage().Type), b.diagnosticTypeName(target.Type.BaseType().CompositeMember(i).Usage.Type), i+1))
+					location := pos
+					if field.ResultUsage().Type.BaseType().IsComposite() {
+						location = field.SourcePosition()
+					}
+					return nil, b.rowCoercionError(target, location, fmt.Sprintf("Cannot cast type %s to %s in column %d.", b.diagnosticTypeName(field.ResultUsage().Type), b.diagnosticTypeName(target.Type.BaseType().CompositeMember(i).Usage.Type), i+1))
 				}
 				return nil, err
 			}
@@ -200,7 +207,7 @@ func (b *expressionBinder) assignCompositeMember(node BoundExpr, target sqltype.
 	if err != nil {
 		return node, err
 	}
-	return coercionExpression{b.info(target, node.SourcePosition(), coercionProperties(node, plan)), node, plan, mode, false}, nil
+	return coercionExpression{b.info(target, node.SourcePosition(), coercionProperties(node, plan)), node, plan, mode, true}, nil
 }
 func (b *expressionBinder) selectCompositeField(base BoundExpr, name string, pos parser.Position) (BoundExpr, error) {
 	typ := base.ResultUsage().Type

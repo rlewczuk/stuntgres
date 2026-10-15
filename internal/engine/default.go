@@ -276,6 +276,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			*r.visibilitySnapshot = *r.visibilitySnapshot || demand
 		}
 		return r.scalarFunctionSQL(ctx, view, node, u)
+	case sqlJSONExpression, jsonPredicateExpression:
+		return r.scalarFunctionSQL(ctx, view, node, u)
 	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties], functions.Random[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties],
 		functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties],
@@ -542,15 +544,18 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default coercion mode")
 		}
-		plan, err := sqltype.PlanCoercion(n.child.ResultUsage(), u, n.mode)
+		plan, err := n.plan.Rebind(n.child.ResultUsage(), u, n.mode)
 		if err != nil || !plan.Equal(n.plan) {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
 		if r.commentSnapshot != nil && (plan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && plan.SessionDependent()) {
 			*r.commentSnapshot = true
 		}
+		if constructor, ok := n.child.(sqlJSONExpression); ok && n.plan.IsJSONReturning() {
+			return r.sqlJSON(ctx, view, constructor, u)
+		}
 		child, err := r.sql(ctx, view, n.child)
-		if err != nil || n.mode != sqltype.Explicit {
+		if err != nil || n.mode != sqltype.Explicit && !sqlJSONResult(n.child) {
 			return child, err
 		}
 		// Identifier literals already render with their scalar authority. A

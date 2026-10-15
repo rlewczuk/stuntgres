@@ -50,10 +50,14 @@ func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) 
 func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanResult) (Value, error) {
 	build := scan == nil && d.id == JSONB
 	elements := scan != nil && (scan.mode == jsonScanElements || scan.mode == jsonScanElementsText)
-	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil && scan.mode != jsonScanElements}
+	// Classification needs syntax only. Uniqueness validates decoded escapes
+	// throughout the document; processing keeps its existing decoding demand.
+	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil && (scan.unique || !scan.classify && scan.mode != jsonScanElements)}
 	var local [32]jsonState
 	stack := local[:1]
 	stack[0] = jsonValue
+	var localKeys [32]map[string]struct{}
+	objectKeys := localKeys[:]
 	var frames [32]jsonbFrame
 	builder := jsonbBuilder{}
 	if build {
@@ -77,11 +81,12 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 			memberActive = false
 		}
 		state := stack[len(stack)-1]
-		// Validate ignored/nested strings without retaining their decoded text.
-		l.discard = scan != nil
+		// Decode recursive uniqueness keys; processing modes below select
+		// any additional immediate keys or string values they retain.
+		l.discard = scan != nil && !(scan.unique && (state == jsonObjectFirst || state == jsonObjectKey))
 		if scan != nil && scan.extract != nil {
 			l.discard = !scan.extract.keepDecoded(len(stack)-1, state)
-		} else if scan != nil && len(stack) == 2 {
+		} else if scan != nil && !scan.classify && len(stack) == 2 {
 			if elements {
 				l.discard = scan.mode != jsonScanElementsText || (state != jsonArrayFirst && state != jsonArrayValue)
 			} else {
@@ -114,7 +119,7 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 		}
 		objectValue := !elements && state == jsonObjectValue
 		arrayValue := elements && (state == jsonArrayFirst || state == jsonArrayValue) && l.kind != ']'
-		if scan != nil && scan.extract == nil && scan.mode != jsonScanKeys && len(stack) == 2 && (objectValue || arrayValue) {
+		if scan != nil && scan.extract == nil && !scan.classify && scan.mode != jsonScanKeys && len(stack) == 2 && (objectValue || arrayValue) {
 			member.start, member.kind, member.decoded = l.start, l.kind, l.decoded
 			memberActive = true
 		}
@@ -165,6 +170,9 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 			continue
 		case jsonObjectFirst, jsonObjectKey:
 			if state == jsonObjectFirst && l.kind == '}' {
+				if scan != nil && scan.unique && len(stack) < len(objectKeys) {
+					objectKeys[len(stack)] = nil
+				}
 				if build {
 					if err := builder.close(ctx); err != nil {
 						return Value{}, err
@@ -179,11 +187,28 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 				}
 				return Value{}, l.expected("string")
 			}
-			if scan != nil && scan.extract == nil && !elements && len(stack) == 2 {
-				if scan.mode == jsonScanKeys {
-					scan.keys = append(scan.keys, l.decoded)
-				} else {
-					member = jsonMember{key: l.decoded}
+			if scan != nil {
+				if scan.extract == nil && !scan.classify && !elements && len(stack) == 2 {
+					if scan.mode == jsonScanKeys {
+						scan.keys = append(scan.keys, l.decoded)
+					} else {
+						member = jsonMember{key: l.decoded}
+					}
+				}
+				if scan.unique {
+					depth := len(stack)
+					for len(objectKeys) <= depth {
+						objectKeys = append(objectKeys, nil)
+					}
+					keys := objectKeys[depth]
+					if keys == nil {
+						keys = make(map[string]struct{})
+						objectKeys[depth] = keys
+					}
+					if _, exists := keys[l.decoded]; exists {
+						scan.duplicate = true
+					}
+					keys[l.decoded] = struct{}{}
 				}
 			}
 			if build {
@@ -199,6 +224,9 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 			continue
 		case jsonObjectNext:
 			if l.kind == '}' {
+				if scan != nil && scan.unique {
+					objectKeys[len(stack)] = nil
+				}
 				if build {
 					if err := builder.close(ctx); err != nil {
 						return Value{}, err

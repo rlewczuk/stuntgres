@@ -50,15 +50,17 @@ func TestJSONObjectParserConsumersAndBoundaries(t *testing.T) {
 		"CREATE VIEW v AS SELECT json_object(a) FROM t",
 		"INSERT INTO t VALUES(pg_catalog.json_object(VARIADIC $1))",
 		"SELECT * FROM json_object('{a,1}')",
+		"SELECT json_object()",
+		"SELECT json_object('a' VALUE '1')",
+		"SELECT json_object(KEY 'a' VALUE '1')",
 	} {
 		if _, err := Parse(query); err != nil {
 			t.Fatal(query, err)
 		}
 	}
 	for _, query := range []string{
-		"SELECT json_object()",
-		"SELECT json_object('a' VALUE '1')",
-		"SELECT json_object(KEY 'a' VALUE '1')",
+		"SELECT json_object('a':1) trailing garbage",
+		"SELECT json_object('a':1 WITH UNIQUE KEYS) garbage suffix",
 	} {
 		if _, err := Parse(query); err == nil {
 			t.Fatal("admitted adjacent capability", query)

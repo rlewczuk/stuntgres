@@ -324,6 +324,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]BoundExpr{n.arg})
+	case sqlJSONExpression:
+		fmt.Fprintf(out, "SQLJSON %s absent %t unique %t", n.raw.Kind, n.raw.Absent, n.raw.Unique)
+		err = args(n.args)
+	case jsonPredicateExpression:
+		fmt.Fprintf(out, "IS JSON %s unique %t not %t", n.kind, n.unique, n.not)
+		err = args([]BoundExpr{n.child})
 	case functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONCreate %s variadic %t", n.Kind.Name(), n.Variadic)
 		err = args(n.Args)

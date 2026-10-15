@@ -19,6 +19,7 @@ type subqueryExpression struct {
 	negate        bool
 	presenceOnly  bool
 	cteDefinition bool // Analysis-only graph edge, never expression demand.
+	jsonArray     *sqlJSONArrayQuery
 }
 
 func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {
@@ -189,6 +190,9 @@ func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error
 			err = closeErr
 		}
 	}()
+	if e.jsonArray != nil {
+		return e.evalJSONArray(c, &state, &stage)
+	}
 	if e.kind == parser.SubqueryExists && e.presenceOnly {
 		_, present, failure := stage.nextOccurrence(c.Context)
 		if failure != nil {

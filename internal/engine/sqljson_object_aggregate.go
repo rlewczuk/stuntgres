@@ -2,7 +2,6 @@ package engine
 
 import (
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -130,15 +129,8 @@ func (b *expressionBinder) resolveSQLJSONObjectAggregate(raw parser.AggregateExp
 	}
 	if options.Output != nil {
 		id = sqltype.JSON
-		if options.Output.Encoding != "" {
-			if returning.Type == nil || returning.Type.BaseType().ID() != sqltype.Bytea {
-				return fail(expressionError("0A000", "cannot set JSON encoding for non-bytea output types", options.Output.Pos))
-			}
-			if options.Output.Encoding != "UTF8" {
-				d := expressionError("0A000", "unsupported JSON encoding", options.Output.Pos).(*sqlstate.Error)
-				d.Hint = "Only UTF8 JSON encoding is supported."
-				return fail(d)
-			}
+		if err := validateJSONOutputFormat(returning, options.Output); err != nil {
+			return fail(err)
 		}
 	}
 	return args, b.typ(id).Usage(), returning, nil

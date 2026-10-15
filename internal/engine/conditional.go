@@ -598,6 +598,14 @@ func qualifiedCastChild(raw parser.Expr) error {
 				return err
 			}
 		}
+	case parser.SQLJSONExpr:
+		for _, arg := range e.Args {
+			if err := qualifiedCastChild(arg); err != nil {
+				return err
+			}
+		}
+	case parser.JSONPredicateExpr:
+		return qualifiedCastChild(e.Child)
 	case parser.FunctionExpr:
 		for _, arg := range e.Args {
 			if err := qualifiedCastChild(arg); err != nil {

@@ -111,7 +111,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 					plan, err = sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Explicit)
 					if err == nil {
 						info.properties = coercionProperties(input, plan)
-						node = restoreDomainCastCollations(annotations, coercionExpression{expressionInfo: info, child: input, plan: plan, mode: sqltype.Explicit, syntheticArrayElement: true})
+						node = restoreDomainCastCollations(annotations, coercionExpression{expressionInfo: info, child: input, plan: plan, mode: sqltype.Explicit, syntheticConstructorElement: true})
 					}
 				}
 			}

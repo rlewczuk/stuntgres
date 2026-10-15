@@ -124,6 +124,11 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 				}
 			}
 		}
+	case SQLJSONExpr:
+		inCast = true
+		children = e.Args
+	case JSONPredicateExpr:
+		children = []Expr{e.Child}
 	case FunctionExpr:
 		inCast = true
 		children = e.Args
@@ -262,6 +267,14 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 		return deleteQualification(e.Child, true), false
 	case ConditionalExpr, CaseExpr:
 		return deleteQualification(expr, false), false
+	case SQLJSONExpr:
+		for _, child := range e.Args {
+			if token := deleteQualification(child, true); token != nil {
+				return token, false
+			}
+		}
+	case JSONPredicateExpr:
+		return nonqueryQualification(e.Child, assignment)
 	case FunctionExpr:
 		if e.Window != nil {
 			for _, key := range e.Window.Partition {
@@ -394,6 +407,13 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 				return e, true
 			}
 		}
+	case SQLJSONExpr:
+		for i, child := range e.Args {
+			e.Args[i], _ = markGroupedQualification(child)
+		}
+	case JSONPredicateExpr:
+		e.Child, _ = markGroupedQualification(e.Child)
+		return e, true
 	case FunctionExpr:
 		for i, child := range e.Args {
 			e.Args[i], _ = markGroupedQualification(child)

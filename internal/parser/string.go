@@ -90,6 +90,15 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 		}
 		c, d := stringSingletonFamily(e.Zone, datetimeOnly)
 		return a && c, b || d
+	case SQLJSONExpr:
+		valid, found := true, false
+		for _, arg := range e.Args {
+			a, b := stringSingletonFamily(arg, datetimeOnly)
+			valid, found = valid && a, found || b
+		}
+		return valid, found
+	case JSONPredicateExpr:
+		return stringSingletonFamily(e.Child, datetimeOnly)
 	case FunctionExpr:
 		if len(e.Name.Parts) == 0 {
 			return false, false

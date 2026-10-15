@@ -27,6 +27,8 @@ type lexer struct {
 	extractField        bool
 	jsonParenDepth      int
 	jsonAggregateDepths []int
+	jsonQueryDepths     []int
+	jsonObjectFirst     bool // Empty/member/legacy disambiguation starts with an ordinary operand.
 	err                 error
 	statements          []Statement
 	// Exact grammar row-end evidence bounds private INSERT scalar replay.
@@ -843,6 +845,53 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = SELECTED_FUNC
 		}
 	}
+	if token.lexeme.keyword != nil && l.previousToken != int('.') {
+		switch token.lexeme.text {
+		case "json", "json_array", "json_object", "json_scalar", "json_serialize":
+			if token.lexeme.text == "json" && (l.previousToken == IS || l.previousToken == NOT) {
+				token.code = JSON_PREDICATE
+			} else {
+				next := l.nextRaw()
+				l.lookahead, l.hasLookahead = next, true
+				if next.code == int('(') {
+					switch token.lexeme.text {
+					case "json":
+						token.code = SQLJSON_PARSE
+					case "json_array":
+						token.code = SQLJSON_ARRAY
+					case "json_object":
+						token.code = SQLJSON_OBJECT
+					case "json_scalar":
+						token.code = SQLJSON_SCALAR
+					case "json_serialize":
+						token.code = SQLJSON_SERIALIZE
+					}
+				}
+			}
+		}
+	}
+	if token.lexeme.keyword == nil || l.previousToken == int('.') {
+		switch strings.ToLower(token.lexeme.text) {
+		case "json", "json_array", "json_scalar", "json_serialize":
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.code == int('(') {
+				token.code = TX_TIME_FUNC
+				token.lexeme.resolutionOnly = true
+			}
+		}
+	}
+	if token.lexeme.keyword != nil {
+		if l.previousToken == JSON_PREDICATE {
+			switch token.lexeme.text {
+			case "array", "object", "scalar", "value":
+				token.code = JSON_KIND
+			}
+		}
+		if l.previousToken == UNIQUE && token.lexeme.text == "keys" {
+			token.code = JSON_KEYS
+		}
+	}
 	if token.lexeme.keyword != nil && (token.lexeme.text == "json_arrayagg" || token.lexeme.text == "json_objectagg") && l.previousToken != int('.') {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
@@ -853,47 +902,56 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
+	firstObjectInput := l.jsonObjectFirst
+	l.jsonObjectFirst = false
 	if len(l.jsonAggregateDepths) > 0 && l.jsonParenDepth == l.jsonAggregateDepths[len(l.jsonAggregateDepths)-1] && token.lexeme.keyword != nil {
-		switch token.lexeme.text {
-		case "with", "without":
-			next := l.nextRaw()
-			l.lookahead, l.hasLookahead = next, true
-			if next.code == UNIQUE {
-				token.code = JSON_WITH
-				if token.lexeme.text == "without" {
-					token.code = JSON_WITHOUT
+		if token.code == SELECT {
+			if len(l.jsonQueryDepths) == 0 || l.jsonQueryDepths[len(l.jsonQueryDepths)-1] != l.jsonParenDepth {
+				l.jsonQueryDepths = append(l.jsonQueryDepths, l.jsonParenDepth)
+			}
+		}
+		if !firstObjectInput {
+			switch token.lexeme.text {
+			case "with", "without":
+				next := l.nextRaw()
+				l.lookahead, l.hasLookahead = next, true
+				if next.code == UNIQUE {
+					token.code = JSON_WITH
+					if token.lexeme.text == "without" {
+						token.code = JSON_WITHOUT
+					}
 				}
-			}
-		case "keys":
-			if l.previousToken == UNIQUE {
-				token.code = JSON_KEYS
-			}
-		case "format":
-			next := l.nextRaw()
-			l.lookahead, l.hasLookahead = next, true
-			if next.lexeme.keyword != nil && next.lexeme.text == "json" {
-				token.code = JSON_FORMAT
-			}
-		case "json":
-			if l.previousToken == JSON_FORMAT {
-				token.code = JSON_FORMAT_TYPE
-			}
-		case "encoding":
-			if l.previousToken == JSON_FORMAT_TYPE {
-				token.code = JSON_ENCODING
-			}
-		case "absent", "null":
-			next := l.nextRaw()
-			l.lookahead, l.hasLookahead = next, true
-			if next.code == ON {
-				if token.lexeme.text == "absent" {
-					token.code = JSON_ABSENT
-				} else {
-					token.code = JSON_NULL
+			case "keys":
+				if l.previousToken == UNIQUE {
+					token.code = JSON_KEYS
 				}
+			case "format":
+				next := l.nextRaw()
+				l.lookahead, l.hasLookahead = next, true
+				if next.lexeme.keyword != nil && next.lexeme.text == "json" {
+					token.code = JSON_FORMAT
+				}
+			case "json":
+				if l.previousToken == JSON_FORMAT {
+					token.code = JSON_FORMAT_TYPE
+				}
+			case "encoding":
+				if l.previousToken == JSON_FORMAT_TYPE {
+					token.code = JSON_ENCODING
+				}
+			case "absent", "null":
+				next := l.nextRaw()
+				l.lookahead, l.hasLookahead = next, true
+				if next.code == ON && (len(l.jsonQueryDepths) == 0 || l.jsonQueryDepths[len(l.jsonQueryDepths)-1] != l.jsonParenDepth) {
+					if token.lexeme.text == "absent" {
+						token.code = JSON_ABSENT
+					} else {
+						token.code = JSON_NULL
+					}
+				}
+			case "setof":
+				token.code = SETOF_TYPE
 			}
-		case "setof":
-			token.code = SETOF_TYPE
 		}
 	}
 	if token.code == SELECTED_FUNC && strings.EqualFold(token.lexeme.text, "json_object") {
@@ -1284,6 +1342,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == int('(') {
 		l.jsonParenDepth++
 	} else if token.code == int(')') {
+		if len(l.jsonQueryDepths) > 0 && l.jsonQueryDepths[len(l.jsonQueryDepths)-1] == l.jsonParenDepth {
+			l.jsonQueryDepths = l.jsonQueryDepths[:len(l.jsonQueryDepths)-1]
+		}
 		if len(l.jsonAggregateDepths) > 0 && l.jsonAggregateDepths[len(l.jsonAggregateDepths)-1] == l.jsonParenDepth {
 			l.jsonAggregateDepths = l.jsonAggregateDepths[:len(l.jsonAggregateDepths)-1]
 		}

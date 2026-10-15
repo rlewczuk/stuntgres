@@ -1234,6 +1234,9 @@ type CoercionPlan struct {
 	logicalSource, logicalTarget *Descriptor
 	element                      *CoercionPlan
 	jsonEncoding                 string
+	jsonUnique                   bool
+	// jsonReturning owns a constructor output conversion, not an enclosing assignment.
+	jsonReturning bool
 }
 
 // ChecksDomain reports runtime CHECK demand, not free VALUE-frame dependence.
@@ -1780,6 +1783,16 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		}
 		if err != nil {
 			return Value{}, err
+		}
+		if p.jsonUnique {
+			scan := jsonScanResult{classify: true, unique: true}
+			if _, err := p.target.Type.scanJSON(ctx, text, &scan); err != nil {
+				return Value{}, err
+			}
+			if scan.duplicate {
+				return Value{}, failure("22030", "duplicate JSON object key value")
+			}
+			return Value{typ: p.target.Type, text: text}, nil
 		}
 		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
 	case jsonReturningOutput:

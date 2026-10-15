@@ -222,6 +222,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 	switch n := node.(type) {
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		return n.Plan.Name() != "||"
+	case sqlJSONExpression, jsonPredicateExpression:
+		return true
 	case functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case indexPropertyExpression:

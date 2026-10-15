@@ -110,6 +110,10 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
+	case sqlJSONExpression, jsonPredicateExpression:
+		valid := true
+		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		return valid
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties], functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })

@@ -843,6 +843,38 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Private lax deletion does not add public delete-path functions/operators.
   Adjacent operators/functions, generic JSON equality and JSON path/query
   execution remain excluded.
+- SQL/JSON constructors `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR`,
+  `JSON_SERIALIZE` and `IS [NOT] JSON` predicates support FORMAT JSON,
+  applicable RETURNING, NULL/ABSENT ON NULL and UNIQUE KEYS. Query ARRAY uses
+  admitted one-column queries, including correlation; it is not a scalar
+  subquery with a one-row limit. Legacy text-array object overloads retain
+  ordinary qualified/quoted function resolution.
+  Those legacy calls cannot carry constructor clauses, including FORMAT JSON,
+  in expressions, FROM or ROWS FROM; syntactically valid calls retain native
+  scalar-table-provider limits. Nonempty member objects admit null/uniqueness
+  policies and RETURNING; empty objects admit RETURNING only, and stored
+  recipes preserve that empty syntax through Dump/Restore and SQL replay.
+  Stored recipes distinguish constructor RETURNING from an enclosing assignment
+  cast; JSON/JSON_SCALAR accept no RETURNING, and text-object construction is not
+  replaced by direct JSONB construction. Predicates without UNIQUE validate JSON
+  syntax without decoding Unicode escapes. WITH UNIQUE returns false on decoding
+  failures instead of throwing; cancellation still propagates. Throwing input and
+  constructor conversions retain their separate diagnostics.
+  Output ENCODING on constructors and SQL/JSON aggregates requires exact
+  BYTEA identity, excluding domains over BYTEA, and supports only UTF8.
+  VALUE-style object keys accept parenthesized expressions, including casts
+  and predicates; unparenthesized postfix casts, collation and arithmetic are
+  not VALUE-key syntax. Grouped scalar expressions retain ordinary casts,
+  collation, subscripts and field selection.
+  Grouping does not turn predicates into arithmetic operands or selected
+  projection-only calls into predicate operands. Thus `(id<2)+1`,
+  `DELETE FROM t WHERE (v IS NULL)+1=2`, `(num_nulls(v)) IS NULL` and
+  `num_nulls((v IS NULL))` remain outside native admission. Explicit grouped
+  casts and VALUE keys do not widen those separate expression owners.
+  Native JSONB serialization intentionally emits valid canonical JSON rather
+  than the defective bytes of the pinned PostgreSQL 18.0 two-member witness.
+  See the [upstream report](https://www.postgresql.org/message-id/03583FE7-A5EE-407C-907D-67865F3F8BFC%40gmail.com)
+  and [followup](https://www.postgresql.org/message-id/CAGRkXqQXwh_gJmQE3PZj0v13omMPgFGBbb8TJoBFH8ECsAFCUg%40mail.gmail.com).
 - JSONB existence operators `jsonb ? text`, `jsonb ?| text[]` and
   `jsonb ?& text[]` return BOOL and search only top-level object keys, immediate
   array string elements or a primitive string, using exact decoded strings.

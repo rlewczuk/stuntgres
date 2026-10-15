@@ -22,15 +22,17 @@ type jsonMember struct {
 }
 
 type jsonScanResult struct {
-	root    byte
-	mode    jsonScanMode
-	keys    []string
-	members []jsonMember
-	extract *jsonExtraction
+	root             byte
+	mode             jsonScanMode
+	keys             []string
+	members          []jsonMember
+	extract          *jsonExtraction
+	classify, unique bool
+	duplicate        bool
 }
 
 func (s *jsonScanResult) checkRoot() error {
-	if s.extract != nil {
+	if s.extract != nil || s.classify {
 		return nil
 	}
 	if s.mode == jsonScanElements || s.mode == jsonScanElementsText {
