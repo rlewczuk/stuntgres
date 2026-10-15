@@ -25,6 +25,8 @@ func representedCatalogHasIndexes(oid OID) bool {
 // classification separate from virtualView, which controls source dispatch.
 func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
 	switch relation.relationKind {
+	case foreignRelation:
+		return "f"
 	case sequenceRelation:
 		return "S"
 	case viewRelation:

@@ -96,7 +96,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	}
 	c.authority.expression = &cursorExpressionData{identity: s.identity, statementStart: s.statementStart}
 	c.state.retain = c.scroll
-	stage, err := openQueryProjectStage(c.authority, &c.state, c.root)
+	stage, err := openQueryProjectStage(s.op.Context(), &c.state, c.root)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		authority.scope = nil
 		if err != nil {
 			c.position = cursorFailed
-			c.dispose()
+			_ = c.dispose(s.op.Context())
 		}
 	}()
 	if err = s.authorizeSQLCursor(c); err != nil {
@@ -125,7 +125,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	savedOrdinal, savedPosition, savedEnd := c.ordinalPosition, c.position, c.atEnd
 	offset := savedOrdinal
 	if c.scroll {
-		if err = c.rewind(); err != nil {
+		if err = c.rewind(s.op.Context()); err != nil {
 			return err
 		}
 		offset = 0
@@ -143,7 +143,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 			start := len(values)
 			values = slices.Grow(values, width)
 			values = values[:start+width]
-			present, pullErr := c.stage.Next(authority, values[start:])
+			present, pullErr := c.stage.Next(s.op.Context(), values[start:])
 			if pullErr != nil {
 				return pullErr
 			}
@@ -159,9 +159,11 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	if err = s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
+	if err = c.releaseProducer(s.op.Context()); err != nil {
+		return err
+	}
 	c.values, c.count, c.storeOffset = values, count, offset
 	c.ordinalPosition, c.position, c.atEnd = savedOrdinal, savedPosition, savedEnd
-	c.releaseProducer()
 	c.authority = nil
 	c.tx = TxRef{}
 	c.promoted = true
@@ -209,7 +211,7 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 	defer func() {
 		if err != nil {
 			c.position = cursorFailed
-			c.dispose()
+			_ = c.dispose(s.op.Context())
 		}
 	}()
 	var rows *finalRows

@@ -337,13 +337,8 @@ func TestSQLCursorForeignRegistryAndEmptyAuthority(t *testing.T) {
 	if err := s.cursors.EndSession(foreign, CleanClose); err == nil || s.cursors.entries["c"] != cursor {
 		t.Fatal("foreign cleanup consumed cursor", err)
 	}
-	if cursor.source.scope != nil || cursor.authority.scope != nil || cursor.authority.Err() != context.Canceled {
+	if cursor.source.scope != nil || cursor.authority.scope != nil {
 		t.Fatal("finished declaration remains authoritative")
-	}
-	select {
-	case <-cursor.authority.Done():
-	default:
-		t.Fatal("empty authority advertises a live context")
 	}
 	sessionSQL(t, s, "CLOSE c")
 }

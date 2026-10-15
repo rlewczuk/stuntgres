@@ -421,7 +421,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		namespace, _ := b.queryAuth.definitionDescriptor(relation.namespace)
 		q := queryQualifier{name: relation.name, original: relation.name, schema: namespace.Name(), ref: ref, columns: columns}
 		b.queryHidden = append(b.queryHidden, q)
-		return &sourceNode{querySchema: relation.columns, ref: ref, occurrence: leaf}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.columns}, nil
+		return &sourceNode{querySchema: relation.columns, ref: ref, occurrence: leaf, rangeName: relation.name}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
 		if err != nil {
@@ -452,6 +452,15 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		ns.columns = append([]queryColumn(nil), ns.columns...)
 		for i, name := range n.Columns {
 			ns.columns[i].descriptor.Name = name.Text
+		}
+		if source, ok := root.(*sourceNode); ok {
+			source.rangeName = n.Name.Text
+			if len(n.Columns) != 0 {
+				source.columnAliases = make([]string, len(n.Columns))
+				for i, column := range n.Columns {
+					source.columnAliases[i] = column.Text
+				}
+			}
 		}
 		if len(n.Columns) == 0 {
 			calls := 0

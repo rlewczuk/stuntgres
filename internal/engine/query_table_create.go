@@ -216,6 +216,11 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return err
 	}
+	if scope.foreignOwner != nil {
+		if err := scope.finishForeignOwner(scope.foreignOwner, nil); err != nil {
+			return err
+		}
+	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
 		if scope.cteInvocation != nil {

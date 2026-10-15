@@ -111,6 +111,11 @@ func NewPair(t *testing.T) *Pair {
 
 func NewFixture(t *testing.T, withPostgres, nativeRaw bool) *Pair {
 	t.Helper()
+	return newFixture(t, withPostgres, nativeRaw, nil)
+}
+
+func newFixture(t *testing.T, withPostgres, nativeRaw bool, configure func(*stuntgres.Driver) error) *Pair {
+	t.Helper()
 	if withPostgres {
 		if err := EnsureStarted(); err != nil {
 			t.Fatalf("reference startup: %v", err)
@@ -167,6 +172,11 @@ func NewFixture(t *testing.T, withPostgres, nativeRaw bool) *Pair {
 		reset()
 	})
 	nativeDriver := stuntgres.NewDriverWithConfig(stuntgres.DriverConfig{TrackCommitTimestamp: trackCommitTimestamp})
+	if configure != nil {
+		if err := configure(nativeDriver); err != nil {
+			t.Fatal(err)
+		}
+	}
 	connector, err := nativeDriver.OpenConnector("reference/" + t.Name())
 	if err != nil {
 		t.Fatal(err)

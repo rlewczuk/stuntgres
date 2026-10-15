@@ -358,7 +358,7 @@ func TestRegexpSetOwnership(t *testing.T) {
 		t.Fatal(present, err)
 	}
 	held := values[0]
-	if !stage.rewind() && stage.position != 0 {
+	if changed, err := stage.rewind(context.Background()); err != nil || !changed && stage.position != 0 {
 		t.Fatal("rewind lost cached prefix")
 	}
 	if present, err := stage.Next(context.Background(), values); err != nil || !present {

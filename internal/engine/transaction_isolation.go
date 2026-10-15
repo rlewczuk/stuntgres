@@ -272,6 +272,8 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 }
 func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
+	case *parser.ForeignDDL:
+		return foreignCommandTag(stmt.(*parser.ForeignDDL))
 	case *parser.CreateTablespace:
 		return "CREATE TABLESPACE"
 	case *parser.Truncate:
@@ -472,6 +474,9 @@ func explicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
+		return false
+	}
+	if grant, ok := stmt.(*parser.ObjectGrant); ok && foreignGrantKind(grant.Kind) {
 		return false
 	}
 	switch stmt.(type) {

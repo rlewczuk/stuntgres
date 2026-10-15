@@ -302,11 +302,33 @@ func (p *dropProvider) rewindNotices(position int) {
 }
 
 func (p *dropProvider) observeIdentityDependencies(roots []ObjectAddress) {
+	var targets []ObjectAddress
+	if slices.ContainsFunc(roots, func(address ObjectAddress) bool { return address.ClassID == ExtensionClassID }) {
+		// Extension retirement retains its existing complete expression fence.
+		targets = slices.Clone(roots)
+	} else {
+		// SQL/MED observes only whole provider identities selected by the
+		// completed closure, not unrelated relation/type/column targets.
+		targets = make([]ObjectAddress, 0, len(roots))
+		for _, address := range roots {
+			if address.SubID != 0 {
+				continue
+			}
+			switch address.ClassID {
+			case ForeignWrapperClassID, ForeignServerClassID:
+				targets = append(targets, address)
+			case ProcedureClassID:
+				if procedure, ok := p.retirementDescriptor(address).(*procedureDescriptor); ok && procedure.foreign != nil {
+					targets = append(targets, address)
+				}
+			}
+		}
+	}
 	if p.stage != nil {
-		p.stage.identityDependencies = append(p.stage.identityDependencies, catalogDependencyObservation{p.stage.base.state, slices.Clone(roots)})
+		p.stage.identityDependencies = append(p.stage.identityDependencies, catalogDependencyObservation{p.stage.base.state, targets})
 		return
 	}
-	p.prepared.recordEffect(dropEffect{identityRoots: slices.Clone(roots)})
+	p.prepared.recordEffect(dropEffect{identityRoots: targets})
 }
 
 func (p *dropProvider) removedRowType(address ObjectAddress) {
@@ -370,7 +392,7 @@ func (p *dropProvider) replacePartitionDescriptor(d *relationDescriptor) error {
 func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 	if p.stage == nil {
 		p.observe(old.address)
-		if old.relationKind != compositeRelation {
+		if old.relationKind != compositeRelation && old.relationKind != foreignRelation {
 			p.owner.mu.Lock()
 			err := p.evolveIndexes(old.address, nil)
 			p.owner.mu.Unlock()
@@ -382,7 +404,7 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 		return nil
 	}
 	stage, e, ctx := p.stage, p.owner, p.ctx
-	if old.relationKind == compositeRelation {
+	if old.relationKind == compositeRelation || old.relationKind == foreignRelation {
 		return stage.Replace(next)
 	}
 	if p.project != nil {
@@ -708,7 +730,7 @@ func (p *dropProvider) recordIndexLayout(address ObjectAddress, lineage indexLay
 }
 
 func (p *dropProvider) projectPreparedColumn(old, next *relationDescriptor) error {
-	if old.relationKind == compositeRelation {
+	if old.relationKind == compositeRelation || old.relationKind == foreignRelation {
 		return p.stage.replaceDescriptor(next, false)
 	}
 	if p.changes != nil {

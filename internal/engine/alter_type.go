@@ -227,54 +227,62 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		replacement.columns[slot].DeclaredDimensions = int16(len(a.TypeName.ArrayBounds))
 		return &replacement, columnTransformation{}, nil
 	}
-	var node BoundExpr
-	if prepared != nil {
-		node = prepared.expression
-	} else {
-		node, err = e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil)
+	attribute := original.attributes[source]
+	var transformation columnTransformation
+	if original.relationKind != foreignRelation {
+		var node BoundExpr
+		if prepared != nil {
+			node = prepared.expression
+		} else {
+			node, err = e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil)
+			if err != nil {
+				return fail(err)
+			}
+		}
+		input, annotations := domainCoercionInput(node, usage)
+		info, err := storageCoercionInfo(auth.catalog, expressionInfo{usage: usage, properties: input.Properties()}, input)
 		if err != nil {
 			return fail(err)
 		}
-	}
-	input, annotations := domainCoercionInput(node, usage)
-	info, err := storageCoercionInfo(auth.catalog, expressionInfo{usage: usage, properties: input.Properties()}, input)
-	if err != nil {
-		return fail(err)
-	}
-	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
-	if err != nil {
-		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
-			d = sqlError("42804", fmt.Sprintf(`column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())).(*sqlstate.Error)
-			declaration, _ := usage.Declaration()
-			if usage.Type.ID() == sqltype.VarChar || usage.Type.ID() == sqltype.BPChar {
-				declaration = usage.Type.DiagnosticName() + strings.TrimPrefix(declaration, usage.Type.SQLName())
+		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
+		if err != nil {
+			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
+				d = sqlError("42804", fmt.Sprintf(`column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())).(*sqlstate.Error)
+				declaration, _ := usage.Declaration()
+				if usage.Type.ID() == sqltype.VarChar || usage.Type.ID() == sqltype.BPChar {
+					declaration = usage.Type.DiagnosticName() + strings.TrimPrefix(declaration, usage.Type.SQLName())
+				}
+				identifier := a.Column.Text
+				if parser.IdentifierNeedsQuotes(identifier) {
+					identifier = quoteIdentifier(identifier)
+				}
+				d.Hint = fmt.Sprintf(`You might need to specify "USING %s::%s".`, identifier, strings.ToLower(declaration))
+				if a.Using != nil {
+					d.Message = fmt.Sprintf(`result of USING clause for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())
+					d.Hint = "You might need to add an explicit cast."
+				}
+				return fail(d)
 			}
-			identifier := a.Column.Text
-			if parser.IdentifierNeedsQuotes(identifier) {
-				identifier = quoteIdentifier(identifier)
-			}
-			d.Hint = fmt.Sprintf(`You might need to specify "USING %s::%s".`, identifier, strings.ToLower(declaration))
-			if a.Using != nil {
-				d.Message = fmt.Sprintf(`result of USING clause for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())
-				d.Hint = "You might need to add an explicit cast."
-			}
-			return fail(d)
-		}
-		return fail(err)
-	}
-	if plan.RequiresCatalogOutput() {
-		if err := e.captureCommentSnapshotLocked(scope); err != nil {
 			return fail(err)
 		}
+		if plan.RequiresCatalogOutput() {
+			if err := e.captureCommentSnapshotLocked(scope); err != nil {
+				return fail(err)
+			}
+		}
+		info.properties = coercionProperties(input, plan)
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
+		node, err = storageDestination(node, usage, info.pos)
+		if err != nil {
+			return fail(err)
+		}
+		transformation = columnTransformation{attribute, node, a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod}
+	} else if a.Using != nil {
+		if _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil); err != nil {
+			return fail(err)
+		}
+		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.name)))
 	}
-	info.properties = coercionProperties(input, plan)
-	node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
-	node, err = storageDestination(node, usage, info.pos)
-	if err != nil {
-		return fail(err)
-	}
-	attribute := original.attributes[source]
-	transformation := columnTransformation{attribute, node, a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod}
 	dimensions := int16(len(a.TypeName.ArrayBounds))
 	if prepared != nil {
 		dimensions = prepared.declaredDimensions

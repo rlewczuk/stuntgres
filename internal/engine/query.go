@@ -38,9 +38,11 @@ func (s querySchema) Schema() []ColumnDescriptor { return s }
 
 type sourceNode struct {
 	querySchema
-	ref          ObjectRef
-	occurrence   int
-	presenceSlot int
+	ref           ObjectRef
+	occurrence    int
+	presenceSlot  int
+	rangeName     string
+	columnAliases []string
 }
 type singletonNode struct{ querySchema }
 type valuesNode struct {
@@ -493,6 +495,7 @@ type querySource struct {
 	needsBirthFilter bool // Current TRUNCATE vector at a retained older frontier.
 	anonymous        [][]sqltype.Value
 	pgSequences      *pgSequencesSource
+	foreign          *foreignQuerySource
 	visible          []int
 	hashIndexes      []capturedHashIndex
 	scope            *StatementScope
@@ -726,6 +729,7 @@ func (s *querySource) close() {
 type queryState struct {
 	source          *querySource
 	invocation      *EvalContext // Borrowed same-query P+L frame; outer remains lexical.
+	foreignOwner    any
 	functionRecheck *functionQueryRecheck
 	hashFilter      *filterNode
 	parameters      []sqltype.Value
@@ -787,7 +791,7 @@ type indexedStage struct {
 	onFailure          func(error) error // Shared producers retain failures even before a reader pull.
 	done               bool
 	retain             bool
-	reset              func(*indexedStage) bool
+	reset              func(context.Context, *indexedStage) (bool, error)
 	scanRange          bool
 	scanStart, scanEnd int
 }
@@ -855,12 +859,16 @@ func (s *indexedStage) nextProjected(ctx context.Context, dst []sqltype.Value) (
 	return present, nil
 }
 
-func (s *indexedStage) rewind() bool {
+func (s *indexedStage) rewind(ctx context.Context) (bool, error) {
 	s.position = 0
 	if s.reset != nil {
-		return s.reset(s)
+		changed, err := s.reset(ctx, s)
+		if err != nil {
+			return false, s.fail(err)
+		}
+		return changed, nil
 	}
-	return false
+	return false, nil
 }
 
 func (s *indexedStage) projectOrdinal(ctx context.Context, ordinal int, dst []sqltype.Value) (bool, error) {
@@ -994,10 +1002,10 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		establishSourcePresence(source, n.presenceSlot)
 		out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 		evaluation := state.evaluation(nil)
-		out.reset = func(out *indexedStage) bool {
+		out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
 			source.flat, source.flatCount = source.flat[:0], 0
 			out.selection, out.done = out.selection[:0], false
-			return true
+			return true, ctx.Err()
 		}
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			i := source.flatCount
@@ -1038,6 +1046,9 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
 		establishSourcePresence(source, n.presenceSlot)
+		if source.foreign != nil {
+			return openForeignStage(ctx, state, source, n)
+		}
 		if source.pgSequences != nil {
 			return openPGSequencesStage(state, source, n.Schema()), nil
 		}
@@ -1104,17 +1115,24 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		out := producingStage(&child, n.Schema())
 		out.hashCandidates = candidates
 		baseReset := out.reset
-		out.reset = func(out *indexedStage) bool {
-			changed := baseReset(out)
+		out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
+			changed, err := baseReset(ctx, out)
+			if err != nil {
+				return false, err
+			}
 			if n.predicate.Properties().Volatility == Volatile {
-				child.rewind()
+				if !changed {
+					if _, err := child.rewind(ctx); err != nil {
+						return false, err
+					}
+				}
 				out.selection, out.cacheOccurrences, out.done = out.selection[:0], out.cacheOccurrences[:0], false
 				if out.hashCandidates != nil {
 					out.hashCandidates.position = 0
 				}
-				return true
+				return true, nil
 			}
-			return changed
+			return changed, nil
 		}
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			for {
@@ -1537,6 +1555,7 @@ func openQueryProjectStage(ctx context.Context, state *queryState, project *proj
 func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
 	keep := false
 	defer func() {
+		_ = finishForeignSources(ctx, source)
 		if !keep {
 			source.close()
 		}
@@ -1627,6 +1646,9 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	}
 	stageSource := stage.source
 	if err := stage.Close(); err != nil {
+		return nil, 0, err
+	}
+	if err := finishForeignSources(ctx, source); err != nil {
 		return nil, 0, err
 	}
 	if err := ctx.Err(); err != nil {

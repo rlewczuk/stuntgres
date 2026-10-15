@@ -71,7 +71,7 @@ func relationAttributeMetadata(relation *relationDescriptor, slot int) attribute
 
 func hasSystemAttributes(catalog CatalogRead, relation *relationDescriptor) bool {
 	switch pgClassKind(catalog, relation) {
-	case "r", "p", "m", "S":
+	case "r", "p", "m", "S", "f":
 		return true
 	}
 	return false
@@ -182,6 +182,9 @@ func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *rela
 	}
 	row := []sqltype.Value{
 		oid(0, uint32(relation.address.ObjectID)), text(1, metadata.name), oid(2, metadata.typeID), integer(3, int64(metadata.facts.Length)), integer(4, int64(metadata.number)), integer(5, int64(metadata.typmod)), integer(6, int64(metadata.dimensions)), boolean(7, metadata.facts.ByValue), text(8, metadata.facts.Alignment), text(9, metadata.facts.Storage), text(10, ""), boolean(11, metadata.notNull), boolean(12, metadata.hasDefault), boolean(13, false), text(14, metadata.identity), text(15, metadata.generated), boolean(16, metadata.dropped), boolean(17, metadata.local), integer(18, metadata.inheritance), oid(19, metadata.collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.columns[24].Usage),
+	}
+	if relation.foreign != nil && metadata.number > 0 && !metadata.dropped {
+		row[23] = checked(foreignOptionsValue(source.columns[23].Usage.Type, relation.foreign.columns[metadata.number]))
 	}
 	return row, failure
 }

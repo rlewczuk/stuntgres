@@ -8,6 +8,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"os"
+	"stuntgres"
 	"testing"
 	"time"
 )
@@ -148,4 +149,12 @@ func (p *Pair) Backends() []Backend {
 func NewScenario(t *testing.T) *Pair {
 	t.Helper()
 	return NewFixture(t, *Mode, true)
+}
+
+// NewScenarioWithDriverConfig configures the scenario's private native Driver
+// before its first engine is constructed. All ordinary fixture ownership,
+// middleware, oracle and reset behavior is identical to NewScenario.
+func NewScenarioWithDriverConfig(t *testing.T, configure func(*stuntgres.Driver) error) *Pair {
+	t.Helper()
+	return newFixture(t, *Mode, true, configure)
 }

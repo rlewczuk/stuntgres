@@ -45,8 +45,17 @@ func TestReferenceInheritanceKeyBoundaries(t *testing.T) {
 func TestReferenceInheritanceForeignBoundary(t *testing.T) {
 	inheritanceScenario(t, func(s *inheritanceCase) {
 		if !s.b.PG {
-			s.fail("CREATE FOREIGN TABLE p(a INT) SERVER inheritance_server", fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "FOREIGN"`, Position: "8"})
-			s.absent("p")
+			s.exec("CREATE FOREIGN DATA WRAPPER inheritance_fdw", 0)
+			defer func() {
+				if _, err := s.c.ExecContext(s.p.Ctx, "DROP FOREIGN DATA WRAPPER inheritance_fdw CASCADE"); err != nil {
+					s.t.Error(err)
+				}
+			}()
+			s.exec("CREATE SERVER inheritance_server FOREIGN DATA WRAPPER inheritance_fdw", 0)
+			s.exec("CREATE FOREIGN TABLE p(a INT DEFAULT 7 NOT NULL,CONSTRAINT ck CHECK(a>0)) SERVER inheritance_server", 0)
+			s.values("SELECT relkind FROM pg_class WHERE relname='p'", []string{"relkind"}, []string{"CHAR"}, [][]any{{"f"}})
+			s.fail("CREATE TABLE c() INHERITS(p)", fixture.Diagnostic{Code: "0A000", Message: "foreign table hierarchies are unsupported in embedded mode"})
+			s.absent("c")
 			return
 		}
 		s.exec("CREATE EXTENSION file_fdw", 0)

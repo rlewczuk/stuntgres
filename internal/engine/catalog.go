@@ -72,6 +72,9 @@ const (
 	TSDictionaryObject
 	DatabaseObject
 	OperatorObject
+	ForeignWrapperObject
+	ForeignServerObject
+	ForeignMappingObject
 )
 
 type Descriptor interface {
@@ -144,6 +147,7 @@ type relationDescriptor struct {
 	membership           *partitionMembership
 	rowType              sqltype.ID
 	ofType               ObjectAddress
+	foreign              *foreignTableDefinition
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -283,7 +287,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	}
-	if r.relationKind.stored() || r.relationKind == partitionedRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation {
+	if r.relationKind.stored() || r.relationKind == partitionedRelation || r.relationKind == viewRelation || r.relationKind == compositeRelation || r.relationKind == foreignRelation {
 		types := v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})
 		if len(types) != 0 {
 			row, ok := v.state.descriptors[types[0]].(*typeDescriptor)
@@ -291,6 +295,17 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 				return CatalogConflict{}
 			}
 		}
+	}
+	if r.relationKind == foreignRelation {
+		if r.foreign == nil {
+			return fmt.Errorf("stuntgres: missing foreign relation definition")
+		}
+		server, ok := v.state.descriptors[r.foreign.server].(*foreignDescriptor)
+		if !ok || server.address.ClassID != ForeignServerClassID {
+			return fmt.Errorf("stuntgres: missing foreign server identity")
+		}
+	} else if r.foreign != nil {
+		return fmt.Errorf("stuntgres: foreign definition on a local relation")
 	}
 	if r.attributeHighWater < 0 {
 		return fmt.Errorf("stuntgres: invalid relation attribute high-water")
@@ -356,7 +371,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if r.relationKind == indexRelation {
 		return validateIndexDefinition(v, r)
 	}
-	if r.relationKind != tableRelation && r.relationKind != partitionedRelation && len(r.checkConstraints) != 0 {
+	if r.relationKind != tableRelation && r.relationKind != partitionedRelation && r.relationKind != foreignRelation && len(r.checkConstraints) != 0 {
 		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
 	}
 	if err := validatePartitionDescriptor(v, r); err != nil {
@@ -839,6 +854,10 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 		if d.(*conversionDescriptor).seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
+	case *foreignDescriptor:
+		if err := provider.owner.providers[ref.Address.ClassID].Validate(provider.base, d); err != nil {
+			return err
+		}
 	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
 		if procedure, ok := d.(*procedureDescriptor); ok && procedure.conversion.Name() != "" {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
@@ -1023,6 +1042,18 @@ func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token Publication
 func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if op != nil && op.session.transactions.retainedMessage {
 		return e.stageMessageCatalog(op, p, token)
+	}
+	if scope != nil && scope.owner.state == TxActive {
+		if scope.op == nil || scope.op != op || p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
+			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
+		}
+		if token.Epoch != p.epoch {
+			return ChangeSet{}, ErrCatalogReplaced
+		}
+		if err := e.stageCatalogOverlay(scope, p.stage, cloneCatalogChanges(scope.owner.catalog)); err != nil {
+			return ChangeSet{}, err
+		}
+		return catalogStageChanges(p.stage), nil
 	}
 	return e.publishCatalog(op, scope, p, token)
 }
@@ -1248,6 +1279,9 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for k, a := range s.names {
 			next.names[k] = a
 		}
+		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
+			return ChangeSet{}, err
+		}
 		buildStores := indexStores
 		candidateStores := false
 		var rebuildIndexes map[ObjectAddress]bool
@@ -1412,6 +1446,9 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		err := p.ctx.Err()
 		if err == nil && s.databasePredecessor != nil && e.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
 			err = ErrCatalogReplaced
+		}
+		if err == nil {
+			err = catalogDependencyPreflight(e.state, next, s.identityDependencies, s.identityOriginals)
 		}
 		if err == nil {
 			err = s.validateRoleCandidate(e.roles)
@@ -1766,6 +1803,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		sequences, err = copySequenceState(replacement.owner, replacement)
 	}
 	sourceRoles := replacement.owner.roleRead(replacement, replacement.owner.roles)
+	foreignNamespaces := replacement.owner.foreignNamespaces
 	replacement.owner.mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -1830,6 +1868,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err := e.installForeignCatalogLocked(ctx, next, storage, sequences, nextRevision, prepared); err != nil {
 		return ChangeSet{}, err
 	}
+	e.foreignNamespaces = foreignNamespaces
 	installed = next.epoch
 	return ChangeSet{Replacement: true}, nil
 }

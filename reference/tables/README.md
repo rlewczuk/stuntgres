@@ -6,6 +6,117 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Foreign metadata and scans
+
+The `fdw_*_test.go` scenarios independently prescribe SQL/MED catalogs, ordered
+options/atomicity, transactional dependencies, mapping ownership/security,
+typed scans, local rechecks, genuine correlated restart and real IMPORT.
+Native scans read an independent in-process SQL database through a concrete
+registered reader; each Iterate executes finite source SQL FETCH and owns no
+first-request Rows/context across logical cursor requests. PostgreSQL uses actual
+postgres_fdw loopback over committed source tables. Neither path uses canned rows.
+
+Selected proof groups (run each with and without `REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferenceFDW(MetadataLifecycle|OptionsAtomicity|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(Transactions|Dependencies|Security|MappingSelection)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(Scan|ProjectionTypes|LocalRechecks|Rescan)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(Import|ImportAtomicity|MissingSupport|PreparedIdentity)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(MappingOwnership|CursorLifecycle)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(Registration|Validator|Lifecycle|Concurrency|NativeControls)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(LocalConsumers|Conversion|SourceSecurity|ImporterCapability|MetadataActions)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(WrapperAlterBoundaries|GrantDiagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceFDWLateDependencies$' REFERENCE=1
+make check RUN='^TestFDWLateDependency(Publication|OwnRewire)$'
+make check RUN='^TestFDW(OptionsTransform|CatalogOverlay|Registry|ProcedureIdentity|PlanningSelection|ScanState)$'
+make check RUN='^TestReferenceFDW(Lifecycle|Concurrency|Rescan|Security|SourceSecurity|PreparedIdentity|MappingOwnership|CursorLifecycle|LocalConsumers|NativeControls)$' RACE=1
+```
+
+Feature smoke selectors are `^TestReferenceFDWScan$`,
+`^TestReferenceFDWRescan$` and `^TestReferenceFDWImport$`, each in both modes.
+Expected data includes real rows `(1,'one',true),(2,NULL,false),(3,'three',NULL)`;
+committed source updates become visible on later scans; correlated keys
+`1,2,1` retain both occurrences of row1 and the NULL row2 label; import creates
+only the selected actual source definitions and a later collision rolls back
+earlier creations.
+The mapping-selection reader receives PostgreSQL schema USAGE explicitly;
+native setup transfers only schema ownership because native schema SQL GRANT
+is unavailable. Table ownership and explicit SELECT ACL remain independent.
+Privileged PostgreSQL mapping setup sets `password_required 'false'` for the
+trust-authenticated loopback. Both PUBLIC and exact mappings are configured by
+the administrator; the reader still exercises fallback, override and removal.
+The separate security scenario retains reader self-management permission proof.
+Diagnostic discovery includes complete WARNING/NOTICE records and a Unicode
+character-position syntax witness, not byte-offset or SQLSTATE-only parity.
+Wrapper ALTER boundary regressions share direct/prepared bare and mixed
+handler/validator-plus-RENAME/OWNER rejections, unchanged executable metadata and
+legitimate inherited-owner RENAME. Invalid GRANT/REVOKE regressions distinguish
+wrapper/server privilege names and column privileges, preserve ACLs, and exercise
+the original USAGE grants through actual server/mapping operations afterward.
+Native API phases distinguish registration/identity from transport, prove
+validators receive full ordered options, and inject failures only around real
+source operations. Resource ownership and stable actual data supplement counters.
+Finite FETCH retains a live source; consuming/closing its public batch does no
+I/O. CLOSE/EOF/savepoint/transaction/session disposal and HOLD promotion finish
+the actual producer and surface End-only errors. Replacement preserves deferred
+stale-owner cleanup rather than claiming all source resources close at Reset.
+New or changed definitions require selected native and pinned real runs before
+review; these commands are proof instructions, not claims of exercised passes.
+The concrete SQL reader discovers source tables/attributes through supported
+catalogs and obtains actual column codec metadata with `ColumnTypes` on a
+zero-row SELECT. It does not depend on an absent `pg_type` implementation or
+invent user-defined type spellings. Unsupported codec metadata fails explicitly.
+Rescan witnesses use the existing scalar-correlated SELECT seam, not an
+otherwise unavailable LATERAL-derived-query capability. SQL/MED rollback uses
+the common private catalog overlay; generic OWNED-in-transaction exclusions
+are unchanged, with mapping rollback tested through DROP USER MAPPING.
+Accepting a private catalog write assigns the transaction's canonical public XID
+at the final overlay preflight boundary, preserving its existing completion lock
+and commit/rollback ownership. It neither allocates a separate catalog identity
+nor publishes the private metadata as a committed catalog.
+
+`TestReferenceFDWLateDependencies` covers wrapper←server, server←PUBLIC mapping
+and server←foreign table, each under RESTRICT and CASCADE. The pinned PostgreSQL
+oracle deliberately rolls back session A's staged retirement after observing
+either session B's actual CREATE completion or its real lock wait behind A.
+It then joins B and asserts the complete preserved graph. This safe boundary
+does not exercise PostgreSQL's dropped-parent COMMIT outcome or establish native
+lock parity; quiet passing output does not classify which oracle branch ran.
+
+The independent native schedule requires B to commit its new dependent while A
+remains open, then requires A's COMMIT to fail with the ordinary publication
+conflict and no SQLSTATE. Fresh catalog consumers must see the same provider
+identities and complete new dependency edges/options after recovery, with no
+source callbacks. Internal `TestFDWLateDependencyPublication` additionally uses
+genuine catalog stages for registered handler/validator and transitive retirement
+through direct, retained and eligible active publication; it does not pretend
+public explicit-transaction DROP SCHEMA is supported.
+Foreign CHECK definitions use the common descriptor/dependency validation without
+making local scan-time CHECK enforcement a provider contract. Held result batches
+retain a dedicated recorder, so repeated identical FETCH text cannot substitute a
+later operation's recorded cells. Batch cleanup precedes SQL cleanup and connection
+return, including assertion failures. Custom registration/control SQL pools use
+the same recording middleware. Dump/Restore use a separate genuine native pool
+over the same configured connector and engine, never a wrapped control bypass.
+The raw session-close companion deliberately consumes actual unwrapped rows with
+explicit native metadata/value checks.
+Registered handler/validator procedures participate in schema retirement through
+the existing dependency closure. Native controls move a real foreign table outside
+its handler's schema, then assert CASCADE removes the callable, wrapper, server,
+mapping and external table without invoking application callbacks. This does not
+introduce generic SQL CREATE/DROP FUNCTION support.
+The RESTRICT companion freezes the complete dependency diagnostic and preserves
+namespace/callable/wrapper/server/mapping/table/view identities plus row/array type
+edges and actual rows. Finalized rows remain consumable after CASCADE. Warmed
+prepared scans and wrapper creation cannot revive dropped identities, even after
+same-name schema recreation; only a genuine native Reset reseeds registration and
+permits real prepared execution again. The independent SQL source remains intact.
+Qualified handler lookup preserves ordinary namespace precedence: a dropped
+schema reports positioned `3F000`; recreating the schema without its callable
+then reports `42883`. Named retirement/recreation/reseed subcases distinguish
+these failures without relaxing the no-callback or no-resurrection assertions.
+
 ### Inherited DML and schema effects
 
 The untagged `inheritance_dml_*` and `inheritance_alter_*` definitions specify

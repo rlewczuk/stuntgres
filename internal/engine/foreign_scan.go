@@ -1,0 +1,450 @@
+package engine
+
+import (
+	"context"
+	"database/sql/driver"
+	"errors"
+	"fmt"
+	"math"
+	"slices"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// The root adapter supplies its existing parameter/result codec bridges. These
+// are internal engine inputs, not application callbacks or alternate codecs.
+type ForeignValueImporter func(context.Context, driver.Value, sqltype.Usage, sqltype.InputEnvironment) (sqltype.Value, error)
+type ForeignValueExporter func(context.Context, sqltype.Value, sqltype.OutputEnvironment) (driver.Value, error)
+
+type foreignQuerySource struct {
+	wrapper        ForeignDataWrapper
+	request        ForeignRequest
+	columns        []ColumnDescriptor
+	importValue    ForeignValueImporter
+	exportValue    ForeignValueExporter
+	executions     []*foreignExecution
+	lifetimeOwner  *foreignScanOwner
+	lifetimeClosed bool
+	closeError     error
+}
+type foreignExecution struct {
+	owner         any
+	active, ended bool
+	scan          ForeignScan
+	plan          ForeignPlan
+	slots         []int
+	planned       bool
+	closeError    error
+}
+
+func copyForeignRequest(request ForeignRequest) ForeignRequest {
+	request.Columns = slices.Clone(request.Columns)
+	for i := range request.Columns {
+		request.Columns[i].Options = slices.Clone(request.Columns[i].Options)
+	}
+	request.RequiredAttributes = slices.Clone(request.RequiredAttributes)
+	request.WrapperOptions = slices.Clone(request.WrapperOptions)
+	request.ServerOptions = slices.Clone(request.ServerOptions)
+	request.TableOptions = slices.Clone(request.TableOptions)
+	request.MappingOptions = slices.Clone(request.MappingOptions)
+	request.Parameters.Values = copyForeignCells(request.Parameters.Values)
+	request.Parameters.Correlation = copyForeignCells(request.Parameters.Correlation)
+	return request
+}
+func copyForeignCells(cells []driver.Value) []driver.Value {
+	out := slices.Clone(cells)
+	for i, value := range out {
+		if bytes, ok := value.([]byte); ok {
+			out[i] = slices.Clone(bytes)
+		}
+	}
+	return out
+}
+
+// Capture only metadata while locked. Planning, source admission, conversion,
+// restart and teardown all run from internal demand after the mutex is released.
+func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
+	if mark.mode != 0 {
+		return nil, sqlError("0A000", "foreign row locking is unsupported in embedded mode")
+	}
+	auth, err := e.authorizationLocked(scope.op)
+	if err != nil {
+		return nil, err
+	}
+	if invoker != (authorization.PrincipalRef{}) {
+		auth.state.CurrentUser = invoker
+	}
+	server, ok := auth.catalog.state.descriptors[relation.foreign.server].(*foreignDescriptor)
+	if !ok {
+		return nil, ErrCatalogReplaced
+	}
+	wrapper, ok := auth.catalog.state.descriptors[server.wrapper].(*foreignDescriptor)
+	if !ok {
+		return nil, ErrCatalogReplaced
+	}
+	handler, err := foreignHandlerFor(auth.catalog, wrapper)
+	if err != nil {
+		return nil, err
+	}
+	mapping, err := foreignMappingFor(auth, server)
+	if err != nil {
+		return nil, err
+	}
+	role, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	if err != nil {
+		return nil, err
+	}
+	request := ForeignRequest{Schema: auth.catalog.state.descriptors[relation.namespace].Name(), Table: relation.name, Role: role.Name, TableOID: uint32(relation.address.ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.options), ServerOptions: slices.Clone(server.options), TableOptions: slices.Clone(relation.foreign.options), MappingOptions: slices.Clone(mapping.options)}
+	for i, column := range relation.columns {
+		request.Columns = append(request.Columns, ForeignColumn{Attribute: relation.attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.foreign.columns[relation.attributes[i]])})
+	}
+	request.RequiredAttributes, err = foreignRequiredAttributes(relation, uses)
+	if err != nil {
+		return nil, err
+	}
+	if e.foreignValueImporter == nil || e.foreignValueExporter == nil {
+		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
+	}
+	f := &foreignQuerySource{wrapper: handler.wrapper, request: request, columns: slices.Clone(relation.columns), importValue: e.foreignValueImporter, exportValue: e.foreignValueExporter}
+	scope.ownForeignSource(f)
+	return &querySource{ref: ref, anonymous: [][]sqltype.Value{}, foreign: f}, nil
+}
+
+// Logical virtual-column ACL uses remain unchanged. Only their existing bound
+// expression's base inputs belong in the external row layout.
+func foreignRequiredAttributes(relation *relationDescriptor, uses []int) ([]int32, error) {
+	count := len(uses)
+	if uses == nil {
+		count = len(relation.columns)
+	}
+	required := make([]int32, 0, count)
+	add := func(slot int) {
+		attribute := relation.attributes[slot]
+		if !slices.Contains(required, attribute) {
+			required = append(required, attribute)
+		}
+	}
+	for i := range count {
+		slot := i
+		if uses != nil {
+			slot = uses[i]
+		}
+		if slot < 0 || slot >= len(relation.attributes) {
+			return nil, fmt.Errorf("stuntgres: invalid foreign required attribute")
+		}
+		if generation, ok := relation.generations[relation.attributes[slot]]; ok && generation.kind == generationVirtual {
+			walkBoundExpression(generation.planned, func(node BoundExpr) {
+				if column, ok := node.(columnExpression); ok {
+					add(column.slot)
+				}
+			})
+		} else {
+			add(slot)
+		}
+	}
+	return required, nil
+}
+
+func finiteForeignNumber(n float64) bool { return n >= 0 && !math.IsNaN(n) && !math.IsInf(n, 0) }
+func foreignLayout(request ForeignRequest, attributes []int32) error {
+	for i, attribute := range attributes {
+		valid := false
+		for _, column := range request.Columns {
+			if column.Attribute == attribute {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("stuntgres: invalid foreign scan attribute layout")
+		}
+		for _, prior := range attributes[:i] {
+			if prior == attribute {
+				return fmt.Errorf("stuntgres: invalid foreign scan attribute layout")
+			}
+		}
+	}
+	for _, attribute := range request.RequiredAttributes {
+		if !slices.Contains(attributes, attribute) {
+			return fmt.Errorf("stuntgres: foreign scan plan omits a required local attribute")
+		}
+	}
+	return nil
+}
+func (f *foreignQuerySource) plan(ctx context.Context, request ForeignRequest, execution *foreignExecution) error {
+	size, err := f.wrapper.GetForeignRelSize(ctx, copyForeignRequest(request))
+	if err != nil {
+		return err
+	}
+	if !finiteForeignNumber(size.Rows) || !finiteForeignNumber(size.Width) {
+		return fmt.Errorf("stuntgres: invalid foreign relation size")
+	}
+	paths, err := f.wrapper.GetForeignPaths(ctx, copyForeignRequest(request), size)
+	if err != nil {
+		return err
+	}
+	if len(paths) == 0 {
+		return fmt.Errorf("stuntgres: foreign-data wrapper returned no scan paths")
+	}
+	selected := 0
+	for i, path := range paths {
+		if !finiteForeignNumber(path.StartupCost) || !finiteForeignNumber(path.TotalCost) || path.TotalCost < path.StartupCost {
+			return fmt.Errorf("stuntgres: invalid foreign path cost")
+		}
+		if err = foreignLayout(request, path.Attributes); err != nil {
+			return err
+		}
+		if path.TotalCost < paths[selected].TotalCost {
+			selected = i
+		}
+	}
+	plan, err := f.wrapper.GetForeignPlan(ctx, copyForeignRequest(request), paths[selected])
+	if err != nil {
+		return err
+	}
+	if err = foreignLayout(request, plan.Attributes); err != nil {
+		return err
+	}
+	plan.Attributes = slices.Clone(plan.Attributes)
+	execution.plan = plan
+	execution.planned = true
+	execution.slots = make([]int, len(plan.Attributes))
+	for i, attribute := range plan.Attributes {
+		for slot, column := range request.Columns {
+			if column.Attribute == attribute {
+				execution.slots[i] = slot
+				break
+			}
+		}
+	}
+	return nil
+}
+func foreignParameters(ctx context.Context, state *queryState, f *foreignQuerySource) (ForeignScanParameters, error) {
+	var parameters ForeignScanParameters
+	export := func(values []sqltype.Value) ([]driver.Value, error) {
+		out := make([]driver.Value, len(values))
+		for i, value := range values {
+			cell, err := f.exportValue(ctx, value, state.output)
+			if err != nil {
+				return nil, err
+			}
+			if bytes, ok := cell.([]byte); ok {
+				cell = slices.Clone(bytes)
+			}
+			out[i] = cell
+		}
+		return out, nil
+	}
+	var err error
+	parameters.Values, err = export(state.parameters)
+	if err != nil {
+		return parameters, err
+	}
+	correlation := state.invocation
+	if correlation == nil {
+		correlation = state.outer
+	}
+	if correlation != nil {
+		parameters.Correlation, err = export(correlation.Row)
+	}
+	return parameters, err
+}
+func (execution *foreignExecution) end(ctx context.Context) error {
+	if execution.ended {
+		return execution.closeError
+	}
+	execution.ended = true
+	execution.active = false
+	if execution.scan != nil {
+		execution.closeError = execution.scan.EndForeignScan(context.WithoutCancel(ctx))
+		execution.scan = nil
+	}
+	execution.plan = ForeignPlan{}
+	execution.slots = nil
+	execution.owner = nil
+	return execution.closeError
+}
+func openForeignStage(ctx context.Context, state *queryState, source *querySource, node *sourceNode) (indexedStage, error) {
+	f := source.foreign
+	if f.lifetimeClosed {
+		return indexedStage{}, fmt.Errorf("stuntgres: foreign scan owner has ended")
+	}
+	var execution *foreignExecution
+	for _, candidate := range f.executions {
+		if candidate.owner == state.foreignOwner && !candidate.active && !candidate.ended {
+			execution = candidate
+			break
+		}
+	}
+	if execution == nil {
+		execution = &foreignExecution{owner: state.foreignOwner}
+		f.executions = append(f.executions, execution)
+	}
+	execution.active = true
+	out := indexedStage{source: source, schema: node.Schema(), selection: []int{}}
+	started := false
+	start := func(ctx context.Context) error {
+		if scope := source.liveScope(); scope != nil && scope.replacementRead {
+			scope.op.session.Engine().replacementMu.RUnlock()
+			scope.replacementRead = false
+		}
+		parameters, err := foreignParameters(ctx, state, f)
+		if err != nil {
+			return err
+		}
+		request := copyForeignRequest(f.request)
+		request.Parameters = parameters
+		if !execution.planned {
+			if err = f.plan(ctx, request, execution); err != nil {
+				return err
+			}
+		}
+		if execution.scan == nil {
+			scan, err := f.wrapper.BeginForeignScan(ctx, request, execution.plan)
+			execution.scan = scan
+			if err != nil {
+				return err
+			}
+			if scan == nil {
+				return fmt.Errorf("stuntgres: foreign-data wrapper returned a nil scan")
+			}
+		} else {
+			if err = execution.scan.ReScanForeignScan(ctx, parameters); err != nil {
+				return err
+			}
+		}
+		started = true
+		return nil
+	}
+	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		if scope := source.liveScope(); scope != nil && scope.replacementRead {
+			scope.op.session.Engine().replacementMu.RUnlock()
+			scope.replacementRead = false
+		}
+		if !started {
+			if err := start(ctx); err != nil {
+				return false, err
+			}
+		}
+		row, present, err := execution.scan.IterateForeignScan(ctx)
+		if err != nil || !present {
+			return false, err
+		}
+		if len(row) != len(execution.plan.Attributes) {
+			return false, fmt.Errorf("stuntgres: foreign scan row width does not match its plan")
+		}
+		values := make([]sqltype.Value, len(f.columns))
+		for i, column := range f.columns {
+			values[i] = sqltype.Null(column.Usage.Type)
+		}
+		input, output := state.input, state.output
+		if scope := source.liveScope(); scope != nil {
+			input, output = scope.input, scope.output
+		}
+		for i, slot := range execution.slots {
+			cell, err := driver.DefaultParameterConverter.ConvertValue(row[i])
+			if err != nil {
+				return false, err
+			}
+			if bytes, ok := cell.([]byte); ok && bytes != nil {
+				cell = string(bytes)
+			}
+			value, err := f.importValue(ctx, cell, f.columns[slot].Usage, input)
+			if err != nil {
+				return false, f.columnDiagnostic(err, node, slot)
+			}
+			// Parameter input intentionally defers ordinary typmods; a foreign
+			// cell is a table datum and must satisfy the full declared usage.
+			if !value.IsNull() && (f.columns[slot].Usage.Typmod != -1 || !value.ValidResult(f.columns[slot].Usage)) {
+				plan, err := sqltype.PlanCoercion(value.Type().Usage(), f.columns[slot].Usage, sqltype.Assignment)
+				if err != nil {
+					return false, err
+				}
+				value, err = plan.Apply(ctx, value, input, output)
+				if err != nil {
+					return false, f.columnDiagnostic(err, node, slot)
+				}
+			}
+			values[slot] = value
+		}
+		index := len(source.anonymous)
+		source.anonymous = append(source.anonymous, values)
+		out.selection = append(out.selection, index)
+		return true, nil
+	}
+	out.finish = func() error { execution.active = false; return nil }
+	out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
+		if scope := source.liveScope(); scope != nil && scope.replacementRead {
+			scope.op.session.Engine().replacementMu.RUnlock()
+			scope.replacementRead = false
+		}
+		if started {
+			parameters, err := foreignParameters(ctx, state, f)
+			if err != nil {
+				return false, err
+			}
+			if err = execution.scan.ReScanForeignScan(ctx, parameters); err != nil {
+				return false, err
+			}
+		}
+		out.selection = out.selection[:0]
+		out.done = false
+		return true, nil
+	}
+	return out, nil
+}
+
+// The eager execution owner calls this before successful publication. Failure
+// paths call it before releasing sources but preserve the primary failure.
+func finishForeignSources(ctx context.Context, source *querySource) error {
+	if source == nil {
+		return nil
+	}
+	var failure error
+	if source.foreign != nil {
+		if scope := source.liveScope(); scope != nil && scope.replacementRead {
+			scope.op.session.Engine().replacementMu.RUnlock()
+			scope.replacementRead = false
+		}
+		if err := source.foreign.lifetimeOwner.finishSource(ctx, source.foreign); failure == nil {
+			failure = err
+		}
+	}
+	for _, child := range source.sources {
+		if child != source {
+			if err := finishForeignSources(ctx, child); failure == nil {
+				failure = err
+			}
+		}
+	}
+	for _, child := range []*querySource{source.nestedInputs, source.input} {
+		if err := finishForeignSources(ctx, child); failure == nil {
+			failure = err
+		}
+	}
+	return failure
+}
+
+func (f *foreignQuerySource) columnDiagnostic(err error, node *sourceNode, slot int) error {
+	var record *sqlstate.Error
+	if !errors.As(err, &record) {
+		return err
+	}
+	column := f.columns[slot].Name
+	if slot < len(node.columnAliases) {
+		column = node.columnAliases[slot]
+	}
+	relation := node.rangeName
+	if relation == "" {
+		relation = f.request.Table
+	}
+	result := *record
+	line := fmt.Sprintf("column \"%s\" of foreign table \"%s\"", column, relation)
+	if result.Context != "" {
+		result.Context += "\n"
+	}
+	result.Context += line
+	return &result
+}

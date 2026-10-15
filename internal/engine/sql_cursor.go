@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"context"
 	"fmt"
+	"sort"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -39,10 +41,12 @@ type sqlCursor struct {
 	state                                       queryState
 	stage                                       *indexedStage
 	authority                                   *queryAuthority
+	foreignOwner                                *foreignScanOwner
 	position                                    cursorPosition
 	scroll                                      bool
 	ordinalPosition                             int64
 	atEnd                                       bool
+	cleanupError                                error
 	currentSource                               *querySource
 	currentIndex                                int
 	leaves                                      []queryLeaf
@@ -56,13 +60,28 @@ type sqlCursor struct {
 	visibilityRelationPath, visibilityOtherPath []ObjectAddress
 }
 
+// All cursor cleanup is detached from registries before application callbacks.
+// cleanupError makes repeated disposal idempotent without hiding End failures.
+
 // Producer teardown is distinct from disposing an exported result. Typed values
 // and schema own their codecs; no declaration catalog or execution survives.
-func (c *sqlCursor) releaseProducer() {
+func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.currentSource, c.currentIndex = nil, 0
+	var failure error
 	if c.stage != nil {
-		_ = c.stage.Close()
+		failure = c.stage.Close()
 		c.stage = nil
+	}
+	if c.foreignOwner != nil {
+		if c.authority != nil && c.authority.scope != nil && c.authority.scope.replacementRead {
+			scope := c.authority.scope
+			scope.op.session.Engine().replacementMu.RUnlock()
+			scope.replacementRead = false
+		}
+		if err := c.foreignOwner.finish(ctx); failure == nil {
+			failure = err
+		}
+		c.foreignOwner = nil
 	}
 	if c.source != nil {
 		c.source.close()
@@ -82,52 +101,60 @@ func (c *sqlCursor) releaseProducer() {
 		c.authority.scope = nil
 		c.authority.expression = nil
 	}
+	if c.cleanupError == nil {
+		c.cleanupError = failure
+	}
+	return c.cleanupError
 }
-func (c *sqlCursor) dispose() {
-	c.releaseProducer()
+func (c *sqlCursor) dispose(ctx context.Context) error {
+	err := c.releaseProducer(ctx)
 	c.values = nil
 	c.count, c.storeOffset = 0, 0
+	return err
 }
 
 // Transaction end removes only its still-live producers. An exported portal's
 // promotion is irreversible even if a later portal or write publication fails.
-func (r *cursorRegistry) endTransaction(ref TxRef) {
+func (r *cursorRegistry) detach(match func(*sqlCursor) bool) []*sqlCursor {
 	if r == nil {
-		return
+		return nil
 	}
+	var detached []*sqlCursor
 	for name, c := range r.entries {
-		if !c.promoted && c.tx == ref {
-			c.dispose()
+		if match(c) {
+			detached = append(detached, c)
 			delete(r.entries, name)
 		}
 	}
+	if len(detached) > 1 {
+		sort.Slice(detached, func(i, j int) bool { return detached[i].ordinal < detached[j].ordinal })
+	}
+	return detached
 }
-func (r *cursorRegistry) clear() {
-	if r == nil {
-		return
-	}
-	for name, c := range r.entries {
-		c.dispose()
-		delete(r.entries, name)
-	}
+func (r *cursorRegistry) endTransaction(ref TxRef) []*sqlCursor {
+	return r.detach(func(c *sqlCursor) bool { return !c.promoted && c.tx == ref })
 }
-func (r *cursorRegistry) rollback(mark uint64) {
-	if r == nil {
-		return
-	}
-	for name, c := range r.entries {
-		if c.ordinal > mark {
-			c.dispose()
-			delete(r.entries, name)
+func (r *cursorRegistry) clear() []*sqlCursor {
+	return r.detach(func(*sqlCursor) bool { return true })
+}
+func (r *cursorRegistry) rollback(mark uint64) []*sqlCursor {
+	return r.detach(func(c *sqlCursor) bool { return c.ordinal > mark })
+}
+func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
+	var failure error
+	for _, cursor := range cursors {
+		alreadyFailed := cursor.position == cursorFailed
+		if err := cursor.dispose(ctx); failure == nil && !alreadyFailed {
+			failure = err
 		}
 	}
+	return failure
 }
 func (r *cursorRegistry) EndSession(token SessionToken, _ EndReason) error {
 	if token != r.token {
 		return fmt.Errorf("stuntgres: foreign cursor attachment")
 	}
-	r.clear()
-	return nil
+	return disposeSQLCursors(context.Background(), r.clear())
 }
 func missingSQLCursor(name string) error {
 	return sqlError("34000", fmt.Sprintf("cursor \"%s\" does not exist", name))
@@ -169,6 +196,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
 	c.state = queryState{source: source, parameters: parameters, input: s.input, output: s.output, locking: source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}
+	c.state.input.LockedDomainInput, c.state.input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.output.Regclass, c.state.output.Regtype = nil, nil
 	c.state.output.Regproc = nil
@@ -199,6 +227,9 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
+	foreignOwner := s.foreignOwner
+	s.foreignOwner = nil
+	c.foreignOwner = foreignOwner
 	r.entries[declaration.Name.Text] = c
 	r.ordinal = c.ordinal
 	s.completed, s.sessionCompleted, keep = !(declaration.Hold && s.implicit), true, true
@@ -216,6 +247,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.visibilityCatalog = c.visibilityCatalog
 	s.visibilityRelationPath, s.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.scope = s
+	s.foreignCursor = c
 }
 func (s *StatementScope) sessionPublicationPreflight() error {
 	e := s.op.session.Engine()
@@ -267,11 +299,11 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	// Live movement restrictions use the effective direction in the shared owner.
 	c.admit(s)
 	defer func() {
-		c.authority.scope = nil
 		if err != nil {
 			c.position = cursorFailed
-			c.dispose()
+			_ = c.dispose(s.op.Context())
 		}
+		c.authority.scope = nil
 	}()
 	if err := s.authorizeSQLCursor(c); err != nil {
 		return Result{}, err
@@ -316,11 +348,19 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
+	if s.replacementRead {
+		s.op.session.Engine().replacementMu.RUnlock()
+		s.replacementRead = false
+	}
+	var cleanupErr error
 	if close.All {
-		r.clear()
+		cleanupErr = disposeSQLCursors(s.op.Context(), r.clear())
 	} else {
-		c.dispose()
 		delete(r.entries, close.Name.Text)
+		cleanupErr = c.dispose(s.op.Context())
+	}
+	if cleanupErr != nil {
+		return Result{}, cleanupErr
 	}
 	s.completed, s.sessionCompleted = true, true
 	return Result{}, nil

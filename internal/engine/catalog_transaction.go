@@ -195,6 +195,10 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 		return nil, ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(c)
+	if err := catalogDependencyPreflight(e.state, view.state, c.dependencies, c.originals); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
 	e.mu.Unlock()
 	descriptors := c.descriptors
 	if c.domainChanged {
@@ -251,32 +255,8 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 			return CatalogConflict{}
 		}
 	}
-	for _, observation := range c.dependencies {
-		for a, descriptor := range e.state.descriptors {
-			if descriptor == observation.base.descriptors[a] {
-				continue
-			}
-			relation, ok := descriptor.(*relationDescriptor)
-			if !ok {
-				continue
-			}
-			for _, target := range observation.targets {
-				if viewDepends(relation, target) || materializedExtensionDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
-					return CatalogConflict{}
-				}
-				if relation.sequence != nil && relation.sequence.owned == target {
-					// Identity TYPE refreshed this exact internal link after its
-					// SRX grant. Options/state revisions are not a new dependency.
-					// The original fence below and reciprocal provider validation
-					// still reject any change after that authoritative capture.
-					original := c.originals[a]
-					if relation.sequence.identity && original != nil && original == descriptor {
-						continue
-					}
-					return CatalogConflict{}
-				}
-			}
-		}
+	if err := catalogDependencyPreflight(e.state, catalog.state, c.dependencies, c.originals); err != nil {
+		return err
 	}
 	if err := e.truncateGraphPreflightLocked(c); err != nil {
 		return err
@@ -306,6 +286,54 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		if d != nil {
 			if err := validateACL(read, d); err != nil {
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Inspect only committed descriptors changed since a captured retirement.
+// Candidate overrides matter: an owner removed or rewired by this transaction
+// must not impersonate a surviving edge into an absent provider.
+func catalogDependencyPreflight(current, candidate *catalogState, observations []catalogDependencyObservation, originals map[ObjectAddress]Descriptor) error {
+	for _, observation := range observations {
+		if current == observation.base {
+			continue
+		}
+		for address, descriptor := range current.descriptors {
+			if descriptor == observation.base.descriptors[address] {
+				continue
+			}
+			relation, _ := descriptor.(*relationDescriptor)
+			owner := candidate.descriptors[address]
+			for _, target := range observation.targets {
+				if relation != nil {
+					if viewDepends(relation, target) || materializedExtensionDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
+						return CatalogConflict{}
+					}
+					if relation.sequence != nil && relation.sequence.owned == target {
+						// Identity TYPE refreshes this exact internal link under
+						// its SRX grant; preserve the existing original fence.
+						if !relation.sequence.identity || originals[address] != descriptor {
+							return CatalogConflict{}
+						}
+					}
+				}
+				if candidate.descriptors[target] != nil {
+					continue
+				}
+				switch owner := owner.(type) {
+				case *foreignDescriptor:
+					for _, dependency := range foreignDependencyAddresses(owner) {
+						if dependency != (ObjectAddress{}) && dependency == target {
+							return CatalogConflict{}
+						}
+					}
+				case *relationDescriptor:
+					if owner.foreign != nil && owner.foreign.server == target {
+						return CatalogConflict{}
+					}
+				}
 			}
 		}
 	}

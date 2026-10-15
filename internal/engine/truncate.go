@@ -18,6 +18,9 @@ type truncateRelation struct {
 }
 
 func checkTruncate(auth AuthorizationView, ref ObjectRef, d *relationDescriptor, privilege, only bool) error {
+	if d.relationKind == foreignRelation {
+		return sqlError("0A000", "foreign table truncation is unsupported in embedded mode")
+	}
 	if d.relationKind != tableRelation && d.relationKind != partitionedRelation {
 		return sqlError("42809", fmt.Sprintf("%q is not a table", d.name))
 	}

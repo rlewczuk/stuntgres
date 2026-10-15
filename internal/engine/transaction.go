@@ -105,11 +105,12 @@ type transactionOwner struct {
 	identityEntry     authorization.RoleState
 	identityCaptured  bool
 	messageBorn       bool
+	cursorCleanup     []*sqlCursor // Detached under owner lock; drained unlocked.
 }
 
 func (t *transactionOwner) clear() {
 	if t.session.cursors != nil {
-		t.session.cursors.endTransaction(t.ref)
+		t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
 	}
 	t.state = TxIdle
 	t.ref = TxRef{}
@@ -146,9 +147,13 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 	t.ticket = nil
 	t.mu.Unlock()
 	t.session.Engine().locks.end(ticket)
+	cleanupErr := t.drainCursorCleanup(context.Background())
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
-	return t.session.Engine().endTemporarySession(t.session)
+	if err := t.session.Engine().endTemporarySession(t.session); cleanupErr == nil {
+		cleanupErr = err
+	}
+	return cleanupErr
 }
 
 func (s *Session) TransactionState() TxState {
@@ -245,7 +250,11 @@ func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, err
 	}
 	defer t.admission.Unlock()
-	return e.endAdmitted(op, t, ref, false, false, false, time.Time{}, nil)
+	result, err := e.endAdmitted(op, t, ref, false, false, false, time.Time{}, nil)
+	if cleanupErr := t.drainCursorCleanup(op.Context()); err == nil {
+		err = cleanupErr
+	}
+	return result, err
 }
 
 func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
@@ -258,7 +267,11 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, err
 	}
 	defer t.admission.Unlock()
-	return e.endAdmitted(op, t, ref, true, false, false, time.Time{}, nil)
+	result, err := e.endAdmitted(op, t, ref, true, false, false, time.Time{}, nil)
+	if cleanupErr := t.drainCursorCleanup(op.Context()); err == nil {
+		err = cleanupErr
+	}
+	return result, err
 }
 
 // StatementScope serializes one session's statement, from parsing through Finish.
@@ -297,6 +310,8 @@ type StatementScope struct {
 	materializedSources            []Descriptor
 	materializedSourceView         *visibilityData
 	querySources                   []queryLeaf
+	foreignOwner                   *foreignScanOwner
+	foreignCursor                  *sqlCursor
 	queryLockAdmission             queryLockAdmission
 	queryLocks                     *queryLockContext
 	activeViews                    []ObjectAddress
@@ -695,6 +710,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
+	case *parser.ForeignDDL:
+		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.CreateTablespace:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.Truncate:
@@ -926,4 +943,12 @@ func prepareOwnWrites(previous, staged map[ObjectAddress][]rowVersion, replacing
 		next[a] = dst
 	}
 	return next
+}
+
+func (t *transactionOwner) drainCursorCleanup(ctx context.Context) error {
+	t.mu.Lock()
+	cursors := t.cursorCleanup
+	t.cursorCleanup = nil
+	t.mu.Unlock()
+	return disposeSQLCursors(ctx, cursors)
 }

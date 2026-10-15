@@ -40,7 +40,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
-	if old.relationKind != tableRelation && old.relationKind != viewRelation && old.relationKind != materializedViewRelation {
+	if old.relationKind != tableRelation && old.relationKind != viewRelation && old.relationKind != materializedViewRelation && old.relationKind != foreignRelation {
 		return fail(sqlError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
 	}
 	destination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.name}}})

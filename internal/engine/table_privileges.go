@@ -67,7 +67,7 @@ func captureTablePrivileges(ctx context.Context, catalog CatalogRead, auth Autho
 			return nil, err
 		}
 		relation, ok := descriptor.(*relationDescriptor)
-		if !ok || relation.relationKind != tableRelation && relation.relationKind != partitionedRelation && relation.relationKind != viewRelation && relation.relationKind != catalogRelation {
+		if !ok || relation.relationKind != tableRelation && relation.relationKind != partitionedRelation && relation.relationKind != viewRelation && relation.relationKind != catalogRelation && relation.relationKind != foreignRelation {
 			continue
 		}
 		namespace := catalog.state.descriptors[relation.namespace]

@@ -567,6 +567,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				domains = append(domains, c)
 			} else if extension, ok := d.(*extensionDescriptor); ok {
 				domains = append(domains, extension)
+			} else if procedure, ok := d.(*procedureDescriptor); ok && procedure.foreign != nil {
+				domains = append(domains, procedure)
 			} else if t, ok := d.(*typeDescriptor); ok && (t.owningRelation != (ObjectAddress{}) || t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
 				continue // removed automatically with the owning relation or element type
 			} else {

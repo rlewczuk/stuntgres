@@ -53,6 +53,8 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 // names. Protected catalog namespaces and immutable providers are not bulk roots.
 func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	switch t := d.(type) {
+	case *foreignDescriptor:
+		return t.address.ClassID != ForeignMappingClassID || t.mappedRole != (authorization.PrincipalRef{})
 	case *namespaceDescriptor:
 		return t.temporary == (SessionToken{}) && t.address.ObjectID != PGCatalogNamespaceOID && t.address.ObjectID != PGToastNamespaceOID && t.address.ObjectID != 13229
 	case *relationDescriptor:
@@ -71,7 +73,7 @@ func ownershipRoot(catalog CatalogRead, d Descriptor) bool {
 	case *conversionDescriptor:
 		return !t.seeded() && t.owner != (authorization.PrincipalRef{})
 	case *procedureDescriptor:
-		return t.conversion.Name() == ""
+		return t.conversion.Name() == "" && t.foreign == nil
 	case *databaseDescriptor, *extensionDescriptor, *tsDictionaryDescriptor:
 		return true
 	}
@@ -95,6 +97,11 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 	}
 	switch old := d.(type) {
 	case *databaseDescriptor:
+		next := *old
+		next.owner, next.revision = target, revision
+		next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
+		return stage.Replace(&next)
+	case *foreignDescriptor:
 		next := *old
 		next.owner, next.revision = target, revision
 		next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)

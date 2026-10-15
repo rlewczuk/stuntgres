@@ -28,7 +28,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 	if !ok {
 		return indexedStage{}, fmt.Errorf("stuntgres: derived query lacks final projection")
 	}
-	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, retain: state.retain, hashOwner: state.membershipOwner()}
+	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, invocation: state.invocation, foreignOwner: state.foreignOwner, ctes: state.ctes, retain: state.retain, hashOwner: state.membershipOwner()}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {
 		return indexedStage{}, err
@@ -43,13 +43,17 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 	}
 	state.derived[n] = source
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
-	out.reset = func(out *indexedStage) bool {
+	out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
 		position := inner.position
-		if !inner.rewind() {
+		changed, err := inner.rewind(ctx)
+		if err != nil {
+			return false, err
+		}
+		if !changed {
 			// Kept derived captures must resume at the uncaptured child occurrence,
 			// not append the cached prefix again after a parent rewind.
 			inner.position = position
-			return false
+			return false, nil
 		}
 		source.flat, source.flatCount = source.flat[:0], 0
 		out.selection, out.done = out.selection[:0], false
@@ -57,7 +61,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 			source.lineage.selection = source.lineage.selection[:0]
 			source.lineage.cacheOccurrences = source.lineage.cacheOccurrences[:0]
 		}
-		return true
+		return true, nil
 	}
 	out.finish = func() error {
 		err := inner.Close()

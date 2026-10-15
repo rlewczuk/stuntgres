@@ -16,7 +16,10 @@ func (e *Engine) Reset(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	fresh := New()
+	fresh := NewWithSettings(nil, e.databaseName, false)
+	if err := fresh.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
+		return err
+	}
 	_, err := e.ReplaceCatalog(ctx, fresh.CatalogRead())
 	return err
 }
@@ -69,6 +72,16 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
 		return err
+	}
+	for _, descriptor := range e.state.descriptors {
+		_, foreign := descriptor.(*foreignDescriptor)
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.foreign != nil {
+			foreign = true
+		}
+		if foreign {
+			e.mu.Unlock()
+			return fmt.Errorf("stuntgres: dump cannot serialize SQL/MED foreign metadata")
+		}
 	}
 	if len(e.state.defaultACLs) != 0 {
 		e.mu.Unlock()
@@ -123,7 +136,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var domains []*typeDescriptor
 	var collations []*collationDescriptor
 	var conversions []*conversionDescriptor
-	type dumpSchema struct{ name, owner string }
+	type dumpSchema struct {
+		name, owner string
+		configured  bool
+	}
 	var schemas []dumpSchema
 	var sequences []dumpSequence
 	type dumpView struct {
@@ -147,6 +163,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// These statements run only in Restore's isolated catalog under bootstrap
 	// authority; ACLs are reproduced by normal owner-transfer semantics.
 	var preamble []string
+	for address, name := range e.foreignNamespaces {
+		ns, ok := e.state.descriptors[address].(*namespaceDescriptor)
+		if !ok || ns.name != name {
+			e.mu.Unlock()
+			return fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
+		}
+	}
 	type builtinSchema struct {
 		original, name, owner, baselineOwner string
 		moved                                bool
@@ -244,6 +267,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			case *procedureDescriptor:
+				if t.foreign != nil {
+					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
+						e.mu.Unlock()
+						return err
+					}
+					if t.acl.Explicit || t.owner != e.authorizationDomain.Principal(10) {
+						e.mu.Unlock()
+						return fmt.Errorf("stuntgres: dump cannot serialize altered native foreign capability authority")
+					}
+					continue
+				}
 				if t.conversion.Name() != "" {
 					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
@@ -365,7 +399,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return err
 					}
-					schemas = append(schemas, dumpSchema{ns.name, role.Name})
+					_, configured := e.foreignNamespaces[a]
+					schemas = append(schemas, dumpSchema{name: ns.name, owner: role.Name, configured: configured})
 				}
 				continue
 			}
@@ -859,8 +894,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	sort.Slice(schemas, func(i, j int) bool { return schemas[i].name < schemas[j].name })
 	for _, s := range schemas {
-		if err := emit("CREATE SCHEMA " + quoteIdentifier(s.name) + " AUTHORIZATION " + quoteIdentifier(s.owner) + ";\n"); err != nil {
+		prefix := "CREATE SCHEMA "
+		if s.configured {
+			prefix += "IF NOT EXISTS "
+		}
+		if err := emit(prefix + quoteIdentifier(s.name) + " AUTHORIZATION " + quoteIdentifier(s.owner) + ";\n"); err != nil {
 			return err
+		}
+		if s.configured && s.owner != "postgres" {
+			if err := emit("ALTER SCHEMA " + quoteIdentifier(s.name) + " OWNER TO " + quoteIdentifier(s.owner) + ";\n"); err != nil {
+				return err
+			}
 		}
 	}
 	for _, line := range conversionSchemas {
@@ -1808,6 +1852,8 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 					}
 				}
 			}
+		case *parser.ForeignDDL:
+			return sqlError("0A000", "restore cannot replay SQL/MED foreign metadata")
 		default:
 			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}

@@ -6,6 +6,13 @@ package parser
  stmt Statement
  statements []Statement
  rule *CreateRule
+ foreignDDL *ForeignDDL
+ foreignOptions []ForeignOption
+ foreignOption ForeignOption
+ foreignElements foreignElements
+ foreignActions []ForeignTableAction
+ foreignTableAction ForeignTableAction
+ foreignText *string
  insertStmt *Insert
  copyStmt *Copy
  copyOption CopyOption
@@ -255,6 +262,7 @@ package parser
 %token <tok> EXCLUDE
 %token <tok> POLICY
 %token <tok> RULE ALSO INSTEAD NOTIFY
+%token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -297,7 +305,7 @@ package parser
  * existing type-tail decision, exactly as for REINDEX above. */
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE likewise retains KW_U's contextual identifier/type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U RECURSIVE KW_C CONVERSION FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD '.'
 %nonassoc EXCLUDE
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC TX_TIME_FUNC EXTRACT OVERLAY POSITION SUBSTRING ROW
@@ -327,6 +335,17 @@ package parser
 %type <frameBound> frame_bound
 %type <frameExclusion> window_exclusion
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role alter_role drop_role session_authorization role_selection lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> foreign_statement
+%type <foreignDDL> foreign_wrapper_head foreign_wrapper_definition foreign_server_head foreign_server_definition foreign_mapping_head foreign_table_head foreign_import_head foreign_alter_wrapper_head foreign_alter_wrapper_prefix foreign_alter_wrapper
+%type <foreignOptions> foreign_options foreign_option_list foreign_alter_options foreign_alter_option_list
+%type <foreignOptions> foreign_optional_alter_options
+%type <foreignOption> foreign_option foreign_alter_option
+%type <tok> wrapper_word
+%type <foreignElements> foreign_elements foreign_element foreign_optional_elements
+%type <foreignActions> foreign_table_actions
+%type <foreignTableAction> foreign_table_action alter_column_add
+%type <foreignText> foreign_version
+%type <objectNames> foreign_names
 %type <stmt> truncate_table
 %type <tok> truncate_identity
 %type <stmt> create_policy alter_policy drop_policy
@@ -402,7 +421,7 @@ package parser
 %type <tok> check_function_head
 %type <tok> extract_field
 %type <alterActions> alter_actions
-%type <alterAction> alter_selected_action alter_constraint
+%type <alterAction> alter_selected_action ordinary_alter_action alter_constraint
 %type <tok> alter_type_keyword
 %type <collation> column_collation
 %type <expr> alter_using
@@ -645,6 +664,7 @@ package parser
 %type <tok> grant_privilege_word
 %type <identifiers> grant_columns grant_column_list grant_schema_list
 %type <grantGrantee> grant_grantee grant_role_spec
+%type <grantGrantee> foreign_role foreign_alter_role
 %type <grantGrantees> grant_grantees
 %type <objectGrant> grant_targets
 %type <desc> grant_option
@@ -687,6 +707,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | create_policy | alter_policy | drop_policy
  | create_rule | alter_rule | drop_rule
  | alter_composite | drop_composite | alter_table_of
+ | foreign_statement
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | NOTIFY { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -1505,10 +1526,16 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
      return 1
    }
  | ALTER TABLE rename_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
-alter_actions: alter_selected_action { $$=[]AlterTableAction{*$1} }
- | alter_actions ',' alter_selected_action { $$=append($1,*$3) }
+alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
+ | alter_actions ',' ordinary_alter_action { $$=append($1,*$3) }
  | alter_actions ',' ALTER optional_column name SET DEFAULT target_or { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 }
  | alter_actions ',' ALTER optional_column name DROP DEFAULT { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 } ;
+ordinary_alter_action: alter_selected_action {$$=$1}
+ | alter_column_add {if $1.ColumnOptions!=nil {sqllex.(*lexer).syntax($1.columnOptionsToken);return 1};$$=$1.Ordinary} ;
+alter_column_add: ADD optional_column column {c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos}}}
+ | ADD optional_column IF NOT EXISTS column {c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos}}}
+ | ADD optional_column name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$3.text,TypeName:$4,Collation:$9,Constraints:$10,Pos:$3.pos};$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:$7,columnOptionsToken:$5}}
+ | ADD optional_column IF NOT EXISTS name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$6.text,TypeName:$7,Collation:$12,Constraints:$13,Pos:$6.pos};$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,IfNotExists:true,Pos:$1.pos},ColumnOptions:$10,columnOptionsToken:$8}} ;
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
  | ALTER optional_column name SET NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetNotNull,Pos:$1.pos} }
  | ALTER optional_column name DROP NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
@@ -1521,8 +1548,6 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | ALTER optional_column name DROP IDENTITY { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,Pos:$1.pos} }
  | ALTER optional_column name DROP IDENTITY IF EXISTS { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,IfExists:true,Pos:$1.pos} }
  | ALTER optional_column name identity_alter_options { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetIdentity,Identity:$4,Pos:$1.pos} }
- | ADD optional_column column { c:=$3;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos} }
- | ADD optional_column IF NOT EXISTS column { c:=$6;sqllex.(*lexer).excludePrimaryColumnAddition($1,c);$$=&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,IfNotExists:true,Action:AddColumn,Pos:$1.pos} }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} }
  | KW_U ROW LEVEL KW_U { if $4.text!="security" {sqllex.(*lexer).syntax($4);return 1};kind:=EnableRowSecurity;switch $1.text {case "enable":case "disable":kind=DisableRowSecurity;case "force":kind=ForceRowSecurity;default:sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:kind,Pos:$1.pos} }
@@ -2433,6 +2458,7 @@ conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+ | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | CONVERSION
  | RECURSIVE
  | string_word
@@ -2474,6 +2500,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
+ | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | SQLJSON_PARSE
  | CONVERSION
  | RECURSIVE
@@ -2501,6 +2528,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
+ | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | CONVERSION
  | RECURSIVE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
@@ -2644,6 +2672,8 @@ grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | TABLE grant_relations { $$=&ObjectGrant{Relations:$2} }
  | SEQUENCE grant_relations { $$=&ObjectGrant{Kind:"sequence",Relations:$2} }
  | DATABASE grant_relations { $$=&ObjectGrant{Kind:"database",Relations:$2} }
+ | FOREIGN FDW_SERVER grant_relations { $$=&ObjectGrant{Kind:"foreign server",Relations:$3} }
+ | FOREIGN data_word wrapper_word grant_relations { $$=&ObjectGrant{Kind:"foreign-data wrapper",Relations:$4} }
  | ALL name IN SCHEMA grant_schema_list { if $2.text!="tables" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Schemas:$5} } ;
 grant_schema_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | grant_schema_list ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
@@ -2758,4 +2788,110 @@ alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterO
  | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} } ;
 reassign_owned: REASSIGN OWNED BY membership_role_specs TO membership_role_spec { $$=&ReassignOwned{Sources:$4,Target:$6,Pos:$1.pos} } ;
 drop_owned: DROP OWNED BY membership_role_specs drop_mode { $$=&DropOwned{Sources:$4,Mode:$5,Pos:$1.pos} } ;
+
+/* SQL/MED utilities share the positioned relation, type, role and action ASTs. */
+wrapper_word: KW_U {if $1.text!="wrapper" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+foreign_names: name {$$=[]ObjectName{{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}}
+ | foreign_names ',' name {$$=append($1,ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}})} ;
+foreign_options: /* empty */ {$$=nil}
+ | options_word '(' foreign_option_list ')' {$$=$3} ;
+foreign_optional_alter_options: /* empty */ {$$=nil} | foreign_alter_options {$$=$1} ;
+foreign_role: name {$$=GrantGrantee{Role:RoleSpec{Name:$1.text,Pos:$1.pos},Public:$1.text=="public"}}
+ | CURRENT_USER {$$=GrantGrantee{Role:RoleSpec{Identity:"current",Pos:$1.pos}}}
+ | CURRENT_ROLE {$$=GrantGrantee{Role:RoleSpec{Identity:"current",Pos:$1.pos}}}
+ | USER {$$=GrantGrantee{Role:RoleSpec{Identity:"current",Pos:$1.pos}}} ;
+foreign_alter_role: foreign_role {$$=$1} | SESSION_USER {$$=GrantGrantee{Role:RoleSpec{Identity:"session",Pos:$1.pos}}} ;
+foreign_option_list: foreign_option {$$=[]ForeignOption{$1}}
+ | foreign_option_list ',' foreign_option {$$=append($1,$3)} ;
+foreign_option: col_label STRING {$$=ForeignOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2.text}} ;
+foreign_alter_options: options_word '(' foreign_alter_option_list ')' {$$=$3} ;
+foreign_alter_option_list: foreign_alter_option {$$=[]ForeignOption{$1}}
+ | foreign_alter_option_list ',' foreign_alter_option {$$=append($1,$3)} ;
+foreign_alter_option: foreign_option {$$=$1}
+ | ADD foreign_option {$$=$2;$$.Action="add"}
+ | SET foreign_option {$$=$2;$$.Action="set"}
+ | DROP col_label {$$=ForeignOption{Name:Identifier{Text:$2.text,Pos:$2.pos},Action:"drop"}} ;
+foreign_wrapper_head: CREATE FOREIGN data_word wrapper_word name {
+ $$=&ForeignDDL{Action:"create",Kind:"wrapper",Name:ObjectName{Parts:[]Identifier{{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos}
+} ;
+foreign_wrapper_definition: foreign_wrapper_head {$$=$1}
+ | foreign_wrapper_definition FDW_HANDLER relation_name {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true;n:=$3;$$.Handler=&n}
+ | foreign_wrapper_definition NO FDW_HANDLER {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true}
+ | foreign_wrapper_definition FDW_VALIDATOR relation_name {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true;n:=$3;$$.Validator=&n}
+ | foreign_wrapper_definition NO FDW_VALIDATOR {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true} ;
+foreign_server_head: CREATE FDW_SERVER name {$$=&ForeignDDL{Action:"create",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos}}
+ | CREATE FDW_SERVER IF NOT EXISTS name {$$=&ForeignDDL{Action:"create",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$6.text,Pos:$6.pos}}},IfNotExists:true,Pos:$1.pos}} ;
+foreign_server_definition: foreign_server_head {$$=$1}
+ | foreign_server_head TYPE STRING {$$=$1;s:=$3.text;$$.ServerType=&s}
+ | foreign_server_head VERSION STRING {$$=$1;s:=$3.text;$$.Version=&s;$$.VersionSet=true}
+ | foreign_server_head TYPE STRING VERSION STRING {$$=$1;s,v:=$3.text,$5.text;$$.ServerType=&s;$$.Version=&v;$$.VersionSet=true} ;
+foreign_mapping_head: CREATE USER FDW_MAPPING FOR foreign_role FDW_SERVER name {
+ $$=&ForeignDDL{Action:"create",Kind:"mapping",Role:$5,Server:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos}
+} | CREATE USER FDW_MAPPING IF NOT EXISTS FOR foreign_role FDW_SERVER name {
+ $$=&ForeignDDL{Action:"create",Kind:"mapping",Role:$8,Server:Identifier{Text:$10.text,Pos:$10.pos},IfNotExists:true,Pos:$1.pos}
+} ;
+foreign_table_head: CREATE FOREIGN TABLE relation_name '(' foreign_optional_elements ')' table_parents FDW_SERVER name {
+ $$=&ForeignDDL{Action:"create",Kind:"table",Name:$4,Table:&CreateTable{Name:$4,Elements:$6.elements,Parents:$8,Pos:$1.pos,Persistence:"logged"},ColumnOptions:$6.options,Server:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos}
+} | CREATE FOREIGN TABLE IF NOT EXISTS relation_name '(' foreign_optional_elements ')' table_parents FDW_SERVER name {
+ $$=&ForeignDDL{Action:"create",Kind:"table",Name:$7,Table:&CreateTable{Name:$7,Elements:$9.elements,Parents:$11,Pos:$1.pos,Persistence:"logged",IfNotExists:true},ColumnOptions:$9.options,Server:Identifier{Text:$13.text,Pos:$13.pos},IfNotExists:true,Pos:$1.pos}
+} ;
+foreign_optional_elements: /* empty */ {$$=foreignElements{}} | foreign_elements {$$=$1} ;
+foreign_elements: foreign_element {$$=$1} | foreign_elements ',' foreign_element {$$=appendForeignElements($1,$3)} ;
+foreign_element: name type foreign_options column_collation nullability {$$=foreignColumn(&Column{Name:$1.text,TypeName:$2,Collation:$4,Constraints:$5,Pos:$1.pos},$3)}
+ | LIKE relation_name like_options {$$=foreignElements{elements:[]TableElement{{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos}}}}
+ | check_constraint {$$=foreignElements{elements:[]TableElement{{Check:$1,Pos:$1.Pos}}}}
+ | create_not_null {$$=foreignElements{elements:[]TableElement{{NotNull:$1,Pos:$1.Pos}}}}
+ | unique_constraint {$$=foreignElements{elements:[]TableElement{{Unique:$1,Pos:$1.Pos}}}}
+ | primary_constraint {$$=foreignElements{elements:[]TableElement{{Unique:$1,Pos:$1.Pos}}}}
+ | foreign_key {$$=foreignElements{elements:[]TableElement{{ForeignKey:$1,Pos:$1.Pos}}}} ;
+foreign_alter_wrapper_head: ALTER FOREIGN data_word wrapper_word name {
+ $$=&ForeignDDL{Action:"alter",Kind:"wrapper",Name:ObjectName{Parts:[]Identifier{{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos}
+} ;
+foreign_alter_wrapper_prefix: foreign_alter_wrapper_head {$$=$1} | foreign_alter_wrapper {$$=$1} ;
+foreign_alter_wrapper: foreign_alter_wrapper_prefix FDW_HANDLER relation_name {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true;n:=$3;$$.Handler=&n}
+ | foreign_alter_wrapper_prefix NO FDW_HANDLER {if $1.HandlerSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.HandlerSet=true}
+ | foreign_alter_wrapper_prefix FDW_VALIDATOR relation_name {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true;n:=$3;$$.Validator=&n}
+ | foreign_alter_wrapper_prefix NO FDW_VALIDATOR {if $1.ValidatorSet {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ValidatorSet=true} ;
+foreign_version: STRING {v:=$1.text;$$=&v} | NULL {$$=nil} ;
+foreign_table_actions: foreign_table_action {$$=[]ForeignTableAction{$1}}
+ | foreign_table_actions ',' foreign_table_action {$$=append($1,$3)} ;
+foreign_table_action: alter_selected_action {$$=ForeignTableAction{Ordinary:$1}}
+ | alter_column_add {$$=$1}
+ | foreign_alter_options {$$=ForeignTableAction{Options:$1}}
+ | ALTER optional_column name foreign_alter_options {$$=ForeignTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Options:$4}}
+ | ALTER optional_column name SET DEFAULT target_or {$$=ForeignTableAction{Default:&AlterTableDefault{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetDefault,Expression:$6,Pos:$1.pos}}}
+ | ALTER optional_column name DROP DEFAULT {$$=ForeignTableAction{Default:&AlterTableDefault{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropDefault,Pos:$1.pos}}} ;
+foreign_import_head: FDW_IMPORT FOREIGN SCHEMA name {
+ $$=&ForeignDDL{Action:"import",Kind:"table",RemoteSchema:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}
+} | foreign_import_head LIMIT TO '(' grant_column_list ')' {if $1.ImportFilter!=nil {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ImportFilter=$5}
+ | foreign_import_head EXCEPT '(' grant_column_list ')' {if $1.ImportFilter!=nil {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.ImportFilter=$4;$$.ImportExcept=true} ;
+foreign_statement: foreign_wrapper_definition foreign_options {$$=$1;$1.Options=$2}
+ | foreign_server_definition FOREIGN data_word wrapper_word name foreign_options {$$=$1;$1.Server=Identifier{Text:$5.text,Pos:$5.pos};$1.Options=$6}
+ | foreign_mapping_head foreign_options {$$=$1;$1.Options=$2}
+ | foreign_table_head foreign_options {$$=$1;$1.Options=$2}
+ | foreign_alter_wrapper {$$=$1}
+ | foreign_alter_wrapper foreign_alter_options {$$=$1;$1.Options=$2}
+ | foreign_alter_wrapper_head foreign_alter_options {$$=$1;$1.Options=$2}
+ | foreign_alter_wrapper_head RENAME TO name {$$=$1;$1.NewName=Identifier{Text:$4.text,Pos:$4.pos}}
+ | foreign_alter_wrapper_head OWNER TO membership_role_spec {$$=$1;o:=$4;$1.Owner=&o}
+ | ALTER FDW_SERVER name foreign_alter_options {$$=&ForeignDDL{Action:"alter",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Options:$4,Pos:$1.pos}}
+ | ALTER FDW_SERVER name VERSION foreign_version foreign_optional_alter_options {$$=&ForeignDDL{Action:"alter",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},VersionSet:true,Version:$5,Options:$6,Pos:$1.pos}}
+ | ALTER FDW_SERVER name RENAME TO name {$$=&ForeignDDL{Action:"alter",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},NewName:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER FDW_SERVER name OWNER TO membership_role_spec {o:=$6;$$=&ForeignDDL{Action:"alter",Kind:"server",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Owner:&o,Pos:$1.pos}}
+ | ALTER USER FDW_MAPPING FOR foreign_alter_role FDW_SERVER name foreign_alter_options {$$=&ForeignDDL{Action:"alter",Kind:"mapping",Role:$5,Server:Identifier{Text:$7.text,Pos:$7.pos},Options:$8,Pos:$1.pos}}
+ | DROP FOREIGN data_word wrapper_word foreign_names drop_mode {$$=&ForeignDDL{Action:"drop",Kind:"wrapper",Names:$5,Mode:$6,Pos:$1.pos}}
+ | DROP FOREIGN data_word wrapper_word IF EXISTS foreign_names drop_mode {$$=&ForeignDDL{Action:"drop",Kind:"wrapper",Names:$7,IfExists:true,Mode:$8,Pos:$1.pos}}
+ | DROP FDW_SERVER foreign_names drop_mode {$$=&ForeignDDL{Action:"drop",Kind:"server",Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP FDW_SERVER IF EXISTS foreign_names drop_mode {$$=&ForeignDDL{Action:"drop",Kind:"server",Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
+ | DROP USER FDW_MAPPING FOR foreign_role FDW_SERVER name {$$=&ForeignDDL{Action:"drop",Kind:"mapping",Role:$5,Server:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos}}
+ | DROP USER FDW_MAPPING IF EXISTS FOR foreign_role FDW_SERVER name {$$=&ForeignDDL{Action:"drop",Kind:"mapping",Role:$7,Server:Identifier{Text:$9.text,Pos:$9.pos},IfExists:true,Pos:$1.pos}}
+ | DROP FOREIGN TABLE relation_names drop_mode {$$=&ForeignDDL{Action:"drop",Kind:"table",Names:$4,Mode:$5,Pos:$1.pos}}
+ | DROP FOREIGN TABLE IF EXISTS relation_names drop_mode {$$=&ForeignDDL{Action:"drop",Kind:"table",Names:$6,Mode:$7,IfExists:true,Pos:$1.pos}}
+ | ALTER FOREIGN TABLE rename_target foreign_table_actions {$$=&ForeignDDL{Action:"alter",Kind:"table",Name:$4.Name,IfExists:$4.IfExists,TableActions:$5,Pos:$1.pos}}
+ | ALTER FOREIGN TABLE rename_target RENAME TO name {$$=&ForeignDDL{Action:"alter",Kind:"table",Name:$4.Name,IfExists:$4.IfExists,Inner:&AlterTableRenameTable{Name:$4.Name,NewName:Identifier{Text:$7.text,Pos:$7.pos},IfExists:$4.IfExists,Pos:$1.pos},Pos:$1.pos}}
+ | ALTER FOREIGN TABLE rename_target RENAME optional_column name TO name {$$=&ForeignDDL{Action:"alter",Kind:"table",Name:$4.Name,IfExists:$4.IfExists,Inner:&AlterTableRenameColumn{Name:$4.Name,Column:Identifier{Text:$7.text,Pos:$7.pos},NewName:Identifier{Text:$9.text,Pos:$9.pos},IfExists:$4.IfExists,Pos:$1.pos},Pos:$1.pos}}
+ | ALTER FOREIGN TABLE rename_target SET SCHEMA name {$$=&ForeignDDL{Action:"alter",Kind:"table",Name:$4.Name,IfExists:$4.IfExists,Inner:&AlterTableSetSchema{Name:$4.Name,Schema:Identifier{Text:$7.text,Pos:$7.pos},IfExists:$4.IfExists,Pos:$1.pos},Pos:$1.pos}}
+ | ALTER FOREIGN TABLE rename_target OWNER TO membership_role_spec {o:=$7;$$=&ForeignDDL{Action:"alter",Kind:"table",Name:$4.Name,IfExists:$4.IfExists,Owner:&o,Pos:$1.pos}}
+ | foreign_import_head FROM FDW_SERVER name INTO name foreign_options {$$=$1;$1.Server=Identifier{Text:$4.text,Pos:$4.pos};$1.LocalSchema=Identifier{Text:$6.text,Pos:$6.pos};$1.Options=$7}
+ ;
 %%

@@ -55,6 +55,11 @@ type Engine struct {
 	roles                *roleCatalog
 	nextPrincipal        uint64
 	importTargets        map[authorization.PrincipalRef]authorization.PrincipalRef
+	foreignWrappers      []ForeignDataWrapperDefinition
+	foreignValidators    []ForeignValidatorDefinition
+	foreignNamespaces    map[ObjectAddress]string // Immutable auto-installed namespace identities.
+	foreignValueImporter ForeignValueImporter
+	foreignValueExporter ForeignValueExporter
 	roleReferences       map[string][]authorization.PrincipalRef
 	settingsOrder        []string
 }
@@ -190,6 +195,11 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	}
 	if err := e.RegisterCatalogProvider(conversionProvider{}); err != nil {
 		return nil, err
+	}
+	for _, class := range []OID{ForeignWrapperClassID, ForeignServerClassID, ForeignMappingClassID} {
+		if err := e.RegisterCatalogProvider(foreignCatalogProvider{class}); err != nil {
+			return nil, err
+		}
 	}
 	for _, class := range []OID{ExtensionClassID, ProcedureClassID, TSTemplateClassID, TSDictionaryClassID} {
 		if err := e.RegisterCatalogProvider(extensionCatalogProvider{class}); err != nil {
@@ -353,6 +363,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.ForeignDDL:
+		return StatementDescription{}, nil
 	case *parser.CreateTablespace:
 		return StatementDescription{}, nil
 	case *parser.Truncate:
@@ -644,7 +656,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, err
 				}
 				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-				if source.relationKind != tableRelation && source.relationKind != viewRelation && source.relationKind != compositeRelation {
+				if source.relationKind != tableRelation && source.relationKind != foreignRelation && source.relationKind != viewRelation && source.relationKind != compositeRelation {
 					kind := "relations of this kind"
 					if source.relationKind == sequenceRelation {
 						kind = "sequences"

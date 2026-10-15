@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -135,6 +136,17 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 	if d, ok := catalog.state.descriptors[base].(*databaseDescriptor); ok {
 		return "database " + dependencyIdentifier(d.name)
 	}
+	if d, ok := catalog.state.descriptors[base].(*foreignDescriptor); ok {
+		if d.address.ClassID == ForeignMappingClassID {
+			user := "public"
+			if d.mappedRole != (authorization.PrincipalRef{}) {
+				user = dependencyIdentifier(d.mappedName)
+			}
+			server := catalog.state.descriptors[d.server]
+			return "user mapping for " + user + " on server " + dependencyIdentifier(server.Name())
+		}
+		return foreignLabel(d.address.ClassID) + " " + dependencyIdentifier(d.name)
+	}
 	if d, ok := catalog.state.descriptors[base].(*extensionDescriptor); ok {
 		return "extension " + dependencyIdentifier(d.name)
 	}
@@ -162,6 +174,10 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 			arguments = "integer"
 		case "1007":
 			arguments = "integer[]"
+		case foreignHandlerSignature:
+			arguments = ""
+		case foreignValidatorSignature:
+			arguments = "text[],oid"
 		case unaccentTextSignature:
 			arguments = "text"
 		case unaccentDictionarySignature:

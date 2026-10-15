@@ -70,19 +70,24 @@ func TestSQLCursorRetainedProducerReset(t *testing.T) {
 	source := &querySource{singleton: true}
 	child := indexedStage{source: source, selection: []int{}, done: true, position: 1}
 	resets := 0
-	child.reset = func(s *indexedStage) bool { resets++; s.selection = s.selection[:0]; s.done = false; return true }
+	child.reset = func(ctx context.Context, s *indexedStage) (bool, error) {
+		resets++
+		s.selection = s.selection[:0]
+		s.done = false
+		return true, nil
+	}
 	out := producingStage(&child, nil)
 	out.selection = append(out.selection, 0)
 	out.done = true
 	out.position = 1
-	if !out.rewind() || resets != 1 || child.position != 0 || out.position != 0 || out.done || len(out.selection) != 0 {
+	if changed, err := out.rewind(context.Background()); err != nil || !changed || resets != 1 || child.position != 0 || out.position != 0 || out.done || len(out.selection) != 0 {
 		t.Fatal("producer demand was not reset", out, child, resets)
 	}
 	// A materialized ORDER boundary replaces reset with position-only rewind.
 	out.reset = nil
 	out.selection = append(out.selection, 0)
 	out.done = true
-	if out.rewind() || resets != 1 || !out.done || len(out.selection) != 1 {
+	if changed, err := out.rewind(context.Background()); err != nil || changed || resets != 1 || !out.done || len(out.selection) != 1 {
 		t.Fatal("cached boundary invalidates child", out, resets)
 	}
 	t.Run("cached_parent_frontier", func(t *testing.T) {
@@ -98,7 +103,7 @@ func TestSQLCursorRetainedProducerReset(t *testing.T) {
 			}
 			return present, err
 		}
-		if out.rewind() || child.position != 1 || out.position != 0 || len(out.selection) != 1 {
+		if changed, err := out.rewind(context.Background()); err != nil || changed || child.position != 1 || out.position != 0 || len(out.selection) != 1 {
 			t.Fatal("cached rewind loses child demand frontier", out, child)
 		}
 		if err := out.drain(context.Background()); err != nil {

@@ -78,6 +78,12 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			return nil, err
 		}
 		switch d := descriptor.(type) {
+		case *foreignDescriptor:
+			for _, address := range foreignDependencyAddresses(d) {
+				if address != (ObjectAddress{}) {
+					add(d.address, address, 'n')
+				}
+			}
 		case *extensionDescriptor:
 			add(d.address, d.targetNamespace, 'n')
 		case *procedureDescriptor:
@@ -128,6 +134,9 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				}
 			}
 		case *relationDescriptor:
+			if d.foreign != nil {
+				add(d.address, d.foreign.server, 'n')
+			}
 			if d.relationKind == catalogRelation {
 				continue
 			}

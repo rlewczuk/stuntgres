@@ -116,6 +116,12 @@ func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref Obj
 func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor func(ObjectAddress) Descriptor, old *relationDescriptor, target ObjectAddress, history attributeMetadata) (*relationDescriptor, error) {
 	slot := old.indexForAttribute(target.SubID)
 	next := *old
+	if old.foreign != nil {
+		foreign := *old.foreign
+		foreign.columns = maps.Clone(old.foreign.columns)
+		delete(foreign.columns, target.SubID)
+		next.foreign = &foreign
+	}
 	next.droppedAttributes = maps.Clone(old.droppedAttributes)
 	if next.droppedAttributes == nil {
 		next.droppedAttributes = make(map[int32]attributeMetadata)

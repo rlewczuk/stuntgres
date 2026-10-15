@@ -333,6 +333,14 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	case *tsDictionaryDescriptor:
 		kind = "text search dictionary "
 	}
+	if foreign, ok := d.(*foreignDescriptor); ok {
+		kind = foreignLabel(foreign.address.ClassID) + " "
+		if foreign.address.ClassID == ForeignMappingClassID {
+			kind = "user mapping for "
+			mapped, _ := auth.roles.Descriptor(foreign.mappedRole)
+			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.state.descriptors[foreign.server].Name())
+		}
+	}
 	if d.Kind() == ProcedureObject || d.Kind() == TSDictionaryObject {
 		path, _ := auth.engine.referencePath(auth)
 		name = strings.TrimPrefix(dependencyObject(view, d.Address(), path), kind)

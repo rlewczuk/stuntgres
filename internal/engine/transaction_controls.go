@@ -90,10 +90,16 @@ func (e *Engine) endPreflight(op *Operation) error {
 func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
 	// Registration can fail. A short replacement fence keeps the prospective
 	// ticket's epoch current through installation, without a lifetime fence.
+	chainFence := false
 	if chain {
 		e.replacementMu.RLock()
-		defer e.replacementMu.RUnlock()
+		chainFence = true
 	}
+	defer func() {
+		if chainFence {
+			e.replacementMu.RUnlock()
+		}
+	}()
 	t.mu.Lock()
 	var old, candidate *relationTicket
 	var next TxRef
@@ -176,11 +182,27 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 			scope.attachTransactionLocked()
 		}
 		t.mu.Unlock()
+		if chainFence {
+			e.replacementMu.RUnlock()
+			chainFence = false
+		}
 		err = e.holdPrecommit(op, t, nextStart)
 		if err == nil {
 			if scope != nil {
 				err = e.checkTransactionExclusions(scope)
 			}
+		}
+		if err == nil {
+			err = disposeSQLCursors(op.Context(), t.session.cursors.endTransaction(ref))
+		}
+		if chain {
+			e.replacementMu.RLock()
+			chainFence = true
+			e.mu.Lock()
+			if err == nil && next.epoch != e.state.epoch {
+				err = ErrCatalogReplaced
+			}
+			e.mu.Unlock()
 		}
 		if err == nil {
 			err = e.publishWrites(op, ref, t.writes, t.deletes)
@@ -200,6 +222,27 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	}
 	if err != nil && !commit {
 		return EndResult{}, err
+	}
+	if !commit || t.state == TxAborted {
+		if chainFence {
+			e.replacementMu.RUnlock()
+			chainFence = false
+		}
+		t.mu.Unlock()
+		cleanupErr := disposeSQLCursors(op.Context(), t.session.cursors.endTransaction(ref))
+		if chain {
+			e.replacementMu.RLock()
+			chainFence = true
+			e.mu.Lock()
+			if cleanupErr == nil && next.epoch != e.state.epoch {
+				cleanupErr = ErrCatalogReplaced
+			}
+			e.mu.Unlock()
+		}
+		t.mu.Lock()
+		if err == nil {
+			err = cleanupErr
+		}
 	}
 	old = t.ticket
 	t.ticket = nil

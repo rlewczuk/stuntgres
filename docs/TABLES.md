@@ -7,6 +7,80 @@ semantics. This page describes native catalog/storage implementation contracts
 and compatibility limits, not a supported-syntax inventory or a claim of complete
 PostgreSQL compatibility.
 
+## Foreign metadata and dependencies
+
+Wrappers, servers and exact `(server,mapped-role)` user mappings are immutable
+common catalog descriptors; foreign tables retain normal relation/row-type/
+attribute/owner/ACL/default/CHECK identity plus server and ordered table/column
+options, with no physical storage root. SQL/MED utilities and IMPORT use normal
+statement/transaction/savepoint staging and conflict/authority fences.
+Existing admitted metadata actions reuse common column/default/type/constraint,
+rename, schema and owner machinery. Type changes recook defaults/CHECKs without
+fetching or rewriting remote rows. Unsupported local index/UNIQUE/PK/FK,
+foreign-write, row-lock, trigger and hierarchy combinations do not create stores
+or pretend callbacks succeeded. Consult the PostgreSQL 18 SQL command reference
+for syntax; this is not a second SQL grammar manual.
+Foreign LIKE accepts all ordinary option spellings. As in PostgreSQL, copied
+INDEXES, IDENTITY, STORAGE and COMPRESSION properties have no effect on a foreign
+destination: no index or identity sequence is created. Supported logical
+properties, including defaults, generated expressions and source PK-derived
+NOT NULL, still copy. Stored generated values come from the provider; virtual
+generation uses the existing local expression and requests only its base inputs.
+Constraint rename uses `ALTER TABLE name RENAME CONSTRAINT ...`; the
+`ALTER FOREIGN TABLE ... RENAME CONSTRAINT` spelling is a syntax error.
+
+Options preserve declaration order: ADD appends, SET replaces in place, DROP
+removes. Repeated operations see their sequential intermediate list; a later
+error aborts the complete table/column statement. Validators receive the complete
+resulting list and exact object kind, outside mutexes, before fenced publication.
+Changing a validator does not revalidate untouched dependent objects.
+
+Normal dependency edges bind server→wrapper, mapping→server, table→server/schema/
+types and views→table/columns. CASCADE removes local metadata, never source rows.
+A named mapping's shared owner dependency targets its mapped role; PUBLIC has
+no principal dependency. DROP OWNED includes that role's mappings. REASSIGN OWNED
+explicitly skips mappings: role/server/OID/key/options and the old-role DROP
+blocker remain unchanged, even if the recipient already has a mapping. Server
+ownership governs mapping management, not a transferable mapping owner.
+
+Wrapper→registered handler/validator dependencies use the actual installed
+procedure identities. Retirement observes incoming SQL/MED edges for every
+removed wrapper, server and registered procedure in the captured closure,
+including providers reached through schema or CASCADE retirement. Direct,
+retained-message and explicit-transaction publication check changed committed
+edges against the final candidate, so the retiring transaction's own removals
+or valid rewires do not create false conflicts. Provider validation remains
+unchanged; the targeted fence runs before it and again at final publication.
+
+When another session commits a new surviving dependent after DROP analysis,
+native retirement fails before publication with the ordinary error
+`stuntgres: catalog publication conflict` (no SQLSTATE), preserving the committed
+providers and new dependent. This applies to both RESTRICT and CASCADE: CASCADE
+does not silently expand and replay an old closure at COMMIT. The caller decides
+whether to retry. It is an optimistic coherence guarantee, not a promise of
+PostgreSQL object-lock timing. Public transactional DROP SCHEMA remains outside
+the supported utility boundary.
+
+Wrapper/server USAGE and owner changes use existing authorization/GRANT/REVOKE
+machinery. Exact effective-user mapping wins; PUBLIC is absent-only fallback,
+not an inherited-role lookup or option merge. Raw pg_user_mapping denies PUBLIC;
+pg_user_mappings redacts options using current execution authority, including
+held prepared calls. A server owner sees PUBLIC options, not other users' secrets.
+The five SQL/MED catalogs and pg_attribute.attfdwoptions expose actual descriptors;
+existing pg_get_acl reads stored wrapper/server ACLs. Merely having static
+PostgreSQL has_server_privilege/has_foreign_data_wrapper_privilege identities
+does not make those otherwise unsupported SQL inquiry functions executable.
+
+Dump rejects user SQL/MED metadata before bytes/callbacks. Reset and ordinary
+Restore remove it while preserving installed Driver callables and finalized
+results. Foreign replay is explicitly rejected atomically. Auto-installed custom
+handler namespaces preserve ordinary table/owner/comment dumps into configured
+and unconfigured targets; renamed or retired configured identities fail preflight,
+as do the existing unsupported explicit namespace ACLs. Executable code and
+mapping secrets are never serialized. Live SQL cursor resources follow deferred
+owner cleanup after replacement, not synchronous cross-session cancellation;
+see [the callback contract](DRIVER.md#foreign-provider-registration).
+
 ## Atomic catalog and storage publication
 
 Table utilities stage immutable definitions, storage and dependency closures
@@ -498,7 +572,8 @@ generation or security flags. Virtual partition authorities have no phantom stor
 Incoming FK closure uses actual definitions even for empty tables. Grant-time and
 final graph reconciliation retain the same session-specific TEMP closure. Each
 explicit/FK-cascade member retains its own authorization even if expansion already
-selected its physical effect. Triggers and FDW callbacks have no native provider.
+selected its physical effect. Trigger and foreign-table truncation callbacks
+remain unsupported; installed foreign providers supply SELECT scans only.
 See [atomic truncation lifetime](TRANSACTIONS.md#whole-table-generation-replacement).
 
 Typed tables own independent stable attributes, storage and row codecs, plus one

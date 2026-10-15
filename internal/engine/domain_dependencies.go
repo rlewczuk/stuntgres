@@ -47,7 +47,7 @@ func (provider *dropProvider) dependencyClosure(targets []ObjectAddress) ([]doma
 	droppedColumns := make(map[ObjectAddress]bool)
 	for a, d := range provider.inputDescriptors() {
 		r, ok := d.(*relationDescriptor)
-		if !ok || r.relationKind != tableRelation && r.relationKind != partitionedRelation && r.relationKind != compositeRelation {
+		if !ok || r.relationKind != tableRelation && r.relationKind != partitionedRelation && r.relationKind != compositeRelation && r.relationKind != foreignRelation {
 			continue
 		}
 		for i, c := range r.columns {
@@ -119,6 +119,16 @@ func (provider *dropProvider) dependencyClosure(targets []ObjectAddress) ([]doma
 				continue
 			}
 			switch d := descriptor.(type) {
+			case *foreignDescriptor:
+				for _, dependency := range foreignDependencyAddresses(d) {
+					if dependency == (ObjectAddress{}) {
+						continue
+					}
+					if dependency == target {
+						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
+						break
+					}
+				}
 			case *extensionDescriptor:
 				if d.targetNamespace == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
@@ -158,6 +168,9 @@ func (provider *dropProvider) dependencyClosure(targets []ObjectAddress) ([]doma
 			case *relationDescriptor:
 				if replacement, ok := provider.replacement(a).(*relationDescriptor); ok {
 					d = replacement
+				}
+				if d.foreign != nil && d.foreign.server == target {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path), relation: d})
 				}
 				if d.relationKind == compositeRelation && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
@@ -213,7 +226,7 @@ func (provider *dropProvider) dependencyClosure(targets []ObjectAddress) ([]doma
 					}
 					continue
 				}
-				if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != compositeRelation {
+				if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != compositeRelation && d.relationKind != foreignRelation {
 					continue
 				}
 				if name == "" {
@@ -313,7 +326,7 @@ func (provider *dropProvider) dependencyClosure(targets []ObjectAddress) ([]doma
 			seen[edge.address] = true
 			resultSlots[edge.address] = len(result)
 			result = append(result, edge)
-			if edge.address.ClassID == TypeClassID || edge.address.ClassID == RelationClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID {
+			if edge.address.ClassID == TypeClassID || edge.address.ClassID == RelationClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID || edge.address.ClassID == ForeignWrapperClassID || edge.address.ClassID == ForeignServerClassID || edge.address.ClassID == ForeignMappingClassID {
 				if err := visit(edge.address, root); err != nil {
 					return err
 				}
@@ -430,14 +443,6 @@ func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode
 		return nil
 	}
 	originalRootCount := len(roots)
-	for _, root := range roots {
-		if root.ClassID == ExtensionClassID && root.SubID == 0 {
-			// Retained-message retirement must fence x attachments introduced
-			// after this genuine provider closure was captured.
-			provider.observeIdentityDependencies(roots)
-			break
-		}
-	}
 	// Previously staged whole removals are retirement roots too. Discover their
 	// complete dependent closure before classifying any surviving-owner mutation.
 	// In particular a schema can remove both a provider and an inheritance parent.
@@ -482,7 +487,7 @@ func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode
 		if !slices.Contains(targets, edge.target) {
 			targets = append(targets, edge.target)
 		}
-		if edge.address.ClassID == TypeClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
+		if foreignCatalogClass(edge.address.ClassID) || edge.address.ClassID == TypeClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
 			targets = append(targets, edge.address)
 			if edge.address.ClassID == RelationClassID && edge.address.SubID == 0 {
 				seen[edge.address] = true
@@ -490,6 +495,20 @@ func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode
 		}
 		if edge.relation != nil && edge.address == edge.relation.address && hierarchyRelation(edge.relation) {
 			hierarchyTargets = append(hierarchyTargets, edge.address)
+		}
+	}
+	// The final closure can discover SQL/MED providers below a schema,
+	// registered procedure or wrapper root. Fence their incoming identities
+	// together with the existing extension retirement observation.
+	for _, target := range targets {
+		observe := target.ClassID == ExtensionClassID || target.ClassID == ForeignWrapperClassID || target.ClassID == ForeignServerClassID
+		if target.ClassID == ProcedureClassID {
+			procedure, ok := provider.retirementDescriptor(target).(*procedureDescriptor)
+			observe = ok && procedure.foreign != nil
+		}
+		if observe {
+			provider.observeIdentityDependencies(targets)
+			break
 		}
 	}
 	for _, edge := range edges {
@@ -521,7 +540,7 @@ func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode
 			if r == nil || lockSeen[r.address] {
 				continue
 			}
-			if edge.address.ClassID == PolicyClassID || edge.address == r.address && r.relationKind == tableRelation {
+			if edge.address.ClassID == PolicyClassID || edge.address == r.address && (r.relationKind == tableRelation || r.relationKind == foreignRelation) {
 				lockRelations = append(lockRelations, r)
 				lockSeen[r.address] = true
 			}
@@ -620,7 +639,7 @@ func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode
 		}
 	}
 	for _, target := range targets {
-		if target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ConversionClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
+		if foreignCatalogClass(target.ClassID) || target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ConversionClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
 			if err = provider.remove(ObjectRef{owner: e.owner, Epoch: provider.base.Epoch(), Address: target}); err != nil {
 				break
 			}

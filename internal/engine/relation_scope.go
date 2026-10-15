@@ -10,6 +10,13 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
+	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
+		if foreign.Kind == "table" && foreign.Action == "alter" {
+			stmt = foreignAlterAdmission(foreign)
+		} else {
+			return nil
+		}
+	}
 	if view, ok := stmt.(*parser.CreateView); ok && parser.HasModifyingCTE(view.Query) {
 		if !execute {
 			return nil

@@ -38,6 +38,8 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		default:
 			return "", false, false, false
 		}
+	case *parser.ForeignDDL:
+		base = foreignCommandTag(s)
 	case *parser.CreateTablespace:
 		base = "CREATE TABLESPACE"
 	case *parser.CreateTable:

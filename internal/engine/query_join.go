@@ -64,6 +64,7 @@ func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
 }
 
 func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedStage, error) {
+	foreignOwner := n // Private coercion rewrites must not create new scan owners.
 	// Admission/preflight is independent of operand population. Opening both
 	// children must validate their row-independent coercions even when the
 	// other operand yields no candidate; this does not produce either child.
@@ -150,6 +151,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		}
 	}
 	invocation := *state
+	invocation.foreignOwner = foreignOwner
 	if n.correlatedRight {
 		invocation.invocation = &correlation
 	}

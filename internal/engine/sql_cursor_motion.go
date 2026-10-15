@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"stuntgres/internal/parser"
@@ -8,7 +9,7 @@ import (
 )
 
 // Rewind changes demand in the retained producer tree, never its binding or frame.
-func (c *sqlCursor) rewind() error {
+func (c *sqlCursor) rewind(ctx context.Context) error {
 	if c.ordinalPosition == 0 && !c.atEnd {
 		return nil
 	}
@@ -16,7 +17,9 @@ func (c *sqlCursor) rewind() error {
 		return forwardSQLCursorError()
 	}
 	if c.stage != nil {
-		c.stage.rewind()
+		if _, err := c.stage.rewind(ctx); err != nil {
+			return err
+		}
 	}
 	c.ordinalPosition, c.atEnd, c.position = 0, false, cursorBefore
 	c.currentSource, c.currentIndex = nil, 0
@@ -80,7 +83,7 @@ func (c *sqlCursor) run(backward bool, count int64, all bool, rows *finalRows, s
 				}
 			}
 		} else {
-			present, err = c.stage.projectOrdinal(c.authority, int(ordinal), dst)
+			present, err = c.stage.projectOrdinal(s.op.Context(), int(ordinal), dst)
 		}
 		if err != nil {
 			return 0, err
@@ -91,6 +94,9 @@ func (c *sqlCursor) run(backward bool, count int64, all bool, rows *finalRows, s
 			}
 			if !c.promoted && !c.scroll {
 				if err := c.stage.Close(); err != nil {
+					return 0, err
+				}
+				if err := s.finishForeignOwner(c.foreignOwner, nil); err != nil {
 					return 0, err
 				}
 			}
@@ -129,7 +135,7 @@ func (c *sqlCursor) motion(m *parser.FetchCursor, rows *finalRows, s *StatementS
 	}
 	if direction == parser.CursorAbsolute {
 		if count == 0 {
-			return 0, c.rewind()
+			return 0, c.rewind(s.op.Context())
 		}
 		if count < 0 {
 			if _, err := c.run(false, 0, true, nil, s); err != nil {
@@ -141,7 +147,7 @@ func (c *sqlCursor) motion(m *parser.FetchCursor, rows *finalRows, s *StatementS
 			return c.run(true, 1, false, rows, s)
 		}
 		if count-1 <= c.ordinalPosition/2 {
-			if err := c.rewind(); err != nil {
+			if err := c.rewind(s.op.Context()); err != nil {
 				return 0, err
 			}
 			if _, err := c.run(false, count-1, false, nil, s); err != nil {
@@ -173,7 +179,7 @@ func (c *sqlCursor) motion(m *parser.FetchCursor, rows *finalRows, s *StatementS
 		if c.position == cursorOn {
 			n--
 		}
-		return n, c.rewind()
+		return n, c.rewind(s.op.Context())
 	}
 	if !m.All && count == 0 {
 		if m.Move {

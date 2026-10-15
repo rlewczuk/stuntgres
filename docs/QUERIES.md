@@ -30,6 +30,39 @@ errors. Exported mutable bytes detach from internal values and other exports.
 Rows remain valid across later writes, transaction completion and native
 Reset/Restore, but retained snapshots grant no publication authority.
 
+## Foreign scans and logical cursor ownership
+
+Only explicitly installed Go providers can execute foreign leaves; foreign
+metadata has no physical heap root. Planning selects a valid concrete path,
+Begin establishes execution ownership, and Iterate supplies typed owned
+occurrences to the existing filter/project/join/sort pipeline. Required layouts
+include local quals and rechecks even when their columns are not projected.
+NULL and zero-column presence are separate from EOF. Conversion uses the same
+native codecs, typmods and domain authority as ordinary values, outside locks.
+
+Ordinary statement completion closes all foreign resources before public result
+publication, including LIMIT, failure, cancellation and Exec-discard paths.
+Correlated RHS invocations perform actual ReScan on the same owned scan with
+fresh evaluated invocation values. Their new selections retain distinct stable
+occurrence indices; earlier join output never points at overwritten scratch.
+Noncorrelated cache replay need not restart its producer. Fallible rewind errors
+propagate through existing derived/view/join/cursor owners.
+
+A named SQL cursor is an explicit longer-lived owner. Finite FETCH/MOVE demands
+only its existing producer frontier (apart from legitimate blocking operators),
+publishes an eager independent batch, and retains the live scan for later SQL
+requests. Public Rows.Next/Close performs no callbacks or source I/O. Current
+request context/ACL admission is refreshed; no reopen-and-skip or blanket upfront
+materialization substitutes for cursor motion. Forward EOF Ends once; SCROLL may
+retain real rewind state. CLOSE/failure/savepoint/transaction/session teardown is
+unlocked and error-capable. HOLD drains and successfully Ends before promotion.
+Primary errors win cleanup errors; End-only terminal failure publishes no batch.
+
+Catalog replacement retains existing stale-cursor semantics, not a cross-session
+teardown sweep: a later owner interaction detects the stale epoch before pulling,
+then releases resources; finalized batches remain readable. See the
+[embedding lifecycle contract](DRIVER.md#foreign-provider-registration).
+
 ## SQL/JSON query arrays
 
 `JSON_ARRAY(query)` reuses the ordinary query binder, source capture and

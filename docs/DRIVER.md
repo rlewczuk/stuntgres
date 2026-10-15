@@ -2,6 +2,170 @@
 
 [README](../README.md) · [Native compatibility limits](DIALECT.md)
 
+## Foreign provider registration
+
+Register concrete application implementations before the Driver's first
+`OpenConnector`/`OpenConnectorAs`. Registration copies decoded schema/name
+components (empty schema means `public`), rejects nil/typed-nil wrappers,
+nil validators, duplicate signatures and invalid names with ordinary Go errors,
+and freezes with other startup declarations. Separate Drivers isolate registries;
+all exact-DSN engines of one Driver receive the same installed capabilities.
+No registration callback runs while constructing a connector.
+
+This complete registration helper accepts an **actual** provider and validator:
+
+```go
+package fixturedb
+
+import (
+	"context"
+	"database/sql"
+
+	"stuntgres"
+)
+
+func ForeignDatabase(name string, source stuntgres.ForeignDataWrapper,
+	validate func(context.Context, stuntgres.ForeignObjectKind, []stuntgres.ForeignOption) error,
+) (*sql.DB, error) {
+	d := stuntgres.NewDriver()
+	if err := d.RegisterForeignDataWrapper(stuntgres.ForeignDataWrapperDefinition{
+		HandlerName: stuntgres.ForeignFunctionName{Schema: "public", Name: "sql_source_handler"},
+		Wrapper: source,
+	}); err != nil {
+		return nil, err
+	}
+	if err := d.RegisterForeignValidator(stuntgres.ForeignValidatorDefinition{
+		Name: stuntgres.ForeignFunctionName{Schema: "public", Name: "sql_source_validator"},
+		Validate: validate,
+	}); err != nil {
+		return nil, err
+	}
+	connector, err := d.OpenConnector(name)
+	if err != nil {
+		return nil, err
+	}
+	return sql.OpenDB(connector), nil
+}
+```
+
+SQL HANDLER/VALIDATOR clauses resolve these installed procedure identities:
+handler `() -> fdw_handler`, validator `(text[],oid) -> void`. They do not load a
+Go symbol, PostgreSQL C function, transport, URL or DSN. SQL options remain
+provider-owned configuration, not engine-interpreted connection instructions.
+See PostgreSQL's [SQL/MED commands](https://www.postgresql.org/docs/18/sql-createforeigndatawrapper.html)
+for syntax, and the [real independent SQL reader](../reference/tables/fdw_reader_test.go)
+for a concrete in-process provider, not a canned-row implementation.
+
+The seven callback signatures use public `stuntgres` types:
+
+```go
+type ForeignDataWrapper interface {
+	GetForeignRelSize(context.Context, ForeignRequest) (ForeignRelSize, error)
+	GetForeignPaths(context.Context, ForeignRequest, ForeignRelSize) ([]ForeignPath, error)
+	GetForeignPlan(context.Context, ForeignRequest, ForeignPath) (ForeignPlan, error)
+	BeginForeignScan(context.Context, ForeignRequest, ForeignPlan) (ForeignScan, error)
+}
+type ForeignScan interface {
+	IterateForeignScan(context.Context) (ForeignRow, bool, error)
+	ReScanForeignScan(context.Context, ForeignScanParameters) error
+	EndForeignScan(context.Context) error
+}
+```
+
+`ForeignRequest` contains `Schema`, `Table`, effective source `Role`, `TableOID`,
+`RoleOID`, `Columns`, `RequiredAttributes`, four ordered option lists
+(`WrapperOptions`, `ServerOptions`, `TableOptions`, `MappingOptions`), and
+`Parameters`. Existing view owner/invoker authority determines the source role.
+Each `ForeignColumn` carries stable `Attribute`, decoded `Name`, `TypeName`,
+`TypeOID`, `TypeModifier`, `CollationOID`, declared `Nullable`, and ordered
+`Options`. `ForeignScanParameters.Values` is the evaluated parameter frame;
+`Correlation` is the evaluated outer invocation row, both `[]driver.Value`.
+These are copied callback inputs, not SQL-expression/pushdown instructions.
+
+`ForeignRelSize{Rows,Width}` and `ForeignPath{StartupCost,TotalCost,Attributes,Private}`
+require finite nonnegative estimates and total cost at least startup cost.
+At least one valid path is required. The least total cost wins, first on ties;
+the selected path reaches GetForeignPlan unchanged. `ForeignPlan{Attributes,Private}`
+determines Begin's exact row layout. Attribute lists contain unique declared
+stable IDs and every locally required attribute, including filter/join/order
+inputs, not merely visible targets. `Private any` is application planning state.
+All SQL quals remain local; no callback removes local checks.
+
+`ForeignRow` is `[]driver.Value`: nil cell is SQL NULL, and the separate Boolean
+distinguishes a present zero-column row from EOF. Width must match the plan.
+Keep returned cells/buffers stable until the next callback on that scan; the
+engine converts through its existing argument/type/domain/typmod bridge and
+owns the row before that next callback, including before ReScan or End.
+Foreign CHECK/NOT NULL declarations are metadata assumptions, not local
+fetched-row INSERT checks. Values use the existing type/domain bridge; foreign
+support does not add otherwise unavailable constrained-domain DDL.
+
+At first source demand, planning precedes Begin/Iterate; ordinary execution is eager.
+Correlated re-execution restarts the same owned scan with real ReScan and fresh
+copied parameters; retained earlier occurrences are not overwritten. An ordinary
+SELECT/Exec result Ends before successful publication. A named SQL cursor owns
+its scan across finite FETCH/MOVE requests: each returned batch is eager, but
+public Rows.Next/Close does not advance or terminate the logical SQL cursor.
+SCROLL may retain rewindable state; HOLD drains and successfully Ends before
+promotion to immutable values. CLOSE, EOF for forward-only cursors, errors,
+transaction/savepoint/session disposal finish the corresponding owner.
+The statement's one typed source owner also covers existing local INSERT SELECT,
+UPDATE FROM, DELETE USING, MERGE, CTE and CTAS consumers. Completed SELECT leaves
+may release their own entry early; other entries finish after source-producing
+checks and before local catalog/write publication. DECLARE transfers ownership
+to its logical cursor, not to individual FETCH results. End-only failure vetoes
+otherwise successful local changes, including non-HOLD COMMIT publication.
+
+A nonnil Begin result transfers cleanup ownership even alongside an error.
+End runs exactly once per transferred scan, with request cancellation detached;
+the source owner retains its cleanup outcome for publication. Generic query-stage
+Close remains idempotent and does not replay a prior close error. An existing query/conversion/context error wins
+over cleanup failure; End-only failure prevents otherwise successful terminal
+publication, CLOSE or HOLD promotion. There are no automatic retries or workers.
+Every callback runs outside engine/catalog/transaction/session mutexes and the
+replacement fence, but normal SQL object locks and session admission still apply.
+Use other connections for unrelated observer SQL; same-session recursive SQL is
+not promised. Implementations must support concurrent independent executions.
+Never retain a previous request context for a live cursor; each callback receives
+its newly admitted request context. Applications own real source cleanup.
+Callback contexts have a stable association with that one request, including its
+cancellation/deadline and values. They are never mutable cursor-admission proxies:
+an asynchronous source-driver observer cannot be retargeted to a later FETCH or
+race with clearing the cursor's borrowed statement authority.
+
+Validators receive complete resulting ordered options and the exact
+`ForeignObjectKind`: `ForeignAttribute=1249`, `ForeignWrapper=2328`,
+`ForeignServer=1417`, `ForeignUserMapping=1418`, `ForeignTable=3118`.
+Empty options are nonnil. Rejection prevents the whole catalog statement from
+publishing. Ordinary provider/I/O/context errors remain ordinary Go errors;
+providers may intentionally return a structured `stuntgres.Error`.
+
+Optional `ForeignSchemaImporter` adds
+`ImportForeignSchema(context.Context, ForeignImportRequest) ([]ForeignTableDefinition,error)`.
+Its request contains remote/local schema, server, effective role, wrapper/server/
+mapping/import options, `Tables` and `Except`. Definitions contain decoded table
+names, concrete `ForeignColumnDefinition` entries (`Name`, type spelling `Type`,
+ordered `Options`, `NotNull`, scalar `Default`/`Check`) and table `Checks`.
+The engine independently filters, forces destination/server, analyzes legal
+definitions, validates options and publishes all tables atomically. An actual
+empty schema/filter may import zero; absent support is HV00P, never fake success.
+Definition and validator SQL diagnostics retain their fields and existing
+context, with the importing table appended as logical SQL context. Ordinary
+Go/I/O errors are not assigned an invented SQLSTATE or PostgreSQL C context.
+
+Reset/ordinary Restore retain configured callables, not user SQL/MED metadata.
+Dump rejects user SQL/MED metadata before writing any bytes or invoking providers.
+Unchanged auto-installed custom namespaces can accompany ordinary table dumps
+into matching or unconfigured Drivers; owner/comment metadata is preserved.
+Renamed/retired/recreated configured namespaces and existing explicit namespace
+ACL limitations fail preflight. Dump never serializes executable implementations.
+Replacement preserves the existing deferred cursor-owner policy: stale scans
+remain owned until the next request, rollback/CLOSE or session close. The next
+FETCH/MOVE detects the stale epoch before pulling and cleans up unlocked, with
+ErrCatalogReplaced primary. Reset/Restore does not synchronously end other
+sessions' scans or claim their resources are already zero. Previously finalized
+ordinary results and FETCH batches remain immutable and readable.
+
 ## Commit timestamp startup configuration
 
 ```go

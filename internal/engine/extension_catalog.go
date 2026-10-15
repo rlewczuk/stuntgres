@@ -60,6 +60,7 @@ type procedureDescriptor struct {
 	conversion                    sqltype.EncodingConversionHandler
 	acl                           authorization.ACLValue
 	dictionary                    ObjectAddress
+	foreign                       *foreignProcedure
 }
 
 func (d *procedureDescriptor) Address() ObjectAddress       { return d.address }
@@ -146,6 +147,20 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
+		if d.foreign != nil {
+			p := d.foreign
+			if p.name.Name != d.name || d.extension != (ObjectAddress{}) || d.provider != nil || d.queryCodec != nil || d.fuzzy != nil || d.crypto != nil || d.intagg != nil || d.conversion.Name() != "" {
+				return invalid()
+			}
+			if p.wrapper != nil {
+				if p.validator != nil || d.signature != foreignHandlerSignature || d.result != 3115 {
+					return invalid()
+				}
+			} else if p.validator == nil || d.signature != foreignValidatorSignature || d.result != 2278 {
+				return invalid()
+			}
+			break
+		}
 		if d.intagg != nil {
 			if err := d.intagg.validateProcedure(v, d); err != nil {
 				return err

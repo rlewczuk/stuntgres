@@ -66,15 +66,19 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 	// frozen-slot bridge selects the attributes retained by a dependent view.
 	producedSchema := source.nestedRoot.Schema()
 	out := indexedStage{source: source, schema: schema, selection: []int{}, pending: pendingSourceMarks(source, nil)}
-	out.reset = func(out *indexedStage) bool {
+	out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
 		if source.nestedStage == nil {
-			return false
+			return false, nil
 		}
 		position := source.nestedStage.position
-		if !source.nestedStage.rewind() {
+		changed, err := source.nestedStage.rewind(ctx)
+		if err != nil {
+			return false, err
+		}
+		if !changed {
 			// Retained view rows still own the child's next-uncaptured frontier.
 			source.nestedStage.position = position
-			return false
+			return false, nil
 		}
 		source.flat, source.flatCount = source.flat[:0], 0
 		out.selection, out.done = out.selection[:0], false
@@ -82,7 +86,7 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 			source.lineage.selection = source.lineage.selection[:0]
 			source.lineage.cacheOccurrences = source.lineage.cacheOccurrences[:0]
 		}
-		return true
+		return true, nil
 	}
 	out.finish = func() error {
 		if source.nestedStage != nil {

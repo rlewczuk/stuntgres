@@ -236,6 +236,9 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		err = e.catalogPreflightLocked(changes)
 	}
 	if err == nil {
+		err = e.assignTransactionXIDLocked(scope.txRef)
+	}
+	if err == nil {
 		scope.catalog = changes
 		stage.lifecycle = catalogPublished
 	}

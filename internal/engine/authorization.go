@@ -248,6 +248,11 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	switch d := d.(type) {
 	case *databaseDescriptor:
 		return d.owner, d.acl, nil
+	case *foreignDescriptor:
+		if d.address.ClassID == ForeignMappingClassID {
+			return d.mappedRole, authorization.ACLValue{}, nil
+		}
+		return d.owner, d.acl, nil
 	case *extensionDescriptor:
 		return d.owner, authorization.ACLValue{}, nil
 	case *procedureDescriptor:
@@ -268,6 +273,12 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
 func classPrivileges(d Descriptor) authorization.Privileges {
+	if d.Kind() == ForeignWrapperObject || d.Kind() == ForeignServerObject {
+		return authorization.UsagePrivilege
+	}
+	if d.Kind() == ForeignMappingObject {
+		return 0
+	}
 	if d.Kind() == DatabaseObject {
 		return authorization.CreatePrivilege
 	}
@@ -408,8 +419,14 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			kind = "function"
 		} else if d.Kind() == DatabaseObject {
 			kind = "database"
+		} else if d.Kind() == ForeignWrapperObject {
+			kind = "foreign-data wrapper"
+		} else if d.Kind() == ForeignServerObject {
+			kind = "foreign server"
 		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 			kind = "sequence"
+		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == foreignRelation {
+			kind = "foreign table"
 		}
 		if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
 			kind = "view"
@@ -454,8 +471,14 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "database"
 	} else if d.Kind() == ProcedureObject {
 		kind = "function"
+	} else if d.Kind() == ForeignWrapperObject {
+		kind = "foreign-data wrapper"
+	} else if d.Kind() == ForeignServerObject {
+		kind = "foreign server"
 	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		kind = "sequence"
+	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == foreignRelation {
+		kind = "foreign table"
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
 		kind = "view"
@@ -478,6 +501,13 @@ func (v AuthorizationView) CheckCreate(ref ObjectRef) error {
 func validateACL(r authorization.Read, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
+	case *foreignDescriptor:
+		if t.address.ClassID == ForeignMappingClassID {
+			if t.mappedRole == (authorization.PrincipalRef{}) {
+				return nil
+			}
+			return r.ValidatePrincipal(t.mappedRole)
+		}
 	case *tsTemplateDescriptor, *operatorDescriptor:
 		return nil
 	case *typeDescriptor:
@@ -518,6 +548,13 @@ func validateACL(r authorization.Read, d Descriptor) error {
 }
 func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 	switch t := d.(type) {
+	case *foreignDescriptor:
+		if t.address.ClassID == ForeignMappingClassID {
+			if t.mappedRole == (authorization.PrincipalRef{}) {
+				return nil
+			}
+			return []authorization.PrincipalRef{t.mappedRole}
+		}
 	case *tsTemplateDescriptor, *operatorDescriptor:
 		return nil
 	case *typeDescriptor:

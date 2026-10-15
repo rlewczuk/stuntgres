@@ -133,12 +133,19 @@ func TestReferenceTruncateProviderControls(t *testing.T) {
 			truncateRows(t, f, f.A, "c")
 		})
 	})
-	t.Run("FDWAbsentNative", func(t *testing.T) {
+	t.Run("ForeignTruncateProviderBoundary", func(t *testing.T) {
 		truncateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, f fixture.ControlsReferenceFixture) {
 			if !b.PG {
-				d := truncateWant("42601", `syntax error at or near "FOREIGN"`)
-				d.Position = "8"
-				truncateError(t, f, f.A, "CREATE FOREIGN TABLE ft(id INT) SERVER truncate_server", d)
+				truncateExec(t, f, f.A, "CREATE FOREIGN DATA WRAPPER truncate_fdw", 0)
+				defer func() {
+					if _, err := f.A.ExecContext(p.Ctx, "DROP FOREIGN DATA WRAPPER truncate_fdw CASCADE"); err != nil {
+						t.Error(err)
+					}
+				}()
+				truncateExec(t, f, f.A, "CREATE SERVER truncate_server FOREIGN DATA WRAPPER truncate_fdw", 0)
+				truncateExec(t, f, f.A, "CREATE FOREIGN TABLE ft(id INT) SERVER truncate_server", 0)
+				truncateError(t, f, f.A, "TRUNCATE ft", truncateWant("0A000", "foreign table truncation is unsupported in embedded mode"))
+				fixture.RunStep(t, p.Ctx, f.A, b.Recorder, fixture.Select("SELECT relkind FROM pg_class WHERE relname='ft'", []string{"relkind"}, []string{"CHAR"}, [][]any{{"f"}}))
 				return
 			}
 			// Genuine postgres_fdw callback and remote storage, not foreign metadata

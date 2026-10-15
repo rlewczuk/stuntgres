@@ -7,7 +7,8 @@ import (
 
 // queryAuthority is a borrowed, statement-admission-only slot. Captured query
 // trees share it; clearing it never changes their immutable data or frames.
-// Session transaction admission serializes every access.
+// Session transaction admission serializes internal access. This slot must not
+// implement context.Context: callbacks may retain a context after admission ends.
 type queryAuthority struct {
 	scope      *StatementScope
 	expression *cursorExpressionData
@@ -17,42 +18,6 @@ type cursorExpressionData struct {
 	statementStart time.Time
 }
 
-var endedQueryAuthority = func() <-chan struct{} {
-	done := make(chan struct{})
-	close(done)
-	return done
-}()
-
-func (a *queryAuthority) context() context.Context {
-	if a == nil || a.scope == nil {
-		return nil
-	}
-	return a.scope.op.Context()
-}
-func (a *queryAuthority) Deadline() (time.Time, bool) {
-	if c := a.context(); c != nil {
-		return c.Deadline()
-	}
-	return time.Time{}, false
-}
-func (a *queryAuthority) Done() <-chan struct{} {
-	if c := a.context(); c != nil {
-		return c.Done()
-	}
-	return endedQueryAuthority
-}
-func (a *queryAuthority) Err() error {
-	if c := a.context(); c != nil {
-		return c.Err()
-	}
-	return context.Canceled
-}
-func (a *queryAuthority) Value(key any) any {
-	if c := a.context(); c != nil {
-		return c.Value(key)
-	}
-	return nil
-}
 func (s *querySource) liveScope() *StatementScope {
 	if s == nil {
 		return nil
@@ -81,8 +46,10 @@ func (c *EvalContext) liveScope() *StatementScope {
 func (c *EvalContext) setContext(ctx context.Context) {
 	if c.query != nil && c.query.executionContext != nil {
 		c.Context = c.query.executionContext
-	} else if c.query != nil && c.query.source != nil && c.query.source.authority != nil {
-		c.Context = c.query.source.authority
+	} else if ctx == nil && c.query != nil && c.query.source != nil && c.query.source.authority != nil && c.query.source.authority.scope != nil {
+		// Initial evaluators may be constructed without a pull context. Capture
+		// the admitted request itself, never the mutable authority that owns it.
+		c.Context = c.query.source.authority.scope.op.Context()
 	} else {
 		c.Context = ctx
 	}

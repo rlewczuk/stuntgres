@@ -1,0 +1,182 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"sort"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
+)
+
+const pgUserMappingsOID OID = 12095
+
+func (e *Engine) initializeForeignCatalogSources() error {
+	type column struct {
+		name     string
+		typ      sqltype.ID
+		nullable bool
+	}
+	for _, spec := range []struct {
+		oid     OID
+		name    string
+		columns []column
+	}{
+		{ForeignWrapperClassID, "pg_foreign_data_wrapper", []column{{"oid", sqltype.Oid, false}, {"fdwname", sqltype.Name, false}, {"fdwowner", sqltype.Oid, false}, {"fdwhandler", sqltype.Oid, false}, {"fdwvalidator", sqltype.Oid, false}, {"fdwacl", sqltype.ACLItemArray, true}, {"fdwoptions", 1009, true}}},
+		{ForeignServerClassID, "pg_foreign_server", []column{{"oid", sqltype.Oid, false}, {"srvname", sqltype.Name, false}, {"srvowner", sqltype.Oid, false}, {"srvfdw", sqltype.Oid, false}, {"srvtype", sqltype.Text, true}, {"srvversion", sqltype.Text, true}, {"srvacl", sqltype.ACLItemArray, true}, {"srvoptions", 1009, true}}},
+		{ForeignMappingClassID, "pg_user_mapping", []column{{"oid", sqltype.Oid, false}, {"umuser", sqltype.Oid, false}, {"umserver", sqltype.Oid, false}, {"umoptions", 1009, true}}},
+		{ForeignTableClassID, "pg_foreign_table", []column{{"ftrelid", sqltype.Oid, false}, {"ftserver", sqltype.Oid, false}, {"ftoptions", 1009, true}}},
+		{pgUserMappingsOID, "pg_user_mappings", []column{{"umid", sqltype.Oid, false}, {"srvid", sqltype.Oid, false}, {"srvname", sqltype.Name, false}, {"umuser", sqltype.Oid, false}, {"usename", sqltype.Name, true}, {"umoptions", 1009, true}}},
+	} {
+		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
+		if spec.oid == ForeignMappingClassID {
+			d.acl = authorization.ACLValue{}
+		}
+		d.virtualView = spec.oid == pgUserMappingsOID
+		for i, column := range spec.columns {
+			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing SQL/MED catalog type %d", column.typ)
+			}
+			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: column.nullable, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			if column.typ == sqltype.Text || column.typ == 1009 {
+				d.columns[i].Usage.Collation.ID = 950
+			}
+			d.attributes[i] = int32(i + 1)
+			d.index[column.name] = i
+		}
+		e.registerCatalogSource(d)
+	}
+	return nil
+}
+
+func foreignOptionsValue(typ *sqltype.Descriptor, options []ForeignOption) (sqltype.Value, error) {
+	if len(options) == 0 {
+		return sqltype.Null(typ), nil
+	}
+	elements := make([]sqltype.Value, len(options))
+	for i, option := range options {
+		elements[i] = sqltype.String(typ.Element(), option.Name+"="+option.Value)
+	}
+	return sqltype.OwnedArrayValue(typ, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
+}
+
+func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	var descriptors []Descriptor
+	for _, d := range auth.catalog.state.descriptors {
+		if foreign, ok := d.(*foreignDescriptor); ok {
+			if foreign.address.ClassID == source.address.ObjectID || source.address.ObjectID == pgUserMappingsOID && foreign.address.ClassID == ForeignMappingClassID {
+				descriptors = append(descriptors, d)
+			}
+		} else if r, ok := d.(*relationDescriptor); ok && source.address.ObjectID == ForeignTableClassID && r.foreign != nil {
+			descriptors = append(descriptors, d)
+		}
+	}
+	sort.Slice(descriptors, func(i, j int) bool { return descriptors[i].Address().ObjectID < descriptors[j].Address().ObjectID })
+	rows := make([][]sqltype.Value, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		row := make([]sqltype.Value, len(source.columns))
+		for i, c := range source.columns {
+			row[i] = sqltype.Null(c.Usage.Type)
+		}
+		putOID := func(index int, value uint32) error {
+			v, err := sqltype.OIDValue(source.columns[index].Usage.Type, value)
+			row[index] = v
+			return err
+		}
+		putString := func(index int, value string) { row[index] = sqltype.String(source.columns[index].Usage.Type, value) }
+		var err error
+		if relation, ok := descriptor.(*relationDescriptor); ok {
+			if err = putOID(0, uint32(relation.address.ObjectID)); err != nil {
+				return nil, err
+			}
+			if err = putOID(1, uint32(relation.foreign.server.ObjectID)); err != nil {
+				return nil, err
+			}
+			row[2], err = foreignOptionsValue(source.columns[2].Usage.Type, relation.foreign.options)
+		} else {
+			d := descriptor.(*foreignDescriptor)
+			if err = putOID(0, uint32(d.address.ObjectID)); err != nil {
+				return nil, err
+			}
+			switch source.address.ObjectID {
+			case ForeignWrapperClassID:
+				putString(1, d.name)
+				for i, value := range []uint32{uint32(d.owner.ID()), uint32(d.handler.ObjectID), uint32(d.validator.ObjectID)} {
+					if err = putOID(i+2, value); err != nil {
+						return nil, err
+					}
+				}
+				row[5], err = e.pgClassACL(auth.roles, source.columns[5].Usage.Type, d.acl)
+				if err != nil {
+					return nil, err
+				}
+				row[6], err = foreignOptionsValue(source.columns[6].Usage.Type, d.options)
+			case ForeignServerClassID:
+				putString(1, d.name)
+				if err = putOID(2, uint32(d.owner.ID())); err != nil {
+					return nil, err
+				}
+				if err = putOID(3, uint32(d.wrapper.ObjectID)); err != nil {
+					return nil, err
+				}
+				if d.serverType != nil {
+					putString(4, *d.serverType)
+				}
+				if d.version != nil {
+					putString(5, *d.version)
+				}
+				row[6], err = e.pgClassACL(auth.roles, source.columns[6].Usage.Type, d.acl)
+				if err != nil {
+					return nil, err
+				}
+				row[7], err = foreignOptionsValue(source.columns[7].Usage.Type, d.options)
+			case ForeignMappingClassID:
+				if err = putOID(1, uint32(d.mappedRole.ID())); err != nil {
+					return nil, err
+				}
+				if err = putOID(2, uint32(d.server.ObjectID)); err != nil {
+					return nil, err
+				}
+				row[3], err = foreignOptionsValue(source.columns[3].Usage.Type, d.options)
+			case pgUserMappingsOID:
+				server, ok := auth.catalog.state.descriptors[d.server].(*foreignDescriptor)
+				if !ok {
+					return nil, ErrCatalogReplaced
+				}
+				if err = putOID(1, uint32(server.address.ObjectID)); err != nil {
+					return nil, err
+				}
+				putString(2, server.name)
+				if err = putOID(3, uint32(d.mappedRole.ID())); err != nil {
+					return nil, err
+				}
+				if d.mappedRole == (authorization.PrincipalRef{}) {
+					putString(4, "public")
+				} else if role, ok := auth.roles.Find(d.mappedRole); ok {
+					putString(4, role.Name)
+				}
+				actor, er := auth.roles.Descriptor(auth.state.CurrentUser)
+				if er != nil {
+					return nil, er
+				}
+				owner := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}) == nil
+				visible := actor.Superuser || d.mappedRole == (authorization.PrincipalRef{}) && owner
+				if d.mappedRole == auth.state.CurrentUser {
+					visible = visible || owner || auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}) == nil
+				}
+				if visible {
+					row[5], err = foreignOptionsValue(source.columns[5].Usage.Type, d.options)
+				}
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
+	return &querySource{ref: ref, anonymous: rows}, nil
+}

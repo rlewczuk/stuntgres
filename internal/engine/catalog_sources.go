@@ -301,6 +301,9 @@ func (e *Engine) initializeCatalogSources() error {
 		}
 		e.registerCatalogSource(d)
 	}
+	if err := e.initializeForeignCatalogSources(); err != nil {
+		return err
+	}
 	if err := e.initializeTablePrivileges(); err != nil {
 		return err
 	}

@@ -58,10 +58,35 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.descriptors[addr] = &n
+		case *foreignDescriptor:
+			n := *d
+			var err error
+			if d.owner != (authorization.PrincipalRef{}) {
+				n.owner, err = remap(d.owner)
+				if err != nil {
+					return nil, err
+				}
+			}
+			n.acl, err = acl(d.acl)
+			if err != nil {
+				return nil, err
+			}
+			if d.mappedRole != (authorization.PrincipalRef{}) {
+				n.mappedRole, err = remap(d.mappedRole)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if d.address.ClassID == ForeignMappingClassID {
+				n.name = foreignMappingName(n.server, n.mappedRole)
+				delete(state.names, descriptorNameKey(d))
+				state.names[descriptorNameKey(&n)] = n.address
+			}
+			state.descriptors[addr] = &n
 		case *procedureDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, d.conversion.Name() != "")
+			n.owner, err = seedOwner(d.owner, d.conversion.Name() != "" || d.foreign != nil)
 			if err != nil {
 				return nil, err
 			}
@@ -219,6 +244,9 @@ func (e *Engine) restoreStage() *Engine {
 	database := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
+	if err := stage.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
+		panic(err)
+	}
 	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.root.Read(authorization.PrincipalRef{}).RoleCount())
 	roles := sourceRoles.root.Reprovenance(&stage.authorizationDomain, stage.importTargets)
 	retainedDatabase := *database

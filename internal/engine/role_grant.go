@@ -66,7 +66,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 				return nil, err
 			}
 			relation, ok := descriptor.(*relationDescriptor)
-			if ok && relation.namespace == addr && !relation.virtualView && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == materializedViewRelation) {
+			if ok && relation.namespace == addr && !relation.virtualView && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == materializedViewRelation || relation.relationKind == foreignRelation) {
 				targets = append(targets, address)
 			}
 		}

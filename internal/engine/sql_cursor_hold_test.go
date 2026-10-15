@@ -32,7 +32,9 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	}
 	second := cursorUnitBatch(t, s, "FETCH 1 FROM h", [][]driver.Value{{int64(2)}})
 	sessionSQL(t, s, "CLOSE h")
-	c.dispose()
+	if err := c.dispose(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if c.values != nil || c.catalog.state != nil || cell.scope != nil || pin.data.Load() != nil {
 		t.Fatal("repeated close retains resources")
 	}

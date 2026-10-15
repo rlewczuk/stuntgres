@@ -213,6 +213,43 @@ Restore has a restricted parameter-free replay boundary, not general script
 execution. It does not import temporary objects, transaction controls, shared
 role effects or arbitrary CTE/RETURNING history. See [fixture contracts](FIXTURES.md).
 
+## Foreign metadata and scans
+
+SQL/MED wrapper/server/user-mapping/foreign-table metadata, ordered column/table
+options, ownership/ACL/dependencies and IMPORT use the transactional catalog.
+SELECT requires an actual startup-registered Go provider with all seven scan/
+planning callbacks. Optional IMPORT support returns real typed definitions;
+missing handler/import support fails explicitly. No stored handler name, URL or
+default transport fabricates rows. Registration is not PostgreSQL C ABI loading
+or a native postgres_fdw network client; providers own their source semantics.
+
+Wrapper handler/validator/options ALTER requires nonempty alteration content and
+superuser authority. RENAME and OWNER are separate forms; they cannot be combined
+with function-option changes. Ordinary RENAME retains inherited-owner authority.
+Wrapper/server GRANT and REVOKE accept USAGE/ALL, distinguish column-qualified
+requests from invalid object privileges, and preserve PostgreSQL's object-specific
+English diagnostics and unknown-privilege category.
+
+Local quals/rechecks, typed projection, NULL/EOF, true correlated ReScan and
+owned scratch conversion use the existing eager pipeline. Public Rows.Next/Close
+does no provider work. Logical SQL cursors retain live scans across finite eager
+FETCH/MOVE batches; HOLD drains/Ends before promotion. Cleanup runs unlocked,
+exactly once, with primary errors preserved and End-only terminal failures
+reported before otherwise successful publication. Reset/Restore preserve the
+existing deferred stale-cursor owner: replacement itself does not sweep other
+sessions; a subsequent request/rollback/CLOSE/session end releases its scan.
+Already finalized batches remain readable.
+
+Foreign writes, row locks, index/UNIQUE/PK/FK/trigger/truncation callbacks,
+hierarchy expansion and arbitrary remote pushdown are unsupported. No generic
+has_server_privilege/has_foreign_data_wrapper_privilege SQL execution is added
+merely because static PostgreSQL identities exist. Actual GRANT/REVOKE and common
+authorization/stored-ACL inquiries use the new descriptor classes. Dump rejects
+user SQL/MED metadata before bytes; ordinary Reset/Restore retain installed
+callables, and foreign replay is explicitly rejected atomically. See
+[embedding](DRIVER.md#foreign-provider-registration) and
+[catalog contracts](TABLES.md#foreign-metadata-and-dependencies).
+
 ## Authentication and authorization
 
 Native connector role admission is a trusted host assertion, not password/SCRAM
@@ -243,9 +280,9 @@ expression path; held calls borrow current execution-time catalog and authority.
 No SELECT privilege on the queried object is required. Name casts such as
 REGCLASS still use their normal schema/name resolution.
 
-Supported existing descriptors expose relation, namespace, type, procedure and
-database ACLs. Recognized PostgreSQL classes without native instances produce
-missing-object NULLs; no language/FDW/server/large-object provider is fabricated.
+Supported existing descriptors expose relation, namespace, type, procedure,
+database, foreign-wrapper and server ACLs. Recognized classes without native
+instances produce missing-object NULLs; no language/large-object ACL is fabricated.
 Recognized ACL-less classes return NULL before object lookup. Unknown class IDs,
 including pg_attribute1249 and pg_parameter_acl6243, raise XX000 rather than
 being confused with missing objects. `(0,0,subid)` returns NULL.
@@ -421,8 +458,9 @@ Nested modifying WITH and referenced no-RETURNING output are rejected. Ordinary
 views reject modifying WITH at execution, including held statements; materialized
 views and cursors reject it at held preparation. Existing CTAS/SELECT INTO remain
 admitted consumers. CTAS WITH NO DATA creates empty schema without executing the
-query or its modifiers. Recursive modifying definitions, SEARCH, trigger/FDW and
-hierarchy provider exclusions remain unchanged. Rule expansion must leave exactly one
+query or its modifiers. Recursive modifying definitions, SEARCH, trigger and
+foreign-write/hierarchy provider exclusions remain unchanged; admitted local
+consumers may read real foreign SELECT sources. Rule expansion must leave exactly one
 admitted auxiliary query; zero/multiple expansions retain the documented
 INSTEAD NOTHING/conditional/ALSO/multi-statement restrictions. A single SELECT
 replacement remains lazy when unused. No portable same-row overlap winner or
@@ -509,7 +547,7 @@ Materialized views support logical indexes and autocommit concurrent refresh.
 Explicit transaction refresh and refresh as Restore input remain excluded.
 Physical temporary heaps, SPI diff SQL/Context, WAL and crash durability remain
 server mechanisms, not native logical publication contracts. Trigger, pending
-trigger, foreign-table/FDW and procedural-language execution are unavailable.
+trigger, foreign-write callbacks and procedural-language execution are unavailable.
 Truncation does not provide identity restart.
 
 Adding generated columns and changing their destination type without an explicit

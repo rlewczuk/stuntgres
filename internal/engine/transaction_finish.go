@@ -24,6 +24,13 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	if s.controlOutcome == controlExecuted || (s.controlOutcome == controlDescribed && err == nil) {
 		// A control has no stage/view. In particular, do not advance or recheck
+		if s.replacementRead {
+			s.op.session.Engine().replacementMu.RUnlock()
+			s.replacementRead = false
+		}
+		if cleanupErr := s.owner.drainCursorCleanup(s.op.Context()); err == nil {
+			err = cleanupErr
+		}
 		// the new incarnation installed by CHAIN after its linearization.
 		s.finished = true
 		s.result = err
@@ -64,6 +71,11 @@ func (s *StatementScope) Finish(err error) error {
 		}
 		t.mu.Lock()
 	}
+	if s.foreignOwner != nil {
+		t.mu.Unlock()
+		err = s.finishForeignOwner(s.foreignOwner, err)
+		t.mu.Lock()
+	}
 	if err == nil && s.worked {
 		catalog := t.catalog
 		if s.catalog != nil {
@@ -85,6 +97,9 @@ func (s *StatementScope) Finish(err error) error {
 			}
 			t.mu.Unlock()
 			err = s.validatePrivateIndexExpressions(catalog, deletes)
+			if s.foreignOwner != nil {
+				err = s.finishForeignOwner(s.foreignOwner, err)
+			}
 			t.mu.Lock()
 			if err == nil {
 				if !s.projectedRoots {
@@ -140,7 +155,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.session.retireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		if errors.Is(err, ErrCatalogReplaced) {
-			t.session.cursors.clear()
+			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.clear()...)
 			t.truncateSavepoints(0)
 		}
 		if len(t.savepoints) != 0 {
@@ -165,7 +180,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.catalog = nil
 			endedTicket = t.ticket
 			t.ticket = nil
-			t.session.cursors.endTransaction(t.ref)
+			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
 		}
 	}
 	e.endStatementVisibility(s.txRef, t.state != TxIdle && stableIsolation(t.isolation))
@@ -205,6 +220,10 @@ func (s *StatementScope) Finish(err error) error {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
+	if cleanupErr := t.drainCursorCleanup(s.op.Context()); err == nil {
+		err = cleanupErr
+	}
+	s.result = err
 	e.locks.end(endedTicket)
 	s.releaseCopyReservation()
 	if !s.message {

@@ -23,10 +23,23 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		return nil, sqlError("0A000", "row locking partition hierarchies is unsupported")
 	}
 	switch d.relationKind {
+	case foreignRelation:
+		source, err := e.captureForeignSourceLocked(scope, ref, d, invoker, outputUses, mark)
+		e.mu.Unlock()
+		return source, err
 	case catalogRelation:
 		switch d.address.ObjectID {
 		case pgLocksOID:
 			return e.capturePGLocksLocked(ctx, ref, d)
+		case ForeignWrapperClassID, ForeignServerClassID, ForeignMappingClassID, ForeignTableClassID, pgUserMappingsOID:
+			auth, err := e.authorizationLocked(scope.op)
+			if err != nil {
+				e.mu.Unlock()
+				return nil, err
+			}
+			source, err := e.captureForeignCatalog(ctx, auth, ref, d)
+			e.mu.Unlock()
+			return source, err
 		case pgCursorsOID:
 			cursors := scope.op.session.cursors
 			e.mu.Unlock()

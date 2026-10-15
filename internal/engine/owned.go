@@ -150,6 +150,15 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		return Result{}, scope.op.Context().Err()
 	}
 	roots := ownedRoots(auth.catalog, sources)
+	if reassign {
+		local := roots[:0]
+		for _, address := range roots {
+			if address.ClassID != ForeignMappingClassID {
+				local = append(local, address)
+			}
+		}
+		roots = local
+	}
 	primaryRoot := ObjectAddress{}
 	if !reassign {
 		local := roots[:0]
@@ -218,6 +227,12 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			// PostgreSQL's schema and generic collation handlers retain their
 			// own eligibility checks; relation/type bulk recursion does not SET.
 			switch d.(type) {
+			case *foreignDescriptor:
+				foreign := d.(*foreignDescriptor)
+				err = foreignOwnershipEligibility(auth, foreign, target)
+				if err == nil && foreign.address.ClassID == ForeignServerClassID {
+					stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[foreign.wrapper])
+				}
 			case *namespaceDescriptor:
 				err = auth.Check(AccessRequirement{Object: ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, OwnerOnly: true})
 				if err == nil {

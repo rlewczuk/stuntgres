@@ -135,6 +135,9 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		if source.membership != nil {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from partition "%s"`, source.name))
 		}
+		if source.relationKind == foreignRelation {
+			return nil, nil, nil, sqlError("0A000", "foreign table hierarchies are unsupported in embedded mode")
+		}
 		if source.relationKind != tableRelation {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.name))
 		}

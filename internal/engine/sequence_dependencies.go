@@ -92,6 +92,9 @@ func (provider *dropProvider) ownedSequences(targets []ObjectAddress, prepare fu
 	return nil
 }
 func relationDiagnosticKind(r *relationDescriptor) string {
+	if r.relationKind == foreignRelation {
+		return "foreign table"
+	}
 	if r.relationKind == compositeRelation {
 		return "composite type"
 	}

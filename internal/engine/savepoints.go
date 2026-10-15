@@ -88,7 +88,7 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
-	t.session.cursors.rollback(mark.cursors)
+	t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.session.settings.restoreSavepoint(settings, mark.identity)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
@@ -207,7 +207,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		case parser.CreateSavepoint:
 			t.savepoints = append(stack, mark)
 		case parser.RollbackSavepoint:
-			t.session.cursors.rollback(mark.cursors)
+			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			targetIdentity := mark.identity
 			targetIdentity.CurrentUser = settings.currentRole

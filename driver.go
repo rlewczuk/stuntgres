@@ -25,12 +25,14 @@ type DriverConfig struct {
 // Driver owns independent databases named by exact, opaque DSN strings.
 // Databases live for the lifetime of their Driver, not their connections.
 type Driver struct {
-	mu             sync.Mutex
-	engines        map[string]*engine.Engine
-	lastSession    engine.SessionID
-	settings       []engine.SettingDefinition
-	settingsFrozen bool
-	config         DriverConfig
+	mu                sync.Mutex
+	engines           map[string]*engine.Engine
+	lastSession       engine.SessionID
+	settings          []engine.SettingDefinition
+	settingsFrozen    bool
+	config            DriverConfig
+	foreignWrappers   []engine.ForeignDataWrapperDefinition
+	foreignValidators []engine.ForeignValidatorDefinition
 }
 
 func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }
@@ -63,6 +65,9 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	e := d.engines[name]
 	if e == nil {
 		e = engine.NewWithSettings(d.settings, name, d.config.TrackCommitTimestamp)
+		if err := e.InstallForeignDefinitions(d.foreignWrappers, d.foreignValidators, importParameter, exportValue); err != nil {
+			return nil, err
+		}
 		d.settingsFrozen = true
 		d.engines[name] = e
 	}

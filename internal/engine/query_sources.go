@@ -356,14 +356,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			err = securityErr
 		}
 		if err != nil {
-			if first != nil {
-				first.close()
-			}
-			for _, prior := range sources {
-				if prior != nil {
-					prior.close()
-				}
-			}
+			e.closeQuerySourceSetLocked(scope.op.Context(), first, sources)
 			return nil, err
 		}
 		if denied {
@@ -425,14 +418,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			}
 		}
 		if err != nil {
-			if first != nil {
-				first.close()
-			}
-			for _, prior := range sources {
-				if prior != nil {
-					prior.close()
-				}
-			}
+			e.closeQuerySourceSetLocked(scope.op.Context(), first, sources)
 			return nil, err
 		}
 		source.borrowAuthority(scope)
@@ -482,4 +468,21 @@ func selectQuerySources(ctx context.Context, source *querySource) error {
 		}
 	}
 	return nil
+}
+
+// Source teardown can enter foreign provider code. Detach the captured set
+// while locked, then release all provider resources outside Engine.mu.
+func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *querySource, sources []*querySource) {
+	e.mu.Unlock()
+	if first != nil {
+		_ = finishForeignSources(ctx, first)
+		first.close()
+	}
+	for _, source := range sources {
+		if source != nil && source != first {
+			_ = finishForeignSources(ctx, source)
+			source.close()
+		}
+	}
+	e.mu.Lock()
 }

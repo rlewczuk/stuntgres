@@ -108,7 +108,9 @@ func TestPGCursorsSource(t *testing.T) {
 		}
 	}
 	snapshot := append([]sqltype.Value(nil), source.anonymous[0]...)
-	s.cursors.clear()
+	if err := disposeSQLCursors(context.Background(), s.cursors.clear()); err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(source.anonymous[0], snapshot) || len(s.cursors.entries) != 0 {
 		t.Fatal("registry clear mutates captured facts")
 	}

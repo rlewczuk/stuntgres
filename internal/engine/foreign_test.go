@@ -1,0 +1,414 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"math"
+	"reflect"
+	"slices"
+	"testing"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestFDWOptionsTransform(t *testing.T) {
+	old := []ForeignOption{{"a", "1"}, {"b", "2"}}
+	change := func(action, name, value string) parser.ForeignOption {
+		return parser.ForeignOption{Action: action, Name: parser.Identifier{Text: name}, Value: value}
+	}
+	got, err := transformForeignOptions(old, []parser.ForeignOption{change("set", "a", "3"), change("drop", "b", ""), change("add", "c", "4")})
+	if err != nil || !reflect.DeepEqual(got, []ForeignOption{{"a", "3"}, {"c", "4"}}) || !reflect.DeepEqual(old, []ForeignOption{{"a", "1"}, {"b", "2"}}) {
+		t.Fatal(got, old, err)
+	}
+	for _, tc := range []struct {
+		changes []parser.ForeignOption
+		code    string
+	}{
+		{[]parser.ForeignOption{change("set", "a", "bad"), change("add", "b", "duplicate")}, "42710"},
+		{[]parser.ForeignOption{change("drop", "absent", "")}, "42704"},
+		{[]parser.ForeignOption{change("add", "x=y", "v")}, "22023"},
+	} {
+		got, err = transformForeignOptions(old, tc.changes)
+		var diagnostic *sqlstate.Error
+		if got != nil || !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || old[0].Value != "1" {
+			t.Fatal(got, err, old)
+		}
+	}
+	got, err = transformForeignOptions(nil, nil)
+	if err != nil || got == nil || len(got) != 0 {
+		t.Fatal("empty validator list", got, err)
+	}
+	got, err = transformForeignOptions(nil, []parser.ForeignOption{change("add", "x", "1"), change("set", "x", "2"), change("drop", "x", ""), change("add", "x", "3")})
+	if err != nil || !reflect.DeepEqual(got, []ForeignOption{{"x", "3"}}) {
+		t.Fatal(got, err)
+	}
+}
+
+func TestFDWCatalogOverlay(t *testing.T) {
+	e := New()
+	base := e.CatalogRead()
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	wrapper := &foreignDescriptor{address: ObjectAddress{ClassID: ForeignWrapperClassID, ObjectID: 40000}, revision: 1, name: "unit_wrapper", owner: owner, options: []ForeignOption{{"a", "1"}}}
+	server := &foreignDescriptor{address: ObjectAddress{ClassID: ForeignServerClassID, ObjectID: 40001}, revision: 1, name: "unit_server", owner: owner, wrapper: wrapper.address}
+	server.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
+	mapping := &foreignDescriptor{address: ObjectAddress{ClassID: ForeignMappingClassID, ObjectID: 40002}, revision: 1, server: server.address, mappedRole: owner, mappedName: "postgres"}
+	mapping.name = foreignMappingName(server.address, owner)
+	public := &foreignDescriptor{address: ObjectAddress{ClassID: ForeignMappingClassID, ObjectID: 40003}, revision: 1, server: server.address}
+	public.name = foreignMappingName(server.address, authorization.PrincipalRef{})
+	stage := e.BeginCatalogStage(base)
+	defer e.DiscardCatalogStage(stage)
+	for _, d := range []*foreignDescriptor{wrapper, server, mapping, public} {
+		if err := stage.Create(d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, ok := base.Descriptor(wrapper.address); ok {
+		t.Fatal("private descriptor leaked into base")
+	}
+	if _, ok := e.stageRead(stage).Descriptor(wrapper.address); !ok {
+		t.Fatal("stage overlay lost descriptor")
+	}
+	beforeStorage := len(e.storage)
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.storage) != beforeStorage {
+		t.Fatal("SQL/MED metadata allocated physical storage")
+	}
+	if got := descriptorReferences(mapping); !slices.Equal(got, []authorization.PrincipalRef{owner}) {
+		t.Fatal("mapping lost mapped-role dependency", got)
+	}
+	if got := descriptorReferences(public); len(got) != 0 {
+		t.Fatal("PUBLIC acquired a principal dependency", got)
+	}
+	mappedOwner, _, _ := descriptorACL(mapping)
+	publicOwner, _, _ := descriptorACL(public)
+	if mappedOwner != owner || publicOwner != (authorization.PrincipalRef{}) {
+		t.Fatal("mapping ownership is not mapped identity", mappedOwner, publicOwner)
+	}
+	e.mu.Lock()
+	auth := catalogAuthorization(e, CatalogRead{e, e.state})
+	e.mu.Unlock()
+	for _, d := range []*foreignDescriptor{wrapper, server} {
+		ref := foreignRef(auth, d)
+		for _, grantOptions := range []bool{false, true} {
+			rights, err := auth.Effective(ref, grantOptions)
+			if err != nil || rights != authorization.UsagePrivilege {
+				t.Fatal("foreign owner mask", rights, err)
+			}
+		}
+		if err := auth.CanUse(ref); err != nil {
+			t.Fatal(err)
+		}
+		if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	auth.state.CurrentUser = auth.roles.LookupRef("pg_read_all_data")
+	if auth.state.CurrentUser == (authorization.PrincipalRef{}) {
+		t.Fatal("missing real predefined reader")
+	}
+	for _, d := range []*foreignDescriptor{wrapper, server} {
+		ref := foreignRef(auth, d)
+		want := authorization.Privileges(0)
+		if d == server {
+			want = authorization.UsagePrivilege
+		}
+		rights, err := auth.Effective(ref, false)
+		if err != nil || rights != want {
+			t.Fatal("foreign nonowner mask", rights, want, err)
+		}
+		if err = auth.CanUse(ref); (err == nil) != (want != 0) {
+			t.Fatal("foreign CanUse bypassed exact ACL", err)
+		}
+		rights, err = auth.Effective(ref, true)
+		if err != nil || rights != 0 {
+			t.Fatal("PUBLIC usage acquired grant options", rights, err)
+		}
+	}
+	if classPrivileges(mapping) != 0 || classPrivileges(public) != 0 {
+		t.Fatal("mapping exposed a grantable ACL mask")
+	}
+	alter := e.BeginCatalogStage(e.CatalogRead())
+	next := *wrapper
+	next.revision++
+	next.options = []ForeignOption{{"a", "candidate"}}
+	if err = alter.Replace(&next); err != nil {
+		t.Fatal(err)
+	}
+	e.DiscardCatalogStage(alter)
+	if committed, _ := e.CatalogRead().Descriptor(wrapper.address); committed.(*foreignDescriptor).options[0].Value != "1" {
+		t.Fatal("discard mutated committed options")
+	}
+}
+
+type fdwUnitWrapper struct {
+	paths    []ForeignPath
+	chosen   ForeignPath
+	scan     *fdwUnitScan
+	beginErr error
+}
+
+func (*fdwUnitWrapper) GetForeignRelSize(context.Context, ForeignRequest) (ForeignRelSize, error) {
+	return ForeignRelSize{Rows: 3}, nil
+}
+func (w *fdwUnitWrapper) GetForeignPaths(context.Context, ForeignRequest, ForeignRelSize) ([]ForeignPath, error) {
+	return w.paths, nil
+}
+func (w *fdwUnitWrapper) GetForeignPlan(_ context.Context, _ ForeignRequest, path ForeignPath) (ForeignPlan, error) {
+	w.chosen = path
+	return ForeignPlan{Attributes: path.Attributes, Private: path.Private}, nil
+}
+func (w *fdwUnitWrapper) BeginForeignScan(context.Context, ForeignRequest, ForeignPlan) (ForeignScan, error) {
+	return w.scan, w.beginErr
+}
+
+type fdwUnitScan struct {
+	position, rescans, ends int
+	rescanErr, endErr       error
+	cleanupCanceled         bool
+	onEnd                   func(context.Context) error
+}
+
+func (s *fdwUnitScan) IterateForeignScan(context.Context) (ForeignRow, bool, error) {
+	if s.position == 3 {
+		return nil, false, nil
+	}
+	s.position++
+	return ForeignRow{}, true, nil
+}
+func (s *fdwUnitScan) ReScanForeignScan(context.Context, ForeignScanParameters) error {
+	s.rescans++
+	s.position = 0
+	return s.rescanErr
+}
+func (s *fdwUnitScan) EndForeignScan(ctx context.Context) error {
+	s.ends++
+	s.cleanupCanceled = ctx.Err() != nil
+	if s.onEnd != nil {
+		return s.onEnd(ctx)
+	}
+	return s.endErr
+}
+
+func TestFDWRegistry(t *testing.T) {
+	var missing *fdwUnitWrapper
+	if _, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: missing}); err == nil {
+		t.Fatal("typed nil admitted")
+	}
+	w := &fdwUnitWrapper{}
+	def, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	if err != nil || def.HandlerName.Schema != "public" {
+		t.Fatal(def, err)
+	}
+	if _, err = ValidateForeignValidator(ForeignValidatorDefinition{Name: ForeignFunctionName{Name: "validator"}}); err == nil {
+		t.Fatal("nil validator admitted")
+	}
+	e := New()
+	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	address := e.state.names[NameKey{ClassID: ProcedureClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}]
+	procedure := e.state.descriptors[address].(*procedureDescriptor)
+	if procedure.foreign.wrapper != w || procedure.result != 3115 || procedure.signature != foreignHandlerSignature {
+		t.Fatal("installed declaration lost executable identity", procedure)
+	}
+	if err = e.providers[ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFDWProcedureIdentity(t *testing.T) {
+	e := New()
+	w := &fdwUnitWrapper{}
+	def, _ := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	if err := e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	key := NameKey{ClassID: ProcedureClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}
+	oldAddress := e.state.names[key]
+	wrapper := &foreignDescriptor{name: "wrapper", handler: oldAddress}
+	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.wrapper != w {
+		t.Fatal(token, err)
+	}
+	replacement := cloneCatalog(e.state)
+	copy := *replacement.descriptors[oldAddress].(*procedureDescriptor)
+	delete(replacement.descriptors, oldAddress)
+	copy.address.ObjectID = 40010
+	replacement.descriptors[copy.address] = &copy
+	replacement.names[key] = copy.address
+	_, err := foreignHandlerFor(CatalogRead{e, replacement}, wrapper)
+	var diagnostic *sqlstate.Error
+	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
+	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+		t.Fatal("retired address retargeted by same SQL name or lost defensive diagnostic", err)
+	}
+	uncallable := cloneCatalog(e.state)
+	procedure := *uncallable.descriptors[oldAddress].(*procedureDescriptor)
+	procedure.foreign = nil
+	uncallable.descriptors[oldAddress] = &procedure
+	_, err = foreignHandlerFor(CatalogRead{e, uncallable}, wrapper)
+	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
+		t.Fatal("a stored procedure name masqueraded as an executable handler", err)
+	}
+}
+
+func TestFDWPlanningSelection(t *testing.T) {
+	request := ForeignRequest{Columns: []ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{3}}
+	w := &fdwUnitWrapper{paths: []ForeignPath{{TotalCost: 10, Attributes: []int32{1, 3}, Private: "expensive"}, {TotalCost: 2, Attributes: []int32{3}, Private: "first-cheapest"}, {TotalCost: 2, Attributes: []int32{3}, Private: "tie"}}}
+	f := &foreignQuerySource{wrapper: w}
+	execution := &foreignExecution{}
+	if err := f.plan(context.Background(), request, execution); err != nil {
+		t.Fatal(err)
+	}
+	if w.chosen.Private != "first-cheapest" || execution.plan.Private != "first-cheapest" || !slices.Equal(execution.slots, []int{1}) {
+		t.Fatal(w.chosen, execution)
+	}
+	for _, paths := range [][]ForeignPath{nil, {{TotalCost: math.NaN(), Attributes: []int32{3}}}, {{TotalCost: 1, Attributes: []int32{1}}}, {{TotalCost: 1, Attributes: []int32{3, 3}}}, {{StartupCost: 2, TotalCost: 1, Attributes: []int32{3}}}} {
+		w.paths = paths
+		if err := f.plan(context.Background(), request, &foreignExecution{}); err == nil {
+			t.Fatal("invalid path admitted", paths)
+		}
+	}
+	t.Run("ForeignMetadataPolicy", testFDWForeignMetadataPolicy)
+}
+
+func TestFDWScanState(t *testing.T) {
+	ctx := context.Background()
+	endFailure := errors.New("end outcome")
+	scan := &fdwUnitScan{endErr: endFailure}
+	w := &fdwUnitWrapper{paths: []ForeignPath{{}}, scan: scan}
+	source := &querySource{anonymous: [][]sqltype.Value{}, foreign: &foreignQuerySource{wrapper: w}}
+	owner := &foreignScanOwner{}
+	owner.add(source.foreign)
+	state := &queryState{source: source}
+	stage, err := openForeignStage(ctx, state, source, &sourceNode{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if present, err := stage.Next(ctx, nil); err != nil || !present {
+			t.Fatal("zero-width row became EOF", present, err)
+		}
+	}
+	old := slices.Clone(stage.selection)
+	if present, err := stage.Next(ctx, nil); err != nil || present {
+		t.Fatal(present, err)
+	}
+	if err = stage.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if scan.ends != 0 {
+		t.Fatal("borrowed invocation ended query-owned scan")
+	}
+	again, err := openForeignStage(ctx, state, source, &sourceNode{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if present, err := again.Next(ctx, nil); err != nil || !present {
+		t.Fatal(present, err)
+	}
+	if scan.rescans != 1 || len(source.foreign.executions) != 1 || !slices.Equal(old, []int{0, 1, 2}) || again.selection[0] != 3 {
+		t.Fatal("rescan replaced occurrence identities", old, again.selection, scan)
+	}
+	scan.rescanErr = errors.New("restart failed")
+	if changed, err := again.rewind(ctx); changed || !errors.Is(err, scan.rescanErr) {
+		t.Fatal(changed, err)
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err = finishForeignSources(canceled, source); !errors.Is(err, endFailure) {
+		t.Fatal(err)
+	}
+	if err = finishForeignSources(ctx, source); !errors.Is(err, endFailure) || scan.ends != 1 || scan.cleanupCanceled {
+		t.Fatal("cleanup was canceled, duplicated or lost outcome", err, scan)
+	}
+	t.Run("CursorCleanupOwner", testFDWCursorCleanupOwner)
+}
+
+func testFDWCursorCleanupOwner(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	txn := s.transactions
+	failure := errors.New("owned cursor cleanup")
+	var blocked []string
+	scan := &fdwUnitScan{onEnd: func(context.Context) error {
+		check := func(name string, try func() bool, unlock func()) {
+			if !try() {
+				blocked = append(blocked, name)
+			} else {
+				unlock()
+			}
+		}
+		check("engine", e.mu.TryLock, e.mu.Unlock)
+		check("session", s.mu.TryLock, s.mu.Unlock)
+		check("settings", s.settings.mu.TryLock, s.settings.mu.Unlock)
+		check("transaction", txn.mu.TryLock, txn.mu.Unlock)
+		check("replacement", e.replacementMu.TryLock, e.replacementMu.Unlock)
+		return failure
+	}}
+	owner := &foreignScanOwner{}
+	source := &foreignQuerySource{executions: []*foreignExecution{{scan: scan}}}
+	owner.add(source)
+	cursor := &sqlCursor{ordinal: 1, foreignOwner: owner}
+	s.cursors.entries = map[string]*sqlCursor{"child": cursor}
+	e.replacementMu.RLock()
+	e.mu.Lock()
+	s.settings.mu.Lock()
+	s.mu.Lock()
+	txn.mu.Lock()
+	txn.cursorCleanup = append(txn.cursorCleanup, s.cursors.rollback(0)...)
+	premature := scan.ends
+	txn.mu.Unlock()
+	s.mu.Unlock()
+	s.settings.mu.Unlock()
+	e.mu.Unlock()
+	e.replacementMu.RUnlock()
+	if premature != 0 {
+		t.Fatal("locked registry detach ran application cleanup")
+	}
+	if err := txn.drainCursorCleanup(context.Background()); !errors.Is(err, failure) {
+		t.Fatal("cleanup outcome was swallowed", err)
+	}
+	if len(blocked) != 0 || scan.ends != 1 || len(s.cursors.entries) != 0 || len(txn.cursorCleanup) != 0 || !source.lifetimeClosed || cursor.foreignOwner != nil {
+		t.Fatal("owner/lock boundary", blocked, scan.ends)
+	}
+	if err := cursor.dispose(context.Background()); !errors.Is(err, failure) || scan.ends != 1 {
+		t.Fatal("idempotent cursor disposal lost outcome", err, scan.ends)
+	}
+}
+
+func testFDWForeignMetadataPolicy(t *testing.T) {
+	plain := &parser.CreateTable{}
+	if foreignTableSyntax(plain) != plain {
+		t.Fatal("plain foreign syntax was unnecessarily copied")
+	}
+	column := &parser.Column{Name: "keep"}
+	like := &parser.TableLike{Options: []parser.LikeOption{{Name: "all", Including: true}}}
+	syntax := &parser.CreateTable{Elements: []parser.TableElement{{Like: like}, {Column: column}}}
+	got := foreignTableSyntax(syntax)
+	want := tableLikeMask(likeAll) &^ (likeIndexes | likeIdentity | likeStorage | likeCompression)
+	if got == syntax || got.Elements[0].Like == like || tableLikeOptions(got.Elements[0].Like.Options) != want || tableLikeOptions(like.Options) != likeAll || got.Elements[1].Column != column {
+		t.Fatal("foreign LIKE changed syntax or copied physical properties")
+	}
+	relation := &relationDescriptor{attributes: []int32{1, 4, 7}, columns: make([]ColumnDescriptor, 3), generations: map[int32]columnGeneration{7: {kind: generationVirtual, planned: columnExpression{slot: 0}}}}
+	for _, tc := range []struct {
+		uses []int
+		want []int32
+	}{{[]int{2}, []int32{1}}, {nil, []int32{1, 4}}, {[]int{2, 1, 0}, []int32{1, 4}}, {[]int{}, []int32{}}} {
+		attributes, err := foreignRequiredAttributes(relation, tc.uses)
+		if err != nil || !slices.Equal(attributes, tc.want) {
+			t.Fatal("virtual source demand", attributes, tc.want, err)
+		}
+	}
+	if _, err := foreignRequiredAttributes(relation, []int{3}); err == nil {
+		t.Fatal("invalid required slot admitted")
+	}
+}

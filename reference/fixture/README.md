@@ -164,3 +164,21 @@ make check RACE=1 RUN='^TestReferencePgcryptoPasswordCancellation$'
 
 Each invocation has an external900-second deadline. These selected proofs do
 not replace whole-project Docker-free quickcheck or post-merge finalcheck.
+
+### Pre-engine embedding configuration
+
+`NewScenarioWithDriverConfig(t, configure)` runs `configure(*stuntgres.Driver)`
+before the native fixture opens its first connector. It permits real embedding
+capabilities such as foreign handlers and validators to use the ordinary frozen
+Driver registry. It does not replace SQL execution, alter pinned PostgreSQL,
+or change fixture reset, session, notice, pool or cleanup ownership.
+`NewScenario(t)` retains the same behavior with no configuration callback.
+
+The public foreign-source consumers use a separate in-process SQL database,
+not fixture-internal engine objects. Run the changed consumer definitions in
+both modes, with external 900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceFDW'
+make check REFERENCE=1 RUN='^TestReferenceFDW'
+```

@@ -18,6 +18,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.ForeignDDL:
+		result, err := e.executeForeignDDL(scope, stmt.(*parser.ForeignDDL), count)
+		if err == nil {
+			scope.completed = true
+		}
+		return result, err
 	case *parser.CreateTablespace:
 		return e.executeCreateTablespace(op, stmt.(*parser.CreateTablespace), count)
 	case *parser.Truncate:
@@ -100,6 +106,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
+		if grant, ok := stmt.(*parser.ObjectGrant); ok && foreignGrantKind(grant.Kind) {
+			return e.executeForeignGrant(scope, grant, count)
+		}
 		if grant, ok := stmt.(*parser.ObjectGrant); ok && grant.Kind == "database" {
 			return e.executeDatabaseGrant(scope, grant, count)
 		}

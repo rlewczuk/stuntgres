@@ -62,7 +62,13 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		session.mu.Unlock()
 		session.settings.mu.Unlock()
 		e.mu.Unlock()
-		session.cursors.clear()
+		if s.replacementRead {
+			e.replacementMu.RUnlock()
+			s.replacementRead = false
+		}
+		if err := disposeSQLCursors(s.op.Context(), session.cursors.clear()); err != nil {
+			return Result{}, err
+		}
 		clear(session.preparedSQL.entries)
 		// The persistent ticket was validated before publication and cannot end
 		// while this operation lease is live. Manager callbacks run unlocked.

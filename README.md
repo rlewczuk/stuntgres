@@ -54,6 +54,32 @@ execution, stored views and native Dump/Restore. JSON-text population functions
 and general scalar table functions are not added.
 See [contracts and feature smoke](reference/binary_json_arrays/README.md#jsonb-record-conversion).
 
+## Foreign metadata and scans — change note
+
+SQL/MED wrappers, servers, user mappings and foreign tables now use the common
+transactional catalog, ownership/ACL and dependency machinery. Ordered table and
+column options are validated atomically. Foreign SELECT executes only through
+an explicitly registered Go provider, with real planning, typed local rechecks,
+restartable scans and terminal cleanup; a handler name or URL is not executable
+code. Optional IMPORT callbacks return actual typed table definitions.
+
+Retirement also fences late committed incoming dependencies, including registered
+handler/validator identities and providers discovered by CASCADE. If a concurrent
+session creates a surviving dependent after DROP captured its closure, native
+publication fails with ordinary `stuntgres: catalog publication conflict` rather
+than committing dangling metadata. This optimistic fence does not promise
+PostgreSQL's blocking schedule or automatically retry the transaction.
+
+Ordinary results finish their foreign resources before publication. Named SQL
+cursors instead retain their live producer across finite eager FETCH/MOVE batches;
+public `Rows.Next`/`Close` never perform foreign I/O. This is not a PostgreSQL C
+ABI, built-in postgres_fdw transport, foreign-write or connection-pooling feature.
+See [embedding API](docs/DRIVER.md#foreign-provider-registration),
+[catalog/control limits](docs/TABLES.md#foreign-metadata-and-dependencies), and
+[selected dual-mode proof](reference/tables/README.md#foreign-metadata-and-scans).
+Feature smoke: `make check RUN='^TestReferenceFDWScan$'`, and the same command
+with `REFERENCE=1`; Rescan and Import smoke selectors are documented alongside it.
+
 ## Language catalog — change note
 
 `pg_catalog.pg_language` exposes the nine PostgreSQL language metadata columns
