@@ -14,7 +14,7 @@ func isStringSet(expr BoundExpr) bool {
 }
 func isQuerySet(expr BoundExpr) bool {
 	switch expr.(type) {
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
 		return true
 	}
 	return isStringSet(expr)
@@ -25,8 +25,10 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 		return isStringSet(call)
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.ReturnsSet()
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
 		return true
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Plan.Operation() == sqltype.RangeConstruct
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		return parser.JSONFunctionName(call.Plan.Name())
 	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
@@ -40,7 +42,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 // by validFunctionSourceCall after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {
 	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
-		name == "generate_series" || name == "generate_subscripts"
+		name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
 
 // FROM placement follows successful call completion, not lexical offsets.
@@ -71,6 +73,10 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.args
 	case subscriptsExpression:
 		return call.args
+	case multirangeUnnestExpression:
+		return call.args
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
@@ -101,6 +107,14 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		}
 		call.args = args
 		return call, nil
+	case multirangeUnnestExpression:
+		if len(args) != 1 {
+			return nil, fmt.Errorf("stuntgres: invalid multirange unnest arguments")
+		}
+		call.args = args
+		return call, nil
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Reconstruct(call.Info, args)
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		call.Args = args
 		return call, nil

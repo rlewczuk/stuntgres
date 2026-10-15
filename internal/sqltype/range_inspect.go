@@ -17,6 +17,7 @@ const (
 	RangeLowerInfinite
 	RangeUpperInfinite
 	RangeMerge
+	RangeConstruct
 )
 
 func (o RangeInspectOperation) Name() string {
@@ -37,6 +38,8 @@ func (o RangeInspectOperation) Name() string {
 		return "upper_inf"
 	case RangeMerge:
 		return "range_merge"
+	case RangeConstruct:
+		return "multirange"
 	}
 	return ""
 }
@@ -58,6 +61,8 @@ func RangeInspectKind(name string) (RangeInspectOperation, bool) {
 		return RangeUpperInfinite, true
 	case "range_merge":
 		return RangeMerge, true
+	case "multirange":
+		return RangeConstruct, true
 	}
 	return 0, false
 }
@@ -88,6 +93,11 @@ func RangeInspectResult(operation RangeInspectOperation, input *Descriptor) *Des
 		return nil
 	}
 	switch operation {
+	case RangeConstruct:
+		if !isRange(input.id) || input.multirangeCompanion == nil || !input.multirangeCompanion.validMultirangeAuthority() {
+			return nil
+		}
+		return input.multirangeCompanion
 	case RangeLower, RangeUpper:
 		return r.rangeSubtype
 	case RangeIsEmpty, RangeLowerInclusive, RangeUpperInclusive, RangeLowerInfinite, RangeUpperInfinite:
@@ -150,6 +160,13 @@ func (p RangeInspectPlan) Evaluate(ctx context.Context, values [2]Value) (Value,
 	}
 	if null {
 		return Null(p.result), nil
+	}
+	if p.operation == RangeConstruct {
+		member := values[0].rangeDatum
+		if !inspectRangeFlags(&member) {
+			return Value{}, fmt.Errorf("invalid constructor range flags")
+		}
+		return constructMultirange(p.result, member), nil
 	}
 	// Borrow only the touched datums. No endpoint/member copies precede the
 	// construction of the final scalar or enclosing range.

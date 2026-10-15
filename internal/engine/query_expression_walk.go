@@ -122,6 +122,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.args)
 	case subscriptsExpression:
 		args(e.args)
+	case multirangeUnnestExpression:
+		args(e.args)
 	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:

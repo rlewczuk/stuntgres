@@ -6,6 +6,36 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Multirange constructor and expansion selected proof
+
+The untagged `TestReferenceRangeMore` definitions specify unary generic
+`multirange(anyrange)` and `unnest(anymultirange)` for the three executable
+integer/numeric companion families. Independent expectations cover canonical
+values, ascending raw member order, numeric gaps/scale, NULL/empty/universal,
+direct/prepared/held typed binds, raw metadata on empty results, domains,
+target/FROM/lateral/ordinality/zip/nesting, full English diagnostics, ACL
+rechecks, stored recipes, statement atomicity and native control ownership.
+
+```sh
+make check RUN='^TestReferenceRangeMore(Values|Metadata|Binds|Composition|Variadic)$'
+make check RUN='^TestReferenceRangeMore(Diagnostics|DiagnosticContracts|Authorization)$'
+make check RUN='^TestReferenceRangeMore(Stored|Controls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestRangeMore'
+```
+
+Run each reference selector again with `REFERENCE=1`; all checks need external
+900-second deadlines. Selected held-bind/control/cancellation race proof uses
+`RACE=1`. Reserve quickcheck for whole-project Docker-free verification.
+The oracle is the shared pinned PostgreSQL18.0 fixture, never a local server.
+No discovery filters or observers belong in completed definitions.
+
+The public executable feature smoke is maintained as the task's session source,
+not a production helper or a second SQL harness. Run `go run` on its absolute
+session path from the repository root. Quiet success requires the canonical
+three-family constructor results, ascending prepared expansion, strict
+NULL/empty distinctions, fresh held cursor state, exact diagnostics and
+actual native controls; a mismatch exits nonzero.
+
 ### UUID extraction selected proof
 
 The untagged `TestReferenceUUIDExtract` families specify PostgreSQL 18.0

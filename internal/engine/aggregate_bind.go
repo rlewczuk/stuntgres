@@ -284,6 +284,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case multirangeUnnestExpression:
+		o, ok := other.(multirangeUnnestExpression)
+		return ok && e.ResultUsage() == o.ResultUsage() && same(e.args[0], o.args[0])
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
@@ -929,6 +932,10 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case multirangeUnnestExpression:
+		e.args = []BoundExpr{rewrite(e.args[0])}
+		stage(&e.expressionInfo)
+		expr = e
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
@@ -1382,6 +1389,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
+	case multirangeUnnestExpression:
+		walk(e.args[0])
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Args[0])
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:

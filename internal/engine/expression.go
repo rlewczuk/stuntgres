@@ -830,6 +830,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
+	case multirangeUnnestExpression:
+		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+		})
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {

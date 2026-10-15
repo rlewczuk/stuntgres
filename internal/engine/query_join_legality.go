@@ -602,6 +602,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case subscriptsExpression:
 		children = e.args
+	case multirangeUnnestExpression:
+		children = e.args
 	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
 		children = []BoundExpr{e.Pattern, e.Escape}
 	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:

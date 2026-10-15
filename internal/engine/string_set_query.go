@@ -72,12 +72,14 @@ const (
 	functionJSONKeysCursor
 	functionJSONEachCursor
 	functionSeriesCursor
+	functionMultirangeCursor
 )
 
 type functionSetCursor struct {
 	cursor                 sqltype.StringFieldCursor
 	keys                   sqltype.JSONKeyCursor
 	each                   sqltype.JSONEachCursor
+	members                sqltype.MultirangeCursor
 	owned                  []sqltype.Value
 	position               int
 	scalar                 sqltype.Value
@@ -96,6 +98,9 @@ func (s *functionSetCursor) close() {
 	}
 	if s.initialized && s.kind == functionJSONEachCursor {
 		s.each.Close()
+	}
+	if s.initialized && s.kind == functionMultirangeCursor {
+		s.members.Close()
 	}
 	s.owned = nil
 	s.exhausted = true
@@ -153,6 +158,19 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		}
 		cursor.exhausted = cursor.step > 0 && cursor.current > cursor.stop || cursor.step < 0 && cursor.current < cursor.stop
 		return cursor, nil
+	case multirangeUnnestExpression:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		value, err := call.args[0].Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		cursor, err := sqltype.OpenMultirange(c.Context, call.args[0].ResultUsage(), call.ResultUsage(), value)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{members: cursor, kind: functionMultirangeCursor, initialized: true}, nil
 	case subscriptsExpression:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
@@ -229,6 +247,15 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{each: cursor, kind: functionJSONEachCursor, initialized: true}, nil
+	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
+		if !validFunctionSourceCall(call) {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
+		}
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
 	case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:
 		if !validFunctionSourceCall(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
@@ -351,6 +378,8 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 		value, present, err = s.keys.Next(ctx)
 	} else if s.kind == functionJSONEachCursor {
 		value, present, err = s.each.Next(ctx)
+	} else if s.kind == functionMultirangeCursor {
+		value, present, err = s.members.Next(ctx)
 	} else {
 		value, present, err = s.cursor.Next(ctx)
 	}

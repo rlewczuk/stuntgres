@@ -184,6 +184,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case subscriptsExpression:
 		fmt.Fprint(out, "Subscripts generate_subscripts")
 		err = args(n.args)
+	case multirangeUnnestExpression:
+		fmt.Fprint(out, "Multirange unnest")
+		err = args(n.args)
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		fmt.Fprintf(out, "JSONKeys %s", n.Plan.Name())
 		err = args(n.Args)

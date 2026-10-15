@@ -74,7 +74,7 @@ func ResolveRangeInspect[E any](operation sqltype.RangeInspectOperation, visible
 		selected = typ
 	}
 	if selected == nil {
-		if operation == sqltype.RangeMerge {
+		if operation == sqltype.RangeMerge || operation == sqltype.RangeConstruct {
 			return nil, UnknownPolymorphic
 		}
 		return nil, Ambiguous

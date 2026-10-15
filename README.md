@@ -194,6 +194,19 @@ Selected proof: `make check RUN='^TestReference(CompositeAlter|TypedTableComposi
 and the same command with `REFERENCE=1` for pinned PostgreSQL and unchanged
 native-dump replay. See [types](docs/TYPES.md#arrays-composites-enums-and-domains).
 
+## Multirange constructor and expansion — change note
+
+Unary `multirange(range)` constructs the corresponding integer/numeric
+multirange; `unnest(multirange)` expands its canonical members in ascending
+order. Both use the existing int4/int8/numeric companions, including domains,
+typed binds, target/FROM composition, stored recipes and native controls.
+Empty range construction returns `{}`; SQL NULL construction returns NULL.
+Empty or NULL expansion returns zero rows with the companion range metadata.
+Named-family constructors, multiple constructor arguments, array/tsvector
+unnest, temporal multiranges and new casts/operators remain excluded.
+See [typed range contracts](docs/TYPES.md) and
+[selected proof](reference/types/README.md#multirange-constructor-and-expansion-selected-proof).
+
 ## Range and multirange inspection — change note
 
 `lower`, `upper`, `isempty`, `lower_inc`, `upper_inc`, `lower_inf`, `upper_inf`
@@ -203,8 +216,9 @@ multirange, including disconnected inputs. Bounds retain their concrete subtype;
 empty and omitted bounds return typed NULL, while explicit subtype infinity
 remains a real bound. Existing string `lower`/`upper` are unchanged.
 Use declared range columns and destination-contextual INSERT literals/binds;
-this does not add range casts, constructors, operators, arrays or temporal
-multirange execution. Stored CHECK/generated/view recipes and native
+inspection does not add range casts, operators or arrays. The selected unary
+generic multirange constructor is documented above; temporal multiranges remain
+outside execution. Stored CHECK/generated/view recipes and native
 Dump/Restore preserve typed results and held snapshots.
 See [typed range contracts](docs/TYPES.md) and
 [selected proof](reference/types/README.md#range-inspection-selected-proof).

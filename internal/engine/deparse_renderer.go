@@ -737,6 +737,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			}
 		}
 		return pgIdentifier("generate_subscripts") + "(" + strings.Join(args, ", ") + ")", nil
+	case multirangeUnnestExpression:
+		argRenderer := r
+		argRenderer.showImplicit = true
+		arg, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})
+		if err != nil {
+			return "", err
+		}
+		return pgIdentifier("unnest") + "(" + arg + ")", nil
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true

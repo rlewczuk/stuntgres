@@ -153,6 +153,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
+	case multirangeUnnestExpression:
+		n.args = children(n.args)
+		n.expressionInfo = info
+		rebound = n
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)
 		if err != nil {

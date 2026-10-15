@@ -641,9 +641,19 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   an executable multirange and returns its companion range, filling gaps.
   Typed columns/destination-contextual INSERT inputs and a known binary range
   argument supply family authority. Explicit range/multirange casts remain
-  unavailable, as do constructors and operators. A selected RANGE-valued
-  DEFAULT cannot currently be authored without those excluded prerequisites:
-  default expressions do not gain column references, parameters or subqueries.
+  unavailable, as do general constructors and operators. The selected exception
+  is unary `multirange(anyrange)` for int4range/int8range/numrange, returning the
+  corresponding multirange; `unnest(anymultirange)` expands those three companions
+  in ascending canonical order. Typed NULL construction is NULL; empty input is
+  `{}`. NULL/empty expansion emits no rows, retaining range result metadata.
+  Target/FROM, lateral, ordinality, explicit ROWS FROM zip and scalar/SRF nesting
+  reuse existing query composition. Named-family/multiple-range constructors,
+  array/tsvector unnest and multiargument FROM unnest shorthand remain excluded.
+  A selected RANGE-valued DEFAULT still cannot be authored: default expressions
+  do not gain column references, parameters, subqueries or explicit range casts.
+  Native temporal constructor and array-unnest capability boundaries report
+  0A000; they are not PostgreSQL missing-function claims for those valid upstream
+  signatures. No excluded provider is supplied as a fallback.
   Carrier traversal is shared, but no default capability is fabricated.
   Daterange columns store civil DATE bounds with finite day canonicalization and
   explicit infinity distinct from omission. Tsrange columns use continuous

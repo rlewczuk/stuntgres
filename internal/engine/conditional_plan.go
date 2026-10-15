@@ -401,6 +401,10 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
+	case multirangeUnnestExpression:
+		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, arg, decisiveDefaults)
+		})
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		arg, failure := child(e.Args[0])
 		err = failure

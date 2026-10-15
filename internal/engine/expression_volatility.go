@@ -104,6 +104,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.args...)
 	case subscriptsExpression:
 		return children(n.args...)
+	case multirangeUnnestExpression:
+		return children(n.args...)
 	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Pattern, n.Escape)
 	case functions.Posix[BoundExpr, *EvalContext, ExprProperties]:

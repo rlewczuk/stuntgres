@@ -315,8 +315,24 @@ NUMERIC precision/scale is unknown; pinned pq reports65535/65531/true.
 TEXT Length is MaxInt64/true under both existing adapters.
 Stored CHECK/generated/view recipes use typed columns and survive same/fresh
 Driver Restore with reminted authority; previously returned rows and metadata
-retain their old snapshots. This adds no explicit range casts, constructors,
-temporal multiranges or new DEFAULT authoring path.
+retain their old snapshots. This adds no explicit range casts, temporal
+multiranges or new DEFAULT authoring path.
+Unary `multirange(anyrange)` is the selected constructor exception: INT4RANGE,
+INT8RANGE and NUMRANGE return INT4MULTIRANGE, INT8MULTIRANGE and NUMMULTIRANGE.
+Outer domains flatten to their concrete base family. One nonempty canonical
+range becomes one member without reparsing; empty becomes nonnull `{}` and
+typed SQL NULL remains NULL. Integer bounds retain discrete canonical form;
+numeric inclusivity and endpoint display scale are preserved.
+`unnest(anymultirange)` returns the corresponding base range, in ascending member
+order, with no rows for NULL or an empty multirange. Independent invocations and
+held statements have fresh cursor positions. The result schema exists even on
+empty/all-NULL/LIMIT0 inputs. Computed range/multirange outputs have unknown
+nullability and absent Length/DecimalSize. Native raw cells and ScanType are
+string; pinned pq raw cells are bytes and ScanType interface{}, and pq's older
+OID inventory reports a blank multirange DatabaseTypeName.
+Unknown constructor input fails42804; unknown unnest input fails42725 because
+PostgreSQL has additional overloads. Unary VARIADIC spelling is accepted for
+typed selected input; it does not add variadic constructor overloads.
 
 
 ## Temporal transport and presentation

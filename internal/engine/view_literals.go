@@ -506,6 +506,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(subscriptsExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(multirangeUnnestExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}

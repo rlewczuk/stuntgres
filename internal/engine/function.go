@@ -106,6 +106,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return b.bindArraySearch(raw, visible)
 	}
+	if strings.EqualFold(name, "unnest") {
+		return b.bindMultirangeUnnest(raw)
+	}
 	if parser.RangeInspectFunctionName(name) {
 		return b.bindRangeInspect(raw)
 	}

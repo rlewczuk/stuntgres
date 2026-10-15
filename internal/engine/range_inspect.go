@@ -48,6 +48,12 @@ func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr,
 func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible bool, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	operation, known := sqltype.RangeInspectKind(name)
+	if visible && known && operation == sqltype.RangeConstruct && len(raw.ArgNames) == 0 && len(operands) == 1 && operands[0].Usage.Type != nil {
+		switch operands[0].Usage.Type.BaseType().ID() {
+		case sqltype.DateRange, sqltype.TimestampRange, sqltype.TimestamptzRange:
+			return nil, expressionError("0A000", "temporal multirange construction is unsupported", raw.Pos)
+		}
+	}
 	selected, resolution := functions.ResolveRangeInspect(operation, visible && known && len(raw.ArgNames) == 0, operands)
 	if resolution != functions.Resolved {
 		if resolution == functions.UnknownPolymorphic {

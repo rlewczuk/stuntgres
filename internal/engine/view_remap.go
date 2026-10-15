@@ -237,6 +237,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case subscriptsExpression:
 		n.args = args(n.args)
 		next = n
+	case multirangeUnnestExpression:
+		n.args = args(n.args)
+		next = n
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
