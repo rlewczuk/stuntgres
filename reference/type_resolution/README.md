@@ -638,13 +638,55 @@ These selectors do not replace ordinary quickcheck or the post-merge finalcheck
 under its single 1800-second deadline. Completed definitions are not passing
 verification until the root records successful runs.
 
-Post-merge replay reliability retains all40 mixed creator/order cases in the same
-catalog, every checkpoint, late invalid Restore rollback, second Restore and
-default recovery. Expectation OID probes are batched once per catalog checkpoint;
-positivity and pairwise distinct identities, display/metadata and actual
-direct/prepared checks remain unchanged. Identity results are refreshed after
-catalog replacement, not cached across generations. Shared checker migration
-also includes ArrayDisplacementControls. Fixture deadlines are not extended.
+Post-merge replay reliability retains all 40 mixed creator/order cases (five
+creator kinds, four unlike counterparts, both orders) in the same catalog,
+every checkpoint, late invalid Restore rollback, second Restore and fresh
+default writes for both named elements of every pair. Expectation OID probes
+are batched once per catalog checkpoint; positivity and pairwise distinct
+identities, display/raw carriers/metadata and actual direct/prepared checks
+remain unchanged. Identity results are refreshed after catalog replacement,
+not cached across generations. Shared checker migration also includes
+ArrayDisplacementControls.
+
+MixedReplay alone gives each cohesive phase a fresh 30-second context rooted
+in `t.Context()`: backend borrowing/schema/search-path setup, creator-pair
+setup, identity batch, each complete case check, each data witness, Dump,
+replacement/retained-cursor observation, and actual emitted PostgreSQL replay.
+The test locally repeats the shared wrapper's exact setup so native-first work
+cannot exhaust the original context before PostgreSQL borrowing even begins;
+schema cleanup registration, backend order and notice provenance are unchanged.
+Foreign replay keeps the same target fixture,
+spacer-before-Restore, pools, recorder and borrowed physical connection through
+setup, full validation, invalid Restore, validation, redump, second Restore,
+validation and fresh default writes. Only a shallow local Pair view's `Ctx`
+changes; no fixture-global deadline or API is changed. Each phase cancels on
+exit, and retained rows are read/closed after replacement but before their
+phase cancels or the unrelated full matrix resumes. Failure output includes
+the phase label, elapsed time and context error.
+
+The intentionally invalid late Restore must report 22P02 with the exact
+`invalid input syntax for type integer: "bad"` cause while its context remains
+live; a deadline is not evidence of failure atomicity. The full checks still
+follow that failure and both successful restores, and PostgreSQL still executes
+the actual emitted native dump, never a reduced hand-written script.
+
+For the phase-lifetime remedy and feature smoke, run the complete MixedReplay
+definition, oracle first, with an external 900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceRegtypeArrayDisplacementMixedReplay$' REFERENCE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacementMixedReplay$'
+make check RUN='^TestReferenceRegtypeArrayDisplacementMixedReplay$' RACE=1
+```
+
+Expected observations are the complete 40-case source and restored identity,
+logical name, direct/prepared metadata/data and native retained-row contracts,
+unchanged state after the independently diagnosed invalid Restore, successful
+redump/second Restore and two rows after every fresh default INSERT. Real mode
+also validates actual emitted SQL on pinned PostgreSQL. These are required
+outcomes, not a claim that the root has already verified this remedy.
+
+The broader shared-checker regression selectors remain:
 
 ```sh
 make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|MixedReplay)$'

@@ -113,49 +113,76 @@ func TestReferenceRegtypeArrayDisplacementNamedDomainReplay(t *testing.T) {
 func regtypeDisplacementForeignReplay(t *testing.T, emitted []byte, cases []regtypeDisplacementCase, dataRelations []string) {
 	t.Helper()
 	target := fixture.NewFixture(t, false, true)
-	fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("CREATE DOMAIN public.mixed_spacer AS integer", 0))
-	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(emitted)); err != nil {
-		t.Fatal("mixed foreign Restore", err)
-	}
-	targetConn, err := target.Memory.Conn(target.Ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer targetConn.Close()
-	fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
-	check := func() [][4]int64 {
-		identities := regtypeDisplacementIdentities(t, target, targetConn, cases)
+	var targetConn *sql.Conn
+	regtypeDisplacementPhase(t, target, "foreign setup", func(phase *fixture.Pair) {
+		fixture.RunStep(t, phase.Ctx, phase.Memory, phase.MemoryRecord, fixture.Exec("CREATE DOMAIN public.mixed_spacer AS integer", 0))
+		if err := stuntgres.Restore(phase.Ctx, phase.Native, bytes.NewReader(emitted)); err != nil {
+			t.Fatal("mixed foreign Restore", err)
+		}
+		var err error
+		targetConn, err = phase.Memory.Conn(phase.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { targetConn.Close() })
+		fixture.RunStep(t, phase.Ctx, targetConn, phase.MemoryRecord, fixture.Exec("SET search_path TO regtype_displacement,public", 0))
+	})
+	check := func(label string) [][4]int64 {
+		var identities [][4]int64
+		regtypeDisplacementPhase(t, target, label+" identities", func(phase *fixture.Pair) {
+			identities = regtypeDisplacementIdentities(t, phase, targetConn, cases)
+		})
 		for i, c := range cases {
-			regtypeDisplacementLogicalCheck(t, target, target.Backends()[0], targetConn, target.MemoryRecord, c, identities[i])
-			named := c
-			named.base = c.named
-			regtypeDisplacementReferenceCheck(t, target, targetConn, target.MemoryRecord, named, identities[i][3], 1)
+			regtypeDisplacementPhase(t, target, label+" "+c.base, func(phase *fixture.Pair) {
+				regtypeDisplacementLogicalCheck(t, phase, phase.Backends()[0], targetConn, phase.MemoryRecord, c, identities[i])
+				named := c
+				named.base = c.named
+				regtypeDisplacementReferenceCheck(t, phase, targetConn, phase.MemoryRecord, named, identities[i][3], 1)
+			})
 		}
 		for _, name := range dataRelations {
-			fixture.RegtypeBoth(t, target, targetConn, target.MemoryRecord, fixture.Select("SELECT v FROM "+fixture.RegtypeDisplacementQualified(name), []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			regtypeDisplacementPhase(t, target, label+" data "+name, func(phase *fixture.Pair) {
+				fixture.RegtypeBoth(t, phase, targetConn, phase.MemoryRecord, fixture.Select("SELECT v FROM "+fixture.RegtypeDisplacementQualified(name), []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			})
 		}
 		return identities
 	}
-	check()
+	beforeFailure := check("foreign initial")
 	bad := string(emitted) + "CREATE TABLE regtype_displacement.invalid(v integer DEFAULT 'bad');"
-	if err := stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(bad)); err == nil {
-		t.Fatal("late mixed foreign Restore succeeded")
+	regtypeDisplacementPhase(t, target, "foreign invalid Restore", func(phase *fixture.Pair) {
+		err := stuntgres.Restore(phase.Ctx, phase.Native, strings.NewReader(bad))
+		if phase.Ctx.Err() != nil {
+			t.Fatalf("late mixed foreign Restore exhausted its phase: %v (Restore: %v)", phase.Ctx.Err(), err)
+		}
+		// A deadline or unrelated failure must not satisfy failure atomicity.
+		got := fixture.ExtractDiagnostic(t, err)
+		if got.Code != "22P02" || got.Message != `invalid input syntax for type integer: "bad"` {
+			t.Fatalf("late mixed foreign Restore diagnostic: %#v", got)
+		}
+	})
+	if afterFailure := check("foreign after failed Restore"); !reflect.DeepEqual(afterFailure, beforeFailure) {
+		t.Fatalf("failed mixed foreign Restore changed identities: got %v want %v", afterFailure, beforeFailure)
 	}
-	check()
 	var redump bytes.Buffer
-	if err := stuntgres.Dump(target.Ctx, target.Native, &redump); err != nil {
-		t.Fatal("mixed foreign redump", err)
-	}
-	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(redump.Bytes())); err != nil {
-		t.Fatal("mixed foreign second Restore", err)
-	}
-	identities := check()
+	regtypeDisplacementPhase(t, target, "foreign redump", func(phase *fixture.Pair) {
+		if err := stuntgres.Dump(phase.Ctx, phase.Native, &redump); err != nil {
+			t.Fatal("mixed foreign redump", err)
+		}
+	})
+	regtypeDisplacementPhase(t, target, "foreign second Restore", func(phase *fixture.Pair) {
+		if err := stuntgres.Restore(phase.Ctx, phase.Native, bytes.NewReader(redump.Bytes())); err != nil {
+			t.Fatal("mixed foreign second Restore", err)
+		}
+	})
+	identities := check("foreign after second Restore")
 	for i, c := range cases {
 		for j, element := range []string{c.base, c.named} {
-			fixture.RunStep(t, target.Ctx, targetConn, target.MemoryRecord, fixture.Exec("INSERT INTO "+fixture.RegtypeDisplacementQualified("w_"+element)+" DEFAULT VALUES", 1))
-			probe := c
-			probe.base = element
-			regtypeDisplacementReferenceCheck(t, target, targetConn, target.MemoryRecord, probe, identities[i][1+2*j], 2)
+			regtypeDisplacementPhase(t, target, "foreign fresh default "+element, func(phase *fixture.Pair) {
+				fixture.RunStep(t, phase.Ctx, targetConn, phase.MemoryRecord, fixture.Exec("INSERT INTO "+fixture.RegtypeDisplacementQualified("w_"+element)+" DEFAULT VALUES", 1))
+				probe := c
+				probe.base = element
+				regtypeDisplacementReferenceCheck(t, phase, targetConn, phase.MemoryRecord, probe, identities[i][1+2*j], 2)
+			})
 		}
 	}
 }

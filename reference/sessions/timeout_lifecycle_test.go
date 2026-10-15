@@ -12,9 +12,15 @@ func TestReferenceTimeoutChainPrepared(t *testing.T) {
 		t.Run(end, func(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				f := newTimeoutReferenceFixture(t, p, b)
-				f.set("transaction_timeout", "500ms")
-				f.beginPrivate()
-				f.exec(f.owner, "SET LOCAL transaction_timeout='250ms'", 0)
+				const transactionTimeout = 6 * time.Second
+				const localTimeout = time.Second
+				f.set("transaction_timeout", "6s")
+				beginBefore := time.Now()
+				f.exec(f.owner, "BEGIN", 0)
+				beginAfter := time.Now()
+				f.exec(f.owner, "LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE", 0)
+				f.exec(f.owner, "INSERT INTO timeout_sentinel VALUES(8)", 1)
+				f.exec(f.owner, "SET LOCAL transaction_timeout='1s'", 0)
 				command := end
 				aborted := end == "aborted-COMMIT" || end == "aborted-ROLLBACK"
 				if aborted {
@@ -27,14 +33,37 @@ func TestReferenceTimeoutChainPrepared(t *testing.T) {
 						command = "ROLLBACK"
 					}
 				}
-				timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
+				timeoutReferenceIdle(t, p.Ctx, max(0, time.Until(beginAfter.Add(3*time.Second))))
+				chainBefore := time.Now()
+				if !chainBefore.Before(beginBefore.Add(transactionTimeout)) {
+					t.Fatalf("inconclusive CHAIN window overrun: BEGIN bracket=[%s, %s], CHAIN start=%s, original budget=%s",
+						beginBefore, beginAfter, chainBefore, transactionTimeout)
+				}
 				f.exec(f.owner, command+" AND CHAIN", 0)
-				f.show("transaction_timeout", "500ms")
-				// Cross old BEGIN's deadline and old LOCAL duration without
-				// crossing the new incarnation's full restored 500ms budget.
-				timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
-				f.show("transaction_timeout", "500ms")
-				timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
+				chainAfter := time.Now()
+				f.show("transaction_timeout", "6s")
+
+				// Cross the latest possible old BEGIN deadline and the old LOCAL
+				// duration, but stay before the earliest possible new deadline.
+				survivalAt := beginAfter.Add(transactionTimeout)
+				if localDeadline := chainAfter.Add(localTimeout); localDeadline.After(survivalAt) {
+					survivalAt = localDeadline
+				}
+				survivalAt = survivalAt.Add(100 * time.Millisecond)
+				timeoutReferenceIdle(t, p.Ctx, max(0, time.Until(survivalAt)))
+				showBefore := time.Now()
+				newDeadline := chainBefore.Add(transactionTimeout)
+				if showBefore.Before(survivalAt) || !showBefore.Before(newDeadline) {
+					t.Fatalf("inconclusive survival window overrun: BEGIN bracket=[%s, %s], CHAIN bracket=[%s, %s], survival target=%s, SHOW start=%s, earliest chained deadline=%s",
+						beginBefore, beginAfter, chainBefore, chainAfter, survivalAt, showBefore, newDeadline)
+				}
+				f.show("transaction_timeout", "6s")
+				showAfter := time.Now()
+				if !showAfter.Before(newDeadline) {
+					t.Fatalf("inconclusive survival window overrun: BEGIN bracket=[%s, %s], CHAIN bracket=[%s, %s], survival target=%s, SHOW bracket=[%s, %s], earliest chained deadline=%s",
+						beginBefore, beginAfter, chainBefore, chainAfter, survivalAt, showBefore, showAfter, newDeadline)
+				}
+				timeoutReferenceIdle(t, p.Ctx, max(0, time.Until(chainAfter.Add(transactionTimeout+100*time.Millisecond))))
 				f.fatalProbe("25P04")
 				if end == "COMMIT" {
 					f.rows(f.peer, 7, 8)

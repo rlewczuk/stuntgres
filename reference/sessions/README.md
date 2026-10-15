@@ -839,9 +839,14 @@ the configured positive duration after SET0 leaves SHOW positive but does not
 rearm: independently observe a live owner beyond it, then require off/on expiry.
 
 The timeout family's ordinary delay witnesses retain250ms budgets crossing
-at350ms; shorter limits125ms remain below250ms; CHAIN uses fresh500ms and300ms
-steps; the old500ms budget after300ms has200ms residual, beating a newly
-configured375ms limit. Abort recovery waits1100ms beyond suppressed1s idle
+at350ms; shorter limits125ms remain below250ms. The four CHAIN timer-incarnation
+cases use6s session and1s LOCAL budgets, with monotonic timestamps bracketing
+BEGIN and AND CHAIN. Their successful SHOW occurs after both obsolete timer
+windows but strictly before the earliest possible chained deadline; scheduling
+overruns fail with measured brackets rather than accepting premature expiry or
+retrying the transaction. Final25P04 and all peer-row assertions remain exact.
+The old500ms budget after300ms has200ms residual in the separate precedence
+witness, beating a newly configured375ms limit. Abort recovery waits1100ms beyond suppressed1s idle
 and600ms beyond restored500ms. Active-idle limits remain100ms while actual
 lock work lasts250ms (2.5 limits); CPU parse witnesses retain1ms. Registry
 normalization/range inputs, observer polls, asynchronous joins and all
