@@ -262,7 +262,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	if nested != nil {
 		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
-	if call.direct != nil {
+	for _, direct := range call.direct {
 		level := func(frame uint32) int {
 			if frame == b.frameID() {
 				return len(b.queryScopes)
@@ -276,7 +276,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		}
 		ownerLevel := level(owner)
 		var directError error
-		walkQueryArgumentExpression(call.direct, func(node BoundExpr) {
+		walkQueryArgumentExpression(direct, func(node BoundExpr) {
 			if directError != nil {
 				return
 			}
@@ -306,7 +306,8 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum, aggregateMoneySum, aggregateIntervalSum,
 			aggregateBitAnd, aggregateBitOr, aggregateBitXor,
 			aggregateJSON, aggregateJSONStrict, aggregateJSONArray, aggregateJSONArrayAbsent, aggregateJSONObject, aggregateJSONObjectStrict,
-			aggregatePercentileCont, aggregatePercentileDisc, aggregateMode:
+			aggregatePercentileCont, aggregatePercentileDisc, aggregateMode,
+			aggregateHypotheticalRank, aggregateHypotheticalDenseRank, aggregateHypotheticalPercentRank, aggregateHypotheticalCumeDist:
 			clause = "VALUES"
 		}
 	}

@@ -99,13 +99,24 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	hashes := make([]uint64, len(n.keys))
 	orderedWidth := 0
 	hasDistinct := false
+	directWidth := 0
 	for _, call := range n.calls {
 		hasDistinct = hasDistinct || len(call.distinct) > 0
+		if len(call.direct) > directWidth {
+			directWidth = len(call.direct)
+		}
 		if call.stageWidth > orderedWidth {
 			orderedWidth = call.stageWidth
 		}
 	}
 	tuple := make([]sqltype.Value, orderedWidth)
+	// Reserved ordinary payload slots keep the hypothetical target in the
+	// same layout as retained input tuples. Reused only after finalization.
+	var directLocal [2]sqltype.Value
+	directValues := directLocal[:]
+	if directWidth > 0 {
+		directValues = make([]sqltype.Value, 2+directWidth)
+	}
 	evaluation := state.evaluation(ctx)
 	output := evaluation.Output
 	scope := evaluation.liveScope()
@@ -315,27 +326,42 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		}
 		row := group.keys
 		// Direct arguments use the final group-key frame, never an input row.
-		evaluation.Row=row
+		evaluation.Row = row
 		for p, call := range n.calls {
 			var value sqltype.Value
 			var err error
-			if provider, ordered:=call.provider.(orderedSetFinalizer); ordered {
-				var direct sqltype.Value
-				if call.direct!=nil {direct,err=call.direct.Eval(&evaluation)}
-				if err==nil {err=ctx.Err()}
-				if err!=nil {return indexedStage{},err}
+			if provider, ordered := call.provider.(orderedSetFinalizer); ordered {
+				direct := directValues[2 : 2+len(call.direct)]
+				for j, expr := range call.direct {
+					direct[j], err = expr.Eval(&evaluation)
+					if err == nil {
+						err = ctx.Err()
+					}
+					if err != nil {
+						return indexedStage{}, err
+					}
+				}
 				var prepared orderedSetPreparation
-				prepared,err=provider.PrepareOrdered(ctx,direct,len(group.ordered[p])/call.stageWidth)
-				if err==nil {
-					if prepared.terminal {value=prepared.value} else {
+				prepared, err = provider.PrepareOrdered(ctx, direct, len(group.ordered[p])/call.stageWidth)
+				if err == nil {
+					if prepared.terminal {
+						value = prepared.value
+					} else {
 						var input orderedAggregateInput
-						input,err=sortOrderedAggregate(ctx,state,call,group.ordered[p])
-						if err==nil {value,err=provider.FinalizeOrdered(ctx,prepared,input,state.input)}
+						input, err = sortOrderedAggregate(ctx, state, call, group.ordered[p])
+						input.target = directValues[:2+len(call.direct)]
+						if err == nil {
+							value, err = provider.FinalizeOrdered(ctx, prepared, input, state.input)
+						}
 					}
 				}
 			} else {
-				if len(call.order)>0 {err=replayOrderedAggregate(ctx,state,call,group.states[p],group.ordered[p])}
-				if err==nil {value,err=call.provider.Finalize(ctx,group.states[p])}
+				if len(call.order) > 0 {
+					err = replayOrderedAggregate(ctx, state, call, group.states[p], group.ordered[p])
+				}
+				if err == nil {
+					value, err = call.provider.Finalize(ctx, group.states[p])
+				}
 			}
 			if err != nil {
 				return indexedStage{}, err
@@ -385,49 +411,60 @@ func findQueryGroup(ctx context.Context, grouping []sqltype.Grouping, keys []sql
 	return -1, ctx.Err()
 }
 
-func sortOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, tuples []sqltype.Value) (orderedAggregateInput,error) {
+func sortOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, tuples []sqltype.Value) (orderedAggregateInput, error) {
 	width := call.stageWidth
 	indices := make([]int, len(tuples)/width)
 	for i := range indices {
 		indices[i] = i
 	}
 	if err := mergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
-		for _, key := range call.order {
-			if err := ctx.Err(); err != nil {
-				return 0, err
-			}
-			left, right := tuples[a*width+key.cache], tuples[b*width+key.cache]
-			if left.IsNull() && right.IsNull() {
-				continue
-			}
-			if left.IsNull() || right.IsNull() {
-				if left.IsNull() == key.nullsFirst {
-					return -1, nil
-				}
-				return 1, nil
-			}
-			sign, err := key.comparison.Compare(ctx, left, right, state.input)
-			if err != nil {
-				return 0, err
-			}
-			if sign != 0 {
-				if key.desc {
-					sign = -sign
-				}
-				return sign, nil
-			}
-		}
-		return 0, ctx.Err()
+		return compareOrderedAggregateTuple(ctx, call.order, tuples[a*width:(a+1)*width], tuples[b*width:(b+1)*width], state.input)
 	}); err != nil {
-		return orderedAggregateInput{},err
+		return orderedAggregateInput{}, err
 	}
-	return orderedAggregateInput{values:tuples,indices:indices,width:width},ctx.Err()
+	return orderedAggregateInput{values: tuples, indices: indices, width: width, order: call.order}, ctx.Err()
+}
+
+// Sorting, hypothetical placement and peer equality share exactly one typed
+// ordering implementation. Values and key metadata are borrowed, never copied.
+func compareOrderedAggregateTuple(ctx context.Context, order []sortKey, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
+	for _, key := range order {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		a, b := left[key.cache], right[key.cache]
+		if a.IsNull() && b.IsNull() {
+			continue
+		}
+		if a.IsNull() || b.IsNull() {
+			if a.IsNull() == key.nullsFirst {
+				return -1, nil
+			}
+			return 1, nil
+		}
+		sign, err := key.comparison.Compare(ctx, a, b, env)
+		if err != nil {
+			return 0, err
+		}
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		if sign != 0 {
+			if key.desc {
+				sign = -sign
+			}
+			return sign, nil
+		}
+	}
+	return 0, ctx.Err()
 }
 
 func replayOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, aggregateState any, tuples []sqltype.Value) error {
-	input,err:=sortOrderedAggregate(ctx,state,call,tuples)
-	if err!=nil {return err}
-	width:=input.width
+	input, err := sortOrderedAggregate(ctx, state, call, tuples)
+	if err != nil {
+		return err
+	}
+	width := input.width
 	for _, index := range input.indices {
 		if err := ctx.Err(); err != nil {
 			return err

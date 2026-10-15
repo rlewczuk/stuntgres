@@ -1154,7 +1154,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		forbiddenCall := false
 		switch token.lexeme.text {
 		case "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2",
-			"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "json_objectagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "generate_subscripts", "unnest":
+			"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "json_objectagg", "grouping", "row_number", "generate_series", "generate_subscripts", "unnest":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
 			forbiddenCall = next.code == int('(')
@@ -1172,7 +1172,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				code, message = "42803", "aggregate functions are not allowed in column generation expressions"
 			case "grouping":
 				code, message = "42803", "grouping operations are not allowed in column generation expressions"
-			case "row_number", "rank", "dense_rank":
+			case "row_number":
 				code, message = "42809", "window function "+token.lexeme.text+" requires an OVER clause"
 			case "generate_series", "generate_subscripts", "unnest":
 				code, message = "0A000", "set-returning functions are not allowed in column generation expressions"

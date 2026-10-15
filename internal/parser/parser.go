@@ -384,6 +384,8 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
+	case "rank", "dense_rank", "percent_rank", "cume_dist":
+		return true
 	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
 		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":
 		return true
@@ -413,6 +415,8 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 func ordinaryAggregate(name string) bool {
 	switch name {
 	case "first_value", "last_value", "nth_value", "ntile":
+		return true
+	case "rank", "dense_rank", "percent_rank", "cume_dist":
 		return true
 	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
 		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":

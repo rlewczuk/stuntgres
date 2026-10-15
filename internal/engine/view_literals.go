@@ -240,15 +240,22 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				for i, arg := range r.Args {
 					expression := call.argument
 					if r.Within {
-						expression = call.direct
-					}
-					if i == 1 {
+						if i >= len(call.direct) {
+							return fmt.Errorf("stuntgres: invalid stored direct arguments")
+						}
+						expression = call.direct[i]
+					} else if i == 1 {
 						expression = call.separator
+					} else if i > 1 {
+						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
+					}
+					if hypotheticalOperation(call.operation) {
+						expression = expression.(collationExpression).child
 					}
 					if conversion, ok := expression.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
 						expression = conversion.child
 					}
-					if expression == nil || i > 1 {
+					if expression == nil {
 						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
 					}
 					if err := child(arg, expression); err != nil {
@@ -259,7 +266,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 					return fmt.Errorf("stuntgres: invalid stored aggregate ordering")
 				}
 				for i, key := range r.Order {
-					if err := child(key.Expr, call.order[i].expression); err != nil {
+					expression := call.order[i].expression
+					if hypotheticalOperation(call.operation) {
+						expression = expression.(collationExpression).child
+					}
+					if err := child(key.Expr, expression); err != nil {
 						return err
 					}
 				}

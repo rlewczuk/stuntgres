@@ -2162,6 +2162,34 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if r.Schema != nil {
 				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 			}
+			if hypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 {
+				if _, err := b.bindAggregateFilter(r); err != nil {
+					return nil, err
+				}
+				visible, err := b.builtinVisible(name, functionLookup)
+				if err != nil {
+					return nil, err
+				}
+				if !visible {
+					return nil, functionSignatureErrorForTypes(name, r.Pos, nil)
+				}
+				if r.Window == nil {
+					return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
+				}
+				if r.Distinct {
+					return nil, expressionError("0A000", "DISTINCT is not implemented for window functions", r.Pos)
+				}
+				if len(r.Order) > 0 {
+					return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", r.Pos)
+				}
+				if r.Filter != nil {
+					return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", r.Pos)
+				}
+				if err := b.windowAllowed(r.Pos); err != nil {
+					return nil, err
+				}
+				return nil, expressionError("0A000", "window function provider is unsupported", r.Pos)
+			}
 			if r.Within && !orderedSetName(r.Name) {
 				return b.rejectOrdinaryWithin(r)
 			}
@@ -2211,6 +2239,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			parentOwner := b.argumentOwner
 			b.argumentOwner = argumentWindowOwner{active: true}
 			defer func() { b.argumentOwner = parentOwner }()
+			if b.generatedOwner != nil {
+				return nil, expressionError("42803", "aggregate functions are not allowed in column generation expressions", r.Pos)
+			}
 			if b.indexPredicateConsumer {
 				return nil, expressionError("42803", "aggregate functions are not allowed in index predicates", r.Pos)
 			}
@@ -2224,7 +2255,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
 			var err error
-			if orderedSetName(r.Name) {
+			if hypotheticalSetName(r.Name) {
+				node, err = b.bindHypotheticalSet(r, name)
+			} else if orderedSetName(r.Name) {
 				node, err = b.bindOrderedSet(r, name)
 			} else if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
 				node, err = b.bindBooleanAggregate(r, name)

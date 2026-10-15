@@ -873,7 +873,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				}
 			}
 		}
-		if parent.orderedSetDirect && usage.Type.IsArray() {
+		if parent.orderedSetDirect && (usage.Type.IsArray() || usage.Type.IsEnum()) {
 			if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
 				// Like retained registry-array constants, this captured datum
 				// already renders its exact owning typed annotation. Elide only
@@ -1044,8 +1044,17 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 					return "", valueErr
 				}
 				text = "(" + key + ") VALUE " + value
-			} else if e.Within && len(e.Args) == 1 {
-				text, err = operand(e.Args[0], pgRenderParent{functionArgument: true, orderedSetDirect: true})
+			} else if e.Within {
+				for i, arg := range e.Args {
+					part, failure := operand(arg, pgRenderParent{functionArgument: true, orderedSetDirect: true})
+					if failure != nil {
+						return "", failure
+					}
+					if i > 0 {
+						text += ", "
+					}
+					text += part
+				}
 			} else {
 				text, err = args(e.Args)
 			}

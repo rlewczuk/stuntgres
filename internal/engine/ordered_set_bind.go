@@ -9,7 +9,7 @@ import (
 )
 
 func orderedSetName(name string) bool {
-	return name == "percentile_cont" || name == "percentile_disc" || name == "mode"
+	return name == "percentile_cont" || name == "percentile_disc" || name == "mode" || hypotheticalSetName(name)
 }
 
 func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
@@ -66,7 +66,7 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 	inputOperand := operands[n-1]
 	inputType := inputOperand.descriptor()
 	array := false
-	var direct BoundExpr
+	var direct []BoundExpr
 	fraction := b.typ(sqltype.Float8)
 	if directCount == 1 {
 		fractionType := fraction
@@ -79,7 +79,8 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 				return undefined()
 			}
 		}
-		direct, err = b.coerceConditional(operands[0], fractionType.Usage(), raw.Name)
+		direct = make([]BoundExpr, 1)
+		direct[0], err = b.coerceConditional(operands[0], fractionType.Usage(), raw.Name)
 		if err != nil {
 			return nil, err
 		}

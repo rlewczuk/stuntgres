@@ -807,6 +807,8 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		for i, call := range n.calls {
 			copy.calls[i] = call
 			switch p := call.provider.(type) {
+			case *hypotheticalSetProvider:
+				copy.calls[i].provider = &hypotheticalSetProvider{usage: usage(p.usage), operation: p.operation}
 			case *orderedSetProvider:
 				provider := *p
 				p = &provider
@@ -922,9 +924,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if call.separator != nil {
 				copy.calls[i].separator = expression(call.separator)
 			}
-			if call.direct != nil {
-				copy.calls[i].direct = expression(call.direct)
-			}
+			copy.calls[i].direct = expressions(call.direct)
 			if call.filter != nil {
 				copy.calls[i].filter = expression(call.filter)
 			}

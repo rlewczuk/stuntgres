@@ -392,7 +392,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				result.Nullable, result.NullabilityKnown = false, false
 			default:
 				result.NullabilityKnown = true
-				result.Nullable = operation != aggregateCount && operation != aggregateRegrCount
+				result.Nullable = operation != aggregateCount && operation != aggregateRegrCount && !hypotheticalOperation(operation)
 			}
 		}
 		if window, ok := expr.(*windowExpression); ok {
@@ -471,14 +471,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		for i, call := range b.aggregates {
-			if call.direct == nil {
-				continue
+			for j, expr := range call.direct {
+				direct, err := b.rewriteOrderedSetDirect(expr, keys)
+				if err != nil {
+					return nil, err
+				}
+				b.aggregates[i].direct[j] = direct
 			}
-			direct, err := b.rewriteOrderedSetDirect(call.direct, keys)
-			if err != nil {
-				return nil, err
-			}
-			b.aggregates[i].direct = direct
 		}
 		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates)+1)
 		for i, key := range keys {

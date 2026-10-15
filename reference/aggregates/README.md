@@ -200,6 +200,79 @@ held inputs, native symbolic-view restoration and overflow INSERT atomicity.
 Selected proof is not whole-project verification: root also runs `make quickcheck`
 and post-integration `make finalcheck` under the shared guide.
 
+### Hypothetical-set aggregates
+
+The shared `hypothetical_*_test.go` bodies cover `rank`, `dense_rank`,
+`percent_rank` and `cume_dist` WITHIN GROUP forms. Expected INT8/INT8/FLOAT8/FLOAT8
+rows are independently specified: before/peer/between/after, nonstrict NULLs,
+empty global versus keyed groups, mixed-direction multi-key peers, pairwise
+coercion/collation, grouped direct arguments and all four full diagnostics.
+Direct/prepared Query and Exec errors preserve portable fields, Hint, Detail
+and Unicode character locations. Bad held parameters preserve the observed
+PostgreSQL wire-Bind context on both adapters; recovery reuses the same held
+object.
+Precedence combines competing errors across distinct pairs for all four names:
+all pair coercions precede ordering-capability lookup, and all ordering lookups
+precede pair collation assignment. Exact records/stages include Unicode positions,
+later incompatible/coercion errors and later unsortable JSON keys.
+
+Execution/Consumers cover input FILTER demand, every direct child's once/group
+left-to-right effects, empty-input errors, hidden HAVING/order calls, sibling
+percentiles/count, grouping sets, CTE/subqueries, CTAS and INSERT atomicity.
+Lifecycle checks metadata before Next, retained rows versus fresh same-held
+execution and global/keyed empty output. PlainRoutes invokes actual DB/Tx plain
+and Context methods, not simulated plain Conn routes. Grammar/Privileges retain
+clause owners, outer ownership and later-child permissions.
+
+Controls restores actual emitted native SQL and replays that exact dump on the
+pinned PostgreSQL backend; domain/enum keys, later direct arguments and contextual
+unknown casts survive descriptor replacement, column rename, same-held recovery,
+independent Driver restore and stable redump. Native control phases remain
+explicitly native-only. FeatureSmoke is a substantive compact SQL scenario,
+including actual emitted dump replay, not a wrapper invoking baseline tests.
+Contextual direct enum literals and typed NULLs reuse their owning leaf
+annotation on replay; nested explicit enum casts and domain/base conversions
+remain present rather than accumulating another annotation on every Restore.
+Cancellation observes actual native sort/worker or PostgreSQL activity before
+cancelling, joins the worker through the fixture, and recovers on the same held
+statement with a small independently specified input.
+
+The PostgreSQL 18.0 fixture **crashed** when executing 50 direct/order pairs.
+Release `nodeAgg.c` allocates `LOCAL_FCINFO(..., FUNC_MAX_ARGS)` but requests
+the transition state plus all 100 SQL operands for an extra-argument finalizer;
+fixed final-call storage overflow is a source-derived inference, not a verified
+crash diagnosis. Public proof safely executes 49 independent pairs, checks
+50-pair prepare/close on both adapters without Query or Exec, and checks
+51-pair54023. Private native binder/provider execution proves all four outputs
+`(1,1,0,1)` with exact INT8/INT8/FLOAT8/FLOAT8 result types at 50 keys, without
+reducing the 100-operand native cap or introducing a tuple limit.
+
+Private `TestHypotheticalAggregate...` units supplement public SQL proof with
+typed peer equality, NULL/direction comparison, formulas, buffer immutability,
+50-key layouts/execution, all-child structural identity/copy-on-change rewrite,
+destination-owned remapping, evaluation counters and deterministic cancellation
+inside sort comparison, placement, dense peer comparison, direct children,
+preparation/finalization and prepublication.
+
+Selected commands (external900-second deadline each; run both modes):
+
+```sh
+make check RUN='^TestReferenceHypotheticalAggregate(Values|Nulls|MultiKey|Types|Collations|Binding|Diagnostics|Precedence)$'
+make check RUN='^TestReferenceHypotheticalAggregate(Values|Nulls|MultiKey|Types|Collations|Binding|Diagnostics|Precedence)$' REFERENCE=1
+make check RUN='^TestReferenceHypotheticalAggregate(Execution|Consumers|Lifecycle|Controls|Cancellation|PlainRoutes|Grammar|Privileges)$'
+make check RUN='^TestReferenceHypotheticalAggregate(Execution|Consumers|Lifecycle|Controls|Cancellation|PlainRoutes|Grammar|Privileges)$' REFERENCE=1
+make check RUN='^TestHypotheticalAggregate'
+make check RUN='^TestHypotheticalAggregate' RACE=1
+make check RUN='^TestReferenceHypotheticalAggregateFeatureSmoke$'
+make check RUN='^TestReferenceHypotheticalAggregateFeatureSmoke$' REFERENCE=1
+```
+
+The shared direct-list/finalizer/comparator cutover also requires the existing
+ordered-set selected proof below in both modes, and focused ordinary aggregate
+modifier Ordering/MatchingCoercions/TupleDistinct/Ownership/ConsumersAtomicity/
+Lifecycle/Dependencies/FilterDemand regressions. Root runs whole-project
+`make quickcheck` after edits; command readiness is not passing evidence.
+
 ### Ordered-set aggregates
 
 The untagged `ordered_set_*_test.go` scenarios specify all seven percentile/mode

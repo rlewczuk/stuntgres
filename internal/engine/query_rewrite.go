@@ -312,7 +312,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			}
 			nextCall := call
 			callChanged := false
-			for j, expr := range [4]BoundExpr{call.argument, call.separator, call.filter, call.direct} {
+			for j, expr := range [3]BoundExpr{call.argument, call.separator, call.filter} {
 				if expr == nil || err != nil {
 					continue
 				}
@@ -324,12 +324,28 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 						nextCall.argument = next
 					} else if j == 1 {
 						nextCall.separator = next
-					} else if j == 2 {
-						nextCall.filter = next
 					} else {
-						nextCall.direct = next
+						nextCall.filter = next
 					}
 				}
+			}
+			var direct []BoundExpr
+			for j, expr := range call.direct {
+				if err != nil {
+					break
+				}
+				next, different, failure := rewrite(expr)
+				err = failure
+				if different {
+					if direct == nil {
+						direct = append([]BoundExpr(nil), call.direct...)
+					}
+					direct[j] = next
+					callChanged = true
+				}
+			}
+			if direct != nil {
+				nextCall.direct = direct
 			}
 			var order []sortKey
 			for k, key := range call.order {

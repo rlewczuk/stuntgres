@@ -882,7 +882,7 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
 - Enum-array results cannot be persisted by query-created tables or materialized
   views. Other admitted enum/domain-array carriers do not remove this exclusion.
 - Ordered-set `percentile_cont`, `percentile_disc`, and `mode` support WITHIN
-  GROUP sorting and FILTER, not OVER or hypothetical/custom aggregates.
+  GROUP sorting and FILTER, not OVER or custom aggregates.
   Continuous scalar/array results support FLOAT8 and INTERVAL; discrete arrays
   require an executable associated-array codec. Scalar discrete/mode inputs use
   all admitted ordering providers, including networks, enums, domains and scalar
@@ -898,6 +898,15 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Arrays, composite records, ranges/multiranges, bit strings and private trees
   do not acquire general ordering providers. ORDER BY USING, arbitrary collation
   providers, primary-key functional dependency and spill remain excluded.
+- Hypothetical-set `rank`, `dense_rank`, `percent_rank`, and `cume_dist` support
+  matching positive-length direct/order lists, pairwise common-type coercion
+  and collation selection, FILTER, grouping and stored views. NULL tuples are
+  retained; all four results are nonNULL even for empty global groups.
+  Direct expressions use final grouped keys, once per executed call/group.
+  The function argument cap is 100 across both lists, without a smaller tuple
+  limit. Ranking window overloads, custom aggregates and expanded ordering
+  families remain outside this feature. See the selected proof's PostgreSQL
+  18.0 execution-boundary caveat for 50 pairs.
 - Temporal providers retain exclusions for timezone age/finite inquiries,
   epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
   resolution and custom/generic optimizer-plan switching are not implemented.

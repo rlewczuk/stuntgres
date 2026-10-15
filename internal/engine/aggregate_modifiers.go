@@ -68,7 +68,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 	if _, ordered := call.provider.(orderedSetFinalizer); !ordered {
 		call.order = make([]sortKey, len(raw.Order))
 	}
-	if len(raw.Order) > 0 {
+	if len(raw.Order) > 0 && call.stageWidth == 0 {
 		call.stageWidth = 2
 	}
 	for i, key := range raw.Order {
@@ -225,12 +225,17 @@ func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
 			return false
 		}
 	}
-	if a.operation != other.operation || a.includeNulls != other.includeNulls || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.direct, other.direct) || !b.sameGroupExpression(a.filter, other.filter) {
+	if a.operation != other.operation || a.includeNulls != other.includeNulls || a.stageWidth != other.stageWidth || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || len(a.direct) != len(other.direct) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.filter, other.filter) {
 		return false
+	}
+	for i, direct := range a.direct {
+		if !b.sameGroupExpression(direct, other.direct[i]) {
+			return false
+		}
 	}
 	for i, key := range a.order {
 		o := other.order[i]
-		if key.desc != o.desc || key.nullsFirst != o.nullsFirst || key.slot != o.slot || !b.sameGroupExpression(key.expression, o.expression) {
+		if key.desc != o.desc || key.nullsFirst != o.nullsFirst || key.slot != o.slot || key.cache != o.cache || !b.sameGroupExpression(key.expression, o.expression) {
 			return false
 		}
 	}

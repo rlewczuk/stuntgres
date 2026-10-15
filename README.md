@@ -335,6 +335,17 @@ Existing ordering/array-codec capability limits remain explicit; see
 Feature smoke: `make check RUN='^TestReferenceOrderedSetAggregateFeatureSmoke$'`
 and `make check RUN='^TestReferenceOrderedSetAggregateFeatureSmoke$' REFERENCE=1`.
 
+Change note: hypothetical-set `rank`, `dense_rank`, `percent_rank`, and
+`cume_dist` accept matching direct and `WITHIN GROUP (ORDER BY ...)` lists.
+They compare the hypothetical tuple with the admitted input tuples, retaining
+NULLs and applying each key's direction, NULL placement and pairwise collation.
+Direct arguments run once per group; empty global groups return `(1,1,0,1)`.
+This does not add ranking window providers or new ordering capabilities.
+See [hypothetical-set contracts](docs/QUERIES.md#hypothetical-set-aggregates) and
+[selected proof](reference/aggregates/README.md#hypothetical-set-aggregates).
+Feature smoke: `make check RUN='^TestReferenceHypotheticalAggregateFeatureSmoke$'`
+and `make check RUN='^TestReferenceHypotheticalAggregateFeatureSmoke$' REFERENCE=1`.
+
 Change note: supported read-only SELECT scans now execute concurrently in-process
 over one immutable statement snapshot. `max_parallel_workers_per_gather` defaults
 to 2 (range 0..1024); zero disables dispatch, and the setting is a ceiling rather

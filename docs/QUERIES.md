@@ -493,6 +493,51 @@ Registered C/POSIX and builtin bytewise collation providers remain authoritative
 no additional array leaf codecs, collation providers or general ordering families
 are enabled.
 
+### Hypothetical-set aggregates
+
+`rank(args)`, `dense_rank(args)`, `percent_rank(args)`, and `cume_dist(args)`
+accept `WITHIN GROUP (ORDER BY sorted_args)` with matching positive-length
+argument lists. Each pair independently selects a common type (sorted argument
+first), then a collation (direct argument first). Different keys may have
+unrelated types or collations. The aggregate result never inherits a key's
+collation. There is a total 100-operand function cap, not a two-key tuple limit.
+Analysis completes common-type selection and coercion for every pair before
+resolving any ordering operator, then resolves every ordering capability before
+assigning pair collations. Consequently a later pair's type/coercion error
+precedes an earlier pair's missing ordering operator or collation conflict;
+a later missing ordering operator also precedes an earlier collation conflict.
+Runtime comparisons use the final selected pair collations.
+
+Ordering is lexicographic under existing typed providers, with independent
+ASC/DESC and NULLS FIRST/LAST rules on each key. Unlike percentiles/mode, these
+forms retain every FILTER-admitted input tuple, including partial/all-NULL
+tuples. NULL direct arguments are real sort keys. Default ASC places NULL last;
+default DESC places NULL first. Peer equality follows ordering, including
+NUMERIC scale, BPCHAR padding, NaN and signed-zero semantics.
+
+For N original admitted rows, B rows strictly before the hypothetical tuple,
+E existing peers and D distinct preceding peer groups, outputs are:
+`rank=B+1`, `dense_rank=D+1`, `percent_rank=B/N` (zero for N=0), and
+`cume_dist=(B+E+1)/(N+1)`. Rank results are INT8; fractional results are FLOAT8.
+Empty global/all-filtered groups return `(1,1,0,1)`, not NULL. Keyed empty input
+produces no group. Results have typmod -1 and no physical origin.
+
+Every direct child runs left-to-right once per executed call/group against
+final grouped keys, even with empty input or HAVING rejection. Ungrouped direct
+columns are rejected with the ordered-set direct-argument Detail. FILTER
+FALSE/NULL suppresses input-key evaluation, not direct evaluation. All direct
+and ordering children participate in privileges, dependencies, immutable call
+identity, parameter inference and stored view replay. Finalization borrows one
+executor-owned tuple buffer and target scratch; it never inserts or mutates a
+hypothetical row in shared inputs. Sorting and placement use one comparator.
+Cancellation/errors precede row or INSERT batch publication.
+
+These are aggregate overloads, not new ranking window providers. Existing
+ordering, collation and unsupported-carrier boundaries remain unchanged.
+See [selected tests and smoke](../reference/aggregates/README.md#hypothetical-set-aggregates),
+including the pinned PostgreSQL 18.0 50-pair execution defect.
+
+
 
 The occurrence producer stops nonblocking stages at demanded survivors without
 pushing outer predicates through a view or replaying effects across its boundary.

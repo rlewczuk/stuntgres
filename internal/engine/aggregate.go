@@ -71,13 +71,17 @@ const (
 	aggregateRegrIntercept
 	aggregateRegrR2
 	aggregateRegrCount
+	aggregateHypotheticalRank
+	aggregateHypotheticalDenseRank
+	aggregateHypotheticalPercentRank
+	aggregateHypotheticalCumeDist
 )
 
 type aggregateCall struct {
 	provider     aggregateProvider
 	argument     BoundExpr
 	separator    BoundExpr
-	direct       BoundExpr
+	direct       []BoundExpr
 	order        []sortKey
 	filter       BoundExpr
 	distinct     []sqltype.Grouping
@@ -91,7 +95,9 @@ type aggregateCall struct {
 func (call aggregateCall) expressions(visit func(BoundExpr)) {
 	visit(call.argument)
 	visit(call.separator)
-	visit(call.direct)
+	for _, direct := range call.direct {
+		visit(direct)
+	}
 	for _, key := range call.order {
 		visit(key.expression)
 	}
