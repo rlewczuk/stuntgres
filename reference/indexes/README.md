@@ -143,6 +143,20 @@ make check RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|Expressi
 make check REFERENCE=1 RUN='^TestReference(HashIndex|Unique|IndexClauses|BtreeIndex|ExpressionIndex|IndexMaintenance|IndexProperties|DeparseRelationsIndexForms|AlterTypeCompatiblePlainIndexBoundary)'
 ```
 
+`TestReferenceHashIndexBuildAdmission` prepares the actual held CREATE INDEX
+while both SQL timers are disabled, then arms the original50ms lock/statement
+limits immediately before execution. Exact55P03/57014 diagnostics must occur at
+Execute, never Prepare; failed builds leave no index and the same owner later
+builds successfully after the writer commits or rolls back. This avoids making
+host scheduling during Prepare part of the execution-admission witness.
+Run this complete definition in both modes and with the native race detector:
+
+```sh
+make check RUN='^TestReferenceHashIndexBuildAdmission$'
+make check RUN='^TestReferenceHashIndexBuildAdmission$' REFERENCE=1
+make check RUN='^TestReferenceHashIndexBuildAdmission$' RACE=1
+```
+
 ### Existing-index constraint attachment witnesses
 
 The thirteen shared `TestReferenceUsingIndex` definitions use the existing fixture

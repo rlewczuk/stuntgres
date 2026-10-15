@@ -190,6 +190,10 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				f := newTimeoutReferenceFixture(t, p, b)
 				identity := settingsPhysical(t, f.owner)
+				if kind == "positive-positive" || kind == "same-value" {
+					f.positiveAssignment(kind, identity)
+					return
+				}
 				if kind == "local-rollback" || kind == "local-commit" || kind == "session-commit" {
 					f.exec(f.owner, "BEGIN", 0)
 					mode := "LOCAL"
@@ -222,14 +226,6 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 						timeoutReferenceIdle(t, p.Ctx, 50*time.Millisecond)
 						f.show("transaction_timeout", "250ms")
 					}
-				case "positive-positive", "same-value":
-					timeoutReferenceIdle(t, p.Ctx, 150*time.Millisecond)
-					value := "1s"
-					if kind == "same-value" {
-						value = "250ms"
-					}
-					f.set("transaction_timeout", value)
-					f.show("transaction_timeout", value)
 				case "disable", "reset", "reset-all":
 					switch kind {
 					case "disable":
@@ -268,9 +264,6 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 				if kind == "commands" {
 					delay = 175 * time.Millisecond
 				}
-				if kind == "positive-positive" || kind == "same-value" {
-					delay = 150 * time.Millisecond
-				}
 				timeoutReferenceIdle(t, p.Ctx, delay)
 				if kind == "savepoint-restore" {
 					// Restoring SHOW250 after SET0 does not
@@ -286,6 +279,55 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 			})
 		})
 	}
+}
+
+func (f timeoutReferenceFixture) positiveAssignment(kind string, identity any) {
+	t := f.t
+	t.Helper()
+	const originalBudget = 6 * time.Second
+	value, assignedBudget := "12s", 12*time.Second
+	if kind == "same-value" {
+		value, assignedBudget = "6s", originalBudget
+	}
+	f.set("transaction_timeout", "6s")
+	beginBefore := time.Now()
+	f.exec(f.owner, "BEGIN", 0)
+	beginAfter := time.Now()
+	originalDeadline := beginBefore.Add(originalBudget)
+	assignAt := beginAfter.Add(3 * time.Second)
+	timeoutReferenceIdle(t, f.p.Ctx, max(0, time.Until(assignAt)))
+	assignmentBefore := time.Now()
+	if assignmentBefore.Before(assignAt) || !assignmentBefore.Before(originalDeadline) {
+		t.Fatalf("inconclusive %s assignment window overrun: BEGIN bracket=[%s, %s], assignment target=%s, SET start=%s, earliest original deadline=%s",
+			kind, beginBefore, beginAfter, assignAt, assignmentBefore, originalDeadline)
+	}
+	f.set("transaction_timeout", value)
+	f.show("transaction_timeout", value)
+	if settingsPhysical(t, f.owner) != identity {
+		t.Fatal("positive timeout assignment lost physical owner")
+	}
+	assignmentAfter := time.Now()
+	if !assignmentAfter.Before(originalDeadline) {
+		t.Fatalf("inconclusive %s assignment window overrun: BEGIN bracket=[%s, %s], SET/SHOW/identity bracket=[%s, %s], earliest original deadline=%s",
+			kind, beginBefore, beginAfter, assignmentBefore, assignmentAfter, originalDeadline)
+	}
+
+	// Expiry must still belong to BEGIN, not to a timer refreshed by SET.
+	fatalAt := beginAfter.Add(originalBudget + 100*time.Millisecond)
+	rearmedDeadline := assignmentBefore.Add(assignedBudget)
+	timeoutReferenceIdle(t, f.p.Ctx, max(0, time.Until(fatalAt)))
+	fatalBefore := time.Now()
+	if fatalBefore.Before(fatalAt) || !fatalBefore.Before(rearmedDeadline) {
+		t.Fatalf("inconclusive %s expiry window overrun: BEGIN bracket=[%s, %s], SET/SHOW bracket=[%s, %s], fatal target=%s, probe start=%s, earliest rearmed deadline=%s",
+			kind, beginBefore, beginAfter, assignmentBefore, assignmentAfter, fatalAt, fatalBefore, rearmedDeadline)
+	}
+	f.fatalProbe("25P04")
+	fatalAfter := time.Now()
+	if !fatalAfter.Before(rearmedDeadline) {
+		t.Fatalf("inconclusive %s expiry window overrun: BEGIN bracket=[%s, %s], SET/SHOW bracket=[%s, %s], fatal target=%s, probe bracket=[%s, %s], earliest rearmed deadline=%s",
+			kind, beginBefore, beginAfter, assignmentBefore, assignmentAfter, fatalAt, fatalBefore, fatalAfter, rearmedDeadline)
+	}
+	f.rows(f.peer, 7)
 }
 
 func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {

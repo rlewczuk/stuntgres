@@ -15,14 +15,23 @@ func TestReferenceHashIndexBuildAdmission(t *testing.T) {
 				run(fixture.Exec("INSERT INTO t VALUES(2),(NULL)", 2))
 				fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
 				fixture.LockExec(t, p.Ctx, a, "INSERT INTO t VALUES(2)", 1)
+				// Prepare without an armed statement timer: this witness requires
+				// the real held execution, not scheduling-sensitive Prepare, to time out.
+				q := "CREATE INDEX retry ON t USING hash(n)"
+				stmt, err := c.PrepareContext(p.Ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stmt.Close()
+				held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 				for _, timer := range []struct{ setting, code, message string }{
 					{"lock_timeout", "55P03", "canceling statement due to lock timeout"},
 					{"statement_timeout", "57014", "canceling statement due to statement timeout"},
 				} {
 					run(fixture.Exec("SET "+timer.setting+"='50ms'", 0))
-					s := fixture.Prepared(fixture.ImplicitError("CREATE INDEX retry ON t USING hash(n)", fixture.Diagnostic{Code: timer.code, Message: timer.message}))
+					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: timer.code, Message: timer.message})
 					s.ErrorStage = "execute"
-					run(s)
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 					run(fixture.Exec("SET "+timer.setting+"=0", 0))
 					run(fixture.Select("SELECT relname FROM pg_class WHERE relname='retry'", []string{"relname"}, []string{"NAME"}, nil))
 				}

@@ -845,6 +845,23 @@ BEGIN and AND CHAIN. Their successful SHOW occurs after both obsolete timer
 windows but strictly before the earliest possible chained deadline; scheduling
 overruns fail with measured brackets rather than accepting premature expiry or
 retrying the transaction. Final25P04 and all peer-row assertions remain exact.
+The positive-positive and same-value transaction assignment cases separately
+use an original6s budget and assign12s or6s at the absolute BEGIN-return+3s
+target. Monotonic BEGIN and SET/SHOW brackets require assignment to finish
+before the earliest original deadline. They retain the same physical owner
+and require exact25P04/dead-owner proof after the latest original deadline
+but before the earliest possible assignment-refreshed deadline; scheduler
+overruns fail explicitly, without retrying or accepting a later expiry.
+Other assignment branches and the fixture's30s context remain unchanged.
+
+```sh
+make check RUN='^TestReferenceTimeoutTransactionAssignments$' REFERENCE=1
+make check RUN='^TestReferenceTimeoutTransactionAssignments$'
+make check RUN='^TestReferenceTimeoutTransactionAssignments$' RACE=1
+```
+
+Run each selected command with an external900-second deadline.
+
 The old500ms budget after300ms has200ms residual in the separate precedence
 witness, beating a newly configured375ms limit. Abort recovery waits1100ms beyond suppressed1s idle
 and600ms beyond restored500ms. Active-idle limits remain100ms while actual
