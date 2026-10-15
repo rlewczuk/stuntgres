@@ -696,18 +696,41 @@ which must remain unpublished and never be replayed. Savepoint restoration of
 the configured positive duration after SET0 leaves SHOW positive but does not
 rearm: independently observe a live owner beyond it, then require off/on expiry.
 
-The new timeout family's runtime delay witnesses use half-scale budgets/stimuli
-to keep complete pinned race coverage bounded without dropping cases: ordinary
-250ms budgets cross at350ms; activity resets occur at125ms; shorter limits125ms
-remain below250ms; CHAIN uses fresh500ms and300ms steps; the old500ms budget
-after300ms has200ms residual, beating a newly configured375ms limit. Abort
-recovery waits1100ms beyond suppressed1s idle and600ms beyond restored500ms.
-Active-idle limits remain100ms while actual lock work lasts250ms (2.5 limits);
-CPU parse witnesses retain1ms. Registry normalization/range inputs, observer
-polls, asynchronous joins, context/watchdog bounds and all diagnostic/state/
-atomicity assertions are unchanged. This timing-only scale is not a deadline
-increase or readiness-only substitute. The separate public executable retains
-its independently specified100ms/300ms budgets and650ms idle stimuli.
+The timeout family's ordinary delay witnesses retain250ms budgets crossing
+at350ms; shorter limits125ms remain below250ms; CHAIN uses fresh500ms and300ms
+steps; the old500ms budget after300ms has200ms residual, beating a newly
+configured375ms limit. Abort recovery waits1100ms beyond suppressed1s idle
+and600ms beyond restored500ms. Active-idle limits remain100ms while actual
+lock work lasts250ms (2.5 limits); CPU parse witnesses retain1ms. Registry
+normalization/range inputs, observer polls, asynchronous joins and all
+diagnostic/state/atomicity assertions are unchanged. The separate public
+executable retains its independently specified100ms/300ms budgets and650ms
+idle stimuli.
+
+The query/prepare/ping-reset branches of `TestReferenceTimeoutIdleBoundaries`
+adapt only their timing stimulus to scheduler pressure. Idle budgets start
+at250ms, double incrementally through500ms and1s, and stop at2s (four attempts).
+Each attempt waits half its selected budget before each of three activities.
+Before issuing an activity or the final identity check, elapsed time since
+the prior operation START must be below three quarters of the budget. This
+conservative interval includes response/assertion work and leaves dispatch
+headroom. Only a measured invalid interval permits disposal of that physical
+owner and a larger-budget attempt on a fresh owner; no SQL, Prepare, Ping or
+identity error is retried. A valid attempt requires all three successful
+activities on the SAME owner, cumulative elapsed time exceeding its SELECTED
+idle budget, then unchanged identity and eventual57P05 after budget+100ms
+without intervening owner activity. Exhausted timing/context bounds fail,
+never skip. The original30s scenario context remains; each candidate reserves
+three half-budget waits, final expiry and3s for bounded probes before starting.
+
+Selected proof (external900-second deadline per command):
+
+```sh
+make check RUN='^TestReferenceTimeoutIdleBoundaries$'
+make check RUN='^TestReferenceTimeoutIdleBoundaries$' REFERENCE=1
+make check RUN='^TestReferenceTimeoutIdleBoundaries$' RACE=1
+make check RUN='^TestReferenceTimeoutIdleBoundaries$' REFERENCE=1 RACE=1
+```
 
 The transaction-assignment command witness issues SHOW after two50ms idle
 intervals, then probes expiry after175ms more. Its nominal275ms probe is after

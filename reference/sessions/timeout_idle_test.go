@@ -1,6 +1,8 @@
 package reference_test
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -10,6 +12,10 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 	for _, kind := range []string{"outside", "inside", "aborted", "wrong-outside", "wrong-inside", "query-reset", "prepare-reset", "ping-reset", "retained-rows", "active-outside", "active-inside"} {
 		t.Run(kind, func(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				if kind == "query-reset" || kind == "prepare-reset" || kind == "ping-reset" {
+					timeoutReferenceAdaptiveIdleReset(t, p, b, kind)
+					return
+				}
 				f := newTimeoutReferenceFixture(t, p, b)
 				identity := settingsPhysical(t, f.owner)
 				switch kind {
@@ -49,32 +55,6 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 						t.Fatal("wrong idle category killed owner")
 					}
 					f.rows(f.peer, 7)
-				case "query-reset", "prepare-reset", "ping-reset":
-					f.set("idle_session_timeout", "250ms")
-					for range 3 {
-						timeoutReferenceIdle(t, p.Ctx, 125*time.Millisecond)
-						switch kind {
-						case "query-reset":
-							f.show("idle_session_timeout", "250ms")
-						case "prepare-reset":
-							stmt, err := f.owner.PrepareContext(p.Ctx, "SHOW idle_session_timeout")
-							if err != nil {
-								t.Fatal("Prepare did not reset ready boundary (O5)", err)
-							}
-							if err := stmt.Close(); err != nil {
-								t.Fatal(err)
-							}
-						case "ping-reset":
-							if err := f.owner.PingContext(p.Ctx); err != nil {
-								t.Fatal("Ping did not reset ready boundary (O5)", err)
-							}
-						}
-					}
-					if settingsPhysical(t, f.owner) != identity {
-						t.Fatal("activity replaced physical owner")
-					}
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-					f.fatalProbe("57P05")
 				case "retained-rows":
 					f.set("idle_session_timeout", "250ms")
 					rows, err := f.owner.QueryContext(p.Ctx, "SELECT v FROM timeout_sentinel")
@@ -214,4 +194,98 @@ func timeoutReferencePrecedenceAssignment(t *testing.T) {
 		release()
 		f.rows(f.peer, 7)
 	})
+}
+
+func timeoutReferenceAdaptiveIdleReset(t *testing.T, p *fixture.Pair, b fixture.Backend, kind string) {
+	t.Helper()
+	const (
+		initialIdle = 250 * time.Millisecond
+		idleGrowth  = 2
+		maximumIdle = 2 * time.Second
+	)
+	f := newTimeoutReferenceFixture(t, p, b)
+	dispose := func(owner *sql.Conn) {
+		// Returning an armed borrower could retain its timeout in the pool.
+		// Dispose the physical connection, even if its timer has already fired.
+		_ = owner.Raw(func(any) error { return driver.ErrBadConn })
+		_ = owner.Close()
+	}
+	defer func() { dispose(f.owner) }()
+	for idle := initialIdle; idle <= maximumIdle; idle *= idleGrowth {
+		// Three half-budget waits, eventual expiry, and bounded SQL/log probes
+		// must fit the existing scenario context; never extend its30s deadline.
+		deadline, ok := p.Ctx.Deadline()
+		if !ok || time.Until(deadline) < 5*idle/2+3*time.Second {
+			t.Fatalf("%s: insufficient scenario time for idle budget %s", kind, idle)
+		}
+		identity := settingsPhysical(t, f.owner)
+		gap := timeoutReferenceIdleResetAttempt(t, f, kind, idle, identity)
+		if gap == 0 {
+			return
+		}
+		if idle == maximumIdle {
+			t.Fatalf("%s: exhausted idle budgets %s..%s (growth %d); pre-operation gap %s left insufficient headroom", kind, initialIdle, maximumIdle, idleGrowth, gap)
+		}
+		t.Logf("%s: measured pre-operation gap %s exhausted headroom for %s; replacing owner before trying %s", kind, gap, idle, idle*idleGrowth)
+		dispose(f.owner)
+		owner, err := b.DB.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal("acquiring fresh idle-reset owner", err)
+		}
+		f.owner = owner
+		if settingsPhysical(t, owner) == identity {
+			t.Fatal("adaptive idle retry reused the disposed physical owner")
+		}
+		f.captureOwner()
+	}
+}
+
+// A nonzero return rejects only a measured scheduling-invalid interval, before
+// issuing its next operation. Every issued SQL/Prepare/Ping/identity error fails
+// immediately; no returned error, including a timeout, is an adaptation signal.
+func timeoutReferenceIdleResetAttempt(t *testing.T, f timeoutReferenceFixture, kind string, idle time.Duration, identity any) time.Duration {
+	t.Helper()
+	lastStart := time.Now()
+	f.set("idle_session_timeout", idle.String())
+	armed := time.Now()
+	for range 3 {
+		timeoutReferenceIdle(t, f.p.Ctx, idle/2)
+		// The actual ready boundary cannot precede the prior operation's start.
+		// This conservative upper bound also covers its response/assertion work.
+		// Reserve a quarter-budget for dispatch rather than racing the deadline.
+		if gap := time.Since(lastStart); gap >= 3*idle/4 {
+			return gap
+		}
+		lastStart = time.Now()
+		switch kind {
+		case "query-reset":
+			f.show("idle_session_timeout", idle.String())
+		case "prepare-reset":
+			stmt, err := f.owner.PrepareContext(f.p.Ctx, "SHOW idle_session_timeout")
+			if err != nil {
+				t.Fatal("Prepare did not reset ready boundary (O5)", err)
+			}
+			if err := stmt.Close(); err != nil {
+				t.Fatal(err)
+			}
+		case "ping-reset":
+			if err := f.owner.PingContext(f.p.Ctx); err != nil {
+				t.Fatal("Ping did not reset ready boundary (O5)", err)
+			}
+		}
+	}
+	// Exceed the selected budget, not just the original250ms: a larger
+	// candidate must still detect an owner that never resets its deadline.
+	if elapsed := time.Since(armed); elapsed <= idle {
+		t.Fatalf("%s: activity sequence elapsed %s did not cross idle budget %s", kind, elapsed, idle)
+	}
+	if gap := time.Since(lastStart); gap >= 3*idle/4 {
+		return gap
+	}
+	if settingsPhysical(t, f.owner) != identity {
+		t.Fatal("activity replaced physical owner")
+	}
+	timeoutReferenceIdle(t, f.p.Ctx, idle+100*time.Millisecond)
+	f.fatalProbe("57P05")
+	return 0
 }
