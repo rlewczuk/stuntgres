@@ -41,6 +41,8 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 
 // Called by the runner, not a resource callback, after source transaction drain.
 // A failed candidate leaves the namespace and every durable dependency intact.
+// Engine.mu also owns the ending session's sequence memories and TEMP pointer:
+// command drain does not exclude concurrent catalog replacement of live peers.
 func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	if source.token.private != nil {
 		return nil
@@ -56,10 +58,10 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 			}
 		}
 		if len(namespaces) == 0 {
-			e.mu.Unlock()
 			source.sequences = nil
 			source.lastSequence = ObjectAddress{}
 			source.temporaryNamespace = ObjectAddress{}
+			e.mu.Unlock()
 			return nil
 		}
 		owned := make(map[ObjectAddress]bool, len(namespaces))
@@ -88,9 +90,11 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		if attemptErr != nil {
 			return attemptErr
 		}
+		e.mu.Lock()
 		source.sequences = nil
 		source.lastSequence = ObjectAddress{}
 		source.temporaryNamespace = ObjectAddress{}
+		e.mu.Unlock()
 		return nil
 	}
 }

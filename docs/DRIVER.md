@@ -86,6 +86,12 @@ the same physical session and its existing pair. Native Reset/Restore preserves
 the destination's exact TEMP pair and live objects but never imports another
 engine's physical tokens.
 
+Physical-end cleanup clears sequence memories, the last-sequence address and
+active TEMP namespace under the engine catalog mutex, including collation
+retirement and the no-owned-namespace exit. This synchronizes ending sessions
+with concurrent native catalog replacement while leaving resource callbacks,
+maintenance waits and session-registry removal outside that critical section.
+
 SQL PREPARE names and ordinary Go statements have distinct lifetimes. PLANS retains
 both and lazily reanalyzes private literal captures without changing fixed
 parameter/result signatures or catalog fences. ALL removes SQL names (subsequent
