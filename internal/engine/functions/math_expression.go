@@ -106,7 +106,7 @@ func mathSignatures(name string) []MathSignature {
 		return []MathSignature{{[2]sqltype.ID{sqltype.Int8}, 1, sqltype.Numeric}}
 	case "sign", "ceil", "ceiling", "floor", "exp":
 		return []MathSignature{unary(sqltype.Numeric), unary(sqltype.Float8)}
-	case "cbrt", "degrees", "radians", "erf", "erfc", "gamma", "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
+	case "cbrt", "degrees", "radians", "erf", "erfc", "gamma", "acos", "acosd", "asin", "asind", "atan", "atand", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh":
 		return []MathSignature{unary(sqltype.Float8)}
 	case "atan2", "atan2d":
 		return []MathSignature{{[2]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2, sqltype.Float8}}

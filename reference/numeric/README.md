@@ -274,6 +274,52 @@ The separate root-owned public smoke source is the living plan Appendix A;
 materialize it temporarily, run `timeout 60s go run ./.math-trig-direct-feature-smoke`,
 record quiet exit0 or full failure evidence, and remove its directory.
 
+### Hyperbolic functions
+
+The six unary FLOAT8 functions `sinh`, `cosh`, `tanh`, `asinh`, `acosh` and
+`atanh` use independently specified public expectations validated first against
+the pinned PostgreSQL18.0 UTF8/C oracle. Ordinary finite values allow at most
+2ULP; IEEE categories and zero signs are exact. The moderate inverse identities
+have bounded absolute residuals and supplement, not replace, manual constants.
+The mathematical overflow frontier includes finite ±710 and infinite ±711;
+`atanh(±1)` succeeds with signed Infinity. Domains independently assert full
+`22003 / input is out of range` diagnostics, without Position or portal Context.
+Go math and host C libm may differ in ordinary last bits or tiny-input handling;
+pinned Linux preserves signed smallest subnormals for the four odd functions.
+No portable errno emulation or universal cross-host bit identity is promised.
+
+Run each small group in both modes, with an external900-second deadline:
+
+```sh
+timeout 900s make check RUN='^TestReferenceMathHyperbolic(Values|Identities|Frontiers|SpecialValues|Metadata)$'
+timeout 900s make check RUN='^TestReferenceMathHyperbolic(Values|Identities|Frontiers|SpecialValues|Metadata)$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceMathHyperbolic(DomainDiagnostics|AnalysisDiagnostics|HeldParameters)$'
+timeout 900s make check RUN='^TestReferenceMathHyperbolic(DomainDiagnostics|AnalysisDiagnostics|HeldParameters)$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceMathHyperbolic(Authorization|ConsumerAtomicity|Controls)$'
+timeout 900s make check RUN='^TestReferenceMathHyperbolic(Authorization|ConsumerAtomicity|Controls)$' REFERENCE=1
+timeout 900s make check RUN='^TestMathHyperbolic'
+timeout 900s make check RUN='^TestReferenceMathHyperbolic(HeldParameters|ConsumerAtomicity|Authorization)$' RACE=1
+```
+
+Held parameter error/recovery uses the same actual statement. Column ACLs are
+checked for empty and invalid-domain sources and rechecked after revocation;
+routine ACL mutation is not implied. Late-row failed DML publishes no prefix.
+Native Reset/Dump/Restore phases preserve symbolic views, old rows and held
+readers; the completed real-mode scenario replays actual native Dump SQL on PG.
+Private units assert descriptor ownership, strict NULL and ordinary cancellation
+before NULL/domain evaluation, without fabricating SQLSTATE for context errors.
+All temporary discovery backend filters are removed before native proof.
+
+The separate root-owned public API smoke source is the living plan's Appendix A.
+Materialize it temporarily as `.math-hyperbolic-feature-smoke/main.go`, then run
+`timeout 60s go run ./.math-hyperbolic-feature-smoke`. Expected exit0 and output
+`hyperbolic public API smoke: ok` require all six values/FLOAT8 types in direct
+and prepared modes,710 finite,1000 overflow, signed poles/zero, NULL, exact
+domain diagnostics, same-held recovery and atomic late-row DML failure.
+Record observed output and remove the throwaway directory before review.
+After implementation the root runs whole-project `make quickcheck`; selected
+dual-mode proof and smoke precede review, and `make finalcheck` follows integration.
+
 ### GCD and LCM
 
 The gcd/lcm family selects `RUN='^TestReferenceMathGcdLcm'` in both modes;

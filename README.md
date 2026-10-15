@@ -4276,6 +4276,22 @@ regression proof selects `RUN='^TestReferenceMathTrig'` in both modes
 as `timeout 60s go run ./.math-trig-direct-feature-smoke` after materializing
 the living plan's Appendix A source, and is removed after evidence capture.
 
+Hyperbolic functions `sinh`, `cosh`, `tanh`, `asinh`, `acosh` and `atanh`
+are strict unary double-precision providers with implicit numeric widening and
+FLOAT8 prepared-parameter inference. `acosh(x < 1)` and `atanh(x)` outside
+[-1,1] fail with SQLSTATE `22003`, English primary `input is out of range`,
+without execution Position or portal Context. `atanh(±1)` returns signed
+Infinity. Finite `sinh`/`cosh` overflow also returns Infinity, not an SQL
+overflow error; both remain finite at ±710. NaN propagates, NULL retains
+FLOAT8 metadata, and the odd functions preserve signed zero.
+The [PostgreSQL hyperbolic-function contract](https://www.postgresql.org/docs/18/functions-math.html#FUNCTIONS-MATH-HYP-TABLE)
+allows host-C-library accuracy and boundary variation. Native Go math can differ
+in ordinary last bits; pinned PostgreSQL18.0 Linux reference proof checks tiny
+subnormals and `acosh(+Infinity)`, but does not imply portable C errno emulation
+or bit identity across libm implementations. Wrong finite/Infinity categories
+at710, zero signs, domains and logical diagnostics are not variance exemptions.
+See [numeric selected proof and smoke](reference/numeric/README.md#hyperbolic-functions).
+
 INTERVAL retains independent months/days/microseconds, permitted field ranges
 and fractional precision, verbose/SQL/ISO input, SQL comparison/grouping and
 canonical native Dump/Restore. Each physical session owns its IntervalStyle;

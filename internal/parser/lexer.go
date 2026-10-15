@@ -1678,7 +1678,7 @@ func gcdLcmFunction(name string) bool {
 }
 
 func trigFunction(name string) bool {
-	for _, builtin := range [...]string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand"} {
+	for _, builtin := range [...]string{"acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh"} {
 		if strings.EqualFold(name, builtin) {
 			return true
 		}
