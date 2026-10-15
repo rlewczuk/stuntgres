@@ -6,6 +6,73 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Live lock state
+
+`view_locks*_test.go` defines shared, independently expected PostgreSQL/native
+scenarios for all16 names/types, zero-row direct/held metadata, catalog ownership,
+the eight relation modes, conversion/reentry/savepoints, live pending/granted/end
+transitions, PUBLIC visibility without protected-table SELECT, both advisory
+key spaces/count lifetimes, VXID/XID ownership, index/exclusion completion
+purposes (prepared-before-index and live-writer PREPARE retargeting), row/unique
+dependencies, type-object resources, prepared owners and
+retained SSI predicates. Cancellation observes real admission before canceling;
+native caller-context errors remain ordinary, while PostgreSQL's real server
+cancel preserves complete57014 diagnostics. Deadlock witnesses join both
+outcomes, identify the victim by error and validate actual graph identities.
+
+Generated resource OIDs come from catalogs, PostgreSQL PIDs from the public
+fixture inquiry and native physical IDs from their actual TEMP namespace.
+XID relationships are backed by canonical-assignment units; prepared identities
+also use `pg_prepared_xacts.transaction`. Native logical row/key waits never
+pretend to supply physical tuple coordinates. The oracle may genuinely expose
+physical tuple/fast-path/subtransaction state unavailable natively.
+The shared metadata path relates `pg_class.reltype` to public `regtype` identity.
+PostgreSQL's additional `pg_type` SQL source supplies its reciprocal row/array
+catalog phase; native reciprocity uses actual catalog-provider APIs in
+`TestPGLocksProjectionModes`, not a new adjacent SQL source. Enum identity uses
+public `regtype::oid` on both backends. The exclusion completion witness uses
+the existing supported btree equality constraint, not a physical GiST mechanism.
+Live-to-prepared completion retargeting keeps the native original enqueue time;
+PostgreSQL's waitstart is independently bounded, not assumed unchanged across tags.
+
+Snapshot units race canonical first-XID assignment with already queued logical
+dependencies. Each ordinary owner identity is sampled once per capture and
+reused: all its waits agree on that identity and have the matching captured
+exclusive owner, without nesting Engine and manager synchronization. Savepoint
+coverage checks exact root-XID membership while the child is active and after
+rollback, allows genuine PostgreSQL child XIDs, and independently verifies that
+child data does not survive rollback or the subsequent commit.
+
+Selected proof (external900-second deadline per command), each selector in
+both modes after affected changes:
+
+```sh
+make check RUN='^TestReferenceViewLocks(Metadata|RelationModes|Transitions|PublicVisibility)$'
+make check REFERENCE=1 RUN='^TestReferenceViewLocks(Metadata|RelationModes|Transitions|PublicVisibility)$'
+make check RUN='^TestReferenceViewLocks(Advisory|TransactionOwnership|CompletionWaits|RowKeyWaits|Object)$'
+make check REFERENCE=1 RUN='^TestReferenceViewLocks(Advisory|TransactionOwnership|CompletionWaits|RowKeyWaits|Object)$'
+make check RUN='^TestReferenceViewLocks(Prepared|Predicates|Cancellation|Deadlock|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceViewLocks(Prepared|Predicates|Cancellation|Deadlock|Controls)$'
+make check RUN='^TestPGLocks(ProjectionModes|TransactionLifetime|WaitDependencies|SnapshotOwnership|PredicateLifetime)$'
+make check RACE=1 RUN='^TestPGLocks(WaitDependencies|SnapshotOwnership)$'
+make check RACE=1 RUN='^TestReferenceViewLocks(Transitions|Cancellation|Deadlock)$'
+```
+
+Feature smoke uses public database/sql calls, including an actual held acquisition,
+unrelated-role observer, exact16-column resource/NULL fields, bounded enqueue
+timestamp, cancellation cleanup, restart, grant, release, negative advisory key
+identity and actual row-XID contention:
+
+```sh
+make check RUN='^TestReferenceViewLocksFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceViewLocksFeatureSmoke$'
+```
+
+Native-only control phases additionally check owned snapshots, fresh held
+execution after Reset/Restore, ordinary/wait/SSI fencing, retained real advisory
+ownership and exclusion from Dump. PostgreSQL has no fake replacement-control
+counterpart. Whole-project Docker-free verification remains `make quickcheck`.
+
 ### Blocking session information
 
 `blocking_pids*_test.go` covers both `(integer) -> integer[]` signatures with

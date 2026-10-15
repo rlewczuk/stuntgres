@@ -165,7 +165,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		if first {
 			e.mu.Lock()
-			delete(e.visibility, scope.txRef)
+			e.resetVisibilityPhaseLocked(scope.txRef)
 			e.mu.Unlock()
 		}
 		return xmin, nil
@@ -217,7 +217,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		}
 		if err == nil {
 			e.mu.Lock()
-			delete(e.visibility, scope.txRef)
+			e.resetVisibilityPhaseLocked(scope.txRef)
 			e.mu.Unlock()
 		}
 		return err

@@ -111,6 +111,55 @@ Healthy driver ResetSession is a health check, not metadata cleanup; use explici
 DISCARD ALL or physical connection teardown. Native Reset/Restore are catalog
 replacement/fencing controls, not session reset.
 
+## Live lock state
+
+`pg_locks` is a live PUBLIC view of the existing engine's actual ownership,
+not an ACL-filtered table inventory. All its public backends are visible to
+ordinary roles, including complete resource OIDs, PID, mode and waiting status.
+One native Engine represents one logical database; this is not a cross-Driver,
+cross-DSN or external PostgreSQL cluster aggregator.
+
+Native rows cover all eight ordinary relation modes, enum/type object locks,
+both session-advisory key spaces and their counted mode ownership, live VXIDs,
+genuinely assigned public XIDs, actual completion waits and retained relation
+SSI reads. Prepared transactions have NULL PID, retain originating owner text
+and assigned-XID/object ownership, and no longer own a live VXID. Committed
+SSI evidence can retain original PID/owner text while overlap remains.
+The native XID is the canonical transaction assignment, not visibility-order
+or diagnostic identity. Savepoints retain it; native savepoints do not allocate
+additional PostgreSQL subtransaction XIDs.
+
+Logical row/key grants have no physical page/tuple target and produce no
+durable tuple or spectoken rows. Pending logical contention projects one actual
+conflicting holder's XID, or its genuine VXID before assignment; if only queue
+order blocks grant, it projects an actual incompatible predecessor. Releasing
+that target can retarget the observation to a remaining real blocker without
+changing the enqueue timestamp or the internal multi-blocker graph. Index
+completion waits use a live target's VXID even after assignment; a prepared
+target has retired that VXID and is waited on through its actual assigned XID.
+Exclusion waits use the assigned XID when present.
+Completed internal concurrent-index publication phases retire their XID mirror
+at the existing phase-reset boundary, preserving the live VXID and exact ticket
+association for the next genuine assignment. Final/ordinary/prepared completion
+retains manager ownership until actual manager release, including the brief
+publication-to-notification interval.
+
+All native `fastpath` values are false: no native fast-path mechanism exists.
+Page, tuple, extend, frozenid, spectoken, applytransaction, physical index-page
+predicate locks and worker lock groups have no native authority and are not
+fabricated. `pg_lock_status()` itself is not an implemented function.
+Ordinary manager capture is owned and side-effect-free; separately captured
+SSI evidence is not a globally atomic cross-manager snapshot. No row ordering
+is promised. Live PID overflow is an ordinary range error, not wrapping or
+silent omission; private maintenance owners are not public backends.
+
+Held statements and stored view recipes capture fresh state at execution.
+Reset/Restore fence old ordinary ownership, waits and SSI evidence; real
+session-advisory holds survive and use current database identity. Dump never
+serializes live ownership or waits. Native admitted context cancellation remains
+ordinary `context.Canceled`; actual PostgreSQL server cancellation retains57014.
+See [selected contracts and smoke](../reference/sessions/README.md#live-lock-state).
+
 ## Storage and native controls
 
 Databases and prepared transactions are process-local. There is no WAL, crash

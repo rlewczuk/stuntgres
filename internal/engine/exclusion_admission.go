@@ -434,7 +434,7 @@ func (s *StatementScope) probeExclusion(ref ObjectRef, binding *uniqueWriteBindi
 			return uniqueConflict{}, potential, nil
 		}
 		if wait != nil {
-			if err := s.waitCompletion(wait); err != nil {
+			if err := s.waitCompletion(wait, completionTransaction); err != nil {
 				return uniqueConflict{}, false, err
 			}
 			continue

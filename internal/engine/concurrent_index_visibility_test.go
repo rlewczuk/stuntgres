@@ -73,7 +73,10 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	sessionSQL(t, rc, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	e.mu.Lock()
-	bare := len(e.visibility) == 0 && e.visibilityXID == counter
+	bare := e.visibilityXID == counter
+	for ref, v := range e.visibility {
+		bare = bare && v.xid == 0 && v.xmin == 0 && v.assignedXID == 0 && !v.snapshot && !v.safeBuilder && v.ticket != nil && v.ticket.ref == ref
+	}
 	e.mu.Unlock()
 	if !bare {
 		t.Fatal("BEGIN fabricated visibility XID or advertised snapshot")
@@ -83,9 +86,10 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	transient := sessionSQL(t, rc, "SELECT n FROM t ORDER BY n")
 	e.mu.Lock()
 	v, held := e.visibility[reader.transactions.ref]
-	_, rcHeld := e.visibility[rc.transactions.ref]
+	rcState, rcAssociated := e.visibility[rc.transactions.ref]
+	rcHeld := rcState.snapshot || rcState.xmin != 0 || rcState.xid != 0 || rcState.assignedXID != 0 || rcState.safeBuilder
 	e.mu.Unlock()
-	if !held || !v.snapshot || v.xid != 0 || v.xmin != counter+1 || rcHeld {
+	if !held || !v.snapshot || v.xid != 0 || v.xmin != counter+1 || rcHeld || !rcAssociated || rcState.ticket != rc.transactions.ticket {
 		t.Fatal("stable/RC eager result snapshot ownership", v, rcHeld)
 	}
 	// An uncommitted real write advances global XID, not the committed row frontier.
@@ -136,6 +140,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	boundary, err := e.visibilitySnapshotLocked(scope.txRef, true)
+	builderVisibility := e.visibility[scope.txRef]
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -155,10 +160,14 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	await := concurrentUnitOlderWait(t, scope, boundary, cancel)
 	concurrentUnitCompletion(t, e, late.transactions.ticket, builder)
 	e.mu.Lock()
-	_, self := e.visibility[scope.txRef]
+	self, associated := e.visibility[scope.txRef]
+	mirroredXID := scope.ticket.assignedPublicXID()
 	e.mu.Unlock()
-	if self {
-		t.Fatal("builder retained its own advertised snapshot during older wait")
+	// Phase reset withdraws all ordering/snapshot advertisement, not the
+	// registered ticket's canonical assignment association.
+	wantSelf := transactionVisibility{assignedXID: builderVisibility.assignedXID, ticket: scope.ticket}
+	if !associated || builderVisibility.ticket != scope.ticket || self != wantSelf || mirroredXID != wantSelf.assignedXID {
+		t.Fatal("builder retained phase advertisement or lost canonical ticket association during older wait", self, wantSelf, mirroredXID)
 	}
 	sessionSQL(t, writer, "ROLLBACK")
 	e.locks.mu.Lock()

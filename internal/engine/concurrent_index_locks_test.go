@@ -134,7 +134,7 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	completion, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{completion: a.transactions.ticket}, transactionCompletion, relationLockPolicy{})
+	completion, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{completion: a.transactions.ticket}, transactionCompletion, relationLockPolicy{completionPurpose: completionVirtual})
 	if err != nil || completion == nil {
 		t.Fatal(completion, err)
 	}
@@ -176,7 +176,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 			owner, waiter := a.transactions.ticket, b.transactions.ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			policy := relationLockPolicy{}
+			policy := relationLockPolicy{completionPurpose: completionVirtual}
 			if mode == "lock_deadline" {
 				policy.timeout = time.Nanosecond
 			}
@@ -211,7 +211,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 					}
 					cancel()
 					// An ended exact owner is immediately complete; no new virtual authority.
-					next, err := e.locks.startAcquire(context.Background(), waiter, lockResource{completion: owner}, transactionCompletion, relationLockPolicy{})
+					next, err := e.locks.startAcquire(context.Background(), waiter, lockResource{completion: owner}, transactionCompletion, relationLockPolicy{completionPurpose: completionVirtual})
 					if next != nil || err != nil {
 						t.Fatal(next, err)
 					}

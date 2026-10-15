@@ -2,12 +2,39 @@ package engine
 
 import "errors"
 
-// The registry contains only detached ownership values under Engine.mu. XIDs
-// order visibility incarnations globally; CommitSeq continues to own data views.
+// Engine.mu owns visibility/completion metadata. The ticket is an atomic mirror
+// association only, not permission to enter manager metadata. Visibility XIDs
+// order incarnations globally; CommitSeq continues to own data views.
 type transactionVisibility struct {
 	xid, xmin             uint64
 	assignedXID           uint32
 	snapshot, safeBuilder bool
+	ticket                *relationTicket // assignment mirror only; never take manager.mu under Engine.mu
+}
+
+// Admission serializes this incarnation. Register with the manager first, then
+// associate its exact ticket before any command can reach canonical assignment.
+// Neither manager nor TX synchronization is held while taking Engine.mu.
+func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
+	ticket, err := e.locks.register(ref)
+	if err != nil {
+		return nil, err
+	}
+	e.mu.Lock()
+	if ref.epoch != e.state.epoch {
+		e.mu.Unlock()
+		e.locks.end(ticket)
+		return nil, ErrCatalogReplaced
+	}
+	if e.visibility == nil {
+		e.visibility = make(map[TxRef]transactionVisibility)
+	}
+	v := e.visibility[ref]
+	v.ticket = ticket
+	ticket.mirrorAssignedXID(v.assignedXID)
+	e.visibility[ref] = v
+	e.mu.Unlock()
+	return ticket, nil
 }
 
 func (e *Engine) visibilityWriteLocked(ref TxRef) error {
@@ -69,10 +96,29 @@ func (e *Engine) endStatementVisibility(ref TxRef, stable bool) {
 func (e *Engine) dropVisibilitySnapshotLocked(ref TxRef) {
 	if v, ok := e.visibility[ref]; ok {
 		v.xmin, v.snapshot, v.safeBuilder = 0, false, false
-		if v.xid == 0 && v.assignedXID == 0 {
+		if v.xid == 0 && v.assignedXID == 0 && v.ticket == nil {
 			delete(e.visibility, ref)
 		} else {
 			e.visibility[ref] = v
+		}
+	}
+}
+
+// An index publication phase retires advertisement, not its registered ticket.
+// Preserve canonical assignment and its exact mirror association for later work.
+// Engine.mu is held; lifecycle end/abort/fence still remove the whole entry.
+func (e *Engine) resetVisibilityPhaseLocked(ref TxRef) {
+	if v, ok := e.visibility[ref]; ok {
+		if v.ticket != nil {
+			// These index-only hooks retire a completed internal publication
+			// phase. Final/prepared completion instead keeps manager ownership
+			// through end(), including the publication-to-notification interval.
+			v.ticket.mirrorAssignedXID(v.assignedXID)
+		}
+		if v.assignedXID == 0 && v.ticket == nil {
+			delete(e.visibility, ref)
+		} else {
+			e.visibility[ref] = transactionVisibility{assignedXID: v.assignedXID, ticket: v.ticket}
 		}
 	}
 }
@@ -85,7 +131,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ObjectAddres
 		return ErrCatalogReplaced
 	}
 	// Drop every advertised builder phase before collecting the real wait cohort.
-	delete(e.visibility, s.txRef)
+	e.resetVisibilityPhaseLocked(s.txRef)
 	var refs []TxRef
 	for ref, v := range e.visibility {
 		if ref != s.txRef && ref.epoch == s.txRef.epoch && v.snapshot && !v.safeBuilder && v.xmin <= xmin {
@@ -112,7 +158,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ObjectAddres
 		owner := e.locks.owners[ref]
 		e.locks.mu.Unlock()
 		if owner != nil {
-			if err := s.waitCompletion(owner); err != nil {
+			if err := s.waitCompletion(owner, completionVirtual); err != nil {
 				return err
 			}
 		}

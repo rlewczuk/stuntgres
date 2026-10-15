@@ -14,7 +14,7 @@ func deadlockRequest(t *testing.T, e *Engine, ticket *relationTicket, resource l
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
-	r, err := e.locks.startAcquire(ctx, ticket, resource, mode, relationLockPolicy{})
+	r, err := e.locks.startAcquire(ctx, ticket, resource, mode, relationLockPolicy{completionPurpose: completionVirtual})
 	if err != nil {
 		t.Fatal(err)
 	}

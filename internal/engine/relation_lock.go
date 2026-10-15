@@ -19,8 +19,9 @@ type relationLockPolicy struct {
 	timeout           time.Duration
 	statementDeadline time.Time
 	source            context.Context
-	provenance        TxRef      // current statement owner for a persistent session request
-	operation         *Operation // exact admitted command, atomic timeout projection only
+	provenance        TxRef                 // current statement owner for a persistent session request
+	operation         *Operation            // exact admitted command, atomic timeout projection only
+	completionPurpose completionLockPurpose // observational identity; never changes arbitration
 }
 
 type relationSourceError struct{ error }
@@ -91,9 +92,14 @@ type relationTicket struct {
 	persistent        bool
 	detached          bool // prepared transaction: independent of its former physical session
 	resources         map[lockResource]struct{}
+	assignedXID       uint32 // sync/atomic only: canonical TX mirror; end or completed index phase retires ownership
 	uniqueDeltaActive bool
 	uniqueDelta       []lockResource
 }
+
+func (t *relationTicket) assignedPublicXID() uint32    { return atomic.LoadUint32(&t.assignedXID) }
+func (t *relationTicket) mirrorAssignedXID(xid uint32) { atomic.StoreUint32(&t.assignedXID, xid) }
+
 type relationRequest struct {
 	ticket       *relationTicket
 	provenance   TxRef
@@ -107,6 +113,7 @@ type relationRequest struct {
 	timer        *time.Timer
 	policy       relationLockPolicy
 	deadline     time.Time
+	enqueuedAt   time.Time
 	ref          lockResource
 	entry        *relationEntry
 	timeoutState atomic.Uint32
@@ -539,6 +546,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		r.timer = time.AfterFunc(time.Until(r.deadline), interrupt)
 	}
 	var notify *relationRequest
+	r.enqueuedAt = time.Now().UTC().Truncate(time.Microsecond)
 	e.pending = append(e.pending, r)
 	m.settle(e, &notify)
 	if !r.terminal {

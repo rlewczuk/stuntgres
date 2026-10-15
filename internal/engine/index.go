@@ -682,7 +682,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		if err == nil && s.Concurrent.Character != 0 {
 			e.mu.Lock()
-			delete(e.visibility, scope.txRef)
+			e.resetVisibilityPhaseLocked(scope.txRef)
 			e.mu.Unlock()
 			return e.executeConcurrentIndex(scope, s, d)
 		}

@@ -45,6 +45,9 @@ func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
 	}
 	e.assignedXID = xid
 	v.assignedXID = xid
+	if v.ticket != nil {
+		v.ticket.mirrorAssignedXID(xid)
+	}
 	e.visibility[ref] = v
 	if node := e.serializable.nodes[ref]; node != nil {
 		node.assignedXID = xid

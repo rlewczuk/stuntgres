@@ -28,7 +28,7 @@ func (s *StatementScope) admitTransactionLocked(e *Engine) error {
 	if t.ticket == nil && t.state != TxAborted {
 		ref := t.ref
 		t.mu.Unlock()
-		ticket, err := e.locks.register(ref)
+		ticket, err := e.registerTransactionLocks(ref)
 		t.mu.Lock()
 		if err != nil {
 			return err

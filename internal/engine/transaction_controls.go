@@ -66,7 +66,7 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 	}
 	ref := t.ref
 	t.mu.Unlock()
-	ticket, err := e.locks.register(ref)
+	ticket, err := e.registerTransactionLocks(ref)
 	t.mu.Lock()
 	if err != nil {
 		t.clear()
@@ -158,7 +158,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		}
 		t.mu.Unlock()
 		var errRegister error
-		candidate, errRegister = e.locks.register(next)
+		candidate, errRegister = e.registerTransactionLocks(next)
 		t.mu.Lock()
 		if errRegister != nil {
 			return EndResult{}, errRegister

@@ -24,6 +24,22 @@ are exposed. Aggregate windows remain outside the native execution subset.
 See [native limits](docs/DIALECT.md#intagg-installed-wrappers) and
 [selected proof and smoke](reference/binary_json_arrays/README.md#intagg-installed-wrappers).
 
+## Live lock state — change note
+
+`pg_catalog.pg_locks` exposes the PostgreSQL 16-column lock view through live
+direct and prepared queries. Rows come from actual relation/type/advisory
+ownership, transaction VXID/assigned-XID lifetimes, pending acquisitions and
+retained relation-level SSI reads. Reentry is aggregated by resource and mode;
+wait timestamps describe enqueue, not observation. PUBLIC SELECT includes
+other roles' resource identities and wait details even without source-table
+SELECT, matching PostgreSQL rather than `pg_stat_activity` redaction.
+Prepared owners retain original virtualtransaction text with NULL PID and no
+live VXID hold. Native logical row/key contention exposes one real current
+transaction dependency; it never invents physical tuple coordinates or key hashes.
+Native fastpath is always false. Engine/Driver/opaque-DSN isolation is unchanged.
+See [native mechanism boundaries](docs/DIALECT.md#live-lock-state) and
+[selected proof and smoke](reference/sessions/README.md#live-lock-state).
+
 ## Language catalog — change note
 
 `pg_catalog.pg_language` exposes the nine PostgreSQL language metadata columns
@@ -1644,7 +1660,7 @@ integer-pair keys, shared/exclusive modes, counted reentry, try and explicit unl
 Ownership belongs to the physical connection: rollback and borrower/statement
 close do not release it; actual session close does. Native Reset/Restore retain
 held counts, while Dump excludes live ownership. Transaction-level advisory calls
-and lock introspection remain unsupported. See
+remain unsupported; live lock introspection uses `pg_locks`. See
 [session advisory locks](https://www.postgresql.org/docs/18/functions-admin.html).
 Feature smoke: `make check RUN='^TestReferenceAdvisorySessionFeatureSmoke'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceAdvisorySessionFeatureSmoke'`.
