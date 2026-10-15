@@ -18,12 +18,19 @@ func TestBinaryAccessResolution(t *testing.T) {
 	}{
 		{"bit_count", []sqltype.ID{sqltype.Bytea}, "", sqltype.Int8},
 		{"bit_count", []sqltype.ID{0}, "42725", 0},
-		{"get_bit", []sqltype.ID{0, sqltype.Int4}, "0A000", 0},
+		{"get_bit", []sqltype.ID{0, sqltype.Int4}, "", sqltype.Int4},
 		{"get_bit", []sqltype.ID{0, sqltype.Int2}, "42725", 0},
 		{"get_bit", []sqltype.ID{0, sqltype.Int8}, "", sqltype.Int4},
 		{"get_byte", []sqltype.ID{sqltype.Bytea, sqltype.Int8}, "42883", 0},
 		{"set_bit", []sqltype.ID{sqltype.Bytea, sqltype.Int4, sqltype.Int8}, "42883", 0},
 		{"set_byte", []sqltype.ID{sqltype.Bytea, sqltype.Int2, sqltype.Int2}, "", sqltype.Bytea},
+		{"get_bit", []sqltype.ID{sqltype.Bit, sqltype.Int4}, "", sqltype.Int4},
+		{"get_bit", []sqltype.ID{sqltype.VarBit, sqltype.Int2}, "", sqltype.Int4},
+		{"get_bit", []sqltype.ID{sqltype.Bit, sqltype.Int8}, "42883", 0},
+		{"set_bit", []sqltype.ID{0, sqltype.Int4, sqltype.Int4}, "", sqltype.Bit},
+		{"set_bit", []sqltype.ID{sqltype.Bit, sqltype.Int4, sqltype.Int4}, "", sqltype.Bit},
+		{"set_bit", []sqltype.ID{sqltype.VarBit, sqltype.Int2, sqltype.Int2}, "", sqltype.Bit},
+		{"set_bit", []sqltype.ID{sqltype.Bit, sqltype.Int4, sqltype.Int8}, "42883", 0},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		args := make([]parser.Expr, len(tc.ids))
@@ -31,7 +38,10 @@ func TestBinaryAccessResolution(t *testing.T) {
 			null := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
 			args[i] = null
 			if id != 0 {
-				args[i] = parser.CastExpr{Child: null, TypeName: parser.TypeName{Name: b.typ(id).DiagnosticName()}}
+				// Supply typed operands directly: overload resolution does not
+				// require (or admit) general BIT/VARBIT SQL casts.
+				b.parameters[i+1] = b.typ(id).Usage()
+				args[i] = parser.ParameterExpr{Number: i + 1}
 			}
 		}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Pos: parser.Position{Character: 8}, Args: args}
@@ -47,6 +57,7 @@ func TestBinaryAccessResolution(t *testing.T) {
 			t.Fatal(tc, got, err)
 		}
 	}
+	bitAccessBindingProperties(t)
 }
 
 func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
@@ -57,23 +68,35 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		replacement[d.ID()] = d
 	}
-	for _, name := range []string{"bit_count", "get_bit", "get_byte", "set_bit", "set_byte"} {
+	for _, tc := range []struct {
+		name   string
+		family sqltype.ID
+	}{
+		{"bit_count", sqltype.Bytea}, {"get_bit", sqltype.Bytea},
+		{"get_byte", sqltype.Bytea}, {"set_bit", sqltype.Bytea},
+		{"set_byte", sqltype.Bytea}, {"get_bit", sqltype.Bit}, {"set_bit", sqltype.Bit},
+	} {
+		name := tc.name
 		arity := 2
 		result := sqltype.Int4
 		if name == "bit_count" {
 			arity, result = 1, sqltype.Int8
 		}
 		if name == "set_bit" || name == "set_byte" {
-			arity, result = 3, sqltype.Bytea
+			arity, result = 3, tc.family
 		}
 		args := make([]BoundExpr, arity)
 		usages := make([]sqltype.Usage, arity)
 		for i := range args {
-			d := types[functions.BinaryArgumentID(name, i, sqltype.Bytea)]
+			d := types[functions.BinaryArgumentID(name, i, tc.family)]
 			usages[i] = d.Usage()
 			value := sqltype.Null(d)
 			if i == 0 {
-				value, _ = sqltype.Binary(d, "\x01\x80")
+				if tc.family == sqltype.Bit {
+					value, _ = sqltype.BitString(d, "100000001")
+				} else {
+					value, _ = sqltype.Binary(d, "\x01\x80")
+				}
 			} else {
 				value, _ = sqltype.Integer(d, 0)
 			}
@@ -104,6 +127,87 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: rawArgs}
 			if err := restoreScalar(raw, false); err == nil {
 				t.Fatal(name, slot, "Restore accepted parameter")
+			}
+		}
+	}
+}
+
+func bitAccessBindingProperties(t *testing.T) {
+	t.Helper()
+	for _, name := range []string{"get_bit", "set_bit"} {
+		for _, unknown := range []bool{false, true} {
+			for _, defaults := range []bool{false, true} {
+				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+				b.defaultConsumer = defaults
+				source := parser.Value{Kind: parser.BitStringValue, Text: "b101"}
+				if unknown {
+					source = parser.Value{Kind: parser.StringValue, Text: "101"}
+				}
+				args := []parser.Expr{parser.LiteralExpr{Value: source}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 0}}}
+				if name == "set_bit" {
+					args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
+				}
+				raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args}
+				node, err := b.bindBinaryFunction(raw, true)
+				if err != nil {
+					t.Fatal(name, unknown, defaults, err)
+				}
+				binary := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+				if err := binary.Validate(); err != nil {
+					t.Fatal(err)
+				}
+				if node.Properties().Volatility != Immutable || node.ResultUsage().Typmod != -1 || binary.Args[0].ResultUsage().Type.ID() != sqltype.Bit || binary.Args[1].ResultUsage().Type.ID() != sqltype.Int4 {
+					t.Fatal(name, node)
+				}
+				// DEFAULT admission must not widen the adjacent BYTEA family.
+				b.defaultConsumer = true
+				raw.Args[0] = parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x80"}}, TypeName: parser.TypeName{Name: "bytea"}}
+				_, err = b.bindBinaryFunction(raw, true)
+				var state interface{ SQLState() string }
+				if !errors.As(err, &state) || state.SQLState() != "0A000" {
+					t.Fatal("BYTEA default boundary", name, err)
+				}
+			}
+		}
+		// The index is INT4 even when a parameter has no independent type.
+		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{
+			parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "b101"}},
+			parser.ParameterExpr{Number: 1},
+		}}
+		if name == "set_bit" {
+			raw.Args = append(raw.Args, parser.ParameterExpr{Number: 2})
+		}
+		node, err := b.bindBinaryFunction(raw, true)
+		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable || b.parameters[1].Type.ID() != sqltype.Int4 {
+			t.Fatal("parameter propagation", name, node, err)
+		}
+		for _, family := range []sqltype.ID{sqltype.Bit, sqltype.VarBit} {
+			usage := b.typ(family).Usage()
+			usage.Typmod = 3
+			value, err := sqltype.BitString(usage.Type, "101")
+			if err != nil {
+				t.Fatal(err)
+			}
+			props := ExprProperties{Volatility: Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
+			source := literalExpression{expressionInfo: expressionInfo{usage: usage, properties: props}, value: value}
+			operands := []functions.Argument[BoundExpr]{{Expression: source, Usage: usage}}
+			for i := 1; i < len(raw.Args); i++ {
+				u := b.typ(sqltype.Int4).Usage()
+				v, _ := sqltype.Integer(u.Type, 0)
+				operands = append(operands, functions.Argument[BoundExpr]{Expression: literalExpression{expressionInfo: expressionInfo{usage: u}, value: v}, Usage: u})
+			}
+			var types functions.BinaryTypes
+			node, err := b.finishBinary(name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
+			if err != nil {
+				t.Fatal(name, family, err)
+			}
+			binary := node.(functions.Binary[BoundExpr, *EvalContext, ExprProperties])
+			if err := binary.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			if node.Properties() != props || node.ResultUsage().Typmod != -1 || source.ResultUsage() != usage || binary.Args[0].ResultUsage().Typmod != -1 {
+				t.Fatal("width/dependency propagation", name, family, node.Properties())
 			}
 		}
 	}

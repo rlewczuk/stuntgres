@@ -863,15 +863,20 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   six ranges, including domains, contextual unknowns, NULL data and empty relations.
 - Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates and selected
   scalar `bit_count`, `bit_length`, `length`, `octet_length`, `overlay`,
-  `position`, and `substring`, including implicit VARBIT inputs. Scalar `||`
+  `position`, `substring`, `get_bit` and `set_bit`, including implicit VARBIT inputs. Scalar `||`
   returns unrestricted VARBIT; `&`, `|`, `#`, `~`, `<<`, `>>` return
   unrestricted BIT. AND/OR/XOR require equal actual lengths (22026); concat
   and comparisons permit unequal widths. Shifts preserve width, reverse for
   negative counts and zero-fill at/beyond the width, unlike integral masking.
   Scalar `=`, `<>`/`!=`, `<`, `<=`, `>`, `>=` compare logical digits lexically,
-  including leading zeroes and prefix lengths; NULL is strict. General bit
-  casts, get_bit/set_bit, substr alias, ordering/index/grouping providers and
-  bit arrays remain excluded. Unordered BIT aggregate DISTINCT retains the
+  including leading zeroes and prefix lengths; NULL is strict. Bit access uses
+  leftmost-zero INT4 indexes (BYTEA remains LSB-first with INT8 indexes).
+  `get_bit` returns INT4; `set_bit` returns unrestricted immutable BIT, leaving
+  its source unchanged. Logical bounds fail with 2202E before invalid new bits
+  fail with 22023; NULL does not bypass input/signature/authority checks.
+  Selected access calls work in defaults/generated/CHECK/view consumers and
+  symbolic native replay. General bit casts, substr alias, ordering/index/grouping
+  providers and bit arrays remain excluded. Unordered BIT aggregate DISTINCT retains the
   absent equality-provider error; BIT/VARBIT local ordering and bitwise windows
   remain excluded. Ordering by an independent integer key does not require bit
   comparison. Raw internal CHAR declarations

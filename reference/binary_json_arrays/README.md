@@ -411,7 +411,8 @@ report unknown nullability. Native control phases use actual Dump/Reset/Restore
 and replay the emitted SQL on PostgreSQL. `StoredNullFamilies` additionally pins
 admitted BIT NULL, VARBIT NULL and nonnull VARBIT expression transports without
 introducing bit casts. Grouping/hash, aggregate DISTINCT, ordering/index,
-windows, arrays, general casts and get_bit/set_bit remain separate boundaries.
+windows, arrays and general casts remain separate boundaries; get_bit/set_bit
+have the [bit access contract](#bit-string-access).
 
 Run the same completed definitions in native and pinned PostgreSQL modes from
 the repository root, with an external 900-second deadline:
@@ -1777,9 +1778,9 @@ remain unchanged.
 reversal, setter truncation/immutability, bounds and input diagnostics, overload
 resolution, authority, empty/NULL metadata, held frames, consumers and native
 symbolic controls with actual emitted SQL replay on PostgreSQL. PostgreSQL
-expectations are independent; BIT get_bit/set_bit execution is asserted only
-there, with the native capability error asserted separately. BIT bit_count is
-supported by the selected bit-function family. Portal Context and pq/native BYTEA
+expectations are independent; the migrated resolution witnesses now assert
+BIT get_bit/set_bit success on both backends. BIT bit_count is supported by
+the selected bit-function family. Portal Context and pq/native BYTEA
 metadata/empty-buffer differences remain explicit, not normalized goldens.
 
 Run each selective quickcheck under a 900-second deadline:
@@ -1796,6 +1797,57 @@ Feature smoke exercises the released six-function projection, held frames,
 bounds/new-bit failure and recovery, retained source, empty/NULL metadata and
 controls replay. These gates do not replace root quickcheck or post-merge
 finalcheck (one 1800-second deadline).
+
+### Bit-string access
+
+`TestReferenceBitAccess*` covers BIT and implicit VARBIT `get_bit`/`set_bit`.
+Indexes are INT4 and count from the leftmost logical bit, starting at zero,
+unlike BYTEA's LSB-first INT8 bit index. Getter results are INT4; setters return
+BIT/-1 independently of source width, preserve every other digit and do not
+mutate the source. Destination BIT/VARBIT assignment still enforces its width.
+Strict NULL suppresses body evaluation, not input, signature or authority checks.
+The complete ERROR diagnostics independently require 2202E
+`bit index N out of valid range (0..U)` before replacement validation and
+22023 `new bit must be 0 or 1` for other in-range replacement values.
+
+Permanent witnesses cover manual examples, first/last/interior bits across
+byte boundaries, empty and extreme indexes, overload competition, direct/prepared
+results, NULL/empty/live metadata and raw transport, SAME-held frame/error recovery,
+owned bind/scan buffers, authorization, statement atomicity and savepoint recovery.
+Defaults/generated/CHECK/view calls remain symbolic through native Dump/Reset/Restore;
+real mode replays the actual emitted SQL on PostgreSQL. The native retained cursor
+and failed/canceled Restore phases assert native APIs, not a fabricated PG equivalent.
+General bit casts, arrays, ordering/index/grouping providers and the substr alias
+are not added by access functions. Existing BYTEA/default boundaries are unchanged.
+
+Run each small selector in both modes from the repository root, with an external
+900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceBitAccess(Values|Typing|NullMetadata)$'
+make check REFERENCE=1 RUN='^TestReferenceBitAccess(Values|Typing|NullMetadata)$'
+make check RUN='^TestReferenceBitAccess(Diagnostics|HeldStatements)$'
+make check REFERENCE=1 RUN='^TestReferenceBitAccess(Diagnostics|HeldStatements)$'
+make check RUN='^TestReferenceBitAccess(Ownership|Authorization|Atomicity)$'
+make check REFERENCE=1 RUN='^TestReferenceBitAccess(Ownership|Authorization|Atomicity)$'
+make check RUN='^TestReferenceBitAccessConsumersControls$'
+make check REFERENCE=1 RUN='^TestReferenceBitAccessConsumersControls$'
+make check RUN='^TestReferenceBinaryAccessResolution$'
+make check REFERENCE=1 RUN='^TestReferenceBinaryAccessResolution$'
+make check RUN='^TestBitAccess(Values|Validation|AllocationsAndCancellation)$'
+make check RUN='^TestBinaryAccess(Signatures|Resolution|RetagAndRestoreArguments)$'
+make check RUN='^TestBitStringFunctionsValidation$'
+```
+
+Standalone feature smoke composes the permanent callbacks, independently checking
+the manual getter1/setter101010001010101010, BIT/BYTEA orientation(1,0),
+mutation/original ownership, typed NULL/metadata, exact error precedence,
+SAME-held recovery and real stored/control replay:
+
+```sh
+make check RUN='^TestReferenceBitAccessFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceBitAccessFeatureSmoke$'
+```
 
 ### BYTEA access oracle-first contract
 

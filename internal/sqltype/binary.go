@@ -123,6 +123,11 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	}
 	if len(args) > 0 && args[0].Type != nil && args[0].Type.ID() == Bit {
 		switch name {
+		case "get_bit", "set_bit":
+			ids[0], ids[1] = Bit, Int4
+			if name == "set_bit" {
+				id = Bit
+			}
 		case "bit_count", "bit_length", "length", "octet_length", "position", "substring", "overlay":
 			for i := range arity {
 				if ids[i] == Bytea {

@@ -2,6 +2,7 @@ package sqltype
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 )
@@ -11,6 +12,35 @@ import (
 func (p BinaryPlan) evaluateBits(ctx context.Context, values []Value) (Value, error) {
 	source := values[0].text
 	switch p.name {
+	case "get_bit", "set_bit":
+		index := values[1].integer
+		if index < 0 || index >= int64(len(source)) {
+			return Value{}, failure("2202E", fmt.Sprintf("bit index %d out of valid range (0..%d)", index, len(source)-1))
+		}
+		if p.name == "get_bit" {
+			return Integer(p.result.Type, int64(source[index]-'0'))
+		}
+		newbit := values[2].integer
+		if newbit != 0 && newbit != 1 {
+			return Value{}, failure("22023", "new bit must be 0 or 1")
+		}
+		digit := byte('0' + newbit)
+		if source[index] == digit {
+			return Value{typ: p.result.Type, text: source}, nil
+		}
+		var out strings.Builder
+		out.Grow(len(source))
+		if err := stringWrite(ctx, &out, source[:index]); err != nil {
+			return Value{}, err
+		}
+		out.WriteByte(digit)
+		if err := stringWrite(ctx, &out, source[index+1:]); err != nil {
+			return Value{}, err
+		}
+		if err := ctx.Err(); err != nil {
+			return Value{}, err
+		}
+		return Value{typ: p.result.Type, text: out.String()}, nil
 	case "length", "bit_length", "octet_length":
 		count := int64(len(source))
 		if p.name == "octet_length" {

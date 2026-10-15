@@ -168,6 +168,9 @@ func BinaryArgumentID(name string, index int, family sqltype.ID) sqltype.ID {
 	switch name {
 	case "get_bit", "set_bit":
 		if index == 1 {
+			if family == sqltype.Bit {
+				return sqltype.Int4
+			}
 			return sqltype.Int8
 		}
 		if index == 2 {
@@ -275,7 +278,6 @@ const (
 	BinaryTextSubstring
 	BinaryTextUnsupported
 	BinaryFunctionsUnsupported
-	BinaryBitsUnsupported
 )
 
 type BinarySelection struct {
@@ -473,9 +475,6 @@ func ResolveBinary[E any](prepared BinaryPreparation, name string, args []Argume
 		}
 		if candidates[1] {
 			selection.Family = sqltype.Bit
-			if name != "bit_count" {
-				selection.Route = BinaryBitsUnsupported
-			}
 			return selection
 		}
 		selection.Resolution = Missing

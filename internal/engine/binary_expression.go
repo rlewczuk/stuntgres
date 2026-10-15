@@ -24,7 +24,8 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if b.defaultConsumer && !functions.BinaryDefaultAllowed(name, len(raw.Args)) && !functions.BinaryBitCandidate(name, raw.Variadic, operands) {
+	access := name == "get_bit" || name == "set_bit"
+	if b.defaultConsumer && !access && !functions.BinaryDefaultAllowed(name, len(raw.Args)) && !functions.BinaryBitCandidate(name, raw.Variadic, operands) {
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	prepared := functions.PrepareBinary(name, visible, raw.Variadic, b.defaultConsumer, operands)
@@ -44,6 +45,9 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
+	if b.defaultConsumer && access && selection.Family != sqltype.Bit {
+		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+	}
 	switch selection.Route {
 	case functions.BinaryFunctionsUnsupported:
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
@@ -55,8 +59,6 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return b.finishStringFunction(raw, visible, operands)
 	case functions.BinaryTextUnsupported:
 		return nil, expressionError("0A000", "text overloads of "+name+" are unsupported", raw.Pos)
-	case functions.BinaryBitsUnsupported:
-		return nil, expressionError("0A000", "bit overloads of "+name+" are unsupported", raw.Pos)
 	}
 	return b.finishBinary(name, selection.Family, raw.Pos, operands, raw.Syntax, &types)
 }

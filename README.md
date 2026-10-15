@@ -3152,8 +3152,8 @@ Getters return INT4, count returns INT8, and setters return independent BYTEA
 values. New bits must be 0/1; new bytes retain the low eight bits of any INT4.
 Bounds fail with 2202E before new-bit validation (22023). NULL suppresses body
 errors, not input, signature or authority checks. Unknown operands participate
-in PostgreSQL's BYTEA/BIT overload competition; BIT `get_bit`/`set_bit` remain
-explicit native capability boundaries, not BYTEA reinterpretation.
+in PostgreSQL's BYTEA/BIT overload competition; BIT access uses logical
+leftmost-first indexing rather than reinterpreting BYTEA payloads.
 See [BYTEA access](https://www.postgresql.org/docs/18/functions-binarystring.html).
 Feature smoke: `make check RUN='^TestReferenceBinaryAccessFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.
@@ -3166,10 +3166,24 @@ independently of input width; destination assignment still enforces its own widt
 These immutable functions are strict. Negative overlay counts can duplicate bits,
 substring positive INT4 end overflow clips to the end, and empty-source position
 returns zero, even for an empty needle. Stored calls remain symbolic through
-Dump/Restore. Bit access functions and the `substr(bit)` alias remain excluded;
+Dump/Restore. The `substr(bit)` alias remains excluded;
 scalar operators have their [own contract](reference/binary_json_arrays/README.md#bit-string-scalar-operators).
 See [PostgreSQL bit functions](https://www.postgresql.org/docs/18/functions-bitstring.html).
 Feature smoke: `make check RUN='^TestReferenceBitStringFunctionsFeatureSmoke$'`;
+the pinned counterpart adds `REFERENCE=1`.
+
+Change note: BIT/VARBIT `get_bit` and `set_bit` use INT4 indexes with the
+leftmost logical bit at index zero, unlike BYTEA's LSB-first INT8 indexes.
+The getter returns INT4; the setter returns unrestricted BIT, preserving all
+other digits and the original immutable source. Bounds fail with 2202E
+(`bit index N out of valid range (0..U)`) before replacement validation;
+non-0/1 replacements fail with 22023 (`new bit must be 0 or 1`). Both are strict:
+NULL suppresses body errors, not input, signature or authorization checks.
+Defaults, generated columns, CHECKs and views preserve symbolic calls through
+Dump/Reset/Restore and actual emitted SQL replay on PostgreSQL. General bit
+casts, arrays and ordering/index/grouping providers remain separate boundaries.
+See [bit access testing](reference/binary_json_arrays/README.md#bit-string-access).
+Feature smoke: `make check RUN='^TestReferenceBitAccessFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.
 
 BYTEA supports raw `||`, `bit_length`, `octet_length`, `length`, two-argument

@@ -19,7 +19,7 @@ func bitFunctionPlan(t *testing.T, name string, payloads []string, indexes ...in
 	if name == "bit_count" {
 		result = Int8
 	}
-	if name == "substring" || name == "overlay" {
+	if name == "substring" || name == "overlay" || name == "set_bit" {
 		result = Bit
 	}
 	values := make([]Value, 0, len(payloads)+len(indexes))
@@ -163,6 +163,7 @@ func TestBitStringFunctionsValidation(t *testing.T) {
 		{"position", []string{"1", "1"}, nil}, {"substring", []string{"1"}, []int64{1}},
 		{"substring", []string{"1"}, []int64{1, 1}}, {"overlay", []string{"1", "0"}, []int64{1}},
 		{"overlay", []string{"1", "0"}, []int64{1, 1}},
+		{"get_bit", []string{"1"}, []int64{0}}, {"set_bit", []string{"1"}, []int64{0, 1}},
 	} {
 		p, values := bitFunctionPlan(t, tc.name, tc.bits, tc.indexes...)
 		args := append([]Usage(nil), p.args[:p.arity]...)
@@ -215,7 +216,7 @@ func TestBitStringFunctionsValidation(t *testing.T) {
 		}
 	}
 	p, _ := bitFunctionPlan(t, "substring", []string{"1"}, 1)
-	for _, name := range []string{"substr", "reverse", "get_bit", "set_bit", "||", "md5"} {
+	for _, name := range []string{"substr", "reverse", "||", "md5"} {
 		if _, err := BindBinary(name, p.result, p.args[:p.arity]...); err == nil {
 			t.Fatal("adjacent bit admission", name)
 		}

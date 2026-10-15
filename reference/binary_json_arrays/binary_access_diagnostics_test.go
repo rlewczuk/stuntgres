@@ -147,7 +147,7 @@ func binaryAccessDiagnosticStages(t *testing.T, p *fixture.Pair, b fixture.Backe
 }
 
 func TestReferenceBinaryAccessResolution(t *testing.T) {
-	binaryAccessScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+	bitAccessScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE t(v bytea)", 0))
 		for _, tc := range []struct{ q, msg string }{
 			{`SELECT get_byte('\x00'::bytea,0::bigint)`, "get_byte(bytea, bigint)"},
@@ -190,11 +190,7 @@ func TestReferenceBinaryAccessResolution(t *testing.T) {
 			q, name, typ string
 			value        any
 		}{{"SELECT get_bit('101',0)", "get_bit", "INT4", int64(1)}, {"SELECT set_bit('101',0,0)", "set_bit", "BIT", "001"}} {
-			if b.PG {
-				binaryAccessBoth(t, p, b, c, fixture.Select(tc.q, []string{tc.name}, []string{tc.typ}, [][]any{{tc.value}}))
-			} else {
-				binaryAccessAnalysisError(t, p, b, c, tc.q, fixture.Diagnostic{Code: "0A000", Message: "bit overloads of " + tc.name + " are unsupported", Position: "8"})
-			}
+			binaryAccessBoth(t, p, b, c, fixture.Select(tc.q, []string{tc.name}, []string{tc.typ}, [][]any{{tc.value}}))
 		}
 		binaryAccessBoth(t, p, b, c, fixture.Select("SELECT get_bit('10',1::bigint),set_bit('101',0::bigint,0)", []string{"get_bit", "set_bit"}, []string{"INT4", "BYTEA"}, [][]any{{int64(0), "001"}}))
 		for _, tc := range []struct {
