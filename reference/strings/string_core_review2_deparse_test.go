@@ -75,70 +75,61 @@ func stringCoreReview2ByteaValue(name string) []byte {
 	return []byte("Y")
 }
 
-func stringCoreReview2Reference(t *testing.T, p *fixture.Pair) {
-	run := func(t *testing.T, s fixture.Step) {
-		t.Helper()
-		p.Step(t, s)
-	}
-	for _, tc := range stringCoreReview2Cases() {
-		t.Run(tc.name, func(t *testing.T) {
-			run(t, fixture.Exec("CREATE TABLE sc2_"+tc.name+"("+tc.decl+",CONSTRAINT sc2c_"+tc.name+" CHECK("+tc.check+"))", 0))
-			if strings.HasPrefix(tc.name, "bytea_") {
-				run(t, fixture.Exec("INSERT INTO sc2_"+tc.name+" VALUES($1,$2,$3)", 1, []byte("xxYxx"), []byte("x"), stringCoreReview2ByteaValue(tc.name)))
-				run(t, fixture.Exec("INSERT INTO sc2_"+tc.name+" VALUES(NULL,NULL,NULL)", 1))
-				for _, prepared := range []bool{false, true} {
-					s := fixture.Select("SELECT "+strings.TrimSuffix(tc.check, "=e")+" AS value FROM sc2_"+tc.name+" ORDER BY e", []string{"value"}, []string{"BYTEA"}, [][]any{{string(stringCoreReview2ByteaValue(tc.name))}, {nil}})
+func stringCoreReview2Deparse(t *testing.T, p *fixture.Pair, tc stringCoreReview2Case) {
+	t.Helper()
+	for _, mode := range []struct{ suffix, want string }{{"", tc.compact}, {",false", tc.compact}, {",true", tc.pretty}} {
+		for _, prepared := range []bool{false, true} {
+			for _, consumer := range []struct{ name, q, want string }{
+				{"expression", "SELECT pg_get_expr(conbin,conrelid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", mode.want},
+				{"constraint", "SELECT pg_get_constraintdef(oid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", "CHECK (" + mode.want + ")"},
+			} {
+				t.Run(fmt.Sprintf("%s/%s/prepared=%t", consumer.name, mode.suffix, prepared), func(t *testing.T) {
+					s := fixture.Select(consumer.q, []string{"d"}, []string{"TEXT"}, [][]any{{consumer.want}})
 					if prepared {
 						s = fixture.Prepared(s)
 					}
-					t.Run(fmt.Sprintf("value/prepared=%t", prepared), func(t *testing.T) { run(t, s) })
-				}
+					p.Step(t, s)
+				})
 			}
-			for _, mode := range []struct{ suffix, want string }{{"", tc.compact}, {",false", tc.compact}, {",true", tc.pretty}} {
-				for _, prepared := range []bool{false, true} {
-					for _, consumer := range []struct{ name, q, want string }{
-						{"expression", "SELECT pg_get_expr(conbin,conrelid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", mode.want},
-						{"constraint", "SELECT pg_get_constraintdef(oid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", "CHECK (" + mode.want + ")"},
-					} {
-						t.Run(fmt.Sprintf("%s/%s/prepared=%t", consumer.name, mode.suffix, prepared), func(t *testing.T) {
-							s := fixture.Select(consumer.q, []string{"d"}, []string{"TEXT"}, [][]any{{consumer.want}})
-							if prepared {
-								s = fixture.Prepared(s)
-							}
-							run(t, s)
-						})
-					}
-				}
-			}
-		})
+		}
 	}
-	{
-		var dump bytes.Buffer
-		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
-			t.Fatal(err)
-		}
-		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-			t.Fatal(err)
-		}
-		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
-			t.Fatal(err)
-		}
-		for _, tc := range stringCoreReview2Cases() {
-			for _, mode := range []struct{ suffix, want string }{{"", tc.compact}, {",false", tc.compact}, {",true", tc.pretty}} {
-				for _, prepared := range []bool{false, true} {
-					for _, consumer := range []struct{ q, want string }{
-						{"SELECT pg_get_expr(conbin,conrelid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", mode.want},
-						{"SELECT pg_get_constraintdef(oid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", "CHECK (" + mode.want + ")"},
-					} {
-						step := fixture.Select(consumer.q, []string{"d"}, []string{"TEXT"}, [][]any{{consumer.want}})
-						if prepared {
-							step = fixture.Prepared(step)
-						}
-						run(t, step)
-					}
-				}
+}
+
+func stringCoreReview2Reference(t *testing.T, tc stringCoreReview2Case) {
+	t.Helper()
+	p := fixture.NewScenario(t)
+	p.Step(t, fixture.Exec("CREATE TABLE sc2_"+tc.name+"("+tc.decl+",CONSTRAINT sc2c_"+tc.name+" CHECK("+tc.check+"))", 0))
+	if strings.HasPrefix(tc.name, "bytea_") {
+		p.Step(t, fixture.Exec("INSERT INTO sc2_"+tc.name+" VALUES($1,$2,$3)", 1, []byte("xxYxx"), []byte("x"), stringCoreReview2ByteaValue(tc.name)))
+		p.Step(t, fixture.Exec("INSERT INTO sc2_"+tc.name+" VALUES(NULL,NULL,NULL)", 1))
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Select("SELECT "+strings.TrimSuffix(tc.check, "=e")+" AS value FROM sc2_"+tc.name+" ORDER BY e", []string{"value"}, []string{"BYTEA"}, [][]any{{string(stringCoreReview2ByteaValue(tc.name))}, {nil}})
+			if prepared {
+				s = fixture.Prepared(s)
 			}
+			t.Run(fmt.Sprintf("value/prepared=%t", prepared), func(t *testing.T) { p.Step(t, s) })
 		}
+	}
+	t.Run("before", func(t *testing.T) { stringCoreReview2Deparse(t, p, tc) })
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	// PostgreSQL keeps its original table; both backends repeat the same checks.
+	t.Run("after", func(t *testing.T) { stringCoreReview2Deparse(t, p, tc) })
+}
+
+func stringCoreReview2Grouping(t *testing.T) {
+	p := fixture.NewScenario(t)
+	run := func(t *testing.T, s fixture.Step) {
+		t.Helper()
+		p.Step(t, s)
 	}
 	run(t, fixture.Exec("CREATE TABLE sc2_group(v BYTEA,s BYTEA)", 0))
 	run(t, fixture.Exec("INSERT INTO sc2_group VALUES($1,$2),(NULL,NULL)", 2, []byte("xxYxx"), []byte("x")))
@@ -170,5 +161,9 @@ func stringCoreReview2Reference(t *testing.T, p *fixture.Pair) {
 }
 
 func TestReferenceStringCoreReview2Deparse(t *testing.T) {
-	stringCoreReview2Reference(t, fixture.NewScenario(t))
+	// Each independent case owns its catalog and the unchanged fixture deadline.
+	for _, tc := range stringCoreReview2Cases() {
+		t.Run(tc.name, func(t *testing.T) { stringCoreReview2Reference(t, tc) })
+	}
+	t.Run("grouping", stringCoreReview2Grouping)
 }

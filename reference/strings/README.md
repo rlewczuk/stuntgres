@@ -6,6 +6,30 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### String core constraint deparse lifecycle
+
+`TestReferenceStringCoreReview2Deparse` gives each of its 74 independent
+constraint cases a fresh scenario and the unchanged 30-second fixture context.
+Each case creates its table, checks default/false/true deparse modes through both
+`pg_get_expr` and `pg_get_constraintdef`, then repeats the same direct/prepared
+checks after actual native Dump/Reset/Restore. PostgreSQL retains its original
+table for the repeated checks; native controls are not simulated there.
+The BYTEA value/NULL checks remain in their owning cases. A separate scenario
+retains all ordinary/special trim grouping pairs, direct/prepared routes and
+owned `[]byte` Scan assertions. Cases run serially so fixture cleanup closes
+pools and resets PostgreSQL `public` before the next case.
+
+```sh
+make check RUN='^TestReferenceStringCoreReview2Deparse$' REFERENCE=1
+make check RUN='^TestReferenceStringCoreReview2Deparse$'
+make check RUN='^TestReferenceStringCoreReview2Deparse$' RACE=1
+```
+
+Use an external 900-second deadline per command. These selected public-API
+scenarios exercise the lifecycle remedy directly; no additional standalone
+string smoke program is needed for this test-only change. Selected proof does
+not replace whole-project Docker-free quickcheck or postmerge finalcheck.
+
 ### Identifier parsing selected proof
 
 The nine `TestReferenceStringIdent*` definitions in `string_ident_values_test.go`,
