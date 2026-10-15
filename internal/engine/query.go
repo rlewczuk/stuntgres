@@ -137,6 +137,18 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		}
 		copy := *n
 		copy.setNode = *bound.(*setNode)
+		if n.cycle != nil {
+			recipe := *n.cycle
+			recipe.mark, _, err = preflightCoercions(c, recipe.mark)
+			if err != nil {
+				return nil, err
+			}
+			recipe.fallback, _, err = preflightCoercions(c, recipe.fallback)
+			if err != nil {
+				return nil, err
+			}
+			copy.cycle = &recipe
+		}
 		return &copy, nil
 	case *worktableScanNode:
 		return n, nil

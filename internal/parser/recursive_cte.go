@@ -151,6 +151,37 @@ func AnalyzeRecursiveCTEs(statement Statement) (RecursiveCTEAnalysis, error) {
 		if err := visitQuerySources(body.Set.Right, nil, nil, nil, check, visible, "", true); err != nil {
 			return result, err
 		}
+		if d.Cycle != nil {
+			if body.Set.Left.Set != nil {
+				return result, recursiveCTEError("0A000", "with a SEARCH or CYCLE clause, the left side of the UNION must be a SELECT", Position{})
+			}
+			if body.Set.Right.Set != nil {
+				return result, recursiveCTEError("42601", "with a SEARCH or CYCLE clause, the right side of the UNION must be a SELECT", Position{})
+			}
+			top := make(map[*TableReference]bool)
+			var collect func(FromItem)
+			collect = func(item FromItem) {
+				switch n := item.(type) {
+				case *TableReference:
+					top[n] = true
+				case *AliasReference:
+					collect(n.Input)
+				case *JoinReference:
+					collect(n.Left)
+					collect(n.Right)
+				}
+			}
+			collect(body.Set.Right.From)
+			err := visitQuerySources(body.Set.Right, nil, nil, nil, func(table *TableReference, target *CommonTableExpression, _ string) error {
+				if target == d && !top[table] {
+					return recursiveCTEError("0A000", fmt.Sprintf(`with a SEARCH or CYCLE clause, the recursive reference to WITH query "%s" must be at the top level of its right-hand SELECT`, d.Name.Text), Position{})
+				}
+				return nil
+			}, visible, "", false)
+			if err != nil {
+				return result, err
+			}
+		}
 	}
 	return result, nil
 }

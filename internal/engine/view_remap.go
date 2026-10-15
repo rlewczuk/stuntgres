@@ -780,15 +780,26 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.rightExpressions = expressions(set.rightExpressions)
 		copy.grouping = nil
 		if !(copy.operation == "union" && copy.all) {
-			copy.grouping = make([]sqltype.Grouping, len(schema))
+			width := len(schema)
+			if definition != nil && definition.cycle != nil {
+				width--
+			}
+			copy.grouping = make([]sqltype.Grouping, width)
 			for i, column := range schema {
+				if definition != nil && definition.cycle != nil && i == len(schema)-1 {
+					break
+				}
 				if err == nil {
 					copy.grouping[i], err = sqltype.BindGrouping(column.Usage)
 				}
 			}
 		}
 		if definition != nil {
-			next = &recursiveUnionNode{setNode: copy, definition: definition}
+			cycle := definition.cycle
+			if original := node.(*recursiveUnionNode).cycle; original != nil && original != node.(*recursiveUnionNode).definition.cycle {
+				cycle, err = m.cycle(original)
+			}
+			next = &recursiveUnionNode{setNode: copy, definition: definition, cycle: cycle}
 		} else {
 			next = &copy
 		}
@@ -1207,6 +1218,13 @@ func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
 			copy.schema[i].Usage.Collation = collation
 		}
 	}
+	if old.cycle != nil {
+		var err error
+		copy.cycle, err = m.cycle(old.cycle)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if old.query != nil {
 		query := *old.query
 		root, err := m.nested(query.Root)
@@ -1222,6 +1240,66 @@ func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
 			return nil, err
 		}
 		copy.mutation = &body
+	}
+	return &copy, nil
+}
+
+func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
+	copy := *old
+	copy.record, copy.path = m.typ(old.record), m.typ(old.path)
+	if !occurrenceRecordArray(copy.path) || copy.path.Element() != copy.record {
+		return nil, ErrCatalogReplaced
+	}
+	expression := func(old BoundExpr) (BoundExpr, error) {
+		next, err := remapBoundExpressionWithQuery(old, m.ref, nil, m.nested, nil)
+		if err != nil {
+			return nil, err
+		}
+		if !m.referencesOnly {
+			next, _, err = retagBoundTypesWithQuery(m.catalog, next, m.typ, nil, m.collation)
+		}
+		return next, err
+	}
+	var err error
+	copy.mark, err = expression(old.mark)
+	if err != nil {
+		return nil, err
+	}
+	copy.fallback, err = expression(old.fallback)
+	if err != nil {
+		return nil, err
+	}
+	if m.referencesOnly {
+		return &copy, nil
+	}
+	for i, usage := range old.typedConstants {
+		if usage.Type == nil {
+			continue
+		}
+		usage.Type = m.typ(usage.Type)
+		if m.collation != nil {
+			usage.Collation, err = m.collation(usage.Collation)
+			if err != nil {
+				return nil, err
+			}
+		}
+		copy.typedConstants[i] = usage
+	}
+	copy.grouping = make([]sqltype.Grouping, len(old.grouping))
+	for i := range copy.grouping {
+		copy.grouping[i], err = sqltype.BindGrouping(copy.record.CompositeMember(i).Usage)
+		if err != nil {
+			return nil, err
+		}
+	}
+	boolean, ok := m.catalog.LookupType(sqltype.Bool)
+	if !ok {
+		return nil, ErrCatalogReplaced
+	}
+	usage := copy.mark.ResultUsage()
+	copy.inequality, err = sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, usage.Type, usage.Type, boolean, usage.Collation, copy.mark.CollationIndeterminate())
+	if err != nil {
+		return nil, err
 	}
 	return &copy, nil
 }

@@ -119,10 +119,20 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 	case *recursiveUnionNode:
 		left, right := child(n.left), child(n.right)
 		leftExpressions, rightExpressions := args(n.leftExpressions), args(n.rightExpressions)
+		cycle := n.cycle
+		if cycle != nil {
+			marks := args([]BoundExpr{cycle.mark, cycle.fallback})
+			if marks[0] != cycle.mark || marks[1] != cycle.fallback {
+				copy := *cycle
+				copy.mark, copy.fallback = marks[0], marks[1]
+				cycle = &copy
+			}
+		}
 		if changed && err == nil {
 			copy := *n
 			copy.left, copy.right = left.(*projectNode), right.(*projectNode)
 			copy.leftExpressions, copy.rightExpressions = leftExpressions, rightExpressions
+			copy.cycle = cycle
 			out = &copy
 		}
 	case *worktableScanNode:

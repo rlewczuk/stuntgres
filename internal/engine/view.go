@@ -357,6 +357,12 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, err
 		}
 	}
+	for _, column := range b.query.Root.Schema() {
+		if occurrenceRecordArray(column.Usage.Type) {
+			e.mu.Unlock()
+			return Result{}, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type record[]`, column.Name))
+		}
+	}
 	// Existing replacement shape errors precede the creation-only VOID
 	// boundary. Appended VOID columns and CREATE OR REPLACE of a missing
 	// destination still fail before a catalog stage can publish anything.

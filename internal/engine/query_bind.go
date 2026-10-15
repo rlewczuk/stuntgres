@@ -178,6 +178,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				b.viewStars[starPath] = nil
 			}
 			for _, c := range columns {
+				if c.hideStar {
+					continue
+				}
 				var expr BoundExpr
 				if returningScope != nil {
 					expr = b.outerReturningColumnAt(returningScope, c.physical, star.Pos, newValues)

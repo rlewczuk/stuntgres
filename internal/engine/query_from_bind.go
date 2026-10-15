@@ -15,6 +15,7 @@ type queryColumn struct {
 	slot           int
 	leaf, physical int // -1 identifies a computed merged value.
 	cteScan        *derivedNode
+	hideStar       bool // Generated CYCLE columns are explicit-only in their owning WITH definitions.
 }
 type queryQualifier struct {
 	name, schema, original, alias string
@@ -382,7 +383,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			for i := len(b.cteBindings) - 1; i >= 0; i-- {
 				binding := b.cteBindings[i]
 				if binding.name == n.Name.Parts[0].Text {
-					return b.bindCTEScan(n, binding.definition)
+					return b.bindCTEScan(n, binding)
 				}
 			}
 		}
@@ -450,13 +451,24 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			failure.Hint = hint
 			return nil, queryNamespace{}, failure
 		}
-		if len(n.Columns) > len(ns.columns) {
+		aliasWidth := len(ns.columns)
+		switch scan := root.(type) {
+		case *worktableScanNode:
+			if scan.cte.cycle != nil {
+				aliasWidth = scan.cte.cycle.width
+			}
+		case *derivedNode:
+			if scan.cte != nil && scan.cte.cycle != nil {
+				aliasWidth = scan.cte.cycle.width
+			}
+		}
+		if len(n.Columns) > aliasWidth {
 			kind := "join expression"
 			switch n.Input.(type) {
 			case *parser.TableReference, *parser.ValuesQuery, *parser.DerivedQuery, *parser.FunctionTable, *parser.FunctionFrom:
 				kind = "table"
 			}
-			return nil, queryNamespace{}, sqlError("42P10", fmt.Sprintf(`%s "%s" has %d columns available but %d columns specified`, kind, n.Name.Text, len(ns.columns), len(n.Columns)))
+			return nil, queryNamespace{}, sqlError("42P10", fmt.Sprintf(`%s "%s" has %d columns available but %d columns specified`, kind, n.Name.Text, aliasWidth, len(n.Columns)))
 		}
 		ns.columns = append([]queryColumn(nil), ns.columns...)
 		for i, name := range n.Columns {
@@ -671,7 +683,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 						info.properties = coercionProperties(input, plan)
 						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false})
 					}
-					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1}
+					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
 					join.merges = append(join.merges, value)
 					ns.frame = append(ns.frame, column.descriptor)
 				}

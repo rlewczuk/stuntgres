@@ -72,6 +72,10 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 	case *recursiveUnionNode:
 		args(n.leftExpressions)
 		args(n.rightExpressions)
+		if c := n.cycle; c != nil {
+			visit(c.mark)
+			visit(c.fallback)
+		}
 	case *projectNode:
 		args(n.expressions)
 		args(n.analysisExpressions)

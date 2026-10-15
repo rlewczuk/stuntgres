@@ -571,6 +571,17 @@ Domains over executable composites publish executable reciprocal arrays too;
 catalog replacement reowns their domain, element and member codecs together.
 Comparison/hash/key providers and enum/base-type deletion remain excluded.
 
+Recursive CYCLE adds a bounded occurrence-owned `record[]` expression result
+(record OID2249, array OID2287). Its concrete ordered members retain exact key
+types, typmods and collations; generic catalog `_record` remains lookup-only.
+Native results export canonical array/composite text and truthful `_RECORD`
+metadata, including empty results. Held raw/text paths retain public result
+compatibility when only a key member changes type, while internal descriptor
+generation and remapping remain exact. CYCLE alone owns structural path equality;
+this does not install generic composite comparison/hash/storage providers.
+VIEW/CTAS/materialized-view direct record[] columns reject pseudo-type storage;
+`path::text` is persistable.
+
 `ALTER TYPE name ADD ATTRIBUTE name type [CASCADE|RESTRICT]`,
 `DROP ATTRIBUTE [IF EXISTS] name [CASCADE|RESTRICT]`,
 `RENAME ATTRIBUTE name TO name [CASCADE|RESTRICT]` and

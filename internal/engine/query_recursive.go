@@ -11,6 +11,7 @@ type worktableScanNode struct{ derivedNode }
 type recursiveUnionNode struct {
 	setNode
 	definition *cteDefinition
+	cycle      *cycleRecipe
 }
 
 func querySetNode(node LogicalNode) *setNode {
@@ -33,6 +34,8 @@ type recursiveUnionStage struct {
 	seen           map[uint64][]int
 	arm            setArm
 	scratch        []sqltype.Value
+	mark, fallback sqltype.Value
+	marksReady     bool
 	phase          uint8
 	opened, closed bool
 }
@@ -93,6 +96,19 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			}
 			s.arm, s.opened = arm, true
 			s.scratch = arm.row
+			if c := s.node.cycle; c != nil && !s.marksReady {
+				evaluation := &s.arm.inner.evaluation
+				evaluation.setContext(ctx)
+				s.mark, err = c.mark.Eval(evaluation)
+				if err != nil {
+					return false, err
+				}
+				s.fallback, err = c.fallback.Eval(evaluation)
+				if err != nil {
+					return false, err
+				}
+				s.marksReady = true
+			}
 		}
 		row, present, err := s.arm.next(ctx)
 		if err != nil {
@@ -114,6 +130,17 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			}
 			continue
 		}
+		cycle := s.node.cycle
+		if cycle != nil {
+			var parent sqltype.Value
+			if s.phase == 1 {
+				parent = row[cycle.width+1]
+			}
+			row, err = cycle.augment(ctx, row, parent, s.mark, s.fallback)
+			if err != nil {
+				return false, err
+			}
+		}
 		hash := uint64(14695981039346656037)
 		if s.seen != nil {
 			for i, family := range s.node.grouping {
@@ -128,7 +155,14 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 				}
 				hash = (hash ^ part) * 1099511628211
 			}
-			index, err := findDistinctTuple(ctx, s.node.grouping, row, s.source.flat, s.seen[hash])
+			if cycle != nil {
+				part, err := cycle.hashPath(ctx, row[cycle.width+1])
+				if err != nil {
+					return false, err
+				}
+				hash = (hash ^ part) * 1099511628211
+			}
+			index, err := s.findTuple(ctx, row, s.seen[hash])
 			if err != nil {
 				return false, err
 			}
@@ -145,10 +179,26 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 		if s.seen != nil {
 			s.seen[hash] = append(s.seen[hash], index)
 		}
-		if s.phase == 0 {
-			s.current = append(s.current, index)
-		} else {
-			s.next = append(s.next, index)
+		expand := true
+		if cycle != nil {
+			value, err := cycle.inequality.Evaluate(ctx, row[cycle.width], s.mark, s.state.input)
+			if err != nil {
+				return false, err
+			}
+			expand = false
+			if !value.IsNull() {
+				expand, err = value.Boolean()
+				if err != nil {
+					return false, err
+				}
+			}
+		}
+		if expand {
+			if s.phase == 0 {
+				s.current = append(s.current, index)
+			} else {
+				s.next = append(s.next, index)
+			}
 		}
 		out.selection = append(out.selection, index)
 		return true, nil
@@ -176,4 +226,36 @@ func openWorktableScan(ctx context.Context, state *queryState, n *worktableScanN
 		establishSourcePresence(source, n.presenceSlot)
 	}
 	return indexedStage{source: source, schema: n.Schema(), selection: stage.current}, nil
+}
+
+func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value, candidates []int) (int, error) {
+	c := s.node.cycle
+	if c == nil {
+		return findDistinctTuple(ctx, s.node.grouping, row, s.source.flat, candidates)
+	}
+	width := len(s.node.Schema())
+	for _, index := range candidates {
+		other := s.source.flat[index*width : (index+1)*width]
+		equal := true
+		for i, g := range s.node.grouping {
+			same, err := g.Equal(ctx, row[i], other[i])
+			if err != nil {
+				return -1, err
+			}
+			if !same {
+				equal = false
+				break
+			}
+		}
+		if equal {
+			same, err := c.equalPath(ctx, row[c.width+1], other[c.width+1])
+			if err != nil {
+				return -1, err
+			}
+			if same {
+				return index, nil
+			}
+		}
+	}
+	return -1, ctx.Err()
 }

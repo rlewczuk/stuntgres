@@ -238,3 +238,110 @@ anchor SubLink context and IN subselect-before-testexpr exact diagnostics, plus
 harmless body-WITH and local-shadow positive bags. These supplement, not replace,
 the shared `ReviewDiagnostics` scenario.
 
+### Recursive CYCLE verification
+
+The nine `TestReferenceQueryCyclePaths`, `Marks`, `Binding`, `Metadata`,
+`Diagnostics`, `Prepared`, `Stored`, `Lifecycle` and `FeatureSmoke` definitions
+share public SQL/API scenarios across native and pinned PostgreSQL 18.0.
+The fixed graph a→b→a with branch a→c has exactly four rows: unmarked
+`a/{(a)}`, `b/{(a),(b)}`, `c/{(a),(c)}`, and marked
+`a/{(a),(b),(a)}`. Other bags distinguish branch-local ordered record ancestry,
+NULL fields, augmented UNION DISTINCT, generated-column visibility, typed custom
+marks, held statement freshness, persistent text-path recipes, late failure and
+genuine running cancellation. Raw metadata is inspected before iteration.
+
+Binding additionally pins contained sibling stars to original columns only;
+explicit sibling mark/path projections remain available. External `r AS t(x)`
+stars expose `x,cyc,path`, while `r AS t(x,y,z)` fails analysis with unpositioned
+42P10: only the original column is available for reference aliases. The same
+original-width boundary applies to self references and stored SQL rendering.
+
+The completed definitions are unfiltered: both backends execute the same cases.
+Goldens encode the two pinned oracle runs, including `_RECORD` descriptors,
+TEXT Length `(MaxInt64,true)` on both adapters (the preexisting documented
+contract), escaped record-array cells, full diagnostics and failure phases.
+The existing fixture raw-array validator recognizes `_RECORD`: PostgreSQL cells
+must be `[]byte`, native cells strings, before exact canonical text comparison.
+Common mark metadata preserves numeric(4,2), character(2) and varchar(3)
+modifiers. Unconstrained NUMERIC truthfully exposes pq's precision/scale
+65535/65531 versus native unknown precision/scale; raw decimal values retain
+their observed scale and character values retain padding.
+Transient coverage retains shared pg_class absence checks, native unchanged
+Dump and retained generated rows/metadata. PostgreSQL additionally asserts no
+pg_type pollution; native independently asserts the positioned 42P01 boundary
+for its absent pg_type provider. Private ownership units ensure occurrence
+descriptors do not replace catalog RECORD/RECORD[] identities.
+
+
+Held raw `record[]` and `path::text` both survive an INT4→INT8 key-field
+change. This public stable result identity does not relax native internal
+descriptor ownership/generation validation; the ordinary scalar-result control
+still rejects a changed result type. Ambiguous RHS references remain separate
+from constant-RHS generated-name/body-error precedence cases. The width witness
+points at the first RHS expression (character57), not SELECT. VIEW/CTAS/MV
+pseudo-type checks require successful Prepare followed by execution rejection.
+`TestReferenceQueryCycleViewReplacePrecedence` separately proves replacement
+rename/type diagnostics precede path pseudo-type rejection, appended paths still
+reject, and failed direct/held replacements preserve the original view. Run
+`make check RUN='^TestReferenceQueryCycleViewReplacePrecedence$'` in quick mode
+and again with `REFERENCE=1`.
+Malformed staged SQL reports full-script character88 on both backends; later
+Restore binding likewise retains full-script position136 on both backends.
+No discovery providers or observation probes remain in the original nine
+definitions. Pinned discovery and the root-observed native-red checkpoint
+precede production implementation.
+The following selectors are required final proof, not claims of passing checks.
+
+Root-owned selected commands (external900-second deadline, cwd assigned worktree):
+
+```sh
+timeout 900s make check RUN='^TestReferenceQueryCycle(Paths|Marks|Binding|Metadata)$'
+timeout 900s make check RUN='^TestReferenceQueryCycle(Diagnostics|Prepared|Stored)$'
+timeout 900s make check RUN='^TestReferenceQueryCycle(Lifecycle|FeatureSmoke)$'
+```
+
+For the real pinned oracle, repeat each command with `REFERENCE=1`.
+Before review, run all three selectors and the review-regression selector below
+in both modes on the same completed definitions; finalcheck does not substitute
+for selected dual-mode evidence.
+Selected lifecycle race proof is
+`make check RACE=1 RUN='^TestReferenceQueryCycle(Lifecycle|Prepared|Stored)$'`.
+
+Review regressions add `TestReferenceQueryCycleStoredTypedMarks` and
+`TestReferenceQueryCycleConflictPrecedence`. The former preserves asymmetric
+NUMERIC source-modifier conversions in both TO and DEFAULT through native
+Dump/Reset/Restore, foreign restoration and actual emitted SQL replay on
+PostgreSQL. The latter checks mark-first conflict precedence when original
+columns are ordered path-before-mark, including complete diagnostics, UTF8
+position and Query/Exec/Prepare rejection phases.
+
+```sh
+timeout 900s make check RUN='^TestReferenceQueryCycle(StoredTypedMarks|ConflictPrecedence)$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceQueryCycle(StoredTypedMarks|ConflictPrecedence)$'
+```
+
+The two review regressions are unfiltered and use independently pinned outcomes:
+`numeric(3,1) '1.25'` yields `1.3` whether it is TO or DEFAULT, while common
+output NUMERIC remains unconstrained. Initial, restored and replayed views
+assert raw cells plus complete metadata before iteration, including native
+stored-view Nullable `(true,true)` versus pq `(false,false)`. The competing
+name witness reports the mark conflict at UTF8 character73 across all three
+rejection phases. Root recorded pinned observations and native red before
+authorizing the remedies; fresh selected proof in both modes is still required.
+
+`TestReferenceQueryCycleFeatureSmoke` is the permanent public smoke definition:
+exact closing row/path bag and metadata, a/b/NULL/a held seeds, NULL multikey,
+full conflict/incompatible-mark diagnostics, stored text path and real native
+Dump/Reset/Restore/foreign owner, late statement failure and joined running
+cancellation followed by same-owner recovery. The implementation handoff
+supplies a session-only standalone public consumer `cycle-smoke.go`; root
+records its actual resolved path as `CYCLE_SMOKE_GO` and runs
+`timeout 900s go run "$CYCLE_SMOKE_GO"`. It is not a tracked temporary script.
+
+Package-function proof (no public SQL duplication):
+`make check RUN='^TestCTECycle(Grammar|Legality)$'` and
+`make check RUN='^TestQueryCycle(Equality|Parent|Ownership|Lifecycle|Signature)$'`.
+These cover positioned syntax/legality, retained equality/hash authorities,
+actual parent slots, immutable occurrence descriptors and memoized remap,
+cancellation/sticky failure/close ownership and public versus private signatures.
+

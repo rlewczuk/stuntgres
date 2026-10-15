@@ -421,8 +421,8 @@ Nested modifying WITH and referenced no-RETURNING output are rejected. Ordinary
 views reject modifying WITH at execution, including held statements; materialized
 views and cursors reject it at held preparation. Existing CTAS/SELECT INTO remain
 admitted consumers. CTAS WITH NO DATA creates empty schema without executing the
-query or its modifiers. Recursive/SEARCH/CYCLE, trigger/FDW and hierarchy
-provider exclusions remain unchanged. Rule expansion must leave exactly one
+query or its modifiers. Recursive modifying definitions, SEARCH, trigger/FDW and
+hierarchy provider exclusions remain unchanged. Rule expansion must leave exactly one
 admitted auxiliary query; zero/multiple expansions retain the documented
 INSTEAD NOTHING/conditional/ALSO/multi-statement restrictions. A single SELECT
 replacement remains lazy when unused. No portable same-row overlap winner or
@@ -1430,8 +1430,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
   resolution and custom/generic optimizer-plan switching are not implemented.
 - Recursive SELECT CTEs support UNION/UNION ALL worktable iteration and parent
-  demand with existing type/equality providers. SEARCH/CYCLE, recursive modifying
-  definitions, and general lateral derived sources remain excluded. MERGE rejects
+  demand with existing type/equality providers. CYCLE supplies branch-local
+  ordered-key record[] paths, closing rows and typed marks; generated paths
+  cannot be persistent columns (project path::text instead). SEARCH, recursive
+  modifying definitions, and general lateral derived sources remain excluded. MERGE rejects
   its own WITH RECURSIVE; a recursive SELECT inside its derived source is admitted.
   Window providers are row_number(), rank(), dense_rank(), percent_rank(),
   cume_dist(), count(*), ntile(integer), existing integer/numeric/floating

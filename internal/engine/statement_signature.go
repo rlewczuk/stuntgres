@@ -6,6 +6,12 @@ func sameStatementUsage(a, b sqltype.Usage) bool {
 	if a.Type == nil || b.Type == nil {
 		return a.Type == b.Type && a.Typmod == b.Typmod && a.Collation == b.Collation
 	}
+	// RECORD[] has stable public identity even when a rebound key's member
+	// shape changes. Internal generation/shape checks remain exact in
+	// validExpressionUsageAt and the occurrence mapper.
+	if occurrenceRecordArray(a.Type) || occurrenceRecordArray(b.Type) {
+		return occurrenceRecordArray(a.Type) && occurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation
+	}
 	if a.Type.ID() == 2249 && a.Type.IsComposite() || b.Type.ID() == 2249 && b.Type.IsComposite() {
 		if !a.Type.IsComposite() || !b.Type.IsComposite() || a.Type.ID() != b.Type.ID() || a.Type.CompositeLen() != b.Type.CompositeLen() {
 			return false

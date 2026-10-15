@@ -5082,7 +5082,7 @@ locks. Existing native stored marked aggregate/blocking frontiers still run when
 independently reachable; dead qualification does not bypass their physical lock
 settlement.
 
-SEARCH/CYCLE, standalone VALUES/TABLE CTE bodies and lateral derived
+SEARCH, standalone VALUES/TABLE CTE bodies and lateral derived
 queries remain excluded. See
 [WITH query contracts](https://www.postgresql.org/docs/18/queries.html) and
 [implementation design](docs/design/PG18-QUERY-CTE.md).
@@ -5109,11 +5109,29 @@ symbolic recursive definitions and physical dependencies, not runtime worktables
 
 SELECT, INSERT, UPDATE and DELETE accept the recursive modifier. MERGE rejects
 its own `WITH RECURSIVE`, but can consume a derived recursive SELECT.
-Recursive modifying definitions and SEARCH/CYCLE remain excluded.
+Recursive modifying definitions and SEARCH remain excluded.
 See [recursive query design](docs/design/PG18-QUERY-CTE-RECURSIVE.md) and
 [selected dual-mode proof](reference/query_core/README.md#recursive-cte-verification).
 Feature smoke: `make check RUN='^TestReferenceQueryRecursiveCTEFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryRecursiveCTEFeatureSmoke$'`.
+
+### Recursive cycle detection — change note
+
+`CYCLE keys SET mark [TO constant DEFAULT constant] USING path` adds the
+mark and a `record[]` ancestry path after the original recursive columns.
+Keys form one ordered record; NULL fields compare equal. Paths are branch-local,
+and the cycle-closing row is emitted with its complete path. Expansion retains
+only parents for which SQL `mark <> cycle-value` is TRUE, including custom or
+NULL marks. UNION DISTINCT includes the generated mark and full path.
+Self-reference stars omit generated columns, while explicit references and
+external stars expose them. Prepared executions start fresh; raw/text paths
+retain their public result type across key-field-only type changes.
+Stored recipes may project original columns, marks or `path::text`; persistent
+`record[]` result columns are rejected. Generic composite grouping is unchanged.
+See [cycle design](docs/design/PG18-QUERY-CTE-RECURSIVE-CYCLE.md) and
+[selected proof](reference/query_core/README.md#recursive-cycle-verification).
+Feature smoke: `make check RUN='^TestReferenceQueryCycleFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryCycleFeatureSmoke$'`.
 
 
 ### Data-modifying CTEs — change note
@@ -5148,7 +5166,7 @@ AS WITH NO DATA does not execute its query at all: the destination is empty and
 auxiliary targets remain unchanged. This is not an exception to modifier
 completion inside an executing LIMIT 0 query.
 
-SEARCH/CYCLE and trigger/FDW/hierarchy providers retain their existing exclusions.
+SEARCH and trigger/FDW/hierarchy providers retain their existing exclusions.
 Rule rewrites preserve original auxiliary identity and atomic completion when
 they leave one executable query; zero/multiple expansion retains PostgreSQL's
 INSTEAD NOTHING/conditional/ALSO/multi-statement diagnostics. PostgreSQL separately

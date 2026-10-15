@@ -686,8 +686,20 @@ failure sticks, opened stages close once, and successful-path close failure veto
 the single existing statement publication. Views and native Dump/Restore retain
 symbolic definitions plus real persisted rows/dependencies, never worktable state.
 MERGE's own recursive modifier is rejected, independently of a local recursive
-SELECT in its derived source. SEARCH/CYCLE and recursive modifying definitions remain outside
+SELECT in its derived source. SEARCH and recursive modifying definitions remain outside
 this execution owner. See [recursive design](design/PG18-QUERY-CTE-RECURSIVE.md).
+
+CYCLE appends a typed mark and occurrence-owned record[] path. Each row's keys
+form one ordered, non-NULL record, even when all fields are NULL. The candidate
+compares that record with its actual parent's ancestry using retained NULL-aware
+key equality, appends it and emits the closing row. Only SQL parent-mark
+inequality TRUE permits another generation; equal or NULL custom marks can stop
+at the anchor. UNION DISTINCT compares the complete augmented tuple.
+Generated columns are explicit-only in the definition's own stars and visible
+normally to external consumers. Mark values are grammar constants, not parameters
+or arbitrary expressions. Persistent outputs must project ordinary columns,
+marks or path::text rather than record[]. Stored/native replay keeps symbolic
+CYCLE syntax, never transient paths. See [cycle design](design/PG18-QUERY-CTE-RECURSIVE-CYCLE.md).
 
 
 Modifying definitions are separate mandatory execution roots, not lazy SELECT

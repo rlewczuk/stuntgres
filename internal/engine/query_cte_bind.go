@@ -23,10 +23,12 @@ type cteDefinition struct {
 	name       string
 	columns    []parser.Identifier
 	position   parser.Position
+	cycle      *cycleRecipe
 }
 type cteBinding struct {
 	name       string
 	definition *cteDefinition
+	contained  bool // This binding is inside its owning WITH's definition bodies.
 }
 
 func (d *cteDefinition) folded() bool {
@@ -57,10 +59,20 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 		return nil, err
 	}
 	definitions := make([]*cteDefinition, len(rawDefinitions))
+	startBindings := len(b.cteBindings)
 	for _, index := range analysis.Order {
 		raw := rawDefinitions[index]
 		start := len(b.querySources)
 		definition := &cteDefinition{owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, name: raw.Name.Text, columns: raw.Columns, recursive: analysis.Recursive[index]}
+		if raw.Cycle != nil {
+			definition.cycle, err = b.bindCycleMarks(raw.Cycle)
+			if err != nil {
+				return nil, err
+			}
+			if !definition.recursive {
+				return nil, expressionError("42601", "WITH query is not recursive", raw.Name.Pos)
+			}
+		}
 		if selection, ok := raw.Query.(*parser.Select); ok {
 			b.cteSelectBodies = true
 			if selection.Values != nil {
@@ -115,12 +127,18 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			}
 		}
 		definitions[index] = definition
-		b.cteBindings = append(b.cteBindings, cteBinding{raw.Name.Text, definition})
+		b.cteBindings = append(b.cteBindings, cteBinding{name: raw.Name.Text, definition: definition, contained: true})
+	}
+	// The owning WITH's main query is outside its definition bodies. Keep
+	// outer bindings' lexical state intact for nested WITHs and subqueries.
+	for i := startBindings; i < len(b.cteBindings); i++ {
+		b.cteBindings[i].contained = false
 	}
 	return definitions, nil
 }
 
-func (b *expressionBinder) bindCTEScan(table *parser.TableReference, d *cteDefinition) (LogicalNode, queryNamespace, error) {
+func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cteBinding) (LogicalNode, queryNamespace, error) {
+	d := binding.definition
 	if d.mutation != nil && d.mutation.returning == nil {
 		return nil, queryNamespace{}, expressionError("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
 	}
@@ -143,7 +161,7 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, d *cteDefin
 	b.cteScanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
-		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan}
+		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan, hideStar: d.cycle != nil && binding.contained && i >= d.cycle.width}
 	}
 	name := table.Name.Parts[0].Text
 	qualifier := queryQualifier{name: name, original: name, columns: columns}

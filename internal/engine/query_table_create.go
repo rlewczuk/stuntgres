@@ -72,6 +72,9 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		names[column.Name] = i
 		typ := column.Usage.Type
+		if occurrenceRecordArray(typ) {
+			return nil, nil, false, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type record[]`, column.Name))
+		}
 		if typ == nil || !typ.Concrete() || typ.ID() == sqltype.Void {
 			typeName := "unknown"
 			if typ != nil {

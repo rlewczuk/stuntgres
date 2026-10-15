@@ -582,14 +582,14 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				}
 			}
 		case *setNode:
-			if err := validateStoredSetNode(n); err != nil {
+			if err := validateStoredSetNode(n, nil); err != nil {
 				return err
 			}
 		case *recursiveUnionNode:
 			if n.definition == nil || !n.definition.recursive {
 				return fmt.Errorf("stuntgres: invalid stored recursive definition")
 			}
-			if err := validateStoredSetNode(&n.setNode); err != nil {
+			if err := validateStoredSetNode(&n.setNode, n.cycle); err != nil {
 				return err
 			}
 		case *limitNode:
@@ -835,20 +835,33 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 	return nil
 }
 
-func validateStoredSetNode(n *setNode) error {
+func validateStoredSetNode(n *setNode, cycle *cycleRecipe) error {
 	width := len(n.Schema())
-	if n.left == nil || n.right == nil || len(n.left.Schema()) != width || len(n.right.Schema()) != width || len(n.leftExpressions) != width || len(n.rightExpressions) != width {
+	leftWidth, groupingWidth := width, width
+	if cycle != nil {
+		// The anchor produces user fields only. The recursive arm also
+		// carries its parent's mark/path; the producer generates new values.
+		if cycle.width < 0 || width != cycle.width+2 ||
+			n.Schema()[cycle.width].Usage != cycle.mark.ResultUsage() ||
+			n.Schema()[cycle.width+1].Usage.Type != cycle.path {
+			return fmt.Errorf("stuntgres: invalid stored cycle layout")
+		}
+		leftWidth = cycle.width
+		groupingWidth-- // Path equality belongs to the occurrence recipe.
+	}
+	if n.left == nil || n.right == nil || len(n.left.Schema()) != leftWidth || len(n.right.Schema()) != width || len(n.leftExpressions) != leftWidth || len(n.rightExpressions) != width {
 		return fmt.Errorf("stuntgres: invalid stored set width")
 	}
 	if n.operation != "union" && n.operation != "intersect" && n.operation != "except" {
 		return fmt.Errorf("stuntgres: invalid stored set operation")
 	}
 	grouped := !(n.operation == "union" && n.all)
-	if grouped && len(n.grouping) != width || !grouped && len(n.grouping) != 0 {
+	if grouped && len(n.grouping) != groupingWidth || !grouped && len(n.grouping) != 0 {
 		return fmt.Errorf("stuntgres: invalid stored set grouping")
 	}
 	for i, column := range n.Schema() {
-		if n.leftExpressions[i] == nil || n.rightExpressions[i] == nil || n.leftExpressions[i].ResultUsage() != column.Usage || n.rightExpressions[i].ResultUsage() != column.Usage {
+		if n.rightExpressions[i] == nil || n.rightExpressions[i].ResultUsage() != column.Usage ||
+			i < leftWidth && (n.leftExpressions[i] == nil || n.leftExpressions[i].ResultUsage() != column.Usage) {
 			return fmt.Errorf("stuntgres: invalid stored set coercion")
 		}
 	}

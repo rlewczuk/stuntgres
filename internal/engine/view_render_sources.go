@@ -249,19 +249,37 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 	for _, label := range labels {
 		v.reserved[label] = true
 	}
+	aliasWidth := len(from.columns)
+	switch scan := from.root.(type) {
+	case *worktableScanNode:
+		if scan.cte.cycle != nil {
+			aliasWidth = scan.cte.cycle.width
+		}
+	case *derivedNode:
+		if scan.cte != nil && scan.cte.cycle != nil {
+			aliasWidth = scan.cte.cycle.width
+		}
+	}
+	// Every CYCLE reference accepts aliases only for original columns.
+	// Generated columns retain their symbolic names but still need slots.
 	used := make(map[string]bool, len(from.columns))
-	aliases := make([]string, len(from.columns))
+	for _, c := range from.columns[aliasWidth:] {
+		used[c.name] = true
+	}
+	aliases := make([]string, aliasWidth)
 	from.slots = make(map[int]string, len(from.columns))
 	for i := range from.columns {
 		c := &from.columns[i]
-		if label, ok := labels[c.slot]; ok {
-			c.name = label
+		if i < aliasWidth {
+			if label, ok := labels[c.slot]; ok {
+				c.name = label
+			}
+			if used[c.name] {
+				c.name = v.freshLabel(ns, int32(i+1), false)
+			}
+			used[c.name] = true
+			aliases[i] = quoteIdentifier(c.name)
 		}
-		if used[c.name] {
-			c.name = v.freshLabel(ns, int32(i+1), false)
-		}
-		used[c.name] = true
-		aliases[i] = quoteIdentifier(c.name)
 		if c.slot >= 0 {
 			from.slots[c.slot] = quoteIdentifier(name) + "." + quoteIdentifier(c.name)
 		}

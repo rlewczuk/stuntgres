@@ -63,6 +63,7 @@ package parser
  cte CommonTableExpression
  cteHint CTEMaterialization
  cteClause cteClause
+ cycle *CycleClause
  parenthesizedQuery parenthesizedQuery
  insertSource *InsertSource
  mergeArms []MergeArm
@@ -356,6 +357,9 @@ package parser
 %type <cteClause> with_clause
 %type <cte> cte_definition
 %type <cteHint> cte_materialization
+%type <cycle> cycle_clause
+%type <identifiers> cycle_keys
+%type <expr> cycle_constant
 %type <queryTable> query_table_target
 %type <stmt> create_query_table
 %type <stmt> refresh_materialized_view
@@ -1969,7 +1973,14 @@ with_clause: WITH cte_list { $$=cteClause{Definitions:$2,Pos:$1.pos} }
  | WITH RECURSIVE cte_list { $$=cteClause{Definitions:$3,Recursive:true,Pos:$1.pos} } ;
 cte_list: cte_definition { $$=[]CommonTableExpression{$1} }
  | cte_list ',' cte_definition { $$=append($1,$3) } ;
-cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4} } ;
+cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' cycle_clause { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4,Cycle:$8} } ;
+cycle_clause: /* empty */ { $$=nil }
+ | CYCLE cycle_keys SET name USING name { $$=&CycleClause{Keys:$2,Mark:Identifier{Text:$4.text,Pos:$4.pos},Path:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos} }
+ | CYCLE cycle_keys SET name TO cycle_constant DEFAULT cycle_constant USING name { $$=&CycleClause{Keys:$2,Mark:Identifier{Text:$4.text,Pos:$4.pos},Value:$6,Default:$8,Path:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos} } ;
+cycle_keys: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
+ | cycle_keys ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+cycle_constant: value { $$=LiteralExpr{Value:$1} }
+ | type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} } ;
 cte_body: query_select { $$=$1 } | insert | update | delete | merge | with_mutation ;
 with_rule_mutation: with_clause insert { $2.(*Insert).With=$1.Definitions;$2.(*Insert).WithRecursive=$1.Recursive;$$=$2 }
  | with_clause update { $2.(*Update).With=$1.Definitions;$2.(*Update).WithRecursive=$1.Recursive;$$=$2 }

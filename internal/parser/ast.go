@@ -1106,6 +1106,15 @@ type CommonTableExpression struct {
 	Columns         []Identifier
 	Query           Statement
 	Materialization CTEMaterialization
+	Cycle           *CycleClause
+}
+
+// CycleClause retains only symbolic syntax; execution paths belong to invocations.
+type CycleClause struct {
+	Keys           []Identifier
+	Mark, Path     Identifier
+	Value, Default Expr
+	Pos            Position
 }
 
 // Parentheses can decorate the same Select; retain the outer WITH token for

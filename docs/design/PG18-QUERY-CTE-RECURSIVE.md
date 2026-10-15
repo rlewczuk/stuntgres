@@ -9,6 +9,9 @@ modifying definitions, CREATE RECURSIVE VIEW sugar, new arithmetic/equality/type
 providers, general LATERAL and spill/optimizer machinery are not included.
 The original [SELECT CTE design](PG18-QUERY-CTE.md) remains historical; this design
 uses the existing [query execution architecture](PG18-ARCH-QUERY-EXECUTION.md).
+The later [CYCLE extension](PG18-QUERY-CTE-RECURSIVE-CYCLE.md) adds bounded
+branch-local cycle detection through these same owners; the exclusions above
+describe this prerequisite's original scope.
 
 Release authority is [PostgreSQL18 recursive WITH](https://www.postgresql.org/docs/18/queries-with.html#QUERIES-WITH-RECURSIVE),
 [REL_18_0 parse_cte.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/parser/parse_cte.c)

@@ -13,6 +13,9 @@ func validExpressionUsageAt(view CatalogRead, reader definitionReader, usage sql
 		return false
 	}
 	typ := usage.Type
+	if occurrenceRecordArray(typ) {
+		return validExpressionUsageAt(view, reader, typ.Element().Usage())
+	}
 	if typ.ID() == 2249 && typ.IsComposite() {
 		for i := range typ.CompositeLen() {
 			if !validExpressionUsageAt(view, reader, typ.CompositeMember(i).Usage) {
@@ -31,10 +34,26 @@ func recordTypeMapper(leaf func(*sqltype.Descriptor) *sqltype.Descriptor, collat
 	var records map[*sqltype.Descriptor]*sqltype.Descriptor
 	var mapType func(*sqltype.Descriptor) *sqltype.Descriptor
 	mapType = func(old *sqltype.Descriptor) *sqltype.Descriptor {
-		if old == nil || old.ID() != 2249 || !old.IsComposite() {
+		if old == nil || !occurrenceRecordArray(old) && (old.ID() != 2249 || !old.IsComposite()) {
 			return leaf(old)
 		}
 		if mapped, ok := records[old]; ok {
+			return mapped
+		}
+		if occurrenceRecordArray(old) {
+			element := mapType(old.Element())
+			mapped := old
+			if element != old.Element() {
+				var err error
+				mapped, err = sqltype.Array(2287, "_record", element)
+				if err != nil {
+					return nil
+				}
+			}
+			if records == nil {
+				records = make(map[*sqltype.Descriptor]*sqltype.Descriptor)
+			}
+			records[old] = mapped
 			return mapped
 		}
 		var members []sqltype.CompositeMember
@@ -82,6 +101,9 @@ func sameRecordUsage(left, right sqltype.Usage) bool {
 	if left == right {
 		return true
 	}
+	if occurrenceRecordArray(left.Type) && occurrenceRecordArray(right.Type) {
+		return left.Typmod == right.Typmod && left.Collation == right.Collation && sameRecordUsage(left.Type.Element().Usage(), right.Type.Element().Usage())
+	}
 	if left.Type == nil || right.Type == nil || left.Type.ID() != 2249 || right.Type.ID() != 2249 || !left.Type.IsComposite() || !right.Type.IsComposite() || left.Typmod != right.Typmod || left.Collation != right.Collation || left.Type.CompositeLen() != right.Type.CompositeLen() {
 		return false
 	}
@@ -92,4 +114,8 @@ func sameRecordUsage(left, right sqltype.Usage) bool {
 		}
 	}
 	return true
+}
+
+func occurrenceRecordArray(t *sqltype.Descriptor) bool {
+	return t != nil && t.ID() == 2287 && t.IsArray() && t.Element().ID() == 2249 && t.Element().IsComposite()
 }
