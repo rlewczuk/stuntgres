@@ -93,6 +93,16 @@ Complete diagnostics, nil result/count publication, unchanged sentinel data
 and subsequent healthy execution are independently asserted.
 Cancellation observes active writer and root-sort admission before cancellation,
 joins each worker, checks no destination publication and recovers the same owner.
+It preloads 32768 unique integer rows once and uses a single ordered,
+parameter-bounded scan for direct/prepared modifying execution. This avoids
+materializing the former 64³ cross product before writer admission under a loaded
+full-race run, while retaining real writer/root-sort observation rather than
+treating workload size or elapsed time as admission. The ordinary 30-second
+fixture and helper admission/join deadlines remain unchanged. Each canceled
+execution must leave the destination empty; the SAME held statement then uses
+limit1, inserts exactly `{"1": 1}`, and clears that row before the next route.
+PostgreSQL still requires observed server admission and the complete 57014
+diagnostic, not a transport-racing context cancellation.
 Boundaries preserve ordinary object/array siblings, the absent jsonb_objectagg
 alias, qualified/quoted grammar and PG-positive/native-unsupported windows.
 

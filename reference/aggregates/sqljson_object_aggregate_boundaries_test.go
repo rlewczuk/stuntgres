@@ -57,9 +57,12 @@ func TestReferenceSQLJSONObjectAggregateBoundaries(t *testing.T) {
 
 func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 	sqlJSONObjectAggregateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		// Preexisting rows keep admission work to one bounded scan, rather than
+		// materializing a cross product before the writer can be observed.
+		const activeRows int64 = 32768
 		for _, s := range []fixture.Step{
 			fixture.Exec("CREATE TABLE sjo_cancel_seed(x int)", 0),
-			fixture.Exec("INSERT INTO sjo_cancel_seed SELECT generate_series(1,64)", 64),
+			fixture.Exec("INSERT INTO sjo_cancel_seed SELECT generate_series(1,32768)", activeRows),
 			fixture.Exec("CREATE TABLE sjo_cancel_destination(v jsonb)", 0),
 		} {
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
@@ -69,7 +72,7 @@ func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer conn.Close()
-		const q = "INSERT INTO sjo_cancel_destination SELECT json_objectagg((a.x*4096+b.x*64+c.x):a.x+b.x+c.x WITH UNIQUE KEYS RETURNING jsonb) FROM(SELECT x FROM sjo_cancel_seed ORDER BY x LIMIT $1) a CROSS JOIN(SELECT x FROM sjo_cancel_seed ORDER BY x LIMIT $1) b CROSS JOIN(SELECT x FROM sjo_cancel_seed ORDER BY x LIMIT $1) c"
+		const q = "INSERT INTO sjo_cancel_destination SELECT json_objectagg(x:x WITH UNIQUE KEYS RETURNING jsonb) FROM(SELECT x FROM sjo_cancel_seed ORDER BY x LIMIT $1) s"
 		stmt, err := conn.PrepareContext(p.Ctx, q)
 		if err != nil {
 			t.Fatal(err)
@@ -103,15 +106,15 @@ func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 					var result sql.Result
 					var err error
 					if prepared {
-						result, err = stmt.ExecContext(ctx, int64(64))
+						result, err = stmt.ExecContext(ctx, activeRows)
 					} else {
-						result, err = conn.ExecContext(ctx, q, int64(64))
+						result, err = conn.ExecContext(ctx, q, activeRows)
 					}
 					return fixture.RelationOutcome{Result: result, Err: err}
 				})
 				fixture.RunStep(t, p.Ctx, conn, b.Recorder, jsonArrayAggregateSelect("SELECT count(*) AS v FROM sjo_cancel_destination", "INT8", int64(0)))
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, int64(1)))
-				fixture.RunStep(t, p.Ctx, conn, b.Recorder, jsonArrayAggregateSelect("SELECT v FROM sjo_cancel_destination", "JSONB", `{"4161": 3}`))
+				fixture.RunStep(t, p.Ctx, conn, b.Recorder, jsonArrayAggregateSelect("SELECT v FROM sjo_cancel_destination", "JSONB", `{"1": 1}`))
 				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("DELETE FROM sjo_cancel_destination", 1))
 			}
 		}
