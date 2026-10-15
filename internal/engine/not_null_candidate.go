@@ -7,7 +7,15 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescriptor, a parser.AlterTableAction) (*relationDescriptor, error) {
+type notNullRecursion uint8
+
+const (
+	notNullDirect notNullRecursion = iota
+	notNullInherited
+	notNullValidation
+)
+
+func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescriptor, a parser.AlterTableAction, recursion notNullRecursion) (*relationDescriptor, error) {
 	slot, index := -1, -1
 	if a.Action == parser.DropConstraint {
 		for i, c := range old.notNullConstraints {
@@ -50,6 +58,7 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				next.uniqueConstraints = make([]uniqueConstraint, 0, len(old.uniqueConstraints)-1)
 				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[:i]...)
 				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[i+1:]...)
+				transitionPhysicalNotNull(old, &next)
 				return &next, nil
 			}
 		}
@@ -101,6 +110,11 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 		}
 	}
 	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull
+	if a.Action == parser.DropNotNull && index < 0 {
+		if _, physical := old.physicalNotNull[old.attributes[slot]]; physical {
+			return nil, sqlError("XX000", fmt.Sprintf(`cache lookup failed for not-null constraint on column "%s" of relation "%s"`, old.columns[slot].Name, old.name))
+		}
+	}
 	if !adding {
 		_, identity := old.identities[old.attributes[slot]]
 		// ALTER COLUMN checks identity before entering constraint removal.
@@ -118,6 +132,47 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 		}
 	}
 	if adding && index >= 0 {
+		if a.Action == parser.AddNotNull {
+			constraint := old.notNullConstraints[index]
+			if constraint.NoInherit != a.NoInherit {
+				diagnostic := sqlError("55000", fmt.Sprintf(`cannot change NO INHERIT status of NOT NULL constraint "%s" on relation "%s"`, constraint.Name, old.name)).(*sqlstate.Error)
+				diagnostic.Hint = "You might need to make the existing constraint inheritable using ALTER TABLE ... ALTER CONSTRAINT ... INHERIT."
+				return nil, diagnostic
+			}
+			if constraint.NotValid && !a.NotValid {
+				return nil, incompatibleNotValid(constraint.Name, old.name)
+			}
+			if recursion == notNullDirect && old.inheritance != nil && !old.inheritance.notNull[constraint.Attribute].local {
+				next := *old
+				next.inheritance = cloneInheritance(old.inheritance)
+				provenance := next.inheritance.notNull[constraint.Attribute]
+				provenance.local = true
+				next.inheritance.notNull[constraint.Attribute] = provenance
+				return &next, nil
+			}
+		}
+		if a.Action == parser.SetNotNull {
+			constraint := old.notNullConstraints[index]
+			if constraint.NoInherit && !a.NoInherit {
+				return nil, sqlError("0A000", fmt.Sprintf(`cannot change NO INHERIT status of NOT NULL constraint "%s" on relation "%s"`, constraint.Name, old.name))
+			}
+			// The first direct SET localizes an inherited fact; it does not
+			// validate an inherited NOT VALID fact or visit its descendants.
+			if recursion == notNullInherited {
+				return old, nil
+			}
+			if recursion == notNullDirect && old.inheritance != nil && !old.inheritance.notNull[constraint.Attribute].local {
+				next := *old
+				next.inheritance = cloneInheritance(old.inheritance)
+				provenance := next.inheritance.notNull[constraint.Attribute]
+				provenance.local = true
+				next.inheritance.notNull[constraint.Attribute] = provenance
+				return &next, nil
+			}
+			if constraint.NotValid && a.NoInherit && !constraint.NoInherit && len(inheritanceChildren(catalog, old.address)) != 0 {
+				return nil, sqlError("42P16", "constraint must be validated on child tables too")
+			}
+		}
 		if !old.notNullConstraints[index].NotValid || a.NotValid {
 			return old, nil
 		}
@@ -135,7 +190,7 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 	name := a.Constraint.Text
 	if adding {
 		if name == "" {
-			name = generatedConstraintName(old.name, old.columns[slot].Name, "not_null", constraintNames(catalog, old.namespace, old))
+			name = generatedConstraintName(old.name, old.columns[slot].Name, "not_null", constraintNames(catalog, old.namespace, old, op.definition))
 		}
 		if relationConstraintNameExists(old, name) {
 			return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
@@ -147,12 +202,13 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 	if adding {
 		next.notNullConstraints = make([]notNullConstraint, len(old.notNullConstraints)+1)
 		copy(next.notNullConstraints, old.notNullConstraints)
-		next.notNullConstraints[len(old.notNullConstraints)] = notNullConstraint{Name: name, Attribute: old.attributes[slot], NotValid: a.NotValid}
+		next.notNullConstraints[len(old.notNullConstraints)] = notNullConstraint{Name: name, Attribute: old.attributes[slot], NotValid: a.NotValid, NoInherit: a.NoInherit}
 	} else {
 		next.notNullConstraints = make([]notNullConstraint, 0, len(old.notNullConstraints)-1)
 		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[:index]...)
 		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[index+1:]...)
 	}
+	transitionPhysicalNotNull(old, &next)
 	return &next, nil
 }
 

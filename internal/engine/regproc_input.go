@@ -47,7 +47,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		}
 	}
 	if numeric {
-		oid, _ := r.types.auth.catalog.LookupType(sqltype.Oid)
+		oid, _ := r.types.auth.definitionType(sqltype.Oid)
 		value, err := oid.Input(ctx, text, -1)
 		if err != nil {
 			return 0, err
@@ -95,7 +95,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	selection := namespaceSelection{path: r.path}
 	missing := func() (uint32, error) { return 0, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)) }
 	if len(parts) == 2 {
-		namespace := r.types.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		namespace := r.types.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			namespace = r.types.temporary
 		}

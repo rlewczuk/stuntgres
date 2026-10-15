@@ -126,6 +126,9 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
 		}
+		if err := s.acquireInheritedMutationTargets(stmt); err != nil {
+			return err
+		}
 		return s.acquireQueryRelations(stmt, stmt, execute)
 	}
 	return s.acquireRelationTarget(stmt, stmt, execute, false)
@@ -564,14 +567,6 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if preparedDefinitionStamp(descriptor) != definitionStamp {
 		s.preparedChangedDuringAdmission = true
 	}
-	if !source {
-		switch stmt.(type) {
-		case *parser.Update, *parser.Delete:
-			if err := inheritanceTargetGuard(e.privateCatalogLocked(s.owner.catalog), descriptor); err != nil {
-				return err
-			}
-		}
-	}
 	if source {
 		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, only: sourceOnly(stmt), storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
 	} else {
@@ -718,6 +713,11 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 		}
 	} else if current != s.lockedDescriptor {
 		return ErrCatalogReplaced
+	}
+	for _, target := range s.inheritedTargets {
+		if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, target); err != nil {
+			return err
+		}
 	}
 	for address, captured := range s.partitionRelations {
 		current, _ := catalog.state.descriptors[address].(*relationDescriptor)

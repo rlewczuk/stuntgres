@@ -442,7 +442,7 @@ func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescripto
 			provenance, exists = graph.checks[name]
 		}
 		if exists {
-			return provenance.local, int64(len(provenance.origins))
+			return provenance.local, int64(provenance.count())
 		}
 	}
 	if table.membership != nil {

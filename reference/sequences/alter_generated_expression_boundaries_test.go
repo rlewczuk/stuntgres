@@ -7,43 +7,40 @@ import (
 
 func TestReferenceAlterGeneratedExpressionBoundaries(t *testing.T) {
 	for _, action := range []string{`ALTER TABLE parent ALTER b SET EXPRESSION AS(a+2)`, `ALTER TABLE ONLY parent ALTER b SET EXPRESSION AS(a+2)`, `ALTER TABLE ONLY parent ALTER b DROP EXPRESSION`, `ALTER TABLE child ALTER b DROP EXPRESSION`, `ALTER TABLE parent ALTER b DROP EXPRESSION`} {
-		t.Run(action, func(t *testing.T) {
-			generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
-				run(fixture.Exec(`CREATE TABLE parent(a INT,b INT GENERATED ALWAYS AS(a+1) STORED)`, 0))
-				run(fixture.Exec(`CREATE TABLE child() INHERITS(parent)`, 0))
-				run(fixture.Exec(`INSERT INTO parent(a) VALUES(1)`, 1))
-				run(fixture.Exec(`INSERT INTO child(a) VALUES(2)`, 1))
-				if !b.PG {
-					run(fixture.ImplicitError(action, fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE inheritance operations are unsupported"}))
-					run(alterGeneratedRows(`SELECT * FROM ONLY parent`, []any{int64(1), int64(2)}))
-					run(alterGeneratedRows(`SELECT * FROM child`, []any{int64(2), int64(3)}))
-					return
-				}
-				switch action {
-				case `ALTER TABLE ONLY parent ALTER b DROP EXPRESSION`:
-					run(fixture.ImplicitError(action, fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE / DROP EXPRESSION must be applied to child tables too"}))
-				case `ALTER TABLE child ALTER b DROP EXPRESSION`:
-					run(fixture.ImplicitError(action, fixture.Diagnostic{Code: "42P16", Message: "cannot drop generation expression from inherited column"}))
-				default:
-					run(fixture.Exec(action, 0))
-					parentValue, childValue := int64(3), int64(4)
-					if action == `ALTER TABLE ONLY parent ALTER b SET EXPRESSION AS(a+2)` {
-						childValue = 3
+		for _, prepared := range []bool{false, true} {
+			t.Run(map[bool]string{false: "direct/", true: "prepared/"}[prepared]+action, func(t *testing.T) {
+				generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, base func(fixture.Step)) {
+					run := func(s fixture.Step) { s.Prepared = prepared; base(s) }
+					run(fixture.Exec(`CREATE TABLE parent(a INT,b INT GENERATED ALWAYS AS(a+1) STORED)`, 0))
+					run(fixture.Exec(`CREATE TABLE child() INHERITS(parent)`, 0))
+					run(fixture.Exec(`INSERT INTO parent(a) VALUES(1)`, 1))
+					run(fixture.Exec(`INSERT INTO child(a) VALUES(2)`, 1))
+					switch action {
+					case `ALTER TABLE ONLY parent ALTER b DROP EXPRESSION`:
+						run(fixture.ImplicitError(action, fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE / DROP EXPRESSION must be applied to child tables too"}))
+					case `ALTER TABLE child ALTER b DROP EXPRESSION`:
+						run(fixture.ImplicitError(action, fixture.Diagnostic{Code: "42P16", Message: "cannot drop generation expression from inherited column"}))
+					default:
+						run(fixture.Exec(action, 0))
+						parentValue, childValue := int64(3), int64(4)
+						if action == `ALTER TABLE ONLY parent ALTER b SET EXPRESSION AS(a+2)` {
+							childValue = 3
+						}
+						if action == `ALTER TABLE parent ALTER b DROP EXPRESSION` {
+							parentValue = 2
+							childValue = 3
+							run(fixture.Exec(`UPDATE child SET a=9`, 1))
+						}
+						run(alterGeneratedRows(`SELECT * FROM ONLY parent`, []any{int64(1), parentValue}))
+						a := int64(2)
+						if action == `ALTER TABLE parent ALTER b DROP EXPRESSION` {
+							a = 9
+						}
+						run(alterGeneratedRows(`SELECT * FROM child`, []any{a, childValue}))
 					}
-					if action == `ALTER TABLE parent ALTER b DROP EXPRESSION` {
-						parentValue = 2
-						childValue = 3
-						run(fixture.Exec(`UPDATE child SET a=9`, 1))
-					}
-					run(alterGeneratedRows(`SELECT * FROM ONLY parent`, []any{int64(1), parentValue}))
-					a := int64(2)
-					if action == `ALTER TABLE parent ALTER b DROP EXPRESSION` {
-						a = 9
-					}
-					run(alterGeneratedRows(`SELECT * FROM child`, []any{a, childValue}))
-				}
+				})
 			})
-		})
+		}
 	}
 	generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 		q := `CREATE TABLE partitioned(a INT,b INT GENERATED ALWAYS AS(a+1) STORED) PARTITION BY RANGE(a)`

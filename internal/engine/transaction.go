@@ -309,6 +309,8 @@ type StatementScope struct {
 	exclusionStarted               bool
 	inheritanceRelations           []queryLeaf // Exact physical SELECT grants, separate from SQL occurrences.
 	inheritanceCatalog             CatalogRead // Immutable topology after the last grant/wait reconciliation.
+	inheritanceAlter               *inheritanceAlterState
+	consumedColumnDrops            map[*preparedDrop]struct{}
 	truncateRelations              []truncateRelation
 	truncateNames                  []truncateName
 	truncateSelected               map[ObjectAddress]int

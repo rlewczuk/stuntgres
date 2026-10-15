@@ -222,7 +222,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
 				continue
 			}
-			if relation, ok := b.queryAuth.catalog.state.descriptors[q.ref.Address].(*relationDescriptor); ok && relation.relationKind == tableRelation {
+			if relation, ok := b.queryAuth.definitionRelation(q.ref.Address); ok && relation.relationKind == tableRelation {
 				return nil, expressionError("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
 			}
 		}
@@ -389,7 +389,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if err != nil {
 			return nil, queryNamespace{}, futureCTEError(err, b.queryLockAdmission.futureCTE[n])
 		}
-		relation := b.queryAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		relation, _ := b.queryAuth.definitionRelation(ref.Address)
 		if relation.relationKind == compositeRelation {
 			return nil, queryNamespace{}, compositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
@@ -412,7 +412,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		for i, c := range relation.columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
 		}
-		q := queryQualifier{name: relation.name, original: relation.name, schema: b.queryAuth.catalog.state.descriptors[relation.namespace].Name(), ref: ref, columns: columns}
+		namespace, _ := b.queryAuth.definitionDescriptor(relation.namespace)
+		q := queryQualifier{name: relation.name, original: relation.name, schema: namespace.Name(), ref: ref, columns: columns}
 		b.queryHidden = append(b.queryHidden, q)
 		return &sourceNode{querySchema: relation.columns, ref: ref, occurrence: leaf}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.columns}, nil
 	case *parser.AliasReference:

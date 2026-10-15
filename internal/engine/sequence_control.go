@@ -397,6 +397,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 						}
 					}
 				}
+				if err := remapPhysicalNotNullReferences(r, &n, mapping); err != nil {
+					return err
+				}
 				if len(r.exclusionConstraints) != 0 {
 					n.exclusionConstraints = append([]exclusionConstraint(nil), r.exclusionConstraints...)
 					for i := range n.exclusionConstraints {
@@ -537,6 +540,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	if err := remapInheritanceConstraintOrigins(next, previous); err != nil {
+		return err
+	}
+	if err := e.remapRetiredConstraints(next, previous); err != nil {
+		return err
+	}
+	if err := e.remapPhysicalNotNull(next, previous); err != nil {
 		return err
 	}
 	for _, descriptor := range next.descriptors {

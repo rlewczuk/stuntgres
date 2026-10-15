@@ -52,7 +52,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 	}
 	result := selected.Usage()
 	if selection.Range {
-		array, ok := b.bindingCatalog().LookupArray(selected)
+		array, ok := b.definitionArray(selected)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing enum array association")
 		}

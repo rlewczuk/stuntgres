@@ -47,12 +47,16 @@ func catalogAliasAddress(value sqltype.Value) (ObjectAddress, error) {
 
 // Visit existing represented identities independently of the datum's datatype.
 func walkCatalogAliasReferences(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
+	return walkCatalogAliasReferencesAt(view, nil, value, record)
+}
+
+func walkCatalogAliasReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegtype() && !value.Type().ContainsRegObject() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := walkCatalogAliasReferences(view, value.CompositeField(i), record); err != nil {
+			if err := walkCatalogAliasReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
 				return err
 			}
 		}
@@ -60,7 +64,7 @@ func walkCatalogAliasReferences(view CatalogRead, value sqltype.Value, record fu
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := walkCatalogAliasReferences(view, value.ArrayElement(i), record); err != nil {
+			if err := walkCatalogAliasReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
 				return err
 			}
 		}
@@ -70,7 +74,7 @@ func walkCatalogAliasReferences(view CatalogRead, value sqltype.Value, record fu
 	if err != nil {
 		return err
 	}
-	if _, exists := view.state.descriptors[address]; exists {
+	if _, exists := definitionDescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
 	return nil
@@ -80,6 +84,10 @@ func walkCatalogAliasReferences(view CatalogRead, value sqltype.Value, record fu
 // opaque compound payloads are not scalar Const children. REGTYPE retains its
 // existing recursive dependency behavior; replay/remap uses the full walker.
 func walkCatalogAliasDependencies(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
+	return walkCatalogAliasDependenciesAt(view, nil, value, record)
+}
+
+func walkCatalogAliasDependenciesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ObjectAddress) error) error {
 	typ := value.Type()
 	// Structural dependency nodes may have declared Usage but no materialized
 	// datum. Their datatype edge is recorded by the expression visitor, not here.
@@ -87,12 +95,12 @@ func walkCatalogAliasDependencies(view CatalogRead, value sqltype.Value, record 
 		return nil
 	}
 	if sqltype.IsRegObjectAlias(typ.ID()) {
-		return walkCatalogAliasReferences(view, value, record)
+		return walkCatalogAliasReferencesAt(view, reader, value, record)
 	}
 	if !typ.ContainsRegtype() {
 		return nil
 	}
-	return walkCatalogAliasReferences(view, value, func(address ObjectAddress) error {
+	return walkCatalogAliasReferencesAt(view, reader, value, func(address ObjectAddress) error {
 		if address.ClassID == TypeClassID {
 			return record(address)
 		}
@@ -105,13 +113,13 @@ func (r scalarRenderer) recordCatalogAliasDependencies(view CatalogRead, value s
 		r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 		return nil
 	}
-	if err := walkCatalogAliasDependencies(view, value, record); err != nil {
+	if err := walkCatalogAliasDependenciesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	if err := walkOperatorReferences(view, value, record); err != nil {
+	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	return walkRegTSReferences(view, value, record)
+	return walkRegTSReferencesAt(view, r.definition, value, record)
 }
 
 func (r scalarRenderer) recordCatalogAliasReferences(view CatalogRead, value sqltype.Value) error {
@@ -119,13 +127,13 @@ func (r scalarRenderer) recordCatalogAliasReferences(view CatalogRead, value sql
 		r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 		return nil
 	}
-	if err := walkCatalogAliasReferences(view, value, record); err != nil {
+	if err := walkCatalogAliasReferencesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	if err := walkOperatorReferences(view, value, record); err != nil {
+	if err := walkOperatorReferencesAt(view, r.definition, value, record); err != nil {
 		return err
 	}
-	return walkRegTSReferences(view, value, record)
+	return walkRegTSReferencesAt(view, r.definition, value, record)
 }
 
 func remapCatalogAliasDatum(value sqltype.Value, destination func(ObjectAddress) ObjectAddress) (sqltype.Value, error) {

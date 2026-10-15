@@ -78,9 +78,6 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "delete from")
 		}
-		if err := inheritanceTargetGuard(auth.catalog, b.relation); err != nil {
-			return b, err
-		}
 		if !b.relation.virtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 			if b.storage == nil && b.relation.relationKind == tableRelation {
@@ -141,9 +138,6 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 		if !b.relation.virtualView && b.relation.relationKind == catalogRelation {
 			return b, tableKind(b.relation, "change")
-		}
-		if err := inheritanceTargetGuard(auth.catalog, b.relation); err != nil {
-			return b, err
 		}
 		if !b.relation.virtualView {
 			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)

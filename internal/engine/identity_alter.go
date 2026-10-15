@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"maps"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *relationDescriptor, action parser.AlterTableAction) (*relationDescriptor, error) {
+	if action.Action == parser.DropIdentity {
+		next, _, err := e.dropIdentityDefinition(stageDropProvider(scope.op.Context(), stage, scope, nil, nil), old, action)
+		return next, err
+	}
 	slot, ok := old.index[action.Column.Text]
 	if isSystemColumn(action.Column.Text) {
 		return old, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, action.Column.Text))
@@ -43,41 +46,9 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return &next, nil
 	}
 	if !exists {
-		if action.Action == parser.DropIdentity && action.IfExists {
-			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message + " is not an identity column, skipping"})
-			return old, nil
-		}
 		return old, sqlError("55000", message+" is not an identity column")
 	}
 	ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: identity.sequence}
-	if action.Action == parser.DropIdentity {
-		if err := scope.acquireSequence(ref, accessExclusive, false); err != nil {
-			return old, err
-		}
-		e.mu.Lock()
-		err := e.refreshIdentitySequenceLocked(scope, stage, old, attribute, identity.sequence)
-		if err == nil {
-			stage.identityDependencies = append(stage.identityDependencies, catalogDependencyObservation{e.state, []ObjectAddress{identity.sequence}})
-		}
-		e.mu.Unlock()
-		if err != nil {
-			return old, err
-		}
-		if err := stageViewDependents(stage, []ObjectAddress{identity.sequence}, parser.DropRestrict); err != nil {
-			return old, err
-		}
-		if err := stage.Remove(ref); err != nil {
-			return old, err
-		}
-		// A TYPE before-statement may already have staged AS for this link.
-		// DROP's tombstone must win over that private descriptor/scalar.
-		delete(stage.descriptors, identity.sequence)
-		delete(stage.generators, identity.sequence)
-		next := *old
-		next.identities = maps.Clone(old.identities)
-		delete(next.identities, attribute)
-		return &next, nil
-	}
 	definition := action.Identity
 	if len(definition.Options) != 0 {
 		for _, option := range definition.Options {
@@ -197,14 +168,12 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if fresh.catalog.Epoch() != stage.base.Epoch() {
 		return ErrCatalogReplaced
 	}
-	sequence, ok := fresh.catalog.state.descriptors[address].(*relationDescriptor)
+	descriptor := fresh.catalog.state.descriptors[address]
 	if staged, exists := stage.descriptors[address]; exists {
-		sequence, ok = staged.(*relationDescriptor)
+		descriptor = staged
 	}
-	owned := table.address
-	owned.SubID = attribute
-	if !ok || sequence.sequence == nil || !sequence.sequence.identity || sequence.sequence.owned != owned {
-		return ErrCatalogReplaced
+	if _, err := identitySequenceDefinition(descriptor, table, attribute); err != nil {
+		return err
 	}
 	if stage.identityOriginals == nil {
 		stage.identityOriginals = make(map[ObjectAddress]Descriptor)

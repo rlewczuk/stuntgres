@@ -47,7 +47,7 @@ func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, surviv
 				continue
 			}
 			var literals []literalExpression
-			canonical, err := (scalarRenderer{owner: survivor, checkLiterals: &literals}).sql(op.Context(), catalog, check.expression)
+			canonical, err := (scalarRenderer{definition: op.definition, owner: survivor, checkLiterals: &literals}).sql(op.Context(), catalog, check.expression)
 			if err != nil {
 				return nil, err
 			}
@@ -99,7 +99,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
 		definition.expression, definition.dependencies, definition.commentSnapshot, definition.visibilitySnapshot = node, nil, false, false
 		var dependencies []ObjectRef
-		if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return nil, nil, err
 		}
 		for _, dependency := range dependencies {

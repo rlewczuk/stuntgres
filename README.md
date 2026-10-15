@@ -794,8 +794,20 @@ DROP CASCADE removes descendants. SELECT includes descendants by default (also `
 and authority, with physical descendant row locks and parent VIRTUAL recipes.
 Generated physical-table recipes retain exact owner/type structural identity through
 inheritance remapping; postwait parent frames are refreshed before recheck/projection.
-Recursive modifying targets, ordinary LOCK and graph-shape ALTER retain their
-explicit native capability boundaries.
+UPDATE and DELETE use that same deduplicated descendant closure by default;
+ONLY excludes descendants, and INSERT always targets exactly its named physical
+table. Named-parent columns, ACL/RLS, RETURNING and diagnostic disclosure remain
+separate from physical-child generation, constraints, indexes and row locks.
+Supported ordinary ALTER actions propagate atomically according to their action:
+columns/defaults, inheritable NN/CHECK and generated recipes recurse; identity,
+security and physical key/index definitions do not. A parent PK can require
+inherited NOT NULL without copying its key. Ordinary LOCK, attachment-changing
+INHERIT/NO INHERIT, provider-CASCADE graph-shape mutation and new partition ALTER
+families retain their explicit boundaries.
+Native metadata-only DEFAULT and column/constraint rename admit additive
+descendant growth before their one catalog stage, preserving current owners,
+stable attributes and constraint origins. Genuine definition replacement,
+catalog-lifetime replacement and cancellation still fence atomic publication.
 Provider CASCADE uses the staged graph: a parent left standalone by complete child
 retirement retains ordinary dependency projection. This includes schema-parent
 retirement and a shared child's newly discovered removal through its other parent,
@@ -811,6 +823,25 @@ Inherited-query smoke (900 seconds per invocation):
 `make check RUN='^TestReferenceInheritanceQueryFeatureSmoke$'`;
 pinned counterpart:
 `make check REFERENCE=1 RUN='^TestReferenceInheritanceQueryFeatureSmoke$'`.
+Inherited mutation/schema smokes (900 seconds per invocation):
+`make check RUN='^TestReferenceInheritance(DML|Alter)FeatureSmoke$'`;
+pinned counterpart:
+`make check REFERENCE=1 RUN='^TestReferenceInheritance(DML|Alter)FeatureSmoke$'`.
+Change note: inherited recipe locality is independent of attribute locality.
+Native Dump/Restore preserves nonlocal DEFAULT overrides/absence and retained
+generated recipes with genuine ordered physical ALTER statements. Divergent
+multi-parent generated recipes use compatible typed-NULL declarations only in
+isolated replay, restoring every actual recipe before CHECKs and data. Captured
+validated ONLY SET NOT NULL NoInherit facts use exact names and a narrowly paired
+catalog repair before child declarations; PostgreSQL replay requires superuser
+catalog-update authority. Public native catalog UPDATE remains denied.
+Definition preparation acquires each action's real required grants before the
+sole ALTER stage. Compatible merges/no-ops stop execution recursion without
+erasing independently required preparatory locks or inline NN/CHECK propagation.
+Retained child constraints after parent-column DROP preserve actual historical
+contributions separately from live parent providers. Dump reconstructs those
+counts from exact archival identities after genuine constraint completion, not
+from fabricated local facts or current compacted attribute numbers.
 
 Change note: `CREATE TYPE name AS (...)` and supported user table/view row types
 now share concrete, immutable composite codecs. Named backing relations are
@@ -2955,7 +2986,7 @@ DROP of an absent default succeeds and restores implicit NULL. ALTER accepts
 general supported Boolean expressions without CREATE DEFAULT's extra parentheses.
 Dump/Restore preserves the current definition, not ALTER history.
 Standalone `ONLY`, `ONLY(...)`, qualified/quoted targets and trailing `*` are
-supported; CREATE inheritance works, but graph default ALTER remains an explicit boundary.
+supported; ordinary graph defaults recurse unless ONLY selects the named table.
 Action lists and ALTER TABLE IF EXISTS for SET/DROP DEFAULT, UPDATE DEFAULT and
 explicit-transaction SET/DROP DEFAULT remain excluded. Selected ADD COLUMN/
 TYPE/nullability/DROP COLUMN lists support explicit transactions.

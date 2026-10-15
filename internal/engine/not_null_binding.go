@@ -9,9 +9,19 @@ import (
 )
 
 // Names are namespace-wide only when generated. Explicit names are relation-local.
-func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relationDescriptor) map[string]bool {
+func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relationDescriptor, reader ...definitionReader) map[string]bool {
 	names := make(map[string]bool)
-	for _, descriptor := range read.state.descriptors {
+	descriptors := func(yield func(ObjectAddress, Descriptor) bool) {
+		for address, descriptor := range read.state.descriptors {
+			if !yield(address, descriptor) {
+				return
+			}
+		}
+	}
+	if len(reader) != 0 && reader[0] != nil {
+		descriptors = reader[0].descriptors()
+	}
+	for _, descriptor := range descriptors {
 		if candidate != nil && descriptor.Address() == candidate.address {
 			descriptor = candidate
 		}

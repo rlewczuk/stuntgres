@@ -15,7 +15,7 @@ func renameMissing(err error) bool {
 
 // Engine.mu and the owner-authorized AX grant are held on entry. Every
 // return releases Engine.mu; relabeling never copies or scans row storage.
-func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn bool, count int) (Result, error) {
+func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -57,8 +57,8 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
 		}
-		if err := inheritanceAlterGuard(auth.catalog, old); err != nil {
-			return fail(err)
+		if inheritanceParticipant(auth.catalog, old) {
+			return e.renameInheritanceColumnLocked(scope, op, auth, old, column, destination, only)
 		}
 		if old.relationKind == sequenceRelation {
 			return fail(&sqlstate.Error{

@@ -127,6 +127,9 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			if c.NoInherit {
 				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with inherited constraint on relation "%s"`, name, d.name))
 			}
+			if ancestor.NotValid && !c.NotValid {
+				return sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on relation "%s"`, name, d.name))
+			}
 			current[name] = true
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging constraint "%s" with inherited definition`, name)})
 			continue
@@ -159,7 +162,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		current[name], used[name] = true, true
 		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, ordinal: ordinal, expression: node}
 		var dependencies []ObjectRef
-		if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
@@ -519,16 +522,20 @@ type checkDependencyEdge struct {
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
 func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).checkDependents(targets, mode)
+}
+
+func (provider *dropProvider) checkDependents(targets []ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
 	var relations []*relationDescriptor
-	for address, descriptor := range stage.base.state.descriptors {
+	for address, descriptor := range provider.inputDescriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || len(d.checkConstraints) == 0 {
 			continue
 		}
-		if staged, ok := stage.descriptors[address].(*relationDescriptor); ok {
+		if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
 			d = staged
 		}
-		if _, removed := stage.removals[address]; removed {
+		if provider.removed(address) {
 			continue
 		}
 		dropped := false
@@ -580,17 +587,17 @@ func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode par
 			changed = true
 		}
 		if changed {
-			if err := inheritanceStageAlterGuard(stage, d); err != nil {
+			if err := provider.inheritanceAlterGuard(d); err != nil {
 				return nil, err
 			}
 			copy := *d
-			revision, err := stage.cascadeMetadataRevision(copy.revision)
+			revision, err := provider.revision(copy.revision)
 			if err != nil {
 				return nil, err
 			}
 			copy.revision = revision
 			copy.checkConstraints = kept
-			if err := stage.Replace(&copy); err != nil {
+			if err := provider.replace(&copy); err != nil {
 				return nil, err
 			}
 		}

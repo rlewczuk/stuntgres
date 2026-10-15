@@ -177,8 +177,8 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 			if err != nil {
 				return nil, ref, sequenceInputError(err, literal.Value.Pos, "", 0)
 			}
-			if d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {
-				if ns, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == b.op.session.token {
+			if d, ok := auth.definitionRelation(ref.Address); ok {
+				if ns, ok := auth.definitionNamespace(d.namespace); ok && ns.temporary == b.op.session.token {
 					temporary = ns.temporary
 				}
 			}
@@ -186,7 +186,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 		var stamp DefinitionRevision
 		// Capture the provider stamp from the same authority as its name and
 		// temporary lifetime, never from a different published catalog.
-		d, represented := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, represented := auth.definitionRelation(ref.Address)
 		if represented {
 			stamp = d.sequencePlanStamp
 			if d.relationKind != sequenceRelation {
@@ -196,7 +196,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 		b.sequenceConstants = append(b.sequenceConstants, sequenceConstant{offset: literal.Value.Pos.Offset, ref: ref, temporary: temporary, stamp: stamp, represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
 		info := b.info(typ.Usage(), literal.Value.Pos, ExprProperties{})
-		if _, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {
+		if _, ok := auth.definitionRelation(ref.Address); ok {
 			info.regclassRef = ref
 		}
 		return literalExpression{info, sqltype.String(typ, text)}, ref, nil
@@ -287,7 +287,7 @@ func regclassNumeric(text string, typ *sqltype.Descriptor) (uint32, bool, error)
 }
 
 func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef, error) {
-	typ, _ := auth.catalog.LookupType(sqltype.Oid)
+	typ, _ := auth.definitionType(sqltype.Oid)
 	if oid, numeric, err := regclassNumeric(text, typ); numeric {
 		if err != nil {
 			return ObjectRef{}, err
@@ -350,7 +350,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	typ, _ := r.auth.catalog.LookupType(sqltype.Oid)
+	typ, _ := r.auth.definitionType(sqltype.Oid)
 	if oid, numeric, err := regclassNumeric(text, typ); numeric {
 		return oid, err
 	}
@@ -364,14 +364,14 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	}
 	path := r.path
 	if len(name.Parts) == 2 {
-		ns := r.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+		ns := r.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
 		if ns == (ObjectAddress{}) {
 			path = nil
 		} else {
-			namespace := r.auth.catalog.state.descriptors[ns].(*namespaceDescriptor)
+			namespace, _ := r.auth.definitionNamespace(ns)
 			if namespace.temporary != (SessionToken{}) && namespace.temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
 			}
@@ -382,8 +382,9 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 		}
 	}
 	for _, ns := range path {
-		if address, ok := r.auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}]; ok {
-			if _, ok := r.auth.catalog.state.descriptors[address].(*relationDescriptor); !ok {
+		if address := r.auth.definitionLookup(NameKey{ClassID: RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}); address != (ObjectAddress{}) {
+			descriptor, _ := r.auth.definitionDescriptor(address)
+			if _, ok := descriptor.(*relationDescriptor); !ok {
 				return 0, fmt.Errorf("stuntgres: invalid relation descriptor")
 			}
 			return uint32(address.ObjectID), nil

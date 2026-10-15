@@ -267,8 +267,49 @@ existing temporary namespace/session authority remains the persistence boundary.
 A NOT VALID child NOT NULL constraint cannot satisfy a validated parent
 requirement, regardless of constraint names or whether the candidate has rows.
 ATTACH rejects the mismatch rather than validating or replacing the child fact.
-Recursive inheritance update/delete/locking and graph-shape alterations other
-than ordinary partition attachment/detachment remain excluded.
+Ordinary inherited UPDATE/DELETE recurse by default, with ONLY exclusion and
+physical INSERT. Existing ordinary column/default/NN/CHECK/generated ALTER
+actions propagate according to their action; identity, RLS and physical keys
+remain nonrecursive. Ordinary LOCK, changing attachment with INHERIT/NO INHERIT,
+provider-CASCADE graph-shape changes and new partition ALTER families remain
+excluded. UPDATE DEFAULT, explicit-transaction SET/DROP DEFAULT, explicit ADD
+NOT NULL NO INHERIT and NOT ENFORCED modifiers are not introduced.
+Supported ONLY SET NOT NULL preserves its actual local NoInherit fact; PK on
+that fact is rejected rather than silently promoting it. Dump emits the exact
+named validated NN plus immediate paired genuine catalog SQL before descendants.
+Real PostgreSQL replay therefore requires superuser catalog-update authority;
+ordinary native catalog UPDATE stays forbidden. Generated replay uses genuine
+typed-NULL declarations only inside isolated staging when captured parent recipes
+diverge, then real ONLY SET recipes and validated recursive CHECK definitions
+before data; no placeholder becomes the delivered catalog.
+Execution merge stops are action-specific, not a generic exemption from
+preparatory locks or visited-child ownership. Existing valid SET NOT NULL does
+not visit children; ONLY cannot complete an invalid inheritable NN above existing
+children. Locality, live inheritance and retained historical constraint support
+remain separate facts. Historical replay uses narrowly paired archival
+pg_constraint SQL, not fake live providers/localization or a public catalog
+write capability; PostgreSQL script replay requires superuser authority.
+Actual TYPE cleanup may retain a physical not-null flag after its historical
+nonlocal NN catalog row disappears. This does not create a replacement NN fact.
+Trusted logical replay narrowly removes the actual constructor's NN row and
+selected dependency edges while preserving physical enforcement; ordinary
+catalog writes and arbitrary constraint-row deletion remain unsupported.
+The canonical script requires PostgreSQL superuser catalog-write authority;
+native acceptance is a single-use exact fresh-import constructor pairing, not a
+public catalog-DML exception. Keyless flags use genuine ONLY SET then no-PK
+cleanup; an unrelated PK is constructed afterwards without removing its real NN.
+Captured separate index shapes use genuine USING INDEX. Deferred-primary self-FKs
+retain exact local/referenced key order and supporting provider, including
+permutations and actual competing UNIQUE/index dependencies, through existing
+renderers/binders and strictly paired import receipts. This does not add FK/index
+capabilities or relax ordinary permissions/validation.
+Valid ancestor-to-descendant FKs are emitted after their actual source/target
+rows and supporting provider, using genuine validated qualified ONLY ADD FK
+under that same trusted superuser script context. Native acceptance is bounded
+to exact fresh ordinary inheritance identities and captured key/provider/owner
+observations, not general valid ALTER input. The normal pending binder retains
+REFERENCES/type/data diagnostics and all-or-nothing Restore publication; no
+NOT VALID surrogate, public permission bypass or role/ACL import is introduced.
 Copying a temporary-sequence default into a permanent table is unavailable.
 
 Materialized views support logical indexes and autocommit concurrent refresh.

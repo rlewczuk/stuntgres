@@ -2,6 +2,7 @@ package engine
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"slices"
 	"sort"
@@ -35,28 +36,21 @@ type viewDependencyEdge struct {
 }
 
 func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
+	provider := &dropProvider{base: catalog, stage: stage}
+	return provider.viewClosure(targets)
+}
+
+func (provider *dropProvider) viewClosure(targets []ObjectAddress) []viewDependencyEdge {
 	var views []*relationDescriptor
-	collect := func(address ObjectAddress, descriptor Descriptor) {
-		if stage != nil {
-			if _, removed := stage.removals[address]; removed {
-				return
-			}
-			if replacement, changed := stage.descriptors[address]; changed {
-				descriptor = replacement
-			}
+	for address, descriptor := range provider.descriptors() {
+		if provider.removed(address) {
+			continue
+		}
+		if replacement := provider.replacement(address); replacement != nil {
+			descriptor = replacement
 		}
 		if d, ok := descriptor.(*relationDescriptor); ok && d.view != nil {
 			views = append(views, d)
-		}
-	}
-	for address, descriptor := range catalog.state.descriptors {
-		collect(address, descriptor)
-	}
-	if stage != nil {
-		for address, descriptor := range stage.descriptors {
-			if _, existing := catalog.state.descriptors[address]; !existing {
-				collect(address, descriptor)
-			}
 		}
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
@@ -274,7 +268,6 @@ type supportedDependent struct {
 // Walk the existing immediate-provider edges depth-first. Genuine identities
 // order mixed siblings; same-owner CHECK siblings retain declaration order.
 func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, foreign ...domainDependency) []supportedDependent {
-	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(foreign))
 	policyTargets := targets
 	if len(views) != 0 {
 		policyTargets = make([]ObjectAddress, len(targets), len(targets)+len(views))
@@ -283,8 +276,15 @@ func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, chec
 			policyTargets = append(policyTargets, edge.view.address)
 		}
 	}
-	dependents = append(dependents, policyDependentLabels(catalog, policyTargets, path)...)
+	dependents := policyDependentLabels(catalog, policyTargets, path)
 	dependents = append(dependents, ruleDependentLabels(catalog, policyTargets, path)...)
+	return supportedDependentLabelsWithPolicies(catalog, targets, checks, views, defaults, path, dependents, foreign...)
+}
+
+// Other labels are captured before CASCADE mutates policy and rule metadata.
+func supportedDependentLabelsWithPolicies(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, other []supportedDependent, foreign ...domainDependency) []supportedDependent {
+	dependents := make([]supportedDependent, 0, len(checks)+len(views)+len(defaults)+len(other)+len(foreign))
+	dependents = append(dependents, other...)
 	for _, edge := range defaults {
 		label := "default value for column " + dependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalog, edge.relation, path)
 		dependents = append(dependents, supportedDependent{oid: edge.relation.defaults[edge.attribute].OID, target: edge.target, label: label})
@@ -343,6 +343,10 @@ func supportedDependentLabels(catalog CatalogRead, targets []ObjectAddress, chec
 
 func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress, foreign ...domainDependency) error {
 	dependents := supportedDependentLabels(catalog, targets, checks, views, defaults, path, foreign...)
+	return supportedRestrictErrorLabels(catalog, views, path, dependents, false)
+}
+
+func supportedRestrictErrorLabels(catalog CatalogRead, views []viewDependencyEdge, path []ObjectAddress, dependents []supportedDependent, multipleDeletion bool) error {
 	details := make([]string, len(dependents))
 	for i, dependent := range dependents {
 		provider := dependencyObject(catalog, dependent.target, path)
@@ -355,13 +359,17 @@ func supportedRestrictError(catalog CatalogRead, targets []ObjectAddress, checks
 	}
 	// Closure edges are parent-first. Walk backwards to keep the original
 	// requested provider in Message while Detail retains each actual edge.
-	target := dependents[0].target
-	for i := len(views) - 1; i >= 0; i-- {
-		if views[i].view.address == target {
-			target = views[i].target
+	message := "cannot drop desired object(s) because other objects depend on them"
+	if !multipleDeletion {
+		target := dependents[0].target
+		for i := len(views) - 1; i >= 0; i-- {
+			if views[i].view.address == target {
+				target = views[i].target
+			}
 		}
+		message = "cannot drop " + dependencyObject(catalog, target, path) + " because other objects depend on it"
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, target, path) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
@@ -373,7 +381,11 @@ func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode pars
 // stageViewDependentsLocked requires the owning engine mutex throughout the
 // coherent closure and removals; no provider callbacks or evaluation occur here.
 func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
-	edges := viewDependencyClosure(stage.base, targets, stage)
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).viewDependents(targets, mode, foreign...)
+}
+
+func (provider *dropProvider) viewDependents(targets []ObjectAddress, mode parser.DropMode, foreign ...domainDependency) error {
+	edges := provider.viewClosure(targets)
 	expanded := targets
 	if len(edges) != 0 {
 		expanded = make([]ObjectAddress, len(targets), len(targets)+len(edges))
@@ -382,43 +394,47 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 			expanded = append(expanded, edge.view.address)
 		}
 	}
-	checks, err := stageCheckDependents(stage, expanded, mode)
+	policies := provider.policyDependentLabels(expanded)
+	policies = append(policies, provider.ruleDependentLabels(expanded)...)
+	checks, err := provider.checkDependents(expanded, mode)
 	if err != nil {
 		return err
 	}
-	defaults, err := stageDefaultDependents(stage, expanded, mode)
+	defaults, err := provider.defaultDependents(expanded, mode)
 	if err != nil {
 		return err
 	}
 	visibleForeign := slices.ContainsFunc(foreign, func(edge domainDependency) bool { return !edge.automatic })
-	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policyDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 && len(ruleDependentLabels(stage.base, expanded, stage.dependencyPath)) == 0 && !visibleForeign {
-		return stageForeignKeyDependentsLocked(stage, foreign)
+	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 && len(policies) == 0 && !visibleForeign {
+		return provider.foreignKeyDependents(foreign)
 	}
 	if mode == parser.DropRestrict {
-		return supportedRestrictError(stage.base, targets, checks, edges, defaults, stage.dependencyPath, foreign...)
+		labels := supportedDependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
+		multipleDeletion := provider.scope != nil && provider.scope.inheritanceAlter != nil
+		return supportedRestrictErrorLabels(provider.base, edges, provider.path, labels, multipleDeletion)
 	}
-	if err := stageForeignKeyDependentsLocked(stage, foreign); err != nil {
+	if err := provider.foreignKeyDependents(foreign); err != nil {
 		return err
 	}
-	if err := stagePolicyDependents(stage, expanded, mode); err != nil {
+	if err := provider.policyDependents(expanded, mode); err != nil {
 		return err
 	}
-	if err := stageRuleDependents(stage, expanded, mode); err != nil {
+	if err := provider.ruleDependents(expanded, mode); err != nil {
 		return err
 	}
 	activeEdges := edges[:0]
 	for _, edge := range edges {
 		d := edge.view
-		if _, exists := stage.removals[d.address]; exists {
+		if provider.removed(d.address) {
 			continue
 		}
-		if err := stage.removeObjectLocked(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: d.address}, false); err != nil {
+		if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: d.address}, false); err != nil {
 			return err
 		}
 		activeEdges = append(activeEdges, edge)
 	}
-	for _, dependent := range supportedDependentLabels(stage.base, targets, checks, activeEdges, defaults, stage.dependencyPath, foreign...) {
-		stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to "+dependent.label)
+	for _, dependent := range supportedDependentLabelsWithPolicies(provider.base, targets, checks, activeEdges, defaults, provider.path, policies, foreign...) {
+		provider.cascadeNotice("drop cascades to " + dependent.label)
 	}
 	return nil
 }

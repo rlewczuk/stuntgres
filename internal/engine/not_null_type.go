@@ -45,6 +45,9 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relatio
 	if next == nil {
 		return parent, nil
 	}
+	if err := retireRebuiltNotNullHistory(parent, next); err != nil {
+		return nil, err
+	}
 	if err := stage.Replace(next); err != nil {
 		return nil, err
 	}

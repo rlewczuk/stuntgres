@@ -6,6 +6,21 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Ordinary-inheritance migration checkpoint
+
+`TestReferenceAlterDefaultInheritanceRecursion` is now untagged and shares the
+complete five-parent/five-child DEFAULT matrix and subquery rejection through
+direct/prepared fixtures. `TestReferenceConstraintRenameInheritanceBoundary`
+requires released CHECK/NN protections instead of an ordinary-inheritance native
+capability error; its local indexed rename identities remain unchanged.
+Root runs each with an external 900-second deadline and repeats without
+`REFERENCE=1`; both complete modes are required:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceAlterDefaultInheritanceRecursion$'
+make check REFERENCE=1 RUN='^TestReferenceConstraintRenameInheritanceBoundary$'
+```
+
 ### ALTER ADD constraint selected proof
 
 Shared untagged definitions use identical native and pinned PostgreSQL bodies,

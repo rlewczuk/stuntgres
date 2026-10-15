@@ -232,7 +232,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
-	arrayType, found := (CatalogRead{owner: b.engine, state: b.engine.state}).LookupArray(rt)
+	arrayType, found := b.definitionArray(rt)
 	if !found || !arrayType.Concrete() {
 		return nil, expressionError("0A000", "unsupported array element type", raw.Pos)
 	}
@@ -330,7 +330,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 		}
 		feasible := common.Type != nil
 		if feasible {
-			_, feasible = (CatalogRead{owner: b.engine, state: b.engine.state}).LookupArray(common.Type)
+			_, feasible = b.definitionArray(common.Type)
 		}
 		if feasible {
 			for _, item := range nonvar {

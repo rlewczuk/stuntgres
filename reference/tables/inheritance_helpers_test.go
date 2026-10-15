@@ -11,21 +11,34 @@ import (
 // All inheritance definitions share the ordinary external fixture, recorder,
 // notice delivery and direct/prepared routes. Discovery changes availability only.
 type inheritanceCase struct {
-	t        *testing.T
-	p        *fixture.Pair
-	b        fixture.Backend
-	c        *sql.Conn
-	prepared bool
-	notices  *[]fixture.Diagnostic
-	run      func(fixture.Step)
-	record   *fixture.Recorder
+	t           *testing.T
+	p           *fixture.Pair
+	b           fixture.Backend
+	c           *sql.Conn
+	prepared    bool
+	notices     *[]fixture.Diagnostic
+	run         func(fixture.Step)
+	record      *fixture.Recorder
+	replayRoles []string
 }
 
-func inheritanceScenario(t *testing.T, body func(*inheritanceCase)) {
+func inheritanceScenario(t *testing.T, body func(*inheritanceCase), replayRoles ...string) {
 	t.Helper()
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+			if len(replayRoles) != 0 {
+				// Pair cleanup closes borrowers and resets the schema before roles
+				// are dropped. Logical Dump requires its named owners to preexist.
+				fixture.RoleReferenceCleanup(t, replayRoles)
+			}
 			p := fixture.NewScenario(t)
+			for _, b := range p.Backends() {
+				for _, role := range replayRoles {
+					step := fixture.Exec("CREATE ROLE "+role+" NOSUPERUSER NOBYPASSRLS", 0)
+					step.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, step)
+				}
+			}
 			for _, b := range p.Backends() {
 				t.Run(b.Name, func(t *testing.T) {
 					if b.PG {
@@ -41,7 +54,7 @@ func inheritanceScenario(t *testing.T, body func(*inheritanceCase)) {
 						s.Prepared = prepared
 						fixture.RunStep(t, p.Ctx, c, record, s)
 					}
-					body(&inheritanceCase{t, p, b, c, prepared, &notices, run, record})
+					body(&inheritanceCase{t, p, b, c, prepared, &notices, run, record, replayRoles})
 				})
 			}
 		})

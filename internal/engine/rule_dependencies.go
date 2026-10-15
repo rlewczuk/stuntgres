@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"iter"
+	"maps"
 	"slices"
 	"stuntgres/internal/parser"
 )
@@ -175,8 +177,19 @@ func ruleDepends(catalog CatalogRead, r ruleDefinition, target ObjectAddress) bo
 }
 
 func ruleDependentLabels(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress) []supportedDependent {
+	return ruleDependentLabelsFrom(catalog, targets, path, maps.All(catalog.state.descriptors), nil)
+}
+
+func (provider *dropProvider) ruleDependentLabels(targets []ObjectAddress) []supportedDependent {
+	if provider.prepared == nil {
+		return ruleDependentLabels(provider.base, targets, provider.path)
+	}
+	return ruleDependentLabelsFrom(provider.base, targets, provider.path, provider.liveDescriptors(), provider.observe)
+}
+
+func ruleDependentLabelsFrom(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress, descriptors iter.Seq2[ObjectAddress, Descriptor], observe func(ObjectAddress)) []supportedDependent {
 	var dependents []supportedDependent
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || slices.Contains(targets, d.address) {
 			continue
@@ -184,6 +197,9 @@ func ruleDependentLabels(catalog CatalogRead, targets []ObjectAddress, path []Ob
 		for _, r := range d.rules {
 			for _, target := range targets {
 				if ruleDepends(catalog, r, target) {
+					if observe != nil {
+						observe(d.address)
+					}
 					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)})
 					break
 				}
@@ -194,14 +210,18 @@ func ruleDependentLabels(catalog CatalogRead, targets []ObjectAddress, path []Ob
 }
 
 func stageRuleDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).ruleDependents(targets, mode)
+}
+
+func (provider *dropProvider) ruleDependents(targets []ObjectAddress, mode parser.DropMode) error {
 	if mode == parser.DropRestrict {
 		return nil
 	}
-	for address, descriptor := range stage.base.state.descriptors {
-		if _, removed := stage.removals[address]; removed || slices.Contains(targets, address) {
+	for address, descriptor := range provider.inputDescriptors() {
+		if provider.removed(address) || slices.Contains(targets, address) {
 			continue
 		}
-		if replacement, ok := stage.descriptors[address]; ok {
+		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*relationDescriptor)
@@ -212,7 +232,7 @@ func stageRuleDependents(stage *CatalogStage, targets []ObjectAddress, mode pars
 		for _, r := range d.rules {
 			drop := false
 			for _, target := range targets {
-				if ruleDepends(stage.base, r, target) {
+				if ruleDepends(provider.base, r, target) {
 					drop = true
 					break
 				}
@@ -226,12 +246,12 @@ func stageRuleDependents(stage *CatalogStage, targets []ObjectAddress, mode pars
 		}
 		copy := *d
 		copy.rules = kept
-		revision, err := stage.cascadeMetadataRevision(copy.revision)
+		revision, err := provider.revision(copy.revision)
 		if err != nil {
 			return err
 		}
 		copy.revision = revision
-		if err := stage.Replace(&copy); err != nil {
+		if err := provider.replace(&copy); err != nil {
 			return err
 		}
 	}

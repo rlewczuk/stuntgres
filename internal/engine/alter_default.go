@@ -35,9 +35,6 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if err := tableKind(old, "ALTER COLUMN ... SET DEFAULT"); err != nil {
 		return fail(err)
 	}
-	if err := inheritanceAlterGuard(auth.catalog, old); err != nil {
-		return fail(err)
-	}
 	if isSystemColumn(s.Column.Text) {
 		return fail(sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text)))
 	}
@@ -61,33 +58,14 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		}
 		return fail(diagnostic)
 	}
+	if inheritanceParticipant(auth.catalog, old) {
+		return e.alterInheritanceDefaultLocked(scope, op, auth, s, old)
+	}
 	var definition columnDefault
 	if s.Action == parser.SetDefault {
-		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
-		binder.queryAuth = &auth
-		binder.defaultTemporary = auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor).temporary
-		definition.expression, err = binder.bindDefault(s.Expression, old.columns[slot])
-		if err == nil {
-			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, definition.expression)
-		}
+		definition, err = e.cookAlterDefaultLocked(scope, op, auth, old, slot, s.Expression)
 		if err != nil {
-			// PostgreSQL cooks ALTER defaults without source text. CREATE diagnostics
-			// and parser syntax diagnostics retain their own source positions.
-			var diagnostic *sqlstate.Error
-			if errors.As(err, &diagnostic) {
-				copy := *diagnostic
-				copy.Position = ""
-				err = &copy
-			}
 			return fail(err)
-		}
-		if structuralNull(definition.expression) {
-			definition = columnDefault{}
-		} else {
-			definition.OID, err = e.allocateOIDLocked()
-			if err != nil {
-				return fail(err)
-			}
 		}
 	} else if _, present := old.defaults[attr]; !present {
 		op.session.mu.Lock()
@@ -161,4 +139,30 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	}
 	scope.completed = true
 	return Result{}, nil
+}
+
+func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, slot int, expression parser.Expr) (columnDefault, error) {
+	var definition columnDefault
+	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
+	binder.queryAuth = &auth
+	binder.defaultTemporary = auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor).temporary
+	var err error
+	definition.expression, err = binder.bindDefault(expression, old.columns[slot])
+	if err == nil {
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, definition.expression)
+	}
+	if err != nil {
+		var diagnostic *sqlstate.Error
+		if errors.As(err, &diagnostic) {
+			copy := *diagnostic
+			copy.Position = ""
+			err = &copy
+		}
+		return columnDefault{}, err
+	}
+	if structuralNull(definition.expression) {
+		return columnDefault{}, nil
+	}
+	definition.OID, err = e.allocateOIDLocked()
+	return definition, err
 }

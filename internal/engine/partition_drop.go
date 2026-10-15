@@ -6,10 +6,14 @@ import (
 )
 
 func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDescriptor) error {
+	return stageDropProvider(nil, stage, nil, nil, nil).removePartitionHierarchyLocked(relation)
+}
+
+func (provider *dropProvider) removePartitionHierarchyLocked(relation *relationDescriptor) error {
 	if relation.partition != nil {
 		for _, address := range relation.partition.children {
-			ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: address}
-			if err := stage.removeObjectLocked(ref, false); err != nil {
+			ref := ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: address}
+			if err := provider.removeObjectLocked(ref, false); err != nil {
 				return err
 			}
 		}
@@ -18,14 +22,14 @@ func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDesc
 		return nil
 	}
 	address := relation.membership.parent
-	if _, removed := stage.removals[address]; removed {
+	if provider.removed(address) {
 		return nil
 	}
-	parent, ok := stage.base.state.descriptors[address].(*relationDescriptor)
+	parent, ok := provider.inputDescriptor(address).(*relationDescriptor)
 	if !ok || parent.partition == nil {
 		return fmt.Errorf("stuntgres: missing partition parent")
 	}
-	if staged, ok := stage.descriptors[address].(*relationDescriptor); ok {
+	if staged, ok := provider.replacement(address).(*relationDescriptor); ok {
 		parent = staged
 	}
 	if parent.revision == DefinitionRevision(^uint64(0)) {
@@ -39,10 +43,10 @@ func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDesc
 	}
 	next.partition = &definition
 	next.revision++
-	if err := stage.Replace(&next); err != nil {
+	if err := provider.replace(&next); err != nil {
 		return err
 	}
-	return stage.owner.stagePartitionIndexValidity(stage, ObjectAddress{})
+	return provider.partitionIndexValidity(ObjectAddress{})
 }
 
 func (s *StatementScope) acquirePartitionDropLocks(ref ObjectRef) error {

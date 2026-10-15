@@ -26,26 +26,18 @@ type domainDependency struct {
 // resuming its parent's remaining dependents. Stable attributes are separate
 // dependents; a containing table is never a domain-drop target.
 func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets []ObjectAddress) ([]domainDependency, error) {
-	descriptors := stage.base.state.descriptors
-	for address := range stage.descriptors {
-		if descriptors[address] == nil {
-			descriptors = make(map[ObjectAddress]Descriptor, len(stage.base.state.descriptors)+len(stage.descriptors))
-			for a, d := range stage.base.state.descriptors {
-				descriptors[a] = d
-			}
-			for a, d := range stage.descriptors {
-				descriptors[a] = d
-			}
-			break
-		}
-	}
+	return stageDropProvider(ctx, stage, nil, nil, nil).dependencyClosure(targets)
+}
+
+func (provider *dropProvider) dependencyClosure(targets []ObjectAddress) ([]domainDependency, error) {
+	ctx := provider.ctx
 	domains := make(map[ObjectAddress]bool, len(targets))
 	for _, a := range targets {
 		domains[a] = true
 	}
 	for changed := true; changed; {
 		changed = false
-		for a, d := range stage.base.state.descriptors {
+		for a, d := range provider.inputDescriptors() {
 			if t, ok := d.(*typeDescriptor); ok && !domains[a] && (t.typ.IsDomain() && (domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.DomainBase().Type.ID())}] || domains[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(t.typ.DomainBase().Collation.ID)}]) || t.typ.IsArray() && domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.Element().ID())}]) {
 				domains[a] = true
 				changed = true
@@ -53,7 +45,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 		}
 	}
 	droppedColumns := make(map[ObjectAddress]bool)
-	for a, d := range stage.base.state.descriptors {
+	for a, d := range provider.inputDescriptors() {
 		r, ok := d.(*relationDescriptor)
 		if !ok || r.relationKind != tableRelation && r.relationKind != partitionedRelation && r.relationKind != compositeRelation {
 			continue
@@ -72,16 +64,17 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 	}
 	var result []domainDependency
 	resultSlots := make(map[ObjectAddress]int)
+	mergedDescriptors := provider.descriptorCount() != len(provider.base.state.descriptors)
 	var visit func(ObjectAddress, ObjectAddress) error
 	visit = func(target, root ObjectAddress) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if relation, ok := stage.base.state.descriptors[target].(*relationDescriptor); ok && relation.rowType != 0 {
+		if relation, ok := provider.retirementDescriptor(target).(*relationDescriptor); ok && relation.rowType != 0 {
 			if err := visit(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}, root); err != nil {
 				return err
 			}
-			row, ok := stage.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}].(*typeDescriptor)
+			row, ok := provider.retirementDescriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}).(*typeDescriptor)
 			if !ok || row.owningRelation != relation.address {
 				return fmt.Errorf("stuntgres: missing row type dependency owner")
 			}
@@ -93,9 +86,9 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				}
 			}
 		}
-		if relation, ok := stage.base.state.descriptors[target].(*relationDescriptor); ok && relation.partition != nil {
+		if relation, ok := provider.retirementDescriptor(target).(*relationDescriptor); ok && relation.partition != nil {
 			for _, child := range relation.partition.children {
-				if _, removed := stage.removals[child]; removed {
+				if provider.removed(child) {
 					if err := visit(child, root); err != nil {
 						return err
 					}
@@ -103,7 +96,12 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			}
 		}
 		var direct []domainDependency
-		for a, descriptor := range descriptors {
+		for a, descriptor := range provider.descriptors() {
+			if mergedDescriptors {
+				if replacement := provider.replacement(a); replacement != nil {
+					descriptor = replacement
+				}
+			}
 			// Owned indexes are closure roots even if an earlier pass already
 			// staged their removal. Their external consumers still need pruning,
 			// just like consumers of owned row types and associated arrays.
@@ -111,11 +109,11 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true, relation: index})
 				continue
 			}
-			if _, removed := stage.removals[a]; removed {
+			if provider.removed(a) {
 				continue
 			}
-			if target.ClassID == NamespaceClassID && descriptor.Namespace() == target && ownershipRoot(stage.base, descriptor) {
-				edge := domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(stage.base, a, stage.dependencyPath)}
+			if target.ClassID == NamespaceClassID && descriptor.Namespace() == target && ownershipRoot(provider.base, descriptor) {
+				edge := domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)}
 				edge.relation, _ = descriptor.(*relationDescriptor)
 				direct = append(direct, edge)
 				continue
@@ -123,7 +121,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 			switch d := descriptor.(type) {
 			case *extensionDescriptor:
 				if d.targetNamespace == target {
-					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(stage.base, a, stage.dependencyPath)})
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
 			case *procedureDescriptor:
 				if d.extension == target {
@@ -138,7 +136,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
 			case *typeDescriptor:
-				if replacement, ok := stage.descriptors[a].(*typeDescriptor); ok {
+				if replacement, ok := provider.replacement(a).(*typeDescriptor); ok {
 					d = replacement
 				}
 				if !domains[a] {
@@ -152,13 +150,13 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					}
 				}
 				if d.typ.IsDomain() && usageDependsOn(d.typ.DomainBase(), target) {
-					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + typeDiagnosticNameAt(stage.base, d, stage.dependencyPath)})
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + typeDiagnosticNameAt(provider.base, d, provider.path)})
 				}
 				if d.typ.IsArray() && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
 			case *relationDescriptor:
-				if replacement, ok := stage.descriptors[a].(*relationDescriptor); ok {
+				if replacement, ok := provider.replacement(a).(*relationDescriptor); ok {
 					d = replacement
 				}
 				if d.relationKind == compositeRelation && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.rowType)}) {
@@ -166,13 +164,13 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					continue
 				}
 				if materializedExtensionDepends(d, target) {
-					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true, label: "materialized view " + dependencyRelationName(stage.base, d, stage.dependencyPath)})
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true, label: "materialized view " + dependencyRelationName(provider.base, d, provider.path)})
 				}
 				if d.membership != nil && d.membership.parent == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, automatic: true})
 				}
 				if partitionDependsOn(d, target) {
-					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, label: "table " + dependencyRelationName(stage.base, d, stage.dependencyPath)})
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, relation: d, label: "table " + dependencyRelationName(provider.base, d, provider.path)})
 					continue
 				}
 				if d.sqlIndex != nil {
@@ -193,15 +191,15 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 						}
 					}
 					if depends && !automatic {
-						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "index " + dependencyRelationName(stage.base, d, stage.dependencyPath), relation: d})
+						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "index " + dependencyRelationName(provider.base, d, provider.path), relation: d})
 					}
 					continue
 				}
 				var name string
 				for _, rule := range d.rules {
-					if ruleDepends(stage.base, rule, target) {
+					if ruleDepends(provider.base, rule, target) {
 						if name == "" {
-							name = dependencyRelationName(stage.base, d, stage.dependencyPath)
+							name = dependencyRelationName(provider.base, d, provider.path)
 						}
 						direct = append(direct, domainDependency{address: ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, target: target, root: root, oid: rule.OID, label: "rule " + dependencyIdentifier(rule.Name) + " on " + relationDiagnosticKind(d) + " " + name, relation: d})
 					}
@@ -209,7 +207,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 				if d.view != nil {
 					if viewDepends(d, target) {
 						if name == "" {
-							name = dependencyRelationName(stage.base, d, stage.dependencyPath)
+							name = dependencyRelationName(provider.base, d, provider.path)
 						}
 						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: relationDiagnosticKind(d) + " " + name, relation: d})
 					}
@@ -219,7 +217,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 					continue
 				}
 				if name == "" {
-					name = dependencyRelationName(stage.base, d, stage.dependencyPath)
+					name = dependencyRelationName(provider.base, d, provider.path)
 				}
 				if d.ofType == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "table " + name, relation: d})
@@ -332,12 +330,16 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage, targets [
 }
 
 func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []domainDependency, originalRootCount int, subject ObjectAddress) error {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).restrictError(targets, edges, originalRootCount, subject)
+}
+
+func (provider *dropProvider) restrictError(targets []ObjectAddress, edges []domainDependency, originalRootCount int, subject ObjectAddress) error {
 	message := "cannot drop desired object(s) because other objects depend on them"
 	primary := subject
 	if primary == (ObjectAddress{}) {
 		for i, target := range targets {
 			var owner ObjectAddress
-			switch descriptor := stage.base.state.descriptors[target].(type) {
+			switch descriptor := provider.retirementDescriptor(target).(type) {
 			case *typeDescriptor:
 				owner = descriptor.owningRelation
 			case *relationDescriptor:
@@ -346,19 +348,19 @@ func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []d
 					owner.SubID = 0
 				}
 			}
-			if _, removed := stage.removals[owner]; owner != (ObjectAddress{}) && removed {
+			if owner != (ObjectAddress{}) && provider.removed(owner) {
 				target = owner
 			}
 			// Explicit roots remain distinct; only automatically retired members
 			// share the subject of their removed partition ancestry.
 			if i >= originalRootCount {
 				for {
-					relation, ok := stage.base.state.descriptors[target].(*relationDescriptor)
+					relation, ok := provider.retirementDescriptor(target).(*relationDescriptor)
 					if !ok || relation.membership == nil {
 						break
 					}
 					parent := relation.membership.parent
-					if _, removed := stage.removals[parent]; !removed {
+					if !provider.removed(parent) {
 						break
 					}
 					target = parent
@@ -373,7 +375,7 @@ func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []d
 		}
 	}
 	if primary != (ObjectAddress{}) {
-		message = "cannot drop " + dependencyObject(stage.base, primary, stage.dependencyPath) + " because other objects depend on it"
+		message = "cannot drop " + dependencyObject(provider.base, primary, provider.path) + " because other objects depend on it"
 	}
 	details := make([]string, 0, len(edges))
 	for _, edge := range edges {
@@ -387,11 +389,11 @@ func domainRestrictError(stage *CatalogStage, targets []ObjectAddress, edges []d
 					}
 				}
 			}
-			provider := dependencyObject(stage.base, target, stage.dependencyPath)
-			if index, ok := stage.base.state.descriptors[target].(*relationDescriptor); ok && index.sqlIndex != nil {
-				provider = "index " + dependencyRelationName(stage.base, index, stage.dependencyPath)
+			object := dependencyObject(provider.base, target, provider.path)
+			if index, ok := provider.retirementDescriptor(target).(*relationDescriptor); ok && index.sqlIndex != nil {
+				object = "index " + dependencyRelationName(provider.base, index, provider.path)
 			}
-			details = append(details, edge.label+" depends on "+provider)
+			details = append(details, edge.label+" depends on "+object)
 		}
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
@@ -419,6 +421,11 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 // A nonzero subject attributes only the RESTRICT message to one SQL DROP;
 // retirement roots, dependency discovery, locks and mutations stay unchanged.
 func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error, subject ObjectAddress) error {
+	return stageDropProvider(ctx, stage, scope, changes, project).expressionDependencies(roots, mode, subject)
+}
+
+func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode parser.DropMode, subject ObjectAddress) error {
+	scope := provider.scope
 	if len(roots) == 0 {
 		return nil
 	}
@@ -427,7 +434,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		if root.ClassID == ExtensionClassID && root.SubID == 0 {
 			// Retained-message retirement must fence x attachments introduced
 			// after this genuine provider closure was captured.
-			stage.identityDependencies = append(stage.identityDependencies, catalogDependencyObservation{stage.base.state, slices.Clone(roots)})
+			provider.observeIdentityDependencies(roots)
 			break
 		}
 	}
@@ -435,8 +442,8 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	// complete dependent closure before classifying any surviving-owner mutation.
 	// In particular a schema can remove both a provider and an inheritance parent.
 	var retirementRoots []ObjectAddress
-	for address, removal := range stage.removals {
-		if _, relation := removal.descriptor.(*relationDescriptor); relation && !slices.Contains(roots, address) {
+	for address, descriptor := range provider.removalDescriptors() {
+		if _, relation := descriptor.(*relationDescriptor); relation && !slices.Contains(roots, address) {
 			retirementRoots = append(retirementRoots, address)
 		}
 	}
@@ -444,10 +451,10 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		sort.Slice(retirementRoots, func(i, j int) bool { return retirementRoots[i].ObjectID < retirementRoots[j].ObjectID })
 		roots = append(append([]ObjectAddress(nil), roots...), retirementRoots...)
 	}
-	if err := lockInheritanceDropClosure(scope, stage, roots); err != nil {
+	if err := provider.lockInheritanceClosure(roots); err != nil {
 		return err
 	}
-	edges, err := domainDependencyClosure(ctx, stage, roots)
+	edges, err := provider.dependencyClosure(roots)
 	if err != nil {
 		return err
 	}
@@ -456,7 +463,7 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		visible = visible || !edge.automatic
 	}
 	if mode == parser.DropRestrict && visible {
-		return domainRestrictError(stage, roots, edges, originalRootCount, subject)
+		return provider.restrictError(roots, edges, originalRootCount, subject)
 	}
 	targets := append([]ObjectAddress(nil), roots...)
 	var relations []*relationDescriptor
@@ -493,13 +500,13 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	}
 	for _, edge := range edges {
 		if scope != nil && edge.relation != nil && edge.address == edge.relation.address && hierarchyRelation(edge.relation) {
-			if err := scope.acquirePartitionDropLocks(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: edge.address}); err != nil {
+			if err := scope.acquirePartitionDropLocks(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: edge.address}); err != nil {
 				return err
 			}
 		}
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
-	e := stage.owner
+	e := provider.owner
 	if scope != nil {
 		// Lock owners are not deletion/projection targets. A policy edge
 		// captures its surviving owner's identity, even without a column edge.
@@ -521,8 +528,8 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		}
 		sort.Slice(lockRelations, func(i, j int) bool { return lockRelations[i].address.ObjectID < lockRelations[j].address.ObjectID })
 		for _, r := range lockRelations {
-			ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: r.address}
-			if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+			ref := ObjectRef{owner: e.owner, Epoch: provider.base.Epoch(), Address: r.address}
+			if err := provider.acquire(ref, true); err != nil {
 				return err
 			}
 		}
@@ -532,27 +539,25 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 	// root removal policy and the original base/edges for discovery, owned objects,
 	// diagnostics and publication fences. Type/collation providers retire later,
 	// after surviving column candidates have finished binding against them.
-	e.mu.Lock()
 	for _, target := range targets[len(roots):] {
 		if target.ClassID == RelationClassID && target.SubID == 0 {
-			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
+			if err = provider.remove(ObjectRef{owner: e.owner, Epoch: provider.base.Epoch(), Address: target}); err != nil {
 				break
 			}
 		}
 	}
-	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	noticeStart := len(stage.viewCascadeNames)
-	if err = stageViewDependents(stage, targets, parser.DropCascade); err != nil {
+	noticeStart := provider.noticePosition()
+	if err = provider.applyViewDependents(targets, parser.DropCascade); err != nil {
 		return err
 	}
-	if err := stageForeignKeyDependents(stage, edges); err != nil {
+	if err := provider.applyForeignKeyDependents(edges); err != nil {
 		return err
 	}
 	for _, old := range relations {
-		if _, removed := stage.removals[old.address]; removed {
+		if provider.removed(old.address) {
 			continue
 		}
 		// Whole-relation targets need no standalone shape projection or
@@ -560,17 +565,17 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		if slices.Contains(targets, old.address) {
 			continue
 		}
-		ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: old.address}
+		ref := ObjectRef{owner: e.owner, Epoch: provider.base.Epoch(), Address: old.address}
 		next := old
 		consumed := false
 		for _, edge := range edges {
 			if edge.column == "" || edge.relation.address != old.address {
 				continue
 			}
-			if _, removed := stage.removals[old.address]; removed {
+			if provider.removed(old.address) {
 				break
 			}
-			if replacement, ok := stage.descriptors[old.address].(*relationDescriptor); ok {
+			if replacement, ok := provider.replacement(old.address).(*relationDescriptor); ok {
 				next = replacement
 			}
 			// The closure captured a live stable attribute. A nested cascade
@@ -579,10 +584,10 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 			if slot < 0 {
 				continue
 			}
-			if err = inheritanceStageAlterGuard(stage, next); err != nil {
+			if err = provider.inheritanceAlterGuard(next); err != nil {
 				return err
 			}
-			next, err = dropColumnCandidate(ctx, stage, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.columns[slot].Name}, Mode: parser.DropCascade}, scope, changes, project)
+			next, err = ordinaryColumnDrop(provider, next, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: next.columns[slot].Name}, Mode: parser.DropCascade})
 			if err != nil {
 				return err
 			}
@@ -591,57 +596,15 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		if !consumed {
 			continue
 		}
-		if _, removed := stage.removals[old.address]; removed {
+		if provider.removed(old.address) {
 			continue
 		}
-		revision, er := stage.cascadeMetadataRevision(old.revision)
+		revision, er := provider.revision(old.revision)
 		if er != nil {
 			return er
 		}
 		next.revision = revision
-		if old.relationKind == compositeRelation {
-			if err = stage.Replace(next); err != nil {
-				return err
-			}
-			continue
-		}
-		if project != nil {
-			if err = project(old, next); err != nil {
-				return err
-			}
-			if err = stage.Replace(next); err != nil {
-				return err
-			}
-			continue
-		}
-		if changes != nil {
-			if err = scope.stagePrivateColumnShape(stage, changes, old, next); err != nil {
-				return err
-			}
-			continue
-		}
-		e.mu.Lock()
-		storage := e.stageStorageLocked(stage, old.address)
-		storageOwner := stage.base.state.descriptors[old.address].(*relationDescriptor)
-		if e.stageCatalogBaseLocked(stage).descriptors[old.address] != storageOwner || storage == nil {
-			e.mu.Unlock()
-			return CatalogConflict{}
-		}
-		rows, ends, generation := storage.versions, storage.ends, storage.generation
-		e.mu.Unlock()
-		nextGeneration := generation + 1
-		if generation == ^uint64(0) {
-			if !stage.terminalCleanup {
-				return fmt.Errorf("stuntgres: storage generation exhausted")
-			}
-			nextGeneration = generation
-		}
-		projected, er := projectVersions(ctx, rows, storageOwner, next, nil)
-		if er != nil {
-			return er
-		}
-		replacement := &relationStorage{versions: projected, ends: ends, generation: nextGeneration}
-		if err = stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends); err != nil {
+		if err := provider.projectColumn(old, next); err != nil {
 			return err
 		}
 	}
@@ -649,36 +612,34 @@ func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots
 		if edge.domain == nil {
 			continue
 		}
-		if _, removed := stage.removals[edge.domain.Address()]; removed {
+		if provider.removed(edge.domain.Address()) {
 			continue
 		}
-		if err := stage.removeDomainCheck(edge.domain, edge.address.ObjectID); err != nil {
+		if err := provider.removeDomainCheck(edge.domain, edge.address.ObjectID); err != nil {
 			return err
 		}
 	}
-	e.mu.Lock()
 	for _, target := range targets {
 		if target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ConversionClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
-			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
+			if err = provider.remove(ObjectRef{owner: e.owner, Epoch: provider.base.Epoch(), Address: target}); err != nil {
 				break
 			}
 		}
 	}
-	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	stage.viewCascadeNames = stage.viewCascadeNames[:noticeStart]
+	provider.rewindNotices(noticeStart)
 	for _, edge := range edges {
 		if !edge.automatic {
-			stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to "+edge.label)
+			provider.cascadeNotice("drop cascades to " + edge.label)
 		}
 	}
 	// Newly discovered hierarchy owners are not the caller's original roots.
 	// Stage their AUTO closure after removing them so recursive expression
 	// traversal cannot rediscover the same hierarchy during sequence preparation.
 	if len(hierarchyTargets) != 0 {
-		return stageOwnedExpressionDependencies(ctx, stage, hierarchyTargets, mode, scope, changes, project)
+		return provider.ownedExpressionDependencies(hierarchyTargets, mode)
 	}
 	return nil
 }
@@ -752,7 +713,11 @@ func usageDependsOn(u sqltype.Usage, target ObjectAddress) bool {
 }
 
 func (stage *CatalogStage) removeDomainCheck(d *typeDescriptor, oid OID) error {
-	if replacement, ok := stage.descriptors[d.Address()].(*typeDescriptor); ok {
+	return stageDropProvider(nil, stage, nil, nil, nil).removeDomainCheck(d, oid)
+}
+
+func (provider *dropProvider) removeDomainCheck(d *typeDescriptor, oid OID) error {
+	if replacement, ok := provider.replacement(d.Address()).(*typeDescriptor); ok {
 		d = replacement
 	}
 	next := *d
@@ -767,9 +732,9 @@ func (stage *CatalogStage) removeDomainCheck(d *typeDescriptor, oid OID) error {
 	if err != nil {
 		return err
 	}
-	next.revision, err = stage.cascadeMetadataRevision(d.revision)
+	next.revision, err = provider.revision(d.revision)
 	if err != nil {
 		return err
 	}
-	return stage.Replace(&next)
+	return provider.replace(&next)
 }

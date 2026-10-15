@@ -21,6 +21,10 @@ type dumpRelation struct {
 	defaults            map[int32]columnDefault
 	deferredDefinitions map[int32]bool
 	descriptor          *relationDescriptor
+	recipes             map[int32]inheritedColumn
+	deferredChecks      map[string]bool
+	recipePlaceholders  bool
+	recipeComponent     ObjectAddress
 	identities          map[int32]columnIdentity
 	identitySequences   map[ObjectAddress]dumpSequence
 }
@@ -36,7 +40,11 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog Catalog
 		if err != nil {
 			return err
 		}
-		if err := emit("ALTER TABLE " + qualified + " ALTER COLUMN " + quoteIdentifier(c.Name) + " SET DEFAULT " + text + ";\n"); err != nil {
+		prefix := "ALTER TABLE "
+		if t.descriptor.partition == nil && t.descriptor.membership == nil {
+			prefix += "ONLY "
+		}
+		if err := emit(prefix + qualified + " ALTER COLUMN " + quoteIdentifier(c.Name) + " SET DEFAULT " + text + ";\n"); err != nil {
 			return err
 		}
 	}
@@ -152,6 +160,9 @@ func (e *Engine) validateRestoredDefault(op *Operation, s *parser.AlterTableDefa
 		return err
 	}
 	d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	if inheritedDefaultReplay(s, d) {
+		return nil
+	}
 	slot, ok := d.index[s.Column.Text]
 	if !ok || !defaultReplayDeferrable(d.defaults[d.attributes[slot]]) {
 		return sqlError("0A000", "restore accepts only deferred captured-reference or regclass defaults")

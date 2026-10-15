@@ -2,6 +2,7 @@ package engine
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"maps"
 	"slices"
@@ -66,16 +67,20 @@ func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 }
 
 func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).defaultDependents(targets, mode)
+}
+
+func (provider *dropProvider) defaultDependents(targets []ObjectAddress, mode parser.DropMode) ([]defaultDependencyEdge, error) {
 	var edges []defaultDependencyEdge
-	for address, descriptor := range stage.base.state.descriptors {
+	for address, descriptor := range provider.inputDescriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
 		}
-		if replacement, ok := stage.descriptors[address].(*relationDescriptor); ok {
+		if replacement, ok := provider.replacement(address).(*relationDescriptor); ok {
 			d = replacement
 		}
-		if _, removed := stage.removals[address]; removed {
+		if provider.removed(address) {
 			continue
 		}
 		var removed []int32
@@ -116,11 +121,11 @@ func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode p
 			removed = append(removed, attribute)
 		}
 		if len(removed) != 0 && mode != parser.DropRestrict {
-			if err := inheritanceStageAlterGuard(stage, d); err != nil {
+			if err := provider.inheritanceAlterGuard(d); err != nil {
 				return nil, err
 			}
 			copy := *d
-			revision, err := stage.cascadeMetadataRevision(copy.revision)
+			revision, err := provider.revision(copy.revision)
 			if err != nil {
 				return nil, err
 			}
@@ -129,7 +134,7 @@ func stageDefaultDependents(stage *CatalogStage, targets []ObjectAddress, mode p
 			for _, attribute := range removed {
 				delete(copy.defaults, attribute)
 			}
-			if err := stage.Replace(&copy); err != nil {
+			if err := provider.replace(&copy); err != nil {
 				return nil, err
 			}
 		}

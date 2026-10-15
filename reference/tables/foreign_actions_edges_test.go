@@ -17,27 +17,21 @@ func TestReferenceForeignActionsValuesInheritance(t *testing.T) {
 		run(fixture.Exec("INSERT INTO c VALUES(1)", 1))
 		run(fixture.Exec("INSERT INTO child_leaf VALUES(1),(999)", 2))
 		run(foreignKeyFail("INSERT INTO c VALUES(2)", foreignKeyChild("c", "fk", `Key (pid)=(2) is not present in table "p".`), true))
-		if !b.PG {
-			d := foreignKeyError("42601", `syntax error at or near "ONLY"`, "", "", "")
-			d.Position = "8"
-			for _, prepared := range []bool{false, true} {
-				for _, s := range []fixture.Step{
-					foreignKeyFail("UPDATE ONLY p SET id=3 WHERE id=1", d, prepared),
-					foreignKeyFail("UPDATE p SET id=3 WHERE id=1", foreignKeyError("0A000", "recursive table inheritance is unsupported", "", "", ""), prepared),
-				} {
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					run(s)
-				}
+		for _, prepared := range []bool{false, true} {
+			for _, target := range []string{"ONLY p", "p"} {
+				step := fixture.Exec("UPDATE "+target+" SET id=3 WHERE id=1", 1)
+				step.Prepared = prepared
+				run(step)
+				run(foreignKeyIntRows("SELECT id FROM ONLY p", "id", 3))
+				run(foreignKeyIntRows("SELECT pid FROM ONLY c", "pid", 3))
+				run(foreignKeyIntRows("SELECT id FROM parent_leaf", "id", 2))
+				run(foreignKeyIntRows("SELECT pid FROM child_leaf ORDER BY pid", "pid", 1, 999))
+				step = fixture.Exec("UPDATE "+target+" SET id=1 WHERE id=3", 1)
+				step.Prepared = prepared
+				run(step)
+				run(foreignKeyIntRows("SELECT id FROM ONLY p", "id", 1))
+				run(foreignKeyIntRows("SELECT pid FROM ONLY c", "pid", 1))
 			}
-			run(foreignKeyIntRows("SELECT id FROM ONLY p", "id", 1))
-			run(foreignKeyIntRows("SELECT pid FROM ONLY c", "pid", 1))
-		} else {
-			run(fixture.Prepared(fixture.Exec("UPDATE ONLY p SET id=3 WHERE id=1", 1)))
-			run(foreignKeyIntRows("SELECT pid FROM ONLY c", "pid", 3))
-			run(fixture.Prepared(fixture.Exec("UPDATE ONLY p SET id=1 WHERE id=3", 1)))
-			run(foreignKeyIntRows("SELECT pid FROM ONLY c", "pid", 1))
 		}
 		run(foreignKeyIntRows("SELECT id FROM parent_leaf", "id", 2))
 		run(fixture.Exec("DROP TABLE parent_leaf", 0))

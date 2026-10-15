@@ -1,6 +1,9 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 const temporaryInheritanceReplacementError = "stuntgres: catalog replacement with live temporary table inheritance of persistent parents is unsupported"
 
@@ -45,6 +48,13 @@ func remapInheritance(graph *tableInheritance, address func(ObjectAddress) Objec
 		}
 		return result
 	}
+	retired := func(source []retiredInheritanceOrigin) []retiredInheritanceOrigin {
+		result := slices.Clone(source)
+		for i := range result {
+			result[i].parent.Address = address(result[i].parent.Address)
+		}
+		return result
+	}
 	for i, parent := range graph.parents {
 		next.parents[i] = address(parent)
 	}
@@ -54,10 +64,12 @@ func remapInheritance(graph *tableInheritance, address func(ObjectAddress) Objec
 	}
 	for name, check := range graph.checks {
 		check.origins = origins(check.origins)
+		check.retired = retired(check.retired)
 		next.checks[name] = check
 	}
 	for attribute, notNull := range graph.notNull {
 		notNull.origins = origins(notNull.origins)
+		notNull.retired = retired(notNull.retired)
 		next.notNull[attribute] = notNull
 	}
 	return next

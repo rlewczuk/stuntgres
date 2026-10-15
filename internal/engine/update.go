@@ -207,6 +207,7 @@ type updateCandidate struct {
 	rowVersion
 	slot        int
 	sourceIndex int
+	physical    queryPhysicalRow
 }
 
 func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
@@ -226,7 +227,6 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 	hint := candidate.slot
 	if candidate.born == 0 {
 		current = s.ownWrites[ref.Address]
-		hint -= len(s.view.read().committed[ref.Address])
 	}
 	row, _, found := rowByID(current, candidate.row, hint)
 	if !found {
@@ -247,7 +247,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		return Result{}, ErrCatalogReplaced
 	}
-	var positioned RowID
+	var positioned mutationRowIdentity
 	if b.currentOf != "" {
 		var err error
 		positioned, err = s.positionedMutationRow(b)
@@ -274,7 +274,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	eval := state.evaluation(ctx)
 	var stage indexedStage
 	var frame []sqltype.Value
-	var updated map[RowID]bool
+	var updated map[mutationRowIdentity]bool
 	sourceCount := 1
 	if b.update.from != nil {
 		state.virtualReads = queryHasVirtualReads(b.update.from) || boundHasVirtualReads(b.update.predicate)
@@ -305,7 +305,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		sourceCount = stage.count()
 		if sourceCount != 0 {
 			frame = make([]sqltype.Value, len(b.relation.columns)+b.update.sourceWidth)
-			updated = make(map[RowID]bool)
+			updated = make(map[mutationRowIdentity]bool)
 		}
 	}
 	var output *finalRows
@@ -323,18 +323,20 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []updateCandidate
 	for i := range source.count() {
-		old := source.versionAt(source.rawIndex(i))
-		if b.currentOf != "" && (positioned == 0 || old.row != positioned) {
+		physical := mutationPhysicalRow(source, i, b)
+		old := physical.version
+		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || old.row != positioned.row) {
 			continue
 		}
 		for j := range sourceCount {
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			eval.Row = old.values
+			eval.Row = physical.values(old)
+			eval.physicalTable = physical.leaf.ref
 			if b.update.from != nil {
-				copy(frame, old.values)
-				copy(frame[len(old.values):], stage.source.row(stage.index(j)))
+				copy(frame, eval.Row)
+				copy(frame[len(b.relation.columns):], stage.source.row(stage.index(j)))
 				eval.Row = frame
 				eval.bindQueryIdentity(stage.source, stage.index(j))
 			}
@@ -343,32 +345,58 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				return Result{}, err
 			}
 			if matches {
-				candidates = append(candidates, updateCandidate{rowVersion: old, slot: source.rawIndex(i), sourceIndex: j})
+				candidates = append(candidates, updateCandidate{rowVersion: old, slot: physical.hint, sourceIndex: j, physical: physical})
 			}
 		}
 	}
-	uniqueCapacity := min(len(candidates), source.count())
-	oldRows := make([]rowVersion, 0, uniqueCapacity)
-	rows := indexWriteBatch{values: make([][]sqltype.Value, 0, uniqueCapacity)}
+	type physicalBatch struct {
+		ref  ObjectRef
+		old  []rowVersion
+		rows indexWriteBatch
+	}
+	var single physicalBatch
+	single.ref = b.ref
+	if len(s.inheritedTargets) == 0 {
+		capacity := min(len(candidates), source.count())
+		single.old = make([]rowVersion, 0, capacity)
+		single.rows.values = make([][]sqltype.Value, 0, capacity)
+	}
+	batches := []physicalBatch(nil)
+	if len(s.inheritedTargets) != 0 && len(candidates) != 0 {
+		batches = make([]physicalBatch, len(s.inheritedTargets)+1)
+		batches[0].ref = b.ref
+		for i, target := range s.inheritedTargets {
+			batches[i+1].ref = target.ref
+		}
+		for i := range batches {
+			capacity := min(len(candidates), source.inheritance[i].prefix.count())
+			batches[i].old = make([]rowVersion, 0, capacity)
+			batches[i].rows.values = make([][]sqltype.Value, 0, capacity)
+		}
+	}
+	var count int64
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		if err := s.acquireUpdateRow(b.ref, candidate.row); err != nil {
+		ref := candidate.physical.leaf.ref
+		if err := s.acquireUpdateRow(ref, candidate.row); err != nil {
 			return Result{}, err
 		}
-		old, live, err := e.latestUpdateRow(s, b.ref, candidate)
+		old, live, err := e.latestUpdateRow(s, ref, candidate)
 		if err != nil {
 			return Result{}, err
 		}
 		if !live {
 			continue
 		}
-		eval.Row = old.values
+		oldValues := candidate.physical.values(old)
+		eval.Row = oldValues
+		eval.physicalTable = ref
 		eval.OldRow = nil
 		if b.update.from != nil {
-			copy(frame, old.values)
-			copy(frame[len(old.values):], stage.source.row(stage.index(candidate.sourceIndex)))
+			copy(frame, oldValues)
+			copy(frame[len(b.relation.columns):], stage.source.row(stage.index(candidate.sourceIndex)))
 			eval.Row = frame
 			eval.bindQueryIdentity(stage.source, stage.index(candidate.sourceIndex))
 		}
@@ -383,44 +411,58 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		// RHS and bounds see the unchanged old frame; partial writes compose
 		// only in this private replacement. Losing FROM pairs still demand SET.
-		row, err := evaluateUpdateAssignments(&eval, b.update, b.targets, old.values)
+		row, err := evaluateUpdateAssignments(&eval, b.update, b.targets, oldValues)
 		if err != nil {
 			return Result{}, err
 		}
-		if b.update.from != nil && updated[candidate.row] {
+		identity := mutationRowIdentity{ref, candidate.row}
+		if b.update.from != nil && updated[identity] {
 			continue
 		}
-		if err := e.validateMutationRow(s, b, schema, row, &eval); err != nil {
+		physicalRow := scatterMutationRow(candidate.physical, old, row, b.targets)
+		if err := e.validateInheritedMutationRow(s, b, candidate.physical, schema, physicalRow, &eval); err != nil {
 			return Result{}, err
 		}
-		keyChanged, err := s.uniqueKeyChanged(b.ref, old.values, row)
+		keyChanged, err := s.uniqueKeyChanged(ref, old.values, physicalRow)
 		if err != nil {
 			return Result{}, err
 		}
 		if keyChanged {
-			if err := s.acquireUpdateRowMode(b.ref, old.row, rowUpdate); err != nil {
+			if err := s.acquireUpdateRowMode(ref, old.row, rowUpdate); err != nil {
 				return Result{}, err
 			}
-			if _, live, err := e.latestUpdateRow(s, b.ref, candidate); err != nil {
+			if _, live, err := e.latestUpdateRow(s, ref, candidate); err != nil {
 				return Result{}, err
 			} else if !live {
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(b.ref, old); err != nil {
+		if err := s.claimUniqueRow(ref, old); err != nil {
 			return Result{}, err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
-		oldRows = append(oldRows, old)
-		proposal := indexWriteCandidate{values: row}
-		if err := s.checkUniqueRow(b.ref, &proposal, oldRows, rows); err != nil {
+		batch := &single
+		for i := range batches {
+			if batches[i].ref == ref {
+				batch = &batches[i]
+				break
+			}
+		}
+		batch.old = append(batch.old, old)
+		proposal := indexWriteCandidate{values: physicalRow}
+		if err := s.checkUniqueRow(ref, &proposal, batch.old, batch.rows); err != nil {
 			return Result{}, err
 		}
 		if err := e.checkViewRow(s, &b, row, &eval); err != nil {
 			return Result{}, err
 		}
+		if candidate.physical.segment != nil && candidate.physical.segment.layout != nil {
+			for i, slot := range candidate.physical.segment.layout {
+				row[i] = physicalRow[slot]
+			}
+		}
 		if output != nil {
-			eval.Row, eval.OldRow = row, old.values
+			eval.Row, eval.OldRow = row, oldValues
 			if b.update.from != nil {
 				copy(frame, row)
 				eval.Row = frame
@@ -437,9 +479,10 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			}
 			output.count++
 		}
-		rows.append(proposal)
+		batch.rows.append(proposal)
+		count++
 		if b.update.from != nil {
-			updated[candidate.row] = true
+			updated[identity] = true
 		}
 	}
 	if output != nil && b.returning.regclassOutput && output.count != 0 {
@@ -450,14 +493,24 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	if err := s.Writes().replace(b.ref, oldRows, rows); err != nil {
-		return Result{}, err
+	if batches == nil {
+		if err := s.Writes().replace(single.ref, single.old, single.rows); err != nil {
+			return Result{}, err
+		}
+	} else {
+		for _, batch := range batches {
+			if len(batch.old) != 0 {
+				if err := s.Writes().replace(batch.ref, batch.old, batch.rows); err != nil {
+					return Result{}, err
+				}
+			}
+		}
 	}
 	keep = true
 	if output != nil {
-		return Result{Count: int64(len(rows.values)), Rows: output}, nil
+		return Result{Count: count, Rows: output}, nil
 	}
-	return Result{Count: int64(len(rows.values))}, nil
+	return Result{Count: count}, nil
 }
 
 func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column, check string, row []sqltype.Value) error {

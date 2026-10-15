@@ -83,7 +83,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 			}
 			target = selected
 		} else {
-			array, ok := (CatalogRead{owner: b.engine, state: b.engine.state}).LookupArray(selected.Type)
+			array, ok := b.definitionArray(selected.Type)
 			if !ok || !array.Concrete() {
 				return nil, expressionError("0A000", "unsupported array element type", raw.Pos)
 			}
@@ -142,7 +142,7 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view CatalogRead, n arrayE
 	}
 	text := "ARRAY[" + strings.Join(parts, ", ") + "]"
 	if len(parts) == 0 {
-		declaration, err := catalogTypeDeclaration(view, n.usage)
+		declaration, err := catalogTypeDeclarationAt(view, r.definition, n.usage)
 		if err != nil {
 			return "", err
 		}

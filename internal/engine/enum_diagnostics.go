@@ -19,7 +19,8 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if err != nil {
 		return typ.DiagnosticName()
 	}
-	descriptor, ok := auth.catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}].(*typeDescriptor)
+	definition, _ := auth.definitionDescriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
+	descriptor, ok := definition.(*typeDescriptor)
 	if !ok {
 		return typ.DiagnosticName()
 	}

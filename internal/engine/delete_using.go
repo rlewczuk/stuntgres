@@ -9,11 +9,12 @@ import (
 type deleteUsingCandidate struct {
 	deleteCandidate
 	sourceIndex int
+	physical    queryPhysicalRow
 }
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.
-func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned RowID) (Result, error) {
+func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned mutationRowIdentity) (Result, error) {
 	ctx := evaluation.Context
 	evaluation.query.virtualReads = queryHasVirtualReads(b.deleteUsing) || boundHasVirtualReads(b.predicate)
 	if b.returning != nil {
@@ -42,36 +43,33 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	}
 	var candidates []deleteUsingCandidate
 	for i := range targetCount {
-		ordinal := source.rawIndex(i)
-		version := source.versionAt(ordinal)
-		if b.currentOf != "" && version.row != positioned {
+		physical := mutationPhysicalRow(source, i, b)
+		version := physical.version
+		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.row != positioned.row) {
 			continue
 		}
-		candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.row, version: version.version, ordinal: ordinal}
-		if ordinal >= len(source.committed) {
-			candidate.own = true
-			candidate.ordinal -= len(source.committed)
-		}
+		candidate := physical.deletion()
 		for j := range sourceCount {
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			copy(frame, version.values)
-			copy(frame[len(version.values):], stage.source.row(stage.index(j)))
+			copy(frame, physical.values(version))
+			copy(frame[len(b.relation.columns):], stage.source.row(stage.index(j)))
 			evaluation.Row = frame
 			evaluation.bindQueryIdentity(stage.source, stage.index(j))
+			evaluation.physicalTable = physical.leaf.ref
 			matches, err := updateMatches(evaluation, b.predicate)
 			if err != nil {
 				return Result{}, err
 			}
 			if matches {
-				candidates = append(candidates, deleteUsingCandidate{deleteCandidate: candidate, sourceIndex: j})
+				candidates = append(candidates, deleteUsingCandidate{deleteCandidate: candidate, sourceIndex: j, physical: physical})
 			}
 		}
 	}
-	var deletedIDs map[RowID]bool
+	var deletedIDs map[mutationRowIdentity]bool
 	if len(candidates) != 0 {
-		deletedIDs = make(map[RowID]bool, min(len(candidates), source.count()))
+		deletedIDs = make(map[mutationRowIdentity]bool, min(len(candidates), source.count()))
 	}
 	var rows *finalRows
 	keep := false
@@ -90,7 +88,8 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 			return Result{}, err
 		}
 		candidate := pair.deleteCandidate
-		if deletedIDs[candidate.row] {
+		identity := mutationRowIdentity{candidate.ref, candidate.row}
+		if deletedIDs[identity] {
 			continue
 		}
 		if err := s.acquireRow(candidate); err != nil {
@@ -103,10 +102,11 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		if !live {
 			continue
 		}
-		copy(frame, current.values)
-		copy(frame[len(current.values):], stage.source.row(stage.index(pair.sourceIndex)))
+		copy(frame, pair.physical.values(current))
+		copy(frame[len(b.relation.columns):], stage.source.row(stage.index(pair.sourceIndex)))
 		evaluation.Row = frame
 		evaluation.bindQueryIdentity(stage.source, stage.index(pair.sourceIndex))
+		evaluation.physicalTable = candidate.ref
 		if current.version != candidate.version {
 			matches, err := updateMatches(evaluation, b.predicate)
 			if err != nil {
@@ -116,7 +116,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(b.ref, current); err != nil {
+		if err := s.claimUniqueRow(candidate.ref, current); err != nil {
 			return Result{}, err
 		}
 		deleted, err := s.Writes().Delete(candidate)
@@ -126,7 +126,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		if !deleted {
 			continue
 		}
-		deletedIDs[candidate.row] = true
+		deletedIDs[identity] = true
 		count++
 		if rows != nil {
 			for output, expr := range b.returning.expressions {

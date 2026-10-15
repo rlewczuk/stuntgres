@@ -103,7 +103,7 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 			continue
 		}
 		definition := columnDefault{expression: node}
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(b.ctx, view, node)
+		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,10 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 // DEFAULT admits closed Immutable/Stable trees, selected UUID generation trees,
 // and fixed nextval leaves with coercion wrappers. CHECK also admits its owner row.
 type scalarRenderer struct {
-	aclOutput sqltype.ACLItemFormatter
+	// A cooking-only reader preserves authentic catalog identity while resolving
+	// exact preceding metadata effects; ordinary serialization leaves it nil.
+	definition definitionReader
+	aclOutput  sqltype.ACLItemFormatter
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.
 	validation             bool
@@ -164,13 +167,13 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
-	if err := validateUsageCollation(view, u); err != nil {
+	if err := validateUsageCollationAt(view, r.definition, u); err != nil {
 		return "", err
 	}
 	if u.Collation.ID != 0 {
 		r.recordStoredCollation(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}}, u.Collation)
 	}
-	if !validExpressionUsage(view, u) {
+	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
 	}
 	r.recordStoredType(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
@@ -191,7 +194,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		text := "ROW(" + strings.Join(parts, ", ") + ")"
 		if u.Type.ID() != 2249 {
-			declaration, err := catalogTypeDeclaration(view, u)
+			declaration, err := catalogTypeDeclarationAt(view, r.definition, u)
 			if err != nil {
 				return "", err
 			}
@@ -247,7 +250,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
 		}
-		if clock, ok := view.LookupType(sqltype.Timestamptz); !ok || clock != n.ClockUsage.Type {
+		if clock, ok := definitionTypeAt(view, r.definition, sqltype.Timestamptz); !ok || clock != n.ClockUsage.Type {
 			return "", fmt.Errorf("stuntgres: foreign datetime sleep clock type")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Kind.Name(), []BoundExpr{n.Arg})
@@ -429,7 +432,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		if n.regclassRef != (ObjectRef{}) {
 			ref := n.regclassRef
-			target, ok := view.Descriptor(ref.Address)
+			target, ok := definitionDescriptorAt(view, r.definition, ref.Address)
 			_, relationOK := target.(*relationDescriptor)
 			if !ok || !relationOK || !storedReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
@@ -447,7 +450,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", err
 			}
 			address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}
-			if _, exists := view.Descriptor(address); exists {
+			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
 				r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 			}
 		}
@@ -486,7 +489,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		} else if aclOutput == nil {
 			aclOutput = aclItemContextFormatter(ctx)
 		}
-		return catalogLiteralWithACL(ctx, view, n, aclOutput)
+		return catalogLiteralWithACLAt(ctx, view, r.definition, n, aclOutput)
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
 		if n.Function {
 			if n.Local {
@@ -545,14 +548,14 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.child.ResultUsage().Type.ID() == sqltype.Text {
 			inner, explicit := n.child.(coercionExpression)
 			if !explicit || inner.mode != sqltype.Explicit {
-				declaration, err := catalogTypeDeclaration(view, n.child.ResultUsage())
+				declaration, err := catalogTypeDeclarationAt(view, r.definition, n.child.ResultUsage())
 				if err != nil {
 					return "", err
 				}
 				child = "CAST(" + child + " AS " + declaration + ")"
 			}
 		}
-		declaration, err := catalogTypeDeclaration(view, u)
+		declaration, err := catalogTypeDeclarationAt(view, r.definition, u)
 		if err != nil {
 			return "", err
 		}

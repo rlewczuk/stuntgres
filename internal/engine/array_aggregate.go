@@ -76,11 +76,7 @@ func (b *expressionBinder) resolveArrayAggregateSignature(raw parser.AggregateEx
 			return nil, sqltype.Usage{}, false, err
 		}
 	} else {
-		view := CatalogRead{owner: b.engine, state: b.engine.state}
-		if b.queryAuth != nil {
-			view = b.queryAuth.catalog
-		}
-		array, ok := view.LookupArray(usage.Type)
+		array, ok := b.definitionArray(usage.Type)
 		if !ok || !array.Concrete() {
 			return nil, sqltype.Usage{}, false, sqlError("42704", "could not find array type for data type "+b.diagnosticTypeName(usage.Type))
 		}

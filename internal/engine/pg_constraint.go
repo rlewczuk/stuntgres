@@ -77,6 +77,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef
 			builder.boolean(row, 7, !c.NotValid)
 			builder.boolean(row, 16, local || c.partitionLocal)
 			builder.integer(row, 17, count)
+			builder.boolean(row, 18, c.NoInherit)
 			builder.keys(row, 20, []int32{c.Attribute})
 		}
 		for _, c := range table.checkConstraints {

@@ -1729,12 +1729,16 @@ func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
 // CREATE candidate. Execution still opens providers through live authorization.
 func (b *expressionBinder) bindingAuthorization() (AuthorizationView, error) {
 	if b.queryAuth != nil {
-		return *b.queryAuth, nil
+		auth := *b.queryAuth
+		if b.op != nil && b.op.definition != nil {
+			auth.definition = b.op.definition
+		}
+		return auth, nil
 	}
 	return b.engine.authorizationLocked(b.op)
 }
 func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
-	d, _ := (CatalogRead{owner: b.engine, state: b.engine.state}).LookupType(id)
+	d, _ := b.definitionType(id)
 	return d
 }
 func (b *expressionBinder) dependency(ref ObjectRef, revision DefinitionRevision) {
@@ -1756,13 +1760,13 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProp
 	view := b.bindingCatalog()
 	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}
 	revision := DefinitionRevision(1)
-	if descriptor, ok := view.Descriptor(address); ok {
+	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
 	b.dependency(ObjectRef{owner: b.engine.owner, Epoch: view.Epoch(), Address: address}, revision)
 	if u.Collation.ID != 0 {
 		address := ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}
-		if d, ok := view.Descriptor(address); ok {
+		if d, ok := b.definitionDescriptor(address); ok {
 			b.dependency(ObjectRef{owner: b.engine.owner, Epoch: view.Epoch(), Address: address}, d.Revision())
 		}
 	}

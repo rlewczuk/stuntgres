@@ -137,17 +137,28 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 }
 
 func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) error {
+	return stageDropProvider(nil, stage, nil, nil, nil).synchronizeRowType(relation)
+}
+
+func (provider *dropProvider) synchronizeRowType(relation *relationDescriptor) error {
 	if relation.rowType == 0 {
 		return nil
 	}
 	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(relation.rowType)}
-	row, ok := stage.base.state.descriptors[address].(*typeDescriptor)
+	row, ok := provider.inputDescriptor(address).(*typeDescriptor)
 	if !ok {
 		return nil
 	}
-	if staged, ok := stage.descriptors[address].(*typeDescriptor); ok {
+	if staged, ok := provider.replacement(address).(*typeDescriptor); ok {
 		row = staged
 	}
+	return synchronizeRowTypeMetadata(relation, row, provider.descriptor, provider.associatedArrayName, provider.replace)
+}
+
+// synchronizeRowTypeMetadata is the shared metadata-only cooking core. replace
+// records each actual effect before the next lookup, preserving row/array name
+// occupancy and provider order without constructing a catalog or stage.
+func synchronizeRowTypeMetadata(relation *relationDescriptor, row *typeDescriptor, descriptor func(ObjectAddress) Descriptor, associatedName func(ObjectAddress, string) string, replace func(Descriptor) error) error {
 	same := row.Namespace() == relation.namespace && row.Name() == relation.name
 	if row.typ.IsComposite() {
 		same = same && row.typ.CompositeLen() == len(relation.columns)
@@ -173,10 +184,7 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 		// Ownership is metadata, not a new codec or composite signature.
 		next.typ = row.typ
 	} else if row.typ.IsComposite() {
-		ns := stage.descriptors[relation.namespace]
-		if ns == nil {
-			ns = stage.base.state.descriptors[relation.namespace]
-		}
+		ns := descriptor(relation.namespace)
 		var err error
 		next.typ, err = sqltype.Composite(row.typ.ID(), relation.name, dependencyIdentifier(ns.Name())+"."+dependencyIdentifier(relation.name), row.array, compositeMembers(relation))
 		if err != nil {
@@ -185,14 +193,11 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 	} else {
 		next.typ = sqltype.LookupOnly(row.typ.ID(), relation.name, row.array)
 	}
-	if err := stage.Replace(&next); err != nil {
+	if err := replace(&next); err != nil {
 		return err
 	}
 	if row.array != 0 {
-		array := stage.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}].(*typeDescriptor)
-		if staged, ok := stage.descriptors[array.Address()].(*typeDescriptor); ok {
-			array = staged
-		}
+		array := descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(row.array)}).(*typeDescriptor)
 		copy := *array
 		if array.owner != relation.owner {
 			copy.acl = authorization.SchemaACLOwner(array.acl, array.owner, relation.owner)
@@ -200,7 +205,7 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 		copy.namespace, copy.owner, copy.revision = relation.namespace, relation.owner, relation.revision
 		arrayName := array.Name()
 		if row.Name() != relation.name {
-			arrayName = associatedArrayName(stage, relation.namespace, relation.name)
+			arrayName = associatedName(relation.namespace, relation.name)
 		}
 		if !same {
 			if next.typ.IsComposite() {
@@ -213,7 +218,7 @@ func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) erro
 				copy.typ = sqltype.LookupArray(array.typ.ID(), arrayName, next.typ)
 			}
 		}
-		return stage.Replace(&copy)
+		return replace(&copy)
 	}
 	return nil
 }

@@ -5,19 +5,23 @@ import "stuntgres/internal/sqltype"
 // Anonymous record shapes are occurrence authorities, not catalog providers.
 // Every concrete leaf still belongs to the current catalog generation.
 func validExpressionUsage(view CatalogRead, usage sqltype.Usage) bool {
-	if !usage.Valid() || validateUsageCollation(view, usage) != nil {
+	return validExpressionUsageAt(view, nil, usage)
+}
+
+func validExpressionUsageAt(view CatalogRead, reader definitionReader, usage sqltype.Usage) bool {
+	if !usage.Valid() || validateUsageCollationAt(view, reader, usage) != nil {
 		return false
 	}
 	typ := usage.Type
 	if typ.ID() == 2249 && typ.IsComposite() {
 		for i := range typ.CompositeLen() {
-			if !validExpressionUsage(view, typ.CompositeMember(i).Usage) {
+			if !validExpressionUsageAt(view, reader, typ.CompositeMember(i).Usage) {
 				return false
 			}
 		}
 		return true
 	}
-	current, ok := view.LookupType(typ.ID())
+	current, ok := definitionTypeAt(view, reader, typ.ID())
 	return ok && current == typ
 }
 

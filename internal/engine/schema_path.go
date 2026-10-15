@@ -124,13 +124,13 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]Obj
 				continue
 			}
 		} else {
-			a = auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
+			a = auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: name})
 		}
-		_, ok := auth.catalog.state.descriptors[a]
+		_, ok := auth.definitionDescriptor(a)
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
+		if ns, ok := auth.definitionNamespace(a); ok && ns.temporary != (SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
 			continue
 		}
 		duplicate := false
@@ -181,7 +181,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kin
 	if kind == installedFunctionLookup || kind == functionLookup || kind == operatorLookup || kind == collationLookup || kind == conversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
-			ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
+			ns, _ := auth.definitionNamespace(a)
 			if ns.temporary == (SessionToken{}) || kind == installedFunctionLookup && !ownTemporaryNamespace(auth, ns) {
 				filtered = append(filtered, a)
 			}
@@ -252,7 +252,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		return namespaceSelection{}, fmt.Errorf("stuntgres: invalid object name")
 	}
 	n := name.Parts[0]
-	a := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: n.Text}]
+	a := auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: n.Text})
 	if n.Text == "pg_temp" {
 		a = temporaryNamespace(auth)
 	}
@@ -262,7 +262,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		}
 		return namespaceSelection{}, nil
 	}
-	ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
+	ns, _ := auth.definitionNamespace(a)
 	foreignTemporary := ns.temporary != (SessionToken{}) && !ns.temporaryToast && !ownTemporaryNamespace(auth, ns)
 	if foreignTemporary {
 		actor, exists := auth.roles.Find(auth.state.CurrentUser)

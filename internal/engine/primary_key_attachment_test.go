@@ -123,17 +123,17 @@ func TestPrimaryKeyNotNullDropCandidate(t *testing.T) {
 		{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}},
 		{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: parent.notNullConstraints[0].Name}},
 	} {
-		next, err := notNullCandidate(nil, view, parent, action)
+		next, err := notNullCandidate(nil, view, parent, action, notNullDirect)
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P16", Message: `column "a" is in a primary key`})
 		if next != nil {
 			t.Fatal("guard returned mutable candidate", next)
 		}
 	}
-	withoutPK, err := notNullCandidate(nil, view, parent, parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "pk"}})
+	withoutPK, err := notNullCandidate(nil, view, parent, parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "pk"}}, notNullDirect)
 	if err != nil || len(withoutPK.uniqueConstraints) != 0 || !reflect.DeepEqual(withoutPK.notNullConstraints, parent.notNullConstraints) {
 		t.Fatal(withoutPK, err)
 	}
-	withoutNN, err := notNullCandidate(nil, view, withoutPK, parser.AlterTableAction{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}})
+	withoutNN, err := notNullCandidate(nil, view, withoutPK, parser.AlterTableAction{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}}, notNullDirect)
 	if err != nil || !withoutNN.columns[0].Nullable || len(withoutNN.notNullConstraints) != 1 || len(parent.uniqueConstraints) != 1 || parent.columns[0].Nullable {
 		t.Fatal("ordered candidate or retained descriptor contract", withoutNN, err)
 	}
@@ -160,7 +160,7 @@ func TestPrimaryKeyIdentityGuardPrecedence(t *testing.T) {
 		{parser.AlterTableAction{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}}, sqlstate.Error{Code: "42601", Message: `column "a" of relation "identity_table" is an identity column`}},
 		{parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "nn"}}, sqlstate.Error{Code: "42P16", Message: `column "a" is in a primary key`}},
 	} {
-		next, err := notNullCandidate(nil, view, parent, tc.action)
+		next, err := notNullCandidate(nil, view, parent, tc.action, notNullDirect)
 		nullCountUnitDiagnostic(t, err, tc.diagnostic)
 		if next != nil || e.CatalogRead().state != view.state || parent.columns[0].Nullable || !parent.uniqueConstraints[0].Primary {
 			t.Fatal("identity/PK route guard changed state", next)

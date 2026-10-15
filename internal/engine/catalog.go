@@ -115,6 +115,7 @@ type relationDescriptor struct {
 	comment              string
 	columnComments       map[int32]string
 	notNullConstraints   []notNullConstraint
+	physicalNotNull      map[int32]physicalNotNullProof
 	checkConstraints     []checkConstraint
 	policies             []policyDefinition
 	rules                []ruleDefinition
@@ -128,8 +129,10 @@ type relationDescriptor struct {
 	identities           map[int32]columnIdentity
 	inheritance          *tableInheritance
 	relationKind         relationKind
-	hasIndexes           bool // Sticky publication history; removing an index does not clear it.
-	hasSubclasses        bool // Sticky inheritance/table/index partition publication history.
+	hasIndexes           bool                // Sticky publication history; removing an index does not clear it.
+	hasSubclasses        bool                // Sticky inheritance/table/index partition publication history.
+	subclassPredecessor  *relationDescriptor // Exact first-subclass marker publication only.
+	subclassPublication  DefinitionRevision
 	onCommit             parser.OnCommitAction
 	sequence             *sequenceOptions
 	view                 *viewDefinition
@@ -163,6 +166,7 @@ type notNullConstraint struct {
 	Name           string
 	Attribute      int32
 	NotValid       bool
+	NoInherit      bool
 	partitionLocal bool // Explicit NN declaration merged with an inherited definition.
 }
 
@@ -395,10 +399,14 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		names[c.Name], attrs[c.Attribute] = true, true
 	}
+	if err := validatePhysicalNotNull(v, r, attrs); err != nil {
+		return err
+	}
 	for i, c := range r.columns {
 		// Virtual sources declare result nullability without physical table
 		// constraint identities. Existing constraint records still validate above.
-		if r.relationKind != catalogRelation && attrs[r.attributes[i]] != (c.NullabilityKnown && !c.Nullable) {
+		_, physical := r.physicalNotNull[r.attributes[i]]
+		if r.relationKind != catalogRelation && (attrs[r.attributes[i]] || physical) != (c.NullabilityKnown && !c.Nullable) {
 			return fmt.Errorf("stuntgres: inconsistent not-null projection")
 		}
 	}
@@ -795,13 +803,20 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
+	return stageDropProvider(context.Background(), s, nil, nil, nil).removeObjectLocked(ref, namespace)
+}
+
+// removeObjectLocked is the one removal analysis for execution and immutable
+// DROP preparation. The effect sink owns bookkeeping, never the discovery.
+// The caller holds the engine mutex.
+func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) error {
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: whole object required")
 	}
-	if err := s.owner.validateObjectRefLocked(s.base, ref); err != nil {
+	if err := provider.owner.validateObjectRefLocked(provider.base, ref); err != nil {
 		return err
 	}
-	d := s.base.state.descriptors[ref.Address]
+	d := provider.base.state.descriptors[ref.Address]
 	switch d.(type) {
 	case *relationDescriptor:
 		if ref.Address.ClassID != RelationClassID {
@@ -818,77 +833,61 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		}
 	case *collationDescriptor:
 		if d.(*collationDescriptor).seeded() {
-			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
+			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *conversionDescriptor:
 		if d.(*conversionDescriptor).seeded() {
-			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
+			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
 		if procedure, ok := d.(*procedureDescriptor); ok && procedure.conversion.Name() != "" {
-			return sqlError("2BP01", "cannot drop "+dependencyObject(s.base, d.Address(), s.dependencyPath)+" because it is required by the database system")
+			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
-		provider := s.owner.providers[ref.Address.ClassID]
-		if provider == nil {
+		objectProvider := provider.owner.providers[ref.Address.ClassID]
+		if objectProvider == nil {
 			return fmt.Errorf("stuntgres: missing installed object provider")
 		}
-		if err := provider.Validate(s.base, d); err != nil {
+		if err := objectProvider.Validate(provider.base, d); err != nil {
 			return err
 		}
 	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")
 	}
-	if _, exists := s.removals[ref.Address]; exists {
+	// Provider/ref validation above belongs to the authentic predecessor.
+	// AUTO retirement below follows the actual metadata entering this phase.
+	d = provider.retirementDescriptor(ref.Address)
+	if provider.removed(ref.Address) {
 		return nil
 	}
-	key := descriptorNameKey(d)
-	if s.base.state.names[key] != ref.Address {
-		return CatalogConflict{}
+	if err := provider.recordRemoval(ref, namespace); err != nil {
+		return err
 	}
-	if s.removals == nil {
-		s.removals = make(map[ObjectAddress]catalogRemoval)
-	}
-	s.removals[ref.Address] = catalogRemoval{ref: ref, descriptor: d}
-	if namespace {
-		s.removeSchemaDefaults(ref.Address)
-	}
-	// A removal retires any rebound private candidate as well as its base
-	// generation. Preserve the original removal/name observations, but do not
-	// resurrect or validate that candidate beside a same-named replacement.
-	if candidate := s.descriptors[ref.Address]; candidate != nil {
-		stagedKey := descriptorNameKey(candidate)
-		if s.names[stagedKey] == ref.Address {
-			delete(s.names, stagedKey)
-		}
-	}
-	delete(s.descriptors, ref.Address)
 	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
-		if backing, ok := s.base.state.descriptors[typ.owningRelation].(*relationDescriptor); ok && backing.relationKind == compositeRelation {
-			if err := s.removeObjectLocked(ObjectRef{owner: s.owner.owner, Epoch: s.base.Epoch(), Address: backing.address}, false); err != nil {
+		if backing, ok := provider.retirementDescriptor(typ.owningRelation).(*relationDescriptor); ok && backing.relationKind == compositeRelation {
+			if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: backing.address}, false); err != nil {
 				return err
 			}
 		}
 	}
 	if relation, ok := d.(*relationDescriptor); ok {
-		if err := s.removePartitionHierarchyLocked(relation); err != nil {
+		if err := provider.removePartitionHierarchyLocked(relation); err != nil {
 			return err
 		}
 	}
 	if r, ok := d.(*relationDescriptor); ok && r.rowType != 0 {
-		row, ok := s.base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}].(*typeDescriptor)
+		row, ok := provider.retirementDescriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(r.rowType)}).(*typeDescriptor)
 		if !ok || row.owningRelation != r.address {
 			return CatalogConflict{}
 		}
-		s.domainTargets = append(s.domainTargets, row.Address())
+		provider.removedRowType(row.Address())
 		for _, id := range []sqltype.ID{r.rowType, row.array} {
 			if id != 0 {
-				if err := s.removeObjectLocked(ObjectRef{owner: s.owner.owner, Epoch: s.base.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}}, false); err != nil {
+				if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}}, false); err != nil {
 					return err
 				}
 			}
 		}
 	}
-	s.touched[key] = ref.Address
 	return nil
 }
 func (e *Engine) stageRead(s *CatalogStage) CatalogRead {

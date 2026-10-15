@@ -9,9 +9,10 @@ import (
 )
 
 type usingIndexAttachment struct {
-	syntax     *parser.UsingIndexConstraint
-	index      *relationDescriptor
-	attributes []int32
+	syntax          *parser.UsingIndexConstraint
+	index           *relationDescriptor
+	attributes      []int32
+	notNullPrepared bool
 }
 
 // Capture all eligibility before any runtime attachment changes its name or
@@ -23,22 +24,11 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 			continue
 		}
 		raw := action.UsingIndex
-		address := stage.lookupName(NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: raw.Index.Text})
-		descriptor := stage.descriptors[address]
-		if descriptor == nil {
-			descriptor = stage.base.state.descriptors[address]
-		}
-		if descriptor == nil {
-			return nil, expressionError("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
-		}
-		index, ok := descriptor.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
-			return nil, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, raw.Index.Text))
-		}
-		attributes, err := usingIndexEligibility(parent, index, raw)
+		attachment, err := captureUsingIndexDefinition(stageDefinitionReader{stage}, parent, raw)
 		if err != nil {
 			return nil, err
 		}
+		index, attributes := attachment.index, attachment.attributes
 		// A real TYPE reconstruction precedes attachment and gets a new backing
 		// identity. A previous capture of the same index may already have reminted it.
 		if stage.base.state.descriptors[index.address] != nil && uniqueIndexTypeAffected(index.sqlIndex, transformations) {
@@ -163,113 +153,42 @@ func usingIndexCatalogDuplicate(parent *relationDescriptor, name string) error {
 // Runtime effects follow action order, but remain immutable statement candidates.
 // Row nullability is validated by the existing final effective-row ALTER scan.
 func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *relationDescriptor, captured usingIndexAttachment) (*relationDescriptor, error) {
-	index := captured.index
-	if current, ok := stage.descriptors[index.address].(*relationDescriptor); ok {
-		index = current
-	}
-	name := captured.syntax.Name.Text
-	if name == "" {
-		name = index.name
-	}
-	if name != index.name {
-		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.name, name)})
-	}
-	destination := stage.lookupName(NameKey{ClassID: RelationClassID, Namespace: parent.namespace, Name: name})
-	if destination != (ObjectAddress{}) && destination != index.address {
-		return nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
-	}
-	if captured.syntax.Primary {
-		for _, c := range parent.uniqueConstraints {
-			if c.Primary {
-				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.name))
-			}
-		}
-		if index.sqlIndex.nullsNotDistinct {
-			return nil, sqlError("42P16", "primary keys cannot use NULLS NOT DISTINCT indexes")
-		}
-		for _, n := range parent.notNullConstraints {
-			if n.NotValid && slices.Contains(captured.attributes, n.Attribute) {
-				return nil, incompatibleNotValid(n.Name, parent.name)
-			}
-		}
-	}
-	// Renaming an index attached earlier in this same action list also renames
-	// that constraint; inserting another identity then collides under the new name.
-	if index.sqlIndex.constraint != nil {
-		return nil, usingIndexCatalogDuplicate(parent, name)
-	}
-	if relationConstraintNameExists(parent, name) {
-		return nil, usingIndexCatalogDuplicate(parent, name)
-	}
-	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
-	e.mu.Unlock()
+	prepared, err := e.prepareUsingIndexMetadata(op, e.stageRead(stage), stageDefinitionReader{stage}, parent, captured)
 	if err != nil {
 		return nil, err
 	}
-	constraint := uniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.sqlIndex.nullsNotDistinct, Index: index.address}
-	next := *parent
-	next.uniqueConstraints = make([]uniqueConstraint, len(parent.uniqueConstraints)+1)
-	copy(next.uniqueConstraints, parent.uniqueConstraints)
-	next.uniqueConstraints[len(parent.uniqueConstraints)] = constraint
-	if constraint.Primary {
-		missing := 0
-		for _, attribute := range constraint.Attributes {
-			found := false
-			for _, n := range parent.notNullConstraints {
-				found = found || n.Attribute == attribute
-			}
-			if !found {
-				missing++
-			}
-		}
-		if missing != 0 {
-			next.columns = slices.Clone(parent.columns)
-			next.notNullConstraints = make([]notNullConstraint, len(parent.notNullConstraints), len(parent.notNullConstraints)+missing)
-			copy(next.notNullConstraints, parent.notNullConstraints)
-			used := constraintNames(e.stageRead(stage), parent.namespace, parent)
-			used[name] = true
-			for slot, attribute := range parent.attributes {
-				if !slices.Contains(constraint.Attributes, attribute) {
-					continue
-				}
-				found := false
-				for _, n := range parent.notNullConstraints {
-					found = found || n.Attribute == attribute
-				}
-				if found {
-					continue
-				}
-				label := generatedConstraintName(parent.name, parent.columns[slot].Name, "not_null", used)
-				used[label] = true
-				next.columns[slot].Nullable = false
-				next.columns[slot].NullabilityKnown = true
-				next.notNullConstraints = append(next.notNullConstraints, notNullConstraint{Name: label, Attribute: attribute})
-			}
-		}
+	return stagePreparedUsingIndex(op, stage, parent, prepared)
+}
+
+func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *relationDescriptor, prepared *usingIndexPreparation) (*relationDescriptor, error) {
+	if prepared == nil || prepared.parent != parent {
+		return nil, ErrCatalogReplaced
 	}
-	if index.revision == DefinitionRevision(^uint64(0)) {
-		return nil, fmt.Errorf("stuntgres: definition revision exhausted")
+	index, clone := prepared.index, prepared.replacement
+	current := stage.descriptors[index.address]
+	if current == nil {
+		current = stage.base.state.descriptors[index.address]
 	}
-	clone := *index
-	clone.name = name
-	clone.revision++
-	definition := *index.sqlIndex
-	definition.constraint = uniqueBacking(&constraint)
-	clone.sqlIndex = &definition
+	if current != index {
+		return nil, ErrCatalogReplaced
+	}
+	if prepared.notice.Code != "" {
+		op.emitNotice(levelNotice, prepared.notice)
+	}
+	if prepared.err != nil {
+		return nil, prepared.err
+	}
 	if stage.base.state.descriptors[index.address] == nil {
-		// TYPE already created this reminted identity in the private candidate.
-		// Replace fences existing base identities; keep this creation and its
-		// original removal observation while updating its private name slot.
+		// Preserve the existing TYPE remint's original removal/name observation.
 		delete(stage.names, descriptorNameKey(index))
-		stage.descriptors[index.address] = &clone
-		key := descriptorNameKey(&clone)
+		stage.descriptors[index.address] = clone
+		key := descriptorNameKey(clone)
 		stage.names[key] = clone.address
 		stage.touched[key] = stage.base.state.names[key]
-	} else if err := stage.Replace(&clone); err != nil {
+	} else if err := stage.Replace(clone); err != nil {
 		return nil, err
 	}
-	return &next, nil
+	return prepared.next, nil
 }
 
 // CREATE's inline UNIQUE/PK surface cannot represent included attributes.

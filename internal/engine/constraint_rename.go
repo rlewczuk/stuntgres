@@ -18,7 +18,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, true)
 	if raw.IfExists && renameMissing(err) {
-		return e.renameRelationLocked(scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, count)
+		return e.renameRelationLocked(scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, false, count)
 	}
 	if err != nil {
 		return fail(err)
@@ -71,10 +71,8 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	if kind == 0 {
 		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.name)))
 	}
-	if kind == 'n' || kind == 'c' {
-		if err := inheritanceAlterGuard(auth.catalog, parent); err != nil {
-			return fail(err)
-		}
+	if (kind == 'n' || kind == 'c') && inheritanceParticipant(auth.catalog, parent) {
+		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)

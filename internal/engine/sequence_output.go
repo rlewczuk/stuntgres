@@ -149,16 +149,22 @@ func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
 
 // regclassSpelling uses only the statement's captured catalog and relation path.
 func regclassSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
+	return regclassSpellingAt(view, nil, path, id)
+}
+
+func regclassSpellingAt(view CatalogRead, reader definitionReader, path []ObjectAddress, id OID) string {
 	if id == 0 {
 		return "-"
 	}
 	address := ObjectAddress{ClassID: RelationClassID, ObjectID: id}
-	if d, ok := view.state.descriptors[address].(*relationDescriptor); ok {
+	descriptor, _ := definitionDescriptorAt(view, reader, address)
+	if d, ok := descriptor.(*relationDescriptor); ok {
 		text := regclassIdentifier(d.name)
-		if namedObjectVisible(view, path, d) {
+		if namedObjectVisibleAt(view, reader, path, d) {
 			return text
 		}
-		return regclassIdentifier(view.state.descriptors[d.namespace].Name()) + "." + text
+		namespace, _ := definitionDescriptorAt(view, reader, d.namespace)
+		return regclassIdentifier(namespace.Name()) + "." + text
 	}
 	return strconv.FormatUint(uint64(id), 10)
 }

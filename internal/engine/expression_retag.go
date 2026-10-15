@@ -27,6 +27,9 @@ func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType fun
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
 func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, leaf, collations...)
+}
+func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -83,7 +86,7 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		return next
 	}
 	mapChild := func(old BoundExpr) (BoundExpr, bool, error) {
-		next, replaced, failure := mapBoundExpression(view, old, retainedType, queryMapper, leaf, collations...)
+		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, leaf, collations...)
 		changed = changed || replaced
 		if next != nil && (leaf != nil || replaced) {
 			info.properties = mergeExpressionProperties(info.properties, next.Properties())
@@ -165,7 +168,8 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		if err != nil {
 			return node, false, err
 		}
-		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		proc, ok := descriptor.(*procedureDescriptor)
 		if !ok || proc.crypto != stockPgcrypto {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped crypto function")
 		}
@@ -178,18 +182,21 @@ func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sql
 		rebound = n
 	case installedFunctionExpression:
 		n.arg = child(n.arg)
-		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		proc, ok := descriptor.(*procedureDescriptor)
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped installed function")
 		}
 		var dict *tsDictionaryDescriptor
 		var tmpl *tsTemplateDescriptor
 		if proc.provider != nil {
-			dict, ok = view.state.descriptors[proc.dictionary].(*tsDictionaryDescriptor)
+			descriptor, _ = definitionDescriptorAt(view, reader, proc.dictionary)
+			dict, ok = descriptor.(*tsDictionaryDescriptor)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed dictionary")
 			}
-			tmpl, ok = view.state.descriptors[dict.template].(*tsTemplateDescriptor)
+			descriptor, _ = definitionDescriptorAt(view, reader, dict.template)
+			tmpl, ok = descriptor.(*tsTemplateDescriptor)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")
 			}

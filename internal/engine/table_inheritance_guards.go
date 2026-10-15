@@ -2,12 +2,13 @@ package engine
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"stuntgres/internal/parser"
 )
 
-// Recursive modifying targets and ordinary LOCK retain their capability
-// boundary. SELECT sources use the admitted physical hierarchy instead.
+// Ordinary LOCK and view-target paths retain their capability boundary.
+// Direct UPDATE/DELETE targets use real command-local descendant admission.
 func inheritanceTargetGuard(catalog CatalogRead, relation *relationDescriptor) error {
 	if relation.view == nil {
 		if relation.relationKind == tableRelation && inheritanceHasChildren(catalog, relation.address) {
@@ -39,42 +40,42 @@ func inheritanceViewTargetGuard(catalog CatalogRead, relation *relationDescripto
 	return nil
 }
 
-func inheritanceAlterGuard(catalog CatalogRead, relation *relationDescriptor) error {
-	if inheritanceParticipant(catalog, relation) {
-		return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
-	}
-	return nil
-}
-
 // Dependency mutation sees the private descriptor authority, not stale base
 // edges. Scan the overlay directly rather than allocating a second catalog.
 func inheritanceStageAlterGuard(stage *CatalogStage, relation *relationDescriptor) error {
-	if _, removed := stage.removals[relation.address]; removed {
+	descriptors := func(yield func(ObjectAddress, Descriptor) bool) {
+		for address, descriptor := range stage.base.state.descriptors {
+			if !yield(address, descriptor) {
+				return
+			}
+		}
+		for address, descriptor := range stage.descriptors {
+			if _, exists := stage.base.state.descriptors[address]; !exists {
+				if !yield(address, descriptor) {
+					return
+				}
+			}
+		}
+	}
+	return inheritanceDependencyAlterGuard(descriptors, func(address ObjectAddress) Descriptor { return stage.descriptors[address] }, func(address ObjectAddress) bool { _, removed := stage.removals[address]; return removed }, relation)
+}
+
+func inheritanceDependencyAlterGuard(descriptors iter.Seq2[ObjectAddress, Descriptor], replacement func(ObjectAddress) Descriptor, removed func(ObjectAddress) bool, relation *relationDescriptor) error {
+	if removed(relation.address) {
 		return nil
 	}
-	if replacement, ok := stage.descriptors[relation.address].(*relationDescriptor); ok {
-		relation = replacement
+	if current, ok := replacement(relation.address).(*relationDescriptor); ok {
+		relation = current
 	}
 	if relation.inheritance != nil {
 		return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
 	}
-	for address, descriptor := range stage.base.state.descriptors {
-		if _, removed := stage.removals[address]; removed {
+	for address, descriptor := range descriptors {
+		if removed(address) {
 			continue
 		}
-		if replacement, ok := stage.descriptors[address]; ok {
-			descriptor = replacement
-		}
-		if child, ok := descriptor.(*relationDescriptor); ok && child.inheritance != nil && slices.Contains(child.inheritance.parents, relation.address) {
-			return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
-		}
-	}
-	for address, descriptor := range stage.descriptors {
-		if _, exists := stage.base.state.descriptors[address]; exists {
-			continue
-		}
-		if _, removed := stage.removals[address]; removed {
-			continue
+		if current := replacement(address); current != nil {
+			descriptor = current
 		}
 		if child, ok := descriptor.(*relationDescriptor); ok && child.inheritance != nil && slices.Contains(child.inheritance.parents, relation.address) {
 			return sqlError("0A000", "ALTER TABLE inheritance operations are unsupported")
@@ -117,7 +118,18 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 			if err := inheritanceColumnGuard(relation, action.Column.Text, operation, action.Column.Pos); err != nil {
 				return err
 			}
+		case parser.DropExpression:
+			if relation.inheritance != nil {
+				if slot, exists := relation.index[action.Column.Text]; exists && len(relation.inheritance.columns[relation.attributes[slot]].origins) != 0 {
+					return sqlError("42P16", "cannot drop generation expression from inherited column")
+				}
+			}
 		case parser.DropNotNull, parser.DropConstraint:
+			if action.Action == parser.DropConstraint && relation.inheritance != nil {
+				if provenance, exists := relation.inheritance.checks[action.Constraint.Text]; exists && provenance.count() != 0 {
+					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, action.Constraint.Text, relation.name))
+				}
+			}
 			if relation.inheritance == nil {
 				continue
 			}
@@ -126,11 +138,11 @@ func inheritanceAlterActionsGuard(catalog CatalogRead, relation *relationDescrip
 				if slot, exists := relation.index[action.Column.Text]; action.Action == parser.DropNotNull && exists {
 					matches = constraint.Attribute == relation.attributes[slot]
 				}
-				if matches && len(relation.inheritance.notNull[constraint.Attribute].origins) != 0 {
+				if matches && relation.inheritance.notNull[constraint.Attribute].count() != 0 {
 					return sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, constraint.Name, relation.name))
 				}
 			}
 		}
 	}
-	return inheritanceAlterGuard(catalog, relation)
+	return nil
 }

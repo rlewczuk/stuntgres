@@ -39,8 +39,9 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 	}
 	name := raw.Parts[len(raw.Parts)-1].Text
 	for i := range path.count() {
-		a := auth.catalog.state.names[NameKey{ClassID: CollationClassID, Namespace: path.at(i), Name: name}]
-		if d, ok := auth.catalog.state.descriptors[a].(*collationDescriptor); ok {
+		a := auth.definitionLookup(NameKey{ClassID: CollationClassID, Namespace: path.at(i), Name: name})
+		descriptor, _ := auth.definitionDescriptor(a)
+		if d, ok := descriptor.(*collationDescriptor); ok {
 			one := [1]collationCandidate{{a, d.encoding}}
 			if selectCollation(one[:], 6) != (ObjectAddress{}) {
 				return d, nil

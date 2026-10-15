@@ -43,8 +43,8 @@ func (r capturedRegObjectInput) ResolveRegnamespace(ctx context.Context, input s
 		return 0, sqlError("42602", "invalid name syntax")
 	}
 	name := parts.Parts[0].Text
-	address := r.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
-	if _, exists := r.auth.catalog.state.descriptors[address].(*namespaceDescriptor); !exists {
+	address := r.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: name})
+	if _, exists := r.auth.definitionNamespace(address); !exists {
 		return 0, sqlError("3F000", `schema "`+name+`" does not exist`)
 	}
 	return uint32(address.ObjectID), nil
@@ -86,11 +86,11 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 	}
 	path := namespaceSelection{path: r.path}
 	if len(parts) == 2 {
-		namespace := r.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		namespace := r.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			namespace = r.temporary
 		}
-		ns, exists := r.auth.catalog.state.descriptors[namespace].(*namespaceDescriptor)
+		ns, exists := r.auth.definitionNamespace(namespace)
 		if !exists {
 			return missing()
 		}
@@ -106,8 +106,9 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		path = namespaceSelection{qualified: namespace}
 	}
 	for i := range path.count() {
-		address := r.auth.catalog.state.names[NameKey{ClassID: CollationClassID, Namespace: path.at(i), Name: parts[len(parts)-1].Text}]
-		if d, exists := r.auth.catalog.state.descriptors[address].(*collationDescriptor); exists {
+		address := r.auth.definitionLookup(NameKey{ClassID: CollationClassID, Namespace: path.at(i), Name: parts[len(parts)-1].Text})
+		descriptor, _ := r.auth.definitionDescriptor(address)
+		if d, exists := descriptor.(*collationDescriptor); exists {
 			one := [1]collationCandidate{{address, d.encoding}}
 			if selectCollation(one[:], 6) != (ObjectAddress{}) {
 				return uint32(address.ObjectID), nil

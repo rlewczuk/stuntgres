@@ -15,12 +15,16 @@ func (dumpOperatorOutput) FormatRegoperator(id uint32) (string, error) {
 	return strconv.FormatUint(uint64(id), 10), nil
 }
 func walkOperatorReferences(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
+	return walkOperatorReferencesAt(view, nil, value, record)
+}
+
+func walkOperatorReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := walkOperatorReferences(view, value.CompositeField(i), record); err != nil {
+			if err := walkOperatorReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
 				return err
 			}
 		}
@@ -28,7 +32,7 @@ func walkOperatorReferences(view CatalogRead, value sqltype.Value, record func(O
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := walkOperatorReferences(view, value.ArrayElement(i), record); err != nil {
+			if err := walkOperatorReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
 				return err
 			}
 		}
@@ -39,7 +43,7 @@ func walkOperatorReferences(view CatalogRead, value sqltype.Value, record func(O
 		return err
 	}
 	address := ObjectAddress{ClassID: OperatorClassID, ObjectID: OID(id)}
-	if _, exists := view.state.descriptors[address]; exists {
+	if _, exists := definitionDescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
 	return nil

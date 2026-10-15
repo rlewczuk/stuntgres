@@ -76,7 +76,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	if s.ticket == nil || s.ticket.ref != s.txRef || s.txRef.attachment != s.owner || s.txRef.session != s.op.session.token || candidate.ref != s.lockedRef || candidate.storage == nil || candidate.storage != s.lockedStorage || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
+	if s.ticket == nil || s.ticket.ref != s.txRef || s.txRef.attachment != s.owner || s.txRef.session != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()
@@ -146,7 +146,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 		return false, errors.New("stuntgres: deletion requires its candidate view")
 	}
 	data := s.view.read()
-	if candidate.ref != s.lockedRef || candidate.storage != s.lockedStorage || candidate.storage != data.generationAt(candidate.ref.Address) {
+	if candidate.storage != s.mutationStorage(candidate.ref) || candidate.storage != data.generationAt(candidate.ref.Address) {
 		return false, errors.New("stuntgres: deletion is outside its candidate shape")
 	}
 	captured := data.committed[candidate.ref.Address]
@@ -210,13 +210,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 }
 
 func (s *StatementScope) executeDelete(b binding, view *VisibilityView, inputs *querySource, parameters []sqltype.Value) (Result, error) {
-	var source *querySource
-	var err error
-	if s.rlsTargetDenied {
-		source, err = captureDeniedQuerySource(view, b.ref)
-	} else {
-		source, err = captureQuerySource(s.op.Context(), view, b.ref)
-	}
+	source, err := s.captureMutationSource(s.op.Context(), view, b)
 	if err != nil {
 		if inputs != nil {
 			inputs.close()
@@ -235,7 +229,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 		return Result{}, ErrCatalogReplaced
 	}
-	var positioned RowID
+	var positioned mutationRowIdentity
 	if b.currentOf != "" {
 		var err error
 		positioned, err = s.positionedMutationRow(b)
@@ -280,12 +274,13 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		ordinal := source.rawIndex(i)
-		version := source.versionAt(ordinal)
-		if b.currentOf != "" && version.row != positioned {
+		physical := mutationPhysicalRow(source, i, b)
+		version := physical.version
+		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.row != positioned.row) {
 			continue
 		}
-		evaluation.Row = version.values
+		evaluation.Row = physical.values(version)
+		evaluation.physicalTable = physical.leaf.ref
 		if b.predicate != nil {
 			value, err := b.predicate.Eval(&evaluation)
 			if err != nil {
@@ -299,11 +294,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 				continue
 			}
 		}
-		candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.row, version: version.version, ordinal: ordinal}
-		if ordinal >= len(source.committed) {
-			candidate.own = true
-			candidate.ordinal -= len(source.committed)
-		}
+		candidate := physical.deletion()
 		if err := s.acquireRow(candidate); err != nil {
 			return Result{}, err
 		}
@@ -315,7 +306,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			continue
 		}
 		if current.version != candidate.version && b.predicate != nil {
-			evaluation.Row = current.values
+			evaluation.Row = physical.values(current)
 			value, err := b.predicate.Eval(&evaluation)
 			if err != nil {
 				return Result{}, err
@@ -328,7 +319,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(b.ref, current); err != nil {
+		if err := s.claimUniqueRow(candidate.ref, current); err != nil {
 			return Result{}, err
 		}
 		deleted, err := s.Writes().Delete(candidate)
@@ -338,7 +329,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if deleted {
 			count++
 			if rows != nil {
-				evaluation.Row = current.values
+				evaluation.Row = physical.values(current)
 				for output, expr := range b.returning.expressions {
 					value, err := expr.Eval(&evaluation)
 					if err != nil {

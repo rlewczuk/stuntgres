@@ -59,3 +59,43 @@ func TestInheritanceInlineSchemaAST(t *testing.T) {
 		t.Fatal(schema)
 	}
 }
+
+func TestInheritanceMutationTargetsAST(t *testing.T) {
+	for _, target := range []struct {
+		text string
+		only bool
+	}{
+		{`"é"."p"`, false}, {`"é"."p" *`, false},
+		{`ONLY "é"."p"`, true}, {`ONLY("é"."p")`, true},
+	} {
+		for _, update := range []bool{false, true} {
+			query := "DELETE FROM " + target.text + " AS named WHERE a=1 RETURNING a"
+			if update {
+				query = "UPDATE " + target.text + " AS named SET a=1 RETURNING a"
+			}
+			statements, err := Parse(query)
+			if err != nil {
+				t.Fatal(query, err)
+			}
+			var name ObjectName
+			var alias Identifier
+			var only, star bool
+			if update {
+				raw := statements[0].(*Update)
+				name, alias, only, star = raw.Name, raw.Alias, raw.Only, raw.Star
+			} else {
+				raw := statements[0].(*Delete)
+				name, alias, only, star = raw.Name, raw.Alias, raw.Only, raw.Star
+			}
+			if only != target.only || star != strings.HasSuffix(target.text, "*") || alias.Text != "named" || len(name.Parts) != 2 || name.Parts[0].Text != "é" || name.Parts[1].Text != "p" {
+				t.Fatal(query, name, alias, only, star)
+			}
+			for _, identifier := range name.Parts {
+				offset := strings.Index(query, `"`+identifier.Text+`"`)
+				if identifier.Pos.Offset != offset || identifier.Pos.Character != utf8.RuneCountInString(query[:offset])+1 {
+					t.Fatal(query, identifier)
+				}
+			}
+		}
+	}
+}

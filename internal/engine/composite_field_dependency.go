@@ -25,15 +25,13 @@ func expressionUsesCompositeField(node BoundExpr, id sqltype.ID, attribute int32
 }
 
 func stageCompositeFieldChecks(stage *CatalogStage, source *relationDescriptor, attribute int32, mode parser.DropMode, scope *StatementScope) error {
+	return stageDropProvider(nil, stage, scope, nil, nil).compositeFieldChecks(source, attribute, mode)
+}
+
+func (provider *dropProvider) compositeFieldChecks(source *relationDescriptor, attribute int32, mode parser.DropMode) error {
 	var relations []*relationDescriptor
 	var domains []*typeDescriptor
-	for address, descriptor := range stage.base.state.descriptors {
-		if _, removed := stage.removals[address]; removed {
-			continue
-		}
-		if staged := stage.descriptors[address]; staged != nil {
-			descriptor = staged
-		}
+	for _, descriptor := range provider.descriptors() {
 		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.checkConstraints) != 0 {
 			relations = append(relations, relation)
 		}
@@ -60,20 +58,20 @@ func stageCompositeFieldChecks(stage *CatalogStage, source *relationDescriptor, 
 			}
 			label := fmt.Sprintf("constraint %s on table %s", dependencyIdentifier(check.Name), dependencyIdentifier(relation.name))
 			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.name)))
-			if mode == parser.DropCascade && scope != nil {
-				scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "drop cascades to " + label})
+			if mode == parser.DropCascade {
+				provider.compositeFieldNotice("drop cascades to " + label)
 			}
 		}
 		if len(kept) == len(relation.checkConstraints) || mode != parser.DropCascade {
 			continue
 		}
-		if !typedFieldCheckOwner(stage, relation) {
-			if err := inheritanceStageAlterGuard(stage, relation); err != nil {
+		if provider.stage == nil || !typedFieldCheckOwner(provider.stage, relation) {
+			if err := provider.inheritanceAlterGuard(relation); err != nil {
 				return err
 			}
 		}
 		next := *relation
-		revision, err := stage.cascadeMetadataRevision(next.revision)
+		revision, err := provider.revision(next.revision)
 		if err != nil {
 			return err
 		}
@@ -88,7 +86,7 @@ func stageCompositeFieldChecks(stage *CatalogStage, source *relationDescriptor, 
 			}
 			next.inheritance = &graph
 		}
-		if err := stage.Replace(&next); err != nil {
+		if err := provider.replace(&next); err != nil {
 			return err
 		}
 	}
@@ -109,12 +107,10 @@ func stageCompositeFieldChecks(stage *CatalogStage, source *relationDescriptor, 
 			label := fmt.Sprintf("constraint %s", dependencyIdentifier(check.Name))
 			details = append(details, fmt.Sprintf("%s depends on column %s of composite type %s", label, dependencyIdentifier(source.columns[source.indexForAttribute(attribute)].Name), dependencyIdentifier(source.name)))
 			if mode == parser.DropCascade {
-				if err := stage.removeDomainCheck(domain, check.OID); err != nil {
+				if err := provider.removeDomainCheck(domain, check.OID); err != nil {
 					return err
 				}
-				if scope != nil {
-					scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "drop cascades to " + label})
-				}
+				provider.compositeFieldNotice("drop cascades to " + label)
 			}
 		}
 	}
@@ -125,6 +121,17 @@ func stageCompositeFieldChecks(stage *CatalogStage, source *relationDescriptor, 
 		return diagnostic
 	}
 	return nil
+}
+
+// Ordinary composite ALTER owns these immediate notices rather than table/view
+// cascade publication. Preparation records the same notice for its real phase.
+func (provider *dropProvider) compositeFieldNotice(message string) {
+	notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message}
+	if provider.prepared != nil {
+		provider.prepared.recordEffect(dropEffect{missing: &notice})
+	} else if provider.scope != nil {
+		provider.scope.op.emitNotice(levelNotice, notice)
+	}
 }
 
 // Only the already admitted typed propagation closure may prune inherited CHECKs.

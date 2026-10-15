@@ -166,7 +166,8 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			if len(leaves) == len(b.querySources) {
 				leaves = append([]queryLeaf(nil), leaves...)
 			}
-			leaves = append(leaves, queryLeaf{ref: mutation.lockedRef, relation: mutation.lockedDescriptor.(*relationDescriptor)})
+			leaves = append(leaves, queryLeaf{ref: mutation.lockedRef, relation: mutation.lockedDescriptor.(*relationDescriptor), only: true})
+			leaves = append(leaves, mutation.inheritedTargets...)
 		}
 	}
 	if len(scope.mutations) == 0 && b.ref.owner != nil {

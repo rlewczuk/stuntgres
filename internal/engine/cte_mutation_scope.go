@@ -16,6 +16,7 @@ type statementMutation struct {
 	lockedDescriptor      Descriptor
 	lockedStorage         *relationStorage
 	lockedIdentityOnly    bool
+	inheritedTargets      []queryLeaf
 	viewWrite             *viewWrite
 	uniqueBinding         *uniqueWriteBinding
 	indexBindings         map[ObjectAddress]*uniqueWriteBinding
@@ -96,6 +97,9 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 			}
 		}
 		if err := s.acquireRelationTarget(command, statement, execute, false); err != nil {
+			return err
+		}
+		if err := s.acquireInheritedMutationTargets(command); err != nil {
 			return err
 		}
 		if insert, ok := command.(*parser.Insert); ok {

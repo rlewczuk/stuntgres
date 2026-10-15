@@ -11,13 +11,17 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 }
 
 func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) error {
+	return stageDropProvider(ctx, stage, scope, changes, project).ownedExpressionDependencies(targets, mode)
+}
+
+func (provider *dropProvider) ownedExpressionDependencies(targets []ObjectAddress, mode parser.DropMode) error {
 	var closure []ObjectAddress
 	extended := false
 	// Include removed hierarchy owners, not unrelated removals staged by an
 	// earlier pass. Ordinary column projection retains its existing ordering.
-	for address, removal := range stage.removals {
-		relation, ok := removal.descriptor.(*relationDescriptor)
-		if !ok || relation.relationKind != tableRelation || !inheritanceParticipant(stage.base, relation) {
+	for address, descriptor := range provider.removalDescriptors() {
+		relation, ok := descriptor.(*relationDescriptor)
+		if !ok || relation.relationKind != tableRelation || !inheritanceParticipant(provider.base, relation) {
 			continue
 		}
 		present := false
@@ -32,17 +36,17 @@ func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, 
 			targets = append(targets, address)
 		}
 	}
-	return stageOwnedSequenceDependencies(stage, targets, mode, func(ref ObjectRef) error {
+	return provider.ownedSequences(targets, func(ref ObjectRef) error {
 		if closure == nil {
 			closure = make([]ObjectAddress, len(targets)+1)
 			copy(closure, targets)
 		}
 		closure[len(targets)] = ref.Address
-		if err := stageExpressionDependencies(ctx, stage, closure, mode, scope, changes, project, ObjectAddress{}); err != nil {
+		if err := provider.expressionDependencies(closure, mode, ObjectAddress{}); err != nil {
 			return err
 		}
-		if scope != nil {
-			return scope.acquireSequence(ref, accessExclusive, false)
+		if provider.scope != nil {
+			return provider.acquire(ref, false)
 		}
 		return nil
 	})
@@ -51,11 +55,15 @@ func stageOwnedExpressionDependencies(ctx context.Context, stage *CatalogStage, 
 // Every owner supplies the same complete expression traversal; real SQL
 // additionally acquires its existing grants. No view-only automatic fallback.
 func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode, prepare func(ObjectRef) error) error {
-	for a, d := range stage.base.state.descriptors {
-		if _, removed := stage.removals[a]; removed {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).ownedSequences(targets, prepare)
+}
+
+func (provider *dropProvider) ownedSequences(targets []ObjectAddress, prepare func(ObjectRef) error) error {
+	for a, d := range provider.inputDescriptors() {
+		if provider.removed(a) {
 			continue
 		}
-		if replacement, changed := stage.descriptors[a]; changed {
+		if replacement := provider.replacement(a); replacement != nil {
 			d = replacement
 		}
 		r, ok := d.(*relationDescriptor)
@@ -73,11 +81,11 @@ func stageOwnedSequenceDependencies(stage *CatalogStage, targets []ObjectAddress
 		if !remove {
 			continue
 		}
-		ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: a}
+		ref := ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: a}
 		if err := prepare(ref); err != nil {
 			return err
 		}
-		if err := stage.Remove(ref); err != nil {
+		if err := provider.remove(ref); err != nil {
 			return err
 		}
 	}

@@ -86,12 +86,20 @@ func (scope *StatementScope) stageProjectedColumnRoots(address ObjectAddress, wr
 }
 
 func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor) error {
+	return scope.stageColumnShape(stage, changes, old, next, false)
+}
+
+func (scope *StatementScope) stagePreparedColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor) error {
+	return scope.stageColumnShape(stage, changes, old, next, true)
+}
+
+func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor, metadataPrepared bool) error {
 	writes, deletes := scope.columnProjectionRoots(old.address)
 	stage.owner.mu.Lock()
 	snapshot, snapshotExists := scope.owner.roots[old.address]
 	stage.owner.mu.Unlock()
 	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
-	writes, deletes, projected, err := stagePrivateColumnShape(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation))
+	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation), metadataPrepared)
 	if err == nil && projected {
 		scope.stageProjectedColumnRoots(old.address, writes, deletes)
 	}
@@ -99,6 +107,12 @@ func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, change
 }
 
 func stagePrivateColumnShape(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor, writes []rowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable bool) ([]rowVersion, *privateDeletionRoot, bool, error) {
+	return stagePrivateColumnShapeMetadata(evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stable, false)
+}
+
+// The prepared path consumes the same physical projector after the immutable
+// descriptor/index/lineage effects have been applied to this sole stage.
+func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *relationDescriptor, writes []rowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable, metadataPrepared bool) ([]rowVersion, *privateDeletionRoot, bool, error) {
 	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()
@@ -123,11 +137,15 @@ func stagePrivateColumnShape(evaluation *EvalContext, stage *CatalogStage, chang
 	if err != nil {
 		return nil, nil, false, err
 	}
-	if err = stage.Replace(next); err != nil {
-		return nil, nil, false, err
+	if !metadataPrepared {
+		if err = stage.Replace(next); err != nil {
+			return nil, nil, false, err
+		}
 	}
 	e.mu.Lock()
-	err = e.evolveStageIndexesLocked(stage, old.address, nil)
+	if !metadataPrepared {
+		err = e.evolveStageIndexesLocked(stage, old.address, nil)
+	}
 	if err == nil {
 		for address, descriptor := range stage.descriptors {
 			index, ok := descriptor.(*relationDescriptor)

@@ -90,7 +90,7 @@ func restoreAttributeRankSyntax(raw *parser.Update) (parser.ObjectName, string, 
 	reject := func() (parser.ObjectName, string, int16, error) {
 		return parser.ObjectName{}, "", 0, sqlError("0A000", restoreAttributeRankBoundary)
 	}
-	if len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text != "pg_catalog" || raw.Name.Parts[1].Text != "pg_attribute" || len(raw.With) != 0 || raw.Alias.Text != "" || raw.From != nil || raw.CurrentOf != nil || raw.Returning != nil || len(raw.Assignments) != 1 {
+	if len(raw.Name.Parts) != 2 || raw.Name.Parts[0].Text != "pg_catalog" || raw.Name.Parts[1].Text != "pg_attribute" || raw.Only || raw.Star || raw.WithRecursive || len(raw.With) != 0 || raw.Alias.Text != "" || raw.From != nil || raw.CurrentOf != nil || raw.Returning != nil || len(raw.Assignments) != 1 {
 		return reject()
 	}
 	assignment := raw.Assignments[0]

@@ -9,14 +9,21 @@ import (
 )
 
 func partitionIndexCoverageComplete(view CatalogRead, index *relationDescriptor) bool {
-	table, ok := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	return (&dropProvider{base: view}).partitionIndexCoverageComplete(index)
+}
+
+func (provider *dropProvider) partitionIndexCoverageComplete(index *relationDescriptor) bool {
+	table, ok := provider.liveDescriptor(index.sqlIndex.parent).(*relationDescriptor)
 	if !ok || table.partition == nil {
 		return index.sqlIndex.valid
 	}
 	for _, child := range table.partition.children {
 		found := false
-		for _, descriptor := range view.state.descriptors {
-			candidate, ok := descriptor.(*relationDescriptor)
+		for address := range provider.descriptors() {
+			if provider.removed(address) {
+				continue
+			}
+			candidate, ok := provider.liveDescriptor(address).(*relationDescriptor)
 			if ok && candidate.sqlIndex != nil && candidate.sqlIndex.partitionParent == index.address && candidate.sqlIndex.parent == child && candidate.sqlIndex.valid {
 				found = true
 				break
@@ -30,23 +37,30 @@ func partitionIndexCoverageComplete(view CatalogRead, index *relationDescriptor)
 }
 
 func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote ObjectAddress) error {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).partitionIndexValidity(promote)
+}
+
+func (provider *dropProvider) partitionIndexValidity(promote ObjectAddress) error {
 	// Only explicit ATTACH INDEX can promote that index and its ancestors.
 	// Table edge changes preserve invalidity even when coverage becomes complete.
 	// Each pass resolves another level; the catalog validator rejects cycles.
-	view := e.stageRead(stage)
-	for range len(view.state.descriptors) {
+	for range provider.descriptorCount() {
 		changed := false
-		for _, descriptor := range view.state.descriptors {
+		for address := range provider.descriptors() {
+			if provider.removed(address) {
+				continue
+			}
+			descriptor := provider.liveDescriptor(address)
 			index, ok := descriptor.(*relationDescriptor)
 			if !ok || index.sqlIndex == nil {
 				continue
 			}
-			table, ok := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+			table, ok := provider.liveDescriptor(index.sqlIndex.parent).(*relationDescriptor)
 			if !ok || table.partition == nil {
 				continue
 			}
-			valid := partitionIndexCoverageComplete(view, index)
-			if valid && !index.sqlIndex.valid && !partitionIndexPromotionPath(view, promote, index.address) {
+			valid := provider.partitionIndexCoverageComplete(index)
+			if valid && !index.sqlIndex.valid && !provider.partitionIndexPromotionPath(promote, index.address) {
 				continue
 			}
 			if index.sqlIndex.valid == valid {
@@ -59,7 +73,7 @@ func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote Object
 			definition.valid = valid
 			next.sqlIndex = &definition
 			next.revision++
-			if err := stagePartitionDescriptor(stage, &next); err != nil {
+			if err := provider.replacePartitionDescriptor(&next); err != nil {
 				return err
 			}
 			changed = true
@@ -67,17 +81,20 @@ func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote Object
 		if !changed {
 			return nil
 		}
-		view = e.stageRead(stage)
 	}
 	return fmt.Errorf("stuntgres: cyclic partition index hierarchy")
 }
 
 func partitionIndexPromotionPath(view CatalogRead, start, target ObjectAddress) bool {
-	for remaining := len(view.state.descriptors); start != (ObjectAddress{}) && remaining > 0; remaining-- {
+	return (&dropProvider{base: view}).partitionIndexPromotionPath(start, target)
+}
+
+func (provider *dropProvider) partitionIndexPromotionPath(start, target ObjectAddress) bool {
+	for remaining := provider.descriptorCount(); start != (ObjectAddress{}) && remaining > 0; remaining-- {
 		if start == target {
 			return true
 		}
-		index, ok := view.state.descriptors[start].(*relationDescriptor)
+		index, ok := provider.liveDescriptor(start).(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			return false
 		}

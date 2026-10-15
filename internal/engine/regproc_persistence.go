@@ -26,12 +26,16 @@ func routineLiteralSQL(view CatalogRead, value sqltype.Value) (string, error) {
 // Only real descriptors create expression ownership dependencies. Source-fixed
 // lookup-only identities never invent providers or extension replay events.
 func walkRoutineReferences(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
+	return walkRoutineReferencesAt(view, nil, value, record)
+}
+
+func walkRoutineReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := walkRoutineReferences(view, value.CompositeField(i), record); err != nil {
+			if err := walkRoutineReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
 				return err
 			}
 		}
@@ -39,7 +43,7 @@ func walkRoutineReferences(view CatalogRead, value sqltype.Value, record func(Ob
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := walkRoutineReferences(view, value.ArrayElement(i), record); err != nil {
+			if err := walkRoutineReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
 				return err
 			}
 		}
@@ -50,14 +54,14 @@ func walkRoutineReferences(view CatalogRead, value sqltype.Value, record func(Ob
 		return err
 	}
 	address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(id)}
-	if _, exists := view.state.descriptors[address]; exists {
+	if _, exists := definitionDescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
 	return nil
 }
 
 func (r scalarRenderer) recordRoutineReferences(view CatalogRead, value sqltype.Value) error {
-	return walkRoutineReferences(view, value, func(address ObjectAddress) error {
+	return walkRoutineReferencesAt(view, r.definition, value, func(address ObjectAddress) error {
 		r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: address})
 		return nil
 	})
@@ -104,11 +108,15 @@ type routineFragment struct {
 }
 
 func routineContainerLiteral(ctx context.Context, view CatalogRead, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
+	return routineContainerLiteralAt(ctx, view, nil, value, usage, acl)
+}
+
+func routineContainerLiteralAt(ctx context.Context, view CatalogRead, reader definitionReader, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
 	fragments, err := routineContainerFragments(ctx, view, value, acl)
 	if err != nil {
 		return "", err
 	}
-	declaration, err := catalogTypeDeclaration(view, usage)
+	declaration, err := catalogTypeDeclarationAt(view, reader, usage)
 	if err != nil {
 		return "", err
 	}

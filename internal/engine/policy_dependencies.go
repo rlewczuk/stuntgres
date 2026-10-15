@@ -1,7 +1,10 @@
 package engine
 
 import (
+	"context"
 	"fmt"
+	"iter"
+	"maps"
 	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -27,8 +30,12 @@ func policyDepends(p policyDefinition, target ObjectAddress) bool {
 	return false
 }
 func policyDependentLabels(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress) []supportedDependent {
+	return policyDependentLabelsFrom(catalog, targets, path, maps.All(catalog.state.descriptors))
+}
+
+func policyDependentLabelsFrom(catalog CatalogRead, targets []ObjectAddress, path []ObjectAddress, descriptors iter.Seq2[ObjectAddress, Descriptor]) []supportedDependent {
 	var dependents []supportedDependent
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range descriptors {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -48,14 +55,18 @@ func policyDependentLabels(catalog CatalogRead, targets []ObjectAddress, path []
 	return dependents
 }
 func stagePolicyDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).policyDependents(targets, mode)
+}
+
+func (provider *dropProvider) policyDependents(targets []ObjectAddress, mode parser.DropMode) error {
 	if mode == parser.DropRestrict {
 		return nil
 	}
-	for address, descriptor := range stage.base.state.descriptors {
-		if _, removed := stage.removals[address]; removed || slices.Contains(targets, address) {
+	for address, descriptor := range provider.inputDescriptors() {
+		if provider.removed(address) || slices.Contains(targets, address) {
 			continue
 		}
-		if replacement, ok := stage.descriptors[address]; ok {
+		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
 		d, ok := descriptor.(*relationDescriptor)
@@ -80,12 +91,12 @@ func stagePolicyDependents(stage *CatalogStage, targets []ObjectAddress, mode pa
 		}
 		copy := *d
 		copy.policies = kept
-		revision, err := stage.cascadeMetadataRevision(copy.revision)
+		revision, err := provider.revision(copy.revision)
 		if err != nil {
 			return err
 		}
 		copy.revision = revision
-		if err = stage.Replace(&copy); err != nil {
+		if err = provider.replace(&copy); err != nil {
 			return err
 		}
 	}

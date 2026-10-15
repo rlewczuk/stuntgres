@@ -30,7 +30,7 @@ func (t *dumpRelation) hasInvalidConstraints() bool {
 func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog CatalogRead, emit func(string) error) error {
 	prefix := "ALTER TABLE " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ADD CONSTRAINT "
 	for _, n := range t.notNullConstraints {
-		if !n.NotValid {
+		if !n.NotValid || !dumpNotNullDeclaration(catalog, t.descriptor, n.Attribute) {
 			continue
 		}
 		slot := t.descriptor.indexForAttribute(n.Attribute)
@@ -39,7 +39,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog Catal
 		}
 	}
 	for _, c := range orderedChecks(t.descriptor) {
-		if !c.NotValid {
+		if !c.NotValid || !dumpCheckDeclaration(catalog, t.descriptor, c) {
 			continue
 		}
 		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.expression)
@@ -79,6 +79,17 @@ func restoreAlterConstraints(raw *parser.AlterTable) error {
 		case parser.AddUnique:
 			if action.Unique == nil || len(raw.Actions) != 1 || raw.Only || raw.IfExists || !strings.HasPrefix(action.Unique.Name.Text, "__stuntgres_partition_key_") {
 				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
+			}
+		case parser.SetExpression:
+			if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || action.Generation == nil {
+				return sqlError("0A000", "restore accepts only inherited ONLY generation repairs")
+			}
+			if err := restoreScalar(action.Generation.Expression, true); err != nil {
+				return err
+			}
+		case parser.SetNotNull:
+			if !raw.Only || raw.IfExists || len(raw.Actions) != 1 || len(raw.Name.Parts) != 2 {
+				return sqlError("0A000", restoreNoInheritBoundary)
 			}
 		case parser.AddNotNull:
 			if !action.NotValid {

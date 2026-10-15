@@ -8,10 +8,15 @@ import (
 // An immutable execution capability is not proof that its catalog identity is
 // still live. Stored plans must retain both authorities through publication.
 func validateUsageCollation(view CatalogRead, u sqltype.Usage) error {
+	return validateUsageCollationAt(view, nil, u)
+}
+
+func validateUsageCollationAt(view CatalogRead, reader definitionReader, u sqltype.Usage) error {
 	if u.Collation.ID == 0 {
 		return nil
 	}
-	d, ok := view.state.descriptors[ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)}].(*collationDescriptor)
+	descriptor, _ := definitionDescriptorAt(view, reader, ObjectAddress{ClassID: CollationClassID, ObjectID: OID(u.Collation.ID)})
+	d, ok := descriptor.(*collationDescriptor)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing stored collation")
 	}

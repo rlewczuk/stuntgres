@@ -385,7 +385,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 				fields[i] = b.returningColumnAt(i, pos, newValues)
 				props = mergeExpressionProperties(props, fields[i].Properties())
 			}
-			typ, _ := b.bindingCatalog().LookupType(b.relation.rowType)
+			typ, _ := b.definitionType(b.relation.rowType)
 			return rowExpression{expressionInfo: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: b.returningAliases.mode == returningDelete && newValues}, nil
 		}
 	}
@@ -412,8 +412,9 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	}
 	props.RowDependent = true
 	var typ *sqltype.Descriptor
-	if relation, ok := b.bindingCatalog().state.descriptors[q.ref.Address].(*relationDescriptor); ok && relation.rowType != 0 {
-		typ, _ = b.bindingCatalog().LookupType(relation.rowType)
+	descriptor, _ := b.definitionDescriptor(q.ref.Address)
+	if relation, ok := descriptor.(*relationDescriptor); ok && relation.rowType != 0 {
+		typ, _ = b.definitionType(relation.rowType)
 	}
 	if typ == nil || !typ.Concrete() {
 		typ, err = sqltype.RecordShape(members)
@@ -738,7 +739,7 @@ func (b *expressionBinder) bindCompositeBase(raw parser.Expr) (BoundExpr, error)
 	return node, err
 }
 func (b *expressionBinder) demandWholePresence(node BoundExpr) (BoundExpr, error) {
-	next, _, err := mapBoundExpression(b.bindingCatalog(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) { return root, nil }, func(child BoundExpr) (BoundExpr, bool, error) {
+	next, _, err := mapBoundExpressionReader(b.bindingCatalog(), b.definitionReader(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) { return root, nil }, func(child BoundExpr) (BoundExpr, bool, error) {
 		row, ok := child.(rowExpression)
 		if !ok || row.wholeNames == nil || row.presenceSlot != 0 {
 			return child, false, nil

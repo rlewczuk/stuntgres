@@ -24,6 +24,7 @@ type inheritedColumn struct {
 type inheritedConstraint struct {
 	local   bool
 	origins []inheritanceOrigin
+	retired []retiredInheritanceOrigin
 }
 type tableInheritance struct {
 	parents []ObjectAddress

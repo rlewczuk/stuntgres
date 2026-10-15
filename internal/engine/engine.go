@@ -894,7 +894,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	var a ObjectAddress
 	var ok bool
 	if utility && len(name.Parts) == 2 {
-		ns := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+		ns := auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
 			ns = temporaryNamespace(auth)
 		}
@@ -912,7 +912,8 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		return ObjectRef{}, err
 	}
 	for i := range path.count() {
-		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: path.at(i), Name: relname}]
+		a = auth.definitionLookup(NameKey{ClassID: RelationClassID, Namespace: path.at(i), Name: relname})
+		ok = a != (ObjectAddress{})
 		if ok {
 			break
 		}
@@ -920,11 +921,14 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	if !ok {
 		return ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 	}
-	if _, ok := view.state.descriptors[a].(*relationDescriptor); !ok {
+	descriptor, exists := auth.definitionDescriptor(a)
+	d, valid := descriptor.(*relationDescriptor)
+	if !exists || !valid {
 		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
-	if d := view.state.descriptors[a].(*relationDescriptor); auth.session != nil {
-		if ns, ok := view.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
+	if auth.session != nil {
+		namespace, _ := auth.definitionDescriptor(d.namespace)
+		if ns, ok := namespace.(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

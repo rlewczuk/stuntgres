@@ -9,9 +9,13 @@ import (
 )
 
 type restoredForeignKey struct {
-	raw    parser.ForeignKeyConstraint
-	path   []ObjectAddress
-	target ObjectAddress
+	raw        parser.ForeignKeyConstraint
+	path       []ObjectAddress
+	target     ObjectAddress
+	supporting ObjectAddress // Exact captured primary for physical self-FK or omitted-reference inherited replay.
+	inherited  *restoredInheritedForeignKey
+	boundOID   OID
+	boundSlot  int // Actual append position in this sole stage, verified against boundOID.
 }
 type restoredForeignKeys struct {
 	child       ObjectRef
@@ -100,7 +104,14 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			child = &copy
 			stage.descriptors[child.address] = child
 		}
-		for _, definition := range declaration.definitions {
+		for i := range declaration.definitions {
+			definition := &declaration.definitions[i]
+			if definition.inherited != nil {
+				if err := definition.inherited.validate(e, op, declaration, base); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+			}
 			target := definition.target
 			if target == (ObjectAddress{}) {
 				for _, namespace := range definition.path {
@@ -118,9 +129,16 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 				e.mu.Unlock()
 				return ErrCatalogReplaced
 			}
-			if err := e.stageForeignKey(declaration.auth, stage, child, definition.raw, target, ObjectAddress{}); err != nil {
+			if err := e.stageForeignKey(declaration.auth, stage, child, definition.raw, target, definition.supporting); err != nil {
 				e.mu.Unlock()
 				return err
+			}
+			definition.boundSlot = len(child.foreignKeys) - 1
+			bound := &child.foreignKeys[definition.boundSlot]
+			definition.boundOID = bound.OID
+			if definition.inherited != nil && !definition.inherited.accepts(bound) {
+				e.mu.Unlock()
+				return ErrCatalogReplaced
 			}
 		}
 	}
@@ -131,7 +149,11 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 		auth := declaration.auth
 		auth.catalog = view
 		auth.recaptureCatalog(auth.catalog)
-		for _, f := range child.foreignKeys {
+		for _, definition := range declaration.definitions {
+			if definition.boundSlot < 0 || definition.boundSlot >= len(child.foreignKeys) || definition.boundOID == 0 || child.foreignKeys[definition.boundSlot].OID != definition.boundOID {
+				return ErrCatalogReplaced
+			}
+			f := child.foreignKeys[definition.boundSlot]
 			if f.NotValid {
 				continue
 			}

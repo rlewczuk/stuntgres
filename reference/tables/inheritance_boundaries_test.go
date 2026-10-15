@@ -37,9 +37,7 @@ func TestReferenceInheritanceBoundaries(t *testing.T) {
 				s.exec("CREATE TABLE sink(a INT)", 0)
 				s.exec("INSERT INTO sink VALUES(1)", 1)
 				target := tc.name == "update_parent" || tc.name == "empty_update" || tc.name == "delete_parent" || tc.name == "empty_delete"
-				if target && !s.b.PG {
-					s.fail(tc.query, fixture.Diagnostic{Code: "0A000", Message: "recursive table inheritance is unsupported"})
-				} else if tc.selectRows {
+				if tc.selectRows {
 					s.values(tc.query, []string{"a"}, []string{"INT4"}, tc.rows)
 				} else {
 					affected := tc.affected
@@ -63,10 +61,10 @@ func TestReferenceInheritanceBoundaries(t *testing.T) {
 				}
 				if target {
 					want := [][]any{{int64(2)}}
-					if s.b.PG && tc.name == "update_parent" {
+					if tc.name == "update_parent" {
 						want = [][]any{{int64(12)}}
 					}
-					if s.b.PG && tc.name == "delete_parent" {
+					if tc.name == "delete_parent" {
 						want = nil
 					}
 					s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, want)
@@ -123,29 +121,23 @@ func TestReferenceInheritanceAlterBoundaries(t *testing.T) {
 			inheritanceScenario(t, func(s *inheritanceCase) {
 				s.exec("CREATE TABLE p(a INT DEFAULT 7)", 0)
 				s.exec("CREATE TABLE c() INHERITS(p)", 0)
-				if s.b.PG {
-					s.exec(tc.query, 0)
-					s.exec("INSERT INTO c DEFAULT VALUES", 1)
-					switch tc.name {
-					case "parent_default", "child_default":
-						s.values("SELECT a FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(8)}})
-					case "parent_drop_default":
-						s.values("SELECT a FROM c", []string{"a"}, []string{"INT4"}, [][]any{{nil}})
-					case "parent_rename":
-						s.values("SELECT renamed FROM c", []string{"renamed"}, []string{"INT4"}, [][]any{{int64(7)}})
-					case "parent_type":
-						s.values("SELECT a FROM c", []string{"a"}, []string{"INT8"}, [][]any{{int64(7)}})
-					case "parent_add", "child_local_add":
-						s.values("SELECT * FROM c", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), nil}})
-					case "action_list":
-						s.values("SELECT * FROM c", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(7), nil}})
-					default:
-						s.values("SELECT a FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}})
-					}
-				} else {
-					s.fail(tc.query, fixture.Diagnostic{Code: "0A000", Message: "ALTER TABLE inheritance operations are unsupported"})
-					s.exec("INSERT INTO c DEFAULT VALUES", 1)
-					s.values("SELECT * FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}})
+				s.exec(tc.query, 0)
+				s.exec("INSERT INTO c DEFAULT VALUES", 1)
+				switch tc.name {
+				case "parent_default", "child_default":
+					s.values("SELECT a FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(8)}})
+				case "parent_drop_default":
+					s.values("SELECT a FROM c", []string{"a"}, []string{"INT4"}, [][]any{{nil}})
+				case "parent_rename":
+					s.values("SELECT renamed FROM c", []string{"renamed"}, []string{"INT4"}, [][]any{{int64(7)}})
+				case "parent_type":
+					s.values("SELECT a FROM c", []string{"a"}, []string{"INT8"}, [][]any{{int64(7)}})
+				case "parent_add", "child_local_add":
+					s.values("SELECT * FROM c", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), nil}})
+				case "action_list":
+					s.values("SELECT * FROM c", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(7), nil}})
+				default:
+					s.values("SELECT a FROM c", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}})
 				}
 			})
 		})

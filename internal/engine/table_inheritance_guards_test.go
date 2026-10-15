@@ -42,11 +42,10 @@ func TestInheritanceGuards(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := inheritanceAlterGuard(catalog, standalone); err != nil {
-		t.Fatal(err)
-	}
-	for _, relation := range []*relationDescriptor{parent, child} {
-		assertError(inheritanceAlterGuard(catalog, relation), "0A000", "ALTER TABLE inheritance operations are unsupported", "")
+	for _, relation := range []*relationDescriptor{parent, child, standalone} {
+		if err := inheritanceAlterActionsGuard(catalog, relation, []parser.AlterTableAction{{Action: parser.SetNotNull, Column: parser.Identifier{Text: "a"}}}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for _, operation := range []string{"rename", "drop", "alter"} {
 		position := ""
@@ -64,7 +63,9 @@ func TestInheritanceGuards(t *testing.T) {
 	} {
 		assertError(inheritanceAlterActionsGuard(catalog, child, []parser.AlterTableAction{{Action: parser.AddColumn}, action}), "42P16", `cannot drop inherited constraint "p_a_not_null" of relation "c"`, "")
 	}
-	assertError(inheritanceAlterActionsGuard(catalog, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}), "0A000", "ALTER TABLE inheritance operations are unsupported", "")
+	if err := inheritanceAlterActionsGuard(catalog, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}); err != nil {
+		t.Fatal(err)
+	}
 	if child.inheritance.columns[5].local || len(child.inheritance.columns[5].origins) != 1 || child.notNullConstraints[0].Name != "p_a_not_null" {
 		t.Fatal("admission changed immutable provenance")
 	}

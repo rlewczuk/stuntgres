@@ -273,6 +273,9 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 				text = "NOT NULL " + name
+				if def.NoInherit {
+					text += " NO INHERIT"
+				}
 				if def.NotValid {
 					text += " NOT VALID"
 				}

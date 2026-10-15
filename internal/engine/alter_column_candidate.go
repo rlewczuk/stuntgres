@@ -16,6 +16,11 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 }
 
 func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction, scope *StatementScope, changes *catalogChanges, project func(*relationDescriptor, *relationDescriptor) error) (*relationDescriptor, error) {
+	return ordinaryColumnDrop(stageDropProvider(ctx, stage, scope, changes, project), old, ref, a)
+}
+
+func ordinaryColumnDrop(provider *dropProvider, old *relationDescriptor, ref ObjectRef, a parser.AlterTableAction) (*relationDescriptor, error) {
+	ctx := provider.ctx
 	if a.Mode != parser.DropRestrict && a.Mode != parser.DropCascade {
 		return nil, fmt.Errorf("stuntgres: invalid column drop")
 	}
@@ -27,8 +32,8 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 		if !a.IfExists {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.name))
 		}
-		if scope != nil {
-			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, a.Column.Text, old.name)})
+		if provider.scope != nil {
+			provider.missingColumnNotice(a.Column.Text, old.name)
 		}
 		return old, nil
 	}
@@ -54,39 +59,62 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 		}
 		generatedSlot := old.indexForAttribute(attribute)
 		if a.Mode == parser.DropRestrict {
-			diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.name)).(*sqlstate.Error)
+			message := "cannot drop desired object(s) because other objects depend on them"
+			if provider.scope == nil || provider.scope.inheritanceAlter == nil {
+				message = fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.name)
+			}
+			diagnostic := sqlError("2BP01", message).(*sqlstate.Error)
 			diagnostic.Detail = fmt.Sprintf("column %s of table %s depends on column %s of table %s", old.columns[generatedSlot].Name, old.name, a.Column.Text, old.name)
 			diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 			return nil, diagnostic
 		}
 		dependentAction := a
 		dependentAction.Column = parser.Identifier{Text: old.columns[generatedSlot].Name}
-		remaining, err := dropColumnCandidate(ctx, stage, old, ref, dependentAction, scope, changes, project)
+		remaining, err := ordinaryColumnDrop(provider, old, ref, dependentAction)
 		if err != nil {
 			return nil, err
 		}
-		return dropColumnCandidate(ctx, stage, remaining, ref, a, scope, changes, project)
+		return ordinaryColumnDrop(provider, remaining, ref, a)
 	}
 	// Dependency passes must see preceding actions in this same ALTER list.
-	if err := stage.Replace(old); err != nil {
+	if err := provider.replace(old); err != nil {
 		return nil, err
 	}
 	if old.relationKind == compositeRelation {
-		if err := stageCompositeFieldChecks(stage, old, target.SubID, a.Mode, scope); err != nil {
+		if err := provider.compositeFieldChecks(old, target.SubID, a.Mode); err != nil {
 			return nil, err
 		}
 	}
-	foreign, err := foreignKeyColumnDependencies(ctx, stage, target, a.Mode, scope)
+	foreign, err := provider.foreignKeyColumnDependencies(target, a.Mode)
 	if err != nil {
 		return nil, err
 	}
-	if err := stageViewDependents(stage, []ObjectAddress{target}, a.Mode, foreign...); err != nil {
+	if err := provider.applyViewDependents([]ObjectAddress{target}, a.Mode, foreign...); err != nil {
 		return nil, err
 	}
 	// The dependency pass can prune surviving definitions on this same table.
 	// Its staged descriptor, not the pre-cascade maps, owns the remaining shape.
-	old = stage.descriptors[ref.Address].(*relationDescriptor)
-	slot = old.indexForAttribute(target.SubID)
+	old = provider.descriptor(ref.Address).(*relationDescriptor)
+	next, err := dropColumnMetadata(ctx, provider.base, provider.descriptor, old, target, history)
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish the private shape to dependency passes before removing its AUTO
+	// sequences: CHECKs on the dropped column are already gone.
+	if err := provider.replace(next); err != nil {
+		return nil, err
+	}
+	if err := provider.ownedExpressionDependencies([]ObjectAddress{target}, a.Mode); err != nil {
+		return nil, err
+	}
+	return provider.descriptor(ref.Address).(*relationDescriptor), nil
+}
+
+// dropColumnMetadata cooks the stable-slot migration once. Dependency effects
+// supply the actual surviving provider descriptor and index identities.
+func dropColumnMetadata(ctx context.Context, catalog CatalogRead, descriptor func(ObjectAddress) Descriptor, old *relationDescriptor, target ObjectAddress, history attributeMetadata) (*relationDescriptor, error) {
+	slot := old.indexForAttribute(target.SubID)
 	next := *old
 	next.droppedAttributes = maps.Clone(old.droppedAttributes)
 	if next.droppedAttributes == nil {
@@ -122,11 +150,7 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 				break
 			}
 		}
-		descriptor := stage.descriptors[constraint.Index]
-		if descriptor == nil {
-			descriptor = stage.base.state.descriptors[constraint.Index]
-		}
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor(constraint.Index).(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column unique index")
 		}
@@ -137,11 +161,7 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 	}
 	next.exclusionConstraints = nil
 	for _, constraint := range old.exclusionConstraints {
-		descriptor := stage.descriptors[constraint.Index]
-		if descriptor == nil {
-			descriptor = stage.base.state.descriptors[constraint.Index]
-		}
-		index, ok := descriptor.(*relationDescriptor)
+		index, ok := descriptor(constraint.Index).(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
@@ -215,7 +235,7 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 			next.generations[attribute] = definition
 		}
 	}
-	if err := refreshGenerationChecks(&next, stage.base); err != nil {
+	if err := refreshGenerationChecks(&next, catalog); err != nil {
 		return nil, err
 	}
 	if _, exists := old.identities[old.attributes[slot]]; exists {
@@ -256,14 +276,6 @@ func dropColumnCandidate(ctx context.Context, stage *CatalogStage, old *relation
 			next.columnComments[sub] = text
 		}
 	}
-
-	// Publish the private shape to dependency passes before removing its AUTO
-	// sequences: CHECKs on the dropped column are already gone.
-	if err := stage.Replace(&next); err != nil {
-		return nil, err
-	}
-	if err := stageOwnedExpressionDependencies(ctx, stage, []ObjectAddress{target}, a.Mode, scope, changes, project); err != nil {
-		return nil, err
-	}
-	return stage.descriptors[ref.Address].(*relationDescriptor), nil
+	transitionPhysicalNotNull(old, &next)
+	return &next, nil
 }

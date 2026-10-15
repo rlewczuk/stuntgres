@@ -12,12 +12,16 @@ func (r dumpRegTSOutput) FormatRegdictionary(id uint32) (string, error) {
 }
 
 func walkRegTSReferences(view CatalogRead, value sqltype.Value, record func(ObjectAddress) error) error {
+	return walkRegTSReferencesAt(view, nil, value, record)
+}
+
+func walkRegTSReferencesAt(view CatalogRead, reader definitionReader, value sqltype.Value, record func(ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}
 	if value.Type().BaseType().IsComposite() {
 		for i := range value.CompositeLen() {
-			if err := walkRegTSReferences(view, value.CompositeField(i), record); err != nil {
+			if err := walkRegTSReferencesAt(view, reader, value.CompositeField(i), record); err != nil {
 				return err
 			}
 		}
@@ -25,7 +29,7 @@ func walkRegTSReferences(view CatalogRead, value sqltype.Value, record func(Obje
 	}
 	if value.Type().BaseType().IsArray() {
 		for i := range value.ArrayLen() {
-			if err := walkRegTSReferences(view, value.ArrayElement(i), record); err != nil {
+			if err := walkRegTSReferencesAt(view, reader, value.ArrayElement(i), record); err != nil {
 				return err
 			}
 		}
@@ -39,7 +43,8 @@ func walkRegTSReferences(view CatalogRead, value sqltype.Value, record func(Obje
 		return err
 	}
 	address := ObjectAddress{ClassID: TSDictionaryClassID, ObjectID: OID(id)}
-	if _, ok := view.state.descriptors[address].(*tsDictionaryDescriptor); ok {
+	descriptor, _ := definitionDescriptorAt(view, reader, address)
+	if _, ok := descriptor.(*tsDictionaryDescriptor); ok {
 		return record(address)
 	}
 	return nil

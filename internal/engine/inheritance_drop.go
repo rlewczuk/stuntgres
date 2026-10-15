@@ -1,25 +1,37 @@
 package engine
 
-import "slices"
+import (
+	"iter"
+	"slices"
+)
 
 // Admission precedes dependency discovery. Repeat after grants so a descendant
 // gaining a child while its AX grant was queued becomes part of the same drop.
 func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, roots []ObjectAddress) error {
+	provider := stageDropProvider(nil, stage, scope, nil, nil)
+	catalog, err := admitInheritanceDropClosure(scope, stage.base, roots, provider.removalDescriptors())
+	stage.base = catalog
+	return err
+}
+
+// admitInheritanceDropClosure reconciles actual captures without a stage. The
+// incumbent execution wrapper alone installs its returned catalog as stage base.
+func admitInheritanceDropClosure(scope *StatementScope, catalog CatalogRead, roots []ObjectAddress, removals iter.Seq2[ObjectAddress, Descriptor]) (CatalogRead, error) {
 	if scope == nil {
-		return nil
+		return catalog, nil
 	}
 	// Ordinary DROP owns its existing admission policy. In particular low-level
 	// callers need not have acquired a root grant; do not introduce one unless
 	// an inheritance edge actually requires fencing the closure.
 	participates := false
 	for _, root := range roots {
-		if table, ok := stage.base.state.descriptors[root].(*relationDescriptor); ok && root.SubID == 0 && inheritanceParticipant(stage.base, table) {
+		if table, ok := catalog.state.descriptors[root].(*relationDescriptor); ok && root.SubID == 0 && inheritanceParticipant(catalog, table) {
 			participates = true
 			break
 		}
 	}
 	if !participates {
-		return nil
+		return catalog, nil
 	}
 	locked := make(map[ObjectAddress]bool)
 	for {
@@ -31,12 +43,12 @@ func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, root
 				return
 			}
 			seen[address] = true
-			table, ok := stage.base.state.descriptors[address].(*relationDescriptor)
+			table, ok := catalog.state.descriptors[address].(*relationDescriptor)
 			if !ok || table.relationKind != tableRelation || address.SubID != 0 {
 				return
 			}
 			tables = append(tables, address)
-			for _, child := range inheritanceChildren(stage.base, address) {
+			for _, child := range inheritanceChildren(catalog, address) {
 				visit(child.address)
 			}
 		}
@@ -57,42 +69,42 @@ func lockInheritanceDropClosure(scope *StatementScope, stage *CatalogStage, root
 			if locked[address] {
 				continue
 			}
-			if err := scope.acquireSequence(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: address}, accessExclusive, true); err != nil {
-				return err
+			if err := scope.acquireSequence(ObjectRef{owner: catalog.owner.owner, Epoch: catalog.Epoch(), Address: address}, accessExclusive, true); err != nil {
+				return catalog, err
 			}
 			locked[address] = true
 			grew = true
 		}
 		if !grew {
-			return nil
+			return catalog, nil
 		}
 		// Private TEMP catalogs are owned by the same serialized session. Their
 		// staged objects must not be replaced by the global generation.
 		private := false
 		for _, address := range tables {
-			table := stage.base.state.descriptors[address].(*relationDescriptor)
-			if stage.base.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
+			table := catalog.state.descriptors[address].(*relationDescriptor)
+			if catalog.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
 				private = true
 				break
 			}
 		}
 		if private {
-			return nil
+			return catalog, nil
 		}
-		current := stage.owner.CatalogRead()
-		if current.Epoch() != stage.base.Epoch() {
-			return ErrCatalogReplaced
+		current := catalog.owner.CatalogRead()
+		if current.Epoch() != catalog.Epoch() {
+			return catalog, ErrCatalogReplaced
 		}
 		for address := range locked {
-			if current.state.descriptors[address] != stage.base.state.descriptors[address] {
-				return CatalogConflict{}
+			if current.state.descriptors[address] != catalog.state.descriptors[address] {
+				return catalog, CatalogConflict{}
 			}
 		}
-		for address, removal := range stage.removals {
-			if current.state.descriptors[address] != removal.descriptor {
-				return CatalogConflict{}
+		for address, descriptor := range removals {
+			if current.state.descriptors[address] != descriptor {
+				return catalog, CatalogConflict{}
 			}
 		}
-		stage.base = current
+		catalog = current
 	}
 }

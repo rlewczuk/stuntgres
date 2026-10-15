@@ -68,8 +68,13 @@ func (e *Engine) prepareAlterIdentityTypes(scope *StatementScope, op *Operation,
 		prepared = append(prepared, alterTypePreparation{usage: usage, expression: node, declaredDimensions: int16(len(action.TypeName.ArrayBounds))})
 	}
 	e.mu.Unlock()
-	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authorizeLocked(auth, op.session)
+	var stage *CatalogStage
+	if scope.inheritanceAlter != nil {
+		stage = scope.inheritanceAlter.stage
+	} else {
+		stage = e.BeginCatalogStage(auth.catalog)
+		stage.authorizeLocked(auth, op.session)
+	}
 	index := 0
 	for _, action := range actions {
 		if action.Action != parser.AlterColumnType {

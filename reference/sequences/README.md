@@ -6,6 +6,17 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Inherited generated-expression migration checkpoint
+
+The complete ordinary-inheritance matrix in
+`TestReferenceAlterGeneratedExpressionBoundaries` now shares released recursive/
+ONLY SET values and DROP protections. The later partition, publication, UDF
+and typed-table boundaries remain unchanged.
+
+Root runs `make check REFERENCE=1 RUN='^TestReferenceAlterGeneratedExpressionBoundaries$'`
+under an external 900-second deadline, then the identical selector without
+`REFERENCE=1`. Both completed modes are required.
+
 ### Actual TEMP namespace identities
 
 `TestReferenceSequenceTempCreationActualNamespace` and

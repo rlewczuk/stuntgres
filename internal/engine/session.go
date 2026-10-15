@@ -128,6 +128,7 @@ type Operation struct {
 	sqlActivity                bool
 	sqlFinished                bool // Session.mu: ERROR/completion fence, not transaction state
 	timeoutScope               *StatementScope
+	definition                 definitionReader // Scoped once-only DDL cooking, restored before evaluation.
 	pendingTimeoutRequest      atomic.Pointer[relationRequest]
 	pendingTimeoutError        atomic.Bool
 	nonstandardStrings         bool

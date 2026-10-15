@@ -6,6 +6,224 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Inherited DML and schema effects
+
+The untagged `inheritance_dml_*` and `inheritance_alter_*` definitions specify
+direct/prepared default, star and ONLY targets; physical INSERT; nonprefix
+scatter and diamond bags; parent ACL/RLS; physical constraints/generation;
+FROM/USING, modifying CTE and CURRENT OF; held topology/replacement; recursive
+ALTER provenance and nonrecursive provider distinctions. Rows, affected counts,
+metadata and complete English diagnostics are independent expectations, not
+native-derived goldens or parity alone.
+
+All definitions use the shared native/PostgreSQL fixture without availability
+filters. Pinned oracle observations, native behavioral red and completed
+dual-mode implementation proof remain separate.
+
+`TestReferenceInheritanceAlterQualifiedUsing` asserts the pinned PG18 boundary:
+`p.a` and `public.p.a` are valid on a childless target, but the same qualified
+USING expression in inherited TYPE recursion fails with positioned42P01.
+Unqualified USING rewrites differently ordered physical descendants, preserves
+NULL and child-only data, and rolls back all descriptors/rows on child22003.
+Run its exact selector in both modes; release-source cooked-expression mapping
+alone does not establish qualified-syntax acceptance.
+
+
+Run each bounded group with `REFERENCE=1` and without it; each invocation has
+an external 900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDML(Forms|Diamond|InsertPhysical)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDML(Generated|Atomicity)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDML(Authority|RLS)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDML(Consumers|CTE|CurrentOf)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDMLPreparedControls$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlter(Columns|Origins)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlter(NotNull|Checks|ConstraintOrigins)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlter(Defaults|Rename|Generated)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlter(PhysicalConstraints|PhysicalIdentity)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlter(PhysicalSecurity|PhysicalNames|Atomicity)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritance(Boundaries|AlterBoundaries)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDMLFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterFeatureSmoke$'
+```
+
+Smoke independently expects physical INSERT1, diamond UPDATE5, ONLY UPDATE2,
+late-child23514 with no partial writes, held INT4/TEXT RETURNING, real native
+pre-delete Dump/Reset/Restore, retained eager rows and DELETE2+3. ALTER smoke
+expects recursive DEFAULT/ADD/TYPE/rename/CHECK/generation and ONLY localization
+with genuine replayed final data and origin flags. Native controls are explicit
+native phases; PostgreSQL asserts the prescribed live SQL state, not a fictitious
+server Restore API. Root's standalone public process complements these tests.
+
+### Inherited definition replay and merge-stop proof
+
+`TestReferenceInheritanceAlterNoInheritControls` covers captured custom/quoted
+NN names, childless NoInherit facts, actual native Dump/Reset/Restore and pinned
+replay of its emitted bytes. NoInherit/PK incompatibility is a full 55000
+rejection with unchanged state; compatible local NN/PK sharing and FK-to-child
+data dependencies use separate genuine definitions. Native public catalog writes
+and unpaired, mismatched, consumed, star-qualified and primary-backed repairs
+remain rejected. Script replay requires existing superuser catalog-write
+authority; it does not serialize roles or grant new SQL capabilities.
+The FK-to-child dependencies are genuine validated qualified ONLY ADD events
+after both physical row streams and actual target-key readiness, not an inline
+forward reference or a NOT VALID workaround. Their native importer requires
+fresh ordinary ancestor/descendant identities and captured owner/key/provider
+observations; its incumbent pending binder validates loaded rows once before
+publication. The replay script uses the same existing superuser reconstruction
+context while preserving relation ownership.
+
+`TestReferenceInheritanceAlterRecipeControls` covers nonlocal DEFAULT9, explicit
+NULL/absence, retained ONLY-parent recipes, real deferred regclass dependencies,
+STORED/VIRTUAL overrides, divergent multi-parent recipes, CHECK local/diamond/
+other-parent origins and mixed owners. `GeneratedReplaySyntax` independently
+constructs genuine compatible typed-NULL VARCHAR(5) declarations, then real
+physical ONLY SET recipes and verifies full typmod/kind/nonlocal metadata.
+No final placeholder, forced attribute localization or fictitious PG Restore
+stands in for actual native dump-byte replay.
+The mixed-owner case provisions the same owner-role inventory on both backends
+before native emitted bytes are replayed, then uses that existing role in the
+PostgreSQL callback. Roles are a replay prerequisite, not serialized role DDL.
+Every fresh PostgreSQL public-schema reset also reapplies those roles' schema
+USAGE before actual dump-byte replay; schema ACLs are not synthesized by Dump.
+Cleanup runs after fixture borrowers close and its schema is reset.
+
+`TestReferenceInheritanceAlterMergeStops` separates existing-fact localization,
+visited-child ownership, below-merge recursion stops, validity compatibility,
+no historical revalidation and inline NN/CHECK propagation after a compatible
+column merge. Preparatory locks are independently exercised by the owning
+locking package; a metadata stop alone is not evidence of lock elision.
+
+Selected completed proof requires both modes, with external 900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceInheritanceAlter(NoInheritControls|RecipeControls|GeneratedReplaySyntax|MergeStops)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlter(NoInheritControls|RecipeControls|GeneratedReplaySyntax|MergeStops)$'
+make check RUN='^TestInheritanceDML(Admission|Locator|Authority|Contention|Replacement|AtomicPublication)$'
+make check RACE=1 RUN='^TestInheritanceDML(Contention|Replacement|AtomicPublication)$'
+make check RUN='^TestInheritanceAlter(Origins|Atomicity|DefinitionAuthority)$'
+make check RUN='^TestRestoreNotNullNoInherit(Syntax|Authority)$'
+make check RUN='^Test(InheritanceForeignKeyForwardReplay|RestoreInheritedForeignKey(Boundary|Observations|Atomicity))$'
+make check RUN='^TestInheritanceMutationTargetsAST$'
+```
+
+#### Constraint transitions and disconnected recipe components
+
+`TestReferenceInheritanceAlterConstraintTransitions` specifies retained
+local/shared columns' historical NN/CHECK metadata after parent-column DROP,
+DROP/SET NN and DROP/ADD CHECK replacement identities and atomicity, existing
+invalid NN completion, and a reached child's NO INHERIT SET rejection.
+ONLY cannot validate an inheritable invalid NN while children remain; its
+childless positive preserves identity and does not invent NO INHERIT status.
+
+`TestReferenceInheritanceAlterRecipeComponents` uses two disconnected affected
+generation graphs with actual cross-component regclass providers and cyclic
+defaults requiring deferred definitions. Parent-named VIRTUAL projections use
+the named recipe; ONLY child queries retain each physical child's own recipe.
+Native controls replay actual dumped bytes. Both definitions are unfiltered;
+run the following with and without REFERENCE=1 before review:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterConstraintTransitions$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterRecipeComponents$'
+```
+
+#### Retired constraint lineage
+
+The `TestReferenceInheritanceAlterRetired` definitions independently cover
+attribute-rank compaction, sibling type divergence, repeated source lifetimes
+and mixed valid/invalid parent facts. Counts are live support plus actual archived
+identities, not padded current origins or forced local declarations. TYPE removes
+historical-only nonlocal facts; genuine later local constraints get new OIDs.
+`TestReferenceInheritanceAlterRetiredPrimaryType` separately checks physical
+primary-key not-null enforcement after the historical NN catalog row disappears.
+Native controls replay the actual Dump bytes on PostgreSQL and repeat native
+Dump/Reset/Restore, rather than substituting an equivalent reconstructed fixture.
+Physical-NN source witnesses separately assert the actual PK/drop/later-TYPE
+flag lifetime, canonical NN/dependency cleanup, and genuinely nullable new
+children. Fresh childless ONLY SET creates an ordinary NN fact (NoInherit=false);
+the guarded keyless constructor does not infer otherwise from retained facts
+created while children existed.
+
+The nine `PhysicalNotNull` definitions cover `Transitions`, `CatalogConstruction`,
+`NewChild`, `KeylessConstruction`, `RestoreBoundary`, `ExistingIndex`,
+`IndependentPrimary`, `SelfForeignKey` and `PermutedForeignKey`. Native positive
+catalog-construction counterparts use genuine public Restore controls, not
+unsupported public native catalog writes. Actual native dump bytes run through
+two Reset/Restore cycles and real PostgreSQL replay. The canonical NN/pg_depend
+CTE is a superuser script boundary with exact fresh constructor/identity/full-type
+and single-use native authority; negative fixtures cover forged, mismatched,
+reused, readonly, canceled and late-failing imports.
+
+Keyless flag a is repaired before an unrelated real PK(b), retaining b's NN.
+Separate backing shapes preserve KEY/INCLUDE/options/opclasses through genuine
+USING INDEX. Self-FK proofs preserve actual PK support and original conkey/confkey;
+the permutation fixture includes same-key UNIQUE and standalone competitors,
+INCLUDE-payload TYPE remint and an external regclass view consumer. These are
+actual dependency-order controls, not alternate FK or index algorithms.
+
+Run these selected groups in both modes, with external 900-second deadlines:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterRetired(Compaction|SiblingTypes)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterRetired(Lifetimes|MixedValidity)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterRetiredPrimaryType$'
+make check REFERENCE=1 RUN='^TestReferenceForeignActionsValuesInheritance$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterPhysicalNotNull(Transitions|CatalogConstruction)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterPhysicalNotNull(NewChild|KeylessConstruction)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterPhysicalNotNull(ExistingIndex|IndependentPrimary)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterPhysicalNotNull(RestoreBoundary|SelfForeignKey|PermutedForeignKey)$'
+make check RUN='^TestReferenceInheritanceAlterPhysicalNotNull(Transitions|CatalogConstruction|NewChild|KeylessConstruction|RestoreBoundary|ExistingIndex|IndependentPrimary|SelfForeignKey|PermutedForeignKey)$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterUsingIndexPrimary$'
+```
+
+Selected native lineage/importer proofs:
+
+```sh
+make check RUN='^TestInheritanceConstraintHistor(icalOrigins|yIssuer|yValidity)$'
+make check RUN='^TestRestoreConstraintHistory(Syntax|Authority|Atomicity|PrimarySupport)$'
+make check RUN='^TestInheritanceAlterAdmission(Growth|Replacement|Stops|PreparedEffects)$'
+make check RUN='^TestInheritanceMetadataAdmission(Growth|Fences)$'
+make check RUN='^TestInheritanceAlterOnlyMixedActions$'
+make check RUN='^TestInheritanceUsingIndexPrepared(NotNull|Namespace|Diagnostics)$'
+make check RUN='^TestPhysicalNotNull(CauseAndCurrentSupport|RetirementAndSupersession|RebuiltCompositeUsage)$'
+```
+
+Use `RACE=1` for the selected real admission/importer race proofs. The owning
+internal tests exercise actual grants, provider preparation and atomic private
+stages; a native completion alone is not evidence that a request queued.
+
+`TestInheritanceMetadataAdmissionGrowth` covers SET/DROP DEFAULT and
+column/constraint rename with genuine first-grandchild marker publication and
+further growth after sticky subclass history. Real CREATE-INHERITS stages
+construct fresh recipe/fact identities and rows while the metadata provider's
+descendant AX request is observed queued. The tests reject partial metadata while
+that request is blocked, then assert the complete consumer-visible utility result,
+unchanged rows/storage and origins, both at provider completion and after statement
+Finish. They do not impose shape-controller publication timing on metadata utilities.
+`TestInheritanceMetadataAdmissionFences` retains new-descendant ownership,
+cancellation and actual subsequent-definition replacement vetoes with atomic
+rollback. Use the same selector with `RACE=1`. These private native admission
+contracts do not claim a PostgreSQL concurrency outcome for that synthetic
+publication interleaving; existing `TestReferenceInheritanceAlterDefaults` and
+`TestReferenceInheritanceAlterRename` remain the dual-mode public SQL witnesses.
+
+`TestReferenceInheritanceAlterUsingIndexPrimary` distinguishes root-only physical
+attachment from KEY-only inherited NN propagation, fresh ONLY 42P16 rejection,
+compatible existing-root stops and nonprefix KEY versus nullable INCLUDE. Native
+`PreparedNotNull` additionally starts with an inherited-only NN and asserts actual
+localization with stable OID/count and an untouched descendant. `PreparedNamespace`
+binds a later CHECK through the genuinely renamed index in the same action list.
+`PreparedDiagnostics` exercises actual rename NOTICE followed by name-collision
+42P07, successful attachment NOTICE followed by a later CHECK binding 42703, and
+an earlier missing-constraint skip NOTICE in the same list. Real child AX cancellation
+emits no premature notices and publishes nothing; USING-only reaches its NN-prefix
+wait after preparation, while a CHECK list can require preparatory grants first.
+Frozen diagnostics and notices are consumed at their matching actual callback,
+without suppressing earlier-phase failures or recooking later definitions.
+
+
 ### Integer series CHECK restriction
 
 `TestReferenceSeriesCheckRestrictions` is an untagged shared native/PG witness.
@@ -979,9 +1197,10 @@ shared owner-sensitive DEFAULT proof without requiring native sequence GRANT.
 Constrained domains retain the exact native0A000 boundary and PG23514; real
 unconstrained-domain assignment plus table CHECK proves shared composition.
 No new-only oracle discovery filter remains.
-The inheritance action witness preserves native UPDATE ONLY/recursive-DML
-boundaries and real PostgreSQL ONLY behavior, then exercises shared leaf-parent
-UPDATE/DELETE while descendant children survive. SELECT ONLY remains supported.
+The inheritance action witness shares direct/prepared UPDATE ONLY and recursive
+parent UPDATE while descendants survive, with independently unchanged parent
+and child leaves. Referential actions still affect only their physical child;
+the later parent UPDATE/DELETE lifecycle remains independently asserted.
 Domain provider assignment uses a plain domain; the separate constrained-domain
 declaration checks the complete positioned native boundary.
 Captured-authority Restore uses named owner directives. Replacement proof uses

@@ -34,6 +34,9 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			graph.columns[target] = provenance
 		}
 		for _, c := range in.source.notNullConstraints {
+			if c.NoInherit {
+				continue
+			}
 			sourceSlot := slices.Index(in.source.attributes, c.Attribute)
 			targetSlot := mapper.targetSlots[sourceSlot]
 			target := d.attributes[targetSlot]

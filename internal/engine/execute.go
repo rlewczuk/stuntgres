@@ -173,9 +173,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.AlterTableSetSchema:
 		return e.alterSchemaLocked(scope, op, auth, s, count)
 	case *parser.AlterTableRenameColumn:
-		return e.renameRelationLocked(scope, op, auth, s.Name, s.Column.Text, s.NewName.Text, s.IfExists, true, false, count)
+		return e.renameRelationLocked(scope, op, auth, s.Name, s.Column.Text, s.NewName.Text, s.IfExists, true, false, s.Only, count)
 	case *parser.AlterTableRenameTable:
-		return e.renameRelationLocked(scope, op, auth, s.Name, "", s.NewName.Text, s.IfExists, false, false, count)
+		return e.renameRelationLocked(scope, op, auth, s.Name, "", s.NewName.Text, s.IfExists, false, false, false, count)
 	}
 	if s, ok := stmt.(*parser.DropTable); ok {
 		return e.dropTableLocked(scope, op, auth, s, count)

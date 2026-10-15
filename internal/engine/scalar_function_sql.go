@@ -13,24 +13,24 @@ import (
 func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node BoundExpr, u sqltype.Usage) (string, error) {
 	switch n := node.(type) {
 	case installedCryptoFunctionExpression:
-		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 {
+		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")
 		}
 		if err := n.validate(view); err != nil {
 			return "", err
 		}
-		namespace, ok := view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored crypto namespace")
 		}
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), n.Args)
 	case installedFunctionExpression:
-		proc, ok := view.state.descriptors[n.ref.Address].(*procedureDescriptor)
-		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || proc != n.procedure || !n.validProvider() || n.dictionary != nil && (view.state.descriptors[proc.dictionary] != n.dictionary || view.state.descriptors[n.dictionary.template] != n.template) {
+		proc, ok := r.descriptor(view, n.ref.Address).(*procedureDescriptor)
+		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || proc != n.procedure || !n.validProvider() || n.dictionary != nil && (r.descriptor(view, proc.dictionary) != n.dictionary || r.descriptor(view, n.dictionary.template) != n.template) {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}
-		namespace, ok := view.state.descriptors[proc.namespace].(*namespaceDescriptor)
+		namespace, ok := r.descriptor(view, proc.namespace).(*namespaceDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored function namespace")
 		}

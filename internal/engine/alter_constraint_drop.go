@@ -34,32 +34,68 @@ func droppedConstraint(parent *relationDescriptor, action parser.AlterTableActio
 // neither retirement nor dependency traversal publishes the private candidate.
 // Each action classifies its own dependencies before any later backing removal.
 func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *relationDescriptor, actions []parser.AlterTableAction, changes *catalogChanges) (*relationDescriptor, *CatalogStage, error) {
+	if !hasDroppedConstraintIndexes(old, actions) {
+		return next, stage, nil
+	}
+	if stage == nil {
+		stage = e.BeginCatalogStage(auth.catalog)
+		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roleRecord.revision
+	}
+	next, err := dropConstraintIndexes(stageDropProvider(scope.op.Context(), stage, scope, changes, nil), old, next, actions)
+	return next, stage, err
+}
+
+func hasDroppedConstraintIndexes(old *relationDescriptor, actions []parser.AlterTableAction) bool {
+	for _, action := range actions {
+		if constraint, _ := droppedConstraint(old, action); constraint != (ObjectAddress{}) {
+			return true
+		}
+	}
+	return false
+}
+
+// The same ordered provider retires named constraint identities, including
+// constraints without backing indexes, during staging and pure preparation.
+func dropConstraintIndexes(provider *dropProvider, old, next *relationDescriptor, actions []parser.AlterTableAction) (*relationDescriptor, error) {
 	for _, action := range actions {
 		constraint, address := droppedConstraint(old, action)
 		if constraint == (ObjectAddress{}) {
 			continue
 		}
-		if stage == nil {
-			stage = e.BeginCatalogStage(auth.catalog)
-			stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roleRecord.revision
+		if address != (ObjectAddress{}) && provider.removed(address) {
+			continue // An earlier real column drop can retire the same backing.
 		}
-		if err := stage.Replace(next); err != nil {
-			return next, stage, err
+		if err := provider.replace(next); err != nil {
+			return next, err
 		}
 		retired := [2]ObjectAddress{constraint, address}
 		roots := retired[:1]
 		if address != (ObjectAddress{}) {
-			if err := stage.Remove(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: address}); err != nil {
-				return next, stage, err
+			if err := provider.remove(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: address}); err != nil {
+				return next, err
 			}
 			roots = retired[:]
 		}
-		if err := stageExpressionDependencies(scope.op.Context(), stage, roots, action.Mode, scope, changes, nil, constraint); err != nil {
-			return next, stage, err
+		if err := provider.expressionDependencies(roots, action.Mode, constraint); err != nil {
+			return next, err
 		}
-		// CASCADE can remove a self-reference from this same parent. Preserve
-		// that dependency candidate through the later ALTER passes.
-		next = stage.descriptors[old.address].(*relationDescriptor)
+		// CASCADE can remove a self-reference from this same parent.
+		next = provider.descriptor(old.address).(*relationDescriptor)
 	}
-	return next, stage, nil
+	return next, nil
+}
+
+func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *relationDescriptor, actions []parser.AlterTableAction, prior *preparedDrop) (*preparedDrop, error) {
+	if !hasDroppedConstraintIndexes(old, actions) {
+		return nil, nil
+	}
+	provider, err := scope.prepareDropDefinitionProvider(auth, next, scope.lockedRef, prior)
+	if err != nil {
+		return nil, err
+	}
+	next, err = dropConstraintIndexes(provider, old, next, actions)
+	if err != nil {
+		return nil, err
+	}
+	return scope.finishDropDefinition(provider, next)
 }

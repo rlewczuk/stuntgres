@@ -1536,7 +1536,7 @@ alter_schema_single: ALTER TABLE rename_target SET SCHEMA name { $$=&AlterTableS
 rename_target: alter_target {$$=$1}
  | IF EXISTS alter_target {$$=$3;$$.IfExists=true} ;
 alter_target: relation_name { $$=alterTarget{Name:$1} }
- | relation_name '*' { $$=alterTarget{Name:$1} }
+ | relation_name '*' { $$=alterTarget{Name:$1,Star:true} }
  | ONLY relation_name { $$=alterTarget{Name:$2,Only:true} }
  | ONLY '(' relation_name ')' { $$=alterTarget{Name:$3,Only:true} } ;
 optional_column: /* empty */ { $$=false } | COLUMN { $$=true } ;
@@ -1641,9 +1641,9 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: INHERIT { $$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
-update: UPDATE relation_name update_alias SET update_assignments update_from mutation_where returning { $$=&Update{Name:$2,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7.Where,CurrentOf:$7.CurrentOf,Returning:$8,Pos:$1.pos} }
- | UPDATE relation_name update_alias SET update_assignments update_from mutation_where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
- | UPDATE relation_name update_alias SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$5.pos.Offset);return 1 } ;
+update: UPDATE alter_target update_alias SET update_assignments update_from mutation_where returning { $$=&Update{Name:$2.Name,Only:$2.Only,Star:$2.Star,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7.Where,CurrentOf:$7.CurrentOf,Returning:$8,Pos:$1.pos} }
+ | UPDATE alter_target update_alias SET update_assignments update_from mutation_where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
+ | UPDATE alter_target update_alias SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$5.pos.Offset);return 1 } ;
 update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
 update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
@@ -1696,8 +1696,8 @@ merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPo
  | INSERT insert_override VALUES '(' query_cells ')' { $$=MergeArm{Override:$2,Values:$5,ActionPos:$1.pos} }
  | INSERT '(' insert_targets ')' insert_override VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Override:$5,Values:$8,ActionPos:$1.pos} }
  | INSERT DEFAULT VALUES { $$=MergeArm{DefaultValues:true,ActionPos:$1.pos} } ;
-delete: DELETE FROM relation_name delete_alias delete_using mutation_where returning { if $5==nil && !sqllex.(*lexer).ruleDefinition {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
- | DELETE FROM relation_name delete_alias delete_using mutation_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
+delete: DELETE FROM alter_target delete_alias delete_using mutation_where returning { if $5==nil && !sqllex.(*lexer).ruleDefinition {if token:=deleteQualification($6.Where,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}}; $$=&Delete{Name:$3.Name,Only:$3.Only,Star:$3.Star,Alias:Identifier{Text:$4.text,Pos:$4.pos},Using:$5,Where:$6.Where,CurrentOf:$6.CurrentOf,Returning:$7,Pos:$1.pos} }
+ | DELETE FROM alter_target delete_alias delete_using mutation_where suffix { if $5!=nil && $7.text=="on" {sqllex.(*lexer).syntax($7);return 1}; sqllex.(*lexer).capability($7,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_using: /* empty */ { $$=nil } | USING from_list { $$=$2 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 returning: /* empty */ { $$=nil }

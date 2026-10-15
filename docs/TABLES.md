@@ -154,6 +154,21 @@ inheritance does not propagate FK definitions. Definition-time REFERENCES rights
 are separate from later DML privileges and current violation-disclosure authority.
 Deferred, temporal-period and partition-hierarchy FKs remain native limits.
 
+Logical replay emits a captured valid ancestor-to-descendant FK as genuine
+qualified `ALTER TABLE ONLY ... ADD CONSTRAINT ... FOREIGN KEY` after both
+physical row streams and the referenced table/key provider are ready. It does
+not inline a forward reference into the ancestor CREATE, invent NOT VALID, or
+place a global data barrier around unrelated definitions. An exact ordered
+PRIMARY KEY reference uses PostgreSQL's omitted referenced-column list to retain
+that provider; explicit references use the normal constructor's actual provider
+selection. Native Restore admits this event only for freshly imported ordinary
+ancestor/descendant relations with captured owner, stable key/full-type and
+provider observations, then uses the existing pending FK binder and validates
+all loaded physical rows before atomic publication. The genuine script uses its
+existing trusted superuser reconstruction context without changing table owners
+or granting ordinary SQL an ownership/REFERENCES exemption. Required roles must
+already exist; role creation and ACL restoration are not added by this event.
+
 ### Exclusion events
 
 Equality exclusion definitions own real nonunique integrity indexes and independent
@@ -369,7 +384,113 @@ origins through diamonds. Physical stores remain independent. Parent scan metada
 ACL/RLS and virtual recipes belong to the named parent; every physical root shares
 one statement snapshot. Other sessions' TEMP descendant branches are excluded before
 store selection or locking. Rowmarks use actual descendant storage/row identity.
-Recursive modifying targets and propagating hierarchy ALTER remain limits.
+UPDATE/DELETE consume the deduplicated physical closure unless ONLY excludes it;
+INSERT adds rows only to the named physical relation. Named-parent authority,
+result columns and diagnostic SELECT disclosure do not confer child table rights.
+Physical generation/constraints/indexes use the complete child tuple; parent
+assignments scatter by stable named-column layout without losing child-only data.
+Physical relation+RowID, captured store/version and real grants survive waits,
+FROM/USING, modifying CTEs, CURRENT OF and held prepared execution. Counts include
+each selected physical row once; later child failure vetoes the whole statement.
+
+Already-supported ordinary ALTER column/default/inheritable NN/CHECK/generated
+actions use one staged graph publication. Local and other-parent contributions
+survive recursive/ONLY distinctions; identity, RLS and physical key/index facts
+stay with the named relation. PK-required NN is distinct from copying the PK.
+Definition preparation uses actual ordered provider results once, before the
+sole stage and row rewrite. Default ADD CONSTRAINT may require descendant
+preparatory locks even when its compatible merge stops execution. Valid-root
+SET NOT NULL stops without child locks/ownership; reached entries check ownership
+before merging, but descendants below that stop are not visited. ADD COLUMN's
+column merge stops independently of new inline NN/CHECK propagation. A real
+descendant added during a lock wait is reconciled and admitted before staging;
+replacement or changed defining authority is not treated as additive growth.
+Native metadata-only SET/DROP DEFAULT and column/constraint rename likewise
+finish descendant AX, current-owner and catalog-lifetime admission before
+creating their sole stage. Reconciliation accepts the exact first-subclass
+marker publication and actual new descendants, not subsequent defining
+replacements. The final authentic private-transaction catalog/authorization
+capture and stage creation share one Engine-mutex handoff; waits occur outside
+that mutex. No partially prepared stage is rebased or patched to a newer base.
+DEFAULT cooking uses each admitted physical column's full Usage and that
+captured catalog. Rows/storage and inherited locality/fact origins stay intact.
+An inherited NN's first direct SET localizes rather than rescans it. Completing
+a local invalid inheritable NN must validate children too: ONLY with children
+fails42P16, while childless completion neither changes identity nor invents
+NoInherit status.
+PRIMARY KEY USING INDEX prepares one unnamed NN per actual KEY (not INCLUDE),
+using the same constructor even when a physical not-null flag already exists.
+A compatible inherited NN becomes local without changing its OID or inherited
+count, and that merge stops before descendant locks/ownership. A fresh NN instead
+propagates independently of the root-only physical key; ONLY with children rejects
+that new inheritable fact with 42P16. Index eligibility/key usage and ordered
+attachment metadata are captured once and consumed by the sole stage. Later
+definition bindings see its actual renamed index, not the previous namespace.
+Attribute locality and explicit recipe authority are independent. ONLY changes
+do not acquire child rights/locks merely to retag retained recipes. Dump derives
+actual child default overrides/absence and generated recipe differences, preserving
+attislocal/count and real provider/type identities. Provider-dependent defaults
+retain their genuine deferred phase and physical ONLY targets.
+
+For divergent generated components, replay declares compatible full-type NULL
+recipes, restores every captured physical recipe after required declarations,
+then reconstructs captured local CHECK definitions through genuine recursive ADD
+before rows. Real merges restore local/diamond/other-parent origins. These are
+isolated dependency-stage declarations, not final fallback recipes. Captured
+validated ONLY SET NOT NULL NoInherit uses its exact declared name and immediate
+paired canonical pg_constraint repair before any child can inherit it. The
+importer fences actual imported NN/generation identities and rejects unpaired,
+mismatched and primary-backed NN retagging atomically. Genuine PostgreSQL replay
+requires superuser catalog-update authority; public native catalogs remain readonly.
+Mixed-owner replay uses the existing trusted superuser script context for
+captured recursive CHECK reconstruction and, only for affected fresh inherited
+declarations, an exact captured OWNER transfer before physical recipes/data.
+Roles must already exist. This does not relax public recursive owner checks.
+
+Parent-column DROP can leave a child's NN/CHECK coninhcount unchanged after the
+live parent fact disappears. Exact retired contributions retain the past source
+column rank, constraint kind/name, fact OID and source lifetime, separately from
+the current parent reference and physical own fact. They are not live expression
+or type dependencies and are never copied to grandchildren as extra support.
+Counts derive from live origins plus these actual retired identities. TYPE
+cleanup does not recreate historical-only nonlocal facts as local constraints.
+Logical import namespaces archived identities above retained occupancy; it does
+not claim that a deleted provider or old rank exists in the new catalog.
+Canonical superuser pg_constraint repair carries seven-field VALUES identities
+and derives the count, with exact fresh imported own OID/key/recipe/validity,
+current parent edge and before-state checks. Final history metadata repair follows
+real table/ancestor constraint completion; genuine valid/invalid enforcement
+retains its proper declaration/data phase. Public catalog UPDATE remains denied.
+Released TYPE cleanup can also leave physical NOT NULL enforcement without a
+pg_constraint NN row when a primary key had reused the nonlocal fact. This is
+explicit physical provenance from actual cleanup, not an invented local NN
+constraint. The physical flag survives PK removal and later TYPE changes;
+missing-record DROP NOT NULL retains the released diagnostic. Logical replay
+uses genuine constraint construction followed by narrowly paired canonical CTE
+cleanup of the exact newly constructed NN row and its selected pg_depend edges,
+retaining physical enforcement. Exact fresh relation/attribute/type/constructor
+identity and trusted import authority are required; no names are guessed and
+ordinary public catalog UPDATE/DELETE remains forbidden.
+This PostgreSQL script replay requires superuser catalog-write authority. Its
+single-use native import counterpart accepts only the exact fresh constructor,
+selected NN OIDs, attribute/full type usage, current provider and captured
+authority; malformed, reused, mismatched or retained-object repairs are rejected.
+A keyless flag uses genuine childless ONLY SET NOT NULL followed by the no-PK
+cleanup. With flag-only a and an unrelated captured PK(b), that repair precedes
+the real deferred PK(b); b's NN remains intact. Separate backing shapes reuse
+the existing index renderer and genuine PRIMARY KEY USING INDEX, preserving
+KEY/INCLUDE/options/opclasses rather than flattening the definition.
+
+Only captured valid self-FKs supported by that deferred primary move after its
+construction and cleanup. Ordered references use genuine implicit primary
+REFERENCES; permutations retain their exact local/referenced vectors. Actual
+same-key competing UNIQUE/index providers are ordered after the PK/FK when needed
+to preserve the captured supporting provider. Existing binders/renderers and real
+dependency edges remain the owners, including external regclass consumers and
+TYPE remint of INCLUDE payloads. Native supporting-index/validity receipts are
+strictly paired to fresh logical import; ordinary FK binding, permission checks,
+public catalog-write denial and unsupported feature boundaries do not change.
+
 
 Truncation consumes the same graph, replacing selected physical stores and empty
 index baselines without discarding definitions, edges, ownership, ACLs, comments,

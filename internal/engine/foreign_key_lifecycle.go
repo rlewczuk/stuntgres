@@ -9,21 +9,33 @@ import (
 )
 
 func (r pgRenderer) foreignKeyConstraintSQL(child *relationDescriptor, f foreignKeyConstraint) (string, error) {
+	return r.foreignKeyConstraintSQLWithPrimary(child, f, false)
+}
+
+// Implicit primary references preserve the captured provider when its deferred
+// construction follows another UNIQUE over the same attributes.
+func (r pgRenderer) foreignKeyConstraintSQLWithPrimary(child *relationDescriptor, f foreignKeyConstraint, primary bool) (string, error) {
 	view, path := r.view, r.path
 	parent, ok := view.state.descriptors[f.Target].(*relationDescriptor)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing foreign-key deparse target")
 	}
-	local, referenced := make([]string, len(f.Attributes)), make([]string, len(f.Referenced))
+	local := make([]string, len(f.Attributes))
+	var referenced []string
+	if !primary {
+		referenced = make([]string, len(f.Referenced))
+	}
 	for i, a := range f.Attributes {
 		var err error
 		local[i], err = r.attribute(child, a)
 		if err != nil {
 			return "", err
 		}
-		referenced[i], err = r.attribute(parent, f.Referenced[i])
-		if err != nil {
-			return "", err
+		if !primary {
+			referenced[i], err = r.attribute(parent, f.Referenced[i])
+			if err != nil {
+				return "", err
+			}
 		}
 	}
 	name := r.identifier(parent.name)
@@ -37,7 +49,10 @@ func (r pgRenderer) foreignKeyConstraintSQL(child *relationDescriptor, f foreign
 	if !visible {
 		name = r.identifier(view.state.descriptors[parent.namespace].Name()) + "." + name
 	}
-	text := "FOREIGN KEY (" + strings.Join(local, ", ") + ") REFERENCES " + name + "(" + strings.Join(referenced, ", ") + ")"
+	text := "FOREIGN KEY (" + strings.Join(local, ", ") + ") REFERENCES " + name
+	if !primary {
+		text += "(" + strings.Join(referenced, ", ") + ")"
+	}
 	if f.Full {
 		text += " MATCH FULL"
 	}
@@ -91,9 +106,14 @@ func foreignKeyActionSQL(action parser.ForeignKeyAction) (string, error) {
 // Consume only FK metadata edges from shared discovery; never reenter the
 // whole-provider projection controller before the column's own pruning.
 func foreignKeyColumnDependencies(ctx context.Context, stage *CatalogStage, target ObjectAddress, mode parser.DropMode, scope *StatementScope) ([]domainDependency, error) {
+	return stageDropProvider(ctx, stage, scope, nil, nil).foreignKeyColumnDependencies(target, mode)
+}
+
+func (provider *dropProvider) foreignKeyColumnDependencies(target ObjectAddress, mode parser.DropMode) ([]domainDependency, error) {
+	scope := provider.scope
 	present := false
-	for address, descriptor := range stage.base.state.descriptors {
-		if replacement, ok := stage.descriptors[address]; ok {
+	for address, descriptor := range provider.inputDescriptors() {
+		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
 		if d, ok := descriptor.(*relationDescriptor); ok && len(d.foreignKeys) != 0 {
@@ -104,7 +124,7 @@ func foreignKeyColumnDependencies(ctx context.Context, stage *CatalogStage, targ
 	if !present {
 		return nil, nil
 	}
-	discovered, err := domainDependencyClosure(ctx, stage, []ObjectAddress{target})
+	discovered, err := provider.dependencyClosure([]ObjectAddress{target})
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +152,7 @@ func foreignKeyColumnDependencies(ctx context.Context, stage *CatalogStage, targ
 			if edge.automatic {
 				continue
 			}
-			ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: edge.relation.address}
+			ref := ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: edge.relation.address}
 			if !slices.Contains(owners, ref) {
 				owners = append(owners, ref)
 			}
@@ -147,7 +167,7 @@ func foreignKeyColumnDependencies(ctx context.Context, stage *CatalogStage, targ
 			return 0
 		})
 		for _, ref := range owners {
-			if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+			if err := provider.acquire(ref, true); err != nil {
 				return nil, err
 			}
 		}
@@ -165,15 +185,19 @@ func stageForeignKeyDependents(stage *CatalogStage, edges []domainDependency) er
 }
 
 func stageForeignKeyDependentsLocked(stage *CatalogStage, edges []domainDependency) error {
+	return stageDropProvider(context.Background(), stage, nil, nil, nil).foreignKeyDependents(edges)
+}
+
+func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) error {
 	for _, edge := range edges {
 		if edge.address.ClassID != 2606 || edge.relation == nil {
 			continue
 		}
-		if _, removed := stage.removals[edge.relation.address]; removed {
+		if provider.removed(edge.relation.address) {
 			continue
 		}
 		old := edge.relation
-		if replacement, ok := stage.descriptors[old.address].(*relationDescriptor); ok {
+		if replacement, ok := provider.replacement(old.address).(*relationDescriptor); ok {
 			old = replacement
 		}
 		for i, f := range old.foreignKeys {
@@ -185,11 +209,11 @@ func stageForeignKeyDependentsLocked(stage *CatalogStage, edges []domainDependen
 			next.foreignKeys = append(next.foreignKeys, old.foreignKeys[:i]...)
 			next.foreignKeys = append(next.foreignKeys, old.foreignKeys[i+1:]...)
 			var err error
-			next.revision, err = stage.cascadeMetadataRevision(old.revision)
+			next.revision, err = provider.revision(old.revision)
 			if err != nil {
 				return err
 			}
-			if err := stage.Replace(&next); err != nil {
+			if err := provider.replace(&next); err != nil {
 				return err
 			}
 			break

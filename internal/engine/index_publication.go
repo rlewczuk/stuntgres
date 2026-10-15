@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"slices"
@@ -173,75 +174,103 @@ func evolveIndexRevision(index, oldParent, parent *relationDescriptor, transform
 	return &clone, nil
 }
 func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ObjectAddress, transformations []columnTransformation) error {
-	for a, d := range stage.base.state.descriptors {
-		index, ok := d.(*relationDescriptor)
-		if !ok || index.sqlIndex == nil {
+	// Preserve the incumbent map walk. In particular an unrelated staged
+	// relation must not allocate an adapter/iterator/yield closure.
+	provider := dropProvider{base: stage.base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
+	for address, descriptor := range stage.base.state.descriptors {
+		index, parent, staged, affected := provider.indexEvolutionInput(address, descriptor)
+		if !affected {
 			continue
 		}
-		if _, removed := stage.removals[a]; removed {
-			continue
-		}
-		candidate, staged := stage.descriptors[a]
-		if staged {
-			replacement, ok := candidate.(*relationDescriptor)
-			if !ok || replacement.sqlIndex == nil {
-				continue
-			}
-			index = replacement
-		}
-		var parent Descriptor
-		if _, removed := stage.removals[index.sqlIndex.parent]; removed {
-			parent = nil
-		} else if replacement, changed := stage.descriptors[index.sqlIndex.parent]; changed {
-			parent = replacement
-		} else {
-			continue
-		}
-		relation, _ := parent.(*relationDescriptor)
-		oldParent := stage.base.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-		prior, chained := stage.indexLayouts[a]
-		chained = chained && prior.target == index
-		if chained {
-			oldParent = prior.targetParent
-		}
-		var dependentTypes []columnTransformation
-		// Layout passes evolve the current candidate without lifecycle repair.
-		// Actual TYPE dependencies, including rebound predicates/keys/INCLUDE,
-		// retain reconstruction and normalization against their captured Usage.
-		if index.sqlIndex.parent == typeParent && (!staged || uniqueIndexTypeAffected(index.sqlIndex, transformations)) {
-			dependentTypes = transformations
-		}
-		next, err := evolveIndexRevision(index, oldParent, relation, dependentTypes, stage.terminalCleanup)
-		if err != nil {
+		if err := provider.evolveIndex(address, index, parent, staged, typeParent, transformations); err != nil {
 			return err
 		}
-		if next == nil {
-			if err := stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, false); err != nil {
-				return err
-			}
-		} else if next != index {
-			if err := stage.Replace(next); err != nil {
-				return err
-			}
+	}
+	return nil
+}
+
+// The selector is shared and read-only. It cannot retain its adapter; the value
+// receiver of the effect worker below is entered only for an affected parent.
+func (provider *dropProvider) indexEvolutionInput(address ObjectAddress, descriptor Descriptor) (*relationDescriptor, *relationDescriptor, bool, bool) {
+	index, ok := descriptor.(*relationDescriptor)
+	if !ok || index.sqlIndex == nil || provider.removed(address) {
+		return nil, nil, false, false
+	}
+	candidate := provider.replacement(address)
+	staged := candidate != nil
+	if staged {
+		replacement, ok := candidate.(*relationDescriptor)
+		if !ok || replacement.sqlIndex == nil {
+			return nil, nil, false, false
 		}
-		if next != nil && next.sqlIndex.ready && next.sqlIndex.live && len(dependentTypes) == 0 && indexLayoutInputsUnchanged(index, oldParent, relation) {
-			source, ok := stage.base.state.descriptors[a].(*relationDescriptor)
+		index = replacement
+	}
+	var parent Descriptor
+	if provider.removed(index.sqlIndex.parent) {
+		parent = nil
+	} else if replacement := provider.replacement(index.sqlIndex.parent); replacement != nil {
+		parent = replacement
+	} else {
+		return nil, nil, false, false
+	}
+	relation, _ := parent.(*relationDescriptor)
+	return index, relation, staged, true
+}
+
+// Prepared and ordinary adapters share the exact evolution/application worker.
+func (provider *dropProvider) evolveIndexes(typeParent ObjectAddress, transformations []columnTransformation) error {
+	for address, descriptor := range provider.inputDescriptors() {
+		index, parent, staged, affected := provider.indexEvolutionInput(address, descriptor)
+		if !affected {
+			continue
+		}
+		if err := provider.evolveIndex(address, index, parent, staged, typeParent, transformations); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (provider dropProvider) evolveIndex(address ObjectAddress, index, parent *relationDescriptor, staged bool, typeParent ObjectAddress, transformations []columnTransformation) error {
+	oldParent := provider.base.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	prior, chained := provider.indexLayout(address)
+	chained = chained && prior.target == index
+	if chained {
+		oldParent = prior.targetParent
+	}
+	var dependentTypes []columnTransformation
+	// Layout passes evolve the current candidate without lifecycle repair.
+	// Actual TYPE dependencies retain their captured reconstruction semantics.
+	if index.sqlIndex.parent == typeParent && (!staged || uniqueIndexTypeAffected(index.sqlIndex, transformations)) {
+		dependentTypes = transformations
+	}
+	next, err := evolveIndexRevision(index, oldParent, parent, dependentTypes, provider.terminalCleanup())
+	if err != nil {
+		return err
+	}
+	if next == nil {
+		if err := provider.removeObjectLocked(ObjectRef{owner: provider.owner.owner, Epoch: provider.base.Epoch(), Address: address}, false); err != nil {
+			return err
+		}
+	} else if next != index {
+		if err := provider.replace(next); err != nil {
+			return err
+		}
+	}
+	if next != nil && next.sqlIndex.ready && next.sqlIndex.live && len(dependentTypes) == 0 && indexLayoutInputsUnchanged(index, oldParent, parent) {
+		source, ok := provider.base.state.descriptors[address].(*relationDescriptor)
+		if chained {
+			source, ok = index, true
+		}
+		if ok && sameIndexKeySemantics(source, index) {
+			if chained && next == prior.target && parent == prior.targetParent {
+				return nil
+			}
+			lineage := indexLayoutLineage{source: source, target: next, sourceParent: oldParent, targetParent: parent}
 			if chained {
-				source, ok = index, true
+				lineage.previous = &prior
 			}
-			if ok && sameIndexKeySemantics(source, index) {
-				if chained && next == prior.target && relation == prior.targetParent {
-					continue
-				}
-				if stage.indexLayouts == nil {
-					stage.indexLayouts = make(map[ObjectAddress]indexLayoutLineage)
-				}
-				lineage := indexLayoutLineage{source: source, target: next, sourceParent: oldParent, targetParent: relation}
-				if chained {
-					lineage.previous = &prior
-				}
-				stage.indexLayouts[a] = lineage
-			}
+			provider.recordIndexLayout(address, lineage)
 		}
 	}
 	return nil

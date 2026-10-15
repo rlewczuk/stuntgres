@@ -72,6 +72,11 @@ func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, batch indexWri
 	if err := s.active(); err != nil {
 		return err
 	}
+	if ref != s.lockedRef && s.mutationStorage(ref) != nil {
+		if err := s.validateInheritedReplacements(ref, old); err != nil {
+			return err
+		}
+	}
 	if s.foreignActionAuth != nil {
 		admission := s.foreignActionAdmissions[ref.Address]
 		if admission == nil || !admission.writable {
@@ -118,7 +123,7 @@ retry:
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if s.foreignActionAuth != nil || !distinct && ref != s.lockedRef && s.partitionRelations[ref.Address] == nil {
+	if s.foreignActionAuth != nil || !distinct && s.mutationStorage(ref) == nil && s.partitionRelations[ref.Address] == nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
 			return err
 		}

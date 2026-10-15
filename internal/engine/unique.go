@@ -25,6 +25,7 @@ type uniqueConstraint struct {
 
 func validateUniques(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	primary := false
+	var physicalSupport *physicalPrimarySupport
 	for _, c := range parent.uniqueConstraints {
 		if (parent.relationKind != tableRelation && parent.relationKind != partitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
 			return fmt.Errorf("stuntgres: invalid unique constraint identity")
@@ -63,7 +64,16 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 					}
 				}
 				if !found {
-					return fmt.Errorf("stuntgres: missing primary not-null identity")
+					proof, exists := parent.physicalNotNull[a]
+					if !exists || !physicalNotNullOriginValid(view, parent, a, proof) || proof.support == nil {
+						return fmt.Errorf("stuntgres: missing primary not-null identity")
+					}
+					if physicalSupport != proof.support {
+						if !physicalPrimarySupportValid(view, parent, &c, proof.support) {
+							return fmt.Errorf("stuntgres: invalid physical primary not-null support")
+						}
+						physicalSupport = proof.support
+					}
 				}
 			}
 		}

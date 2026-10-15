@@ -57,7 +57,7 @@ func (r capturedRegtypeInput) ResolveRegtype(ctx context.Context, text string) (
 		}
 	}
 	if numeric {
-		oid, _ := r.auth.catalog.LookupType(sqltype.Oid)
+		oid, _ := r.auth.definitionType(sqltype.Oid)
 		value, err := oid.Input(ctx, text, -1)
 		if err != nil {
 			return 0, err
@@ -120,14 +120,14 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 	if raw.System {
 		path = namespaceSelection{qualified: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}}
 	} else if len(parts) == 2 {
-		ns := r.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: parts[0].Text}]
+		ns := r.auth.definitionLookup(NameKey{ClassID: NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			ns = r.temporary
 		}
 		if ns == (ObjectAddress{}) {
 			return 0, sqlError("3F000", fmt.Sprintf("schema \"%s\" does not exist", parts[0].Text))
 		}
-		namespace := r.auth.catalog.state.descriptors[ns].(*namespaceDescriptor)
+		namespace, _ := r.auth.definitionNamespace(ns)
 		if namespace.temporary != (SessionToken{}) && namespace.temporary != r.token {
 			return 0, sqlError("42501", "permission denied for schema "+namespace.name)
 		}
@@ -141,8 +141,8 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 	}
 	var typ *sqltype.Descriptor
 	for i := range path.count() {
-		if address, ok := r.auth.catalog.state.names[NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name}]; ok {
-			typ, _ = r.auth.catalog.LookupType(sqltype.ID(address.ObjectID))
+		if address := r.auth.definitionLookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name}); address != (ObjectAddress{}) {
+			typ, _ = r.auth.definitionType(sqltype.ID(address.ObjectID))
 			break
 		}
 	}
@@ -159,7 +159,7 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 		return name
 	}
 	if typ != nil && len(raw.ArrayBounds) > 0 {
-		typ, _ = r.auth.catalog.LookupArray(typ)
+		typ, _ = r.auth.definitionArray(typ)
 	}
 	if typ == nil {
 		return 0, sqlError("42704", fmt.Sprintf("type \"%s\" does not exist", parsedName()))
@@ -183,7 +183,7 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 				modifiers[i] = *m.Integer
 				continue
 			}
-			integer, _ := r.auth.catalog.LookupType(sqltype.Int4)
+			integer, _ := r.auth.definitionType(sqltype.Int4)
 			v, err := integer.Input(ctx, m.Raw, -1)
 			if err != nil {
 				return 0, err
@@ -211,7 +211,7 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 	}
 	if r.resolved != nil {
 		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
-		d := r.auth.catalog.state.descriptors[address]
+		d, _ := r.auth.definitionDescriptor(address)
 		ref := ObjectRef{owner: r.auth.engine.owner, Epoch: r.auth.catalog.Epoch(), Address: address}
 		*r.resolved = append(*r.resolved, expressionDependency{ref: ref, revision: d.Revision()})
 	}

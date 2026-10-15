@@ -336,7 +336,6 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	view := CatalogRead{owner: e, state: auth.catalog.state}
 	object := parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}
 	if raw.Schema != nil {
 		object.Parts = []parser.Identifier{*raw.Schema, {Text: name, Pos: raw.Pos}}
@@ -345,14 +344,14 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	var found []ObjectAddress
+	var found ObjectAddress
 	for i := range path.count() {
-		found = view.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name})
-		if len(found) != 0 {
+		found = auth.definitionLookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name})
+		if found != (ObjectAddress{}) {
 			break
 		}
 	}
-	if len(found) != 1 {
+	if found == (ObjectAddress{}) {
 		if domainBase && raw.Name == "record" && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
 			return sqltype.Usage{}, typeDiagnostic(raw, "42804", `"record" is not a valid base type for a domain`)
 		}
@@ -361,7 +360,10 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		}
 		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
 	}
-	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
+	d, validType := auth.definitionType(sqltype.ID(found.ObjectID))
+	if !validType {
+		return sqltype.Usage{}, fmt.Errorf("stuntgres: missing definition type provider")
+	}
 	if jsonReturning && jsonReturningPseudoType(d) {
 		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 	}
@@ -403,7 +405,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 			modifiers[i] = *modifier.Integer
 			continue
 		}
-		integer, _ := view.LookupType(sqltype.Int4)
+		integer, _ := auth.definitionType(sqltype.Int4)
 		ctx := context.Background()
 		if op != nil {
 			ctx = op.Context()
@@ -436,7 +438,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		if sqltype.IsTransactionIdentifier(d.BaseType().ID()) {
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 		}
-		array, ok := view.LookupArray(d)
+		array, ok := auth.definitionArray(d)
 		if !ok || d.IsEnum() {
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported array element type")
 		}

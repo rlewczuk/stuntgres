@@ -141,10 +141,14 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 	return visibilityInquiryExpression{b.info(result, raw.Pos, properties), kind, arg}, nil
 }
 func namedObjectVisible(view CatalogRead, path []ObjectAddress, d Descriptor) bool {
+	return namedObjectVisibleAt(view, nil, path, d)
+}
+
+func namedObjectVisibleAt(view CatalogRead, reader definitionReader, path []ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
 		key := descriptorNameKey(d)
 		key.Namespace = namespace
-		if found, exists := view.state.names[key]; exists {
+		if found := definitionLookupAt(view, reader, key); found != (ObjectAddress{}) {
 			return found == d.Address()
 		}
 	}

@@ -61,7 +61,7 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	if common.Type == nil {
 		return signature()
 	}
-	array, ok := b.bindingCatalog().LookupArray(common.Type)
+	array, ok := b.definitionArray(common.Type)
 	if !ok || !array.Concrete() {
 		return signature()
 	}
@@ -94,7 +94,7 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 		result = b.typ(sqltype.Int4).Usage()
 	}
 	if name == "array_positions" {
-		positions, ok := b.bindingCatalog().LookupArray(b.typ(sqltype.Int4))
+		positions, ok := b.definitionArray(b.typ(sqltype.Int4))
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing integer array association")
 		}

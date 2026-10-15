@@ -44,7 +44,7 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	}
 	for slot, attribute := range d.attributes {
 		provenance, ok := graph.columns[attribute]
-		if !ok || !provenance.local && len(provenance.origins) == 0 || (provenance.explicitDefault || provenance.explicitGeneration) && !provenance.local {
+		if !ok || !provenance.local && len(provenance.origins) == 0 {
 			return invalid()
 		}
 		origins := make(map[ObjectAddress]bool, len(provenance.origins))
@@ -77,6 +77,9 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 			mapper.targetSlots[i] = target
 		}
 		for _, constraint := range parent.notNullConstraints {
+			if constraint.NoInherit {
+				continue
+			}
 			sourceSlot := slices.Index(parent.attributes, constraint.Attribute)
 			if sourceSlot < 0 {
 				return invalid()
@@ -105,18 +108,15 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 			if !ok || child.kind != generation.kind {
 				return invalid()
 			}
-			if !graph.columns[target].explicitGeneration {
-				remapped, err := mapper.remap(generation.expression, d, v)
-				if err != nil || !sameInheritedExpression(remapped, child.expression, d, v) {
-					return invalid()
-				}
-			}
 		}
 	}
 	for attribute, provenance := range graph.notNull {
 		child := slices.IndexFunc(d.notNullConstraints, func(c notNullConstraint) bool { return c.Attribute == attribute })
-		if child < 0 || !provenance.local && len(provenance.origins) == 0 {
+		if child < 0 || !provenance.local && provenance.count() == 0 {
 			return invalid()
+		}
+		if err := validateRetiredInheritance(v, d, provenance, d.notNullConstraints[child].OID, false); err != nil {
+			return err
 		}
 		origins := make(map[ObjectAddress]bool)
 		for _, origin := range provenance.origins {
@@ -140,8 +140,11 @@ func validateInheritance(v CatalogRead, d *relationDescriptor) error {
 	}
 	for name, provenance := range graph.checks {
 		child := slices.IndexFunc(d.checkConstraints, func(c checkConstraint) bool { return c.Name == name })
-		if child < 0 || !provenance.local && len(provenance.origins) == 0 || d.checkConstraints[child].NoInherit && len(provenance.origins) != 0 {
+		if child < 0 || !provenance.local && provenance.count() == 0 || d.checkConstraints[child].NoInherit && provenance.count() != 0 {
 			return invalid()
+		}
+		if err := validateRetiredInheritance(v, d, provenance, d.checkConstraints[child].OID, true); err != nil {
+			return err
 		}
 		origins := make(map[ObjectAddress]bool)
 		for _, origin := range provenance.origins {

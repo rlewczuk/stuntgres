@@ -6,6 +6,36 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Inherited physical mutation and ALTER admission
+
+`TestReferenceInheritanceDMLContention` independently specifies physical child
+conflicts, ONLY-parent independence, RC latest-row refresh/predicate/delete,
+RR40001, exclusion of a later inserted match and cancellation with whole-statement
+rollback. PostgreSQL observes the real blocker before release/cancel. Public
+native outcomes do not replace private exact manifest/grant/queue/publication
+units. Physical PostgreSQL tuple Context is an external-server diagnostic,
+never synthesized as native tuple storage.
+
+Root runs with an external 900-second deadline and requires both completed
+modes before review:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceInheritanceDMLContention$'
+make check RUN='^TestReferenceInheritanceDMLContention$'
+```
+
+`TestReferenceInheritanceAlterMergeStopLocks` separately observes real child AX
+conflicts: valid existing SET NOT NULL completes while that conflicting child
+lock remains held; default ADD CHECK can acquire preparatory descendant locks
+even when its compatible inherited fact later merges at the named root; ONLY
+merge does not infer the same preparatory lock set. The blocking lane observes
+the actual server blocker before release, not elapsed time or command entry.
+
+```sh
+make check RUN='^TestReferenceInheritanceAlterMergeStopLocks$'
+make check REFERENCE=1 RUN='^TestReferenceInheritanceAlterMergeStopLocks$'
+```
+
 ### Prepared transactions
 
 The prepared-transaction family independently asserts state/diagnostics,

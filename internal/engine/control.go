@@ -101,6 +101,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	catalog := CatalogRead{owner: e, state: e.state}
 	originalCatalog := catalog
 	originalRoles := e.roleRead(originalCatalog, e.roles)
+	recipePlan, err := capturedGenerationReplayPlan(originalCatalog)
+	if err != nil {
+		e.mu.Unlock()
+		return err
+	}
 	aclOutput := capturedACLItemOutput{owner: e, roles: originalRoles, lossless: true}
 	ctx = aclItemOutputContext(ctx, aclOutput)
 	if err := e.preflightACLItemDump(ctx, originalCatalog, aclOutput); err != nil {
@@ -582,34 +587,34 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		for _, check := range r.checkConstraints {
-			if check.NotValid {
-				continue // Its providers belong to the later ADD NOT VALID event.
+			if check.NotValid || recipePlan[r.address] != nil && recipePlan[r.address].deferredChecks[check.Name] {
+				continue
 			}
-			if err := regclassReplayReferences(CatalogRead{owner: e, state: e.state}, check.expression, func(address ObjectAddress) error {
-				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, address, r.address)
-				if err == nil && predecessor != 0 {
-					predecessors = append(predecessors, predecessor)
-				}
-				return err
-			}); err != nil {
-				e.mu.Unlock()
-				return err
-			}
-			for _, dependency := range check.dependencies {
-				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, dependency.ref.Address, r.address)
+			add := func(address ObjectAddress) error {
+				predecessor, err := dumpPredecessor(catalog, address, r.address)
 				if err != nil {
-					e.mu.Unlock()
 					return err
 				}
 				if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
 					predecessors = append(predecessors, predecessor)
+				}
+				return nil
+			}
+			if err := regclassReplayReferences(catalog, check.expression, add); err != nil {
+				e.mu.Unlock()
+				return err
+			}
+			for _, dependency := range check.dependencies {
+				if err := add(dependency.ref.Address); err != nil {
+					e.mu.Unlock()
+					return err
 				}
 			}
 		}
 		var deferredPredecessors []OID
 		var deferredDefinitions map[int32]bool
 		for attribute, definition := range r.defaults {
-			eligible := defaultReplayDeferrable(definition) && !inheritanceParticipant(catalog, r)
+			eligible := defaultReplayDeferrable(definition)
 			if eligible {
 				if deferredDefinitions == nil {
 					deferredDefinitions = make(map[int32]bool)
@@ -649,6 +654,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 		for _, definition := range r.generations {
+			if recipePlan[r.address] != nil {
+				continue
+			}
 			for _, dependency := range definition.dependencies {
 				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.address)
 				if err != nil {
@@ -686,6 +694,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			versions, ends = storage.versions, storage.ends
 		}
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.identities, identitySequences: linked})
+		if selected := recipePlan[r.address]; selected != nil {
+			tables[len(tables)-1].recipePlaceholders = true
+			tables[len(tables)-1].recipeComponent = selected.recipeComponent
+			tables[len(tables)-1].deferredChecks = selected.deferredChecks
+		}
 	}
 	e.mu.Unlock()
 	policyGroups, err := policyDumpGroups(ctx, originalCatalog, originalRoles)
@@ -779,16 +792,27 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			priorities[address.ObjectID] = priority
 		}
 	}
+	if err := physicalNotNullDumpDependencies(originalCatalog, viewDependencies); err != nil {
+		return err
+	}
 	declarationOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil && !deferDefaults && ctx.Err() == nil && len(inlinePredecessors) != 0 {
 		for oid, predecessors := range inlinePredecessors {
 			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(predecessors)
+		}
+		if err := physicalNotNullDumpDependencies(originalCatalog, viewDependencies); err != nil {
+			return err
 		}
 		declarationOrder, err = viewDumpOrder(ctx, viewDependencies, priorities)
 		deferDefaults = err == nil
 	}
 	if err != nil {
 		return err
+	}
+	for i := range tables {
+		if err := tables[i].prepareInheritedRecipes(originalCatalog); err != nil {
+			return err
+		}
 	}
 	viewOrder := dumpDeclarationIDs(declarationOrder)
 	if err := partitionDumpEvents(ctx, originalCatalog, viewDependencies, declarationOrder, tables, indexIndices, constraintReplay, deferDefaults); err != nil {
@@ -926,7 +950,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				continue
 			}
 			t := tables[tableIndices[oid]]
-			if err := setOwner(t.owner); err != nil {
+			owner := t.owner
+			if event.phase == dumpInheritanceChecks || event.phase == dumpRetiredConstraints || event.phase == dumpInheritedForeignKeys || event.phase == dumpInvalidConstraints && inheritanceParticipant(originalCatalog, t.descriptor) {
+				owner = "postgres"
+			}
+			if err := setOwner(owner); err != nil {
 				return err
 			}
 			switch event.phase {
@@ -936,6 +964,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				err = t.emitRows(ctx, originalCatalog, emit)
 			case dumpInvalidConstraints:
 				err = t.emitInvalidConstraints(ctx, originalCatalog, emit)
+			case dumpInheritanceRecipes:
+				err = t.emitInheritedGenerations(ctx, originalCatalog, emit)
+			case dumpInheritanceChecks:
+				err = t.emitInheritedChecks(ctx, originalCatalog, emit)
+			case dumpInheritedForeignKeys:
+				err = t.emitInheritedForeignKeys(originalCatalog, emit)
+			case dumpRetiredConstraints:
+				err = t.emitRetiredConstraints(originalCatalog, false, emit, setOwner)
+				if err == nil {
+					err = t.emitRetiredConstraints(originalCatalog, true, emit, setOwner)
+				}
 			}
 			if err != nil {
 				return err
@@ -966,6 +1005,23 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 			original := originalCatalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+			if original.sqlIndex != nil && original.sqlIndex.constraint != nil && original.sqlIndex.constraint.Primary {
+				parent := originalCatalog.state.descriptors[original.sqlIndex.parent].(*relationDescriptor)
+				for i := range parent.uniqueConstraints {
+					if parent.uniqueConstraints[i].Index == original.address {
+						if err := emitPhysicalPrimaryCleanup(originalCatalog, parent, &parent.uniqueConstraints[i], emit, setOwner); err != nil {
+							return err
+						}
+						if err := emitPhysicalSelfForeignKeys(originalCatalog, parent, index.owner, true, emit, setOwner); err != nil {
+							return err
+						}
+						if err := emitPhysicalCompetingUniques(originalCatalog, parent, index.owner, true, emit, setOwner); err != nil {
+							return err
+						}
+						break
+					}
+				}
+			}
 			if partitionReplayVirtualUniqueRoot(originalCatalog, original) != nil {
 				if err := emit(constraintReplay.virtualUniqueRenames(originalCatalog, original)); err != nil {
 					return err
@@ -993,11 +1049,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		t := tables[tableIndices[oid]]
 		t.descriptor = catalog.state.descriptors[t.descriptor.address].(*relationDescriptor)
-		if t.owner != currentOwner {
+		inheritedOwnerReplay := t.descriptor.inheritance != nil && t.owner != "postgres"
+		if inheritedOwnerReplay {
+			// Retain a real captured-role directive before the privileged CREATE;
+			// the isolated importer pairs this exact new relation and role.
 			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
 				return err
 			}
 			currentOwner = t.owner
+			if err := setOwner("postgres"); err != nil {
+				return err
+			}
+		} else if err := setOwner(t.owner); err != nil {
+			return err
 		}
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 		// CREATE TABLE OF cannot declare identity/generation or preserve a
@@ -1021,6 +1085,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				provenance := inheritedColumn{local: true, explicitDefault: true, explicitGeneration: true}
 				if t.descriptor.inheritance != nil {
 					provenance = t.descriptor.inheritance.columns[t.attributes[i]]
+				}
+				if effective, exists := t.recipes[t.attributes[i]]; exists {
+					provenance = effective
 				}
 				if !provenance.local {
 					continue
@@ -1059,9 +1126,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 				}
 				if definition, exists := t.descriptor.generations[t.attributes[i]]; exists && provenance.explicitGeneration {
-					text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.expression)
-					if err != nil {
-						return err
+					var text string
+					if t.recipePlaceholders {
+						// The genuine owning declaration supplies the full type/typmod.
+						// An explicit cast would require unrelated public cast syntax.
+						text = "NULL"
+					} else {
+						var err error
+						text, err = (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.expression)
+						if err != nil {
+							return err
+						}
 					}
 					line.WriteString(" GENERATED ALWAYS AS (" + text + ") " + definition.kind.sql())
 				}
@@ -1077,7 +1152,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 					line.WriteString(")")
 				}
-				if !c.Nullable && (t.descriptor.inheritance == nil || t.descriptor.inheritance.notNull[t.attributes[i]].local) {
+				if !c.Nullable && dumpNotNullDeclaration(originalCatalog, t.descriptor, t.attributes[i]) {
 					for _, constraint := range t.notNullConstraints {
 						if constraint.Attribute == t.attributes[i] && !constraint.NotValid {
 							line.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
@@ -1091,7 +1166,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					if constraint.NotValid {
 						continue
 					}
-					if graph.columns[constraint.Attribute].local || !graph.notNull[constraint.Attribute].local {
+					if graph.columns[constraint.Attribute].local || !dumpNotNullDeclaration(originalCatalog, t.descriptor, constraint.Attribute) {
 						continue
 					}
 					if localElements > 0 {
@@ -1103,10 +1178,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			for _, c := range orderedChecks(t.descriptor) {
-				if c.NotValid {
+				if c.NotValid || t.deferredChecks[c.Name] {
 					continue
 				}
-				if t.descriptor.inheritance != nil && !t.descriptor.inheritance.checks[c.Name].local {
+				if !dumpCheckDeclaration(originalCatalog, t.descriptor, c) {
 					continue
 				}
 				text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.expression)
@@ -1123,9 +1198,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			for _, c := range t.descriptor.uniqueConstraints {
+				if physicalPrimaryDeferred(t.descriptor, &c) {
+					continue
+				}
 				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing unique dump index")
+				}
+				if _, moved, err := physicalCompetingIndexSource(originalCatalog, index); err != nil {
+					return err
+				} else if moved {
+					continue
 				}
 				if partitionReplaySeparateConstraint(catalog, index) {
 					continue
@@ -1156,7 +1239,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 			}
 			for _, f := range t.descriptor.foreignKeys {
-				if f.NotValid {
+				if f.NotValid || physicalSelfForeignKeyDeferred(t.descriptor, f) || inheritedForeignKeyDeferred(originalCatalog, t.descriptor, &f) {
 					continue
 				}
 				text, err := (pgRenderer{view: catalog}).foreignKeyConstraintSQL(t.descriptor, f)
@@ -1201,6 +1284,29 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		line.WriteString(key + ";\n")
 		if err := emit(line.String()); err != nil {
+			return err
+		}
+		if inheritedOwnerReplay {
+			if err := emit("ALTER TABLE " + qualified + " OWNER TO " + quoteIdentifier(t.owner) + ";\n"); err != nil {
+				return err
+			}
+			if err := setOwner(t.owner); err != nil {
+				return err
+			}
+		}
+		if err := t.emitInheritedDefaults(ctx, originalCatalog, deferDefaults, emit); err != nil {
+			return err
+		}
+		if err := t.emitNoInheritNotNull(emit, setOwner); err != nil {
+			return err
+		}
+		if err := t.emitPhysicalNotNull(originalCatalog, emit, setOwner); err != nil {
+			return err
+		}
+		if err := emitPhysicalSelfForeignKeys(originalCatalog, t.descriptor, t.owner, false, emit, setOwner); err != nil {
+			return err
+		}
+		if err := emitPhysicalCompetingUniques(originalCatalog, t.descriptor, t.owner, false, emit, setOwner); err != nil {
 			return err
 		}
 		if attachAfterCreate {
@@ -1389,9 +1495,89 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}()
 	var pendingForeignKeys []restoredForeignKeys
 	partitionTeardowns := make(map[ObjectAddress]partitionReplayTeardown)
-	for _, stmt := range statements {
+	notNullOrigins := make(map[OID]restoredNotNull)
+	var pairedNotNull restoredNotNull
+	var pairedPhysical *restoredPhysicalNotNull
+	var deferredPhysical *restoredPhysicalNotNull
+	physicalIndexes := make(map[ObjectAddress]*relationDescriptor)
+	var physicalForeignProvider *restoredPhysicalForeignKeyProvider
+	placeholderOrigins := make(map[restoredGenerationKey]restoredGenerationRecipe)
+	var generationRepairs []restoredGenerationRecipe
+	var lastAuthorization, createOwner authorization.PrincipalRef
+	var pairedOwner restoredInheritedOwner
+	historicalRefs := make(map[ObjectAddress]ObjectRef)
+	historicalAuthority := &restoredHistoryAuthority{facts: make(map[OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
+	for statementIndex, stmt := range statements {
+		if pairedPhysical != nil && !pairedPhysical.admits(stmt) {
+			return sqlError("0A000", restorePhysicalNotNullBoundary)
+		}
+		var physicalConstructor *physicalNotNullConstructor
+		if alteration, ok := stmt.(*parser.AlterTable); ok {
+			physicalConstructor, err = stage.preparePhysicalNotNullConstructor(op, alteration, physicalNotNullFollowing(statements, statementIndex), historicalRefs)
+			if err != nil {
+				return err
+			}
+			if physicalConstructor == nil {
+				physicalConstructor, err = stage.prepareDeferredPhysicalPrimary(op, alteration, deferredPhysical, historicalRefs)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && deferredPhysical != nil && !deferredPhysical.ownerDirective {
+			deferredPhysical.ownerDirective = true
+		} else {
+			deferredPhysical = nil
+		}
+		var physicalIndexBase CatalogRead
+		if _, ok := stmt.(*parser.CreateIndex); ok {
+			physicalIndexBase = stage.CatalogRead()
+		}
+		priorAuthorization, ownerForCreate, ownerPair := lastAuthorization, createOwner, pairedOwner
+		lastAuthorization, createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
+		pairedOwner = restoredInheritedOwner{}
+		if alteration, ok := stmt.(*parser.AlterTable); ok && physicalConstructor == nil {
+			declaration, admitted, captureErr := stage.captureInheritedForeignKey(op, alteration, historicalRefs)
+			if captureErr != nil {
+				return captureErr
+			}
+			if admitted {
+				pendingForeignKeys = append(pendingForeignKeys, declaration)
+				physicalForeignProvider = nil
+				pairedNotNull = restoredNotNull{}
+				continue
+			}
+		}
+		if physicalForeignProvider != nil {
+			if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default && !physicalForeignProvider.ownerDirective {
+				physicalForeignProvider.ownerDirective = true
+			} else if alteration, ok := stmt.(*parser.AlterTable); ok {
+				declaration, admitted, captureErr := stage.capturePhysicalSelfForeignKey(op, alteration, physicalForeignProvider, historicalRefs)
+				if captureErr != nil {
+					return captureErr
+				}
+				if admitted {
+					pendingForeignKeys = append(pendingForeignKeys, declaration)
+					pairedNotNull = restoredNotNull{}
+					continue
+				}
+				physicalConstructor, err = stage.preparePhysicalCompetingUnique(op, alteration, physicalForeignProvider, historicalRefs)
+				if err != nil {
+					return err
+				}
+				if physicalConstructor == nil {
+					physicalForeignProvider = nil
+				}
+			} else {
+				physicalForeignProvider = nil
+			}
+		}
 		var pending restoredForeignKeys
 		switch s := stmt.(type) {
+		case *parser.AlterOwner:
+			if err := stage.restoreInheritedOwner(op, s, ownerPair); err != nil {
+				return err
+			}
 		case *parser.CreateTable:
 			if declarations := foreignKeyDeclarations(s); len(declarations) != 0 {
 				pending, err = stage.captureRestoredForeignKeys(op, declarations)
@@ -1459,7 +1645,16 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.CreatePolicy:
 		case *parser.CreateRule:
 		case *parser.AlterTable:
+			if physicalConstructor != nil {
+				break
+			}
 			if rowSecurityActions(s.Actions) {
+				break
+			}
+			if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
+				if err := stage.restoreInheritedCheck(op, s, generationRepairs); err != nil {
+					return err
+				}
 				break
 			}
 			if err := restoreAlterConstraints(s); err != nil {
@@ -1511,8 +1706,8 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		case *parser.AlterTableDefault:
-			if s.Action != parser.SetDefault || s.Expression == nil {
-				return sqlError("0A000", "restore accepts only deferred SET DEFAULT alterations")
+			if !(s.Action == parser.SetDefault && s.Expression != nil) && !(s.Action == parser.DropDefault && s.Only && len(s.Name.Parts) == 2) {
+				return sqlError("0A000", "restore accepts only deferred SET DEFAULT or inherited ONLY DEFAULT alterations")
 			}
 		case *parser.Select:
 			if !restoreSequenceState(s) {
@@ -1523,13 +1718,45 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only database-local COMMENT targets")
 			}
 		case *parser.SessionAuthorization:
+			if s.Default {
+				generationRepairs = nil
+			}
 			if !s.OwnerDirective && !s.Default {
 				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives or DEFAULT")
 			}
 		case *parser.Update:
-			if err := stage.restoreAttributeRank(op, s); err != nil {
+			var repairErr error
+			if restoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
+				repairErr = stage.restoreRetiredConstraint(op, s, historicalAuthority)
+			} else if restoreCatalogName(s.Name, "pg_constraint") {
+				repairErr = stage.restoreNoInheritNotNull(op, s, pairedNotNull)
+				if repairErr == nil {
+					delete(notNullOrigins, pairedNotNull.constraint)
+				}
+			} else {
+				repairErr = stage.restoreAttributeRank(op, s)
+			}
+			pairedNotNull = restoredNotNull{}
+			if repairErr != nil {
+				return repairErr
+			}
+			continue
+		case *parser.Delete:
+			if err := stage.restorePhysicalNotNull(op, s, pairedPhysical); err != nil {
 				return err
 			}
+			if pairedPhysical.position == len(pairedPhysical.repairs) {
+				physicalForeignProvider, err = stage.capturePhysicalForeignKeyProvider(op, pairedPhysical.repairs[0].relation, historicalRefs)
+				if err != nil {
+					return err
+				}
+				if pairedPhysical.primary == nil {
+					deferredPhysical = pairedPhysical
+					deferredPhysical.ownerDirective = false
+				}
+				pairedPhysical = nil
+			}
+			pairedNotNull = restoredNotNull{}
 			continue
 		case *parser.Insert:
 			if len(s.With) != 0 {
@@ -1571,6 +1798,26 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		default:
 			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+		}
+		if insertion, ok := stmt.(*parser.Insert); ok && len(generationRepairs) != 0 {
+			generationRepairs, err = stage.closeRestoredRecipesForData(op, insertion, generationRepairs)
+			if err != nil {
+				return err
+			}
+		}
+		if _, ownerDirective := stmt.(*parser.SessionAuthorization); !ownerDirective {
+			pairedNotNull = restoredNotNull{}
+		}
+		if alteration, ok := stmt.(*parser.AlterTable); physicalConstructor == nil && ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetNotNull {
+			pairedNotNull, err = stage.pairRestoredNotNull(op, alteration, notNullOrigins)
+			if err != nil {
+				return err
+			}
+		}
+		if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetExpression {
+			if err := stage.pairRestoredGeneration(op, alteration, placeholderOrigins); err != nil {
+				return err
+			}
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
@@ -1636,7 +1883,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if err := stage.beginPartitionUniqueReplay(op, alteration); err != nil {
 				return err
 			}
-			if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && op.restorePartitionUnique == nil {
+			if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && op.restorePartitionUnique == nil && physicalConstructor == nil {
 				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
 			}
 		}
@@ -1658,6 +1905,57 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if err != nil {
 			return err
 		}
+		if physicalConstructor != nil {
+			pairedPhysical, err = stage.capturePhysicalNotNullConstructor(op, physicalConstructor, physicalIndexes)
+			if err != nil {
+				return err
+			}
+		}
+		if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && pairedPhysical == nil && (alteration.Actions[0].Action == parser.AddUnique || alteration.Actions[0].Action == parser.AddUsingIndex) {
+			physicalForeignProvider, err = stage.capturePhysicalForeignKeyProvider(op, alteration.Name, historicalRefs)
+			if err != nil {
+				return err
+			}
+			if physicalForeignProvider != nil && physicalConstructor != nil && physicalConstructor.competing {
+				physicalForeignProvider.permuted = true
+			}
+		}
+		if creation, ok := stmt.(*parser.CreateIndex); ok {
+			if index := stage.capturePhysicalImportIndex(physicalIndexBase, creation, historicalRefs); index != nil {
+				physicalIndexes[index.address] = index
+			}
+		}
+		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default {
+			auth, authErr := op.Authorization()
+			if authErr != nil {
+				return authErr
+			}
+			actor, roleErr := auth.roles.Descriptor(auth.state.CurrentUser)
+			if roleErr != nil {
+				return roleErr
+			}
+			if actor.Superuser && priorAuthorization != (authorization.PrincipalRef{}) && priorAuthorization != actor.Ref {
+				createOwner = priorAuthorization
+			}
+			lastAuthorization = actor.Ref
+		}
+		if creation, ok := stmt.(*parser.CreateTable); ok && result.created != (ObjectRef{}) {
+			historicalRefs[result.created.Address] = result.created
+			captureHistoricalRelation(stage.CatalogRead(), result.created, historicalAuthority.facts)
+			stage.captureRestoredNotNulls(result.created, creation, notNullOrigins)
+			stage.captureRestoredPlaceholders(result.created, creation, placeholderOrigins)
+			if ownerForCreate != (authorization.PrincipalRef{}) && len(creation.Parents) != 0 {
+				pairedOwner, err = stage.captureInheritedOwner(op, result.created, ownerForCreate)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		if alteration, altered := stmt.(*parser.AlterTable); altered && slices.ContainsFunc(alteration.Actions, func(a parser.AlterTableAction) bool {
+			return a.Action == parser.AddCheck || a.Action == parser.AddNotNull || a.Action == parser.SetNotNull
+		}) {
+			stage.captureHistoricalFacts(historicalRefs, historicalAuthority.facts)
+		}
 		if result.created != (ObjectRef{}) && len(pending.definitions) != 0 {
 			pending.child = result.created
 			if err := stage.resolveRestoredForeignKeyTargets(&pending); err != nil {
@@ -1670,6 +1968,17 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return err
 			}
 		}
+		if alteration, ok := stmt.(*parser.AlterTable); ok && len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.SetExpression {
+			record, captureErr := stage.captureRestoredGeneration(op, alteration)
+			if captureErr != nil {
+				return captureErr
+			}
+			generationRepairs = append(generationRepairs, record)
+			delete(placeholderOrigins, restoredGenerationKey{record.ref.Address, record.attribute})
+		}
+	}
+	if pairedPhysical != nil {
+		return sqlError("0A000", restorePhysicalNotNullBoundary)
 	}
 	if err := stage.bindRestoredForeignKeys(ctx, op, pendingForeignKeys); err != nil {
 		return err

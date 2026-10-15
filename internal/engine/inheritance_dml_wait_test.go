@@ -1,0 +1,119 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+	"time"
+)
+
+func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *relationDescriptor) {
+	t.Helper()
+	e := New()
+	ps, p := queryCreateStage(t, e, "p", 1)
+	if err := e.stageQueryTableRows(context.Background(), ps, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, TxRef{}); err != nil {
+		t.Fatal(err)
+	}
+	queryCreatePublish(t, e, ps)
+	cs, c := queryCreateStage(t, e, "c", 1)
+	c.inheritance = &tableInheritance{parents: []ObjectAddress{p.address}, columns: map[int32]inheritedColumn{c.attributes[0]: {origins: []inheritanceOrigin{{parent: p.address, attribute: p.attributes[0]}}}}, notNull: map[int32]inheritedConstraint{}, checks: map[string]inheritedConstraint{}}
+	if err := e.stageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, TxRef{}); err != nil {
+		t.Fatal(err)
+	}
+	queryCreatePublish(t, e, cs)
+	// Child publication may issue the parent's real subclass-marker revision.
+	// Return the actual published identities, not pre-publication candidates.
+	published := e.CatalogRead()
+	return e, published.state.descriptors[p.address].(*relationDescriptor), published.state.descriptors[c.address].(*relationDescriptor)
+}
+
+func TestInheritanceDMLContention(t *testing.T)  { inheritanceDMLQueued(t, false) }
+func TestInheritanceDMLReplacement(t *testing.T) { inheritanceDMLQueued(t, true) }
+
+func inheritanceDMLQueued(t *testing.T, replace bool) {
+	t.Helper()
+	e, p, c := inheritanceDMLPublishedGraph(t)
+	op, opDone, err := testOperation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opDone()
+	holder, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holder.Finish(nil)
+	if err = holder.gate(&parser.Select{}); err != nil {
+		t.Fatal(err)
+	}
+	old := ObjectRef{owner: e.owner, Epoch: e.CatalogRead().Epoch(), Address: c.address}
+	if err = e.locks.acquire(op.Context(), holder.ticket, lockResource{ObjectRef: old}, accessExclusive); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s, done := inheritanceDMLScope(t, e, p, ctx)
+	defer done()
+	result := make(chan error, 1)
+	joined := false
+	go func() { result <- s.acquireInheritedMutationTargets(&parser.Update{}) }()
+	defer func() {
+		cancel()
+		holder.Finish(nil)
+		if !joined {
+			select {
+			case <-result:
+			case <-time.After(5 * time.Second):
+				t.Error("mutation admission worker did not join")
+			}
+		}
+	}()
+	lockPending(t, e, 1)
+	e.locks.mu.Lock()
+	entry := e.locks.entries[lockResource{ObjectRef: old}]
+	correct := entry != nil && len(entry.pending) == 1 && entry.pending[0].ticket == s.ticket && entry.pending[0].mode == rowExclusive
+	e.locks.mu.Unlock()
+	if !correct {
+		t.Fatal("descendant did not queue an actual physical RX request")
+	}
+	// Observing the real queued request is the synchronization point; no sleeps
+	// or synthetic wait hooks decide when replacement/cancellation happens.
+	if replace {
+		remove := e.BeginCatalogStage(e.CatalogRead())
+		if err = remove.Remove(old); err != nil {
+			t.Fatal(err)
+		}
+		queryCreatePublish(t, e, remove)
+		stage, next := queryCreateStage(t, e, "c", 1)
+		next.inheritance = cloneInheritance(c.inheritance)
+		queryCreatePublish(t, e, stage)
+		if next.address == old.Address || e.storage[next.address] == e.storage[old.Address] {
+			t.Fatal("replacement did not mint a fresh physical identity")
+		}
+		if err = holder.Finish(nil); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		cancel()
+	}
+	select {
+	case err = <-result:
+		joined = true
+	case <-time.After(5 * time.Second):
+		t.Fatal("mutation admission did not resume")
+	}
+	if replace && !errors.Is(err, ErrCatalogReplaced) {
+		t.Fatal("queued mutation rebound to same-name replacement", err)
+	}
+	if !replace && !errors.Is(err, context.Canceled) {
+		t.Fatal("physical wait ignored cancellation", err)
+	}
+	if len(s.inheritedTargets) != 0 {
+		t.Fatal("failed wait admitted a descendant", s.inheritedTargets)
+	}
+	s.Finish(err)
+	holder.Finish(nil)
+	lockEmpty(t, e)
+}

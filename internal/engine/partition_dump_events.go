@@ -436,5 +436,12 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		}
 		addDumpDependency(graph, dumpEventKey{oid: parent.sqlIndex.parent.ObjectID, phase: dumpTableCompletion}, event)
 	}
+	if err := inheritanceRecipeEvents(ctx, view, graph, declarations, tables, nameReady); err != nil {
+		return err
+	}
+	retiredConstraintEvents(view, graph, tables)
+	if err := inheritedForeignKeyEvents(view, graph, tables, nameReady); err != nil {
+		return err
+	}
 	return ctx.Err()
 }

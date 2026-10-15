@@ -4,16 +4,16 @@ import "fmt"
 
 // The named cursor owns its retained execution. Mutations borrow only a physical
 // occurrence and then remap its stable RowID into their fresh command view.
-func (s *StatementScope) positionedMutationRow(b binding) (RowID, error) {
+func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, error) {
 	c := s.op.session.cursors.entries[b.currentOf]
 	if c == nil || (!c.promoted && c.tx != s.txRef) {
-		return 0, missingSQLCursor(b.currentOf)
+		return mutationRowIdentity{}, missingSQLCursor(b.currentOf)
 	}
 	if c.epoch != s.txRef.epoch {
-		return 0, ErrCatalogReplaced
+		return mutationRowIdentity{}, ErrCatalogReplaced
 	}
 	if c.position == cursorFailed || c.root == nil {
-		return 0, sqlError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.currentOf))
+		return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.currentOf))
 	}
 	occurrence := -1
 	marked := false
@@ -27,30 +27,41 @@ func (s *StatementScope) positionedMutationRow(b binding) (RowID, error) {
 				continue
 			}
 			if occurrence != -1 {
-				return 0, sqlError("24000", fmt.Sprintf("cursor \"%s\" has multiple FOR UPDATE/SHARE references to table \"%s\"", b.currentOf, b.relation.name))
+				return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" has multiple FOR UPDATE/SHARE references to table \"%s\"", b.currentOf, b.relation.name))
 			}
 			occurrence = i
 		}
 	}
 	if marked {
 		if occurrence == -1 {
-			return 0, sqlError("24000", fmt.Sprintf("cursor \"%s\" does not have a FOR UPDATE/SHARE reference to table \"%s\"", b.currentOf, b.relation.name))
+			return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" does not have a FOR UPDATE/SHARE reference to table \"%s\"", b.currentOf, b.relation.name))
 		}
 	} else {
 		scan := cursorSimpleScan(c.root, c.source)
 		if scan == nil || scan.ref != b.ref {
-			return 0, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.currentOf, b.relation.name))
+			return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.currentOf, b.relation.name))
 		}
 		occurrence = scan.occurrence
 	}
 	if c.position != cursorOn {
-		return 0, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not positioned on a row", b.currentOf))
+		return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not positioned on a row", b.currentOf))
 	}
-	if c.locks == nil || occurrence < 0 || occurrence >= len(c.locks.leaves) || c.locks.leaves[occurrence].leaf.storage != b.storage {
-		return 0, ErrCatalogReplaced
+	if c.locks == nil || occurrence < 0 || occurrence >= len(c.locks.leaves) {
+		return mutationRowIdentity{}, ErrCatalogReplaced
 	}
-	version := cursorOccurrenceVersion(c.currentSource, c.currentIndex, occurrence, c.locks)
-	return version.row, nil
+	physical := cursorOccurrencePhysicalRow(c.currentSource, c.currentIndex, occurrence, c.locks)
+	if physical.version.row == 0 {
+		return mutationRowIdentity{}, nil
+	}
+	storage := s.mutationStorage(physical.leaf.ref)
+	if storage == nil {
+		// ONLY excludes a positioned descendant, without changing its cursor.
+		return mutationRowIdentity{}, nil
+	}
+	if storage != physical.leaf.storage {
+		return mutationRowIdentity{}, ErrCatalogReplaced
+	}
+	return mutationRowIdentity{physical.leaf.ref, physical.version.row}, nil
 }
 
 // Only occurrence-preserving nodes may expose an unlocked physical scan.
@@ -126,4 +137,37 @@ func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *
 		return rowVersion{}
 	}
 	return source.versionAt(source.rawIndex(index))
+}
+
+func cursorOccurrencePhysicalRow(source *querySource, index, occurrence int, locks *queryLockContext) queryPhysicalRow {
+	if source == nil || index == absentQueryIndex {
+		return queryPhysicalRow{}
+	}
+	if source.input != nil {
+		return cursorOccurrencePhysicalRow(source.input, source.inputIndex(index), occurrence, locks)
+	}
+	if source.lineage != nil {
+		if source.lineage.selection != nil {
+			index = source.lineage.selection[index]
+		}
+		return cursorOccurrencePhysicalRow(source.lineage.stage, index, occurrence, locks)
+	}
+	visible := index
+	if source.materialized {
+		visible = absentQueryIndex
+		for j, id := range source.occurrences {
+			if id == occurrence {
+				visible = source.provenance[index*len(source.occurrences)+j]
+				break
+			}
+		}
+	} else if source.occurrence != occurrence {
+		return queryPhysicalRow{}
+	}
+	if visible == absentQueryIndex || occurrence < 0 || occurrence >= len(locks.leaves) {
+		return queryPhysicalRow{}
+	}
+	leaf := locks.leaves[occurrence]
+	version := cursorOccurrenceVersion(source, index, occurrence, locks)
+	return leaf.source.physicalRow(visible, leaf.leaf, version)
 }

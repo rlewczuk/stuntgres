@@ -849,6 +849,7 @@ type AlterTableAction struct {
 	ForeignKey  *ForeignKeyConstraint
 	// NOT NULL uses the flat attachment; CHECK/FK retain validity in their AST.
 	NotValid    bool
+	NoInherit   bool
 	ValidityPos Position
 }
 
@@ -892,6 +893,7 @@ func (*AlterTableDefault) statement() {}
 type alterTarget struct {
 	Name     ObjectName
 	Only     bool
+	Star     bool
 	IfExists bool
 }
 
@@ -1015,6 +1017,8 @@ type Delete struct {
 	With          []CommonTableExpression
 	WithRecursive bool
 	Name          ObjectName
+	Only          bool
+	Star          bool
 	Alias         Identifier
 	Using         FromItem
 	Where         Expr
@@ -1048,6 +1052,8 @@ type Update struct {
 	With          []CommonTableExpression
 	WithRecursive bool
 	Name          ObjectName
+	Only          bool
+	Star          bool
 	Alias         Identifier
 	From          FromItem
 	Assignments   []UpdateAssignment
