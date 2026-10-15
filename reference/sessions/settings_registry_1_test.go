@@ -335,6 +335,7 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		"max_parallel_workers_per_gather":     {"2", "Sets the maximum number of parallel processes per executor node."},
 		"quote_all_identifiers":               {"off", "When generating SQL fragments, quote all identifiers."},
 		"server_encoding":                     {"UTF8", "Shows the server (database) character set encoding."},
+		"track_commit_timestamp":              {"off", "Collects transaction commit time."},
 		"standard_conforming_strings":         {"on", "Causes '...' strings to treat backslashes literally."},
 		"statement_timeout":                   {"0", "Sets the maximum allowed duration of any statement."},
 		"lock_timeout":                        {"0", "Sets the maximum allowed duration of any wait for a lock."},

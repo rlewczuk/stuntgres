@@ -18,6 +18,7 @@ type serializableTracker struct {
 
 type serializableTransaction struct {
 	ref                                                 TxRef
+	assignedXID                                         uint32 // Retained canonical public identity, including after completion.
 	captured, readOnly, deferrable                      bool
 	frontier                                            CommitSeq
 	snapshotOrder, order                                uint64
@@ -75,7 +76,7 @@ func (e *Engine) enrollSerializableLocked(ref TxRef, isolation Isolation) {
 		if e.serializable.creators == nil {
 			e.serializable.creators = make(map[VersionID]TxRef)
 		}
-		e.serializable.nodes[ref] = &serializableTransaction{ref: ref, reads: make(map[ObjectAddress]struct{}), writes: make(map[ObjectAddress]map[serializableWriteKey]serializableWrite), incoming: make(map[*serializableTransaction]struct{}), outgoing: make(map[*serializableTransaction]struct{})}
+		e.serializable.nodes[ref] = &serializableTransaction{ref: ref, assignedXID: e.visibility[ref].assignedXID, reads: make(map[ObjectAddress]struct{}), writes: make(map[ObjectAddress]map[serializableWriteKey]serializableWrite), incoming: make(map[*serializableTransaction]struct{}), outgoing: make(map[*serializableTransaction]struct{})}
 	}
 }
 
@@ -124,7 +125,7 @@ func (e *Engine) serializableEdgeLocked(current, reader, writer *serializableTra
 			return serializableError("Canceled on identification as a pivot, during write.")
 		}
 		if writer.finalized {
-			return serializableError(fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", writer.ref.diagnostic))
+			return serializableError(fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", writer.assignedXID))
 		}
 		writer.doomed = true
 	}

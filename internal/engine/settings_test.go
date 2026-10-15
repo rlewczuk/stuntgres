@@ -13,123 +13,66 @@ import (
 	"time"
 )
 
+// SQL values/routes are covered by TestReferenceSettingsUtilitySnapshotOwnership.
+// This unit retains only package-private completion and detached-row ownership.
 func TestSettingUtilitySnapshotOwnership(t *testing.T) {
-	all := [][]string{
-		{"application_name", "initial", "Sets the application name to be reported in statistics and logs."},
-		{"bytea_output", "hex", "Sets the output format for bytea."},
-		{"client_encoding", "UTF8", "Sets the client's character set encoding."},
-		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
-		{"DateStyle", "ISO, MDY", "Sets the display format for date and time values."},
-		{"default_transaction_deferrable", "off", "Sets the default deferrable status of new transactions."},
-		{"default_transaction_isolation", "read committed", "Sets the transaction isolation level of each new transaction."},
-		{"default_transaction_read_only", "off", "Sets the default read-only status of new transactions."},
-		{"extra_float_digits", "1", "Sets the number of digits displayed for floating-point values."},
-		{"icu_validation_level", "warning", "Log level for reporting invalid ICU locale strings."},
-		{"idle_in_transaction_session_timeout", "0", "Sets the maximum allowed idle time between queries, when in a transaction."},
-		{"idle_session_timeout", "0", "Sets the maximum allowed idle time between queries, when not in a transaction."},
-		{"IntervalStyle", "postgres", "Sets the display format for interval values."},
-		{"lc_messages", "C", "Sets the language in which messages are displayed."},
-		{"lc_monetary", "C", "Sets the locale for formatting monetary amounts."},
-		{"lc_numeric", "C", "Sets the locale for formatting numbers."},
-		{"lc_time", "C", "Sets the locale for formatting date and time values."},
-		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
-		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
-		{"max_parallel_workers_per_gather", "2", "Sets the maximum number of parallel processes per executor node."},
-		{"quote_all_identifiers", "off", "When generating SQL fragments, quote all identifiers."},
-		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
-		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
-		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
-		{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},
-		{"TimeZone", "UTC", "Sets the time zone for displaying and interpreting time stamps."},
-		{"timezone_abbreviations", "Default", "Selects a file of time zone abbreviations."},
-		{"transaction_deferrable", "off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
-		{"transaction_isolation", "read committed", "Sets the current transaction's isolation level."},
-		{"transaction_read_only", "off", "Sets the current transaction's read-only status."},
-		{"transaction_timeout", "0", "Sets the maximum allowed duration of any transaction within a session (not a prepared transaction)."},
+	e := New()
+	provider := &settingsDefaultProviderForTest{values: map[string]string{"application_name": "initial"}, calls: map[string]int{}}
+	session := sessionStart(t, e, provider)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	op, err := session.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range []struct {
-		query    string
-		names    []string
-		rows     [][]string
-		count    int64
-		nullable bool
-		null     bool
-	}{
-		{"SHOW application_name", []string{"application_name"}, [][]string{{"initial"}}, 0, false, false},
-		{"SHOW ALL", []string{"name", "setting", "description"}, all, 0, false, false},
-		{"SELECT current_setting('application_name')", []string{"current_setting"}, [][]string{{"initial"}}, 1, true, false},
-		{"SELECT current_setting(NULL)", []string{"current_setting"}, [][]string{{""}}, 1, true, true},
-		{"SELECT set_config('application_name','changed',false)", []string{"set_config"}, [][]string{{"changed"}}, 1, true, false},
-	} {
-		t.Run(tc.query, func(t *testing.T) {
-			e := New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "SET application_name TO initial")
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			op, err := s.Acquire(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer op.Done()
-			scope, err := e.StartStatement(op)
-			if err != nil {
-				t.Fatal(err)
-			}
-			result, execErr := scope.Execute(statement(t, tc.query), 0, nil)
-			finishErr := scope.Finish(execErr)
-			if execErr != nil || finishErr != nil {
-				t.Fatal(execErr, finishErr)
-			}
-			if !scope.completed || s.transactions.state != TxIdle {
-				t.Fatal("utility did not complete and clear its implicit transaction")
-			}
-			if result.Rows == nil {
-				t.Fatal("missing utility snapshot")
-			}
-			defer result.Rows.Close()
-			actual := result.Rows.(*finalRows)
-			if actual.self != actual || actual.count != len(tc.rows) || result.Count != tc.count || len(result.Rows.Schema()) != len(tc.names) {
-				t.Fatalf("invalid result ownership, cardinality or metadata: %+v", result)
-			}
-			typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-			for i, column := range result.Rows.Schema() {
-				if column.Name != tc.names[i] || column.Usage.Type != typ || column.Nullable != tc.nullable {
-					t.Fatalf("column %d: %+v", i, column)
-				}
-			}
-			// Completion releases the command, not the anonymous result owner.
-			// Later cancellation, settings changes and teardown cannot erase it.
-			cancel()
-			op.Done()
-			sessionSQL(t, s, "RESET ALL")
-			s.RequestEnd(CleanClose)
-			if err := s.WaitEnd(context.Background()); err != nil {
-				t.Fatal(err)
-			}
-			values := make([]sqltype.Value, len(tc.names))
-			for i, row := range tc.rows {
-				if present, err := result.Rows.Next(context.Background(), values); !present || err != nil {
-					t.Fatal(present, err)
-				}
-				for j, want := range row {
-					if tc.null {
-						if !values[j].IsNull() || values[j].Type() != typ {
-							t.Fatal("lost typed NULL result")
-						}
-						continue
-					}
-					got, err := values[j].Text()
-					if err != nil || got != want {
-						t.Fatalf("row %d column %d: %q %v, want %q", i, j, got, err, want)
-					}
-				}
-			}
-			result.Rows.Close()
-			if present, err := result.Rows.Next(context.Background(), values); present || err != nil || actual.anonymous != nil {
-				t.Fatal("Close did not release anonymous rows")
-			}
-		})
+	defer op.Done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, execErr := scope.Execute(&parser.Show{Name: parser.Identifier{Text: "application_name"}}, 0, nil)
+	if err := scope.Finish(execErr); err != nil {
+		t.Fatal(err)
+	}
+	if !scope.completed || session.transactions.state != TxIdle {
+		t.Fatal("utility retained implicit transaction ownership")
+	}
+	actual, ok := result.Rows.(*finalRows)
+	if !ok || actual.self != actual || actual.count != 1 {
+		t.Fatal("invalid anonymous snapshot owner")
+	}
+	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
+	if actual.Schema()[0].Usage.Type != typ {
+		t.Fatal("foreign snapshot type")
+	}
+	cancel()
+	op.Done()
+	session.settings.mu.Lock()
+	session.settings.values["application_name"] = "changed"
+	session.settings.mu.Unlock()
+	session.RequestEnd(CleanClose)
+	if err := session.WaitEnd(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	values := make([]sqltype.Value, 1)
+	if present, err := actual.Next(context.Background(), values); !present || err != nil {
+		t.Fatal(present, err)
+	}
+	if text, err := values[0].Text(); err != nil || text != "initial" {
+		t.Fatal("detached snapshot consulted ended owner", text, err)
+	}
+	actual.Close()
+	if present, err := actual.Next(context.Background(), values); present || err != nil || actual.anonymous != nil {
+		t.Fatal("Close retained anonymous row ownership")
+	}
+	// A whole typed NULL likewise belongs to the anonymous result, not a session.
+	nullResult, err := anonymousResult([]ColumnDescriptor{{Name: "v", Usage: typ.Usage(), Nullable: true}}, [][]sqltype.Value{{sqltype.Null(typ)}}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nullResult.Rows.Close()
+	if present, err := nullResult.Rows.Next(context.Background(), values); !present || err != nil || !values[0].IsNull() || values[0].Type() != typ {
+		t.Fatal("lost typed NULL ownership", err)
 	}
 }
 
@@ -276,7 +219,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 	if defs[0].BootDefault != "fast" || defs[1].BootDefault != "1.23457" {
 		t.Fatal(defs)
 	}
-	e := NewWithSettings(defs, "")
+	e := NewWithSettings(defs, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.mode": "FAST"}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
 	for _, name := range e.settingsOrder {
@@ -322,7 +265,7 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	if def.bootValue.number != 0x1p-1023 {
 		t.Fatal("registered default lost exactness", def.bootValue)
 	}
-	e := NewWithSettings([]SettingDefinition{def}, "")
+	e := NewWithSettings([]SettingDefinition{def}, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "-" + exact}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
 	if p.calls["demo.ratio"] != 1 || a.settings.defaultTyped["demo.ratio"].number != -0x1p-1023 {

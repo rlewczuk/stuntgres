@@ -31,6 +31,7 @@ const (
 	SettingSession SettingAccess = iota
 	SettingReadOnly
 	SettingPrivileged
+	settingStartupOnly
 )
 
 type SettingUnit uint8
@@ -84,6 +85,7 @@ var applicationName = SettingDefinition{
 }
 var builtinSettings = []SettingDefinition{
 	applicationName,
+	{Name: "track_commit_timestamp", Type: SettingBoolean, Access: settingStartupOnly, BootDefault: "off", Description: "Collects transaction commit time."},
 	{Name: "default_transaction_isolation", Type: SettingEnum, BootDefault: "read committed", EnumValues: []string{"read committed", "read uncommitted", "repeatable read", "serializable"}, Description: "Sets the transaction isolation level of each new transaction."},
 	{Name: "transaction_isolation", Type: SettingEnum, BootDefault: "read committed", EnumValues: []string{"read committed", "read uncommitted", "repeatable read", "serializable"}, Description: "Sets the current transaction's isolation level."},
 	{Name: "default_transaction_read_only", Type: SettingBoolean, BootDefault: "off", Description: "Sets the default read-only status of new transactions."},
@@ -196,6 +198,9 @@ func (e *Engine) initializeSettings(defs []SettingDefinition) {
 	for i, list := range [][]SettingDefinition{builtinSettings, defs} {
 		for _, d := range list {
 			if i == 0 {
+				if d.Name == "track_commit_timestamp" && e.trackCommitTimestamp {
+					d.BootDefault = "on"
+				}
 				v, err := d.parse(d.BootDefault)
 				if err != nil {
 					panic(err)

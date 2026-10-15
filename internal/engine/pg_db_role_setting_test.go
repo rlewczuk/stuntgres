@@ -130,7 +130,7 @@ func TestPGDBRoleSettingSessionDefaultsExcluded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := NewWithSettings([]SettingDefinition{def}, "")
+	e := NewWithSettings([]SettingDefinition{def}, "", false)
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"application_name": "captured_first", "dbrole18.mode": "first"}, calls: map[string]int{}}
 	a := sessionStart(t, e, provider)
 	provider.values["application_name"], provider.values["dbrole18.mode"] = "captured_second", "second"

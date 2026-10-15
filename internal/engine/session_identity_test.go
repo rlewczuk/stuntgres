@@ -141,7 +141,7 @@ func TestSessionIdentityConfiguredResetRole(t *testing.T) {
 
 func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	ctx := context.Background()
-	e := NewWithSettings(nil, "unit identity")
+	e := NewWithSettings(nil, "unit identity", false)
 	session, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)

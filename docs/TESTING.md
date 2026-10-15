@@ -166,6 +166,13 @@ container: **do not use `t.Parallel()`**. Each package's `TestMain` delegates to
 administrative sessions and fixture state. Real-mode Makefile targets serialize
 those processes with `-p 1`, including startup and final teardown.
 
+Packages needing a startup tracking mode may opt their existing single oracle
+in through `fixture.Main(m, fixture.WithCommitTimestampTracking())`.
+The option is applied before eager startup; fixture initialization checks the
+requested server setting, and native scenario engines inherit the same mode.
+Other packages retain default-off tracking. This is not a session SET toggle
+or permission to create a second package-owned container.
+
 Change note: the pinned admin pool retains one idle physical session instead of
 reconnecting at every fixture reset. Open connections remain unrestricted so
 observers can run while a replay holds an admin handle. Every existing

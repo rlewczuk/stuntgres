@@ -258,6 +258,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.Membership()
+	case commitTimestampExpression:
+		return true
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:

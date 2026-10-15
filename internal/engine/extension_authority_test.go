@@ -31,7 +31,7 @@ func extensionUnitError(t *testing.T, err error, code string) {
 }
 
 func TestExtensionSchemaACL(t *testing.T) {
-	e := NewWithSettings(nil, "ext_acl_db")
+	e := NewWithSettings(nil, "ext_acl_db", false)
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "ext_acl_actor", true, parser.RoleOptions{})
@@ -100,7 +100,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	}
 }
 func TestExtensionDatabaseCreateAuthority(t *testing.T) {
-	e := NewWithSettings(nil, "ext_authority")
+	e := NewWithSettings(nil, "ext_authority", false)
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "ext_db_actor", true, parser.RoleOptions{Present: parser.RoleCreateDB, CreateDB: true})
@@ -144,7 +144,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, install); err != nil {
 		t.Fatal(err)
 	}
-	replacement := NewWithSettings(nil, "different_attachment")
+	replacement := NewWithSettings(nil, "different_attachment", false)
 	if _, err := e.replaceCatalog(context.Background(), replacement.CatalogRead(), admin); err != nil {
 		t.Fatal(err)
 	}

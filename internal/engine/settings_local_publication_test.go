@@ -76,7 +76,7 @@ func TestSettingsLocalExactTypedUndo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := NewWithSettings([]SettingDefinition{d}, "")
+	e := NewWithSettings([]SettingDefinition{d}, "", false)
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET demo.exact='0x1p-1074'")
 	original := math.Float64bits(s.settings.typed["demo.exact"].number)

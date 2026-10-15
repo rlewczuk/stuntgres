@@ -354,7 +354,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 func TestExtensionTemporaryReplacement(t *testing.T) {
 	for _, reason := range []string{"revoke", "inherit", "recreated_role"} {
 		t.Run("foreign_private_"+reason, func(t *testing.T) {
-			target := NewWithSettings(nil, "ext_temp_fence_db")
+			target := NewWithSettings(nil, "ext_temp_fence_db", false)
 			owner, _ := extensionTemporaryOperation(t, target, "postgres")
 			admin, _ := extensionTemporaryOperation(t, target, "postgres")
 			roleExecute(t, target, owner, "CREATE TEMP TABLE fenced_temp_seed(id INT)")
@@ -413,7 +413,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		})
 	}
 	t.Run("named_retained_owner", func(t *testing.T) {
-		target := NewWithSettings(nil, "ext_temp_owner_db")
+		target := NewWithSettings(nil, "ext_temp_owner_db", false)
 		owner, _ := extensionTemporaryOperation(t, target, "postgres")
 		admin, _ := extensionTemporaryOperation(t, target, "postgres")
 		roleExecute(t, target, owner, "CREATE TEMP TABLE retained_owner_seed(id INT)")

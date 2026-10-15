@@ -625,6 +625,9 @@ retry:
 	if len(rows) == 0 {
 		return nil
 	}
+	if err := e.assignTransactionXIDLocked(s.txRef); err != nil {
+		return err
+	}
 	var versions []rowVersion
 	var err error
 	if len(relation.exclusionConstraints) != 0 {

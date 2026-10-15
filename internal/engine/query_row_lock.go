@@ -145,6 +145,9 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row RowID, mark queryRo
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf)
+	if err == nil {
+		err = e.assignTransactionXIDLocked(s.txRef)
+	}
 	return err == nil, err
 }
 

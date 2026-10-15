@@ -36,9 +36,22 @@ var referenceStartup sync.Once
 var referenceStartupErr error
 var Started bool
 
+// StartupOption configures the package-owned oracle before its first startup.
+type StartupOption func()
+
+var trackCommitTimestamp bool
+
+// WithCommitTimestampTracking enables tracking on the package's single oracle.
+func WithCommitTimestampTracking() StartupOption {
+	return func() { trackCommitTimestamp = true }
+}
+
 // Tests run serially; one test can create multiple pairs before its cleanup.
 
-func Main(m *testing.M) (code int) {
+func Main(m *testing.M, options ...StartupOption) (code int) {
+	for _, option := range options {
+		option()
+	}
 	defer func() {
 		if err := cleanupServerBuild(); err != nil {
 			fmt.Fprintf(os.Stderr, "server fixture binary cleanup: %v\n", err)
@@ -153,7 +166,7 @@ func NewFixture(t *testing.T, withPostgres, nativeRaw bool) *Pair {
 		}
 		reset()
 	})
-	nativeDriver := stuntgres.NewDriver()
+	nativeDriver := stuntgres.NewDriverWithConfig(stuntgres.DriverConfig{TrackCommitTimestamp: trackCommitTimestamp})
 	connector, err := nativeDriver.OpenConnector("reference/" + t.Name())
 	if err != nil {
 		t.Fatal(err)

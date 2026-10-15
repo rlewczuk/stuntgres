@@ -133,9 +133,17 @@ func TestSerializableGraphFinalizedPivotIdentity(t *testing.T) {
 	defer e.mu.Unlock()
 	pivot.outgoing[out] = struct{}{}
 	out.incoming[pivot] = struct{}{}
+	if err := e.assignTransactionXIDLocked(pivot.ref); err != nil {
+		t.Fatal(err)
+	}
+	publicXID := e.visibility[pivot.ref].assignedXID
+	e.recordCommitTimestampLocked(pivot.ref)
+	if e.visibility[pivot.ref].assignedXID != 0 || pivot.assignedXID != publicXID {
+		t.Fatal("completion lost the pivot's canonical diagnostic identity")
+	}
 	e.serializableCommittedLocked(out.ref, e.commitSeq)
 	e.serializableCommittedLocked(pivot.ref, e.commitSeq)
-	serializableUnitDiagnostic(t, e.serializableEdgeLocked(reader, reader, pivot), fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", pivot.ref.diagnostic))
+	serializableUnitDiagnostic(t, e.serializableEdgeLocked(reader, reader, pivot), fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", publicXID))
 	if pivot.doomed || out.doomed || !pivot.committed {
 		t.Fatal("finalized victim mutated")
 	}

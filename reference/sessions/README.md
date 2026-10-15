@@ -60,6 +60,49 @@ Native scan goroutines are not PostgreSQL child sessions/lock groups: serial
 fallback remains unchanged, and no fake worker identity or parallel contention
 witness is claimed.
 
+### Commit timestamp default-off contract
+
+This package retains startup tracking off. The three selected inquiries report
+`55000`, `could not get commit timestamp data`, with the PostgreSQL configuration
+Hint for ordinary XIDs/last completion. Strict NULL inputs bypass tracking;
+XID 0 instead raises `22023`; bootstrap/frozen XIDs 1/2 return unavailable
+without consulting tracking. Unavailable origin results are present `(,)`
+records, whereas NULL input is a whole SQL-NULL record.
+
+Resolution coverage checks unary/zero-input arity, concrete wrong types,
+origin's sole named input `xid`, absent names, qualification, quoted spelling,
+literal/bound conversion errors, full portable diagnostic fields/positions
+and actual direct/Prepare/Execute stages. Empty results preserve the declared
+OUT schema without invoking the disabled runtime inquiry.
+
+Selected proof, with an external 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceCommitTime(Disabled|SpecialIDs|Resolution|DisabledSmoke)$'
+make check RUN='^TestReferenceCommitTime(Disabled|SpecialIDs|Resolution|DisabledSmoke)$' REFERENCE=1
+```
+
+Standalone smoke observes off, rejects a SQL enable attempt with restart-only
+`55P02`, checks strict/special-ID bypass and the exact disabled errors:
+
+```sh
+make check RUN='^TestReferenceCommitTimeDisabledSmoke$'
+make check RUN='^TestReferenceCommitTimeDisabledSmoke$' REFERENCE=1
+```
+
+`TestReferenceSettingsUtilitySnapshotOwnership` migrates the settings utility's
+public SHOW/current_setting/set_config values, typed NULL, result counts,
+metadata and direct/prepared routes into this fixture. SHOW ALL independently
+checks every native builtin and the same selected PostgreSQL rows, including
+descriptions and order; PostgreSQL's additional server settings remain genuine
+oracle output. Only private detached-result ownership/completion invariants
+remain in the engine unit.
+
+```sh
+make check RUN='^TestReferenceSettings(UtilitySnapshotOwnership|ShowAllPlaceholdersAndLifecycle|ShowAllCurrentOverrides)$'
+make check RUN='^TestReferenceSettings(UtilitySnapshotOwnership|ShowAllPlaceholdersAndLifecycle|ShowAllCurrentOverrides)$' REFERENCE=1
+```
+
 ### Schema and temporary namespace identity
 
 `namespace_identity*_test.go` uses public direct/prepared SQL and independently

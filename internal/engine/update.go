@@ -200,7 +200,15 @@ func (s *StatementScope) acquireUpdateRowMode(ref ObjectRef, row RowID, mode rel
 		e.replacementMu.RLock()
 		s.replacementRead = true
 	}
-	return nil
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := s.validateLockedRelation(e); err != nil {
+		return err
+	}
+	if ref.owner != e.owner || ref.Epoch != e.state.epoch {
+		return ErrCatalogReplaced
+	}
+	return e.assignTransactionXIDLocked(s.txRef)
 }
 
 type updateCandidate struct {

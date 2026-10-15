@@ -10,7 +10,7 @@ import (
 func extensionLiveAuthorityFences(t *testing.T) {
 	for _, reason := range []string{"revoke", "inherit", "recreated_role"} {
 		t.Run("actual_"+reason, func(t *testing.T) {
-			e := NewWithSettings(nil, "ext_fenced_db")
+			e := NewWithSettings(nil, "ext_fenced_db", false)
 			admin, done := roleOperation(t, e, "postgres")
 			defer done()
 			actor := roleAttributeCreate(t, e, admin, "ext_fenced_actor", true, parser.RoleOptions{})

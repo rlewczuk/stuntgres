@@ -2,6 +2,36 @@
 
 [README](../README.md) · [Native compatibility limits](DIALECT.md)
 
+## Commit timestamp startup configuration
+
+```go
+d := stuntgres.NewDriverWithConfig(stuntgres.DriverConfig{
+	TrackCommitTimestamp: true,
+})
+connector, err := d.OpenConnector("test-database")
+// Handle err, then use sql.OpenDB(connector).
+```
+
+`NewDriver()` and a zero-value `Driver` leave tracking off. Configuration is
+copied at construction, immutable thereafter, and inherited by every engine on
+that Driver. DSNs remain exact opaque database keys, not configuration strings.
+Closing/reopening physical connections or pools on the same Driver/DSN does not
+reset tracking or history. Construct another Driver to choose another startup
+mode. Per-session default providers cannot override this builtin.
+
+`SHOW track_commit_timestamp`, `current_setting` and `SHOW ALL` report the
+engine's startup mode. Individual SET, SET LOCAL, RESET and `set_config` attempts
+return `55P02`, including same-value/default/invalid-value assignments, because
+the parameter cannot be changed without restarting the server. RESET ALL leaves
+the startup mode unchanged.
+
+Both lookup arguments infer XID for unknown literals/parameters. The origin
+lookup alone declares named input `xid`. Returned records use the ordinary
+composite metadata/codecs, with named TIMESTAMPTZ/OID fields and an additional
+XID field for last completion. Held statements reevaluate live committed state.
+See [selected proof](../reference/locking_transactions/README.md#commit-timestamp-information)
+and [history retirement](FIXTURES.md#commit-timestamp-history).
+
 ## Pinned COPY text streams — change note
 
 `stuntgres.CopyFrom(ctx, conn, sql, reader)` and

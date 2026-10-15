@@ -2,6 +2,23 @@
 
 [README](../README.md) · [Native compatibility limits](DIALECT.md)
 
+## Commit timestamp history
+
+Commit history is process-local runtime state, not portable database data.
+Successful Reset or Restore retains startup `track_commit_timestamp`, clears
+retained timestamps and the last-completion cache atomically with replacement,
+and preserves the nonreusing public XID counter. An old known XID then returns
+scalar NULL or a present `(,)` origin record; enabled last completion returns
+the present all-NULL `(,,)` record until a new real write commits. Replacement
+itself is not a SQL transaction commit.
+
+Dump preserves symbolic inquiry expressions in legal defaults/views, not their
+evaluated results or engine/history closures. It exports neither tracking
+configuration nor commit history. Restore's private replay commits are not
+imported into the target's history. Failed/canceled/read-error Restore leaves
+the target's history unchanged, apart from independent concurrent real commits.
+See the [control witness](../reference/locking_transactions/README.md#commit-timestamp-information).
+
 ```go
 func Reset(ctx context.Context, db *sql.DB) error
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error

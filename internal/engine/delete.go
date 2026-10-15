@@ -106,7 +106,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if candidate.ref.owner != e.owner || candidate.ref.Epoch != e.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return ErrCatalogReplaced
 	}
-	return nil
+	return e.assignTransactionXIDLocked(s.txRef)
 }
 
 // Delete transfers only the original identity, never a value-based substitute.

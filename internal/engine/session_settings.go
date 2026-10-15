@@ -205,7 +205,7 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 				normalized = d.format(v)
 			}
 		}
-		if (d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
+		if (d.Access == settingStartupOnly || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
 			return RegistrationError("default provider cannot change " + d.Name)
 		}
 		if err := ctx.Err(); err != nil {
@@ -273,6 +273,8 @@ func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (S
 }
 func settingAccess(d SettingDefinition, op *Operation) error {
 	switch d.Access {
+	case settingStartupOnly:
+		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed without restarting the server`, d.Name))
 	case SettingReadOnly:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
 	case SettingPrivileged:

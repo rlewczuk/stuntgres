@@ -1439,6 +1439,16 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
+	case commitTimestampExpression:
+		if e.arg == nil {
+			return e, false, nil
+		}
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.arg = arg
+		return e, changed, nil
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {

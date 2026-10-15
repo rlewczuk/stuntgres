@@ -6,6 +6,7 @@ import "errors"
 // order visibility incarnations globally; CommitSeq continues to own data views.
 type transactionVisibility struct {
 	xid, xmin             uint64
+	assignedXID           uint32
 	snapshot, safeBuilder bool
 }
 
@@ -68,7 +69,7 @@ func (e *Engine) endStatementVisibility(ref TxRef, stable bool) {
 func (e *Engine) dropVisibilitySnapshotLocked(ref TxRef) {
 	if v, ok := e.visibility[ref]; ok {
 		v.xmin, v.snapshot, v.safeBuilder = 0, false, false
-		if v.xid == 0 {
+		if v.xid == 0 && v.assignedXID == 0 {
 			delete(e.visibility, ref)
 		} else {
 			e.visibility[ref] = v

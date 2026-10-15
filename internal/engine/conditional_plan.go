@@ -751,6 +751,16 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		changed = changed || did
 		expression = e
+	case commitTimestampExpression:
+		if e.arg != nil {
+			arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			e.arg = arg
+			changed = changed || did
+		}
+		expression = e
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		arg, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
@@ -1442,6 +1452,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
+	case commitTimestampExpression:
+		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return literal(e.Arg)
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:

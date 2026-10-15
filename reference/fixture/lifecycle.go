@@ -40,11 +40,16 @@ func referenceStart() error {
 	if err != nil {
 		return fmt.Errorf("oracle Docker client: %w", err)
 	}
+	tracking := "off"
+	if trackCommitTimestamp {
+		tracking = "on"
+	}
 	Container, err = postgres.Run(ctx, referenceImage,
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
 		testcontainers.WithCmdArgs("-c", "max_prepared_transactions=100",
-			"-c", "log_line_prefix=timeout-oracle|%p|%c|%e|"),
+			"-c", "log_line_prefix=timeout-oracle|%p|%c|%e|",
+			"-c", "track_commit_timestamp="+tracking),
 		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}))
 	if err != nil {
 		return fmt.Errorf("container: %w", err)
@@ -79,12 +84,16 @@ func referenceInitialize(ctx context.Context) (err error) {
 	if err = Admin.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping: %w", err)
 	}
-	var version, encoding, locale, preparedCapacity string
-	if err = Admin.QueryRowContext(ctx, "SELECT current_setting('server_version_num'), current_setting('server_encoding'), datcollate, current_setting('max_prepared_transactions') FROM pg_database WHERE datname = current_database()").Scan(&version, &encoding, &locale, &preparedCapacity); err != nil {
+	var version, encoding, locale, preparedCapacity, tracking string
+	if err = Admin.QueryRowContext(ctx, "SELECT current_setting('server_version_num'), current_setting('server_encoding'), datcollate, current_setting('max_prepared_transactions'), current_setting('track_commit_timestamp') FROM pg_database WHERE datname = current_database()").Scan(&version, &encoding, &locale, &preparedCapacity, &tracking); err != nil {
 		return fmt.Errorf("configuration: %w", err)
 	}
-	if version != "180000" || encoding != "UTF8" || locale != "C" || preparedCapacity != "100" {
-		return fmt.Errorf("configuration mismatch: version=%q encoding=%q locale=%q max_prepared_transactions=%q", version, encoding, locale, preparedCapacity)
+	wantTracking := "off"
+	if trackCommitTimestamp {
+		wantTracking = "on"
+	}
+	if version != "180000" || encoding != "UTF8" || locale != "C" || preparedCapacity != "100" || tracking != wantTracking {
+		return fmt.Errorf("configuration mismatch: version=%q encoding=%q locale=%q max_prepared_transactions=%q track_commit_timestamp=%q (want %q)", version, encoding, locale, preparedCapacity, tracking, wantTracking)
 	}
 	// Native dumps name their bootstrap owner postgres, independently of initdb.
 	if _, err = Admin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {

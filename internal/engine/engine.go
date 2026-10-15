@@ -17,40 +17,46 @@ type Engine struct {
 	mu    sync.Mutex
 	locks *relationLockManager
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
-	replacementMu       replacementAdmission
-	owner               *catalogOwner
-	state               *catalogState
-	providers           map[OID]CatalogProvider
-	extensions          map[string]registeredExtension
-	databaseName        string
-	databaseNameError   error
-	storage             map[ObjectAddress]*relationStorage
-	sequences           map[ObjectAddress]*sequenceGenerator
-	indexRoots          map[ObjectAddress]*logicalIndexRoot
-	nextOID             OID
-	nextRevision        DefinitionRevision
-	nextEnumMember      int64
-	sessionMu           sync.Mutex
-	sessions            map[SessionToken]*Session
-	settingsDefinitions map[string]SettingDefinition
-	nextRow             uint64
-	nextVersion         uint64
-	commitSeq           CommitSeq
-	diagnosticTx        uint32
-	visibilityXID       uint64
-	visibility          map[TxRef]transactionVisibility
-	indexBuildWaits     map[ObjectAddress]indexBuildWait
-	exclusionPending    map[*relationTicket]*exclusionProjection
-	exclusionGeneration uint64
-	serializable        serializableTracker
-	prepared            map[string]*preparedTransaction
-	authorizationDomain authorization.Domain
-	aclAuthority        sqltype.ACLAuthority
-	roles               *roleCatalog
-	nextPrincipal       uint64
-	importTargets       map[authorization.PrincipalRef]authorization.PrincipalRef
-	roleReferences      map[string][]authorization.PrincipalRef
-	settingsOrder       []string
+	replacementMu        replacementAdmission
+	owner                *catalogOwner
+	state                *catalogState
+	providers            map[OID]CatalogProvider
+	extensions           map[string]registeredExtension
+	databaseName         string
+	databaseNameError    error
+	storage              map[ObjectAddress]*relationStorage
+	sequences            map[ObjectAddress]*sequenceGenerator
+	indexRoots           map[ObjectAddress]*logicalIndexRoot
+	nextOID              OID
+	nextRevision         DefinitionRevision
+	nextEnumMember       int64
+	sessionMu            sync.Mutex
+	sessions             map[SessionToken]*Session
+	settingsDefinitions  map[string]SettingDefinition
+	nextRow              uint64
+	nextVersion          uint64
+	commitSeq            CommitSeq
+	diagnosticTx         uint32
+	visibilityXID        uint64
+	visibility           map[TxRef]transactionVisibility
+	assignedXID          uint32
+	trackCommitTimestamp bool
+	commitTimestampBase  uint64
+	commitTimestamps     []commitTimestampEntry
+	lastCommittedXID     uint32
+	lastCommitTimestamp  commitTimestampEntry
+	indexBuildWaits      map[ObjectAddress]indexBuildWait
+	exclusionPending     map[*relationTicket]*exclusionProjection
+	exclusionGeneration  uint64
+	serializable         serializableTracker
+	prepared             map[string]*preparedTransaction
+	authorizationDomain  authorization.Domain
+	aclAuthority         sqltype.ACLAuthority
+	roles                *roleCatalog
+	nextPrincipal        uint64
+	importTargets        map[authorization.PrincipalRef]authorization.PrincipalRef
+	roleReferences       map[string][]authorization.PrincipalRef
+	settingsOrder        []string
 }
 type ParameterInfo struct {
 	Count int
@@ -133,7 +139,7 @@ type binding struct {
 }
 
 func New() *Engine {
-	e, err := newEngine(nil, nil, "")
+	e, err := newEngine(nil, nil, "", false)
 	if err != nil {
 		panic(err)
 	}
@@ -143,21 +149,23 @@ func New() *Engine {
 // NewWithCatalogProviders registers feature-owned catalog providers before
 // installing the builtin namespace descriptors.
 func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
-	return newEngine(providers, nil, "")
+	return newEngine(providers, nil, "", false)
 }
 
 // NewWithSettings consumes definitions validated before driver publication.
-func NewWithSettings(definitions []SettingDefinition, database string) *Engine {
-	e, err := newEngine(nil, definitions, database)
+func NewWithSettings(definitions []SettingDefinition, database string, trackCommitTimestamp bool) *Engine {
+	e, err := newEngine(nil, definitions, database, trackCommitTimestamp)
 	if err != nil {
 		panic(err)
 	}
 	return e
 }
 
-func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string) (*Engine, error) {
+func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
+	e.trackCommitTimestamp = trackCommitTimestamp
+	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = newRelationLockManager(e)
 	e.sequences = make(map[ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()

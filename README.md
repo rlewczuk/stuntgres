@@ -53,6 +53,19 @@ from object using integer index`. SQL NULL is distinct from JSON null.
 Text-array deletion and named concat/delete functions are not added; existing
 `#-` path deletion is unchanged. See [contracts and feature smoke](reference/binary_json_arrays/README.md#jsonb-concatenation-and-top-level-deletion).
 
+## Commit timestamp information — change note
+
+The three commit-time inquiries use retained real transaction completions:
+`pg_xact_commit_timestamp(xid)`, `pg_xact_commit_timestamp_origin(xid)` and
+`pg_last_committed_xact()`. Tracking defaults off; opt in once with
+`NewDriverWithConfig(DriverConfig{TrackCommitTimestamp: true})`.
+SQL cannot change this startup setting. Local commits report origin 0.
+Empty modifying/row-lock scans and empty COPY do not fabricate completions;
+genuine assignment survives rollback of staged writes to a savepoint.
+See the [enabled contract and smoke](reference/locking_transactions/README.md#commit-timestamp-information),
+[default-off diagnostics](reference/sessions/README.md#commit-timestamp-default-off-contract),
+and [native retention boundary](docs/FIXTURES.md#commit-timestamp-history).
+
 ## JSONB pretty output — change note
 
 `jsonb_pretty(jsonb)` returns TEXT with PostgreSQL-compatible four-space

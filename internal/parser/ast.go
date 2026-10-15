@@ -1402,7 +1402,7 @@ func singletonArgument(expr Expr) bool {
 		if len(e.Name.Parts) < 1 || len(e.Name.Parts) > 2 {
 			return false
 		}
-		if !e.ResolutionOnly && !e.CompositeCandidate && !ArrayTransformFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !ArrayRandomFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !NamespaceInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !BlockingInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !AccessInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !RangeInspectFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !UUIDExtractFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) {
+		if !e.ResolutionOnly && !e.CompositeCandidate && !CommitTimestampFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !ArrayTransformFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !ArrayRandomFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !NamespaceInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !BlockingInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !AccessInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !RangeInspectFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !UUIDExtractFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) {
 			switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 			case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "format":
 			case "sinh", "cosh", "tanh", "asinh", "acosh", "atanh":

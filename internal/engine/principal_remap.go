@@ -218,7 +218,7 @@ func (e *Engine) restoreStage() *Engine {
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
 	database := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	e.mu.Unlock()
-	stage := NewWithSettings(nil, e.databaseName)
+	stage := NewWithSettings(nil, e.databaseName, false)
 	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.root.Read(authorization.PrincipalRef{}).RoleCount())
 	roles := sourceRoles.root.Reprovenance(&stage.authorizationDomain, stage.importTargets)
 	retainedDatabase := *database

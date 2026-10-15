@@ -56,7 +56,7 @@ func newDatabases(ctx context.Context, users accounts, restored []string) (map[s
 	sort.Strings(ordered)
 	databases := make(map[string]*database, len(ordered))
 	for _, name := range ordered {
-		d := &database{engine: engine.NewWithSettings(nil, name), settings: make(map[string]struct{})}
+		d := &database{engine: engine.NewWithSettings(nil, name, false), settings: make(map[string]struct{})}
 		if err := d.provision(ctx, name, users, names[name]); err != nil {
 			return nil, fmt.Errorf("database %q: %w", name, err)
 		}

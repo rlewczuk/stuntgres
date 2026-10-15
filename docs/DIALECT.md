@@ -22,6 +22,26 @@ missing/empty/unclosed component after a consumed dot. This does not expand the
 general function resolver, cast graph, SQL identifier lexer or catalog SQL rows.
 See [selected proof and smoke](../reference/strings/README.md#identifier-parsing-selected-proof).
 
+## Commit timestamp retention
+
+Commit-time inquiries track actual successful assigned-XID transaction
+completions only when the Driver was constructed with tracking enabled.
+Read-only/empty unassigned transactions, inquiry evaluation, PREPARE and aborts
+do not fabricate commits. Prepared completion uses the original public XID;
+last completion is shared across sessions and follows completion order, not
+the greatest allocated identity. Ordinary local origin is OID 0.
+Potential writer admission alone does not assign a public XID: empty DELETE,
+UPDATE, SELECT FOR UPDATE and COPY FROM leave last completion unchanged.
+Accepted row writes and actual physical-row locks do assign; rolling those
+writes back to a savepoint does not erase the top-level assignment before COMMIT.
+
+Native history remains available for the engine lifetime until successful
+Reset/Restore retires it. There is no physical VACUUM retention horizon, WAL,
+standby recovery or replication-origin administration in this feature.
+No wraparound reuse is simulated: assigned-XID exhaustion fails before
+publication. See [startup configuration](DRIVER.md#commit-timestamp-startup-configuration)
+and [replacement semantics](FIXTURES.md#commit-timestamp-history).
+
 ## Server transport
 
 `cmd/stuntgres` uses the same engine through PostgreSQL protocol 3.0 simple

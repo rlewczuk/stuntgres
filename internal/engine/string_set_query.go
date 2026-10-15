@@ -282,6 +282,12 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{each: cursor, kind: functionJSONEachCursor, initialized: true}, nil
+	case commitTimestampExpression:
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		if !validFunctionSourceCall(call) {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")

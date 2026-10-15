@@ -72,6 +72,8 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // roles, session settings, live session-private temporary relations and held
 // physical-session advisory counts. Old pending lock requests remain epoch-fenced.
 // Prepared transactions prevent replacement without consuming their state.
+// Startup commit-timestamp configuration survives; successful replacement retires
+// runtime commit history and last completion without reusing assigned XIDs.
 // Live temporary tables inheriting persistent parents prevent Reset/Restore
 // replacement; temporary-to-temporary graphs retain their exact identities.
 // Persistent policies disappear with their tables; live TEMP table policies
@@ -108,6 +110,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 // Session-private temporary objects, advisory ownership/counts and pending session
 // caches are not serialized. Stored CHECK/view definitions remain ordinary SQL.
 // Only committed data is serialized, never prepared private writes or GIDs.
+// Commit timestamp history and startup configuration are runtime-only, not dumped;
+// legal inquiry expressions in defaults/views remain symbolic SQL.
 // Inheritance parents precede children; ordered INHERITS and local declaration
 // provenance reconstruct inherited defaults, generated columns, CHECK and NOT NULL.
 // Table-attached policies are emitted in a final named-owner pass after their
@@ -199,6 +203,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // prepared during reader I/O; refusal preserves the target catalog and resources.
 // Live temporary-to-persistent inheritance also refuses final replacement,
 // including an edge created during reader I/O, without changing the target.
+// Successful replacement retires target commit history, never importing private
+// replay commits; failure leaves target history and startup configuration intact.
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {
 		return errors.New("stuntgres: nil restore reader")

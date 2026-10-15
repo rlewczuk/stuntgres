@@ -251,6 +251,15 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			return name
 		})
+	case commitTimestampExpression:
+		if err := n.validate(); err != nil {
+			return "", err
+		}
+		if n.arg == nil {
+			return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), nil)
+		}
+		args := [1]BoundExpr{n.arg}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), args[:])
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		if err := n.Validate(); err != nil {
 			return "", err

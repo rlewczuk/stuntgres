@@ -132,6 +132,7 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 			"application_name": "", "client_min_messages": "notice",
 			"lock_timeout": "0", "log_statement_stats": "off",
 			"search_path": `"$user", public`, "server_encoding": "UTF8",
+			"track_commit_timestamp":      "off",
 			"standard_conforming_strings": "on", "statement_timeout": "0",
 			"quote_all_identifiers": "off",
 			"client_encoding":       "UTF8", "lc_messages": "C", "lc_monetary": "C",

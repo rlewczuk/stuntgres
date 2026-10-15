@@ -21,6 +21,8 @@ func isQuerySet(expr BoundExpr) bool {
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
+	case commitTimestampExpression:
+		return true
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		return isStringSet(call)
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
@@ -42,6 +44,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 // by validFunctionSourceCall after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {
 	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
+		parser.CommitTimestampFunctionName(name) ||
 		name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
 
@@ -78,6 +81,11 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 }
 func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
+	case commitTimestampExpression:
+		if call.arg != nil {
+			return []BoundExpr{call.arg}
+		}
+		return nil
 	case seriesExpression:
 		return call.args
 	case subscriptsExpression:
@@ -108,6 +116,16 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 }
 func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, error) {
 	switch call := expr.(type) {
+	case commitTimestampExpression:
+		if len(args) != 0 {
+			if call.arg == nil || len(args) != 1 {
+				return nil, fmt.Errorf("stuntgres: invalid commit timestamp arguments")
+			}
+			call.arg = args[0]
+		} else if call.arg != nil {
+			return nil, fmt.Errorf("stuntgres: missing commit timestamp argument")
+		}
+		return call, nil
 	case seriesExpression:
 		if len(args) != len(call.args) {
 			return nil, fmt.Errorf("stuntgres: invalid series arguments")

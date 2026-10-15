@@ -1474,6 +1474,13 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil && s.initialTx != (TxRef{}) {
 			err = e.serializablePrecommitLocked(s.initialTx)
 		}
+		commitRef := s.initialTx
+		if scope != nil {
+			commitRef = scope.txRef
+		}
+		if err == nil && commitRef != (TxRef{}) {
+			err = e.assignTransactionXIDLocked(commitRef)
+		}
 		if err == nil {
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
@@ -1525,6 +1532,9 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.nextRevision = nextRevision
 			if s.roleCandidate != nil {
 				e.roles = s.roleCandidate
+			}
+			if commitRef != (TxRef{}) {
+				e.recordCommitTimestampLocked(commitRef)
 			}
 			s.lifecycle = catalogPublished
 		}
@@ -1742,6 +1752,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		e.clearPersistentSequenceMemoryLocked()
 		e.nextRevision = nextRevision
 		e.fenceSerializableLocked()
+		e.retireCommitTimestampsLocked()
 		installed = next.epoch
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1847,6 +1858,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 	e.clearPersistentSequenceMemoryLocked()
 	e.nextRevision = nextRevision
 	e.fenceSerializableLocked()
+	e.retireCommitTimestampsLocked()
 	return nil
 }
 

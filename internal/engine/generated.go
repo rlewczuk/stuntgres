@@ -300,6 +300,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Args)
+	case commitTimestampExpression:
+		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return generationImmutable(n.Arg)
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
@@ -491,6 +493,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case commitTimestampExpression:
+		return n.arg != nil && generationHasTableOID(n.arg)
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return generationHasTableOID(n.Arg)
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
@@ -880,6 +884,14 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case commitTimestampExpression:
+		if err := n.validate(); err != nil {
+			return err
+		}
+		if n.arg != nil {
+			return validateGenerationPlan(view, d, n.arg)
+		}
+		return nil
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		if err := n.Validate(); err != nil {
 			return err

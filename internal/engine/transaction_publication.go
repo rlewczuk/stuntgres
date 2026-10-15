@@ -40,8 +40,40 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 	return e.publishRowsPrepared(op, ref, writes, deletes, c, authority, nil, scope)
 }
 
+// A reserved empty container is not a write. PREPARE is the explicit exception:
+// even an otherwise empty prepared transaction needs a retained public identity.
+func publicationNeedsXID(writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, phase *preparedPublication) bool {
+	if phase != nil && phase.preparing {
+		return true
+	}
+	if c != nil && (len(c.descriptors) != 0 || len(c.names) != 0 || len(c.defaultACLs) != 0 ||
+		len(c.generators) != 0 || len(c.storage) != 0 || c.roles != nil ||
+		len(c.uniqueRoots) != 0 || len(c.indexCandidates) != 0 || len(c.indexRebuilds) != 0) {
+		return true
+	}
+	for _, rows := range writes {
+		if len(rows) != 0 {
+			return true
+		}
+	}
+	for _, deletion := range deletes {
+		if deletion != nil && len(deletion.rows) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
+	if publicationNeedsXID(writes, deletes, c, phase) {
+		e.mu.Lock()
+		err := e.assignTransactionXIDLocked(ref)
+		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
+	}
 	if len(writes) == 0 && len(deletes) == 0 && c == nil {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -70,6 +102,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			return nil
 		}
 		e.serializableCommittedLocked(ref, e.commitSeq)
+		e.recordCommitTimestampLocked(ref)
 		e.finishPreparedLocked(phase)
 		e.finishDiscardRoleResetLocked(op)
 		return nil
@@ -403,6 +436,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.indexRoots)
 		e.indexRoots = indexRoots
 		e.commitSeq++
+		e.recordCommitTimestampLocked(ref)
 		e.serializableCommittedLocked(ref, e.commitSeq)
 		e.finishPreparedLocked(phase)
 		e.finishDiscardRoleResetLocked(op)

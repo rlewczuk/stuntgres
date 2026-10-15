@@ -561,6 +561,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case commitTimestampExpression:
+		o, ok := other.(commitTimestampExpression)
+		return ok && e.kind == o.kind && ((e.arg == nil && o.arg == nil) || (e.arg != nil && o.arg != nil && same(e.arg, o.arg)))
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
@@ -1278,6 +1281,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case commitTimestampExpression:
+		if e.arg != nil {
+			e.arg = rewrite(e.arg)
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		e.Arg = rewrite(e.Arg)
 		info := boundExpressionInfo(e)
@@ -1691,6 +1700,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)
+		}
+	case commitTimestampExpression:
+		if e.arg != nil {
+			walk(e.arg)
 		}
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Arg)

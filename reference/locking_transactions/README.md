@@ -29,6 +29,81 @@ make check RUN='^TestReferenceTransactionIsolationQueuedConflictTimeout$' REFERE
 These affected-surface checks do not replace whole-project quickcheck or
 post-integration finalcheck.
 
+### Commit timestamp information
+
+This package starts its single pinned oracle with commit timestamp tracking on;
+native scenario engines inherit the same constructor-only startup mode.
+The selected functions return independently checked typed values:
+`pg_xact_commit_timestamp(xid) -> TIMESTAMPTZ`,
+`pg_xact_commit_timestamp_origin(xid) -> RECORD(timestamp TIMESTAMPTZ, roident OID)`,
+and `pg_last_committed_xact() -> RECORD(xid XID, timestamp TIMESTAMPTZ, roident OID)`.
+
+Lifecycle witnesses use each backend's server clock around actual publication,
+then check exact lookup/last identities and local origin 0. They do not compare
+backend allocator values or wall-clock timestamps. Explicit SQL/API and
+autocommit writes, catalog publication, rollback/aborted/read-only stability,
+cross-session observations, prepared public-XID agreement, pending/aborted
+unavailability, empty PREPARE and reverse allocation-order completion are
+covered without adjacent transaction-ID inquiry functions.
+SQL-visible SSI pivot diagnostics retain that same canonical public XID after
+preparation/completion; internal incarnation counters are not a second public
+identity. The prepared SSI witness compares against its independently queried
+`pg_prepared_xacts.transaction`, without pinning allocator numbers.
+
+Public XIDs are assigned by accepted nonempty writes, actual physical-row grants
+and catalog installation, not by potentially modifying statement classification.
+`TestReferenceCommitTimeAssignmentBoundaries` checks that empty DELETE, UPDATE
+and FOR UPDATE scans preserve last in autocommit and explicit transactions;
+actual mutation/locking commits replace it. Rolling all inserted rows back to a
+savepoint does not erase genuine assignment before plain COMMIT.
+
+`TestReferenceCommitTimeCopyPublication` covers autocommit/explicit stream
+completion, empty COPY stability and malformed-stream failure atomicity.
+`TestReferenceCommitTimeConcurrentIndexPublication` observes a successful build
+and a durable first phase before a duplicate-key build failure. The failed build
+preserves that phase's exact timestamp/XID and visible invalid index. These
+witnesses compare independently queried identities, not counts of backend
+internal commits.
+
+Metadata witnesses distinguish whole SQL NULL from present all-NULL records,
+check raw RECORD representations before normalization, inspect empty cursors,
+and retain field/FROM aliases, timezone formatting and held-statement reuse.
+Views/defaults remain symbolic; volatile inquiries are rejected in immutable
+contexts. Native-only Reset/Restore phases check history retirement, preserved
+startup mode, fresh nonreused identity and failed replacement atomicity.
+Replacement remaps symbolic inquiry arguments and their source attributes,
+including unary XID children, rather than capturing an engine or evaluated
+history. The expression unit checks both zero-input persistence and detached
+child remapping; the controls scenario exercises actual Dump/Restore replay.
+
+Run from the repository root with an external 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceCommitTime(Startup|Metadata|Lifecycle|Prepared|Publication|Replay|Controls|FeatureSmoke|AssignmentBoundaries|CopyPublication|ConcurrentIndexPublication)$'
+make check RUN='^TestReferenceCommitTime(Startup|Metadata|Lifecycle|Prepared|Publication|Replay|Controls|FeatureSmoke|AssignmentBoundaries|CopyPublication|ConcurrentIndexPublication)$' REFERENCE=1
+make check RUN='^TestCommitTime(Assignment|Publication|Replacement|Expression)$'
+make check RUN='^TestReferencePreparedTransactionSSIImmuneWriter$'
+make check RUN='^TestReferencePreparedTransactionSSIImmuneWriter$' REFERENCE=1
+make check RUN='^TestSerializableGraphFinalizedPivotIdentity$'
+```
+
+Standalone smoke commits a visible row, bounds its timestamp, checks last and
+both lookups, proves rollback stability, then commits a prepared transaction
+whose preobserved XID must equal last completion:
+
+```sh
+make check RUN='^TestReferenceCommitTimeFeatureSmoke$'
+make check RUN='^TestReferenceCommitTimeFeatureSmoke$' REFERENCE=1
+```
+
+The review-remedy smoke selects actual assignment, COPY and durable index-phase
+behavior together:
+
+```sh
+make check RUN='^TestReferenceCommitTime(AssignmentBoundaries|CopyPublication|ConcurrentIndexPublication)$'
+make check RUN='^TestReferenceCommitTime(AssignmentBoundaries|CopyPublication|ConcurrentIndexPublication)$' REFERENCE=1
+```
+
 ### Inherited physical mutation and ALTER admission
 
 `TestReferenceInheritanceDMLContention` independently specifies physical child

@@ -16,6 +16,12 @@ import (
 // Error carries a PostgreSQL diagnostic, including nonfatal notices and warnings.
 type Error = sqlstate.Error
 
+// DriverConfig fixes engine startup settings for every database on a Driver.
+// The zero value leaves commit timestamp tracking disabled.
+type DriverConfig struct {
+	TrackCommitTimestamp bool
+}
+
 // Driver owns independent databases named by exact, opaque DSN strings.
 // Databases live for the lifetime of their Driver, not their connections.
 type Driver struct {
@@ -24,10 +30,14 @@ type Driver struct {
 	lastSession    engine.SessionID
 	settings       []engine.SettingDefinition
 	settingsFrozen bool
+	config         DriverConfig
 }
 
-func NewDriver() *Driver { return &Driver{} }
-func init()              { sql.Register("stuntgres", NewDriver()) }
+func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }
+
+// NewDriverWithConfig copies startup configuration; it cannot be changed by SQL.
+func NewDriverWithConfig(config DriverConfig) *Driver { return &Driver{config: config} }
+func init()                                           { sql.Register("stuntgres", NewDriver()) }
 func (d *Driver) Open(name string) (driver.Conn, error) {
 	c, err := d.OpenConnector(name)
 	if err != nil {
@@ -52,7 +62,7 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	}
 	e := d.engines[name]
 	if e == nil {
-		e = engine.NewWithSettings(d.settings, name)
+		e = engine.NewWithSettings(d.settings, name, d.config.TrackCommitTimestamp)
 		d.settingsFrozen = true
 		d.engines[name] = e
 	}
