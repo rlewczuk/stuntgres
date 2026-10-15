@@ -1035,6 +1035,9 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.Plan.Name() == "||" {
 			return binary(n.Args[0], n.Args[1], "||", 5, parent)
 		}
+		if n.Plan.Name() == "-" {
+			return binary(n.Args[0], n.Args[1], "-", 5, parent)
+		}
 		if n.Plan.Name() == "#-" || jsonbContainmentName(n.Plan.Name()) || jsonbExistenceName(n.Plan.Name()) || jsonExtractionName(n.Plan.Name()) {
 			return binary(n.Args[0], n.Args[1], n.Plan.Name(), 5, parent)
 		}

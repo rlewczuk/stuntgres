@@ -204,6 +204,28 @@ Unknown operands infer JSONB from a known JSONB counterpart; known TEXT/JSON
 or SQL-array operands need explicit conversion. Direct/prepared/stored calls
 share this provider, without requiring JSON, SQL arrays or JSONPath execution.
 
+JSONB top-level `||`, `- text` and `- integer` return the same JSONB descriptor
+and canonical string carrier, including NULL/empty-result metadata. Concat is a
+shallow right-wins object union or ordered array concatenation with non-array
+singleton wrapping. Text deletion removes a key or all matching top-level array
+strings; integer deletion removes one element with negative indices from the end.
+These providers share immutable descendants and exact numbers without mutating
+inputs. Missing keys/indices preserve the original payload. SQL NULL is strict;
+JSON null remains a scalar and deletion raises `22023`, with no runtime Position.
+Unknown deletion RHS chooses TEXT, INT2 can widen to INT4, and INT8/NUMERIC cannot
+implicitly narrow. Existing TEXT/JSONB mixed concat returns TEXT.
+With an unknown left operand, a known VARCHAR/BPCHAR key (or domain over either)
+also selects JSONB deletion through the existing implicit TEXT cast. BPCHAR
+padding is trimmed by that cast; an integer RHS still selects numeric subtraction.
+
+The documented immutable parameter demand boundary also applies to these
+operators: the same held `SELECT $1::jsonb - $2::text AS v WHERE FALSE` with
+`1`/`x` yields an empty JSONB cursor natively, while PostgreSQL 18.0 folds its
+first custom-plan binds and raises `22023 cannot delete from scalar`.
+Demanded held calls and literal constant failures retain exact diagnostics;
+no PostgreSQL custom/generic optimizer-plan switching is implemented.
+
+
 JSON extraction (`->`, `#>` and `json_extract_path`) preserves the selected
 source fragment rather than reserializing a tree. Its TEXT variants decode
 selected strings and map JSON null to SQL NULL; nonstring values retain their

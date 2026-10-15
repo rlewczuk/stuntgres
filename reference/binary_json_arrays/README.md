@@ -46,6 +46,67 @@ joins SELECT/UPDATE workers, checks no cursor/result or write publication and
 reuses the same physical connection and held consumers. No SQL-array, JSON or
 JSONPath operation participates in successful containment or smoke cases.
 
+### JSONB concatenation and top-level deletion
+
+The ten `TestReferenceJSONBConcatDelete` entrypoints specify `jsonb || jsonb`,
+`jsonb - text`, and `jsonb - integer` through shared direct/prepared SQL bodies.
+They independently expect shallow right-wins object union, ordered arrays and
+scalar wrapping, key/all-matching-string removal, negative and extreme indices,
+typed SQL NULL, exact JSONB metadata, overload resolution and complete English
+diagnostics. Text-array deletion is outside this family; existing path deletion
+coverage remains separate.
+
+`ImplicitText` additionally requires unknown-left literals/parameters to resolve
+the existing `jsonb - text` overload through implicit VARCHAR/BPCHAR-to-TEXT
+coercion, including padded CHAR and domains. Each direct/prepared result is
+independently `{}` with JSONB metadata. Numeric subtraction and both-unknown
+ambiguity remain separate guard cases.
+
+The shared scenarios run on every available backend without discovery filters.
+Each asserts independently specified outcomes rather than parity alone. A held
+bound deletion under `WHERE FALSE` preserves the documented native runtime-owned
+parameter boundary (empty JSONB cursor), while PostgreSQL folds the first custom
+plan and raises the exact scalar diagnostic. Demanded and literal errors remain
+exact, as do invalid-signature analysis failures even for empty/filtered inputs.
+
+```sh
+make check RUN='^TestReferenceJSONBConcatDelete(Values|Typing|ImplicitText|Metadata|Diagnostics)$'
+make check RUN='^TestReferenceJSONBConcatDelete(Values|Typing|ImplicitText|Metadata|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBConcatDelete(Authority|Held|StoredControls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONBConcatDelete(Authority|Held|StoredControls|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestJSONBConcatDelete'
+make check RUN='^TestReferenceJSONBConcatDelete(Held|StoredControls|Cancellation)$' RACE=1
+```
+
+Feature smoke uses actual concat/deletion expressions, including shallow nested
+object replacement, scalar/array order, repeated string removal and final-index
+deletion. It checks metadata before iteration, same-held TEXT/INT4/inferred
+recovery after scalar errors, generated/default/check/index/view consumers and
+late multirow failure preserving the sentinel and source values.
+
+```sh
+make check RUN='^TestReferenceJSONBConcatDeleteFeatureSmoke$'
+make check RUN='^TestReferenceJSONBConcatDeleteFeatureSmoke$' REFERENCE=1
+```
+
+StoredControls and smoke retain old rows/descriptors across native replacement,
+restore stored consumers, check deterministic redump, reject late failed/canceled
+Restore without losing the saved catalog, and execute fresh restored writes.
+Real mode replays the entire actual native dump, unmodified, on PostgreSQL and
+checks saved rows and fresh generated/view/default consumers independently.
+Cancellation separates native precanceled direct/held contracts from PostgreSQL
+admitted, joined server-side cancellation, reusing the same owner and preheld
+consumer. Active SELECT/INSERT cases use stored operands and wait for actual
+concat/deletion-provider admission (server admission on PostgreSQL), then join
+workers, assert no partial write and reuse the same held statements successfully.
+One early small row and one heavy row preserve the partial-write boundary.
+The 32MiB operand is parsed/stored once and reused by column assignment between
+phases, avoiding redundant large binds and duplicate heavy rows.
+The provider/server admission checks and cancellation deadlines remain unchanged.
+Private units additionally cover descriptor authority, strictness, immutable
+sharing/no-op identity, integer endpoints and deterministic merge/filter/render
+cancellation, including long equal-prefix keys/strings.
+
 ### JSONB pretty output
 
 The `TestReferenceJSONBPretty` family independently specifies exact TEXT for

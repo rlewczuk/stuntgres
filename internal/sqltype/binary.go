@@ -43,6 +43,12 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		ids, id = [4]ID{JSONB, 1009}, Bool
 	case "#-":
 		ids, id = [4]ID{JSONB, 1009}, JSONB
+	case "-":
+		right := Text
+		if len(args) == 2 && args[1].Type != nil && args[1].Type.ID() == Int4 {
+			right = Int4
+		}
+		ids, id = [4]ID{JSONB, right}, JSONB
 	case "json_typeof", "jsonb_typeof":
 		input := JSON
 		if name == "jsonb_typeof" {
@@ -86,6 +92,8 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	case "||":
 		if len(args) > 0 && args[0].Type != nil && args[0].Type.ID() == VarBit {
 			ids, id = [4]ID{VarBit, VarBit}, VarBit
+		} else if len(args) > 0 && args[0].Type != nil && args[0].Type.ID() == JSONB {
+			ids, id = [4]ID{JSONB, JSONB}, JSONB
 		}
 	case "btrim", "ltrim", "rtrim":
 	case "position":
@@ -252,6 +260,9 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return p.concatenateBits(ctx, values[0], values[1])
 	}
 	a := values[0]
+	if p.name == "||" && a.typ.ID() == JSONB {
+		return p.jsonbConcat(ctx, a, values[1])
+	}
 	switch p.name {
 	case "->", "->>", "#>", "#>>":
 		if a.typ.ID() == JSONB {
@@ -264,6 +275,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return p.jsonbExistence(ctx, values[0], values[1])
 	case "#-":
 		return p.jsonbPathDelete(ctx, values[0], values[1])
+	case "-":
+		return p.jsonbDelete(ctx, values[0], values[1])
 	case "json_typeof", "jsonb_typeof":
 		return p.jsonScalar(ctx, a)
 	case "jsonb_pretty":

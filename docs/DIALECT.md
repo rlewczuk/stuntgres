@@ -1010,8 +1010,28 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   unreached components are not inspected, and rank >1 paths fail with `2202E`
   rather than flattening. Stored/default/generated/CHECK/view/index expressions
   and logical Dump/Restore retain the symbolic operator and immutable inputs.
-  `jsonb_delete_path(...)`, other deletion/insertion operators, subscripting,
-  generic JSON equality and JSON path/query execution remain excluded.
+  Top-level `jsonb || jsonb` merges objects with whole right-hand values winning
+  duplicate keys; otherwise it concatenates immediate array members, wrapping
+  non-arrays as single members. `jsonb - text` removes an exact object key or
+  every matching immediate array string, without touching nested strings.
+  `jsonb - integer` removes one zero-based element; negatives count backward.
+  Absent keys and out-of-range indices preserve the value. All three signatures
+  return JSONB and are strict/immutable. Scalar deletion (including JSON null)
+  raises `22023 cannot delete from scalar`; integer deletion from any object
+  raises `22023 cannot delete from object using integer index`. These runtime
+  diagnostics have no source Position. INT2 may widen to INT4; INT8/NUMERIC do
+  not implicitly narrow. Unknown RHS deletion selects TEXT. An unknown left
+  operand also selects deletion when the known key implicitly coerces to TEXT,
+  including VARCHAR/BPCHAR and their domains; BPCHAR padding is trimmed by the
+  existing cast. Unknown-left/integer subtraction remains numeric, while
+  both-unknown subtraction remains ambiguous. Known JSONB concat coerces an
+  unknown counterpart to JSONB, while known TEXT/JSONB mixed concat remains TEXT.
+  Stored consumers and native replay retain symbolic operators
+  and immutable inputs. Bound immutable calls under FALSE retain the existing
+  native runtime-parameter demand boundary, unlike PostgreSQL custom-plan folding.
+  `jsonb_delete_path(...)`, named concat/delete functions, TEXT[] top-level
+  deletion, subscripting, generic JSON equality and JSON path/query execution
+  remain excluded.
 - SQL/JSON constructors `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR`,
   `JSON_SERIALIZE` and `IS [NOT] JSON` predicates support FORMAT JSON,
   applicable RETURNING, NULL/ABSENT ON NULL and UNIQUE KEYS. Query ARRAY uses

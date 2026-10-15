@@ -26,6 +26,20 @@ and symbolic native Dump/Restore. No JSON containment, SQL-array dependency,
 JSONPath execution or GIN implementation is added.
 See [the contract and feature smoke](reference/binary_json_arrays/README.md#jsonb-containment).
 
+## JSONB concatenation and top-level deletion — change note
+
+`jsonb || jsonb` combines object keys with right-hand precedence, without a
+recursive merge. Otherwise it concatenates arrays, wrapping non-array operands
+as single elements. `jsonb - text` removes an object key or every matching
+top-level array string; `jsonb - integer` removes one array element, with negative
+indices counting from the end. Missing keys and out-of-range indices are no-ops.
+These strict immutable operators retain canonical JSONB metadata, exact numeric
+scale and symbolic stored/native replay. Scalar deletion raises `22023 cannot
+delete from scalar`; integer deletion on objects raises `22023 cannot delete
+from object using integer index`. SQL NULL is distinct from JSON null.
+Text-array deletion and named concat/delete functions are not added; existing
+`#-` path deletion is unchanged. See [contracts and feature smoke](reference/binary_json_arrays/README.md#jsonb-concatenation-and-top-level-deletion).
+
 ## JSONB pretty output — change note
 
 `jsonb_pretty(jsonb)` returns TEXT with PostgreSQL-compatible four-space
@@ -899,8 +913,8 @@ numbers, canonical key order and shared immutable subtrees. Direct/held results,
 stored default/generated/CHECK/view/index consumers and native replay retain
 JSONB types and symbolic calls; failed writes/Restore and canceled work do not
 publish partial state. Public path deletion is separately available through
-`jsonb #- text[]`; adjacent deletion/insertion operators, subscripting and
-JSONPath execution remain excluded.
+`jsonb #- text[]`, and top-level deletion through `jsonb - text/integer`.
+Text-array deletion, subscripting and JSONPath execution remain excluded.
 Feature smoke: `make check RUN='^TestReferenceJSONBSetFeatureSmoke$'` and
 `make check RUN='^TestReferenceJSONBSetFeatureSmoke$' REFERENCE=1`.
 

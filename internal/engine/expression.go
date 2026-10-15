@@ -3869,6 +3869,11 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 	if !visible {
 		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 	}
+	if name == "-" && len(raw.Args) == 2 {
+		if node, selected, err := b.selectJSONBDelete(raw, left, right); selected {
+			return node, err
+		}
+	}
 	if symbolicArithmeticName(name) {
 		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}
