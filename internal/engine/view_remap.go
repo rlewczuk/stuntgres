@@ -425,6 +425,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.arg = child(n.arg)
 		}
 		next = n
+	case blockingInquiryExpression:
+		n.arg = child(n.arg)
+		next = n
 	case indexPropertyExpression:
 		for i := range n.children() {
 			n.args[i] = child(n.args[i])

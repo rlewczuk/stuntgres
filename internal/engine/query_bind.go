@@ -410,6 +410,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if inquiry, ok := expr.(namespaceInquiryExpression); ok {
 			result.Nullable, result.NullabilityKnown = inquiry.kind == otherTempNamespace, true
 		}
+		if _, ok := expr.(blockingInquiryExpression); ok {
+			result.Nullable, result.NullabilityKnown = true, true
+		}
 		if identity, ok := expr.(identityExpression); ok && identity.kind == identityCurrentSchema {
 			result.Nullable, result.NullabilityKnown = true, true
 		}

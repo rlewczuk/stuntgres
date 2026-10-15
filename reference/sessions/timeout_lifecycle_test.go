@@ -54,8 +54,27 @@ func TestReferenceTimeoutChainPrepared(t *testing.T) {
 			f.beginPrivate()
 			f.exec(f.owner, "PREPARE TRANSACTION '"+gid+"'", 0)
 			entry := fixture.PreparedReferenceOne(t, p, f.peer, gid)
-			timeoutReferenceIdle(t, p.Ctx, 500*time.Millisecond)
-			f.fatalProbe("57P05")
+			// A delayed idle callback may lose admission to a probe on a busy
+			// runner. Give it another full idle interval, without querying the
+			// table locked by the detached transaction and starting a lock wait.
+			terminated := false
+			for range 8 {
+				timeoutReferenceIdle(t, p.Ctx, 500*time.Millisecond)
+				var value int
+				err := f.owner.QueryRowContext(p.Ctx, "SELECT 1").Scan(&value)
+				if err != nil {
+					f.diagnostic(err, "57P05")
+					f.dead()
+					terminated = true
+					break
+				}
+				if value != 1 {
+					t.Fatalf("idle probe returned %d, want 1", value)
+				}
+			}
+			if !terminated {
+				t.Fatal("origin did not terminate after eight idle intervals")
+			}
 			got := fixture.PreparedReferenceOne(t, p, f.peer, gid)
 			expectedZone, expectedOffset := entry.Prepared.Zone()
 			gotZone, gotOffset := got.Prepared.Zone()

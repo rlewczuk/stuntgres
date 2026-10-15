@@ -182,6 +182,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case namespaceInquiryExpression:
 		o, ok := other.(namespaceInquiryExpression)
 		return ok && e.kind == o.kind && (e.arg == nil && o.arg == nil || e.arg != nil && o.arg != nil && same(e.arg, o.arg))
+	case blockingInquiryExpression:
+		o, ok := other.(blockingInquiryExpression)
+		return ok && e.kind == o.kind && same(e.arg, o.arg)
 	case literalExpression:
 		o, ok := other.(literalExpression)
 		if !ok {
@@ -854,6 +857,10 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case blockingInquiryExpression:
+		e.arg = rewrite(e.arg)
+		stage(&e.expressionInfo)
+		expr = e
 	case aggregateExpression:
 		if e.frame != 0 && e.frame != b.frameID() {
 			return e, nil
@@ -1502,6 +1509,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		if e.arg != nil {
 			walk(e.arg)
 		}
+	case blockingInquiryExpression:
+		walk(e.arg)
 	case aggregateExpression:
 		return &e
 	case collationExpression:

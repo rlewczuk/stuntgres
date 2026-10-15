@@ -378,6 +378,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), n.arguments())
+	case blockingInquiryExpression:
+		if err := n.validateStored(); err != nil {
+			return "", err
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), n.arguments())
 	case sequenceCallExpression:
 		if r.owner == nil && !closedSequenceDefault(n) {
 			return "", fmt.Errorf("stuntgres: invalid stored sequence default")

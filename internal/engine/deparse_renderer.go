@@ -1179,6 +1179,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return function(n.kind.name(), n.arguments(), true)
+	case blockingInquiryExpression:
+		if err := n.validateStored(); err != nil {
+			return "", err
+		}
+		return function(n.kind.name(), n.arguments(), true)
 	case sequenceCallExpression:
 		return function(n.name, n.args, true)
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:

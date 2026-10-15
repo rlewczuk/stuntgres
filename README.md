@@ -118,6 +118,30 @@ See [inquiry contracts and selected proof](reference/roles/README.md#role-member
 Feature smoke: `make check RUN='^TestReferenceAccessRoleFeatureSmoke$'`
 and the same command with `REFERENCE=1`.
 
+## Blocking session information — change note
+
+`pg_blocking_pids(integer)` and `pg_safe_snapshot_blocking_pids(integer)` return
+typed INT4 arrays from current engine state. Both are strict and VOLATILE:
+NULL input produces NULL, while missing or nonwaiting targets produce `{}`.
+Ordinary inquiry reports conflicting holders and earlier conflicting queued
+requests; safe inquiry reports only actual SERIALIZABLE READ ONLY DEFERRABLE
+snapshot acquisition waits, not ordinary read-only transactions or predicate
+dependencies. Prepared owners contribute zero; distinct owners retain duplicate
+zeros. Arrays are unordered bags, not sorted or deduplicated PID sets.
+
+Held statements and stored views retain live call recipes through Dump/Restore.
+No wait queues, SSI candidates or separate builtin identity state are serialized;
+user-stored integer PID values remain ordinary table data.
+Native physical session identities remain uint64: positive INT4 targets compare
+exactly, without truncation. A live blocker above INT4 range produces an ordinary
+`stuntgres: blocking session identity exceeds integer range` error rather than a
+wrapped PID, omission or prepared-owner zero. Private maintenance sessions are
+not public blockers. This feature adds no `pg_backend_pid()` or identity API.
+Native parallel scans use goroutines, not PostgreSQL child backend lock groups;
+live inquiries retain serial fallback rather than inventing worker PIDs.
+
+See [blocking contracts, selected proof and smoke](reference/sessions/README.md#blocking-session-information).
+
 ## Schema and temporary namespace identity — change note
 
 `current_schema` / `current_schema()` return the first searchable explicit

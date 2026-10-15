@@ -72,6 +72,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		if e.arg != nil {
 			walk(e.arg)
 		}
+	case blockingInquiryExpression:
+		walk(e.arg)
 	case visibilityInquiryExpression:
 		walk(e.arg)
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:

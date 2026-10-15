@@ -6,6 +6,60 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Blocking session information
+
+`blocking_pids*_test.go` covers both `(integer) -> integer[]` signatures with
+independent expectations, not backend parity alone. Direct, prepared and held
+calls preserve strict NULL versus nonnull empty arrays, exact `_INT4` metadata,
+full portable diagnostics and source character positions. Generated PIDs are
+related to independently discovered physical owners: PostgreSQL uses the shared
+fixture PID observer; native setup parses its real TEMP namespace suffix before
+BEGIN. TEMP is never accessed inside a transaction intended for PREPARE.
+
+Hard-owner, soft-predecessor and compatible-holder cases observe exact blocker
+bags before release/cancellation. Prepared owners retain `{0,0}` then `{0}`;
+origin exit or reuse does not substitute a historical PID. Safe acquisition
+tests distinguish query/actual-Prepare waits from NOT DEFERRABLE, idle and
+nonserializable state, including prepared safe-owner zero. Cancellation and
+physical end clear actual waits; native Reset/Restore separately prove epoch
+replacement, without a fictional PostgreSQL control equivalent. Workers are
+bounded, canceled and joined before statement/connection or prepared-GID cleanup.
+Stored views and held consumers re-evaluate recipes; Dump/Restore into a separate
+engine does not restore waits or share captured array storage.
+Session-advisory direct/held waits also expose the actual owner, clear canceled
+transaction provenance while the holder remains alive, and permit a fresh wait
+and exactly one transferred acquisition on the same physical session.
+
+```sh
+make check RUN='^TestReferenceBlockingPids(Signatures|Diagnostics|HardSoft|Prepared|SafeSnapshot|Lifecycle|StoredControls|Advisory)$'
+make check RUN='^TestReferenceBlockingPids(Signatures|Diagnostics|HardSoft|Prepared|SafeSnapshot|Lifecycle|StoredControls|Advisory)$' REFERENCE=1
+make check RUN='^TestBlockingPids(BindingAndIdentity|OrdinaryAuthority|SafeAuthority|Lifecycle|TraversalReplay|AdvisoryAuthority)$' RACE=1
+```
+
+Run selected proof with an external 900-second deadline. Whole-project
+Docker-free verification remains `make quickcheck`; it does not replace either
+selected backend run. Physical-domain/private/overflow identity, authoritative
+queue eligibility, strict demand, live reevaluation, descriptor remapping and
+traversal/replay units supplement the public scenarios.
+
+The feature smoke is an ordinary temporary public Go executable, supplied for
+the owning part's verification as `blocking-pids-smoke.go`, not a Go test or
+permanent example binary. From the repository root, after materializing it at
+`/tmp/pg18-blocking-pids-public-smoke.go`, run:
+
+```sh
+timeout --signal=KILL 60s go run /tmp/pg18-blocking-pids-public-smoke.go
+```
+
+It must observe an actual ordinary blocker before releasing it, an actual
+safe-only blocker before rolling back its writer, subsequent empty arrays and
+typed NULL/nonwaiting results. Only checked observations produce its three
+summary lines. Native session allocation is not constrained to INT4; an
+unrepresentable live blocker returns the documented ordinary range error.
+Native scan goroutines are not PostgreSQL child sessions/lock groups: serial
+fallback remains unchanged, and no fake worker identity or parallel contention
+witness is claimed.
+
 ### Schema and temporary namespace identity
 
 `namespace_identity*_test.go` uses public direct/prepared SQL and independently
@@ -706,6 +760,14 @@ normalization/range inputs, observer polls, asynchronous joins and all
 diagnostic/state/atomicity assertions are unchanged. The separate public
 executable retains its independently specified100ms/300ms budgets and650ms
 idle stimuli.
+
+`TestReferenceTimeoutChainPrepared/detached-survives-origin-idle` allows eight
+500ms idle intervals with a lock-free `SELECT 1` probe after each interval.
+A successful probe retries; any error must still be the exact idle-session
+FATAL57P05, and failure to terminate within the bounded attempts fails.
+The probe must not read the table whose ACCESS EXCLUSIVE lock remains owned by
+the detached transaction. Prepared-entry identity, retained-lock conflict and
+eventual committed-row assertions remain exact.
 
 The query/prepare/ping-reset branches of `TestReferenceTimeoutIdleBoundaries`
 adapt only their timing stimulus to scheduler pressure. Idle budgets start

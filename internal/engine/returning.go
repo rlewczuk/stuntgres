@@ -162,6 +162,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		case namespaceInquiryExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = column.kind == otherTempNamespace, true
+		case blockingInquiryExpression:
+			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		case identityExpression:
 			if column.kind == identityCurrentSchema {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true

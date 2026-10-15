@@ -396,6 +396,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		}
 		fmt.Fprintf(out, "NamespaceInquiry %d", n.kind)
 		err = args(n.arguments())
+	case blockingInquiryExpression:
+		if err := n.validateStored(); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "BlockingInquiry %d", n.kind)
+		err = child(n.arg)
 	case sequenceCallExpression:
 		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
 		err = args(n.args)
