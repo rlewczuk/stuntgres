@@ -20,6 +20,7 @@ type viewDefinition struct {
 	sequenceRefs      map[int]ObjectRef
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
+	intaggRefs        map[viewLiteralPath]ObjectRef
 	composites        map[viewLiteralPath]compositeOccurrence
 	similarSubstrings map[viewLiteralPath]bool
 	posixSubstrings   map[viewLiteralPath]bool

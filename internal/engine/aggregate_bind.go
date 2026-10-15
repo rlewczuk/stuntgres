@@ -328,7 +328,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return true
 	case unnestExpression:
 		o, ok := other.(unnestExpression)
-		return ok && e.ResultUsage() == o.ResultUsage() && same(e.args[0], o.args[0])
+		return ok && sameIntaggIdentity(e.procedure, e.ref, o.procedure, o.ref) && e.ResultUsage() == o.ResultUsage() && same(e.args[0], o.args[0])
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])

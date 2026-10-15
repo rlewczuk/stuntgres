@@ -417,6 +417,8 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
+	case "int_array_aggregate":
+		return true
 	case "rank", "dense_rank", "percent_rank", "cume_dist":
 		return true
 	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
@@ -450,6 +452,8 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 func ordinaryAggregate(name string) bool {
 	switch name {
 	case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
+		return true
+	case "int_array_aggregate":
 		return true
 	case "first_value", "last_value", "nth_value", "ntile", "lead", "lag":
 		return true
@@ -557,6 +561,8 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		return true // Dedicated binder owns child analysis and clause diagnostics.
 	case AggregateExpr:
 		switch r.Name {
+		case "int_array_aggregate":
+			return true // Installed aggregate binding owns child/FILTER precedence.
 		case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
 			return true // Preserve ordinary JSON object child/FILTER analysis.
 		}

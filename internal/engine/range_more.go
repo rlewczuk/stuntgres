@@ -11,6 +11,8 @@ import (
 type unnestExpression struct {
 	expressionInfo
 	args []BoundExpr
+	procedure *procedureDescriptor
+	ref ObjectRef
 }
 
 func (e unnestExpression) Eval(c *EvalContext) (sqltype.Value, error) {

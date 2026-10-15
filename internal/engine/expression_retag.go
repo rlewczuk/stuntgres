@@ -156,6 +156,18 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case unnestExpression:
 		n.args = children(n.args)
 		n.expressionInfo = info
+		if n.procedure != nil {
+			descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+			proc, ok := descriptor.(*procedureDescriptor)
+			if !ok || proc.intagg != stockIntagg {
+				return nil, false, fmt.Errorf("stuntgres: missing remapped intagg enumerator")
+			}
+			changed = changed || n.procedure != proc
+			n.procedure = proc
+			if err := validateIntaggIdentity(view, proc, n.ref, "int_array_enum"); err != nil {
+				return nil, false, err
+			}
+		}
 		rebound = n
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)

@@ -752,7 +752,18 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		return pgIdentifier("unnest") + "(" + arg + ")", nil
+		name := pgIdentifier("unnest")
+		if n.procedure != nil {
+			if err := validateIntaggIdentity(r.view, n.procedure, n.ref, "int_array_enum"); err != nil {
+				return "", err
+			}
+			namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing intagg namespace")
+			}
+			name = pgIdentifier(namespace.name) + "." + pgIdentifier(n.procedure.name)
+		}
+		return name + "(" + arg + ")", nil
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true

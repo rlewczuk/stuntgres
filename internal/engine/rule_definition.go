@@ -207,6 +207,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		}
 		query := &parser.Select{Targets: []parser.Expr{s.Condition}}
 		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []BoundExpr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.querySources, viewColumns: binder.viewColumns, viewLiterals: binder.viewLiterals, viewCastUsages: binder.viewCastUsages, viewComposites: binder.viewComposites, viewCollations: binder.viewCollations, viewNamespaces: binder.viewNamespaces, sequenceConstants: binder.sequenceConstants, regtypeConstants: binder.regtypeConstants}
+		b.viewIntaggRefs = binder.viewIntaggRefs
 		for i := range b.querySources {
 			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.attributes)
 		}

@@ -56,6 +56,7 @@ type procedureDescriptor struct {
 	queryCodec                    *intarrayProvider
 	fuzzy                         *fuzzystrmatchProvider
 	crypto                        *pgcryptoProvider
+	intagg                        *intaggProvider
 	conversion                    sqltype.EncodingConversionHandler
 	acl                           authorization.ACLValue
 	dictionary                    ObjectAddress
@@ -145,6 +146,13 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
+		if d.intagg != nil {
+			if err := d.intagg.validateProcedure(v, d); err != nil {
+				return err
+			}
+			ext = d.extension
+			break
+		}
 		if d.crypto != nil && d.fuzzy != nil {
 			return invalid()
 		}
@@ -314,7 +322,7 @@ func (p *unaccentProvider) validate(v CatalogRead, d *extensionDescriptor) error
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
 		proc, ok := v.state.descriptors[d.members[i]].(*procedureDescriptor)
-		if !ok || proc.signature != signature || proc.provider != p || proc.queryCodec != nil {
+		if !ok || proc.signature != signature || proc.provider != p || proc.queryCodec != nil || proc.intagg != nil {
 			return invalid()
 		}
 	}

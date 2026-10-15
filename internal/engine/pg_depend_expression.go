@@ -52,6 +52,10 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		return
 	}
 	switch n := expr.(type) {
+	case unnestExpression:
+		if n.procedure != nil {
+			r.add(n.ref.Address)
+		}
 	case installedSoundexFunctionExpression:
 		r.add(n.ref.Address)
 	case installedMetaphoneFunctionExpression:
@@ -117,6 +121,13 @@ func (r *pgDependRefs) query(node LogicalNode) {
 	}
 	if source, ok := node.(*sourceNode); ok {
 		r.add(source.ref.Address)
+	}
+	if aggregate, ok := node.(*aggregateNode); ok {
+		for _, call := range aggregate.calls {
+			if call.procedure != nil {
+				r.add(call.ref.Address)
+			}
+		}
 	}
 	if _, set := node.(*setNode); set {
 		queryExpressions(node, func(expr BoundExpr) {

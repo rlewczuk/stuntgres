@@ -110,7 +110,7 @@ func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(base.typ.ID()), 2275
 		}
-		if proc.name != name || proc.signature != signature || proc.result != result || !proc.strict || proc.volatility != Immutable || proc.provider != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) {
+		if proc.name != name || proc.signature != signature || proc.result != result || !proc.strict || proc.volatility != Immutable || proc.provider != nil || proc.intagg != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) {
 			return invalid()
 		}
 	}

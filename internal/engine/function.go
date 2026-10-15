@@ -18,6 +18,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.ObjectAddressFunctionName(name) {
 		return b.bindObjectAddress(raw)
 	}
+	if strings.EqualFold(name, "int_array_enum") || strings.EqualFold(name, "int_array_aggregate") {
+		return b.bindIntaggFunction(raw)
+	}
 	if strings.EqualFold(name, "pg_get_acl") {
 		return b.bindObjectACL(raw)
 	}

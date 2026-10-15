@@ -1054,6 +1054,11 @@ add native catalog producers. Unknown installed-version mutation is real
 PostgreSQL-only UPDATE in a transaction always rolled back; native covers the
 same projection with a private authentic descriptor copy, not new installation.
 
+The complete native inventory includes unaccent1.1, intagg1.1, intarray1.5,
+fuzzystrmatch1.2 and pgcrypto1.4. Intagg reports the released comment
+`integer aggregator and enumerator (obsolete)`, superuser=true, trusted=false
+and relocatable=true; availability does not imply installation.
+
 Controls exercise actual public native Dump/Reset/Restore, committed-only Dump,
 independent Driver restoration and retained rows/types; PostgreSQL's phase uses
 real installation/rollback, not native APIs on pq. Component units assert all
@@ -1083,8 +1088,9 @@ make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceA
 
 ### Pgcrypto hashing, passwords, raw AES and random/FIPS selected proof
 
-The native registry contains unaccent1.1, selected-type intarray1.5,
-selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs fourteen
+The native registry contains unaccent1.1, the two-wrapper intagg1.1,
+selected-type intarray1.5, selected-function fuzzystrmatch1.2 and bounded
+pgcrypto1.4. Pgcrypto installs fourteen
 genuine parallel-safe overloads: four immutable BYTEA digest/HMAC members,
 immutable crypt(TEXT,TEXT), volatile gen_salt(TEXT[,INT4]) returning TEXT,
 immutable encrypt/decrypt(BYTEA,BYTEA,TEXT) plus

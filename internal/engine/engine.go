@@ -88,6 +88,7 @@ type binding struct {
 	subqueryDemand        bool
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
+	viewIntaggRefs        map[viewLiteralPath]ObjectRef
 	viewComposites        map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewPosixSubstrings   map[viewLiteralPath]bool
@@ -211,6 +212,10 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	}
 	comment = "determine similarities and distance between strings"
 	if err := e.registerExtension("fuzzystrmatch", registeredExtension{version: "1.2", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockFuzzystrmatch}); err != nil {
+		return nil, err
+	}
+	comment = "integer aggregator and enumerator (obsolete)"
+	if err := e.registerExtension("intagg", registeredExtension{version: "1.1", superuser: true, relocatable: true, comment: &comment, provider: stockIntagg}); err != nil {
 		return nil, err
 	}
 	comment = "cryptographic functions"
@@ -814,6 +819,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	b.regtypeConstants = binder.regtypeConstants
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
+	b.viewIntaggRefs = binder.viewIntaggRefs
 	b.viewComposites = binder.viewComposites
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
 	b.viewPosixSubstrings = binder.viewPosixSubstrings

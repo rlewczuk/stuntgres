@@ -77,6 +77,7 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 			metadata := *definition.mutation
 			metadata.dependencies = b.dependencies
 			metadata.viewLiterals, metadata.viewCastUsages = b.viewLiterals, b.viewCastUsages
+			metadata.viewIntaggRefs = b.viewIntaggRefs
 			metadata.viewComposites = b.viewComposites
 			metadata.viewSimilarSubstrings, metadata.viewPosixSubstrings = b.viewSimilarSubstrings, b.viewPosixSubstrings
 			metadata.viewCollations = b.viewCollations

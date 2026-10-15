@@ -536,6 +536,13 @@ composite elements and domains over composites through their physical member
 layout; a NULL composite element is one member-NULL row, not exhaustion. Target
 unnest instead produces one logical element-valued column.
 
+Installed intagg wrappers use these same builtin descriptors and payloads:
+`int_array_aggregate(integer)` produces integer[] (one dimension, lower bound1,
+or whole NULL for no input); `int_array_enum(integer[])` produces INT4 rows.
+The fixed signatures infer unknown inputs without a polymorphic ambiguity.
+Duplicate elements and element NULLs survive; whole NULL/empty enumeration
+retains the INT4 schema while producing zero rows. No intagg-specific type exists.
+
 Array-element typmods are not invented for polymorphic results. A domain over
 VARCHAR(3) still carries its underlying length 3; ordinary array unnest produces
 unsized VARCHAR. Native truthfully reports its unbounded length as MaxInt64;

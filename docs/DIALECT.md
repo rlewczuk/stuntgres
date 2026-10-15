@@ -613,6 +613,44 @@ Index partitions have NULL bounds. Additional partition strategies and hierarchy
 alterations, including member RENAME, are not enabled; native retained-bound
 witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
+## intagg installed wrappers
+
+The relocatable, superuser-required, nontrusted intagg1.1 provider installs only
+`int_array_aggregate(integer) RETURNS integer[]` and
+`int_array_enum(integer[]) RETURNS SETOF integer`, the documented
+[PostgreSQL18 compatibility wrappers](https://www.postgresql.org/docs/18/intagg.html).
+Upstream internal `int_agg_state`/`int_agg_final_array` are not callable native
+members. There is no second array type or arbitrary extension loader.
+
+Fixed INT4/INT4[] signatures use ordinary installed namespace resolution and
+shared implicit coercion, including unknown NULL/parameters and SMALLINT-to-INT4.
+They do not inherit the polymorphic builtin unknown-input ambiguity or accept
+arbitrary BIGINT/TEXT/numeric narrowing. Missing/off-path/incorrectly qualified
+calls fail normal function resolution, not a builtin fallback.
+
+The aggregate preserves duplicates and NULL inputs; zero input or a filter
+excluding every row yields one SQL NULL global result. Explicit aggregate
+ORDER BY controls element order; without it only element multiplicities are
+specified. DISTINCT, FILTER, grouping and INSERT SELECT reuse ordinary aggregates.
+INSERT VALUES rejects a resolved aggregate with42803; argument, signature and
+FILTER-child diagnostics retain their ordinary precedence before placement.
+The enumerator supports targets, scalar wrappers and FROM/lateral/ordinality:
+NULL elements are present rows; whole NULL/empty inputs emit zero rows with INT4
+metadata. All dimensions flatten stored elements, regardless of lower bounds.
+Explicit unary VARIADIC array spelling does not introduce a variadic overload.
+
+Stored views preserve both wrapper names and genuine procedure dependencies.
+Dump/Reset/Restore and independent-driver replay remap installation identities;
+held statements reanalyze while already returned rows retain their original data.
+Exact same-session TEMP installations/views retain their captured procedure
+dependencies across Reset and compatible baseline Restore. This contextual TEMP
+authority does not make an ordinary stale or foreign ObjectRef valid, and TEMP
+installations remain nonportable dump sources.
+Valid aggregate OVER signatures reach the existing native window capability
+boundary: unfiltered calls report `window function provider is unsupported`,
+filtered calls `window aggregate FILTER is unsupported`. PostgreSQL supports
+those windows; native does not implement another array/window runtime.
+
 ## Daitch–Mokotoff installed function
 
 The fuzzystrmatch1.2 provider installs exactly ten overloads:

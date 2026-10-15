@@ -327,12 +327,12 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 			return nil, directError
 		}
 	}
-	// Selected SUM, bitwise and JSON providers resolve children, FILTER and
-	// signatures before INSERT VALUES rejection; other aggregates stay unchanged.
+	// Selected providers resolve children, FILTER and signatures before INSERT
+	// VALUES rejection; this includes the installed scalar-array wrapper.
 	if clause == "INSERT VALUES" {
 		switch call.operation {
 		case aggregateIntegralSum, aggregateNumericSum, aggregateFloatSum, aggregateMoneySum, aggregateIntervalSum,
-			aggregateBitAnd, aggregateBitOr, aggregateBitXor,
+			aggregateBitAnd, aggregateBitOr, aggregateBitXor, aggregateArrayScalar,
 			aggregateJSON, aggregateJSONStrict, aggregateJSONArray, aggregateJSONArrayAbsent, aggregateJSONObject, aggregateJSONObjectStrict,
 			aggregatePercentileCont, aggregatePercentileDisc, aggregateMode,
 			aggregateHypotheticalRank, aggregateHypotheticalDenseRank, aggregateHypotheticalPercentRank, aggregateHypotheticalCumeDist:

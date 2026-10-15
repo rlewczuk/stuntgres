@@ -332,6 +332,26 @@ func (b *expressionBinder) resolveRowNumberSignature(raw parser.AggregateExpr, n
 // ordinary aggregation, but never builds a provider or registers an aggregate.
 // In particular, raw call-local ORDER expressions are not transformed here.
 func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateExpr, name parser.ObjectName, argument *BoundExpr) (sqltype.Usage, error) {
+	if raw.Name == "int_array_aggregate" {
+		call := parser.FunctionExpr{Name: name, Args: raw.Args, Star: raw.Star, Variadic: raw.Variadic, Pos: raw.Pos}
+		operands, err := b.intaggArguments(call)
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		if _, err := b.bindAggregateFilter(raw); err != nil {
+			return sqltype.Usage{}, err
+		}
+		arg, _, _, err := b.resolveIntagg(call, operands)
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		*argument = arg
+		array, ok := b.definitionArray(b.typ(sqltype.Int4))
+		if !ok {
+			return sqltype.Usage{}, fmt.Errorf("stuntgres: missing integer array descriptor")
+		}
+		return array.Usage(), nil
+	}
 	if raw.Name == "json_objectagg" && raw.JSON != nil {
 		_, usage, returning, err := b.resolveSQLJSONObjectAggregate(raw, name)
 		if err != nil {

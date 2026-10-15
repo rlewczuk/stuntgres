@@ -1068,6 +1068,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if e.Schema != nil {
 			name = quoteIdentifier(e.Schema.Text) + "." + quoteIdentifier(e.Name)
 		}
+		if e.Name == "int_array_aggregate" {
+			var err error
+			name, err = v.intaggRecipeName(catalog, path, e.Name)
+			if err != nil {
+				return "", err
+			}
+		}
 		var text string
 		var err error
 		if e.Star {
@@ -1233,6 +1240,14 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return fields[0], nil
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if name == "int_array_enum" {
+			qualified, err := v.intaggRecipeName(catalog, path, name)
+			if err != nil {
+				return "", err
+			}
+			text, err := args(e.Args)
+			return qualified + "(" + text + ")", err
+		}
 		if name == "generate_subscripts" && !v.presentation.deparse {
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {

@@ -47,7 +47,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 func selectedFunctionSourceName(name string) bool {
 	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
 		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) ||
-		name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
+		name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
 
 // A selected scalar OUT name controls the column label, not the range alias.

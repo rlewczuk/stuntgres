@@ -52,6 +52,15 @@ includes NULL elements; zero-row inputs retain metadata. In a scalar wrapper
 such as `abs(unnest(a))`, each present element is evaluated by the existing
 scalar projection lane, not a separate expansion implementation.
 
+Installed intagg1.1 exposes fixed-INT4 `int_array_aggregate` and
+fixed-INT4[] `int_array_enum` wrappers over these existing query kernels.
+The aggregate includes NULLs and duplicates, with element order specified only
+by aggregate ORDER BY. Enum reuses target/FROM/lateral cursors and ordinality,
+including multidimensional inputs and present NULL elements. Both require
+installation and retain their own procedure dependencies in stored views and
+native replay; they are not builtin aliases. See the
+[bounded intagg contract](DIALECT.md#intagg-installed-wrappers).
+
 Only unqualified multiargument FROM `unnest(a,b,...)` without aggregate/window/
 VARIADIC decorations or per-function typed definitions is rewritten to unary
 `pg_catalog.unnest` calls. Zipping uses the longest input, typed NULL padding and

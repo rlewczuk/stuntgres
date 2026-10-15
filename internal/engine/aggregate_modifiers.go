@@ -219,6 +219,9 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
+	if !sameIntaggIdentity(a.procedure, a.ref, other.procedure, other.ref) {
+		return false
+	}
 	if p, ok := a.provider.(jsonObjectAggregateProvider); ok {
 		q, same := other.provider.(jsonObjectAggregateProvider)
 		if !same || p.unique != q.unique {

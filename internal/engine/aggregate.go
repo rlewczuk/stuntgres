@@ -88,6 +88,8 @@ type aggregateCall struct {
 	stageWidth   int // Value, separator, then unique local targets; keys address cache slots.
 	operation    aggregateOperation
 	includeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
+	procedure    *procedureDescriptor
+	ref          ObjectRef
 }
 
 // Every analyzed aggregate expression participates in ownership, dependence,

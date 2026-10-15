@@ -243,6 +243,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		next = n
 	case unnestExpression:
 		n.args = args(n.args)
+		if ref != nil && n.procedure != nil {
+			n.ref = ref(n.ref)
+		}
 		next = n
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
@@ -886,6 +889,19 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.calls = make([]aggregateCall, len(n.calls))
 		for i, call := range n.calls {
 			copy.calls[i] = call
+			if call.procedure != nil && ref != nil {
+				copy.calls[i].ref = ref(call.ref)
+				if !m.referencesOnly {
+					proc, ok := m.catalog.state.descriptors[copy.calls[i].ref.Address].(*procedureDescriptor)
+					if !ok {
+						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
+					}
+					copy.calls[i].procedure = proc
+					if failure := validateIntaggIdentity(m.catalog, proc, copy.calls[i].ref, "int_array_aggregate"); failure != nil {
+						return nil, failure
+					}
+				}
+			}
 			switch p := call.provider.(type) {
 			case *hypotheticalSetProvider:
 				copy.calls[i].provider = &hypotheticalSetProvider{usage: usage(p.usage), operation: p.operation}

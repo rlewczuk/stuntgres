@@ -6,6 +6,57 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### intagg installed wrappers
+
+The shared `TestReferenceIntaggAggregate`, `Enumeration`, `InstalledIdentity`,
+`Diagnostics`, `Controls`, `UnqualifiedRecipes`, `ValuesDiagnostics`,
+`TemporaryControls` and `FeatureSmoke` definitions independently specify the two
+installed INT4/INT4[] wrappers, not aliases for builtin resolution.
+Rows, metadata and complete portable diagnostics are grounded in the pinned
+PostgreSQL18.0 oracle. NULL/duplicate aggregation, empty/filter behavior, ordered
+and unordered element bags, fixed unknown/SMALLINT coercion, multidimensional
+enumeration, lateral/ordinality and held parameters retain shared direct/prepared
+bodies. Unordered results use bags rather than scan-order goldens.
+
+Stored aggregate and enum views carry genuine procedure dependencies. Native
+control phases cover symbolic replacement, retained rows/descriptors, held
+reanalysis, independent-driver replay and atomic invalid/canceled Restore.
+Unqualified wrapper calls created under an alternate search_path retain their
+selected procedure at each normalized syntax occurrence: aggregate, target SRF
+and FROM SRF recipes remain schema-qualified after path changes and replay.
+Shared inventory checks the documented subset; PostgreSQL also installs upstream
+internal helpers, whereas native has exactly two members. Native pg_proc does
+not add proretset: the shared public result schema proves INT4 set shape, with
+PostgreSQL-only catalog corroboration. Valid aggregate windows have PG positives
+and explicit existing native unsupported-provider/FILTER diagnostics.
+
+VALUES regressions pin placement versus input/signature/child/FILTER precedence,
+including exact direct/Prepare stages and no inserted rows. TEMP regressions
+install both wrappers in the actual physical namespace, create genuine aggregate
+and target/FROM enum views, and observe procedure dependencies first after native
+Reset and compatible baseline Restore. Procedure IDs, rows and schema remain
+retained without relaxing ordinary stale/foreign reference validity.
+
+Selected proof (both modes required after affected changes):
+
+```sh
+make check RUN='^TestReferenceIntagg(Aggregate|Enumeration|InstalledIdentity|Diagnostics|Controls|UnqualifiedRecipes|ValuesDiagnostics|TemporaryControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceIntagg(Aggregate|Enumeration|InstalledIdentity|Diagnostics|Controls|UnqualifiedRecipes|ValuesDiagnostics|TemporaryControls|FeatureSmoke)$'
+make check RUN='^TestIntagg(ProviderManifest|AggregateIdentity|EnumerationIdentity|IdentityRemap|ScalarInputPrecedence)$'
+```
+
+Feature smoke argv:
+
+```sh
+make check RUN='^TestReferenceIntagg(FeatureSmoke|UnqualifiedRecipes)$' REFERENCE=1
+make check RUN='^TestReferenceIntagg(FeatureSmoke|UnqualifiedRecipes)$'
+```
+
+Expected observations: installed ordered aggregate `{2,NULL,2}`; enum rows
+`(2,1),(2,2),(NULL,3)` with explicit ordinality ordering; unordered target bag
+two2+NULL; empty/whole-NULL INT4 schema; prepared inputs; exact bad-signature
+diagnostic; native Dump→Reset→Restore preserves both stored wrapper recipes.
+
 ### JSONB containment
 
 The six `TestReferenceJSONBContainment` entrypoints specify structural `@>`

@@ -1930,6 +1930,7 @@ type expressionBinder struct {
 	inListSyntax          map[inListSyntaxKey]parser.Expr
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
+	viewIntaggRefs        map[viewLiteralPath]ObjectRef
 	viewComposites        map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewPosixSubstrings   map[viewLiteralPath]bool
@@ -2440,6 +2441,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindStringAggregate(r, name)
 			} else if r.Name == "array_agg" {
 				node, err = b.bindArrayAggregate(r, name)
+			} else if r.Name == "int_array_aggregate" {
+				node, err = b.bindIntaggAggregate(r, name)
 			} else if r.Name == "range_agg" || r.Name == "range_intersect_agg" {
 				node, err = b.bindRangeAggregate(r, name)
 			} else if r.Name == "bit_and" || r.Name == "bit_or" || r.Name == "bit_xor" {

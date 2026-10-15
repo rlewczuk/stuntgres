@@ -1,0 +1,105 @@
+package engine
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func intaggUnitRecipes(t *testing.T) {
+	for _, call := range []string{"int_array_aggregate(2)", "int_array_enum('{2,2,NULL}')"} {
+		t.Run(call, func(t *testing.T) {
+			e, ext := intaggUnitInstalled(t)
+			ctx := context.Background()
+			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+			b.aggregateClause = "SELECT"
+			syntax := statement(t, "SELECT "+call).(*parser.Select)
+			raw := syntax.Targets[0]
+			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+				t.Fatal(err)
+			}
+			path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
+			name := intaggRecipeFunction(raw)
+			ref, ok := b.viewIntaggRefs[path]
+			if !ok || ref.Address == (ObjectAddress{}) || len(b.viewIntaggRefs) != 1 {
+				t.Fatal("missing bound occurrence", b.viewIntaggRefs)
+			}
+			var child LogicalNode = &singletonNode{}
+			if len(b.aggregates) != 0 {
+				child = &aggregateNode{child: child, calls: b.aggregates}
+			}
+			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, child: child, expressions: []BoundExpr{node}, frame: b.frameID(), syntax: syntax}
+			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, dependencies: b.dependencies, intaggRefs: b.viewIntaggRefs, literals: b.viewLiterals, castUsages: b.viewCastUsages}
+			definition.frames, definition.queries = collectQueryFrames(project)
+			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
+			renderer := newViewRenderer(definition)
+			renderer.frame = b.frameID()
+			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
+				t.Fatal("unqualified bound recipe", text, err)
+			}
+			for _, badRef := range []ObjectRef{{}, {owner: New().owner, Epoch: ref.Epoch, Address: ref.Address}, {owner: ref.owner, Epoch: ref.Epoch + 1, Address: ref.Address}, {owner: ref.owner, Epoch: ref.Epoch, Address: ext.address}} {
+				bad := *definition
+				bad.intaggRefs = map[viewLiteralPath]ObjectRef{path: badRef}
+				if err := bad.validateLiterals(e.CatalogRead()); err == nil {
+					t.Fatal("forged frozen reference accepted", badRef)
+				}
+			}
+			missing := *definition
+			missing.intaggRefs = nil
+			if err := missing.validateLiterals(e.CatalogRead()); err == nil {
+				t.Fatal("raw-name fallback accepted")
+			}
+			extra := *definition
+			extra.intaggRefs = map[viewLiteralPath]ObjectRef{path: ref, {query: b.frameID(), target: 99}: ref}
+			if err := extra.validateLiterals(e.CatalogRead()); err == nil {
+				t.Fatal("unused frozen capture accepted")
+			}
+			mapping := map[ObjectAddress]ObjectAddress{ext.address: {ClassID: ExtensionClassID, ObjectID: 910000}}
+			for i, address := range ext.members {
+				mapping[address] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(910001 + i)}
+			}
+			state := cloneCatalog(e.state)
+			for address := range mapping {
+				delete(state.names, descriptorNameKey(e.state.descriptors[address]))
+				delete(state.descriptors, address)
+			}
+			for address, destination := range mapping {
+				d := remapExtensionDescriptor(e.state.descriptors[address], mapping)
+				state.descriptors[destination], state.names[descriptorNameKey(d)] = d, destination
+			}
+			state.epoch++
+			view := CatalogRead{owner: e, state: state}
+			mapRef := func(old ObjectRef) ObjectRef {
+				old.Epoch = state.epoch
+				if destination, ok := mapping[old.Address]; ok {
+					old.Address = destination
+				}
+				return old
+			}
+			mapped, err := remapFrozenPresentation(view, definition, mapping, mapRef, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mapped.intaggRefs[path] != mapRef(ref) || definition.intaggRefs[path] != ref {
+				t.Fatal("capture remap mutated/lost authority")
+			}
+			if err := mapped.validateLiterals(view); err != nil {
+				t.Fatal(err)
+			}
+			proc, err := mapped.intaggRecipeProcedure(view, path, name)
+			if err != nil || proc != state.descriptors[mapRef(ref).Address] {
+				t.Fatal("capture retargeted by name", proc, err)
+			}
+		})
+	}
+}

@@ -13,6 +13,17 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Installed intagg — change note
+
+`CREATE EXTENSION intagg` installs the two documented compatibility wrappers:
+`int_array_aggregate(integer)` and `int_array_enum(integer[])`. They reuse
+existing array aggregation and stored-element expansion, retaining duplicates,
+NULL elements and installed procedure identity through native replay. Installation
+is required; neither name is a builtin alias. No helper routines or new array type
+are exposed. Aggregate windows remain outside the native execution subset.
+See [native limits](docs/DIALECT.md#intagg-installed-wrappers) and
+[selected proof and smoke](reference/binary_json_arrays/README.md#intagg-installed-wrappers).
+
 ## Language catalog — change note
 
 `pg_catalog.pg_language` exposes the nine PostgreSQL language metadata columns

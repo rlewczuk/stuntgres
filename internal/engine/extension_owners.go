@@ -149,6 +149,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		expectedMembers = 3
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = len(fuzzystrmatchMembers)
+	case record.Name == "intagg" && record.Version == "1.1":
+		expectedMembers = len(intaggMembers)
 	case record.Name == "pgcrypto" && record.Version == "1.4":
 		expectedMembers = len(pgcryptoMembers)
 	default:
@@ -183,6 +185,13 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 				valid = member.Name == "unaccent" && (member.Signature == string(unaccentTextSignature) || member.Signature == string(unaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(unaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(unaccentLexizeSignature)
 			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
+			case "intagg":
+				for _, selected := range intaggMembers {
+					if member.Name == selected.name && member.Signature == string(selected.signature) {
+						valid = true
+						break
+					}
+				}
 			case "pgcrypto":
 				_, valid = pgcryptoLookup(member.Name, procedureSignature(member.Signature))
 			}

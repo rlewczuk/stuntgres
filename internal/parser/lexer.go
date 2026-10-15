@@ -1155,6 +1155,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = TX_TIME_FUNC
 		}
 	}
+	if token.code == IDENT && strings.EqualFold(token.lexeme.text, "int_array_enum") {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = TX_TIME_FUNC
+		}
+	}
 	if token.code == IDENT && (NamespaceInquiryFunctionName(token.lexeme.text) || BlockingInquiryFunctionName(token.lexeme.text) || AccessInquiryFunctionName(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}

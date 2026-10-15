@@ -158,6 +158,10 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAd
 		}
 		var arguments string
 		switch d.signature {
+		case "23":
+			arguments = "integer"
+		case "1007":
+			arguments = "integer[]"
 		case unaccentTextSignature:
 			arguments = "text"
 		case unaccentDictionarySignature:

@@ -62,6 +62,7 @@ func selectedScalarCall(l sqlLexer, callee lexeme, call FunctionExpr) (FunctionE
 // Eligible one-argument composite-field fallback still uses exact-name resolution.
 func ordinarySignatureName(name string) bool {
 	return strings.EqualFold(name, "left") || strings.EqualFold(name, "right") ||
+		strings.EqualFold(name, "int_array_aggregate") || strings.EqualFold(name, "int_array_enum") ||
 		strings.EqualFold(name, "substring") || strings.EqualFold(name, "substr") ||
 		strings.EqualFold(name, "sum") || strings.EqualFold(name, "json_agg") || strings.EqualFold(name, "jsonb_agg") ||
 		strings.EqualFold(name, "json_agg_strict") || strings.EqualFold(name, "jsonb_agg_strict") ||
