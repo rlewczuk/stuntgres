@@ -1635,14 +1635,14 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
 	switch name {
-	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax":
+	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert":
 		return true
 	}
 	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name) || JSONBSetFunctionName(name)
 }
 
 func JSONBSetFunctionName(name string) bool {
-	return strings.EqualFold(name, "jsonb_set") || strings.EqualFold(name, "jsonb_set_lax")
+	return strings.EqualFold(name, "jsonb_set") || strings.EqualFold(name, "jsonb_set_lax") || strings.EqualFold(name, "jsonb_insert")
 }
 
 // JSONFunctionName admits only the selected ordinary JSON processing calls.

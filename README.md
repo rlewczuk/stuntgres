@@ -790,9 +790,25 @@ numbers, canonical key order and shared immutable subtrees. Direct/held results,
 stored default/generated/CHECK/view/index consumers and native replay retain
 JSONB types and symbolic calls; failed writes/Restore and canceled work do not
 publish partial state. Lax deletion is private to this function, not admission
-of adjacent delete/insert operators, subscripting or JSONPath execution.
+of adjacent delete operators, subscripting or JSONPath execution.
 Feature smoke: `make check RUN='^TestReferenceJSONBSetFeatureSmoke$'` and
 `make check RUN='^TestReferenceJSONBSetFeatureSmoke$' REFERENCE=1`.
+
+Change note: `jsonb_insert(jsonb_in jsonb, path text[], replacement jsonb,
+insert_after boolean DEFAULT false)` inserts without overwriting object keys.
+An existing final key raises `22023 cannot replace existing key`, with the hint
+to use `jsonb_set` for replacement. Arrays insert before the selected element
+by default, or after it when true; negative indices count from the end.
+Out-of-range negative/nonnegative final indices prepend/append without gaps,
+regardless of the after flag. Array/object replacements remain a single item.
+Intermediate parents must exist, path validation is reached-only, and all four
+SQL NULL operands are strict (JSON null remains a real value). Direct, prepared
+and held results retain JSONB metadata and immutable input ownership. Stored
+default/generated/CHECK/view/index recipes survive symbolic native Dump/Restore;
+failed or canceled operations do not publish partial state. Final scalar
+VARIADIC retains the ordinary formal slot, not array expansion.
+Feature smoke: `make check RUN='^TestReferenceJSONBInsertFeatureSmoke$'` and
+`make check RUN='^TestReferenceJSONBInsertFeatureSmoke$' REFERENCE=1`.
 
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,

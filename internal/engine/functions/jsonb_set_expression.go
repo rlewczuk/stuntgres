@@ -2,7 +2,7 @@ package functions
 
 import "stuntgres/internal/sqltype"
 
-// JSONBSet keeps executable formal slots separate from written presentation.
+// JSONBSet keeps mutation-family executable formals separate from written presentation.
 // Defaults are real child expressions; all supplied children evaluate normally.
 type JSONBSet[E Expression[C], C Context, P any] struct {
 	Info[P]

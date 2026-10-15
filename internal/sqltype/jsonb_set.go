@@ -20,8 +20,8 @@ func BindJSONBSet(name string, result Usage, args ...Usage) (JSONBSetPlan, error
 	count := 4
 	if name == "jsonb_set_lax" {
 		count = 5
-	} else if name != "jsonb_set" {
-		return p, fmt.Errorf("invalid JSONB replacement function")
+	} else if name != "jsonb_set" && name != "jsonb_insert" {
+		return p, fmt.Errorf("invalid JSONB mutation function")
 	}
 	ids := [5]ID{JSONB, 1009, JSONB, Bool, Text}
 	if len(args) != count || !result.Valid() || result.Typmod != -1 || result.Type.ID() != JSONB {
@@ -64,21 +64,29 @@ func (p JSONBSetPlan) Evaluate(ctx context.Context, values []Value) (Value, erro
 	if values[0].jsonb == nil || values[1].array == nil {
 		return Value{}, fmt.Errorf("missing JSONB replacement payload")
 	}
-	remove := false
+	mode := jsonbReplace
+	create := values[3].boolean
+	if p.name == "jsonb_insert" {
+		mode = jsonbInsertBefore
+		if create {
+			mode = jsonbInsertAfter
+		}
+		create = true
+	}
 	replacement := jsonbNode{kind: jsonbNull}
 	if p.count == 5 {
-		mode := values[4]
-		if mode.null {
+		treatment := values[4]
+		if treatment.null {
 			return Value{}, jsonbSetTreatmentError()
 		}
 		if values[2].null {
-			switch mode.text {
+			switch treatment.text {
 			case "raise_exception":
 				return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22004", Message: "JSON value must not be null", Detail: `Exception was raised because null_value_treatment is "raise_exception".`, Hint: "To avoid, either change the null_value_treatment argument or ensure that an SQL NULL is not passed."}
 			case "return_target":
 				return values[0], nil
 			case "delete_key":
-				remove = true
+				mode = jsonbDelete
 			case "use_json_null":
 			default:
 				return Value{}, jsonbSetTreatmentError()
@@ -91,7 +99,7 @@ func (p JSONBSetPlan) Evaluate(ctx context.Context, values []Value) (Value, erro
 		}
 		replacement = values[2].jsonb.root
 	}
-	root, changed, err := jsonbSetPath(ctx, values[0].jsonb.root, values[1], replacement, values[3].boolean, remove)
+	root, changed, err := jsonbSetPath(ctx, values[0].jsonb.root, values[1], replacement, create, mode)
 	if err != nil {
 		return Value{}, err
 	}
@@ -116,23 +124,32 @@ func jsonbSetTreatmentError() error {
 	return failure("22023", `null_value_treatment must be "delete_key", "return_target", "use_json_null", or "raise_exception"`)
 }
 
+type jsonbMutationMode uint8
+
+const (
+	jsonbReplace jsonbMutationMode = iota
+	jsonbDelete
+	jsonbInsertBefore
+	jsonbInsertAfter
+)
+
 type jsonbSetAncestor struct {
 	node  jsonbNode
 	index int
 }
 
-func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement jsonbNode, create, remove bool) (jsonbNode, bool, error) {
+func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement jsonbNode, create bool, mode jsonbMutationMode) (jsonbNode, bool, error) {
 	if path.ArrayRank() > 1 {
 		return jsonbNode{}, false, failure("2202E", "wrong number of array subscripts")
 	}
 	if root.kind != jsonbObject && root.kind != jsonbArray {
 		message := "cannot set path in scalar"
-		if remove {
+		if mode == jsonbDelete {
 			message = "cannot delete path in scalar"
 		}
 		return jsonbNode{}, false, failure("22023", message)
 	}
-	if path.ArrayLen() == 0 || len(root.items) == 0 && len(root.fields) == 0 && (remove || !create) {
+	if path.ArrayLen() == 0 || len(root.items) == 0 && len(root.fields) == 0 && (mode == jsonbDelete || !create) {
 		return root, false, ctx.Err()
 	}
 	var local [16]jsonbSetAncestor
@@ -190,7 +207,7 @@ func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement j
 		default:
 			return root, false, ctx.Err()
 		}
-		if !exists && (!last || remove || !create) {
+		if !exists && (!last || mode == jsonbDelete || !create) {
 			return root, false, ctx.Err()
 		}
 		if !last {
@@ -202,13 +219,13 @@ func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement j
 			}
 			continue
 		}
-		changed, err := jsonbSetLeaf(ctx, node, index, exists, step.text, replacement, remove)
+		changed, err := jsonbSetLeaf(ctx, node, index, exists, step.text, replacement, mode)
 		if err != nil {
 			return jsonbNode{}, false, err
 		}
 		for i := len(ancestors) - 1; i >= 0; i-- {
 			a := ancestors[i]
-			changed, err = jsonbSetLeaf(ctx, a.node, a.index, true, "", changed, false)
+			changed, err = jsonbSetLeaf(ctx, a.node, a.index, true, "", changed, jsonbReplace)
 			if err != nil {
 				return jsonbNode{}, false, err
 			}
@@ -218,7 +235,18 @@ func jsonbSetPath(ctx context.Context, root jsonbNode, path Value, replacement j
 	return root, false, ctx.Err()
 }
 
-func jsonbSetLeaf(ctx context.Context, node jsonbNode, index int, exists bool, key string, replacement jsonbNode, remove bool) (jsonbNode, error) {
+func jsonbSetLeaf(ctx context.Context, node jsonbNode, index int, exists bool, key string, replacement jsonbNode, mode jsonbMutationMode) (jsonbNode, error) {
+	if mode == jsonbInsertBefore || mode == jsonbInsertAfter {
+		if node.kind == jsonbObject && exists {
+			return jsonbNode{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "cannot replace existing key", Hint: "Try using the function jsonb_set to replace key value."}
+		}
+		if node.kind == jsonbArray && exists && mode == jsonbInsertAfter {
+			index++
+		}
+		// Splice without consuming the selected original array element.
+		exists = false
+	}
+	remove := mode == jsonbDelete
 	length := len(node.items)
 	if node.kind == jsonbObject {
 		length = len(node.fields)

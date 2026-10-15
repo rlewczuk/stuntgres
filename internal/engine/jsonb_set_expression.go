@@ -16,6 +16,9 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 		count = 5
 	}
 	labels := [5]string{"jsonb_in", "path", "replacement", "create_if_missing", "null_value_treatment"}
+	if name == "jsonb_insert" {
+		labels[3] = "insert_after"
+	}
 	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
 	var small [5]functions.Argument[BoundExpr]
 	operands := small[:min(len(raw.Args), len(small))]
@@ -51,7 +54,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	case functions.DuplicateLabel:
 		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
 	}
-	if !visible || raw.ResolutionOnly || (name != "jsonb_set" && name != "jsonb_set_lax") || len(operands) > count {
+	if !visible || raw.ResolutionOnly || (name != "jsonb_set" && name != "jsonb_set_lax" && name != "jsonb_insert") || len(operands) > count {
 		return signature()
 	}
 	e := functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]{Count: count, WrittenCount: len(operands), Variadic: raw.Variadic}
@@ -113,7 +116,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	}
 	if !supplied[3] {
 		typ := b.typ(sqltype.Bool)
-		e.Args[3] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, true)}
+		e.Args[3] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, name != "jsonb_insert")}
 	}
 	if count == 5 && !supplied[4] {
 		typ := b.typ(sqltype.Text)

@@ -547,6 +547,66 @@ full 42883, and stored definitions surviving real replay.
 Diagnostics separately verifies the complete unknown `?|` 42725 record.
 Whole-project Docker-free verification remains `make quickcheck`.
 
+### JSONB path insertion
+
+The `TestReferenceJSONBInsert` family independently specifies `jsonb_insert`.
+Catalog formals are `jsonb_in`, `path`, `replacement`, and `insert_after`
+(default false). Arrays insert before/after an existing index without consuming
+the original element. Negative indices count from the end; out-of-range negative
+indices prepend and nonnegative indices append regardless of the flag, without
+gaps. Replacement containers remain one element. Missing intermediate parents
+are never fabricated; only reached path components are validated. Empty paths
+preserve containers, while scalar roots error.
+
+Final object keys must be absent, even when the old value is JSON null or equals
+the replacement. Collisions raise `22023 cannot replace existing key`, with
+Hint `Try using the function jsonb_set to replace key value.` and no Position.
+All four SQL NULL operands are strict; JSON null is an inserted value, not SQL
+NULL, and explicit NULL after is not the false default. Named/default and final
+scalar VARIADIC calls retain their written presentation. VARIADIC selects the
+ordinary scalar formal; it does not expand arrays.
+
+The eight shared definitions cover values, full logical diagnostics/stages/
+Unicode positions, ordinary child demand with a row-dependent NULL target,
+typing and all-slot held inputs, repeated computed JSONB metadata across
+populated/NULL/empty results, raw carriers/rescans/detached ownership, stored
+default/generated/CHECK/view/index consumers, grouped/conditional traversal,
+late-write atomicity, active read/write cancellation and SAME-owner recovery.
+Native control phases retain old cursors/metadata across Reset/Restore,
+deterministic symbolic redumps, future recipe execution, failed-Restore
+isolation and real PostgreSQL replay of the actual emitted dump SQL.
+
+Run both bounded selectors with an external 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceJSONBInsert(Values|NullAndDiagnostics|TypingAndParameters|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBInsert(ConsumersAndAtomicity|Controls|Cancellation|FeatureSmoke)$' REFERENCE=1
+```
+
+Run the identical selectors without `REFERENCE=1` for selected native proof.
+Component contracts and unchanged replacement-family regressions:
+
+```sh
+make check RUN='^TestJSONBInsert'
+make check RUN='^TestJSONBSet'
+make check RUN='^TestReferenceJSONBSet' REFERENCE=1
+make check RUN='^TestReferenceJSONBSet'
+```
+
+Feature smoke (exact independent before/after nested order, held negative/OOB/
+object/collision recovery, late-write sentinel, native symbolic replay/future
+recipes and actual dump replay in real mode):
+
+```sh
+make check RUN='^TestReferenceJSONBInsertFeatureSmoke$'
+make check RUN='^TestReferenceJSONBInsertFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceJSONBInsertCancellation$' RACE=1
+```
+
+Other insertion/deletion functions/operators, subscripting and JSONPath execution
+remain outside this feature. Discovery filters and catalog probes are not part
+of these permanent definitions.
+
 ### JSONB path replacement
 
 The `TestReferenceJSONBSet` family independently specifies `jsonb_set` and

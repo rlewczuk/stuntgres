@@ -892,6 +892,22 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Native Dump/Restore keeps symbolic calls and descriptor ownership, and
   cancellation/failure does not publish partial JSONB or persistent state.
   Private lax deletion does not add public delete-path functions/operators.
+  `jsonb_insert(jsonb_in jsonb,path text[],replacement jsonb,
+  insert_after boolean DEFAULT false)` uses the same immutable JSONB expression
+  and persistence path. A missing final object key is inserted; any existing
+  key (including JSON null or an identical value) raises `22023 cannot replace
+  existing key`, with Hint `Try using the function jsonb_set to replace key value.`
+  Arrays insert one value before the selected element, or after when true.
+  Negative indices count backward; out-of-range negatives prepend and
+  nonnegatives append regardless of the flag, without filling gaps or flattening
+  replacement arrays. Missing intermediate parents/wrong shapes remain unchanged.
+  Empty paths preserve containers; scalar roots still error. Reached-only
+  path/rank/index diagnostics and all-four-operand strict SQL NULL behavior
+  apply; explicit NULL after is not the false default. Computed direct/prepared/
+  held results expose JSONB metadata, and stored default/generated/CHECK/view/
+  index consumers retain symbolic calls and named/default/VARIADIC presentation
+  through native replay. Failed writes/Restore and cancellation publish no
+  partial state. This does not add other insertion/deletion operators/functions.
   Adjacent operators/functions, generic JSON equality and JSON path/query
   execution remain excluded.
 - SQL/JSON constructors `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR`,

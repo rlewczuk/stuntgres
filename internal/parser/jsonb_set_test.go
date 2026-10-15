@@ -67,7 +67,7 @@ func TestJSONBSetStoredSyntaxAndAdjacentBoundaries(t *testing.T) {
 			t.Fatal(q, err)
 		}
 	}
-	for _, name := range []string{"jsonb_insert", "jsonb_delete_path", "jsonb_path_set"} {
+	for _, name := range []string{"jsonb_delete_path", "jsonb_path_set"} {
 		if binaryScalarFunction(name) || JSONBSetFunctionName(name) {
 			t.Fatal("adjacent function admitted", name)
 		}
