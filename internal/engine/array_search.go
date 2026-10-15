@@ -152,6 +152,10 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 		return nil, d
 	}
+	if jsonbContainmentName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) &&
+		(left != nil && left.BaseType().ID() == sqltype.JSONB || right != nil && right.BaseType().ID() == sqltype.JSONB) {
+		return b.bindJSONBContainment(raw, operands)
+	}
 	var selected *sqltype.Descriptor
 	for _, d := range []*sqltype.Descriptor{left, right} {
 		if d == nil {

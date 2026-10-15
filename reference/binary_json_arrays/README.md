@@ -6,6 +6,46 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSONB containment
+
+The six `TestReferenceJSONBContainment` entrypoints specify structural `@>`
+and reversed `<@` independently: same-depth object subsets, unordered and
+duplicate-insensitive arrays, reusable nested candidates without merging
+objects, immediate primitive membership, exact numeric equality and SQL NULL.
+Direct/prepared queries assert BOOL metadata, including empty results; held
+statements change inputs, reject malformed JSON even opposite SQL NULL and
+recover on the same handles. Diagnostics pin complete English records and
+character positions. Stored generated/check/view expressions exercise shared
+SQL, affected counts and multirow failure atomicity.
+
+Native-only phases retain old rows/metadata across Reset/Restore, verify the
+independently expected stored results and deterministic redump, and reject a
+late invalid Restore without changing the catalog or rows. Real mode replays
+the actual emitted native dump on PostgreSQL. Both backends use the same SQL
+scenario bodies; no discovery filter remains.
+
+```sh
+make check RUN='^TestReferenceJSONBContainment(Values|TypingMetadataHeld|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBContainment(ConsumersControls|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBContainment(Values|TypingMetadataHeld|Diagnostics)$'
+make check RUN='^TestReferenceJSONBContainment(ConsumersControls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONBContainmentFeatureSmoke$'
+make check RUN='^TestReferenceJSONBContainmentFeatureSmoke$' REFERENCE=1
+make check RUN='^TestJSONBContainment(Provider|DeepTraversal|Cancellation)$'
+make check RUN='^TestReferenceJSONBContainment(Cancellation|TypingMetadataHeld)$' RACE=1
+```
+
+The smoke expects nested containment/reverse true, reordered duplicate arrays
+true, nested-only scalar membership false, immediate string membership true,
+the object array/scalar gate false and SQL NULL unknown. It also exercises
+same-held true/false/NULL/error/recovery, exact 42883 diagnostics, filtered and
+projected three-row data and stored-expression native round trips/PG replay.
+Active cancellation
+separately uses stored nested candidates, observes provider/server admission,
+joins SELECT/UPDATE workers, checks no cursor/result or write publication and
+reuses the same physical connection and held consumers. No SQL-array, JSON or
+JSONPath operation participates in successful containment or smoke cases.
+
 ### JSONB pretty output
 
 The `TestReferenceJSONBPretty` family independently specifies exact TEXT for

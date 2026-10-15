@@ -35,6 +35,8 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		if name == "->>" || name == "#>>" {
 			id = Text
 		}
+	case "@>", "<@":
+		ids, id = [4]ID{JSONB, JSONB}, Bool
 	case "?":
 		ids, id = [4]ID{JSONB, Text}, Bool
 	case "?|", "?&":
@@ -256,6 +258,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 			return p.jsonbExtraction(ctx, a, values[1])
 		}
 		return p.jsonExtraction(ctx, values[0], values[1])
+	case "@>", "<@":
+		return p.jsonbContainment(ctx, values[0], values[1])
 	case "?", "?|", "?&":
 		return p.jsonbExistence(ctx, values[0], values[1])
 	case "#-":

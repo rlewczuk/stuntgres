@@ -812,6 +812,16 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Existing array storage limits are unchanged. Native bounds arithmetic safely
   terminates at INT32_MIN in reverse, unlike the observed pinned18.0 defect;
   see [the release exception](QUERIES.md#array-target-subscripts).
+- JSONB `@>` and reverse `<@` are strict immutable `(jsonb,jsonb)->boolean`
+  operators. Objects match same-depth subsets; arrays ignore order and duplicate
+  multiplicity, reusing individual nested matches without merging objects.
+  Primitive membership searches immediate array elements only; array-valued
+  object fields cannot match scalar-valued fields. Numbers compare exactly
+  ignoring scale. SQL NULL produces NULL; JSON null remains a JSONB value.
+  Direct/prepared/stored expressions and symbolic native replay are supported.
+  Known TEXT/JSON/SQL-array operands do not implicitly convert to JSONB.
+  No JSON containment, JSONPath or GIN provider is implied; existing SQL-array
+  containment keeps its own operand family.
 - Selected scalar/set JSON processing includes `json_typeof`, `jsonb_typeof`,
   `json_array_length`, `jsonb_array_length`, `json_object_keys` and
   `jsonb_object_keys`, each taking its matching JSON family. Kinds/keys return

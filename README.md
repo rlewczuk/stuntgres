@@ -13,6 +13,19 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## JSONB containment — change note
+
+JSONB `@>` and reverse `<@` return BOOL for structural containment. Object
+subsets match at the same depth; arrays ignore ordering and duplicate counts
+without flattening nested arrays or merging separate objects. An array can
+contain an equal immediate primitive, but that exception does not convert
+array-valued object fields into scalar fields. Numeric comparison is exact
+and ignores scale. SQL NULL remains NULL, distinct from JSON null.
+Direct, prepared and stored expressions share the immutable JSONB provider
+and symbolic native Dump/Restore. No JSON containment, SQL-array dependency,
+JSONPath execution or GIN implementation is added.
+See [the contract and feature smoke](reference/binary_json_arrays/README.md#jsonb-containment).
+
 ## JSONB pretty output — change note
 
 `jsonb_pretty(jsonb)` returns TEXT with PostgreSQL-compatible four-space

@@ -191,9 +191,18 @@ JSON exports exact source text; JSONB exports normalized structural text. JSON
 null is a nonnull string, distinct from SQL NULL. Typed-nil bytes are NULL;
 nonnull empty text is invalid. Input and structural rendering poll cancellation
 without publishing partial values. JSON has no equality/order/hash provider;
-JSONB storage does not imply GIN, containment, extraction or SQL/JSON providers.
+JSONB storage does not itself imply GIN or additional JSON processing providers.
 JSONPath retains an immutable typed representation; typed input alone does not
 provide a general path evaluator.
+
+JSONB containment `@>`/`<@` compares immutable structural nodes and returns
+BOOL with unknown computed nullability. Object keys match at the same depth;
+arrays ignore order/duplicates with an immediate primitive-membership exception,
+not flattening or object-field scalar coercion. Numeric equality ignores scale
+without floating-point conversion. SQL NULL is strict, distinct from JSON null.
+Unknown operands infer JSONB from a known JSONB counterpart; known TEXT/JSON
+or SQL-array operands need explicit conversion. Direct/prepared/stored calls
+share this provider, without requiring JSON, SQL arrays or JSONPath execution.
 
 JSON extraction (`->`, `#>` and `json_extract_path`) preserves the selected
 source fragment rather than reserializing a tree. Its TEXT variants decode
