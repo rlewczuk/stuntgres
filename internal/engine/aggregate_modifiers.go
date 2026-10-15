@@ -65,14 +65,16 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			return nil, err
 		}
 	}
-	if _, ordered:=call.provider.(orderedSetFinalizer); !ordered {
+	if _, ordered := call.provider.(orderedSetFinalizer); !ordered {
 		call.order = make([]sortKey, len(raw.Order))
 	}
 	if len(raw.Order) > 0 {
 		call.stageWidth = 2
 	}
 	for i, key := range raw.Order {
-		if _, ordered:=call.provider.(orderedSetFinalizer); ordered { break }
+		if _, ordered := call.provider.(orderedSetFinalizer); ordered {
+			break
+		}
 		expression, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
 		if err != nil {
 			return nil, err
@@ -217,6 +219,12 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
+	if p, ok := a.provider.(jsonObjectAggregateProvider); ok {
+		q, same := other.provider.(jsonObjectAggregateProvider)
+		if !same || p.unique != q.unique {
+			return false
+		}
+	}
 	if a.operation != other.operation || a.includeNulls != other.includeNulls || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.distinct) != len(other.distinct) || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) || !b.sameGroupExpression(a.direct, other.direct) || !b.sameGroupExpression(a.filter, other.filter) {
 		return false
 	}

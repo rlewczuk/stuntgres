@@ -705,6 +705,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   converted root JSON null members after key/value conversion, retaining the
   latest nonnull duplicate; nested nulls are retained. All-omitted input yields
   an empty object; zero admitted rows yield SQL NULL.
+  SQL/JSON `json_objectagg` accepts one key VALUE value or key:value pair,
+  NULL/ABSENT ON NULL (default NULL), WITH/WITHOUT UNIQUE [KEYS], formatted JSON
+  input and applicable RETURNING JSON/JSONB, UTF8 BYTEA, strings and supported
+  domains. Unspecified RETURNING selects JSONB for an exact JSONB key/value,
+  otherwise JSON; output FORMAT JSON selects a JSON intermediate before the
+  final assignment conversion. Unique keys include omitted SQL-NULL members:
+  JSON checks during transition; JSONB checks at finalization before null
+  compaction. Nested value objects do not inherit outer key uniqueness.
+  NULL keys always fail. Stored views and native dump replay retain all options.
+  `jsonb_objectagg` is not an alias. Local ORDER BY, DISTINCT/ALL, multiple pairs,
+  underscore unique variants and object aggregate window execution remain
+  outside this selected support.
   `jsonb_set` and `jsonb_set_lax` return typed immutable JSONB through ordinary
   direct/prepared and stored scalar consumers. TEXT[] paths require existing
   intermediate parents; only a missing final item is created by the default
@@ -724,8 +736,8 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Native Dump/Restore keeps symbolic calls and descriptor ownership, and
   cancellation/failure does not publish partial JSONB or persistent state.
   Private lax deletion does not add public delete-path functions/operators.
-  Adjacent operators/functions, generic JSON equality, SQL/JSON object aggregation
-  and path/query execution remain excluded.
+  Adjacent operators/functions, generic JSON equality and JSON path/query
+  execution remain excluded.
 - JSONB existence operators `jsonb ? text`, `jsonb ?| text[]` and
   `jsonb ?& text[]` return BOOL and search only top-level object keys, immediate
   array string elements or a primitive string, using exact decoded strings.

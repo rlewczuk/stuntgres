@@ -509,7 +509,7 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		if r.Name == "percentile_cont" || r.Name == "percentile_disc" || r.Name == "mode" {
 			return true
 		}
-		if r.Name == "sum" || r.Name == "bit_and" || r.Name == "bit_or" || r.Name == "bit_xor" || r.Name == "json_agg" || r.Name == "jsonb_agg" || r.Name == "json_agg_strict" || r.Name == "jsonb_agg_strict" || r.Name == "json_arrayagg" || r.Name == "json_object_agg" || r.Name == "jsonb_object_agg" || r.Name == "json_object_agg_strict" || r.Name == "jsonb_object_agg_strict" {
+		if r.Name == "sum" || r.Name == "bit_and" || r.Name == "bit_or" || r.Name == "bit_xor" || r.Name == "json_agg" || r.Name == "jsonb_agg" || r.Name == "json_agg_strict" || r.Name == "jsonb_agg_strict" || r.Name == "json_arrayagg" || r.Name == "json_objectagg" || r.Name == "json_object_agg" || r.Name == "jsonb_object_agg" || r.Name == "json_object_agg_strict" || r.Name == "jsonb_object_agg_strict" {
 			// These providers analyze children and FILTER before VALUES rejection.
 			// Other scalar consumers retain their existing admission boundary.
 			return true

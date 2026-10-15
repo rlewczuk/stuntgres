@@ -55,7 +55,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 		}
 	}
 	for _, absent := range []bool{true, false, true} {
-		raw := parser.AggregateExpr{Name: "json_arrayagg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, JSON: &parser.JSONArrayAggregateOptions{Absent: absent}}
+		raw := parser.AggregateExpr{Name: "json_arrayagg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, JSON: &parser.JSONAggregateOptions{Absent: absent}}
 		if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 	for _, name := range []string{"json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg"} {
 		call := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}
 		if name == "json_arrayagg" {
-			call.JSON = &parser.JSONArrayAggregateOptions{Absent: true}
+			call.JSON = &parser.JSONAggregateOptions{Absent: true}
 		}
 		targets = append(targets, call)
 	}

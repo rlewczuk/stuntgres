@@ -9,7 +9,7 @@ import (
 
 type jsonObjectAggregateProvider struct {
 	key, input, usage sqltype.Usage
-	strict            bool
+	strict, unique    bool
 	plan              sqltype.JSONObjectAggregatePlan
 }
 
@@ -37,13 +37,16 @@ func (p jsonObjectAggregateProvider) Finalize(ctx context.Context, state any) (s
 
 func jsonObjectAggregateName(name string) bool {
 	switch name {
-	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict":
+	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_objectagg":
 		return true
 	}
 	return false
 }
 
 func (b *expressionBinder) bindJSONObjectAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
+	if raw.JSON != nil {
+		return b.bindSQLJSONObjectAggregate(raw, name)
+	}
 	var small [2]comparisonOperand
 	var names [2]string
 	operands, types := small[:], names[:]
@@ -93,11 +96,15 @@ func (b *expressionBinder) resolveJSONObjectAggregateSignature(raw parser.Aggreg
 	if len(raw.Args) > 100 {
 		return args, sqltype.Usage{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	visible, err := b.builtinVisible(name, functionLookup)
-	if err != nil {
-		return args, sqltype.Usage{}, err
+	visible := true
+	var err error
+	if raw.JSON == nil {
+		visible, err = b.builtinVisible(name, functionLookup)
+		if err != nil {
+			return args, sqltype.Usage{}, err
+		}
 	}
-	if !visible || len(raw.Args) != 2 || raw.Star {
+	if (raw.JSON == nil && (!visible || raw.Name == "json_objectagg")) || len(raw.Args) != 2 || raw.Star {
 		return args, sqltype.Usage{}, b.functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
 	for i, o := range operands {
@@ -158,6 +165,6 @@ func (p jsonObjectAggregateProvider) complete(key, input sqltype.Usage) (jsonObj
 		return p, nil
 	}
 	var err error
-	p.plan, err = sqltype.BindJSONObjectAggregate(key, input, p.usage, p.strict)
+	p.plan, err = sqltype.BindJSONObjectAggregate(key, input, p.usage, p.strict, p.unique)
 	return p, err
 }

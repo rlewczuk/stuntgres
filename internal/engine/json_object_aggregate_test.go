@@ -10,7 +10,7 @@ import (
 
 func jsonObjectProviderUnit(t *testing.T, key, input, result sqltype.Usage, strict bool) jsonObjectAggregateProvider {
 	t.Helper()
-	p, err := sqltype.BindJSONObjectAggregate(key, input, result, strict)
+	p, err := sqltype.BindJSONObjectAggregate(key, input, result, strict, false)
 	if err != nil {
 		t.Fatal(err)
 	}

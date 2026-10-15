@@ -31,7 +31,7 @@ func ordinaryCall(l sqlLexer, typ TypeName, args []Expr, callee lexeme) Expr {
 	if typ.Schema != nil {
 		parts = append([]Identifier{*typ.Schema}, parts...)
 	}
-	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, CompositeCandidate: !quotedAggregateName(typ.Name)}
+	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, CompositeCandidate: !ordinarySignatureName(typ.Name)}
 }
 
 func modifiedOrdinaryCall(typ TypeName, args []Expr, star, distinct, all, variadic bool, order []OrderKey) Expr {
@@ -42,7 +42,7 @@ func modifiedOrdinaryCall(typ TypeName, args []Expr, star, distinct, all, variad
 	if typ.Schema != nil {
 		parts = append([]Identifier{*typ.Schema}, parts...)
 	}
-	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, Star: star, Distinct: distinct, All: all, Variadic: variadic, Order: order, CompositeCandidate: !quotedAggregateName(typ.Name)}
+	return FunctionExpr{Name: ObjectName{Parts: parts}, Args: args, Pos: typ.Pos, Star: star, Distinct: distinct, All: all, Variadic: variadic, Order: order, CompositeCandidate: !ordinarySignatureName(typ.Name)}
 }
 
 // Only the unquoted release JSON_OBJECT legacy production rewrites its name.
@@ -60,14 +60,16 @@ func selectedScalarCall(l sqlLexer, callee lexeme, call FunctionExpr) (FunctionE
 	return call, true
 }
 
-// Known aggregate case variants retain missing-signature diagnostics rather than
-// the generic scalar-function capability boundary. They still use ordinary
-// exact-name resolution and eligible one-argument composite-field fallback.
-func quotedAggregateName(name string) bool {
+// Selected names and aggregate case variants retain missing-signature diagnostics
+// rather than the generic scalar-function capability boundary. This includes
+// jsonb_objectagg, which is deliberately not a registered function or alias.
+// Eligible one-argument composite-field fallback still uses exact-name resolution.
+func ordinarySignatureName(name string) bool {
 	return strings.EqualFold(name, "sum") || strings.EqualFold(name, "json_agg") || strings.EqualFold(name, "jsonb_agg") ||
 		strings.EqualFold(name, "json_agg_strict") || strings.EqualFold(name, "jsonb_agg_strict") ||
 		strings.EqualFold(name, "json_object_agg") || strings.EqualFold(name, "jsonb_object_agg") ||
 		strings.EqualFold(name, "json_object_agg_strict") || strings.EqualFold(name, "jsonb_object_agg_strict") ||
+		strings.EqualFold(name, "jsonb_objectagg") ||
 		strings.EqualFold(name, "percentile_cont") || strings.EqualFold(name, "percentile_disc") || strings.EqualFold(name, "mode")
 }
 
@@ -85,15 +87,24 @@ func withinCall(l sqlLexer, expr Expr, token lexeme, order []OrderKey) (Expr, bo
 		return nil, false
 	}
 	message := ""
-	if len(prior)>0 { message="cannot use multiple ORDER BY clauses with WITHIN GROUP" } else if distinct { message="cannot use DISTINCT with WITHIN GROUP" } else if variadic { message="cannot use VARIADIC with WITHIN GROUP" }
-	if message!="" { l.(*lexer).failAt("42601",message,token.pos.Offset); return nil,false }
+	if len(prior) > 0 {
+		message = "cannot use multiple ORDER BY clauses with WITHIN GROUP"
+	} else if distinct {
+		message = "cannot use DISTINCT with WITHIN GROUP"
+	} else if variadic {
+		message = "cannot use VARIADIC with WITHIN GROUP"
+	}
+	if message != "" {
+		l.(*lexer).failAt("42601", message, token.pos.Offset)
+		return nil, false
+	}
 	switch call := expr.(type) {
 	case AggregateExpr:
-		call.Within,call.WithinPos,call.Order=true,token.pos,order
-		return call,true
+		call.Within, call.WithinPos, call.Order = true, token.pos, order
+		return call, true
 	case FunctionExpr:
-		call.Within,call.WithinPos,call.Order=true,token.pos,order
-		return call,true
+		call.Within, call.WithinPos, call.Order = true, token.pos, order
+		return call, true
 	}
 	panic("unreachable WITHIN call")
 }

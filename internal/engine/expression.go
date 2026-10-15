@@ -2183,7 +2183,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if err != nil {
 				return nil, err
 			}
-			if !jsonArrayAggregateName(r.Name) {
+			if !jsonArrayAggregateName(r.Name) && !(r.Name == "json_objectagg" && r.JSON != nil) {
 				node, err = b.ownAggregate(node)
 				if err != nil {
 					return nil, err

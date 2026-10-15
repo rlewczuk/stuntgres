@@ -3,16 +3,17 @@ package sqltype
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // JSONObjectAggregatePlan captures only immutable key/value/result generations.
 // Each group and execution owns its writer and current output environment.
 type JSONObjectAggregatePlan struct {
 	key, input, result Usage
-	strict             bool
+	strict, unique     bool
 }
 
-func BindJSONObjectAggregate(key, input, result Usage, strict bool) (JSONObjectAggregatePlan, error) {
+func BindJSONObjectAggregate(key, input, result Usage, strict, unique bool) (JSONObjectAggregatePlan, error) {
 	if !key.Valid() || !input.Valid() || !result.Valid() || result.Typmod != -1 || (result.Type.ID() != JSON && result.Type.ID() != JSONB) {
 		return JSONObjectAggregatePlan{}, fmt.Errorf("invalid JSON object aggregate usage")
 	}
@@ -28,7 +29,7 @@ func BindJSONObjectAggregate(key, input, result Usage, strict bool) (JSONObjectA
 			}
 		}
 	}
-	return JSONObjectAggregatePlan{key: key, input: input, result: result, strict: strict}, nil
+	return JSONObjectAggregatePlan{key: key, input: input, result: result, strict: strict, unique: unique}, nil
 }
 
 type JSONObjectAggregateState struct {
@@ -39,6 +40,7 @@ type JSONObjectAggregateState struct {
 	count        int
 	value        Value
 	failure      error
+	keys         map[string]struct{}
 }
 
 func (p JSONObjectAggregatePlan) Init(ctx context.Context, env OutputEnvironment) (*JSONObjectAggregateState, error) {
@@ -54,6 +56,10 @@ func (p JSONObjectAggregatePlan) Init(ctx context.Context, env OutputEnvironment
 	s.writer.separator(" ")
 	if s.writer.binary {
 		s.writer.tree.frames[0].skipNulls = p.strict
+		s.writer.tree.frames[0].uniqueKeys = p.unique
+	}
+	if p.unique && !s.writer.binary {
+		s.keys = make(map[string]struct{})
 	}
 	return s, nil
 }
@@ -78,7 +84,7 @@ func (p JSONObjectAggregatePlan) Advance(ctx context.Context, s *JSONObjectAggre
 		return s.failure
 	}
 	s.seen = true
-	if p.strict && value.null {
+	if p.strict && value.null && !p.unique {
 		return nil
 	}
 	s.writer.ctx = ctx
@@ -86,6 +92,21 @@ func (p JSONObjectAggregatePlan) Advance(ctx context.Context, s *JSONObjectAggre
 	if err != nil {
 		s.failure = err
 		return err
+	}
+	if p.unique && !s.writer.binary {
+		if _, exists := s.keys[text]; exists {
+			var quoted strings.Builder
+			if err := writeJSONBString(ctx, &quoted, text); err != nil {
+				s.failure = err
+			} else {
+				s.failure = failure("22030", "duplicate JSON object key value: "+quoted.String())
+			}
+			return s.failure
+		}
+		s.keys[text] = struct{}{}
+		if p.strict && value.null {
+			return nil
+		}
 	}
 	if s.count != 0 {
 		s.writer.separator(", ")

@@ -47,9 +47,10 @@ type jsonbEntry struct {
 }
 type jsonbPayload struct{ root jsonbNode }
 type jsonbFrame struct {
-	node      jsonbNode
-	key       string
-	skipNulls bool // Only selected aggregate root objects omit converted null members.
+	node       jsonbNode
+	key        string
+	skipNulls  bool // Only selected aggregate root objects omit converted null members.
+	uniqueKeys bool // Only the selected SQL/JSON aggregate root checks uniqueness.
 }
 type jsonbBuilder struct {
 	frames []jsonbFrame
@@ -77,6 +78,11 @@ func (b *jsonbBuilder) close(ctx context.Context) error {
 		if err := sortJSONBFields(ctx, n.fields); err != nil {
 			return err
 		}
+		if b.frames[len(b.frames)-1].uniqueKeys {
+			if err := checkJSONBUniqueKeys(ctx, n.fields); err != nil {
+				return err
+			}
+		}
 		fields, err := compactJSONBFields(ctx, n.fields, b.frames[len(b.frames)-1].skipNulls)
 		if err != nil {
 			return err
@@ -89,6 +95,19 @@ func (b *jsonbBuilder) close(ctx context.Context) error {
 	b.frames = b.frames[:len(b.frames)-1]
 	b.add(n)
 	return nil
+}
+
+func checkJSONBUniqueKeys(ctx context.Context, fields []jsonbEntry) error {
+	for i := 1; i < len(fields); i++ {
+		c, err := compareJSONBKeys(ctx, fields[i-1].key, fields[i].key)
+		if err != nil {
+			return err
+		}
+		if c == 0 {
+			return failure("22030", "duplicate JSON object key value")
+		}
+	}
+	return ctx.Err()
 }
 
 const jsonbWorkChunk = 1024

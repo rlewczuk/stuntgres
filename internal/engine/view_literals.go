@@ -242,11 +242,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 					if r.Within {
 						expression = call.direct
 					}
-					if conversion, ok := expression.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
-						expression = conversion.child
-					}
 					if i == 1 {
 						expression = call.separator
+					}
+					if conversion, ok := expression.(coercionExpression); ok && conversion.plan.IsJSONFormattedInput() {
+						expression = conversion.child
 					}
 					if expression == nil || i > 1 {
 						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")

@@ -68,6 +68,59 @@ Root's selected private proof:
 `make check RUN='^TestStatisticalAggregate'`; selected race proof:
 `make check RUN='^(TestStatisticalAggregateRegressionCount|TestStatisticalAggregateEagerCancellation|TestReferenceCorrelationRegressionLifecycle)$' RACE=1`.
 
+### SQL/JSON object aggregation
+
+The untagged `sqljson_object_aggregate_*_test.go` definitions independently cover
+VALUE/colon syntax, default NULL and ABSENT policies, text transition versus
+binary finalization uniqueness (including omitted members), key/value and
+FORMAT conversion, exact default-family selection, compatible RETURNING types,
+full diagnostics/stages/Unicode positions, parameters and before-Next metadata.
+Consumers and lifecycle definitions cover grouping, HAVING, scalar wrappers,
+CTE/derived input, CTAS, atomic INSERT SELECT and SAME-held error recovery.
+Controls round-trip actual symbolic views, domain/typmod result wrappers and
+retained cursors, then replay the actual emitted native dump on PostgreSQL.
+The same physically pinned builtin-only held statement reanalyzes after native
+replacement. Preheld catalog RETURNING/parameter signatures retain their exact
+0A000 result/parameter-type fences; newly prepared catalog statements remain
+usable across failed and canceled replacement attempts. PostgreSQL executes
+the ordinary held SQL phases without inventing a host replacement API.
+`CorrelatedOwnership` contrasts outer-owned, outer-grouped, genuinely inner-owned
+and both mixed key/value ownership directions through scalar subqueries with
+RETURNING conversion, exact cardinalities and before-Next JSONB metadata.
+`ConsumerAtomicity` rejects a late row-dependent FORMAT conversion and a late
+RETURNING assignment-length failure on direct and SAME-held modifying routes.
+Complete diagnostics, nil result/count publication, unchanged sentinel data
+and subsequent healthy execution are independently asserted.
+Cancellation observes active writer and root-sort admission before cancellation,
+joins each worker, checks no destination publication and recovers the same owner.
+Boundaries preserve ordinary object/array siblings, the absent jsonb_objectagg
+alias, qualified/quoted grammar and PG-positive/native-unsupported windows.
+
+Root runs these selected definitions in both modes with an external900-second
+deadline per command; none of these commands is a claim of exercised proof:
+
+```sh
+make check RUN='^TestReferenceSQLJSONObjectAggregate(Values|NullUnique|Timing|Conversion|Returning)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregate(Values|NullUnique|Timing|Conversion|Returning)$'
+make check RUN='^TestReferenceSQLJSONObjectAggregate(Grammar|Diagnostics|Precedence|Parameters|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregate(Grammar|Diagnostics|Precedence|Parameters|Metadata)$'
+make check RUN='^TestReferenceSQLJSONObjectAggregate(Consumers|Lifecycle|Controls|Cancellation|Boundaries)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregate(Consumers|Lifecycle|Controls|Cancellation|Boundaries)$'
+make check RUN='^TestReferenceSQLJSONObjectAggregate(CorrelatedOwnership|ConsumerAtomicity)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregate(CorrelatedOwnership|ConsumerAtomicity)$'
+make check RACE=1 RUN='^TestReferenceSQLJSONObjectAggregate(Lifecycle|Controls|Cancellation)$'
+make check RUN='^TestSQLJSONObjectAggregate'
+make check RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'
+```
+
+Feature smoke exercises new pair syntax and null/unique/FORMAT/RETURNING behavior,
+held recovery, atomic late failure, stored options and real emitted dump replay.
+Expected observations are exact JSON/JSONB/bytea results and metadata, family-specific
+22030/NULL-key diagnostics, malformed syntax and assignment-length rejection;
+success is quiet package exit0 after assertions, never a custom readiness label.
+
+
 ### Regression moments, variance and standard deviation
 
 The untagged `statistical_aggregate*_test.go` scenarios independently specify

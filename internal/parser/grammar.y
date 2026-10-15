@@ -21,7 +21,7 @@ package parser
  dropMode DropMode
  typ TypeName
  jsonFormat *JSONFormat
- jsonOptions JSONArrayAggregateOptions
+ jsonOptions JSONAggregateOptions
  types []TypeName
  constraints []ColumnConstraint
  constraint ColumnConstraint
@@ -180,7 +180,7 @@ package parser
 %token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> FILTER WITHIN
-%token <tok> JSON_ARRAYAGG JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING JSON_ABSENT JSON_NULL
+%token <tok> JSON_ARRAYAGG JSON_OBJECTAGG JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING JSON_ABSENT JSON_NULL JSON_KEYS JSON_WITH JSON_WITHOUT
 %token <tok> OVER WINDOW PARTITION FRAME_UNIT FRAME_EDGE FRAME_START
 %token <tok> UNIQUE PRIMARY
 %token <tok> FOREIGN REFERENCES MATCH PERIOD INITIALLY
@@ -531,9 +531,10 @@ package parser
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument
 %type <expr> aggregate_call aggregate_within aggregate_application
-%type <tok> json_arrayagg_head
+%type <tok> json_arrayagg_head json_objectagg_head
+%type <expr> json_object_key
 %type <jsonFormat> json_format
-%type <jsonOptions> json_null_policy json_returning
+%type <jsonOptions> json_null_policy json_object_null_policy json_unique_policy json_returning
 %type <typ> json_return_type
 %type <tok> like_operator
 %type <expr> target_escape
@@ -2283,17 +2284,42 @@ aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType(
  | qualified_call_head function ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,append([]Expr{$2},$4...),false,false,false,false,$7) }
  | cast_function VARIADIC target_or ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$3},false,false,false,true,nil) }
  | json_arrayagg_head target_or json_format aggregate_order json_null_policy json_returning ')' { options:=$6;options.Input=$3;options.Absent=$5.Absent;options.NullPos=$5.NullPos;$$=AggregateExpr{Name:"json_arrayagg",Args:[]Expr{$2},Order:$4,JSON:&options,Pos:$1.pos} }
+ | json_objectagg_head json_object_key VALUE target_or json_format json_object_null_policy json_unique_policy json_returning ')' { options:=$8;options.Input=$5;options.Absent=$6.Absent;options.NullPos=$6.NullPos;options.Unique=$7.Unique;options.UniquePos=$7.UniquePos;$$=AggregateExpr{Name:"json_objectagg",Args:[]Expr{$2,$4},JSON:&options,Pos:$1.pos} }
+ | json_objectagg_head target_or ':' target_or json_format json_object_null_policy json_unique_policy json_returning ')' { options:=$8;options.Input=$5;options.Absent=$6.Absent;options.NullPos=$6.NullPos;options.Unique=$7.Unique;options.UniquePos=$7.UniquePos;$$=AggregateExpr{Name:"json_objectagg",Args:[]Expr{$2,$4},JSON:&options,Pos:$1.pos} }
  | qualified_call_head VARIADIC target_or ')' { $$=modifiedOrdinaryCall($1,[]Expr{$3},false,false,false,true,nil) } ;
 /* Declaration names followed by '(' are not SQL/JSON call scopes. */
 json_arrayagg_head: JSON_ARRAYAGG '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
+json_objectagg_head: JSON_OBJECTAGG '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
+/* VALUE accepts c_expr, not unparenthesized postfix casts or arithmetic. */
+json_object_key: scalar_atom { $$=$1 }
+ | '(' scalar ')' { $$=groupedQualification($2) }
+ | '(' scalar ')' array_subscripts { $$=SubscriptExpr{Base:groupedQualification($2),Subscripts:$4,Pos:$1.pos} }
+ | '(' target_or ')' { $$=groupedQualification($2) }
+ | '(' target_or ')' array_subscripts { $$=SubscriptExpr{Base:groupedQualification($2),Subscripts:$4,Pos:$1.pos} }
+ | field_value { $$=$1 }
+ | relation_star { $$=$1 }
+ | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
+ | EXISTS select_with_parens { $$=SubqueryExpr{Kind:SubqueryExists,Query:$2.Query,Pos:$1.pos} }
+ | function { $$=$1 }
+ | aggregate_application { $$=$1 }
+ | overlaps_row { $$=$1 }
+ | select_with_parens { $$=SubqueryExpr{Kind:SubqueryScalar,Query:$1.Query,Pos:$1.Pos} } ;
+json_object_null_policy: /* empty */ { $$=JSONAggregateOptions{} }
+ | JSON_ABSENT ON NULL { $$=JSONAggregateOptions{Absent:true,NullPos:$1.pos} }
+ | JSON_NULL ON NULL { $$=JSONAggregateOptions{NullPos:$1.pos} } ;
+json_unique_policy: /* empty */ { $$=JSONAggregateOptions{} }
+ | JSON_WITH UNIQUE { $$=JSONAggregateOptions{Unique:true,UniquePos:$1.pos} }
+ | JSON_WITH UNIQUE JSON_KEYS { $$=JSONAggregateOptions{Unique:true,UniquePos:$1.pos} }
+ | JSON_WITHOUT UNIQUE { $$=JSONAggregateOptions{UniquePos:$1.pos} }
+ | JSON_WITHOUT UNIQUE JSON_KEYS { $$=JSONAggregateOptions{UniquePos:$1.pos} } ;
 json_format: /* empty */ { $$=nil }
  | JSON_FORMAT JSON_FORMAT_TYPE { $$=&JSONFormat{Pos:$1.pos} }
  | JSON_FORMAT JSON_FORMAT_TYPE JSON_ENCODING name { f,ok:=jsonEncoding(sqllex,$1,$4);if !ok{return 1};$$=f } ;
-json_null_policy: /* empty */ { $$=JSONArrayAggregateOptions{Absent:true} }
- | JSON_ABSENT ON NULL { $$=JSONArrayAggregateOptions{Absent:true,NullPos:$1.pos} }
- | JSON_NULL ON NULL { $$=JSONArrayAggregateOptions{NullPos:$1.pos} } ;
-json_returning: /* empty */ { $$=JSONArrayAggregateOptions{} }
- | RETURNING json_return_type json_format { typ:=$2;$$=JSONArrayAggregateOptions{Returning:&typ,Output:$3} } ;
+json_null_policy: /* empty */ { $$=JSONAggregateOptions{Absent:true} }
+ | JSON_ABSENT ON NULL { $$=JSONAggregateOptions{Absent:true,NullPos:$1.pos} }
+ | JSON_NULL ON NULL { $$=JSONAggregateOptions{NullPos:$1.pos} } ;
+json_returning: /* empty */ { $$=JSONAggregateOptions{} }
+ | RETURNING json_return_type json_format { typ:=$2;$$=JSONAggregateOptions{Returning:&typ,Output:$3} } ;
 json_return_type: type { $$=$1 } | SETOF_TYPE type { $$=$2;$$.Setof=true } ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
@@ -2340,6 +2366,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | EXTRACT %prec NAME_LIST | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | JSON_ARRAYAGG %prec NAME_LIST { $$=$1 }
+ | JSON_OBJECTAGG %prec NAME_LIST { $$=$1 }
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;

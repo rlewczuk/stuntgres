@@ -263,6 +263,20 @@ func (b *expressionBinder) resolveRowNumberSignature(raw parser.AggregateExpr, n
 // ordinary aggregation, but never builds a provider or registers an aggregate.
 // In particular, raw call-local ORDER expressions are not transformed here.
 func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateExpr, name parser.ObjectName, argument *BoundExpr) (sqltype.Usage, error) {
+	if raw.Name == "json_objectagg" && raw.JSON != nil {
+		_, usage, returning, err := b.resolveSQLJSONObjectAggregate(raw, name)
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		if _, err = b.bindAggregateFilter(raw); err != nil {
+			return sqltype.Usage{}, err
+		}
+		if returning.Type != nil {
+			_, err = jsonReturningCoercion(usage, returning, raw.JSON.Output)
+			usage = returning
+		}
+		return usage, err
+	}
 	var small [2]comparisonOperand
 	var names [2]string
 	var operands []comparisonOperand

@@ -10,7 +10,7 @@ import (
 
 func jsonObjectUnitPlan(t *testing.T, key, input, result *Descriptor, strict bool) JSONObjectAggregatePlan {
 	t.Helper()
-	p, err := BindJSONObjectAggregate(key.Usage(), input.Usage(), result.Usage(), strict)
+	p, err := BindJSONObjectAggregate(key.Usage(), input.Usage(), result.Usage(), strict, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestJSONObjectAggregatePresenceAndOwnership(t *testing.T) {
 		{types[JSON].Usage(), types[Int4].Usage(), foreign[JSON].Usage()},
 		{types[Text].Usage(), foreign[Text].Usage(), types[JSON].Usage()},
 	} {
-		if _, err := BindJSONObjectAggregate(tc.key, tc.input, tc.result, false); err == nil {
+		if _, err := BindJSONObjectAggregate(tc.key, tc.input, tc.result, false, false); err == nil {
 			t.Fatal("invalid usages accepted", tc)
 		}
 	}

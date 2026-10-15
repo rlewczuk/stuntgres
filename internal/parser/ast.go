@@ -1819,10 +1819,12 @@ type JSONFormat struct {
 	EncodingPos Position
 }
 
-type JSONArrayAggregateOptions struct {
+type JSONAggregateOptions struct {
 	Input     *JSONFormat
 	Absent    bool
 	NullPos   Position
+	Unique    bool
+	UniquePos Position
 	Returning *TypeName
 	Output    *JSONFormat
 }
@@ -1842,7 +1844,7 @@ type AggregateExpr struct {
 	Window    *WindowSpec
 	FilterPos Position
 	Pos       Position
-	JSON      *JSONArrayAggregateOptions
+	JSON      *JSONAggregateOptions
 }
 
 func (AggregateExpr) expression()                {}

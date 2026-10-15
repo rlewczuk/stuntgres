@@ -856,7 +856,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			case jsonObjectAggregateProvider:
 				p.key, p.input, p.usage = usage(p.key), usage(p.input), usage(p.usage)
 				if err == nil {
-					p.plan, err = sqltype.BindJSONObjectAggregate(p.key, p.input, p.usage, p.strict)
+					p.plan, err = sqltype.BindJSONObjectAggregate(p.key, p.input, p.usage, p.strict, p.unique)
 				}
 				copy.calls[i].provider = p
 			case functions.ExtremaProvider:

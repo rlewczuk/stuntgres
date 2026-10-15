@@ -1034,7 +1034,17 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if e.Star {
 			text = "*"
 		} else {
-			if e.Within && len(e.Args) == 1 {
+			if e.Name == "json_objectagg" && e.JSON != nil {
+				key, keyErr := operand(e.Args[0], pgRenderParent{functionArgument: true})
+				if keyErr != nil {
+					return "", keyErr
+				}
+				value, valueErr := operand(e.Args[1], pgRenderParent{functionArgument: true})
+				if valueErr != nil {
+					return "", valueErr
+				}
+				text = "(" + key + ") VALUE " + value
+			} else if e.Within && len(e.Args) == 1 {
 				text, err = operand(e.Args[0], pgRenderParent{functionArgument: true, orderedSetDirect: true})
 			} else {
 				text, err = args(e.Args)
@@ -1081,6 +1091,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 					text += " ABSENT ON NULL"
 				} else {
 					text += " NULL ON NULL"
+				}
+			}
+			if e.JSON.UniquePos.Character > 0 {
+				if e.JSON.Unique {
+					text += " WITH UNIQUE KEYS"
+				} else {
+					text += " WITHOUT UNIQUE KEYS"
 				}
 			}
 			if e.JSON.Returning != nil {

@@ -843,15 +843,31 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = SELECTED_FUNC
 		}
 	}
-	if token.lexeme.keyword != nil && token.lexeme.text == "json_arrayagg" && l.previousToken != int('.') {
+	if token.lexeme.keyword != nil && (token.lexeme.text == "json_arrayagg" || token.lexeme.text == "json_objectagg") && l.previousToken != int('.') {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {
 			token.code = JSON_ARRAYAGG
+			if token.lexeme.text == "json_objectagg" {
+				token.code = JSON_OBJECTAGG
+			}
 		}
 	}
 	if len(l.jsonAggregateDepths) > 0 && l.jsonParenDepth == l.jsonAggregateDepths[len(l.jsonAggregateDepths)-1] && token.lexeme.keyword != nil {
 		switch token.lexeme.text {
+		case "with", "without":
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.code == UNIQUE {
+				token.code = JSON_WITH
+				if token.lexeme.text == "without" {
+					token.code = JSON_WITHOUT
+				}
+			}
+		case "keys":
+			if l.previousToken == UNIQUE {
+				token.code = JSON_KEYS
+			}
 		case "format":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
@@ -1124,7 +1140,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		forbiddenCall := false
 		switch token.lexeme.text {
 		case "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2",
-			"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "generate_subscripts", "unnest":
+			"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "json_objectagg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "generate_subscripts", "unnest":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
 			forbiddenCall = next.code == int('(')
@@ -1132,13 +1148,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if forbiddenCall {
 			// SQL/JSON still needs its special clause grammar before the completed
 			// generation restriction replaces the analyzed raw expression.
-			if token.code != JSON_ARRAYAGG {
+			if token.code != JSON_ARRAYAGG && token.code != JSON_OBJECTAGG {
 				token.code = CHECK_FUNC
 			}
 			code, message := "", ""
 			switch token.lexeme.text {
 			case "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2",
-				"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg":
+				"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "json_objectagg":
 				code, message = "42803", "aggregate functions are not allowed in column generation expressions"
 			case "grouping":
 				code, message = "42803", "grouping operations are not allowed in column generation expressions"

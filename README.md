@@ -499,10 +499,24 @@ PostgreSQL 18.0 binary strict also omits converted root JSON null members,
 retaining the latest nonnull duplicate without removing nested nulls.
 Zero admitted rows produce SQL NULL; admitted but wholly omitted input produces
 an empty object. Prepared calls, stored views and native dump replay share the
-same typed provider. SQL/JSON `json_objectagg`, unique variants and aggregate
-window execution remain outside this support.
+same typed provider. Underscore unique variants and aggregate window execution
+remain outside this support.
 Feature smoke: `make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$'`
 and `make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$' REFERENCE=1`.
+
+Change note: SQL/JSON `json_objectagg(key VALUE value)` also accepts `key:value`,
+NULL/ABSENT ON NULL (default NULL), and WITH/WITHOUT UNIQUE [KEYS].
+Unique keys include SQL-NULL values omitted by ABSENT: text JSON checks each
+transition, while JSONB checks at finalization before removing null members.
+NULL keys always fail. RETURNING selects JSON/JSONB, UTF8 BYTEA or existing
+compatible string/domain carriers with assignment length/domain checks. Without
+RETURNING, an exact JSONB key/value selects JSONB; otherwise the result is JSON.
+Input FORMAT JSON embeds JSON instead of quoting strings; output FORMAT JSON
+selects a JSON intermediate even for RETURNING jsonb. Stored views and native
+dump replay retain these clauses. There is no `jsonb_objectagg` alias; call-local
+ORDER BY, DISTINCT/ALL, multiple pairs and aggregate windows remain excluded.
+Feature smoke: `make check RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'`.
 
 Change note: `json_agg`, `jsonb_agg`, `json_agg_strict`, `jsonb_agg_strict`
 and SQL/JSON `json_arrayagg` collect values through the ordinary aggregate
