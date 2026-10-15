@@ -809,8 +809,9 @@ evaluate through the ordinary expression pipeline. Typed JSONB preserves exact
 numbers, canonical key order and shared immutable subtrees. Direct/held results,
 stored default/generated/CHECK/view/index consumers and native replay retain
 JSONB types and symbolic calls; failed writes/Restore and canceled work do not
-publish partial state. Lax deletion is private to this function, not admission
-of adjacent delete operators, subscripting or JSONPath execution.
+publish partial state. Public path deletion is separately available through
+`jsonb #- text[]`; adjacent deletion/insertion operators, subscripting and
+JSONPath execution remain excluded.
 Feature smoke: `make check RUN='^TestReferenceJSONBSetFeatureSmoke$'` and
 `make check RUN='^TestReferenceJSONBSetFeatureSmoke$' REFERENCE=1`.
 
@@ -829,6 +830,18 @@ failed or canceled operations do not publish partial state. Final scalar
 VARIADIC retains the ordinary formal slot, not array expansion.
 Feature smoke: `make check RUN='^TestReferenceJSONBInsertFeatureSmoke$'` and
 `make check RUN='^TestReferenceJSONBInsertFeatureSmoke$' REFERENCE=1`.
+
+Change note: `jsonb #- text[]` removes a nested object field or array element
+without modifying its input. Negative indices count from the array end;
+missing paths and out-of-range indices preserve the document, with no parent
+creation. Empty paths preserve containers. Whole SQL NULL operands produce
+typed JSONB NULL; reached NULL path elements error, while unreached elements
+are not inspected. Multidimensional paths fail with `2202E` rather than flatten;
+scalar roots, including JSON null, fail with `22023`. Stored expressions,
+native logical Dump/Restore and ordinary parameter inference use the same
+operator. This does not expose `jsonb_delete_path(...)`.
+Feature smoke: `make check RUN='^TestReferenceJSONBPathDeleteFeatureSmoke$'`
+and the same command with `REFERENCE=1`.
 
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,

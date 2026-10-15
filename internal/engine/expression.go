@@ -2726,6 +2726,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindJSONExtraction(r)
 			} else if len(r.Name.Parts) > 0 && jsonbExistenceName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindJSONBExistence(r)
+			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "#-" {
+				node, err = b.bindJSONBPathDelete(r)
 			} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindBitwise(r)
 			} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {

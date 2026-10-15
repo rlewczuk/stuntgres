@@ -39,6 +39,8 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		ids, id = [4]ID{JSONB, Text}, Bool
 	case "?|", "?&":
 		ids, id = [4]ID{JSONB, 1009}, Bool
+	case "#-":
+		ids, id = [4]ID{JSONB, 1009}, JSONB
 	case "json_typeof", "jsonb_typeof":
 		input := JSON
 		if name == "jsonb_typeof" {
@@ -152,6 +154,9 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 			return p, fmt.Errorf("foreign JSONB extraction path")
 		}
 	}
+	if name == "#-" && (!args[1].Type.IsArray() || args[1].Type.Element().ID() != Text) {
+		return p, fmt.Errorf("invalid JSONB deletion path descriptor")
+	}
 	return p, nil
 }
 func (p BinaryPlan) Name() string       { return p.name }
@@ -253,6 +258,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return p.jsonExtraction(ctx, values[0], values[1])
 	case "?", "?|", "?&":
 		return p.jsonbExistence(ctx, values[0], values[1])
+	case "#-":
+		return p.jsonbPathDelete(ctx, values[0], values[1])
 	case "json_typeof", "jsonb_typeof":
 		return p.jsonScalar(ctx, a)
 	case "jsonb_pretty":

@@ -41,6 +41,38 @@ stored/replay exercises using the same behavioral helpers, without allocating
 the large active-cancellation payload. Shared exact numeric-output regressions:
 `make check RUN='^TestNumeric(CodecAndBounds|TypmodsAndImmutableSizing)$'`.
 
+### JSONB path deletion
+
+The ten `TestReferenceJSONBPathDelete` entrypoints exercise public
+`jsonb #- text[]` with independent expectations: nested keys and indices,
+negative indices, absent paths, reached-only path validation, SQL NULL,
+inference/domains/composition, JSONB metadata and raw scans, exact diagnostic
+records, actual operand-column privileges, same-held recovery, immutable inputs,
+stored expressions, statement atomicity and cancellation.
+
+```sh
+make check RUN='^TestReferenceJSONBPathDelete(Values|Paths|Typing|Metadata|Diagnostics|Authority)$'
+make check RUN='^TestReferenceJSONBPathDelete(Values|Paths|Typing|Metadata|Diagnostics|Authority)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBPathDelete(Held|StoredControls|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONBPathDelete(Held|StoredControls|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBPathDelete(Held|StoredControls|Cancellation)$' RACE=1
+make check RUN='^TestJSONBPathDelete'
+make check RUN='^TestReferenceJSONBPathDeleteFeatureSmoke$'
+make check RUN='^TestReferenceJSONBPathDeleteFeatureSmoke$' REFERENCE=1
+```
+
+Smoke asserts `{"a":[{"x":1},{"x":2}],"keep":3}` with `{a,-1,x}`
+becomes `{"a": [{"x": 1}, {}], "keep": 3}`, final negative deletion,
+missing-path preservation, typed NULL, metadata and same-held error recovery.
+It also checks generated/view expressions and a failing late write that
+publishes no rows. Native-only Reset/Dump/Restore retains an old cursor,
+restores expressions and redumps deterministically; real mode additionally
+replays the actual native-emitted SQL on PostgreSQL and exercises fresh writes.
+PostgreSQL has no native-control API. Active cancellation uses stored operands,
+not an input conversion workload. Success is the selected package passing
+these assertions; no separate output banner or fabricated PostgreSQL control
+equivalent is expected. All backends run without oracle-discovery filters.
+
 ### JSON extraction
 
 The `TestReferenceJSONExtract` family specifies JSON-only `->`, `->>`, `#>`,

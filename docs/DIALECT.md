@@ -927,7 +927,6 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   parameters remain runtime-owned, not PostgreSQL custom-plan constant folding.
   Native Dump/Restore keeps symbolic calls and descriptor ownership, and
   cancellation/failure does not publish partial JSONB or persistent state.
-  Private lax deletion does not add public delete-path functions/operators.
   `jsonb_insert(jsonb_in jsonb,path text[],replacement jsonb,
   insert_after boolean DEFAULT false)` uses the same immutable JSONB expression
   and persistence path. A missing final object key is inserted; any existing
@@ -943,9 +942,16 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   held results expose JSONB metadata, and stored default/generated/CHECK/view/
   index consumers retain symbolic calls and named/default/VARIADIC presentation
   through native replay. Failed writes/Restore and cancellation publish no
-  partial state. This does not add other insertion/deletion operators/functions.
-  Adjacent operators/functions, generic JSON equality and JSON path/query
-  execution remain excluded.
+  partial state.
+  Public `jsonb #- text[]` separately removes the selected nested field/item,
+  with negative array indices and absent/out-of-range paths as no-ops.
+  Empty paths preserve containers; scalar roots (including JSON null) error.
+  Whole SQL NULL operands yield JSONB NULL. Reached NULL components error,
+  unreached components are not inspected, and rank >1 paths fail with `2202E`
+  rather than flattening. Stored/default/generated/CHECK/view/index expressions
+  and logical Dump/Restore retain the symbolic operator and immutable inputs.
+  `jsonb_delete_path(...)`, other deletion/insertion operators, subscripting,
+  generic JSON equality and JSON path/query execution remain excluded.
 - SQL/JSON constructors `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR`,
   `JSON_SERIALIZE` and `IS [NOT] JSON` predicates support FORMAT JSON,
   applicable RETURNING, NULL/ABSENT ON NULL and UNIQUE KEYS. Query ARRAY uses
