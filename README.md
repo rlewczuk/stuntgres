@@ -3785,23 +3785,34 @@ return empty TEXT. It uses effective argument collation, unlike the three-TEXT
 SQL wrapper. Both frontends share the checked execution-local PostgreSQL regex
 provider, including multiple captures, backreferences and variable-width
 lookaround. Use `statement_timeout` or a caller deadline for hostile patterns.
-Eight public PostgreSQL18 regular-expression functions are supported:
-`regexp_count`, `regexp_instr`, `regexp_like`, `regexp_match`, `regexp_matches`,
-`regexp_replace`, `regexp_split_to_array` and `regexp_split_to_table`.
-All released overloads share the same provider; captures are owned `TEXT[]`
+Nine public PostgreSQL18 regular-expression functions are supported:
+`regexp_count`, `regexp_instr`, `regexp_substr`, `regexp_like`, `regexp_match`,
+`regexp_matches`, `regexp_replace`, `regexp_split_to_array` and
+`regexp_split_to_table`. All released overloads share the same provider;
+array-valued captures are owned `TEXT[]`
 values, and start/index arguments count UTF8 characters without slicing away
 anchor/lookbehind context. The two set functions compose with `string_to_table`
 through one shared target/FROM owner, including mixed lockstep peers, nested
 expansion, `ROWS FROM`, `WITH ORDINALITY` and implicit/explicit LATERAL.
 Bare scalar attempt timing, typed padding, lexical frames and lock rechecks
 retain their distinct contracts. See [function details](https://www.postgresql.org/docs/18/sql.html).
-`regexp_substr`, SQL XQuery regex functions and general LATERAL derived/VALUES
-sources remain excluded.
+SQL XQuery regex functions and general LATERAL derived/VALUES sources remain excluded.
 Existing non-regexp array ordering/opclass and constrained-domain DDL limits
 remain explicit; array-valued regex results retain table/default/generated/
 CHECK, grouping, scalar-key index-predicate and unordered-query consumers.
 Function-suite smoke: `make check RUN='^TestReferenceRegexpFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.
+`regexp_substr(string,pattern[,start[,N[,flags[,subexpr]]]])` has five strict
+TEXT-returning overloads. Omitted start/N default to1, flags to empty and subexpr
+to0; supplied NULL returns NULL rather than applying a default. N selects
+nonoverlapping whole matches; start counts UTF8 characters in the original
+source. Unlike two-TEXT substring, the default returns the whole match, not its
+first capture. Positive subexpr selects a capture; unmatched/out-of-range groups
+and no match return NULL, while a participating empty group returns empty TEXT.
+PostgreSQL18.0's no-group fallback is preserved: subexpr1 returns the whole match,
+subexpr2 or higher returns NULL. The global flag `g` is rejected; N supplies
+occurrence selection. Stored expressions and native replay share scalar binding.
+See [selected proof and standalone smoke](reference/patterns_encoding/README.md#regexp_substr-selection-and-lifecycle).
 Feature smoke: `make check RUN='^TestReferencePosixFeatureSmoke$'`;
 the pinned counterpart adds `REFERENCE=1`.
 

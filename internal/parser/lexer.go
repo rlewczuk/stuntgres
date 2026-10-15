@@ -1088,7 +1088,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
-	case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
+	case "regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
@@ -1803,7 +1803,7 @@ func enumFunctionName(name string) bool {
 
 func RegexpFunctionName(name string) bool {
 	switch strings.ToLower(name) {
-	case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
+	case "regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 		return true
 	}
 	return false

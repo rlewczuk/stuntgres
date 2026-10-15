@@ -401,12 +401,59 @@ replacement diagnostics, stored definitions, atomic UPDATE and stable
 Dump/Reset/Restore with retained Rows, then prints `POSIX smoke: ok`.
 No permanent smoke scaffolding or internal observation import is introduced.
 
+### regexp_substr selection and lifecycle
+
+Five strict overloads return unrestricted TEXT:
+`regexp_substr(text,text)`, `(text,text,int4)`, `(text,text,int4,int4)`,
+`(text,text,int4,int4,text)` and `(text,text,int4,int4,text,int4)`.
+Their formal labels are `string, pattern, start, "N", flags, subexpr`.
+Omitted start/N are1, flags empty and subexpr0; supplied NULL is never omission.
+The default extracts the whole match, unlike two-TEXT substring's first-capture
+default. Positive subexpr selects a capture, distinguishing participating empty
+TEXT from unmatched/out-of-range NULL. With no groups, release18.0 returns the
+whole match for subexpr1 and NULL for larger subexpr.
+
+Start counts UTF8 characters without discarding anchor/lookbehind context;
+N counts nonoverlapping whole matches, including zero-width progress through one
+terminal match. Flag `g` is rejected, not an alias for N. These definitions
+independently assert exact English diagnostics, strict/demanded evaluation,
+metadata, every argument's authorization, held bind recovery, atomic writes,
+stored rename/default/generated/CHECK/index/view results, native replacement
+and actual emitted SQL replay on the pinned oracle.
+Frozen regex view rendering preserves written argument order and named labels,
+including quoted `"N"`, rather than replaying reordered calls positionally.
+
+Run both modes after changes, each with an external900-second deadline:
+
+```sh
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceRegexpSubstr(Selection|Start|Flags|Captures|NullDemand|Signatures|Diagnostics|Authorization|HeldParameters|StoredControls|Atomicity|Cancellation|FeatureSmoke)$'
+timeout 900s make check RUN='^TestReferenceRegexpSubstr(Selection|Start|Flags|Captures|NullDemand|Signatures|Diagnostics|Authorization|HeldParameters|StoredControls|Atomicity|Cancellation|FeatureSmoke)$'
+timeout 900s make check REFERENCE=1 RUN='^TestReferenceRegexp(Signatures|NamedArguments|Inference|Metadata|NullDemand|StoredDefinitions)$'
+timeout 900s make check RUN='^TestReferenceRegexp(Signatures|NamedArguments|Inference|Metadata|NullDemand|StoredDefinitions)$'
+timeout 900s make check RUN='^(TestRegexpSubstr(Selection|Flags|Captures|NullAndReset|Diagnostics|DemandAndOwnership|Cancellation)|TestRegexpFunctionSyntax)$'
+timeout 900s make check RACE=1 RUN='^(TestRegexpSubstr(DemandAndOwnership|Cancellation)|TestReferenceRegexpSubstr(HeldParameters|StoredControls|Cancellation))$'
+```
+
+The standalone public executable is supplied as session source
+`local://regexp-substr-smoke.go`. Materialize it temporarily at
+`/tmp/stuntgres-regexp-substr-feature-smoke.go`, then run from the worktree:
+
+```sh
+timeout 900s go run /tmp/stuntgres-regexp-substr-feature-smoke.go
+```
+
+It separately asserts values/metadata, held diagnostics/recovery, stored
+outputs/rename, Dump/Reset/Restore, retained rows and stable redump, late failed
+Restore nonpublication, future generated values and atomic UPDATE recovery.
+Only complete success prints `regexp_substr smoke: ok`; remove the temporary
+materialized source after recording evidence. No discovery filters remain.
+
 ### Regular-expression function oracle and feature checks
 
 The unfiltered `TestReferenceRegexp` definitions retain independent expected
 values, diagnostics/stages/character positions, typed metadata and direct/
-semantic-prepared execution for the exact eight selected functions. The initial
-pinned18.0 observations authorize these expectations; production success still
+semantic-prepared execution for the selected family, including regexp_substr.
+Initial pinned18.0 observations authorize these expectations; production success still
 requires fresh selected native and real runs after the edits. External `e` and
 `qe` are BRE on the pinned release, whereas embedded `(?e)` is ERE. The public
 assertion union must not be reduced or replaced by native-generated expectations.

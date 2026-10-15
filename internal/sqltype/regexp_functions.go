@@ -19,6 +19,7 @@ const (
 	RegexpReplace
 	RegexpSplitArray
 	RegexpSplitTable
+	RegexpSubstr
 )
 
 func RegexpFunctionKind(name string) RegexpKind {
@@ -27,6 +28,8 @@ func RegexpFunctionKind(name string) RegexpKind {
 		return RegexpCount
 	case "regexp_instr":
 		return RegexpInstr
+	case "regexp_substr":
+		return RegexpSubstr
 	case "regexp_like":
 		return RegexpLike
 	case "regexp_match":
@@ -59,6 +62,8 @@ func (p RegexpPlan) Name() string {
 		return "regexp_count"
 	case RegexpInstr:
 		return "regexp_instr"
+	case RegexpSubstr:
+		return "regexp_substr"
 	case RegexpLike:
 		return "regexp_like"
 	case RegexpMatch:
@@ -108,6 +113,20 @@ func BindRegexpFunction(name string, args []Usage, result Usage, collation Colla
 		}
 		if n == 7 {
 			p.subexpr = 6
+		}
+	case RegexpSubstr:
+		valid = valid && n <= 6
+		if n >= 3 {
+			p.start = 2
+		}
+		if n >= 4 {
+			p.occurrence = 3
+		}
+		if n >= 5 {
+			p.flags = 4
+		}
+		if n == 6 {
+			p.subexpr = 5
 		}
 	case RegexpLike, RegexpMatch, RegexpMatches, RegexpSplitArray, RegexpSplitTable:
 		valid = valid && n <= 3
@@ -255,7 +274,7 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 		err = invalid("start", start)
 		return
 	}
-	if p.kind == RegexpInstr && n <= 0 || p.kind == RegexpReplace && n < 0 {
+	if (p.kind == RegexpInstr || p.kind == RegexpSubstr) && n <= 0 || p.kind == RegexpReplace && n < 0 {
 		err = invalid("n", n)
 		return
 	}
@@ -325,7 +344,7 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 	if p.kind == RegexpLike {
 		demand = PGRegexBoolean
 	}
-	if p.kind == RegexpMatch || p.kind == RegexpMatches || p.kind == RegexpReplace || p.kind == RegexpInstr && subexpr > 0 {
+	if p.kind == RegexpMatch || p.kind == RegexpMatches || p.kind == RegexpReplace || (p.kind == RegexpInstr || p.kind == RegexpSubstr) && subexpr > 0 {
 		demand = PGRegexCaptures
 	}
 	if p.kind == RegexpReplace && p.occurrence < 0 {
@@ -415,7 +434,7 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 			value = Boolean(p.result.Type, true)
 			return
 		case RegexpCount:
-		case RegexpInstr:
+		case RegexpInstr, RegexpSubstr:
 			if seen == n {
 				span := m.Whole
 				if subexpr > 0 {
@@ -428,6 +447,13 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 					} else {
 						span = m.Captures[subexpr-1]
 					}
+				}
+				if p.kind == RegexpSubstr {
+					value = Null(p.result.Type)
+					if span.Start >= 0 {
+						value = String(p.result.Type, source[span.Start:span.End])
+					}
+					return
 				}
 				index := int64(0)
 				if span.Start >= 0 {
@@ -560,7 +586,7 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 		value, err = Integer(p.result.Type, 0)
 	case RegexpLike:
 		value = Boolean(p.result.Type, false)
-	case RegexpMatch:
+	case RegexpMatch, RegexpSubstr:
 		value = Null(p.result.Type)
 	case RegexpReplace:
 		if last == 0 && len(output) == 0 {

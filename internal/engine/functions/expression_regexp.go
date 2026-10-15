@@ -81,6 +81,10 @@ func RegexpSignature(name string, n int, replaceFlags bool) (labels [7]string, t
 		labels = [7]string{"string", "pattern", "start", "N", "endoption", "flags", "subexpr"}
 		types = [7]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Int4, sqltype.Int4, sqltype.Int4, sqltype.Text, sqltype.Int4}
 		result = sqltype.Int4
+	case "regexp_substr":
+		valid = valid && n <= 6
+		labels = [7]string{"string", "pattern", "start", "N", "flags", "subexpr"}
+		types = [7]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Int4, sqltype.Int4, sqltype.Text, sqltype.Int4}
 	case "regexp_like", "regexp_match", "regexp_matches", "regexp_split_to_array", "regexp_split_to_table":
 		valid = valid && n <= 3
 		labels[2] = "flags"

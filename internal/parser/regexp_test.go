@@ -3,7 +3,7 @@ package parser
 import "testing"
 
 func TestRegexpFunctionSyntax(t *testing.T) {
-	for _, name := range []string{"regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table"} {
+	for _, name := range []string{"regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table"} {
 		for _, prefix := range []string{"", "pg_catalog."} {
 			node, ok := orderParse(t, "SELECT "+prefix+name+"(string=>$1,pattern=>'a')").Targets[0].(FunctionExpr)
 			if !ok || len(node.Args) != 2 || len(node.ArgNames) != 2 || node.ArgNames[0].Text != "string" || node.ArgNames[1].Text != "pattern" || node.Name.Parts[len(node.Name.Parts)-1].Text != name {

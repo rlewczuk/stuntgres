@@ -2054,7 +2054,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 			case "uuid_extract_timestamp", "uuid_extract_version":
 			case "format", "concat", "concat_ws", "quote_ident", "quote_literal", "quote_nullable", "pg_client_encoding":
 			case "convert", "convert_from", "convert_to", "encode", "decode", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
-			case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_replace", "regexp_split_to_array":
+			case "regexp_count", "regexp_instr", "regexp_substr", "regexp_like", "regexp_match", "regexp_replace", "regexp_split_to_array":
 				_, _, _, valid := functions.RegexpSignature(r.Name.Parts[len(r.Name.Parts)-1].Text, len(r.Args), true)
 				if !valid || r.Variadic {
 					return fmt.Errorf("stuntgres: invalid restore scalar")

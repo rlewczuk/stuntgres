@@ -50,6 +50,9 @@ func regexpSignatures() []regexpSignature {
 	} {
 		add("regexp_replace", "TEXT", c.f, c.v, c.types, "Xba", false)
 	}
+	for n := 2; n <= 6; n++ {
+		add("regexp_substr", "TEXT", []string{"string", "pattern", "start", "\"N\"", "flags", "subexpr"}[:n], []string{"'aba'", "'(a)'", "1", "1", "''", "1"}[:n], []string{"text", "text", "integer", "integer", "text", "integer"}[:n], "a", false)
+	}
 	return all
 }
 
