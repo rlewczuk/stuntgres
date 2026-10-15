@@ -30,9 +30,7 @@ func TestReferenceRoleOwnershipSharedDatabase(t *testing.T) {
 		ownershipDatabaseOwner(s, "own_target")
 		// No stored membership is invented for the implicit live owner hop.
 		s.flags("pg_database_owner", "own_target", s.bootstrap, 0, false, false, false)
-		if s.backend.PG {
-			ownershipBool(s, "SELECT pg_has_role('own_target','pg_database_owner','MEMBER WITH ADMIN OPTION')", false)
-		}
+		ownershipBool(s, "SELECT pg_has_role('own_target','pg_database_owner','MEMBER WITH ADMIN OPTION')", false)
 		ownershipInherited(s, "own_source", "pg_database_owner", "MEMBER", false)
 		s.actor("own_source")
 		ownershipFailure(s, "SET ROLE pg_database_owner", fixture.Diagnostic{Code: "42501", Message: `permission denied to set role "pg_database_owner"`})

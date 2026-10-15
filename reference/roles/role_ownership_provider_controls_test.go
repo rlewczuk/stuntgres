@@ -120,7 +120,8 @@ func TestReferenceRoleOwnershipProviderControls(t *testing.T) {
 		if err := stuntgres.Dump(s.p.Ctx, source, &round); err != nil || !bytes.Equal(dump.Bytes(), round.Bytes()) {
 			s.t.Fatal("named owners roundtrip", err)
 		}
-		other := fixture.CatalogControlPool(s.t, stuntgres.NewDriver(), "ownership_provider_destination")
+		otherDriver := stuntgres.NewDriver()
+		other := fixture.CatalogControlPool(s.t, otherDriver, "ownership_provider_destination")
 		ownershipProviderControlRoles(s, other)
 		// The destination's different owner and explicit CREATE ACL survive import;
 		// changed target attributes do not invalidate a still-valid symbolic owner.
@@ -136,7 +137,15 @@ func TestReferenceRoleOwnershipProviderControls(t *testing.T) {
 		if err := stuntgres.Restore(s.p.Ctx, other, bytes.NewReader(dump.Bytes())); err != nil {
 			s.t.Fatal(err)
 		}
-		conn, err := other.Conn(s.p.Ctx)
+		// SQL acceptance uses a recorded companion attached to the exact same
+		// driver/DSN as the unwrapped native-control pool above.
+		connector, err := otherDriver.OpenConnector("ownership_provider_destination")
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		recorded := sql.OpenDB(fixture.MigrationRecordedConnector(s.t, connector))
+		defer recorded.Close()
+		conn, err := recorded.Conn(s.p.Ctx)
 		if err != nil {
 			s.t.Fatal(err)
 		}

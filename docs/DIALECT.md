@@ -100,6 +100,15 @@ reserved connection slots are unavailable. Predefined role identities do not
 create these missing capabilities. Table/column grants do not imply sequence or
 other-object grants; schema and type/domain grants remain unavailable.
 
+All six `pg_has_role` NAME/OID signatures and both
+`row_security_active(text|oid)` signatures are executable strict STABLE BOOL
+inquiries, including direct/prepared expressions and stored-view recipes.
+The former separates MEMBER, inherited USAGE, SET and ADMIN; raw role OIDs are
+SQL inquiry inputs, not trusted principal handles. The latter is metadata-only:
+it does not enforce policies, require table SELECT, or add a `row_security`
+setting. Relation-name schema access remains separate. See
+[authorization inquiry contracts](AUTHORIZATION.md#membership-provenance-and-publication).
+
 ## Transactions and retained handles
 
 Many modifying utilities remain excluded from explicit native transactions;

@@ -105,25 +105,33 @@ func rowSecurityKind(d *relationDescriptor, action parser.AlterTableActionKind) 
 
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
 // adjacent expression-enforcement capability; nil clauses contribute nothing.
-func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, proposed bool) (rlsDisposition, error) {
+func rowSecurityApplies(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef) (bool, error) {
 	if !d.rlsEnabled {
-		return rlsUnrestricted, nil
+		return false, nil
 	}
 	actor, err := auth.roles.Descriptor(principal)
 	if err != nil {
-		return rlsUnrestricted, err
+		return false, err
 	}
 	if actor.Superuser || actor.BypassRLS {
-		return rlsUnrestricted, nil
+		return false, nil
 	}
 	if !d.rlsForced {
 		owner, err := auth.roles.InheritsRole(principal, d.owner)
 		if err != nil {
-			return rlsUnrestricted, err
+			return false, err
 		}
 		if owner {
-			return rlsUnrestricted, nil
+			return false, nil
 		}
+	}
+	return true, nil
+}
+
+func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principal authorization.PrincipalRef, command policyCommand, proposed bool) (rlsDisposition, error) {
+	applies, err := rowSecurityApplies(auth, d, principal)
+	if err != nil || !applies {
+		return rlsUnrestricted, err
 	}
 	for _, policy := range d.policies {
 		if !policy.permissive || policy.command != policyAll && policy.command != command {

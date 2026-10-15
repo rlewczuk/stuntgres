@@ -158,6 +158,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			descriptor.Nullable, descriptor.NullabilityKnown = false, true
 		case currentSchemasExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
+		case accessInquiryExpression:
+			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		case namespaceInquiryExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = column.kind == otherTempNamespace, true
 		case identityExpression:

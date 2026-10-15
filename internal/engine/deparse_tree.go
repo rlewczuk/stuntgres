@@ -354,6 +354,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case currentSchemasExpression:
 		out.WriteString("CurrentSchemas")
 		err = child(n.arg)
+	case accessInquiryExpression:
+		if err := n.validateStored(); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "AccessInquiry %s", n.name())
+		err = args(n.arguments())
 	case namespaceInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return err

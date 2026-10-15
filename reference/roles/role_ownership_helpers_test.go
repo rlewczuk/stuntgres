@@ -169,13 +169,11 @@ func ownershipPolicyRows(s *membershipScenario, query string, columns []string, 
 	}
 }
 
-// The inquiry is a PG supplemental provider. Shared SQL proves the same
-// configured all-INHERIT path by actual read authority on an owner-only object.
+// Assert the inquiry and retain the independent owner-only object read witness
+// for the configured all-INHERIT path.
 func ownershipInherited(s *membershipScenario, member, role, mode string, want bool) {
 	s.t.Helper()
-	if s.backend.PG {
-		ownershipBool(s, "SELECT pg_has_role("+pq.QuoteLiteral(member)+","+pq.QuoteLiteral(role)+","+pq.QuoteLiteral(mode)+")", want)
-	}
+	ownershipBool(s, "SELECT pg_has_role("+pq.QuoteLiteral(member)+","+pq.QuoteLiteral(role)+","+pq.QuoteLiteral(mode)+")", want)
 	s.actor("")
 	s.exec("CREATE TABLE own_inheritance_probe(id INT)")
 	s.run(fixture.Exec("INSERT INTO own_inheritance_probe VALUES(7)", 1))

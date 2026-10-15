@@ -355,6 +355,14 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid stored current_schemas signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []BoundExpr{n.arg})
+	case accessInquiryExpression:
+		if r.owner == nil {
+			return "", fmt.Errorf("stuntgres: access inquiries are unsupported in stored defaults")
+		}
+		if err := n.validateStored(); err != nil {
+			return "", err
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.name(), n.arguments())
 	case namespaceInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return "", err

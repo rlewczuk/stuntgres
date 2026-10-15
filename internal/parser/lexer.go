@@ -1022,7 +1022,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
-	case "pg_my_temp_schema", "pg_is_other_temp_schema":
+	case "pg_my_temp_schema", "pg_is_other_temp_schema", "pg_has_role", "row_security_active":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
@@ -1077,10 +1077,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if token.code == IDENT && NamespaceInquiryFunctionName(token.lexeme.text) {
+	if token.code == IDENT && (NamespaceInquiryFunctionName(token.lexeme.text) || AccessInquiryFunctionName(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
-	if token.code == SELECTED_FUNC && NamespaceInquiryFunctionName(token.lexeme.text) {
+	if token.code == SELECTED_FUNC && (NamespaceInquiryFunctionName(token.lexeme.text) || AccessInquiryFunctionName(token.lexeme.text)) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {

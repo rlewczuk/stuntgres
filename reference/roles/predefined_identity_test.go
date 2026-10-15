@@ -72,8 +72,8 @@ func TestReferencePredefinedDatabaseOwner(t *testing.T) {
 		s.actor("pdef_actor")
 		predefinedDenied(s, "SET ROLE pdef_plain", `permission denied to set role "pdef_plain"`, false)
 		s.actor("")
+		predefinedSelect(s, "SELECT pg_has_role(current_user,'pg_database_owner','MEMBER') AS member,pg_has_role(current_user,'pg_database_owner','USAGE') AS inherited,pg_has_role(current_user,'pg_database_owner','SET') AS settable", []string{"member", "inherited", "settable"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
 		if s.backend.PG {
-			predefinedSelect(s, "SELECT pg_has_role(current_user,'pg_database_owner','MEMBER') AS member,pg_has_role(current_user,'pg_database_owner','USAGE') AS inherited,pg_has_role(current_user,'pg_database_owner','SET') AS settable", []string{"member", "inherited", "settable"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
 			predefinedSelect(s, "SELECT count(*) FROM pg_auth_members WHERE roleid=6171 OR member=6171", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
 		}
 		for _, tc := range []struct{ q, role, member string }{
@@ -117,8 +117,8 @@ func TestReferencePredefinedDatabaseOwner(t *testing.T) {
 		s.actor("")
 		if s.backend.PG {
 			predefinedSelect(s, "SELECT count(*) FROM pg_auth_members WHERE roleid=6171 OR member=6171", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
-			predefinedSelect(s, "SELECT pg_has_role('pdef_plain','pg_database_owner','MEMBER') AS member,pg_has_role('pdef_plain','pg_database_owner','USAGE') AS inherited,pg_has_role('pdef_plain','pg_database_owner','SET') AS settable,pg_has_role('pdef_plain','pg_database_owner','MEMBER WITH ADMIN OPTION') AS admin", []string{"member", "inherited", "settable", "admin"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, false}})
 		}
+		predefinedSelect(s, "SELECT pg_has_role('pdef_plain','pg_database_owner','MEMBER') AS member,pg_has_role('pdef_plain','pg_database_owner','USAGE') AS inherited,pg_has_role('pdef_plain','pg_database_owner','SET') AS settable,pg_has_role('pdef_plain','pg_database_owner','MEMBER WITH ADMIN OPTION') AS admin", []string{"member", "inherited", "settable", "admin"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, false}})
 		// Database ownership supplies MEMBER/INHERIT/SET, never ADMIN. Give the
 		// actor CREATEROLE so this refusal isolates the absent ADMIN authority.
 		s.exec("ALTER ROLE pdef_plain CREATEROLE")

@@ -180,6 +180,29 @@ Prepared reads check fresh memberships; already returned values and metadata do
 not change. Reset/Restore retains cluster roles and memberships. Dump never
 serializes them and Restore does not import membership utilities.
 
+`pg_has_role` uses this same immutable authority, not an inquiry-owned graph.
+Its six NAME/OID overloads distinguish unrestricted MEMBER reachability,
+all-INHERIT USAGE and all-SET identity selection. The optional user defaults to
+the expression's current user, including stored-view expression identity rather
+than the view's relation-access owner. ADMIN follows unrestricted intermediate
+membership paths to a terminal ADMIN edge; self is not implicitly ADMIN.
+All WITH ADMIN OPTION / WITH GRANT OPTION aliases ask that ADMIN question alone.
+Comma tokens are case-insensitive with outer ASCII whitespace trimming, not
+interior whitespace normalization; all tokens are validated before predicates.
+
+The strict BOOL inquiry treats names literally and reports unknown names,
+including PUBLIC, as `42704`. SQL raw OIDs are not capabilities: absent unequal
+endpoints return false, absent equal endpoints retain MEMBER/USAGE/SET self
+truth (including zero), and a live actual superuser has all four predicates.
+The narrow SQL boundary never passes invalid refs to trusted authorization
+APIs or weakens their zero/foreign/stale-ref checks.
+
+The access inquiries are scalar functions: DISTINCT, call-local ORDER BY and
+FILTER produce analysis-time `42809` after the applicable child/type-resolution
+checks. Matching fixed scalar VARIADIC notation is accepted, not treated as
+array expansion. They do not supply aggregate semantics.
+
+
 ## Session identity lifecycle
 
 Authenticated identity, session identity and effective relation principal are
@@ -360,6 +383,19 @@ fails `0A000`, `row-security policy expression enforcement is unsupported`, even
 for constant expressions. There are no constant shortcuts, filter/check evaluator
 or full PostgreSQL row-policy parity. Held execution recaptures current authority
 and flags; eager results retain their old capture.
+
+`row_security_active(text|oid)` shares the enforcement owner's metadata-only
+eligibility predicate, stopping before policy selection or expression demand.
+It observes enablement, FORCE, live inherited ownership and direct effective
+superuser/BYPASSRLS attributes. Policy presence/applicability/content and table
+SELECT permission do not change its answer or trigger unsupported enforcement.
+TEXT uses execution-time relation-name parsing/search path and schema access;
+numeric-looking text remains a name. Missing TEXT names error; missing OIDs
+and disabled non-table/catalog relations return false. NULL returns BOOL NULL.
+Native has no `row_security` setting; PostgreSQL's off-setting does not alter
+this metadata inquiry. Stored recipes reevaluate in the destination execution
+context; Dump serializes neither current answers nor cluster membership.
+
 
 Dump captures raw protected rows, persistent definitions and flags coherently;
 Restore stages them under validated authority without changing target-role

@@ -401,6 +401,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if _, ok := expr.(currentSchemasExpression); ok {
 			result.Nullable, result.NullabilityKnown = true, true
 		}
+		if _, ok := expr.(accessInquiryExpression); ok {
+			result.Nullable, result.NullabilityKnown = true, true
+		}
 		if inquiry, ok := expr.(namespaceInquiryExpression); ok {
 			result.Nullable, result.NullabilityKnown = inquiry.kind == otherTempNamespace, true
 		}

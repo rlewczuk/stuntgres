@@ -6,6 +6,49 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Role membership and row-security inquiries
+
+The `TestReferenceAccessRole` family independently specifies all six
+`pg_has_role` signatures and both `row_security_active` signatures, Boolean
+metadata, strict NULLs, role-name and raw-OID boundaries, independent membership,
+inheritance, SET and ADMIN paths, policy-independent row-security eligibility,
+full diagnostics and held execution freshness. Shared SQL exercises direct and
+prepared routes. Controls include a native-only unchanged Dump/Restore phase;
+role/membership state is not exported. PostgreSQL-only supplements cover role
+rename and `row_security=off`; neither adds a native DDL/setting capability.
+
+`TestReferenceAccessRoleDecorations` checks full direct/prepared Query/Exec
+analysis diagnostics for scalar DISTINCT, call-local ORDER BY and FILTER,
+including the complete supplied `pg_catalog`-qualified name in each message.
+Ordinary argument/FILTER errors and signature resolution retain their own
+precedence; a resolved scalar rejects ORDER BY without analyzing its child.
+Matching scalar VARIADIC remains accepted; this is not an aggregate provider.
+
+Each backend must satisfy the explicit expectations; parity alone is not proof.
+Use the same definitions in both modes, with an external 900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceAccessRole(Signatures|NullAndMetadata|Diagnostics)$'
+make check RUN='^TestReferenceAccessRole(Signatures|NullAndMetadata|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceAccessRoleDecorations$'
+make check RUN='^TestReferenceAccessRoleDecorations$'
+make check REFERENCE=1 RUN='^TestReferenceAccessRole(Membership|Privileges|NamesAndOIDs)$'
+make check RUN='^TestReferenceAccessRole(Membership|Privileges|NamesAndOIDs)$'
+make check REFERENCE=1 RUN='^TestReferenceAccessRole(RLS|RLSPolicies|RLSNames)$'
+make check RUN='^TestReferenceAccessRole(RLS|RLSPolicies|RLSNames)$'
+make check REFERENCE=1 RUN='^TestReferenceAccessRole(Lifecycle|Expressions|Controls)$'
+make check RUN='^TestReferenceAccessRole(Lifecycle|Expressions|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceAccessRoleFeatureSmoke$'
+make check RUN='^TestReferenceAccessRoleFeatureSmoke$'
+make check RUN='^TestAccessInquiry(Binding|Privileges|RoleOIDs|RLSDecision|Lifecycle)$'
+make check RACE=1 RUN='^TestAccessInquiry(Lifecycle|RLSDecision)$'
+```
+
+Feature smoke requires MEMBER/USAGE/SET/ADMIN = true/false/false/true through
+independent NAME/OID axes, typed NULLs, owner/FORCE/superuser RLS decisions and
+same-held execution observing DISABLE. It neither executes policy expressions
+nor requires table SELECT permission.
+
 ### Session role switching
 
 Session role switching uses the shared direct/prepared scenarios and complete

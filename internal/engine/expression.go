@@ -559,6 +559,18 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.arg = arg
 		}
 		return e, changed, nil
+	case accessInquiryExpression:
+		changed := false
+		for i, arg := range e.arguments() {
+			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if did {
+				e.args[i], changed = next, true
+			}
+		}
+		return e, changed, nil
 	case namespaceInquiryExpression:
 		if e.arg == nil {
 			return e, false, nil

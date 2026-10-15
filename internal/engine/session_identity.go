@@ -27,6 +27,7 @@ func (k sessionIdentityKind) spelling() string {
 type identitySnapshot struct {
 	database, current, session, system sqltype.Value
 	currentMissing, sessionMissing     authorization.PrincipalRef
+	currentPrincipal                   authorization.PrincipalRef
 }
 type identityExpression struct {
 	expressionInfo
@@ -106,7 +107,7 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 		return err
 	}
 	session, sessionExists := auth.roles.Find(auth.state.SessionUser)
-	s.identity = identitySnapshot{database: sqltype.String(name, s.op.session.databaseName), system: sqltype.Null(text)}
+	s.identity = identitySnapshot{database: sqltype.String(name, s.op.session.databaseName), system: sqltype.Null(text), currentPrincipal: auth.state.CurrentUser}
 	if sessionExists {
 		s.identity.session = sqltype.String(name, session.Name)
 	} else {
@@ -118,6 +119,18 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 		s.identity.currentMissing = auth.state.CurrentUser
 	}
 	return nil
+}
+
+// Match current_user's expression identity, not the view's relation check owner.
+func (c *EvalContext) expressionPrincipal() authorization.PrincipalRef {
+	s := c.liveScope()
+	if s.foreignActionAuth != nil {
+		return s.foreignActionAuth.state.CurrentUser
+	}
+	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
+		return c.query.source.authority.expression.identity.currentPrincipal
+	}
+	return s.identity.currentPrincipal
 }
 
 func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (BoundExpr, error) {

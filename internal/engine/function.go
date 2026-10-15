@@ -15,6 +15,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if parser.AccessInquiryFunctionName(name) {
+		return b.bindAccessInquiry(raw)
+	}
 	if strings.EqualFold(name, "unaccent") || strings.EqualFold(name, "daitch_mokotoff") {
 		return b.bindInstalledFunction(raw)
 	}

@@ -30,6 +30,27 @@ path extraction is not always equivalent to repeated `->`.
 JSONB extraction, JSONPath execution and JSON equality are not added.
 See [contracts and selected smoke](reference/binary_json_arrays/README.md#json-extraction).
 
+## Role membership and row-security inquiries — change note
+
+`pg_has_role([user,] role, privilege)` supports all six PostgreSQL NAME/OID
+signatures, defaults the omitted user to `current_user`, and returns BOOL.
+MEMBER, inherited USAGE and SET-role paths are independent; comma-separated
+privileges are ORed after every token is validated. All six WITH ADMIN OPTION /
+WITH GRANT OPTION spellings inquire about ADMIN alone. PUBLIC is not a role
+member, unknown names error, and raw OIDs preserve PostgreSQL's self/superuser
+inquiry semantics even for absent role identities without granting authority.
+
+`row_security_active(text|oid)` returns BOOL from current metadata and expression
+identity: enabled RLS applies unless the effective user has direct superuser /
+BYPASSRLS or inherited owner authority without FORCE. Policies and table SELECT
+permission are not consulted. This does not add policy-expression enforcement
+or a native `row_security` setting. Both functions are strict, STABLE, typed
+expressions; held calls re-evaluate live metadata, and stored views retain real
+recipes through native Dump/Restore without serializing role or inquiry state.
+See [inquiry contracts and selected proof](reference/roles/README.md#role-membership-and-row-security-inquiries).
+Feature smoke: `make check RUN='^TestReferenceAccessRoleFeatureSmoke$'`
+and the same command with `REFERENCE=1`.
+
 ## Schema and temporary namespace identity — change note
 
 `current_schema` / `current_schema()` return the first searchable explicit
