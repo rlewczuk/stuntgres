@@ -1243,7 +1243,8 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if l.generationDepth > 0 && !extractFieldIdentifier {
 		forbiddenCall := false
 		switch token.lexeme.text {
-		case "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2",
+		case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict",
+			"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2",
 			"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "json_objectagg", "grouping", "row_number", "generate_series", "generate_subscripts", "unnest":
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
@@ -1257,7 +1258,8 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 			code, message := "", ""
 			switch token.lexeme.text {
-			case "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2",
+			case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict",
+				"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2",
 				"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_arrayagg", "json_objectagg":
 				code, message = "42803", "aggregate functions are not allowed in column generation expressions"
 			case "grouping":

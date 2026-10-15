@@ -13,7 +13,16 @@ import (
 )
 
 func TestJSONObjectAggregateModifierProviderCompletion(t *testing.T) {
-	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict"} {
+	testJSONObjectAggregateModifierProviderCompletion(t, []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict"})
+}
+
+func TestJSONObjectUniqueAggregateModifierProviderCompletion(t *testing.T) {
+	testJSONObjectAggregateModifierProviderCompletion(t, []string{"json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict"})
+}
+
+func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []string) {
+	t.Helper()
+	for _, name := range names {
 		for _, modifier := range []string{"distinct", "order", "distinct-order"} {
 			for _, slot := range []string{"key", "value", "both", "typed-first"} {
 				t.Run(name+"/"+modifier+"/"+slot, func(t *testing.T) {
@@ -67,6 +76,9 @@ func TestJSONObjectAggregateModifierProviderCompletion(t *testing.T) {
 					if provider.key != call.argument.ResultUsage() || provider.input != call.separator.ResultUsage() {
 						t.Fatal("provider captured provisional inputs")
 					}
+					if provider.unique != strings.Contains(name, "_unique") || provider.strict != strings.HasSuffix(name, "_strict") {
+						t.Fatal("modifier completion lost object policy", provider)
+					}
 					key, input := sqltype.String(text, "x"), sqltype.String(text, "one")
 					want := `{ "x" : 1 }`
 					if slot == "key" {
@@ -84,7 +96,7 @@ func TestJSONObjectAggregateModifierProviderCompletion(t *testing.T) {
 						input, _ = sqltype.Integer(integer, 1)
 						want = `{ "a" : 1 }`
 					}
-					if name == "jsonb_object_agg" || name == "jsonb_object_agg_strict" {
+					if strings.HasPrefix(name, "jsonb_") {
 						switch slot {
 						case "key":
 							want = `{"x": 1}`
@@ -130,12 +142,24 @@ func TestJSONObjectAggregateModifierProviderCompletion(t *testing.T) {
 }
 
 func TestJSONObjectAggregateModifierOccurrenceRetention(t *testing.T) {
+	testJSONObjectAggregateModifierOccurrenceRetention(t, "json_object_agg")
+}
+
+func TestJSONObjectUniqueAggregateModifierOccurrenceRetention(t *testing.T) {
+	for _, name := range []string{"json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict"} {
+		testJSONObjectAggregateModifierOccurrenceRetention(t, name)
+	}
+}
+
+func testJSONObjectAggregateModifierOccurrenceRetention(t *testing.T, name string) {
+	t.Helper()
 	for _, tc := range []struct{ q, token string }{
 		{"/*é😀*/ SELECT json_object_agg($1,1) AS earlier,json_object_agg('a',$1 ORDER BY $1)", "$1,1"},
 		{"/*é😀*/ SELECT json_object_agg('a',$1) AS earlier,json_object_agg(DISTINCT 'a',$1)", "$1) AS earlier"},
 		{"/*é😀*/ SELECT json_object_agg($1,$1 ORDER BY $1)", "$1 ORDER"},
 	} {
 		t.Run(tc.q, func(t *testing.T) {
+			tc.q = strings.ReplaceAll(tc.q, "json_object_agg", name)
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.aggregateClause = "SELECT"

@@ -422,6 +422,8 @@ func ordinaryCastFunction(callee lexeme) bool {
 	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
 		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":
 		return true
+	case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
+		return true
 	case "date", "timestamptz", "timetz", "oid", "xid", "cid", "xid8", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "array_agg", "min", "max", "range_agg", "range_intersect_agg", "bit_and", "bit_or", "bit_xor", "json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "row_number", "percentile_cont", "percentile_disc", "mode":
 		return true
 	case "integer", "bigint", "boolean", "int":
@@ -447,6 +449,8 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 
 func ordinaryAggregate(name string) bool {
 	switch name {
+	case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
+		return true
 	case "first_value", "last_value", "nth_value", "ntile", "lead", "lag":
 		return true
 	case "rank", "dense_rank", "percent_rank", "cume_dist":
@@ -552,6 +556,10 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 	case GroupingExpr:
 		return true // Dedicated binder owns child analysis and clause diagnostics.
 	case AggregateExpr:
+		switch r.Name {
+		case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
+			return true // Preserve ordinary JSON object child/FILTER analysis.
+		}
 		if r.Name == "percentile_cont" || r.Name == "percentile_disc" || r.Name == "mode" {
 			return true
 		}

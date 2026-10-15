@@ -6,7 +6,16 @@ import (
 )
 
 func TestJSONObjectAggregateOrdinarySyntax(t *testing.T) {
-	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict"} {
+	testJSONObjectAggregateOrdinarySyntax(t, []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict"})
+}
+
+func TestJSONObjectUniqueAggregateOrdinarySyntax(t *testing.T) {
+	testJSONObjectAggregateOrdinarySyntax(t, []string{"json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict"})
+}
+
+func testJSONObjectAggregateOrdinarySyntax(t *testing.T, names []string) {
+	t.Helper()
+	for _, name := range names {
 		for _, prefix := range []string{"", "pg_catalog.", "public."} {
 			for _, suffix := range []string{"()", "(*)", "(1)", "(1,2)", "(1,2,3)", "(ALL k,v ORDER BY id)", "(DISTINCT k,v ORDER BY k,v) FILTER(WHERE TRUE)", "(k,v) OVER()"} {
 				q := "/*é😀*/ SELECT " + prefix + name + suffix + " FROM t"
@@ -39,7 +48,16 @@ func TestJSONObjectAggregateOrdinarySyntax(t *testing.T) {
 }
 
 func TestJSONObjectAggregateQuotedCallIdentity(t *testing.T) {
-	for _, name := range []string{"JSON_OBJECT_AGG", "Json_Object_Agg", "JSONB_OBJECT_AGG", "Jsonb_Object_Agg", "JSON_OBJECT_AGG_STRICT", "Json_Object_Agg_Strict", "JSONB_OBJECT_AGG_STRICT", "Jsonb_Object_Agg_Strict"} {
+	testJSONObjectAggregateQuotedCallIdentity(t, []string{"JSON_OBJECT_AGG", "Json_Object_Agg", "JSONB_OBJECT_AGG", "Jsonb_Object_Agg", "JSON_OBJECT_AGG_STRICT", "Json_Object_Agg_Strict", "JSONB_OBJECT_AGG_STRICT", "Jsonb_Object_Agg_Strict"})
+}
+
+func TestJSONObjectUniqueAggregateQuotedCallIdentity(t *testing.T) {
+	testJSONObjectAggregateQuotedCallIdentity(t, []string{"JSON_OBJECT_AGG_UNIQUE", "Json_Object_Agg_Unique", "JSONB_OBJECT_AGG_UNIQUE", "Jsonb_Object_Agg_Unique", "JSON_OBJECT_AGG_UNIQUE_STRICT", "Json_Object_Agg_Unique_Strict", "JSONB_OBJECT_AGG_UNIQUE_STRICT", "Jsonb_Object_Agg_Unique_Strict"})
+}
+
+func testJSONObjectAggregateQuotedCallIdentity(t *testing.T, names []string) {
+	t.Helper()
+	for _, name := range names {
 		for _, suffix := range []string{"(7)", "(ROW(7)::jo_projection)", "(k,v)", "(DISTINCT k,v ORDER BY k,v)"} {
 			q := `SELECT "` + name + `"` + suffix
 			statements, err := Parse(q)

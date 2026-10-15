@@ -67,6 +67,8 @@ func ordinarySignatureName(name string) bool {
 		strings.EqualFold(name, "json_agg_strict") || strings.EqualFold(name, "jsonb_agg_strict") ||
 		strings.EqualFold(name, "json_object_agg") || strings.EqualFold(name, "jsonb_object_agg") ||
 		strings.EqualFold(name, "json_object_agg_strict") || strings.EqualFold(name, "jsonb_object_agg_strict") ||
+		strings.EqualFold(name, "json_object_agg_unique") || strings.EqualFold(name, "jsonb_object_agg_unique") ||
+		strings.EqualFold(name, "json_object_agg_unique_strict") || strings.EqualFold(name, "jsonb_object_agg_unique_strict") ||
 		strings.EqualFold(name, "jsonb_objectagg") ||
 		strings.EqualFold(name, "rank") || strings.EqualFold(name, "dense_rank") ||
 		strings.EqualFold(name, "percent_rank") || strings.EqualFold(name, "cume_dist") ||

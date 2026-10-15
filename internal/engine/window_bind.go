@@ -427,7 +427,8 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 			_, err = jsonReturningCoercion(usage, returning, raw.JSON.Output)
 			usage = returning
 		}
-	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict":
+	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict",
+		"json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
 		var args [2]BoundExpr
 		args, usage, err = b.resolveJSONObjectAggregateSignature(raw, name, operands, types)
 		arg = args[0]

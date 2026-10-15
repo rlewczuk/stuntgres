@@ -517,8 +517,67 @@ root-only null compaction, live environments and deterministically reached
 key/value/sort/compaction/output cancellation without partial query/DML publication.
 The existing JSONB compaction cancellation unit also exercises its unchanged
 default non-skipping behavior after the explicit root-mode signature change.
-SQL/JSON `json_objectagg`, unique variants and native aggregate windows remain
-outside this feature.
+SQL/JSON `json_objectagg` has its own coverage; the underscore unique variants
+are covered below. Native aggregate windows remain unsupported.
+
+### Unique JSON object aggregates
+
+The untagged `json_object_unique_aggregate_*_test.go` scenarios cover
+`json_object_agg_unique`, `jsonb_object_agg_unique`,
+`json_object_agg_unique_strict` and `jsonb_object_agg_unique_strict`.
+They share the ordinary two-input aggregate provider and its occurrence-local
+ANY/modifier inference, not a separate execution algorithm. Root observed the
+initial portable hypotheses passing on pinned PostgreSQL 18.0 and the genuine
+native unsupported-function red before this recognition/binding cutover.
+Discovery gates and portable substitutes for native-emitted replay are removed.
+Those observations do not claim final implementation verification.
+
+| `TestReferenceJSONObjectUniqueAggregate` suffix | Contract |
+| --- | --- |
+| `Values` | Fixed JSON/JSONB output, ordered members, duplicate/omitted-key matrix in both orders, SQL versus root JSON null, nested duplicate retention/canonicalization, byte-distinct keys, FILTER, groups and sibling policy isolation. |
+| `Diagnostics` | Complete portable severity/code/English message/optional fields and Unicode positions for direct/prepared Query and discarded Exec; converted/escaped/empty duplicate keys, NULL/structured keys even with omitted values, arity/child/context precedence and text transition versus binary finalization timing. |
+| `Parameters` | SAME held statement good/omitted/duplicate/error/recovery with Query/Exec and Context/plain routes; independent ANY inference and fixed output metadata. |
+| `Modifiers` | Whole-pair DISTINCT versus ALL duplicate handling; occurrence-local TEXT inference for DISTINCT/matching ORDER, both input slots, repeated parameter identities, typed-first reuse, held recovery and exact unresolved-occurrence positions. |
+| `Metadata` | Before-Next types, labels, aliases, raw carriers and ScanType/Nullable/Length/DecimalSize for populated/global-empty/grouped-empty/filter-empty/all-omitted output, domains, required inputs and stored views. |
+| `Consumers` | CTE/derived/HAVING/views/CTAS/materialized results, global versus grouped empty INSERT cardinality, late duplicate atomicity, no failed-definition publication, key/value/ORDER/FILTER authorization, held revoke/regrant and precancellation. |
+| `Controls` | Actual native Dump/Reset/Restore/redump, omitted-key duplicates after remap, held failure/recovery, retained old cursor/metadata, failed/canceled replacement atomicity, independent restored Driver and PostgreSQL execution of exact native-emitted SQL. |
+| `FeatureSmoke` | Focused four-family values/null/held/modifier/consumer/atomicity/timing witnesses plus actual native controls and emitted replay. |
+
+Independent constants include JSON `{ "b" : 1, "a" : 2 }` versus JSONB
+`{"a": 2, "b": 1}`. No admitted rows yield SQL NULL; one omitted SQL NULL value
+yields `{  }` or `{}` for strict calls, not SQL NULL. Duplicate key `a` fails22030
+even if either or both values are omitted: text reports
+`duplicate JSON object key value: "a"` during transition; binary reports
+`duplicate JSON object key value` at finalization before root null compaction.
+Runtime Position and other optional fields are absent. NULL keys fail22004
+`null value not allowed for object key` for JSON,22023 `field name must not be null`
+for JSONB. A later NULL key can outrank a pending binary duplicate, but not a text
+duplicate already encountered. UNIQUE STRICT validates structured omitted keys;
+nested objects do not inherit outer uniqueness. Binary strict omits root JSON
+null; text strict retains it. Existing codec units remain the proof of shared
+sticky/sealed state and reached cancellation seams.
+
+Root runs the following selected proofs with external900-second deadlines; each
+changed reference definition requires both native and real pinned modes:
+
+```sh
+make check RUN='^TestJSONObjectUniqueAggregate'
+make check RUN='^Test(SQLJSONObjectAggregate|JSONObjectAggregate)'
+make check RUN='^TestReferenceJSONObjectUniqueAggregate(Values|Diagnostics|Parameters|Modifiers|Metadata)$'
+make check RUN='^TestReferenceJSONObjectUniqueAggregate(Values|Diagnostics|Parameters|Modifiers|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceJSONObjectUniqueAggregate(Consumers|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONObjectUniqueAggregate(Consumers|Controls|FeatureSmoke)$' REFERENCE=1
+# Feature smoke: fixed objects, full duplicate/key errors, held recovery,
+# atomic INSERT failure and actual selected-name dump replay.
+make check RUN='^TestReferenceJSONObjectUniqueAggregateFeatureSmoke$'
+make check RUN='^TestReferenceJSONObjectUniqueAggregateFeatureSmoke$' REFERENCE=1
+```
+
+Private parser/engine `TestJSONObjectUniqueAggregate...` units cover ordinary
+AST/options=nil, schema/quoted/context inventories, exact policy/result slots,
+completed modifier provider descriptors, retained ANY occurrences and fresh-owner
+view remapping with family-specific duplicate timing. Root runs `make quickcheck`
+once all edits land; generated parser output and formatting are root-owned.
 
 ### JSON array aggregate oracle-first definitions
 

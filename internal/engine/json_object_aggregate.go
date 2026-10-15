@@ -37,7 +37,8 @@ func (p jsonObjectAggregateProvider) Finalize(ctx context.Context, state any) (s
 
 func jsonObjectAggregateName(name string) bool {
 	switch name {
-	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_objectagg":
+	case "json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict",
+		"json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict", "json_objectagg":
 		return true
 	}
 	return false
@@ -79,12 +80,21 @@ func (b *expressionBinder) bindJSONObjectAggregate(raw parser.AggregateExpr, nam
 	if b.defaultConsumer {
 		return nil, expressionError("42803", "aggregate functions are not allowed in DEFAULT expressions", raw.Pos)
 	}
-	strict := raw.Name == "json_object_agg_strict" || raw.Name == "jsonb_object_agg_strict"
+	strict := false
+	switch raw.Name {
+	case "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
+		strict = true
+	}
+	unique := false
+	switch raw.Name {
+	case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
+		unique = true
+	}
 	operation := aggregateJSONObject
 	if strict {
 		operation = aggregateJSONObjectStrict
 	}
-	provider := jsonObjectAggregateProvider{usage: usage, strict: strict}
+	provider := jsonObjectAggregateProvider{usage: usage, strict: strict, unique: unique}
 	call := aggregateCall{provider: provider, argument: args[0], separator: args[1], operation: operation, includeNulls: true}
 	return b.finishAggregate(raw, call, filter, b.info(usage, raw.Pos, ExprProperties{StageDependent: true}))
 }
@@ -127,7 +137,8 @@ func (b *expressionBinder) resolveJSONObjectAggregateSignature(raw parser.Aggreg
 		args[i] = arg
 	}
 	id := sqltype.JSON
-	if raw.Name == "jsonb_object_agg" || raw.Name == "jsonb_object_agg_strict" {
+	switch raw.Name {
+	case "jsonb_object_agg", "jsonb_object_agg_strict", "jsonb_object_agg_unique", "jsonb_object_agg_unique_strict":
 		id = sqltype.JSONB
 	}
 	return args, b.typ(id).Usage(), nil

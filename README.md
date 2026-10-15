@@ -911,10 +911,22 @@ PostgreSQL 18.0 binary strict also omits converted root JSON null members,
 retaining the latest nonnull duplicate without removing nested nulls.
 Zero admitted rows produce SQL NULL; admitted but wholly omitted input produces
 an empty object. Prepared calls, stored views and native dump replay share the
-same typed provider. Underscore unique variants and aggregate window execution
-remain outside this support.
+same typed provider. Aggregate window execution remains outside this support.
 Feature smoke: `make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$'`
 and `make check RUN='^TestReferenceJSONObjectAggregateFeatureSmoke$' REFERENCE=1`.
+
+Change note: `json_object_agg_unique`, `jsonb_object_agg_unique`,
+`json_object_agg_unique_strict` and `jsonb_object_agg_unique_strict` use the same
+two-input aggregate pipeline with outer-key uniqueness. Duplicate converted keys
+fail with SQLSTATE22030, including keys whose SQL NULL values strict mode omits.
+NULL keys always fail; UNIQUE STRICT still validates and reserves omitted keys.
+JSON reports duplicates during transition with the JSON-quoted key in its
+message; JSONB checks at finalization before root null compaction, without a key
+suffix. Nested objects retain ordinary JSON/JSONB semantics. Fixed result types,
+local ORDER BY, pairwise DISTINCT, FILTER, independent ANY inference, held
+statements and stored-view dump replay use the existing provider.
+Feature smoke: `make check RUN='^TestReferenceJSONObjectUniqueAggregateFeatureSmoke$'`
+and `make check RUN='^TestReferenceJSONObjectUniqueAggregateFeatureSmoke$' REFERENCE=1`.
 
 Change note: SQL/JSON `json_objectagg(key VALUE value)` also accepts `key:value`,
 NULL/ABSENT ON NULL (default NULL), and WITH/WITHOUT UNIQUE [KEYS].

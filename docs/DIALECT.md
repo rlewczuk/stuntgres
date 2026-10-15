@@ -1049,10 +1049,19 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   the same grouping/FILTER/local ordering pipeline. NULL keys are errors before
   strict omission. JSON preserves member order/duplicates; JSONB canonicalizes
   keys and retains the latest admitted duplicate. Strict SQL NULL values are
-  omitted before key conversion. PostgreSQL 18.0 binary strict also omits
-  converted root JSON null members after key/value conversion, retaining the
+  omitted before key conversion in the nonunique strict variants. PostgreSQL 18.0
+  binary strict also omits converted root JSON null members after key/value conversion, retaining the
   latest nonnull duplicate; nested nulls are retained. All-omitted input yields
   an empty object; zero admitted rows yield SQL NULL.
+  `json_object_agg_unique`, `jsonb_object_agg_unique` and their `_strict` variants
+  use the same two independent ANY inputs, fixed JSON/JSONB results and
+  ORDER BY/DISTINCT/ALL/FILTER pipeline. They reject duplicate converted keys
+  with22030, including keys whose SQL NULL values are omitted by strict mode.
+  UNIQUE STRICT validates/converts and reserves these keys instead of skipping
+  key conversion. Text JSON checks during transition and names the JSON-quoted
+  duplicate key; JSONB checks at finalization before root null compaction and
+  reports no key suffix. NULL keys always fail, and outer uniqueness does not
+  propagate to nested objects. All-omitted and no-input results are unchanged.
   SQL/JSON `json_objectagg` accepts one key VALUE value or key:value pair,
   NULL/ABSENT ON NULL (default NULL), WITH/WITHOUT UNIQUE [KEYS], formatted JSON
   input and applicable RETURNING JSON/JSONB, UTF8 BYTEA, strings and supported
@@ -1062,9 +1071,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   JSON checks during transition; JSONB checks at finalization before null
   compaction. Nested value objects do not inherit outer key uniqueness.
   NULL keys always fail. Stored views and native dump replay retain all options.
-  `jsonb_objectagg` is not an alias. Local ORDER BY, DISTINCT/ALL, multiple pairs,
-  underscore unique variants and object aggregate window execution remain
-  outside this selected support.
+  `jsonb_objectagg` is not an alias. SQL/JSON local ORDER BY, DISTINCT/ALL and
+  multiple pairs remain excluded; object aggregate window execution remains
+  unsupported natively for both ordinary and SQL/JSON forms.
   `jsonb_set` and `jsonb_set_lax` return typed immutable JSONB through ordinary
   direct/prepared and stored scalar consumers. TEXT[] paths require existing
   intermediate parents; only a missing final item is created by the default
