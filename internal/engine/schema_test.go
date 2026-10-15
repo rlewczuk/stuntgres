@@ -161,91 +161,42 @@ func (d *schemaDefaults) SessionDefault(_ context.Context, definition SettingDef
 }
 func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 	e := New()
-	run(t, e, "CREATE SCHEMA s1 CREATE TABLE t(id INT)")
-	run(t, e, "CREATE SCHEMA s2 CREATE TABLE t(id INT)")
-	run(t, e, "INSERT INTO s1.t VALUES(7)")
-	run(t, e, "INSERT INTO s2.t VALUES(9)")
 	defaults := &schemaDefaults{path: "s1,s2"}
 	a := sessionStart(t, e, defaults)
 	defaults.path = "s2,s1"
 	b := sessionStart(t, e, defaults)
-	check := func(s *Session, q string, want driver.Value) {
-		t.Helper()
-		got := tuples(sessionSQL(t, s, q))
-		if !reflect.DeepEqual(got, [][]driver.Value{{want}}) {
-			t.Fatal(q, got, want)
+	// Provider values are captured once into each session's typed defaults.
+	// Portable SQL path behavior lives in the namespace reference scenarios.
+	for _, tc := range []struct {
+		session *Session
+		want    []string
+	}{
+		{a, []string{"s1", "s2"}}, {b, []string{"s2", "s1"}},
+	} {
+		if got := tc.session.settings.defaultTyped["search_path"].path; !reflect.DeepEqual(got, tc.want) {
+			t.Fatal("captured provider default", got, tc.want)
+		}
+		if got := tc.session.settings.typedValue("search_path").path; !reflect.DeepEqual(got, tc.want) {
+			t.Fatal("initial typed setting", got, tc.want)
+		}
+		override, err := e.settingsDefinitions["search_path"].parse("public")
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.mu.Lock()
+		tc.session.settings.mu.Lock()
+		tc.session.mu.Lock()
+		tc.session.settings.values["search_path"] = "public"
+		tc.session.settings.typed["search_path"] = override
+		e.resetAllSettingsLocked(tc.session)
+		got := tc.session.settings.typedValue("search_path").path
+		tc.session.mu.Unlock()
+		tc.session.settings.mu.Unlock()
+		e.mu.Unlock()
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Fatal("reset lost captured provider default", got, tc.want)
 		}
 	}
-	check(a, "SELECT id FROM t", int64(7))
-	check(b, "SELECT id FROM t", int64(9))
-	check(a, "SELECT current_schema()", "s1")
-	sessionSQL(t, a, "SET search_path TO missing,s2,s2,s1")
-	check(a, "SELECT id FROM t", int64(9))
-	check(b, "SELECT current_schema", "s2")
-	sessionSQL(t, a, "RESET search_path")
-	check(a, "SHOW search_path", "s1,s2")
-	sessionSQL(t, a, "SET search_path TO ''")
-	check(a, "SELECT current_schema", nil)
-	op, err := a.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	schemaFail(t, e, op, "CREATE TABLE no_destination(id INT)", "3F000")
-	_, err = e.Execute(op, statement(t, "SELECT set_config('search_path','s1,',false)"), 0, nil)
-	state(t, err, "22023")
-	op.Done()
-	check(a, "SHOW search_path", `""`)
-	sessionSQL(t, a, "SET search_path TO 's1,'")
-	check(a, "SHOW search_path", `"s1,"`)
-	check(a, "SELECT current_schema", nil)
-	check(a, "SELECT set_config('search_path','',false)", "")
-	check(a, "SHOW search_path", "")
-	check(a, "SELECT current_schema", nil)
-	sessionSQL(t, a, `CREATE SCHEMA "s1," CREATE TABLE t(id INT)`)
-	sessionSQL(t, a, `INSERT INTO "s1,".t VALUES(11)`)
-	sessionSQL(t, a, "SET search_path TO 's1,'")
-	check(a, "SHOW search_path", `"s1,"`)
-	check(a, "SELECT id FROM t", int64(11))
-	check(a, "SELECT id FROM s1.t", int64(7))
-	sessionSQL(t, a, `SET search_path TO "lowercase","A.B",public`)
-	check(a, "SHOW search_path", `lowercase, "A.B", public`)
-	check(a, "SELECT current_schema", "public")
-	for _, raw := range []string{`""`, `"", s2`} {
-		check(a, "SELECT set_config('search_path','"+raw+"',false)", raw)
-		check(a, "SHOW search_path", raw)
-		if raw == `""` {
-			check(a, "SELECT current_schema", nil)
-		} else {
-			check(a, "SELECT current_schema", "s2")
-			check(a, "SELECT id FROM t", int64(9))
-		}
-	}
-	sessionSQL(t, a, "SET search_path TO '',s2")
-	check(a, "SHOW search_path", `"", s2`)
-	check(a, "SELECT id FROM t", int64(9))
-	sessionSQL(t, a, "SET search_path TO s2")
-	op, err = a.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	_, err = e.Execute(op, statement(t, "SELECT set_config('search_path','s1,',false)"), 0, nil)
-	state(t, err, "22023")
-	op.Done()
-	check(a, "SHOW search_path", "s2")
-	check(a, "SELECT current_setting('search_path')", "s2")
-	check(a, "SELECT current_schema", "s2")
-	check(a, "SELECT id FROM t", int64(9))
-	check(b, "SHOW search_path", "s2,s1")
-	check(b, "SELECT id FROM t", int64(9))
-	sessionSQL(t, a, "RESET ALL")
-	check(a, "SHOW search_path", "s1,s2")
-	sessionSQL(t, a, "SET search_path TO pg_temp,public")
-	check(a, "SELECT current_schema", "public")
-	sessionSQL(t, a, "SET search_path TO s1,pg_temp,public")
-	sessionSQL(t, a, "CREATE TABLE earlier(id INT)")
-	roleTableRef(t, e, "s1.earlier")
 	for _, tc := range []struct {
 		input string
 		want  []string

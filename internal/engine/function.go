@@ -118,6 +118,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.IdentityFunctionName(name) {
 		return b.bindIdentityFunction(raw)
 	}
+	if parser.NamespaceInquiryFunctionName(name) {
+		return b.bindNamespaceInquiry(raw)
+	}
 	if name == "current_schemas" {
 		return b.bindCurrentSchemas(raw)
 	}
@@ -291,15 +294,12 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if scope == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
 	}
-	if scope.searchPathResults[0].Type() == nil {
+	results := scope.searchPathResults
+	if scope.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleActionAuth != nil {
 		engine := scope.op.session.Engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
-		auth, err := engine.authorizationLocked(scope.op)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		explicit, _, err := engine.explicitPath(auth)
+		auth, explicit, err := scope.schemaInquiryPathLocked(engine)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -309,17 +309,19 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			for j, a := range path {
 				names[j] = auth.catalog.state.descriptors[a].Name()
 			}
-			scope.searchPathResults[i], err = sqltype.Names(e.usage.Type, names[:len(path)])
+			results[i], err = sqltype.Names(e.usage.Type, names[:len(path)])
 			if err != nil {
-				scope.searchPathResults = [2]sqltype.Value{}
 				return sqltype.Value{}, err
 			}
 		}
+		if scope.foreignActionAuth == nil && scope.ruleActionAuth == nil {
+			scope.searchPathResults = results
+		}
 	}
 	if implicit {
-		return scope.searchPathResults[1], nil
+		return results[1], nil
 	}
-	return scope.searchPathResults[0], nil
+	return results[0], nil
 }
 
 // The admitted format failure paths follow argument transformation, global

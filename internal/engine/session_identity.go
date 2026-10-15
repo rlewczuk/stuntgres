@@ -71,17 +71,13 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	case identitySystemUser:
 		return identity.system, nil
 	case identityCurrentSchema:
-		if s.foreignActionAuth == nil && s.currentSchemaResult.Type() != nil {
+		if s.foreignActionAuth == nil && s.ruleActionAuth == nil && s.currentSchemaResult.Type() != nil {
 			return s.currentSchemaResult, nil
 		}
 		engine := s.op.session.Engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
-		auth, err := s.writeAuthorizationLocked(engine)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		path, _, err := engine.explicitPath(auth)
+		auth, path, err := s.schemaInquiryPathLocked(engine)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -89,7 +85,7 @@ func (e identityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if len(path) > 0 {
 			result = sqltype.String(e.usage.Type, auth.catalog.state.descriptors[path[0]].Name())
 		}
-		if s.foreignActionAuth == nil {
+		if s.foreignActionAuth == nil && s.ruleActionAuth == nil {
 			s.currentSchemaResult = result
 		}
 		return result, nil

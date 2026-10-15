@@ -102,6 +102,9 @@ func TestReferenceSearchPathPendingTempBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer c.Close()
+			if got := namespaceOID(t, p, c); got != 0 {
+				t.Fatal("fresh-session TEMP precondition", got)
+			}
 			if _, err := c.ExecContext(p.Ctx, "SET search_path TO pg_temp,public"); err != nil {
 				t.Fatal(err)
 			}
@@ -109,18 +112,10 @@ func TestReferenceSearchPathPendingTempBoundary(t *testing.T) {
 			if err := c.QueryRowContext(p.Ctx, "SELECT current_schemas(false)").Scan(&got); err != nil {
 				t.Fatal(err)
 			}
-			if !backend.PG {
-				if got != "{public}" {
-					t.Fatal(got)
-				}
-			} else {
-				var temp string
-				if err := c.QueryRowContext(p.Ctx, "SELECT current_schema()").Scan(&temp); err != nil || !strings.HasPrefix(temp, "pg_temp_") {
-					t.Fatal(temp, err)
-				}
-				if got != "{"+temp+",public}" {
-					t.Fatal(got, temp)
-				}
+			id := namespaceOID(t, p, c)
+			temp, _ := namespacePair(t, p, c, id)
+			if got != "{"+temp+",public}" {
+				t.Fatal(got, temp)
 			}
 		})
 	}

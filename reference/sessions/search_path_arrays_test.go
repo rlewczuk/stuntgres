@@ -119,20 +119,20 @@ func TestReferenceSearchPathCurrentSchemas(t *testing.T) {
 			check(false, `{"path,comma","path{brace}","NULL","path space","path\"quote","path\\slash"}`)
 			run(a, fixture.Exec("SET search_path TO sp1", 0))
 			run(a, fixture.Exec("SET search_path TO pg_temp,sp1", 0))
-			pendingTemp := ""
-			if backend.PG {
-				// Match the existing PendingTempBoundary witness: PostgreSQL can
-				// materialize pg_temp on this route before a TEMP object is created.
-				// Derive its name independently, not from current_schemas output.
-				if err := a.QueryRowContext(p.Ctx, "SELECT current_schema()").Scan(&pendingTemp); err != nil || !strings.HasPrefix(pendingTemp, "pg_temp_") {
-					t.Fatal(pendingTemp, err)
-				}
-				check(false, "{"+pendingTemp+",sp1}")
-				check(true, "{pg_catalog,"+pendingTemp+",sp1}")
-			} else {
-				check(false, "{sp1}")
-				check(true, "{pg_catalog,sp1}")
+			id := namespaceOID(t, p, a)
+			if id != 0 {
+				t.Fatal("fresh-session TEMP precondition", id)
 			}
+			var pendingTemp string
+			if err := a.QueryRowContext(p.Ctx, "SELECT current_schema()").Scan(&pendingTemp); err != nil {
+				t.Fatal(err)
+			}
+			tempName, _ := namespacePair(t, p, a, namespaceOID(t, p, a))
+			if pendingTemp != tempName {
+				t.Fatal("path/catalog identity", pendingTemp, tempName)
+			}
+			check(false, "{"+pendingTemp+",sp1}")
+			check(true, "{pg_catalog,"+pendingTemp+",sp1}")
 			run(a, fixture.Exec("CREATE TEMP SEQUENCE search_path_temp", 0))
 			var temp string
 			run(a, fixture.Exec("SET search_path TO pg_temp,sp1", 0))

@@ -54,6 +54,16 @@ without consuming input or producing output for any denied admission.
 PostgreSQL's small foreign-TEMP scan can independently return an empty local-buffer
 cursor; native neither fabricates that cursor nor exposes the owner's actual rows.
 
+Schema/TEMP identity inquiries do not widen that storage boundary.
+`pg_is_other_temp_schema` classifies actual physical ownership of both TEMP and
+TEMP TOAST descriptors, including retained descriptors after the owner exits;
+it is not a live-backend test. `pg_my_temp_schema` never initializes TEMP itself.
+Schema inquiries resolve pending explicit `pg_temp` only on demanded non-NULL
+evaluation, with first-use namespace publication/rollback owned by the existing
+statement and transaction machinery. Driver preparation and strict NULL do not
+create a namespace. Persistent view recipes replay these typed functions rather
+than capturing a source session's OID; TEMP state remains excluded from Dump.
+
 
 `CREATE TABLESPACE name [OWNER role] LOCATION 'directory' [WITH (...)]` supports
 syntax and PostgreSQL 18 ordered validation, not physical creation. Direct

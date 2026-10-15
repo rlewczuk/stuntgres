@@ -387,6 +387,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
 		next = n
+	case namespaceInquiryExpression:
+		if n.arg != nil {
+			n.arg = child(n.arg)
+		}
+		next = n
 	case indexPropertyExpression:
 		for i := range n.children() {
 			n.args[i] = child(n.args[i])

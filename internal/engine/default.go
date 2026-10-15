@@ -354,6 +354,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid stored current_schemas signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []BoundExpr{n.arg})
+	case namespaceInquiryExpression:
+		if err := n.validateStored(); err != nil {
+			return "", err
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), n.arguments())
 	case sequenceCallExpression:
 		if r.owner == nil && !closedSequenceDefault(n) {
 			return "", fmt.Errorf("stuntgres: invalid stored sequence default")

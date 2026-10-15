@@ -497,6 +497,12 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.arg = child(n.arg)
 		n.expressionInfo = info
 		rebound = n
+	case namespaceInquiryExpression:
+		if n.arg != nil {
+			n.arg = child(n.arg)
+		}
+		n.expressionInfo = info
+		rebound = n
 	case sequenceCallExpression:
 		n.args = children(n.args)
 		n.expressionInfo = info

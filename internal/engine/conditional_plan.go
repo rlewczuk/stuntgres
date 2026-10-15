@@ -867,6 +867,17 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			changed = true
 		}
 		expression = e
+	case namespaceInquiryExpression:
+		if e.arg != nil {
+			node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.arg, changed = node, true
+			}
+		}
+		expression = e
 	case indexPropertyExpression:
 		e.properties = ExprProperties{Volatility: Stable}
 		for i, old := range e.children() {

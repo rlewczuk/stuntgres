@@ -13,6 +13,28 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Schema and temporary namespace identity — change note
+
+`current_schema` / `current_schema()` return the first searchable explicit
+search-path schema as NAME, or NULL for an empty effective explicit path.
+`current_schemas(boolean)` returns ordered NAME[] paths, including implicit
+system/TEMP entries only when requested; NULL input returns typed NULL.
+A pending `pg_temp` creation destination initializes the physical session's
+TEMP/TOAST namespace pair when a non-NULL schema inquiry is actually evaluated,
+not during driver preparation. First-use state follows statement/transaction
+publication and rollback.
+
+`pg_my_temp_schema()` returns OID zero before TEMP initialization.
+`pg_is_other_temp_schema(oid)` recognizes another physical session's TEMP and
+TEMP TOAST namespaces, including retained namespaces after physical retirement;
+own, ordinary and missing namespaces return false, and NULL input returns NULL.
+Identity inquiry does not grant access to peer TEMP contents. Dropping the last
+TEMP object, DISCARD TEMP and returning a pooled borrower retain physical identity.
+Stored views evaluate these functions against the destination execution session;
+Dump excludes TEMP objects and serializes no session identity state.
+
+See [namespace contracts and selected proof](reference/sessions/README.md#schema-and-temporary-namespace-identity).
+
 ## Bit-string scalar operators — change note
 
 BIT/VARBIT support concatenation `||`, equal-actual-width `&`, `|`, `#`,

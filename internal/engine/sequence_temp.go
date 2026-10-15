@@ -53,6 +53,11 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 			return e.creationNamespaceWithSystem(auth, name, system)
 		}
 	}
+	return e.temporaryNamespaceStagedLocked(auth, c)
+}
+
+// Engine.mu is held. The caller owns the candidate and its publication.
+func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catalogChanges) (ObjectRef, error) {
 	if auth.session == nil || auth.session.token.private != nil {
 		return ObjectRef{}, fmt.Errorf("stuntgres: private maintenance cannot create a temporary namespace")
 	}

@@ -1050,9 +1050,10 @@ make check RUN='^TestPGShDescription'
 pinned PostgreSQL18.0 outcomes, including exact cache high-water/NULL masks,
 all eleven descriptors, full English diagnostic records, physical TEMP exit,
 actual emitted Dump replay and cancellation cleanup. PostgreSQL-only pg_type
-identity links supplement native actual descriptor/type-link units; native TEMP
-namespace is obtained from the actual public pg_sequences row, not an unsupported
-pg_my_temp_schema function. Shared direct/prepared behavior is not skipped.
+identity links supplement native actual descriptor/type-link units; the TEMP
+namespace is independently obtained from the public pg_sequences row. The
+session namespace inquiry scenarios additionally cover pg_my_temp_schema and
+physical TEMP/TOAST ownership. Shared direct/prepared behavior is not skipped.
 
 ```sh
 make check RUN='^TestReferencePGSequences'

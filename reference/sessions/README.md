@@ -6,6 +6,50 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Schema and temporary namespace identity
+
+`namespace_identity*_test.go` uses public direct/prepared SQL and independently
+specified NAME/_NAME/OID/BOOL results, including strict NULL and empty-result
+metadata. PostgreSQL OID text-byte exports normalize to decimal strings; native
+OID exports remain int64, without changing SQL metadata or inserting casts.
+Coverage includes pending-TEMP initialization by each schema function, Prepare
+without side effects, read-only first use, transaction/savepoint rollback and
+publication, failed/canceled demand, actual TEMP/TOAST descriptor ownership,
+role-independent identity, held getter reuse, drop/DISCARD lifetime, pooled
+borrower reuse, physical retirement and destination-session view/Dump replay.
+Special-path SQL assertions migrated from the mixed engine provider-default
+unit retain empty/quoted/comma paths, failure atomicity and independent sessions;
+private provider capture/parser units remain beside the engine.
+
+Run each selected batch in both modes, with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceNamespaceIdentity(Signatures|Diagnostics|SpecialPaths)$'
+make check RUN='^TestReferenceNamespaceIdentity(Signatures|Diagnostics|SpecialPaths)$' REFERENCE=1
+make check RUN='^TestReferenceNamespaceIdentity(PendingTemp|FeatureSmoke)$'
+make check RUN='^TestReferenceNamespaceIdentity(PendingTemp|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceNamespaceIdentity(Ownership|Retirement|StoredControls)$'
+make check RUN='^TestReferenceNamespaceIdentity(Ownership|Retirement|StoredControls)$' REFERENCE=1
+make check RUN='^TestReferenceSearchPath(CurrentSchemas|PendingTempBoundary|Diagnostics|StoredViewRuntime)$'
+make check RUN='^TestReferenceSearchPath(CurrentSchemas|PendingTempBoundary|Diagnostics|StoredViewRuntime)$' REFERENCE=1
+make check RUN='^TestNamespaceIdentity'
+```
+
+Feature smoke:
+
+```sh
+make check RUN='^TestReferenceNamespaceIdentityFeatureSmoke$'
+make check RUN='^TestReferenceNamespaceIdentityFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceNamespaceIdentity(FeatureSmoke|PendingTemp|Ownership|Retirement)$' RACE=1
+```
+
+Expected observations are passing independent fresh-zero, strict-NULL,
+separately demanded schema initializers, exact ordered path arrays, real
+catalog-discovered own/peer TEMP+TOAST classification and empty-path NULL.
+Generated OIDs are relational, not pinned allocator numbers. Namespace
+classification never permits peer TEMP content reads. Whole-project native
+verification remains `make quickcheck`; selected dual-mode proof is separate.
+
 ### Phase 1 server selected proof
 
 Untagged `reference/sessions/server_*_test.go` definitions use one shared body

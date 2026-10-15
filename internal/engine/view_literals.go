@@ -604,6 +604,12 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(visibilityInquiryExpression); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.arg)
 		}
+		if n, ok := bound.(namespaceInquiryExpression); ok {
+			if n.arg != nil && len(r.Args) == 1 {
+				return child(r.Args[0], n.arg)
+			}
+			return nil
+		}
 		if n, ok := bound.(literalExpression); ok && n.value.IsNull() && n.value.Type().ID() == sqltype.Bool {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
