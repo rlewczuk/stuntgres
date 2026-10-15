@@ -25,6 +25,10 @@ var pgcryptoMembers = [...]pgcryptoMember{
 	{"crypt", "25,25", 25, Immutable},
 	{"gen_salt", "25", 25, Volatile},
 	{"gen_salt", "25,23", 25, Volatile},
+	{"encrypt", "17,17,25", 17, Immutable},
+	{"decrypt", "17,17,25", 17, Immutable},
+	{"encrypt_iv", "17,17,17,25", 17, Immutable},
+	{"decrypt_iv", "17,17,17,25", 17, Immutable},
 }
 
 func pgcryptoLookup(name string, signature procedureSignature) (pgcryptoMember, bool) {

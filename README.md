@@ -4072,10 +4072,21 @@ See [fields, visibility and controls](https://www.postgresql.org/docs/18/catalog
 Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned counterpart.
 
-**Pgcrypto change note:** installed pgcrypto1.4 supplies seven STRICT PARALLEL SAFE
+**Pgcrypto change note:** installed pgcrypto1.4 supplies eleven STRICT PARALLEL SAFE
 scalar overloads: immutable digest(TEXT,TEXT), digest(BYTEA,TEXT),
 hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT) return raw BYTEA; immutable
 crypt(TEXT,TEXT) and volatile gen_salt(TEXT[,INT4]) return TEXT.
+Immutable encrypt/decrypt(BYTEA,BYTEA,TEXT) and
+encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT) return BYTEA using raw AES CBC/ECB,
+with PKCS padding by default or explicit `pad:none`. Unknown data/key/IV operands
+infer BYTEA; known TEXT operands require explicit casts. AES keys right-zero-pad
+to16/24/32 bytes and clip beyond32; IVs right-zero-pad or clip to16 bytes, default
+to zero and are ignored by ECB. Aligned plaintext gets a full PKCS padding block;
+nopad requires block alignment. Malformed padding/length raises operation-specific
+39000. Type normalization follows digest/HMAC; invalid cipher/options raise22023,
+while recognized excluded cipher modes are explicit native0A000 boundaries.
+Raw encryption supplies no integrity protection; see
+[PostgreSQL raw encryption functions](https://www.postgresql.org/docs/18/pgcrypto.html#PGCRYPTO-RAW-ENC-FUNCS).
 Supported digest/HMAC algorithms are md5, sha1, sha224, sha256, sha384 and sha512,
 including observed hyphenated SHA aliases and SHA2-256. TEXT hashes exact UTF8
 octets; BYTEA hashes arbitrary raw bytes. Builtin md5 still returns hexadecimal
@@ -4099,8 +4110,9 @@ random state. Volatile salts are valid defaults/views, not generated columns or
 expression indexes. Stored salts/hashes survive native replay without regeneration.
 Non-bf algorithms, including `$2b$`/`$2y$` dispatch, are native unsupported
 boundaries (0A000), not extra accepted bcrypt variants; `$2$` retains39000.
-No arbitrary OpenSSL algorithms, encryption, PGP, random-byte or FIPS functions
-are added. Password smoke:
+No arbitrary OpenSSL algorithms, PGP, random-byte or FIPS functions are added.
+Raw AES smoke: `make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'`;
+add `REFERENCE=1` for pinned PostgreSQL. Password smoke:
 `make check RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned PostgreSQL counterpart. Digest/HMAC smoke remains
 `make check RUN='^TestReferencePgcryptoFeatureSmoke$'`.

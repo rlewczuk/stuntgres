@@ -37,6 +37,11 @@ Blowfish state, byte-oriented72-byte key expansion, PostgreSQL2a/2x semantics,
 canonical custom base64 and per-round cancellation. Six hashes return raw BYTEA;
 crypt/gen_salt return TEXT, with volatile gen_salt entropy requested once only
 after demanded children, strict NULL handling and name/count validation.
+The same carrier supports the four BYTEA-only raw AES overloads, including four
+children for `_iv`; unknown raw slots infer BYTEA rather than HMAC's TEXT
+preference. `internal/sqltype/pgcrypto_aes.go` owns stdlib AES CBC/ECB, PKCS/none,
+fixed effective key/IV buffers, full padding validation and bounded cancellation.
+Neither the comparable signature plan nor the carrier retains frame key/IV/mode.
 All reached children run once in source order. Plans retain no password, salt,
 entropy or frame-specific algorithm across executions. Builtin md5 still returns
 hexadecimal TEXT.
@@ -101,6 +106,9 @@ make check RUN='^(TestRandomIntegerSampler|TestRandomRuntimeNullEvaluatesSibling
 make check RUN='^(TestDatetimeSleepWait|TestDatetimeSleepCleanup|TestQueryAggregateRealAdvanceFailure)$' RACE=1
 make check RUN='^TestPgcrypto(OverloadResolution|RawVectors|StrictDemand|Cancellation)$'
 make check RUN='^TestPgcrypto(Password(Entropy|Volatility)|Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation))$'
+make check RUN='^TestPgcryptoAES(Vectors|KeyIV|Padding|Parser|Cancellation|Carrier)$'
+make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoAESFeatureSmoke$'
 ```
 
 ```sh

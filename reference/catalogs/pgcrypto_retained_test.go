@@ -172,6 +172,10 @@ func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoH
 		fixture.Select("SELECT pgcrypto_part.crypt($1,$2) AS value", []string{"value"}, []string{"TEXT"}, [][]any{{pgcryptoPasswordFoox}}, "foox", pgcryptoPasswordSalt),
 		fixture.Select("SELECT pgcrypto_part.gen_salt($1) LIKE '$2a$06$%' AS valid", []string{"valid"}, []string{"BOOL"}, [][]any{{true}}, "bf"),
 		fixture.Select("SELECT pgcrypto_part.gen_salt($1,$2) LIKE '$2a$04$%' AS valid", []string{"valid"}, []string{"BOOL"}, [][]any{{true}}, "bf", 4),
+		fixture.Select("SELECT pgcrypto_part.encrypt($1::bytea,$2::bytea,$3)", []string{"encrypt"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, "f397f03d2819b7172b68d0706fda4693")}}, []byte("foo"), []byte("0123456789"), "aes"),
+		fixture.Select("SELECT pgcrypto_part.decrypt($1::bytea,$2::bytea,$3)", []string{"decrypt"}, []string{"BYTEA"}, [][]any{{"foo"}}, aesBytes(t, "f397f03d2819b7172b68d0706fda4693"), []byte("0123456789"), "aes"),
+		fixture.Select("SELECT pgcrypto_part.encrypt_iv($1::bytea,$2::bytea,$3::bytea,$4)", []string{"encrypt_iv"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, "2c24cb7da91d6d5699801268b0f5adad")}}, []byte("foo"), []byte("0123456"), []byte("abcd"), "aes"),
+		fixture.Select("SELECT pgcrypto_part.decrypt_iv($1::bytea,$2::bytea,$3::bytea,$4)", []string{"decrypt_iv"}, []string{"BYTEA"}, [][]any{{"foo"}}, aesBytes(t, "2c24cb7da91d6d5699801268b0f5adad"), []byte("0123456"), []byte("abcd"), "aes"),
 	}
 	var held []pgcryptoHeldCall
 	for _, step := range calls {

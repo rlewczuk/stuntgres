@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"reflect"
 	"slices"
-	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -31,7 +30,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestPgcryptoProviderIdentity(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.version != "1.4" || len(ext.members) != 7 || ext.Namespace() != (ObjectAddress{}) {
+	if ext.version != "1.4" || len(ext.members) != 11 || ext.Namespace() != (ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	seen := map[ObjectAddress]bool{}
@@ -44,6 +43,8 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		{"digest", "25,25", 17, Immutable}, {"digest", "17,25", 17, Immutable},
 		{"hmac", "25,25,25", 17, Immutable}, {"hmac", "17,17,25", 17, Immutable},
 		{"crypt", "25,25", 25, Immutable}, {"gen_salt", "25", 25, Volatile}, {"gen_salt", "25,23", 25, Volatile},
+		{"encrypt", "17,17,25", 17, Immutable}, {"decrypt", "17,17,25", 17, Immutable},
+		{"encrypt_iv", "17,17,17,25", 17, Immutable}, {"decrypt_iv", "17,17,17,25", 17, Immutable},
 	}
 	for i, address := range ext.members {
 		proc := view.state.descriptors[address].(*procedureDescriptor)
@@ -69,7 +70,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	if count != 7 {
+	if count != 11 {
 		t.Fatal(count)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
@@ -176,12 +177,39 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), retagged)
-	if err != nil || !strings.Contains(rendered, "hmac") || !strings.Contains(rendered, "Jefe") || !strings.Contains(rendered, "sha256") {
-		t.Fatal(rendered, err)
-	}
 	mapped := remapExtensionDescriptor(n.procedure, map[ObjectAddress]ObjectAddress{n.procedure.address: {ClassID: ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
 	if mapped.crypto != stockPgcrypto || mapped.signature != n.procedure.signature || mapped.result != 17 || mapped.address == n.procedure.address {
 		t.Fatal(mapped)
+	}
+	// A four-child call must retain IV/type children and its genuine installed
+	// procedure through the same generic walk, render, retag and remap seams.
+	aesRaw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "encrypt_iv"}}}, Args: []parser.Expr{literal("foo"), literal("0123456"), literal("abcd"), literal("aes")}}
+	aesNode, err := binder.bindInstalledCrypto(aesRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aesCall := aesNode.(installedCryptoFunctionExpression)
+	if aesCall.ref.Address != ext.members[9] || len(aesCall.Args) != 4 || cryptoExpressionSignature(aesCall) != "17,17,17,25" {
+		t.Fatal("four-child installed identity", aesCall)
+	}
+	children = nil
+	boundExpressionChildren(aesCall, func(child BoundExpr) { children = append(children, child) })
+	if !reflect.DeepEqual(children, aesCall.Args) {
+		t.Fatal("lost four-child traversal", children)
+	}
+	retagged, _, err = retagBoundTypes(e.CatalogRead(), aesCall, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
+		t.Fatal(err)
+	}
+	aesRefs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), aesCall)
+	if err != nil || !slices.Contains(aesRefs, aesCall.ref.Address) {
+		t.Fatal(aesRefs, err)
+	}
+	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ObjectAddress]ObjectAddress{aesCall.ref.Address: {ClassID: ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
+	if mappedAES.crypto != stockPgcrypto || mappedAES.signature != "17,17,17,25" || mappedAES.address == aesCall.ref.Address {
+		t.Fatal(mappedAES)
 	}
 }

@@ -689,11 +689,13 @@ arguments survive stored rendering, generated/default/CHECK/view consumers and
 native Dump/Reset/Restore; no always-on builtin aliases are installed.
 
 
-## Installed pgcrypto hashing and bcrypt passwords
+## Installed pgcrypto hashing, bcrypt passwords and raw AES
 
-Registered pgcrypto1.4 installs seven scalar overloads: digest(TEXT,TEXT),
+Registered pgcrypto1.4 installs eleven scalar overloads: digest(TEXT,TEXT),
 digest(BYTEA,TEXT), hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT),
-crypt(TEXT,TEXT), gen_salt(TEXT) and gen_salt(TEXT,INT4). Digest/HMAC results
+crypt(TEXT,TEXT), gen_salt(TEXT), gen_salt(TEXT,INT4),
+encrypt/decrypt(BYTEA,BYTEA,TEXT) and
+encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT). Digest/HMAC results
 are raw BYTEA for md5, sha1, sha224, sha256, sha384 and sha512; TEXT input is
 exact UTF8 octets and BYTEA input is arbitrary binary. Unknown data/key operands
 prefer TEXT; known mixed TEXT/BYTEA HMAC has no overload. Salt count uses ordinary
@@ -726,11 +728,29 @@ documented non-bf generators are native0A000 boundaries.
 crypt is immutable; gen_salt is intrinsically volatile, including after stored
 expression reconstruction. Defaults/views may generate fresh salts; generated
 columns/expression indexes may not. Native controls preserve stored salt/hash
-data, exact seven-member identities and executable recipes. Full OpenSSL
+data, exact eleven-member identities and executable recipes. Full OpenSSL
 inventory, other pgcrypto functions, configuration/FIPS and arbitrary
 shared-library loading remain excluded.
 Pgcrypto members must carry only their genuine provider identity; simultaneous
 crypto/fuzzy markers are rejected by both manifest and descriptor admission.
+
+Raw encryption implements AES CBC/ECB only, with default CBC/PKCS and explicit
+`pad:none`; observed rijndael spellings denote these same AES modes. Raw slots
+infer BYTEA, not TEXT, and keys/IVs contain uninterpreted octets. Keys choose
+16/24/32 bytes, zero-padding short keys and clipping beyond32; IVs choose the
+first16 bytes with zero suffixes when short. ECB ignores a nonnull IV.
+Strict NULL still evaluates demanded siblings. A complete PKCS block is added
+to aligned/empty plaintext; nopad never strips data and requires block alignment.
+Invalid lengths/padding raise39000 with the actual function's English primary.
+Cipher type strings use ASCII folding and UTF8-safe63-byte clipping without trim
+or notices. Malformed/unknown options and unknown ciphers retain22023; recognized
+CFB, Blowfish, DES/3DES and CAST5 cipher inventory is native0A000, not a false
+PostgreSQL unknown-algorithm claim. These exclusions do not expand native modes.
+The stdlib AES block loop uses fixed key/IV/block scratch, one owned result and
+bounded cancellation polling. Each frame reconstructs its own key and mode.
+Raw AES provides no authentication: wrong keys/IVs are not guaranteed to fail.
+See [PostgreSQL raw encryption](https://www.postgresql.org/docs/18/pgcrypto.html#PGCRYPTO-RAW-ENC-FUNCS).
+
 
 ## query_int extension type
 

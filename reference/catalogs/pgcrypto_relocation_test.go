@@ -24,11 +24,15 @@ func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
 	pgcryptoPasswordGenerated(t, p, c, r, "SELECT pgcrypto_part.gen_salt('bf')", "pgcrypto_part.crypt", 6)
 	pgcryptoPasswordGenerated(t, p, c, r, "SELECT pgcrypto_part.gen_salt('bf',4)", "pgcrypto_part.crypt", 4)
+	pgcryptoResult(t, p, c, r, "encrypt", "SELECT pgcrypto_part.encrypt('foo','0123456789','aes')", "f397f03d2819b7172b68d0706fda4693")
+	pgcryptoResult(t, p, c, r, "decrypt", "SELECT pgcrypto_part.decrypt('\\xf397f03d2819b7172b68d0706fda4693'::bytea,'0123456789','aes')", "666f6f")
+	pgcryptoResult(t, p, c, r, "encrypt_iv", "SELECT pgcrypto_part.encrypt_iv('foo','0123456','abcd','aes')", "2c24cb7da91d6d5699801268b0f5adad")
+	pgcryptoResult(t, p, c, r, "decrypt_iv", "SELECT pgcrypto_part.decrypt_iv('\\x2c24cb7da91d6d5699801268b0f5adad'::bytea,'0123456','abcd','aes')", "666f6f")
 }
 
 func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string]int64 {
 	t.Helper()
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt')")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +52,7 @@ func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 7 {
+	if len(ids) != 11 {
 		t.Fatal("procedure inventory", ids)
 	}
 	return ids
@@ -143,7 +147,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		}
 	}
 	// Every sequence consumes a real catalog OID. Stop at the observed upper
-	// bound, and require actual collisions for all seven procedures below.
+	// bound, and require actual collisions for all eleven procedures below.
 	collisions := make(map[int64]string)
 	sequenceNamespaces := make(map[int64]int64)
 	for i := range 128 {

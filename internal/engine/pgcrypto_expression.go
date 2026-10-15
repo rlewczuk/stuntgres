@@ -90,6 +90,12 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 			signature = "25,23"
 		}
 	}
+	if canonical == "encrypt" || canonical == "decrypt" {
+		signature = "17,17,25"
+	}
+	if canonical == "encrypt_iv" || canonical == "decrypt_iv" {
+		signature = "17,17,17,25"
+	}
 	proc := procedureInNamespaces(auth.catalog, path, name, signature)
 	if proc == nil || proc.crypto != stockPgcrypto {
 		return failure()
@@ -146,6 +152,9 @@ func cryptoExpressionSignature(n installedCryptoFunctionExpression) procedureSig
 			return "25,23"
 		}
 		return ""
+	}
+	if len(n.Args) == 4 && (n.Plan.Name() == "encrypt_iv" || n.Plan.Name() == "decrypt_iv") {
+		return "17,17,17,25"
 	}
 	if len(n.Args) == 2 {
 		if n.Args[0].ResultUsage().Type.ID() == sqltype.Bytea {

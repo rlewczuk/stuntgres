@@ -21,18 +21,22 @@ func pgcryptoInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, owner, expect
 	if err := c.QueryRowContext(p.Ctx, "SELECT e.oid,extnamespace,extversion,extrelocatable,rolname FROM pg_extension e JOIN pg_roles r ON r.oid=e.extowner WHERE extname='pgcrypto'").Scan(&ext, &ns, &version, &relocatable, &gotOwner); err != nil || ext <= 0 || ns <= 0 || version != "1.4" || !relocatable || gotOwner != owner {
 		t.Fatalf("extension identity %d %d %q %v %q: %v", ext, ns, version, relocatable, gotOwner, err)
 	}
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,proname,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE pronamespace=$1 AND proname IN ('digest','hmac','crypt','gen_salt')", ns)
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,proname,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE pronamespace=$1 AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv')", ns)
 	if err != nil {
 		t.Fatal(err)
 	}
 	expected := map[string]bool{
-		"digest:pgcrypto_part.digest(text,text)":        false,
-		"digest:pgcrypto_part.digest(bytea,text)":       false,
-		"hmac:pgcrypto_part.hmac(text,text,text)":       false,
-		"hmac:pgcrypto_part.hmac(bytea,bytea,text)":     false,
-		"crypt:pgcrypto_part.crypt(text,text)":          false,
-		"gen_salt:pgcrypto_part.gen_salt(text)":         false,
-		"gen_salt:pgcrypto_part.gen_salt(text,integer)": false,
+		"digest:pgcrypto_part.digest(text,text)":                      false,
+		"digest:pgcrypto_part.digest(bytea,text)":                     false,
+		"hmac:pgcrypto_part.hmac(text,text,text)":                     false,
+		"hmac:pgcrypto_part.hmac(bytea,bytea,text)":                   false,
+		"crypt:pgcrypto_part.crypt(text,text)":                        false,
+		"gen_salt:pgcrypto_part.gen_salt(text)":                       false,
+		"gen_salt:pgcrypto_part.gen_salt(text,integer)":               false,
+		"encrypt:pgcrypto_part.encrypt(bytea,bytea,text)":             false,
+		"decrypt:pgcrypto_part.decrypt(bytea,bytea,text)":             false,
+		"encrypt_iv:pgcrypto_part.encrypt_iv(bytea,bytea,bytea,text)": false,
+		"decrypt_iv:pgcrypto_part.decrypt_iv(bytea,bytea,bytea,text)": false,
 	}
 	ids := map[int64]bool{}
 	for rows.Next() {

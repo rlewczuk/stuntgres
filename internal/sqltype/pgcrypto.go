@@ -20,7 +20,7 @@ type PgcryptoPlan struct {
 	result    Usage
 	input     ID
 	count     int
-	arguments [3]ID
+	arguments [4]ID
 }
 
 func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error) {
@@ -29,6 +29,10 @@ func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error
 	case "digest":
 	case "hmac":
 		count = 3
+	case "encrypt", "decrypt":
+		count = 3
+	case "encrypt_iv", "decrypt_iv":
+		count = 4
 	case "crypt":
 		resultID = Text
 	case "gen_salt":
@@ -43,7 +47,8 @@ func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto signature")
 	}
 	input := args[0].Type.ID()
-	if input != Text && (input != Bytea || name != "digest" && name != "hmac") {
+	rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
+	if rawAES && input != Bytea || !rawAES && input != Text && (input != Bytea || name != "digest" && name != "hmac") {
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
 	}
 	plan := PgcryptoPlan{name: name, result: result, input: input, count: count}
@@ -144,6 +149,28 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 		return Value{}, err
 	}
 	name := cryptoAlgorithm(algorithm)
+	if p.name == "encrypt" || p.name == "decrypt" || p.name == "encrypt_iv" || p.name == "decrypt_iv" {
+		data, err := values[0].Binary()
+		if err != nil {
+			return Value{}, err
+		}
+		key, err := values[1].Binary()
+		if err != nil {
+			return Value{}, err
+		}
+		var iv string
+		if count == 4 {
+			iv, err = values[2].Binary()
+			if err != nil {
+				return Value{}, err
+			}
+		}
+		output, err := pgcryptoAES(ctx, p.name, data, key, iv, name)
+		if err != nil {
+			return Value{}, err
+		}
+		return Binary(p.result.Type, output)
+	}
 	newHash, blockSize := cryptoHash(name)
 	if newHash == nil {
 		return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf("Cannot use \"%s\": No such hash algorithm", name)}

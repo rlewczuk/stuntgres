@@ -6,12 +6,15 @@ import (
 )
 
 // PgcryptoInput chooses between documented signatures using SQL usages.
-// Unknown data/key prefer TEXT; known BYTEA requires compatible other operands.
+// Unknown digest/HMAC data/key prefer TEXT; raw encryption always uses BYTEA.
 
 func PgcryptoInput[E any](name string, args []Argument[E], text, bytea, integer sqltype.Usage) (sqltype.Usage, Resolution) {
 	count := 2
-	if name == "hmac" {
+	rawAES := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
+	if name == "hmac" || name == "encrypt" || name == "decrypt" {
 		count = 3
+	} else if name == "encrypt_iv" || name == "decrypt_iv" {
+		count = 4
 	} else if name == "gen_salt" {
 		if len(args) != 1 && len(args) != 2 {
 			return sqltype.Usage{}, Missing
@@ -24,6 +27,9 @@ func PgcryptoInput[E any](name string, args []Argument[E], text, bytea, integer 
 		return sqltype.Usage{}, Missing
 	}
 	input := text
+	if rawAES {
+		input = bytea
+	}
 	for _, arg := range args[:count-1] {
 		if (name == "digest" || name == "hmac") && arg.Usage.Type != nil && arg.Usage.Type.BaseType().ID() == sqltype.Bytea {
 			input = bytea
@@ -77,7 +83,7 @@ func (e Pgcrypto[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	var values [3]sqltype.Value
+	var values [4]sqltype.Value
 	// Strictness belongs after demanded children, not before their errors/effects.
 	for i, arg := range e.Args {
 		value, err := arg.Eval(c)
@@ -117,8 +123,8 @@ func (e Pgcrypto[E, C, P]) Eval(c C) (sqltype.Value, error) {
 }
 
 func NewPgcrypto[E Expression[C], C Context, P any](info Info[P], name string, args []E) (Pgcrypto[E, C, P], error) {
-	var usages [3]sqltype.Usage
-	if len(args) < 1 || len(args) > 3 {
+	var usages [4]sqltype.Usage
+	if len(args) < 1 || len(args) > 4 {
 		return Pgcrypto[E, C, P]{}, fmt.Errorf("invalid crypto call")
 	}
 	for i, arg := range args {

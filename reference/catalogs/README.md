@@ -1081,16 +1081,18 @@ make check RUN='^TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataVa
 make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceAvailableExtensions(Transactions|Controls|JoinConsistency))$'
 ```
 
-### Pgcrypto digest/HMAC and password selected proof
+### Pgcrypto hashing, passwords and raw AES selected proof
 
 The native registry contains unaccent1.1, selected-type intarray1.5,
-selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs seven
+selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs eleven
 genuine strict/parallel-safe overloads: four immutable BYTEA digest/HMAC members,
-immutable crypt(TEXT,TEXT) returning TEXT, and volatile gen_salt(TEXT[,INT4])
-returning TEXT. Exact name/signature/result/volatility pairs are asserted using
+immutable crypt(TEXT,TEXT), volatile gen_salt(TEXT[,INT4]) returning TEXT,
+and immutable encrypt/decrypt(BYTEA,BYTEA,TEXT) plus
+encrypt_iv/decrypt_iv(BYTEA,BYTEA,BYTEA,TEXT) returning BYTEA.
+Exact name/signature/result/volatility pairs are asserted using
 public OID→REGPROCEDURE text identity, not OIDVECTOR/proargtypes. Namespace,
 positive distinct IDs, owner and membership edges remain independently asserted;
-PostgreSQL's full stock member inventory is not equated to native's selected seven.
+PostgreSQL's full stock member inventory is not equated to native's selected eleven.
 
 Fixed RFC/independently calculated digest/HMAC vectors cover empty, binary,
 UTF8, exact-block and oversized keys through direct/new/held prepared frames.
@@ -1108,7 +1110,7 @@ has no schema GRANT/REVOKE: the ordinary private schema initially denies the
 reader, then explicit ALTER SCHEMA OWNER enables both unqualified path lookup
 and qualified calls without changing the installed procedures' owners.
 
-Restore's strict owner manifest admits pgcrypto1.4 only with the complete seven
+Restore's strict owner manifest admits pgcrypto1.4 only with the complete eleven
 procedure name/signature pairs; dictionary/type members, duplicates, missing or
 extra members and foreign signatures are rejected. The existing unaccent1.1
 and intarray1.5 manifests retain their separate validation. Actual dumped
@@ -1126,10 +1128,10 @@ evidence of actual Restore collision handling.
 `TestReferencePgcryptoConsumersAndControls` includes a native-only real-pipeline
 relocation phase. An ordinary independent-Driver replay establishes candidate
 procedure identities. A second identically initialized destination allocates
-live TEMP sequences until all seven procedure OIDs have actual cross-class
+live TEMP sequences until all eleven procedure OIDs have actual cross-class
 collisions. Public Restore must relocate every imported procedure while retaining
-the TEMP OIDs, rows and generator capture. Fixed digest/HMAC and crypt results,
-plus salt format/cost assertions, cover all seven overloads after ordinary and collision replay. Defaults, CHECKs, generated
+the TEMP OIDs, rows and generator capture. Fixed digest/HMAC, crypt and AES results,
+plus salt format/cost assertions, cover all eleven overloads after ordinary and collision replay. Defaults, CHECKs, generated
 columns, expression indexes, stored views and a nested scalar-subquery view
 remain executable. Procedure dependencies compare complete seven-field addresses
 resolved independently from the named default/generated attrdefs, CHECKs, index
@@ -1159,7 +1161,7 @@ Saved column metadata is rechecked after consumption without querying metadata
 on the exhausted cursor. The deliberately blocking final TEMP view adds its
 namespace/relation/rewrite identities, internal ownership edge and persistent
 projected-column dependency edges to the final refusal snapshot.
-Seven held crypto statements are prepared after relocation. Every wrong-version,
+Eleven held crypto statements are prepared after relocation. Every wrong-version,
 unknown-provider, malformed-manifest, late-SQL, cancellation, private-TEMP-placement
 and retained-dependent-TEMP-view refusal uses the same postcondition: unchanged
 persistent dump, procedure/consumer/owner identities, exact dependency tuples,
@@ -1189,7 +1191,7 @@ cost4 and cheap31, strong entropy independent of SQL reseeding, repeated held
 frames/rows/sessions, strict TEXT NULLs and exact coercion/failure stages.
 Non-bf crypt/generator exclusions assert explicit native0A000 independently
 of PostgreSQL DES fallback hashes and real non-bf generator success.
-`PasswordRelocation` additionally forces all seven actual OID collisions while
+`PasswordRelocation` additionally forces all eleven actual OID collisions while
 preserving stored random salts/hashes, crypt generated-column/view recipes and
 gen_salt defaults, exact dependency addresses, held members, future writes and
 failed replay atomicity. `PasswordConsumersAndControls` retains old TEXT Rows,
@@ -1221,6 +1223,49 @@ canonical29-character usable bf salt, default cost06, full invalid-salt22023
 diagnostic, immutable crypt versus volatile gen_salt metadata, and native stored
 salt/hash preservation plus executable defaults/views after Reset/Restore.
 These descriptions are assertions awaiting root verification, not proof results.
+
+Raw AES witnesses use all six published NIST SP800-38A CBC/ECB key-size vectors,
+all four blocks in both directions, and fixed PostgreSQL regression bytes.
+Pinned18.0 oracle-first observations supply explicit key/IV boundary ciphertexts,
+binary PKCS length frames, nopad ending preservation, empty results, aliases,
+type-option precedence and complete logical diagnostics. Discovery filters and
+unknown-value logging are removed before native regression and final proof.
+Direct/new/held calls preserve BYTEA metadata and strict source-order demand.
+The AES consumer scenario independently resolves actual procedure dependencies
+for defaults/generated/CHECK/index/view/nested recipes, exercises all eleven
+held/direct calls through Reset/Restore and forces actual cross-class collisions.
+Named owners, unread bytes/metadata, detached output ownership, live fresh writes
+and refused replay atomicity are public API witnesses, not serialized-cipher-state
+tests. Native CFB/legacy cipher exclusions assert0A000 separately from pinned
+OpenSSL successes or exact initialization failures; these are intentional
+capability differences, not backend-parity substitutions.
+
+Each new or changed definition and helper caller needs both selected modes:
+
+```sh
+make check RUN='^TestReferencePgcryptoAES(NISTVectors|PostgresFixtures|KeyAndIV|OverloadsAndFrames)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(NISTVectors|PostgresFixtures|KeyAndIV|OverloadsAndFrames)$'
+make check RUN='^TestReferencePgcryptoAES(PaddingAndDiagnostics|TypeGrammar|NullAndDemand|Unsupported)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(PaddingAndDiagnostics|TypeGrammar|NullAndDemand|Unsupported)$'
+make check RUN='^TestReferencePgcryptoAES(Identity|ConsumersAndControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(Identity|ConsumersAndControls|FeatureSmoke)$'
+make check RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check RUN='^TestReferencePgcryptoPassword(Identity|ConsumersAndControls|Relocation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoPassword(Identity|ConsumersAndControls|Relocation|FeatureSmoke)$'
+make check RUN='^TestPgcryptoAES(Vectors|KeyIV|Padding|Parser|Cancellation|Carrier)$'
+make check RACE=1 RUN='^(TestPgcryptoAESCancellation|TestReferencePgcryptoAES(OverloadsAndFrames|ConsumersAndControls))$'
+```
+
+Raw AES feature smoke is `make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'`,
+also with `REFERENCE=1`. Expected results are fixed f397…/2c24… ciphertexts and
+ASCII foo plaintext from independently fixed decrypt inputs, all BYTEA.
+The separately supplied public standalone smoke additionally exercises NIST
+CBC/ECB frames, exact diagnostics, stored expressions, retained rows, owned
+outputs and held rebinding through native controls. Its source belongs in the
+session, never as a repository scaffold. These definitions are not passing
+verification evidence until root observes them.
+
 
 
 Selected checks use external900-second deadlines; the root alone runs these
