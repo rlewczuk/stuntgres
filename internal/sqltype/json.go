@@ -67,13 +67,20 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 		}
 		// A completed immediate value ends at the last consumed token, not
 		// at the next comma/brace or its surrounding whitespace.
-		if scan != nil && memberActive && len(stack) == 2 && stack[1] == jsonObjectNext {
+		if scan != nil && scan.extract != nil {
+			scan.extract.finish(&l, len(stack)-1, stack[len(stack)-1])
+		}
+		if scan != nil && scan.extract == nil && memberActive && len(stack) == 2 && stack[1] == jsonObjectNext {
 			member.end = l.end
 			scan.members = append(scan.members, member)
 			memberActive = false
 		}
 		// Validate ignored/nested strings without retaining their decoded text.
 		l.discard = scan != nil && !(len(stack) == 2 && (stack[1] == jsonObjectFirst || stack[1] == jsonObjectKey || scan.mode == jsonScanEachText && stack[1] == jsonObjectValue))
+		if scan != nil && scan.extract != nil {
+			depth, state := len(stack)-1, stack[len(stack)-1]
+			l.discard = !scan.extract.keepDecoded(depth, state)
+		}
 		if err := l.next(); err != nil {
 			return Value{}, err
 		}
@@ -88,13 +95,18 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 			pendingNumber = ""
 		}
 		state := stack[len(stack)-1]
+		if scan != nil && scan.extract != nil {
+			if err := scan.extract.token(&l, len(stack)-1, state); err != nil {
+				return Value{}, err
+			}
+		}
 		if scan != nil && state == jsonValue {
 			scan.root = l.kind
 			if err := scan.checkRoot(); err != nil {
 				return Value{}, err
 			}
 		}
-		if scan != nil && scan.mode != jsonScanKeys && len(stack) == 2 && state == jsonObjectValue {
+		if scan != nil && scan.extract == nil && scan.mode != jsonScanKeys && len(stack) == 2 && state == jsonObjectValue {
 			member.start, member.kind, member.decoded = l.start, l.kind, l.decoded
 			memberActive = true
 		}
@@ -159,7 +171,7 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 				}
 				return Value{}, l.expected("string")
 			}
-			if scan != nil && len(stack) == 2 {
+			if scan != nil && scan.extract == nil && len(stack) == 2 {
 				if scan.mode == jsonScanKeys {
 					scan.keys = append(scan.keys, l.decoded)
 				} else {

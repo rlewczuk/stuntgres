@@ -13,6 +13,23 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## JSON extraction — change note
+
+JSON supports key/index `->` and `->>`, TEXT[] paths `#>` and `#>>`, and
+`json_extract_path` / `json_extract_path_text`. JSON results retain source
+fragments; TEXT results decode strings and turn JSON null into SQL NULL.
+Missing keys, wrong shapes and out-of-range indices produce typed NULL.
+Negative indices count backward. Path functions accept ordinary TEXT components
+or an explicit VARIADIC TEXT[]; empty paths require the array form.
+
+Extraction is immutable and supports stored expressions and symbolic native
+replay. Processing validates Unicode throughout the document, even discarded
+branches, except strict NULL inputs/NULL path elements. PostgreSQL 18.0's
+released duplicate-path retention and sibling-array index state are preserved;
+path extraction is not always equivalent to repeated `->`.
+JSONB extraction, JSONPath execution and JSON equality are not added.
+See [contracts and selected smoke](reference/binary_json_arrays/README.md#json-extraction).
+
 ## Schema and temporary namespace identity — change note
 
 `current_schema` / `current_schema()` return the first searchable explicit

@@ -20,6 +20,17 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	p := BinaryPlan{name: name, result: result, arity: len(args)}
 	ids, arity, id := [4]ID{Bytea, Bytea}, 2, Bytea
 	switch name {
+	case "->", "->>", "#>", "#>>":
+		right := Text
+		if name == "#>" || name == "#>>" {
+			right = 1009
+		} else if len(args) == 2 && args[1].Type != nil && args[1].Type.ID() == Int4 {
+			right = Int4
+		}
+		ids, id = [4]ID{JSON, right}, JSON
+		if name == "->>" || name == "#>>" {
+			id = Text
+		}
 	case "?":
 		ids, id = [4]ID{JSONB, Text}, Bool
 	case "?|", "?&":
@@ -218,6 +229,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	}
 	a := values[0]
 	switch p.name {
+	case "->", "->>", "#>", "#>>":
+		return p.jsonExtraction(ctx, values[0], values[1])
 	case "?", "?|", "?&":
 		return p.jsonbExistence(ctx, values[0], values[1])
 	case "json_typeof", "jsonb_typeof":

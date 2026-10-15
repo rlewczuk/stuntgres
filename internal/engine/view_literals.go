@@ -686,6 +686,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
+		if n, ok := bound.(functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONB replacement syntax")

@@ -343,6 +343,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
+		next = n
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])

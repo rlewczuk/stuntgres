@@ -156,6 +156,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return session(children(n.Arguments()...), n.Plan.SessionDependent())
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		return merge(children(n.Arguments()...), Stable)
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arguments()...)
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Arguments()...)
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

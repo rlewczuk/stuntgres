@@ -24,9 +24,13 @@ type jsonScanResult struct {
 	mode    jsonScanMode
 	keys    []string
 	members []jsonMember
+	extract *jsonExtraction
 }
 
 func (s *jsonScanResult) checkRoot() error {
+	if s.extract != nil {
+		return nil
+	}
 	if s.root == '{' {
 		return nil
 	}

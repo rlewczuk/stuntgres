@@ -734,6 +734,22 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   function-only lateral sources and stored/native replay share existing stages.
   These signatures admit `from_json` named notation; `jsonb_each*`, array
   expansion and record-population functions remain excluded.
+  JSON-only extraction includes `(json,text/int4) -> json/text` via `->`/`->>`,
+  `(json,text[]) -> json/text` via `#>`/`#>>`, and immutable variadic
+  `json_extract_path` / `json_extract_path_text`. Object keys and integer array
+  indices remain distinct; negative indices count backward. Missing/wrong shapes
+  and out-of-range indices return SQL NULL. JSON slices retain source spelling;
+  TEXT decodes strings and maps JSON null to SQL NULL. Path arrays flatten in
+  row-major order regardless of rank/lower bounds; any NULL element returns
+  SQL NULL before document processing. Empty paths use explicit VARIADIC arrays.
+  Named calls use `from_json` followed by final `VARIADIC path_elems`.
+  Processing validates Unicode in discarded branches too. PostgreSQL 18.0's
+  traversal retains an earlier final match across a later duplicate intermediate
+  key with no final match; it also converts negative path indices on unrelated
+  arrays at the same depth. Thus `{"a":{"b":1},"a":{}} #> '{a,b}'` yields 1,
+  and `{"x":[0],"a":[10,20,30]} #> '{a,-1}'` yields 10, unlike chained lookup.
+  Empty paths trim container outer whitespace; raw root scalars retain leading
+  whitespace but drop trailing whitespace. JSONB extraction remains excluded.
   `json_strip_nulls(target json, strip_in_arrays boolean DEFAULT false)` returns
   JSON after recursively removing null-valued object fields. Default false
   retains array nulls; true removes them recursively. Bare JSON null and empty

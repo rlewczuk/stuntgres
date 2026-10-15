@@ -176,6 +176,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Arguments())
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Arguments())
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Arguments())
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

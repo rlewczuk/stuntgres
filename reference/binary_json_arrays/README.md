@@ -6,6 +6,38 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSON extraction
+
+The `TestReferenceJSONExtract` family specifies JSON-only `->`, `->>`, `#>`,
+`#>>`, `json_extract_path` and `json_extract_path_text`. Independent expectations
+cover raw source fragments versus decoded TEXT, JSON null versus SQL NULL,
+negative indices, missing/wrong shapes, flat TEXT[] paths (including bounds,
+rank and NULL elements), inferred and held parameters, exact diagnostics,
+computed metadata, stored expressions and native symbolic replay.
+
+`ReleasePaths` specifies pinned PostgreSQL 18.0 outcomes for intermediate
+duplicates, negative-index state on unrelated sibling arrays and empty-path
+root whitespace. These expectations passed PostgreSQL discovery before
+production implementation; this is not native-support or completed dual-mode
+proof. Unicode cases include discarded branches, NULL-path short-circuit and
+subsequent recovery. All available backends now run without a discovery filter.
+
+```sh
+make check RUN='^TestReferenceJSONExtract(Values|Paths|ReleasePaths|Unicode|Typing|Diagnostics|Metadata|Held|StoredReplay|NativeControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONExtract(Values|Paths|ReleasePaths|Unicode|Typing|Diagnostics|Metadata|Held|StoredReplay|NativeControls|FeatureSmoke)$'
+make check RUN='^TestReferenceJSONExtractFeatureSmoke$'
+make check RUN='^TestReferenceJSONExtractFeatureSmoke$' REFERENCE=1
+```
+
+The feature smoke issues real extraction SQL, checks JSON/TEXT metadata and
+diagnostics, alternates held calls, creates stored consumers and exercises
+native Dump/Reset/Restore with actual emitted-SQL replay on PostgreSQL.
+Stored view dumps retain explicit final `VARIADIC` and named argument labels,
+not merely the coerced TEXT[] argument. Ordinary array arguments are not a
+substitute for a variadic call during native or PostgreSQL replay.
+PostgreSQL has no native control API; those explicit phases run only natively.
+Successful proof requires all independent assertions, not parity alone.
+
 ### Bit-string scalar operators
 
 `TestReferenceBitOperators` covers only `||`, `&`, `|`, `#`, unary `~`,

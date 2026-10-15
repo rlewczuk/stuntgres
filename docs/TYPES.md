@@ -193,6 +193,16 @@ JSONB storage does not imply GIN, containment, extraction or SQL/JSON providers.
 JSONPath retains an immutable typed representation; typed input alone does not
 provide a general path evaluator.
 
+JSON extraction (`->`, `#>` and `json_extract_path`) preserves the selected
+source fragment rather than reserializing a tree. Its TEXT variants decode
+selected strings and map JSON null to SQL NULL; nonstring values retain their
+raw spelling. Missing/wrong shapes return typed NULL. Computed JSON metadata
+uses native string/pq byte carriers and unknown length; TEXT has string carriers
+and the ordinary unbounded TEXT length. Empty results retain those descriptors.
+Processing validates Unicode even outside the selected fragment, while NULL
+documents/paths and NULL path elements suppress processing. Storage acceptance
+of a Unicode escape does not guarantee processing acceptance.
+
 The legacy `json_object(text[])` and `json_object(text[], text[])` functions
 produce JSON text directly. One array contains alternating flat key/value pairs
 or two-column rows; parallel arrays must both be one-dimensional with equal

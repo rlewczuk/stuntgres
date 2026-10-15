@@ -425,6 +425,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i, arg := range e.Args {
+			if !same(arg, o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
@@ -1048,6 +1059,15 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		e, _, err = mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
+			next := rewrite(arg)
+			return next, !b.sameGroupExpression(arg, next), err
+		})
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1426,6 +1446,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Arguments() {
+			walk(arg)
+		}
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			walk(arg)
 		}
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:

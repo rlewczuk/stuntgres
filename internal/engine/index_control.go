@@ -242,6 +242,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		return true
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

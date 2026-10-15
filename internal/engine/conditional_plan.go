@@ -602,6 +602,15 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		expression = e
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		next, did, failure := mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, arg, decisiveDefaults)
+		})
+		if failure != nil {
+			return nil, false, failure
+		}
+		changed = changed || did
+		expression = next
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -1211,6 +1220,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return true
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Arguments() {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}

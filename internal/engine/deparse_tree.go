@@ -266,6 +266,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("JSON stripping")
 		err = args(n.Arguments())
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("JSON extraction " + n.Plan.Name())
+		err = args(n.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("JSONB replacement " + n.Plan.Name())
 		err = args(n.Arguments())

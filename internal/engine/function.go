@@ -64,6 +64,13 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return b.bindJSONStripNulls(raw, visible)
 	}
+	if name == "json_extract_path" || name == "json_extract_path_text" {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		return b.bindJSONExtract(raw, visible)
+	}
 	if parser.JSONFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

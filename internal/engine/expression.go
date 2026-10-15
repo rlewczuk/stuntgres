@@ -1210,6 +1210,15 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		e, anyChanged, err := mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
 		for i, arg := range e.Arguments() {
@@ -2575,6 +2584,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindPosix(r)
 			} else if len(r.Name.Parts) > 0 && arrayMembershipName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindArrayMembership(r)
+			} else if len(r.Name.Parts) > 0 && jsonExtractionName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+				node, err = b.bindJSONExtraction(r)
 			} else if len(r.Name.Parts) > 0 && jsonbExistenceName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 				node, err = b.bindJSONBExistence(r)
 			} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {

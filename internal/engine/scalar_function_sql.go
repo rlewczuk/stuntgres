@@ -102,7 +102,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
-		if n.Plan.Name() != "||" && !jsonbExistenceName(n.Plan.Name()) {
+		if n.Plan.Name() != "||" && !jsonbExistenceName(n.Plan.Name()) && !jsonExtractionName(n.Plan.Name()) {
 			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 		}
 		left, err := r.sql(ctx, view, n.Args[0])
@@ -128,6 +128,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		return jsonStripNullsSQL(n, "pg_catalog.json_strip_nulls", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonExtractSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return jsonbSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
