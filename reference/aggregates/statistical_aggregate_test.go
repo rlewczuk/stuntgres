@@ -117,18 +117,43 @@ func TestReferenceStatisticalAggregateOverloads(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, conn, r, fixture.Exec("INSERT INTO t VALUES (1,1),(1,2),(1,3),(1,NULL)", 4))
 				typ := "NUMERIC"
 				values := []any{"0.66666666666666666667", "1.00000000000000000000", "1.00000000000000000000", "0.81649658092772603273", "1.00000000000000000000", "1.00000000000000000000"}
+				pair := []any{"1.00000000000000000000", "2.0000000000000000", "2.0000000000000000", "1.00000000000000000000", "1.4142135623730950", "1.4142135623730950"}
+				singleton := []any{"0", nil, nil, "0", nil, nil}
 				if kind == "REAL" || kind == "DOUBLE PRECISION" {
 					typ = "FLOAT8"
 					values = []any{float64(2.0 / 3), float64(1), float64(1), math.Sqrt(2.0 / 3), float64(1), float64(1)}
+					pair = []any{float64(1), float64(2), float64(2), float64(1), math.Sqrt(2), math.Sqrt(2)}
+					singleton = []any{float64(0), nil, nil, float64(0), nil, nil}
 				}
 				types := []string{typ, typ, typ, typ, typ, typ}
 				for _, tc := range []struct {
 					suffix string
 					rows   [][]any
-				}{{"", [][]any{values}}, {" WHERE FALSE", [][]any{{nil, nil, nil, nil, nil, nil}}}, {" WHERE v IS NULL", [][]any{{nil, nil, nil, nil, nil, nil}}}, {" WHERE FALSE GROUP BY g", nil}} {
+				}{
+					{"", [][]any{values}},
+					{" WHERE v=1 OR v=3", [][]any{pair}},
+					{" WHERE v=1", [][]any{singleton}},
+					{" WHERE FALSE", [][]any{{nil, nil, nil, nil, nil, nil}}},
+					{" WHERE v IS NULL", [][]any{{nil, nil, nil, nil, nil, nil}}},
+					{" WHERE FALSE GROUP BY g", nil},
+				} {
 					s := fixture.Select("SELECT "+statisticalProjection("v")+" FROM t"+tc.suffix, statisticalNames, types, tc.rows)
 					s.CheckMetadata = statisticalMetadata(pg, types)
 					statisticalBoth(t, p, conn, r, s)
+				}
+				if typ == "FLOAT8" {
+					// Absolute tolerance 1e-14 around independently specified sqrt(2).
+					// Raw aggregate rows above retain the fixture's exact comparison.
+					statisticalBoth(t, p, conn, r, fixture.Select(`SELECT
+ stddev_samp(v) BETWEEN
+   (1.4142135623730951::double precision-1e-14::double precision) AND
+   (1.4142135623730951::double precision+1e-14::double precision) AS sample_within_tolerance,
+ stddev(v) BETWEEN
+   (1.4142135623730951::double precision-1e-14::double precision) AND
+   (1.4142135623730951::double precision+1e-14::double precision) AS alias_within_tolerance
+FROM t WHERE v=1 OR v=3`,
+						[]string{"sample_within_tolerance", "alias_within_tolerance"},
+						[]string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 				}
 			})
 		})

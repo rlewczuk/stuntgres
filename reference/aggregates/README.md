@@ -19,7 +19,7 @@ while aliasing the sample operations.
 | Scenario suffix | Independent contract |
 | --- | --- |
 | `Regression` | Acceptance slope/Sxx/Sxy/Syy = 2/2/4/8, negative relation, symmetric pair-NULL exclusion and full-pair DISTINCT. |
-| `Overloads` | All 36 unary signatures, alias labels, populated/global-NULL/grouped-empty results and metadata before Next. |
+| `Overloads` | All 36 unary signatures, `(1,3)` variance/stddev and aliases, finite singleton/global-NULL/grouped-empty results, explicit floating tolerance and direct/prepared metadata before Next. |
 | `Boundaries` | Empty/singleton/constant axes, numeric scale and huge intermediate cancellation, special cardinality, released FLOAT8 transition and whole-axis overflow. |
 | `Binding` / `Diagnostics` | Unknown and held typed parameters, modifiers/grouping/consumers, full portable diagnostic fields and direct-execute versus prepared-prepare staging. |
 | `Coercion` | Nonexact stored binary32 REAL widened without decimal reconstruction; BIGINT beyond 2^53 and large NUMERIC regression conversion/roundoff; range failure in either argument. |
@@ -35,6 +35,23 @@ released FLOAT8 rounding, not exact NUMERIC regression or newer constant-axis
 corrections. Native window execution and parallel grouping remain excluded.
 Dump/Reset/Restore and canceled replacement witnesses are explicit native-only
 phases in the shared scenarios, not fabricated PostgreSQL controls.
+
+For every unary input type, `Overloads` independently expects the `(1,3)` vector
+`var_pop,var_samp,variance,stddev_pop,stddev_samp,stddev` =
+`1,2,2,1,sqrt(2),sqrt(2)` and finite singleton vector
+`0,NULL,NULL,0,NULL,NULL`. NUMERIC results retain exact decimal strings and scale;
+FLOAT8 acceptance values 0/1/2 remain exact. For REAL and DOUBLE PRECISION,
+additional direct/prepared SQL interval witnesses require both sample stddev
+spellings to lie within absolute tolerance `1e-14` of the independent binary64
+sqrt(2) center `1.4142135623730951` (with FLOAT8 endpoint rounding). Both boolean
+results must be true; raw aggregate rows and existing released-order/coercion
+witnesses still use exact fixture comparisons.
+
+The expanded acceptance smoke is
+`make check RUN='^TestReferenceStatisticalAggregateOverloads$'` and the same
+command with `REFERENCE=1`. Expect all six types to satisfy the pair, singleton,
+empty/all-NULL and metadata assertions through both direct and prepared routes,
+plus two true tolerance cells for each floating type.
 
 Follow the shared oracle-first workflow above. Root runs each selected command
 under an external 900-second deadline; completed definitions require both modes:
