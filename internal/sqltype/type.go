@@ -2056,8 +2056,14 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath || left.id == TimestampRange || right.id == TimestampRange || left.id == TimestamptzRange || right.id == TimestamptzRange || isMultirange(left.id) || isMultirange(right.id) {
+	if left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath {
 		return p, failure("42883", "incompatible comparison operands")
+	}
+	if isRange(left.id) || isRange(right.id) || isMultirange(left.id) || isMultirange(right.id) {
+		if left != right {
+			return p, failure("42883", "incompatible comparison operands")
+		}
+		return p, nil
 	}
 	if IsTransactionIdentifier(left.id) || IsTransactionIdentifier(right.id) {
 		if left == right || left.id == Xid && right.id == Int4 {
@@ -2106,6 +2112,15 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
+	if isRange(p.left.id) {
+		return p.left.compareRangeValues(a.rangeDatum, b.rangeDatum), nil
+	}
+	if isMultirange(p.left.id) {
+		if a.multirange == nil || b.multirange == nil {
+			return 0, fmt.Errorf("missing multirange comparison payload")
+		}
+		return p.left.multirangeRange.compareMultirangeValues(ctx, a.multirange.members, b.multirange.members)
+	}
 	if p.left.IsEnum() {
 		if _, err := p.left.enumOutput(a); err != nil {
 			return 0, err

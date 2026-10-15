@@ -793,8 +793,8 @@ even when runtime membership is empty. Window providers beyond the ones above,
 MONEY/INTERVAL SUM, count(expr), FILTER, DISTINCT, call-local aggregate ORDER,
 explicit IGNORE/RESPECT NULLS syntax and FROM LAST remain excluded.
 Native array/tree aggregate ordering and distinct capability limits are separate
-from their represented structural equality. Range aggregation does not add general
-range comparison, grouping or temporal-range providers.
+from their represented structural equality. Scalar range comparisons/operators
+use separate providers; range grouping and temporal range aggregates remain excluded.
 
 ## Physical scans and row-lock frontiers
 

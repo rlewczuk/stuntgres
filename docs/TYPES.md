@@ -286,9 +286,10 @@ filtered column no-demand behavior.
 Range and multirange datums own canonical endpoints/members and subtype
 descriptors from their generation. Native exports string with no Length or
 DecimalSize, despite numeric subtypes. Nil/typed-nil bytes are NULL; nonnil empty
-bytes are malformed input. Their internal normalization comparators do not
-provide SQL comparison, grouping or indexing. DATERANGE extends the common range
-representation with civil DATE days: finite exclusive lower/inclusive upper
+bytes are malformed input. Scalar comparison uses the type-owned canonical
+endpoints/members; grouping, ordering and index-key providers remain separate.
+DATERANGE extends the common range representation with civil DATE days: finite
+exclusive lower/inclusive upper
 bounds advance one day into canonical [) form; explicit DATE infinities retain
 their bounds and inclusivity, distinct from omitted endpoints. Live input/output
 honors DATE's DateStyle and transaction-relative environment; SQLLiteral/Dump
@@ -316,12 +317,66 @@ string transport/metadata contract as TSRANGE, including plain/nested domains,
 composite fields, NULL and binary COPY. Native controls preserve held readers
 and reject failed replacements atomically across differing session environments.
 Range/multirange arrays, temporal multiranges and user-defined range creation
-remain outside native execution. TSRANGE/TSTZRANGE add no constructors, general
-casts, comparison/order/group/index providers or range aggregates.
-Scalar tsrange/tstzrange comparisons reject during analysis with42883, including
-plain/nested-domain and contextual string/NULL operands. Empty relations and
-NULL data do not bypass capability admission. Internal endpoint normalization
-does not supply a SQL comparison provider.
+remain outside native execution. General constructors/casts, ordering/grouping/
+hash/index providers and new temporal range aggregates are not added by scalar
+operator support.
+
+### Range and multirange operators
+
+See [PostgreSQL18 range operators](https://www.postgresql.org/docs/18/functions-range.html)
+for the upstream signature tables; the executable native-family boundary is below.
+
+The executable families are int4range, int8range, numrange, daterange, tsrange and
+tstzrange, plus int4multirange, int8multirange and nummultirange. Containment,
+overlap, position and adjacency accept matching range/multirange cross operands;
+containment also accepts the corresponding element subtype in its documented
+direction. Set operations and scalar comparisons require the same physical
+family. No common-range promotion or implicit range-to-multirange cast is used.
+Plain/nested domains unwrap through existing coercion; set results retain the
+base range or multirange descriptor, not the domain wrapper.
+
+Range comparison sorts empty before nonempty, then lower before upper endpoint,
+including bound inclusivity. Multiranges compare their normalized members
+lexicographically; a shorter equal prefix sorts first. Equality is semantic:
+different NUMERIC endpoint scales compare equal, and timestamptz bounds compare
+UTC instants. Omitted endpoints remain distinct from explicit infinity/NaN.
+Scalar comparison does not grant SQL ORDER BY, grouping, hashing or index keys.
+
+Every range/multirange contains an empty range/multirange, including empty
+contains empty. Empty contains no element or nonempty set. Empty never overlaps;
+`<<`, `>>`, `&<`, `&>` and `-|-` are false if either set is empty. Multirange
+position and adjacency inspect outer endpoints, not arbitrary internal member
+pairs: filling an internal gap is not adjacency to the whole multirange.
+Timestamp families are continuous; a microsecond gap does not become adjacency.
+
+Union uses empty as identity; intersection with empty is empty; subtracting empty
+is identity and subtracting from empty is empty. A disconnected range union fails
+with22000 `result of range union would not be contiguous`; a range difference
+leaving two pieces fails with22000 `result of range difference would not be
+contiguous`. These set errors have no operator Position. Multiranges preserve
+disconnected pieces successfully. NUMERIC range union selects the second input
+bound on comparator equality, while intersection selects the first, preserving
+the selected endpoint spelling.
+
+All operators are strict: SQL NULL is not an empty set or false. BOOL and
+range/multirange result metadata survives zero rows and all-NULL inputs. Range
+outputs retain native string transport/ScanType versus pq bytes/interface{};
+pinned pq reports blank multirange DatabaseTypeName because its OID name inventory
+predates those types. Known peers contextualize unknown literals/parameters;
+literal content is not inspected to guess an element versus range overload.
+Typed TEXT does not gain an implicit range conversion.
+
+CHECK/generated/view recipes and native Dump/Restore retain infix spelling,
+namespace and remapped descriptor authority. Existing populated readers keep
+their rows/metadata across replacement. A held no-parameter BOOL-result predicate
+can reanalyze across same-shape domain remint; replacing its operands with TEXT
+fails ordinary operator resolution before fixed-result signature validation.
+Catalog-domain parameter/result replacement fences remain unchanged.
+
+Datemultirange, tsmultirange and tstzmultirange are still lookup-only. PostgreSQL
+has valid operators for those families, but native lacks the prerequisite value
+codecs/companions. Declaration/construction boundaries remain explicit; this is
+not full temporal-multirange operator execution.
 
 The selected range inspectors observe canonical values, not originally written
 brackets. `lower`/`upper` return INT4, INT8, NUMERIC, DATE, TIMESTAMP or TIMESTAMPTZ

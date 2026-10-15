@@ -705,16 +705,29 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   principals to preexisting target roles; ordinary dropped-identity output and
   equality remain available. See [ACL transport](TYPES.md#acl-items).
 - Range/multirange storage does not imply general constructors, casts,
-  comparison/order/index providers, range arrays or user-defined range creation.
+  ordering/grouping/hash/index providers, arrays or user-defined range creation.
   Selected scalar inspection (`lower`, `upper`, `isempty`, the four
   inclusivity/infinity predicates) executes for int4range, int8range, numrange,
   daterange, tsrange, tstzrange and the three integer/numeric multiranges.
   Binary `range_merge` requires one concrete range family; unary merge accepts
   an executable multirange and returns its companion range, filling gaps.
+  Containment, overlap, all five positional/adjacency operators, scalar
+  comparisons and union/intersection/difference execute for all six ranges and
+  the three concrete integer/numeric multiranges. Predicates admit matching
+  range/multirange cross operands and subtype-element containment. Set operations
+  and comparisons require one physical family; mixed range/multirange set or
+  comparison operands and cross-family promotion remain unavailable. Domains
+  unwrap to their physical family; set results use the base descriptor.
+  Empty sets are contained by every range/multirange; overlap and all five
+  positional/adjacency predicates return false if either set is empty. Typed SQL
+  NULL returns typed NULL. Disconnected range union/difference raises22000;
+  multirange operations preserve disconnected results. Scalar comparisons order
+  empty first and compare endpoints/members, not textual output; they do not
+  supply ORDER BY or default-opclass/key admission.
   Typed columns/destination-contextual INSERT inputs and a known binary range
-  argument supply family authority. Explicit range/multirange casts remain
-  unavailable, as do general constructors and operators. The selected exception
-  is unary `multirange(anyrange)` for int4range/int8range/numrange, returning the
+  argument supply family authority. Explicit range/multirange casts and general
+  constructors remain unavailable. The selected constructor exception is unary
+  `multirange(anyrange)` for int4range/int8range/numrange, returning the
   corresponding multirange; `unnest(anymultirange)` expands those three companions
   in ascending canonical order. Typed NULL construction is NULL; empty input is
   `{}`. NULL/empty expansion emits no rows, retaining range result metadata.
@@ -738,10 +751,11 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   TimeZone/DateStyle, analyzed literals freeze and binds decode afresh. Dump
   emits ISO UTC offsets. Explicit infinity retains bounds distinct from omission.
   Temporal multiranges (including datemultirange) and multirange arrays remain
-  lookup-only. Daterange/tsrange/tstzrange add no range_agg/range_intersect_agg
-  providers. Tsrange/tstzrange scalar comparisons reject at analysis with42883,
-  including domains,
-  contextual unknown operands, NULL data and empty relations.
+  lookup-only. Their upstream operators cannot execute without the absent
+  temporal codecs/companions; native declaration/construction boundaries remain
+  explicit, not PostgreSQL missing-operator claims. Daterange/tsrange/tstzrange
+  add no range_agg/range_intersect_agg providers. Scalar comparisons work for all
+  six ranges, including domains, contextual unknowns, NULL data and empty relations.
 - Bit storage admits `bit_and`, `bit_or`, and `bit_xor` aggregates and selected
   scalar `bit_count`, `bit_length`, `length`, `octet_length`, `overlay`,
   `position`, and `substring`, including implicit VARBIT inputs. Scalar `||`

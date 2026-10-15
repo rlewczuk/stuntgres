@@ -1,14 +1,12 @@
 package reference_test
 
 import (
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
 
-// PostgreSQL has real range operators; native intentionally admits storage only.
-// Independent unequal witnesses catch the old same-descriptor/constant-zero path.
-func TestReferenceTimestamptzRangeComparisonBoundary(t *testing.T) {
+// Unequal operands independently reject a constant-zero comparison provider.
+func TestReferenceTimestamptzRangeComparisons(t *testing.T) {
 	for _, shape := range []string{"builtin", "domain", "nested_domain"} {
 		t.Run(shape, func(t *testing.T) {
 			p := fixture.NewScenario(t)
@@ -63,45 +61,17 @@ func TestReferenceTimestamptzRangeComparisonBoundary(t *testing.T) {
 						t.Run(tc.op+"/"+route.name, func(t *testing.T) {
 							q := "SELECT " + route.left + " " + tc.op + " " + route.right + " AS v FROM " + route.relation
 							for _, prepared := range []bool{false, true} {
-								var s fixture.Step
-								if b.PG {
-									// Independently expected: empty precedes nonempty; these finite ranges
-									// differ first by lower endpoint, and NULL propagates.
-									s = fixture.Select(q, []string{"v"}, []string{"BOOL"}, route.rows, route.args...)
-								} else {
-									d := fixture.ControlsReferenceDiagnostic("42883", "operator does not exist: "+route.leftType+" "+tc.op+" "+route.rightType)
-									d.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
-									at := strings.Index(q, " "+tc.op+" ") + 1
-									d.Position = timestampRangeComparisonPosition(q, at)
-									s = fixture.ErrorDiagnostic(q, d, route.args...)
-									s.SelectRows, s.ErrorStage = true, "execute"
-									if prepared {
-										s.ErrorStage = "prepare"
-									}
-								}
+								s := fixture.Select(q, []string{"v"}, []string{"BOOL"}, route.rows, route.args...)
 								s.Prepared = prepared
 								fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 							}
 						})
 					}
 				}
-				// The predicate route must also reject analysis instead of matching
-				// unrelated timestamp datums. PostgreSQL matches only the equal finite row.
+				// Only the equal finite row satisfies the predicate.
 				q := "SELECT k FROM r WHERE a = b ORDER BY k"
 				for _, prepared := range []bool{false, true} {
-					var s fixture.Step
-					if b.PG {
-						s = fixture.Select(q, []string{"k"}, []string{"INT4"}, [][]any{{int64(3)}})
-					} else {
-						d := fixture.ControlsReferenceDiagnostic("42883", "operator does not exist: "+operand+" = "+operand)
-						d.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
-						d.Position = timestampRangeComparisonPosition(q, strings.Index(q, " = ")+1)
-						s = fixture.ErrorDiagnostic(q, d)
-						s.SelectRows, s.ErrorStage = true, "execute"
-						if prepared {
-							s.ErrorStage = "prepare"
-						}
-					}
+					s := fixture.Select(q, []string{"k"}, []string{"INT4"}, [][]any{{int64(3)}})
 					s.Prepared = prepared
 					run(s)
 				}

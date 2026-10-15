@@ -62,6 +62,85 @@ timestamp boundary vectors, version/variant outcomes, denied reader access and
 stored recipe round trips. Native-only phases exercise Dump/Reset/Restore and
 actual emitted-SQL replay on PostgreSQL; they are not PostgreSQL control APIs.
 
+### Range and multirange operator selected proof
+
+Untagged shared scenarios cover all six concrete range families and the three
+integer/numeric multiranges. They independently assert containment/overlap,
+position/adjacency, comparisons, set outputs, matching cross operands,
+empty/NULL behavior, exact metadata and complete diagnostics before parity.
+The signature ledger is [PostgreSQL18 Tables9.58–9.59](https://www.postgresql.org/docs/18/functions-range.html)
+plus scalar comparisons; cross range/multirange predicates are supported, but
+set/comparison operands
+must share one physical family. Temporal multiranges remain lookup-only: the
+boundary scenario asserts real upstream success versus native's absent codecs,
+not full temporal-multirange execution or a PostgreSQL missing-operator claim.
+
+Actual definition inventory and bounded selectors (run each in native mode and
+again with `REFERENCE=1`, using an external900-second deadline):
+
+```sh
+make check RUN='^TestReference(RangeOperatorPredicates|MultirangeOperatorPredicates)$'
+make check RUN='^TestReference(RangeOperatorComparisons|TimestampRangeComparisons|TimestamptzRangeComparisons|MultirangeComparisons)$'
+make check RUN='^TestReference(RangeOperatorSets|MultirangeOperatorSets)$'
+make check RUN='^TestReferenceRangeOperator(Diagnostics|Resolution)$'
+make check RUN='^TestReferenceRangeOperator(Composition|Binds)$'
+make check RUN='^TestReferenceRangeOperator(Controls|Boundaries)$'
+make check RUN='^TestReferenceRangeOperatorFeatureSmoke$'
+make check RUN='^TestReferenceRangeOperator(DeparseGrouping|IndexDeparse)$'
+make check RUN='^TestRangeOperator'
+make check RUN='^TestMultirangeOperator'
+make check RUN='^TestReferenceRangeOperator(Binds|Controls)$' RACE=1
+```
+
+The first eight selectors cover all17 new/changed/migrated public definitions:
+the original seven groups plus one group for the two catalog-deparse definitions.
+No oracle-discovery filters remain. The three positive comparison definitions
+replace the obsolete timestamp/timestamptz/multirange comparison boundaries.
+Internal units supplement public proof with endpoint ties, semantic equality,
+exact authority, allocation assertions, immutable inputs/results, bounded scan
+cancellation, carrier evaluation/retagging and parser precedence/positions.
+Final changed definitions require both native and real pinned PostgreSQL18.0
+proof; initial oracle discovery and readiness do not replace that evidence.
+Reserve `make quickcheck` for whole-project Docker-free verification.
+
+`TestReferenceRangeOperatorDeparseGrouping` asserts exact compact/pretty
+`pg_get_expr` output for `(a + b) * c`, `a - (b - c)`, nested predicates and
+comparisons, matching multirange expressions and qualified `OPERATOR(pg_catalog...)`
+input. It executes the actual emitted SQL against independently specified
+range/multirange/BOOL results, so lost grouping cannot pass as presentation-only
+differences. Visible built-in qualified operators normalize to their ordinary
+spelling under the pinned PostgreSQL contract.
+
+`TestReferenceRangeOperatorIndexDeparse` uses the existing BOOL expression-index
+provider for `a @> b`. Exact full/key definitions distinguish an infix expression
+from a function expression and retain the required wrappers in both compact and
+pretty output. Actual emitted keys are evaluated and full index DDL is replayed.
+This does not admit range-valued ordering or index keys.
+
+`TestReferenceMultirangeOperatorPredicates` retains false/empty/NULL vectors and
+adds independent positive `r << m`, `m >> n`, `m >> r` and `m &> n` outcomes for
+each of int4multirange, int8multirange and nummultirange; these signatures cannot
+pass with an always-false provider.
+
+Feature smoke argv:
+
+```sh
+make check RUN='^TestReferenceRangeOperatorFeatureSmoke$'
+make check RUN='^TestReferenceRangeOperatorFeatureSmoke$' REFERENCE=1
+```
+
+Expected outcomes include six-range/three-multirange predicates and set results,
+actual held string/bytes/nil reuse, disconnected range union/difference22000
+versus successful multirange analogues, complete42883 diagnostics, and real
+CHECK/generated/view consumers. Native phases perform same/fresh Driver
+Dump/Reset/Restore, deterministic redumps, failed staged replacement and actual
+emitted-SQL replay on PostgreSQL when enabled. Populated nested-domain readers
+retain rows/metadata; a held no-parameter BOOL predicate reanalyzes across
+same-shape domain remint with true/false/NULL rows. TEXT-shaped replacement
+produces exact42883 at held/direct execution and fresh Prepare, while a fresh
+TEXT projection proves replacement. Native control APIs have no PostgreSQL API
+equivalent; no domain parameter/result replacement fence is widened.
+
 ### Range inspection selected proof
 
 The shared untagged `TestReferenceRangeInspect` definitions cover the six
@@ -507,12 +586,13 @@ pg_type/pg_range witnesses independently verify released OIDs/companion links.
 Scale-boundary unions follow released strict selection rather than a containment
 shortcut; fully comparator-equal different-scale duplicates have no stable tie
 ordering promise.
-The permanent `TestReferenceMultirangeComparisonBoundary` uses all three
-companions and plain/nested domains with unequal ascending/reverse, equal and
-NULL operands through direct/prepared SELECT. PostgreSQL's six supported scalar
-comparison result matrices are independently specified; native must reject with
-full42883/logical operand names/Hint/Position, at direct execution or Prepare.
-No discovery filter survives native-red or final selected evidence.
+`TestReferenceMultirangeComparisons` uses all three companions and plain/nested
+domains with unequal ascending/reverse, equal, empty and NULL operands through
+direct/prepared SELECT. Independent positive matrices cover all six scalar
+comparisons, contextual unknowns, string/bytes/nil binds in both directions,
+zero-row/all-NULL metadata and WHERE equality. The additional operator comparison
+matrix covers lexicographic member order and shorter equal prefixes, defeating
+hull-only or constant-zero comparison. SQL ordering/key providers remain separate.
 
 Run each bounded group in both modes, pinned first for new expectations, under
 an external900-second deadline:
@@ -526,12 +606,12 @@ make check REFERENCE=1 RUN='^TestReferenceMultirange(Domains|FeatureSmoke)$'
 make check RUN='^TestReferenceMultirange(Domains|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceMultirange(Controls|DomainControls)$'
 make check RUN='^TestReferenceMultirange(Controls|DomainControls)$'
-make check REFERENCE=1 RUN='^TestReferenceMultirangeComparisonBoundary$'
-make check RUN='^TestReferenceMultirangeComparisonBoundary$'
+make check REFERENCE=1 RUN='^TestReferenceMultirangeComparisons$'
+make check RUN='^TestReferenceMultirangeComparisons$'
 make check RUN='^TestMultirange'
 make check RUN='^TestComparison'
 make check RUN='^TestAnyValueProviderDatums$'
-make check RACE=1 RUN='^TestReferenceMultirange(Binds|Controls|DomainControls|ComparisonBoundary)$'
+make check RACE=1 RUN='^TestReferenceMultirange(Binds|Controls|DomainControls|Comparisons)$'
 make check REFERENCE=1 RUN='^TestReferenceIntegerRange'
 make check RUN='^TestReferenceIntegerRange'
 make check REFERENCE=1 RUN='^TestReferenceNumericRange'
@@ -685,8 +765,8 @@ same datum. Native control phases perform actual same/fresh Driver cycles,
 deterministic redumps, failed staged replacement and populated-reader shape
 replacement, then replay the actual emitted SQL on pinned PostgreSQL.
 PostgreSQL has no native Reset/Dump/Restore API; those phases are explicit.
-No discovery filters remain. No timestamp range, datemultirange, SQL comparison,
-range array or new aggregate admission is implied.
+No discovery filters remain. Datemultirange, range arrays and new temporal range
+aggregates remain excluded; six-family scalar operators are covered above.
 Computed composite-field projections independently assert unknown native
 nullability (false/false), not their member declarations; native ANY_VALUE
 remains known nullable. String-literal modifiers retain the existing native
@@ -785,28 +865,24 @@ timestamp behavior, binds/metadata/capture/full atomic failures and nested-domai
 controls with held readers, not merely startup. Remove the owned temporary source
 after recording actual observations. No passing native proof is claimed here.
 
-`TestReferenceTimestampRangeComparisonBoundary` distinguishes storage from SQL
-operator authority. PostgreSQL's independently specified Boolean/NULL results
-cover all six comparisons, unequal/equal finite ranges and empty ranges,
-builtin/plain/nested-domain columns, contextual strings and NULL/binds in either
-operand position, zero-row/all-NULL analysis, and a WHERE equality predicate.
-Native must reject analysis with the established full42883 unsupported-provider
-diagnostic, not silently compare distinct datums as equal. Direct execution and
-Prepare are both covered. Pinned18.0 confirmed the independent PostgreSQL results;
-the completed definition visits both backends without a discovery filter.
+`TestReferenceTimestampRangeComparisons` independently asserts positive
+Boolean/NULL results for all six comparisons, unequal/equal finite ranges and
+empty ranges, builtin/plain/nested-domain columns, contextual strings and
+NULL/binds in either operand position, zero-row/all-NULL metadata and a WHERE
+equality predicate. Direct execution and Prepare share the same contract.
+`TestReferenceRangeOperatorComparisons` additionally checks inclusion ties,
+NUMERIC scale equality and all six concrete range families.
 
 ```sh
-make check RUN='^TestReferenceTimestampRangeComparisonBoundary$' REFERENCE=1
-make check RUN='^TestReferenceTimestampRangeComparisonBoundary$'
-make check RUN='^TestTimestampRangeComparisonAdmission$'
+make check RUN='^TestReferenceTimestampRangeComparisons$' REFERENCE=1
+make check RUN='^TestReferenceTimestampRangeComparisons$'
+make check RUN='^TestRangeOperatorComparisonAdmission$'
 ```
 
-The standalone smoke also asserts complete42883 diagnostics for all six scalar
-comparisons on builtin/plain/nested-domain storage, contextual strings/binds and
-NULL/zero-row analysis. Direct Exec/Query and failed Prepare expose no result,
-cursor or statement. Rejected UPDATE predicates preserve rows and a byte-identical
-Dump, proving the boundary rejects before mutation rather than evaluating a
-constant comparison result.
+The permanent range-operator feature smoke above exercises actual temporal
+operators and comparison results. Native no longer treats timestamp scalar
+comparison as a42883 capability boundary. Ordering/grouping/index providers,
+temporal multirange codecs and general range casts remain excluded.
 
 
 ### TSTZRANGE oracle-first contract
@@ -825,8 +901,9 @@ target Tokyo/SQL presentation, actual ISO UTC Dump replay, deterministic redump,
 same/fresh Driver Restore, cancellation/I/O and failed staging, retained populated
 readers/metadata and successful TEXT-shaped replacement. Actual emitted SQL is
 replayed on pinned PostgreSQL in real mode. No discovery filters remain.
-Comparison scenarios independently assert real PostgreSQL BOOL results and the
-documented native42883 admission boundary, including NULL and empty relations.
+`TestReferenceTimestamptzRangeComparisons` independently asserts positive BOOL/NULL
+results on both backends, including plain/nested domains, contextual operands,
+NULL and empty relations. Equal UTC instants compare equally despite offset spelling.
 
 ```sh
 make check RUN='^TestReferenceTimestamptzRange' REFERENCE=1

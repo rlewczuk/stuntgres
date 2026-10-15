@@ -253,6 +253,19 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		return "pg_catalog." + n.Kind.Name() + "(" + arg + ")", nil
+	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+		if n.Args[0] == nil || n.Args[1] == nil {
+			return "", fmt.Errorf("stuntgres: missing range operator operand")
+		}
+		if err := n.Validate(); err != nil {
+			return "", err
+		}
+		return rangeOperatorSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+			if namespace != "" {
+				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
+			}
+			return name
+		})
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range n.Args {
 			if arg == nil {

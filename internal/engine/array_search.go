@@ -134,6 +134,10 @@ func (b *expressionBinder) bindArrayMembership(raw parser.OperatorExpr) (BoundEx
 		}
 		operands[i] = o
 	}
+	return b.finishArrayMembership(raw, operands)
+}
+
+func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operands [2]comparisonOperand) (BoundExpr, error) {
 	left, right := operands[0].descriptor(), operands[1].descriptor()
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {

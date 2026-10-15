@@ -247,25 +247,3 @@ func TestTimestamptzRangeBinaryDatum(t *testing.T) {
 		}
 	}
 }
-
-func TestTimestamptzRangeComparisonAdmission(t *testing.T) {
-	types := testTypes()
-	d := types[TimestamptzRange]
-	domain, err := Domain(20000, "span", "span", d.Usage())
-	if err != nil {
-		t.Fatal(err)
-	}
-	nested, err := Domain(20001, "chain", "chain", domain.Usage())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, operand := range []*Descriptor{d, domain, nested} {
-		for op := CompareEqual; op <= CompareGreaterEqual; op++ {
-			_, err := BindComparisonPredicate(op, operand, operand, types[Bool], CollationRef{}, false)
-			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" {
-				t.Fatal("public comparison admitted", operand.Name(), op, err)
-			}
-		}
-	}
-}

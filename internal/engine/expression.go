@@ -1438,6 +1438,15 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.Arg = arg
 		next, folded, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || folded, err
+	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+		next, changed, err := mapRangeOperatorChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
+		return folded, changed || replaced, err
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
 		for i, arg := range e.Args {
@@ -2743,6 +2752,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node, err = b.bindSimilar(r)
 			} else if subquery, ok := rowSubqueryComparison(r); ok {
 				node, err = b.bindSubquery(subquery)
+			} else if rangeSharedOperator(r) {
+				node, err = b.bindRangeShared(r)
 			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
 				node, err = b.bindStringConcat(r)
 			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "^@" {
@@ -3818,7 +3829,6 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			}
 		}
 	}
-	operator := arithmeticOperator(name)
 	left, err := b.comparisonOperand(raw.Args[0])
 	if err != nil {
 		return nil, err
@@ -3830,6 +3840,12 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			return nil, err
 		}
 	}
+	return b.finishArithmetic(raw, left, right)
+}
+
+func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right comparisonOperand) (BoundExpr, error) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	operator := arithmeticOperator(name)
 	lt, rt := left.descriptor(), right.descriptor()
 	if lt != nil {
 		lt = lt.BaseType()

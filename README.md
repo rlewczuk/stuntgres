@@ -24,6 +24,32 @@ prepared calls, stored expressions and symbolic native Dump/Restore.
 No JSON pretty function or formatting options are added.
 See [the contract and feature smoke](reference/binary_json_arrays/README.md#jsonb-pretty-output).
 
+## Range and multirange operators — change note
+
+Containment (`@>`, `<@`), overlap (`&&`), positional operators (`<<`, `>>`,
+`&<`, `&>`), adjacency (`-|-`), scalar comparisons and set operations (`+`, `*`,
+`-`) execute on all six built-in range families and the three concrete
+integer/numeric multiranges. Predicates include matching range/multirange cross
+operands and subtype-element containment. Set operations and comparisons require
+the same physical family; they do not implicitly convert ranges to multiranges.
+
+Empty values are sets, not NULL: every range/multirange contains an empty set,
+while overlap and positional/adjacency predicates are false if either set is
+empty. SQL NULL propagates. Range union or difference that would need disconnected
+pieces raises22000; multiranges retain those pieces successfully. Comparisons use
+canonical endpoints and lexicographic multirange members, with empty first and
+NUMERIC scale ignored for equality. Scalar comparison does not enable ORDER BY,
+grouping, hashing or index-key providers.
+
+Typed binds, plain/nested domains, CHECK/generated/view recipes and native
+Dump/Reset/Restore reuse existing ownership and remapping. Temporal multiranges
+remain lookup-only; no temporal companion codec, cast, constructor or unnest
+provider is added. General range casts, range arrays and user-created range
+families remain excluded. See [type contracts](docs/TYPES.md#range-and-multirange-operators)
+and [selected proof](reference/types/README.md#range-and-multirange-operator-selected-proof).
+Feature smoke: `make check RUN='^TestReferenceRangeOperatorFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the same selector.
+
 ## JSON and JSONB extraction — change note
 
 JSON supports key/index `->` and `->>`, TEXT[] paths `#>` and `#>>`, and
@@ -336,7 +362,7 @@ typed binds, target/FROM composition, stored recipes and native controls.
 Empty range construction returns `{}`; SQL NULL construction returns NULL.
 Empty or NULL expansion returns zero rows with the companion range metadata.
 Named-family constructors, multiple constructor arguments, tsvector unnest,
-temporal multiranges and new casts/operators remain excluded. Array unnest is
+temporal multiranges and general range casts remain excluded. Array unnest is
 covered by the separate array-relational change note above.
 See [typed range contracts](docs/TYPES.md) and
 [selected proof](reference/types/README.md#multirange-constructor-and-expansion-selected-proof).
@@ -350,9 +376,9 @@ multirange, including disconnected inputs. Bounds retain their concrete subtype;
 empty and omitted bounds return typed NULL, while explicit subtype infinity
 remains a real bound. Existing string `lower`/`upper` are unchanged.
 Use declared range columns and destination-contextual INSERT literals/binds;
-inspection does not add range casts, operators or arrays. The selected unary
-generic multirange constructor is documented above; temporal multiranges remain
-outside execution. Stored CHECK/generated/view recipes and native
+inspection does not add range casts or arrays. Range operators are documented above.
+The selected unary generic multirange constructor is documented above; temporal
+multiranges remain outside execution. Stored CHECK/generated/view recipes and native
 Dump/Restore preserve typed results and held snapshots.
 See [typed range contracts](docs/TYPES.md) and
 [selected proof](reference/types/README.md#range-inspection-selected-proof).
@@ -2204,8 +2230,8 @@ continuous NUMERIC endpoints. `(4,5)` remains nonempty; `[1.0,1.00]` preserves
 both scales, and `[1.0,1.00)` becomes empty. Explicit numeric Infinity/NaN
 remain distinct from omitted unbounded endpoints. Direct/prepared text/byte
 binds, NUMRANGE metadata, full atomic diagnostics and native/domain Dump/Restore
-reuse existing ownership and staging. Constructors/operators/casts/arrays and
-temporal ranges remain outside this feature.
+reuse existing ownership and staging. Scalar operators/comparisons are documented
+above; general constructors, casts and arrays remain excluded.
 See [continuous numeric ranges](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceNumericRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
@@ -2221,11 +2247,10 @@ and fresh binds reuse timestamp capture; Dump always emits canonical ISO.
 Direct/prepared text/byte binds, TSRANGE metadata, nested-domain contextual
 replay, named-composite fields and binary COPY use existing ownership/staging.
 Actual Dump/Reset/Restore preserves held readers and rejects staged failures
-atomically. Temporal multiranges, range arrays, constructors, general casts,
-comparison/index providers and new range aggregates remain excluded.
-Scalar tsrange comparisons reject at analysis with42883, including plain/nested
-domains and contextual unknowns, rather than silently comparing unequal datums
-as equal. NULL and empty-table cases retain the same admission boundary.
+atomically. Temporal multiranges, range arrays, general constructors/casts,
+ordering/index providers and new temporal range aggregates remain excluded.
+Scalar tsrange operators and comparisons, including plain/nested domains and
+contextual unknown/NULL operands, use the six-family range providers above.
 See [continuous timestamp ranges](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceTimestampRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
@@ -2239,8 +2264,9 @@ intervals, explicit infinity, omitted endpoints, empty and NULL remain distinct.
 Native TSTZRANGE metadata and string transport, plain/nested domains, composite
 fields, binary COPY and actual Dump/Reset/Restore reuse existing ownership.
 Dump always emits ISO UTC endpoints, independently of source/target sessions.
-No range operators, constructors, general casts, arrays, temporal multiranges
-or new aggregates are added. Feature smoke:
+Scalar operators/comparisons use the range providers above. General constructors,
+casts, arrays, temporal multiranges and new temporal aggregates remain excluded.
+Feature smoke:
 `make check RUN='^TestReferenceTimestamptzRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
@@ -2254,8 +2280,9 @@ prepared contextual literals retain analyzed days while binds decode afresh.
 Live reads use session presentation, but native Dump emits canonical ISO.
 Direct/prepared text/byte binds, native string/DATERANGE metadata, nested domains,
 named-composite fields, binary COPY and actual Dump/Reset/Restore reuse existing
-ownership/staging. No datemultirange, timestamp ranges, arrays, constructors,
-casts, operators, comparison/index providers or new range aggregates are added.
+ownership/staging. Scalar operators/comparisons use the six-family providers above;
+datemultirange, arrays, general constructors/casts, ordering/index providers and
+new temporal range aggregates remain excluded.
 See [date ranges](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceDateRangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector. The standalone
@@ -2269,9 +2296,8 @@ and overlaps/adjacency merge: `{[1,3),[2,4),empty,[8,9)}` becomes
 `{[1,4),[8,9)}`. Nonnull `{}`, universal `{(,)}` and SQL NULL remain distinct.
 Exact NUMERIC boundaries retain continuous inclusivity and selected display scale.
 Direct/prepared text/byte binds, metadata, nested domains and atomic native
-Dump/Reset/Restore reuse existing ownership; no operators, casts, arrays or SQL
-comparison/index providers are added. Scalar comparisons reject at admission
-with42883, including plain/nested domains; they never treat unequal unions as equal.
+Dump/Reset/Restore reuse existing ownership. Scalar operators and comparisons are
+documented above; general casts, arrays and ordering/index providers remain excluded.
 See [multirange columns](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceMultirangeFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
@@ -2284,8 +2310,9 @@ Disconnected union/intersection components are preserved, not replaced by a hull
 Empty/all-NULL input gives typed NULL; nonnull empty input gives an empty set.
 Direct/prepared groups, FILTER, admitted integer-key local ORDER, INSERT SELECT
 and stored-view native controls share the typed eager aggregate pipeline.
-No scalar range comparison/order/group provider, DISTINCT support, window provider,
-temporal family, constructor, operator or cast is added.
+Scalar range operators are separate from this aggregate pipeline. Aggregate
+DISTINCT/window support, temporal aggregate families, general constructors and
+casts remain excluded.
 See [range aggregates](https://www.postgresql.org/docs/18/functions-aggregate.html).
 Feature smoke: `make check RUN='^TestReferenceRangeAggregateFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
@@ -2321,8 +2348,8 @@ Direct/prepared text and byte binds, exact INT4RANGE/INT8RANGE metadata and
 native Dump/Reset/Restore use existing codec/catalog ownership, preserving
 retained readers and atomic failed replacement. Already-admitted range-backed
 domains replay canonical row text and NULL through their declared destinations.
-No constructors/operators, new casts, range arrays or
-comparison/index providers are added.
+Scalar operators/comparisons are documented above. General constructors/casts,
+range arrays and ordering/index providers remain excluded.
 See [integer range columns](https://www.postgresql.org/docs/18/rangetypes.html).
 Feature smoke: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$' REFERENCE=1`.

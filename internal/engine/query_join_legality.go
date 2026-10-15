@@ -676,6 +676,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return joinExpressionSides(e.Arg, leftWidth, rightWidth)
+	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args[:]
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:

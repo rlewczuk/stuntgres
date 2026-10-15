@@ -73,7 +73,6 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid bitwise expression")
 	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {
 		return nil, err
@@ -90,6 +89,11 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 			return nil, err
 		}
 	}
+	return b.finishBitwise(raw, left, right, visible)
+}
+
+func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right comparisonOperand, visible bool) (BoundExpr, error) {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	lt, rt := left.descriptor(), right.descriptor()
 	if lt != nil {
 		lt = lt.BaseType()

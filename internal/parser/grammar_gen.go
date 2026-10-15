@@ -16703,7 +16703,7 @@ sqldefault:
 	case 1219:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[2].tok.text != "||" && sqlDollar[2].tok.text != "~" && sqlDollar[2].tok.text != "~*" && sqlDollar[2].tok.text != "!~" && sqlDollar[2].tok.text != "!~*" && sqlDollar[2].tok.text != "@>" && sqlDollar[2].tok.text != "<@" && sqlDollar[2].tok.text != "&&" && sqlDollar[2].tok.text != "?" && sqlDollar[2].tok.text != "?|" && sqlDollar[2].tok.text != "?&" && sqlDollar[2].tok.text != "->" && sqlDollar[2].tok.text != "->>" && sqlDollar[2].tok.text != "#>" && sqlDollar[2].tok.text != "#>>" && sqlDollar[2].tok.text != "#-" {
+			if sqlDollar[2].tok.text != "||" && sqlDollar[2].tok.text != "~" && sqlDollar[2].tok.text != "~*" && sqlDollar[2].tok.text != "!~" && sqlDollar[2].tok.text != "!~*" && sqlDollar[2].tok.text != "@>" && sqlDollar[2].tok.text != "<@" && sqlDollar[2].tok.text != "&&" && sqlDollar[2].tok.text != "<<" && sqlDollar[2].tok.text != ">>" && sqlDollar[2].tok.text != "&<" && sqlDollar[2].tok.text != "&>" && sqlDollar[2].tok.text != "-|-" && sqlDollar[2].tok.text != "?" && sqlDollar[2].tok.text != "?|" && sqlDollar[2].tok.text != "?&" && sqlDollar[2].tok.text != "->" && sqlDollar[2].tok.text != "->>" && sqlDollar[2].tok.text != "#>" && sqlDollar[2].tok.text != "#>>" && sqlDollar[2].tok.text != "#-" {
 				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}
@@ -16712,7 +16712,7 @@ sqldefault:
 	case 1220:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[2].tok.text != "||" && sqlDollar[2].tok.text != "~" && sqlDollar[2].tok.text != "~*" && sqlDollar[2].tok.text != "!~" && sqlDollar[2].tok.text != "!~*" && sqlDollar[2].tok.text != "@>" && sqlDollar[2].tok.text != "<@" && sqlDollar[2].tok.text != "&&" && sqlDollar[2].tok.text != "?" && sqlDollar[2].tok.text != "?|" && sqlDollar[2].tok.text != "?&" && sqlDollar[2].tok.text != "->" && sqlDollar[2].tok.text != "->>" && sqlDollar[2].tok.text != "#>" && sqlDollar[2].tok.text != "#>>" && sqlDollar[2].tok.text != "#-" {
+			if sqlDollar[2].tok.text != "||" && sqlDollar[2].tok.text != "~" && sqlDollar[2].tok.text != "~*" && sqlDollar[2].tok.text != "!~" && sqlDollar[2].tok.text != "!~*" && sqlDollar[2].tok.text != "@>" && sqlDollar[2].tok.text != "<@" && sqlDollar[2].tok.text != "&&" && sqlDollar[2].tok.text != "<<" && sqlDollar[2].tok.text != ">>" && sqlDollar[2].tok.text != "&<" && sqlDollar[2].tok.text != "&>" && sqlDollar[2].tok.text != "-|-" && sqlDollar[2].tok.text != "?" && sqlDollar[2].tok.text != "?|" && sqlDollar[2].tok.text != "?&" && sqlDollar[2].tok.text != "->" && sqlDollar[2].tok.text != "->>" && sqlDollar[2].tok.text != "#>" && sqlDollar[2].tok.text != "#>>" && sqlDollar[2].tok.text != "#-" {
 				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}

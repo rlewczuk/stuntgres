@@ -1,0 +1,120 @@
+package engine
+
+import (
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func rangeSharedOperator(raw parser.OperatorExpr) bool {
+	if len(raw.Name.Parts) == 0 || len(raw.Args) < 1 || len(raw.Args) > 2 {
+		return false
+	}
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	_, ok := sqltype.RangeOperatorKind(name)
+	return ok && (len(raw.Args) == 2 || !arithmeticName(name))
+}
+
+// Analyze shared symbolic operands once, then hand the existing binders their
+// analyzed occurrences. UNKNOWN inference remains occurrence-owned.
+func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (BoundExpr, error) {
+	var operands [2]comparisonOperand
+	for i, arg := range raw.Args {
+		o, err := b.comparisonOperand(arg)
+		if err != nil {
+			return nil, err
+		}
+		operands[i] = o
+	}
+	left, right := operands[0].descriptor(), operands[1].descriptor()
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if len(raw.Args) == 1 {
+		if _, err := b.builtinVisible(raw.Name, operatorLookup); err != nil {
+			return nil, err
+		}
+		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), left, nil, raw)
+	}
+	if !sqltype.IsRangeInspectType(left) && !sqltype.IsRangeInspectType(right) && (left != nil || right != nil) {
+		if arrayMembershipName(name) {
+			return b.finishArrayMembership(raw, operands)
+		}
+		if arithmeticName(name) {
+			return b.finishArithmetic(raw, operands[0], operands[1])
+		}
+		if name == "<<" || name == ">>" {
+			visible, err := b.builtinVisible(raw.Name, operatorLookup)
+			if err != nil {
+				return nil, err
+			}
+			return b.finishBitwise(raw, operands[0], operands[1], visible)
+		}
+	}
+	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	if err != nil {
+		return nil, err
+	}
+	if !visible {
+		return nil, b.arrayMembershipError(left, right, raw)
+	}
+	if left == nil && right == nil {
+		d := expressionError("42725", "operator is not unique: unknown "+name+" unknown", raw.Pos).(*sqlstate.Error)
+		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
+		return nil, d
+	}
+	// binary_oper_exact retries a known domain's physical family for UNKNOWN.
+	lt, rt := left, right
+	if lt == nil {
+		lt = rt.BaseType()
+	} else {
+		lt = lt.BaseType()
+	}
+	if rt == nil {
+		rt = lt
+	} else {
+		rt = rt.BaseType()
+	}
+	op, _ := sqltype.RangeOperatorKind(name)
+	result := sqltype.RangeOperatorResult(op, lt, rt)
+	if result == nil {
+		return nil, b.arrayMembershipError(left, right, raw)
+	}
+	var args [2]BoundExpr
+	for i, target := range [2]*sqltype.Descriptor{lt, rt} {
+		args[i], err = b.coerceConditional(operands[i], target.Usage(), name)
+		if err != nil {
+			return nil, err
+		}
+	}
+	properties := mergeExpressionProperties(args[0].Properties(), args[1].Properties())
+	namespace := ""
+	if len(raw.Name.Parts) == 2 {
+		namespace = raw.Name.Parts[0].Text
+	}
+	return functions.NewRangeOperator[BoundExpr, *EvalContext](functionInfo(b.info(result.Usage(), parser.ExpressionStart(raw), properties)), op, args, namespace)
+}
+func rangeOperatorSQL(e functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+	left, err := child(e.Args[0])
+	if err != nil {
+		return "", err
+	}
+	right, err := child(e.Args[1])
+	if err != nil {
+		return "", err
+	}
+	return "(" + left + " " + operator(e.Namespace, e.Plan.Name()) + " " + right + ")", nil
+}
+func mapRangeOperatorChildren(e functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties], bool, error) {
+	changed := false
+	for i, arg := range e.Args {
+		next, did, err := child(arg)
+		if err != nil {
+			return e, false, err
+		}
+		if did {
+			e.Args[i] = next
+			changed = true
+		}
+	}
+	return e, changed, nil
+}

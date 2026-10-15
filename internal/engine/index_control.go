@@ -260,6 +260,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return !n.Plan.Membership()
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return true
+	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+		return false
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.PosixSubstring[BoundExpr, *EvalContext, ExprProperties], functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:

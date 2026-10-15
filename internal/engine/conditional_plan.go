@@ -759,6 +759,16 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		e.Arg = arg
 		changed = changed || did
 		expression = e
+	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+		var did bool
+		e, did, err = mapRangeOperatorChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, old, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || did
+		expression = e
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
 		for i, old := range e.Args {
@@ -1423,6 +1433,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return true
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return literal(e.Arg)
+	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
+		return literal(e.Args[0]) && literal(e.Args[1])
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			if !literal(arg) {
