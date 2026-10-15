@@ -60,6 +60,47 @@ PostgreSQL independently checks its supported bootstrap subset and user-dump
 replay; it does not inherit native-only control or immutability assertions.
 Selected dual-mode proof and smoke supplement whole-project quickcheck.
 
+### Data type privilege descriptors
+
+`TestReferenceDataTypePrivileges` scenarios independently assert the five-column
+usage projection, native primitive carriers versus PostgreSQL declared domains,
+stable table/composite attribute identities, typmods/arrays, builtin domains,
+owner/ACL/type visibility, kinds and physical-session TEMP behavior. Lifecycle
+checks cover held execution, cancellation, real native Dump/Reset/Restore,
+failed staged replacement and retained rows. Diagnostics assert SQLSTATE and
+English records, including the explicit native row-lock capability boundary.
+No routine descriptors or neighboring information-schema views are synthesized.
+
+PostgreSQL declared domains are checked through its real `pg_type` join; native
+carrier OIDs, positive attribute numbers, nullability and collation are checked
+through `pg_attribute` without adding absent `pg_type` capability. Composite
+attribute edits share both backends; whole-type RENAME TO retains its native
+syntax-error boundary and unchanged descriptors while PostgreSQL performs the
+rename. Pre-canceled pool queries test the ordinary adapter boundary without
+canceling or reusing the scenario's physical connection.
+`SchemaRename` checks that the five seeded domains remain visible by stable
+namespace identity after renaming information_schema, reports the current schema
+name, and leaves unrelated TABLE descriptors readable. Guaranteed cleanup
+restores the PostgreSQL bootstrap namespace before fixture teardown.
+
+Run each selected group in both modes with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceDataTypePrivileges(Shape|Descriptors|Identity|BuiltinDomains|SchemaRename)$'
+make check REFERENCE=1 RUN='^TestReferenceDataTypePrivileges(Shape|Descriptors|Identity|BuiltinDomains|SchemaRename)$'
+make check RUN='^TestReferenceDataTypePrivileges(Visibility|TypeVisibility|KindsAndTemp)$'
+make check REFERENCE=1 RUN='^TestReferenceDataTypePrivileges(Visibility|TypeVisibility|KindsAndTemp)$'
+make check RUN='^TestReferenceDataTypePrivileges(Lifecycle|Controls|Diagnostics|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceDataTypePrivileges(Lifecycle|Controls|Diagnostics|FeatureSmoke)$'
+make check RUN='^TestDataTypePrivileges(Capture|Visibility)$'
+make check RACE=1 RUN='^TestReferenceDataTypePrivileges(Lifecycle|Controls|KindsAndTemp)$'
+```
+
+Feature smoke selects `^TestReferenceDataTypePrivilegesFeatureSmoke$` in both
+modes. Expect TABLE/DOMAIN/USER-DEFINED TYPE bags, a column-only reader transition,
+stable gaps, genuine builtin domain visibility and an exact missing-column
+diagnostic. These commands are required proof instructions, not passing claims.
+
 ### pg_opclass selected proof
 
 The `TestReferencePGOpclass` scenarios specify the nine released columns,

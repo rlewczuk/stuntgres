@@ -1278,6 +1278,37 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `pg_tables` presents this shared catalog in `pg_global`; that metadata is not
   a physical storage mechanism.
 
+## Data type privilege descriptors
+
+`information_schema.data_type_privileges` exposes five columns:
+`object_catalog`, `object_schema`, `object_name`, `object_type`, and
+`dtd_identifier`. It describes real type usages, not an inventory of types.
+Supported arms are TABLE columns (tables, ordinary views and partitions),
+DOMAIN/1, and USER-DEFINED TYPE attributes of standalone composites. Unused
+enums, empty composites, table row types, materialized views, indexes and
+sequences do not create standalone descriptor rows. Routine parameter/return
+descriptor capability is not exposed natively; no ROUTINE inventory is invented.
+
+TABLE rows require owner-role inheritance or any SELECT, INSERT, UPDATE or
+REFERENCES privilege on that column (including table-level rights). DELETE,
+TRUNCATE, TRIGGER and MAINTAIN alone do not qualify. Domains/composites require
+owner-role inheritance or type USAGE. Ownership remains independent of revoked
+ordinary privileges. PUBLIC and INHERIT grants apply; SET-only membership does
+not until SET ROLE. No schema USAGE, search-path or underlying-type USAGE filter
+is added. Other physical sessions' TEMP TABLE descriptors are excluded; a role
+switch does not change the owning physical session.
+
+Descriptor numbers are stable positive attribute numbers, retaining DROP gaps;
+domains use `1`. Typmods, arrays and array rank do not multiply rows or generate
+`a`-prefixed element identifiers. The five genuine information-schema builtin
+domains retain their seeded PUBLIC USAGE visibility by stable catalog identity,
+including after a schema rename; output uses the namespace's current name.
+Result metadata owns native
+NAME/NAME/NAME/VARCHAR/NAME primitive carriers, nullable with source origins;
+it does not claim PostgreSQL's declared information-schema domain identities.
+Fresh direct and prepared executions capture current catalog/role authority;
+already returned native rows remain immutable across later DDL and controls.
+
 ## pg_attribute column metadata
 
 `pg_catalog.pg_attribute` has the released PostgreSQL 18 25-column shape,

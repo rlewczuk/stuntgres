@@ -297,7 +297,10 @@ func (e *Engine) initializeCatalogSources() error {
 		}
 		e.registerCatalogSource(d)
 	}
-	return e.initializeTablePrivileges()
+	if err := e.initializeTablePrivileges(); err != nil {
+		return err
+	}
+	return e.initializeDataTypePrivileges()
 }
 
 func (e *Engine) catalogSourceDescriptor(oid OID, namespace ObjectAddress, name string, count int) *relationDescriptor {

@@ -2837,6 +2837,19 @@ Reset clears policy while retaining roles/membership. See
 Feature smoke: `make check RUN='^TestReferenceRoleDefaultPrivilegesFeatureSmoke$'`
 and the same command with `REFERENCE=1` (900 seconds each).
 
+Change note: `information_schema.data_type_privileges` now projects actual
+privilege-qualified TABLE column, DOMAIN and standalone composite attribute
+descriptors. Stable attribute numbers survive DROP/ADD and renames; typmods and
+arrays do not invent extra descriptors. Owner inheritance, per-column/table ACLs
+and type USAGE govern visibility without an extra schema/search-path filter.
+The five genuine information-schema domains are visible with their seeded
+PUBLIC USAGE. Native result carriers are NAME/NAME/NAME/VARCHAR/NAME, not newly
+implemented information-schema domain codecs. Routine parameter/return
+descriptor arms remain outside native capability. See
+[descriptor details](docs/DIALECT.md#data-type-privilege-descriptors).
+Smoke: `make check RUN='^TestReferenceDataTypePrivilegesFeatureSmoke$'`
+and the same command with `REFERENCE=1` (external 900-second deadlines).
+
 
 Change note: role membership GRANT/REVOKE supports ADMIN/INHERIT/SET options,
 independent grantor origins, source-aware CASCADE/RESTRICT and cycle prevention.
