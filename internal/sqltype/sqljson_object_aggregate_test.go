@@ -122,6 +122,7 @@ func TestSQLJSONObjectAggregateReachedCancellation(t *testing.T) {
 		final  bool
 	}{
 		{JSON, ".writeJSONBString", false},
+		{JSONB, ".JSONObjectAggregatePlan.Advance", false},
 		{JSONB, ".sortJSONBFields", true},
 		{JSONB, ".checkJSONBUniqueKeys", true},
 	} {
@@ -154,6 +155,13 @@ func TestSQLJSONObjectAggregateReachedCancellation(t *testing.T) {
 			}
 		}
 		cancel()
+		failure := s.failure
+		if !errors.Is(failure, context.Canceled) {
+			t.Fatal("cancellation was not latched", failure)
+		}
+		if err := p.Advance(base, s, key, value); err != failure {
+			t.Fatal("canceled state resumed advancing", err, failure)
+		}
 		if out, err := p.Finalize(base, s); !errors.Is(err, context.Canceled) || out != (Value{}) {
 			t.Fatal("cancellation published partial value", out, err)
 		}

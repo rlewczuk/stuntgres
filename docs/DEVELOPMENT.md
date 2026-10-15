@@ -9,7 +9,7 @@ make check RUN='^TestBinaryHashAllocations$' # selected tests; add REFERENCE=1 o
 make quickcheck # full Docker-free suite after edits, before review/integration
 make racecheck  # same full Docker-free suite with race detection
 make bench      # fresh engine + connector + pool + Ping + Close, five runs
-make finalcheck # after merge: startup benchmark, full native race suite, dependencies
+make finalcheck # after merge: startup benchmark, socket-free native race suite, dependencies
 make deps       # list non-standard production dependencies
 make refcheck   # human-only complete real PostgreSQL reference suite; NEVER run as an agent
 ```
@@ -80,8 +80,11 @@ Every changed or new reference definition MUST pass the same selected definition
 in both modes before review; `finalcheck` cannot replace this proof.
 Use `make quickcheck` only for whole-project verification after edits and before
 review/integration, and `make racecheck` for the same Docker-free suite with race detection.
-After merge, `make finalcheck` runs the five-run startup benchmark, full native
-race suite and production dependency checks. It does not run real PostgreSQL.
+After merge, `make finalcheck` runs the five-run startup benchmark, socket-free
+native race suite and production dependency checks. Its `noservertests` build tag
+excludes server tests that open real TCP sockets; it does not run real PostgreSQL.
+Those server checks remain enabled in `quickcheck`, `racecheck` and selected
+`make check RUN='...'` runs, including `REFERENCE=1` where supported.
 `make refcheck` runs the complete real reference suite for humans only; agents
 MUST NEVER invoke it. Commit any post-merge failure remedies separately.
 
@@ -438,7 +441,7 @@ Terminal reasons preserve distinct CleanClose, Terminated and Abandoned mechanic
 raw reuse preserves local active-state invariants. They are not substitutes for
 the migrated public rollback/publication witnesses. After merge, run
 `timeout --signal=KILL 1800s make finalcheck` for generation, startup benchmark,
-full native race tests and dependencies. Historical task-specific deadline
+socket-free native race tests and dependencies. Historical task-specific deadline
 overrides do not change current policy.
 
 ### Dual-mode CHECK constraint interactions
@@ -651,7 +654,7 @@ command and bounds the remaining conservative startup overhead. A
 does not enumerate subtests, so it would not safely remove eager-startup cost.
 
 After merge, `timeout --signal=KILL 1800s make finalcheck` runs generation,
-startup benchmark, full native race tests and dependencies together, without Docker.
+startup benchmark, socket-free native race tests and dependencies together, without Docker.
 Do not substitute selected tests for this aggregate invocation; commit any failure
 remedies separately. Original 300/900-second migration gates are historical evidence,
 not current Makefile deadlines; SQL1ms timeout vectors are unchanged.

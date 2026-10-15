@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -119,42 +118,6 @@ func TestServerPID(t *testing.T) {
 			t.Fatalf("unowned live PID accepted: %v", err)
 		}
 	})
-	t.Run("DumpAndStopActualChild", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "server.pid")
-		child := startProcessHelper(t, "lifecycle", path)
-		message := child.ready(t)
-		if message.Error != "" || message.Address == "" {
-			t.Fatalf("child readiness: %+v", message)
-		}
-		connection, err := net.DialTimeout("tcp", message.Address, time.Second)
-		if err != nil {
-			t.Fatalf("readiness preceded listening: %v", err)
-		}
-		connection.Close()
-		record, err := readPID(path)
-		if err != nil || record.PID != child.command.Process.Pid {
-			t.Fatalf("child PID: %+v, %v", record, err)
-		}
-		if err := controlProcess("dump", path); err != nil {
-			t.Fatal(err)
-		}
-		line, err := child.output.ReadString('\n')
-		if err != nil || line != "dump\n" {
-			t.Fatalf("dump delivery: %q, %v", line, err)
-		}
-		if err := controlProcess("stop", path); err != nil {
-			t.Fatal(err)
-		}
-		if err := child.command.Wait(); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			t.Fatalf("child record remains: %v", err)
-		}
-		if err := controlProcess("dump", path); err == nil {
-			t.Fatal("signaled retired child")
-		}
-	})
 }
 
 type processTestChild struct {
@@ -163,7 +126,7 @@ type processTestChild struct {
 	output  *bufio.Reader
 }
 
-func startProcessHelper(t *testing.T, mode, path string) *processTestChild {
+func startProcessHelper(t *testing.T, mode, path, helper string) *processTestChild {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
@@ -171,7 +134,7 @@ func startProcessHelper(t *testing.T, mode, path string) *processTestChild {
 	if err != nil {
 		t.Fatal(err)
 	}
-	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestServerProcessHelper$")
+	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+helper+"$")
 	command.Env = append(os.Environ(), "STUNTGRES_PROCESS_TEST="+mode, "STUNTGRES_PROCESS_PID="+path, "STUNTGRES_READY_FD=3")
 	command.ExtraFiles = []*os.File{writer}
 	stdout, err := command.StdoutPipe()
@@ -217,7 +180,7 @@ func TestServerStartupFailure(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { owner.Close() })
-		child := startProcessHelper(t, "conflict", path)
+		child := startProcessHelper(t, "conflict", path, "TestServerProcessHelper")
 		message := child.ready(t)
 		if message.Address != "" || !strings.Contains(message.Error, "already held") {
 			t.Fatalf("startup conflict readiness: %+v", message)
@@ -245,11 +208,9 @@ func TestServerStartupFailure(t *testing.T) {
 	})
 }
 
-// This helper is the current test executable, not a substitute server binary.
-// It exercises actual OS ownership, listening, readiness and signal lifetimes.
+// The conflict child exercises PID ownership and readiness without a listener.
 func TestServerProcessHelper(t *testing.T) {
-	mode := os.Getenv("STUNTGRES_PROCESS_TEST")
-	if mode == "" {
+	if os.Getenv("STUNTGRES_PROCESS_TEST") == "" {
 		return
 	}
 	owner, err := acquirePID(os.Getenv("STUNTGRES_PROCESS_PID"))
@@ -259,34 +220,7 @@ func TestServerProcessHelper(t *testing.T) {
 		}
 		os.Exit(1)
 	}
-	if mode != "lifecycle" {
-		owner.Close()
-		fmt.Fprintln(os.Stderr, "unexpected acquisition in failure helper")
-		os.Exit(2)
-	}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		notifyReady("", err)
-		owner.Close()
-		os.Exit(1)
-	}
-	signals, stop := lifecycleSignals()
-	if err := notifyReady(listener.Addr().String(), nil); err != nil {
-		listener.Close()
-		owner.Close()
-		os.Exit(1)
-	}
-	for value := range signals {
-		if isDumpSignal(value) {
-			fmt.Fprintln(os.Stdout, "dump")
-			continue
-		}
-		listener.Close()
-		stop()
-		if err := owner.Close(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
+	owner.Close()
+	fmt.Fprintln(os.Stderr, "unexpected acquisition in failure helper")
+	os.Exit(2)
 }

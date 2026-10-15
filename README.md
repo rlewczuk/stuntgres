@@ -4686,7 +4686,7 @@ make build      # compile production packages
 make check RUN='^TestReferenceFixtureResetIsolation$' # selected proof
 make quickcheck # full Docker-free verification after edits, before review/integration
 make racecheck  # same suite with race detection
-make finalcheck # after merge: startup benchmark, full native race suite and dependencies
+make finalcheck # after merge: startup benchmark, socket-free native race suite and dependencies
 ```
 
 Use `check RUN='...'` only for individual tests or small selected sets; add
@@ -4781,8 +4781,10 @@ The reference tree has at most 30 packages including the importable common
 `reference/fixture` and selector command, each at most 1,000,000 bytes across all
 files. Explicit true eagerly starts each selected package's oracle before test
 execution. After merge, `make finalcheck`
-runs generation, startup benchmark, full Docker-free native race tests and
-dependencies under the agent's external 1800-second deadline. Earlier task-specific
+runs generation, startup benchmark, socket-free Docker-free native race tests and
+dependencies under the agent's external 1800-second deadline. The `noservertests`
+tag excludes real-TCP server checks only from finalcheck; they remain enabled in
+quickcheck, racecheck and selected `make check` runs. Earlier task-specific
 aggregate bounds are historical evidence, not current Makefile behavior.
 
 

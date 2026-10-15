@@ -132,6 +132,27 @@ Canonical native session-end events also deliver fatal transaction/idle expiry
 without an extra query or ReadyForQuery. Restored dump-only databases preserve
 known owners after grant revocation while retaining42501 network denial.
 
+The cancellation scenario retains one lock-owner connection across subtests.
+Each owner-using subtest renews the same bounded20-second socket deadline before
+its first owner operation; preceding subtests do not consume that scenario's
+allowance. Dial, observer, cancellation and worker-join bounds are unchanged.
+Actual wire57014, transaction state, atomicity and continuation remain required.
+
+Only `make finalcheck` enables the negative `noservertests` build tag. It excludes
+the twelve `server_*_test.go` scenario/helper files here and the Linux TCP PID
+lifecycle test/helper in `cmd/stuntgres/process_socket_test.go`. Default selected
+checks, quickcheck and racecheck still include real server sockets. Explicit
+selected PostgreSQL checks still run the pinned oracle; this tag is not a general
+no-network mode and does not change production builds. Server fixture helpers
+remain compiled without automatically starting a server.
+
+The migrated `TestServerPIDSocketLifecycle/DumpAndStopActualChild` preserves the
+real listener/readiness, TCP dial, dump signal/output, stop/join and PID retirement
+witness. Its subprocess entry point is `TestServerSocketProcessHelper`. Socket-free
+`TestServerPID`, `TestServerStartupFailure` and their failure helper remain enabled
+under `noservertests`, along with CLI/users/PTY, byte-backed framing, logging,
+persistence-file and startup-parameter mechanics.
+
 Run each selector in quick mode and again with `REFERENCE=1`, under an external
 900-second deadline per invocation:
 
@@ -140,7 +161,7 @@ make check RUN='^TestReferenceServer(Queries|Transactions)$'
 make check RUN='^TestReferenceServer(Protocol|Authentication|Clients|Negotiation)$'
 make check RUN='^TestReferenceServer(Cancellation|Persistence|RestoredGrants|Logs|Daemon)$'
 make check RUN='^TestReferenceServer(OutputCancellation|PipelineLifetime|FatalSession)$'
-make check RUN='^TestServer(CLI|Users|Framing|PID|StartupFailure|PersistenceFiles|Logging|StartupParameters)$'
+make check RUN='^TestServer(CLI|Users|Framing|PID|PIDSocketLifecycle|StartupFailure|PersistenceFiles|Logging|StartupParameters)$'
 make check RUN='^TestServerUsers'
 ```
 
@@ -152,6 +173,22 @@ failures fail visibly, never skip or fall back. Mechanical CLI/verifier/framing/
 PID/terminal/file-permission tests stay in `cmd/stuntgres`, without public SQL.
 Non-Linux foreground builds and Windows DACL tests require their platform runners
 for runtime proof; a cross-build alone establishes compilation, not ACL behavior.
+
+Focused deadline-remedy proof and real-server smoke retain default TCP coverage:
+
+```sh
+make check RUN='^TestReferenceServerCancellation$'
+make check RUN='^TestReferenceServerCancellation$' REFERENCE=1
+make check RUN='^TestReferenceServerCancellation$' RACE=1
+make check RUN='^TestReferenceServerCancellation$' REFERENCE=1 RACE=1
+make check RUN='^TestServer(PID|StartupFailure|PIDSocketLifecycle)$' RACE=1
+```
+
+Each command has an external900-second deadline. Expected cancellation outcomes
+remain57014 with the complete message/state, unchanged count1/value1 and SELECT42
+continuation, without inherited-deadline write errors. Selected lifecycle proof
+must still exercise the actual TCP child rather than just helper entry points.
+Finalcheck's socket exclusion does not substitute for these selected proofs.
 
 Separate executable smoke builds the real command, prompts through `passwd`,
 starts a daemon with two database grants, and observes psql write/read42 plus an

@@ -58,7 +58,7 @@ func TestReferenceSQLJSONObjectAggregateBoundaries(t *testing.T) {
 func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 	sqlJSONObjectAggregateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		// Preexisting rows keep admission work to one bounded scan, rather than
-		// materializing a cross product before the writer can be observed.
+		// materializing a cross product before aggregate execution is observed.
 		const activeRows int64 = 32768
 		for _, s := range []fixture.Step{
 			fixture.Exec("CREATE TABLE sjo_cancel_seed(x int)", 0),
@@ -101,22 +101,23 @@ func TestReferenceSQLJSONObjectAggregateCancellation(t *testing.T) {
 			}
 		}
 		for _, prepared := range []bool{false, true} {
-			for _, provider := range []string{"JSONObjectAggregatePlan.Advance", "sortJSONBFields"} {
-				fixture.BinaryConversionActiveCancel(t, p, b, conn, q, provider, func(ctx context.Context) fixture.RelationOutcome {
-					var result sql.Result
-					var err error
-					if prepared {
-						result, err = stmt.ExecContext(ctx, activeRows)
-					} else {
-						result, err = conn.ExecContext(ctx, q, activeRows)
-					}
-					return fixture.RelationOutcome{Result: result, Err: err}
-				})
-				fixture.RunStep(t, p.Ctx, conn, b.Recorder, jsonArrayAggregateSelect("SELECT count(*) AS v FROM sjo_cancel_destination", "INT8", int64(0)))
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, int64(1)))
-				fixture.RunStep(t, p.Ctx, conn, b.Recorder, jsonArrayAggregateSelect("SELECT v FROM sjo_cancel_destination", "JSONB", `{"1": 1}`))
-				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("DELETE FROM sjo_cancel_destination", 1))
-			}
+			// Observe aggregate execution before input drain. Exact transition
+			// and root-sort cancellation are deterministic private provider units,
+			// not transient microframes sampled by this public API witness.
+			fixture.BinaryConversionActiveCancel(t, p, b, conn, q, "openAggregateNode", func(ctx context.Context) fixture.RelationOutcome {
+				var result sql.Result
+				var err error
+				if prepared {
+					result, err = stmt.ExecContext(ctx, activeRows)
+				} else {
+					result, err = conn.ExecContext(ctx, q, activeRows)
+				}
+				return fixture.RelationOutcome{Result: result, Err: err}
+			})
+			fixture.RunStep(t, p.Ctx, conn, b.Recorder, jsonArrayAggregateSelect("SELECT count(*) AS v FROM sjo_cancel_destination", "INT8", int64(0)))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, int64(1)))
+			fixture.RunStep(t, p.Ctx, conn, b.Recorder, jsonArrayAggregateSelect("SELECT v FROM sjo_cancel_destination", "JSONB", `{"1": 1}`))
+			fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("DELETE FROM sjo_cancel_destination", 1))
 		}
 	})
 }

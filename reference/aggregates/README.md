@@ -97,18 +97,28 @@ exact BYTEA identity, domain rejection, UTF8-only output, full positioned
 diagnostics and valid controls. The existing native window-provider boundary is
 unchanged. Run `make check RUN='^TestReferenceSQLJSONAggregateOutputEncoding$'`
 and the identical selector with `REFERENCE=1` for real pinned PostgreSQL.
-Cancellation observes active writer and root-sort admission before cancellation,
-joins each worker, checks no destination publication and recovers the same owner.
-It preloads 32768 unique integer rows once and uses a single ordered,
-parameter-bounded scan for direct/prepared modifying execution. This avoids
-materializing the former 64³ cross product before writer admission under a loaded
-full-race run, while retaining real writer/root-sort observation rather than
-treating workload size or elapsed time as admission. The ordinary 30-second
-fixture and helper admission/join deadlines remain unchanged. Each canceled
-execution must leave the destination empty; the SAME held statement then uses
-limit1, inserts exactly `{"1": 1}`, and clears that row before the next route.
-PostgreSQL still requires observed server admission and the complete 57014
-diagnostic, not a transport-racing context cancellation.
+Cancellation observes real aggregate execution (`openAggregateNode`, including
+child drain) once per direct/prepared route, joins each worker, checks no
+destination publication and recovers the same owner. It preloads the unchanged
+32768 unique integer rows once and uses a single ordered, parameter-bounded scan.
+Public admission requires that aggregate frame and the fixture worker in the
+same live stack; workload size, elapsed time or a launched goroutine is not proof.
+PostgreSQL independently requires actual query activity and the complete57014
+diagnostic, not a transport-racing context cancellation. The ordinary30-second
+fixture and existing helper admission/join deadlines remain unchanged.
+Each canceled execution leaves the destination empty; the SAME held statement
+then uses limit1, inserts exactly `{"1": 1}`, and clears that row before the next
+route.
+
+Precise transition and root-sort cancellation belongs to the existing pure-provider
+`TestSQLJSONObjectAggregateReachedCancellation` unit, not asynchronous sampling of
+short-lived public execution microframes. Real Bind/Init/Advance/Finalize calls
+reach `JSONObjectAggregatePlan.Advance` and `sortJSONBFields`; the existing
+actual-stack context invokes a real CancelFunc only inside the requested phase.
+Both phases must be entered, return context.Canceled, publish no finalized Value,
+and retain cancellation on subsequent Advance and Finalize under a healthy
+context. Existing string-writer and uniqueness-check phase proofs are preserved.
+The shared public cancellation observer is unchanged.
 Boundaries preserve ordinary object/array siblings, the absent jsonb_objectagg
 alias, qualified/quoted grammar and PG-positive/native-unsupported windows.
 
@@ -126,6 +136,7 @@ make check RUN='^TestReferenceSQLJSONObjectAggregate(CorrelatedOwnership|Consume
 make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregate(CorrelatedOwnership|ConsumerAtomicity)$'
 make check RACE=1 RUN='^TestReferenceSQLJSONObjectAggregate(Lifecycle|Controls|Cancellation)$'
 make check RUN='^TestSQLJSONObjectAggregate'
+make check RUN='^TestSQLJSONObjectAggregateReachedCancellation$' RACE=1
 make check RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferenceSQLJSONObjectAggregateFeatureSmoke$'
 ```

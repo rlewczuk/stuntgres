@@ -21,20 +21,23 @@ func TestReferenceTransactionIsolationQueuedConflictTimeout(t *testing.T) {
 						run(b, fixture.Exec("BEGIN", 0))
 						run(b, fixture.Exec("UPDATE t SET v=20", 1))
 						run(b, fixture.Exec("DELETE FROM t", 1))
-						run(a, fixture.Exec("SET statement_timeout='2ms'", 0))
-						// The actual update-and-delete holder remains live throughout the
-						// timer. Do not poll for an enqueue after a 2ms timeout has fired.
+						// The execution timer starts after any preparation, while the
+						// actual update-and-delete holder remains live. Do not poll
+						// for an enqueue after a 2ms timeout has fired.
 						out := fixture.RelationOutcome{}
 						if prepared {
 							stmt, err := a.PrepareContext(p.Ctx, own)
 							if err != nil || stmt == nil {
 								t.Fatal("queued mutation must prepare successfully", stmt, err)
 							}
+							defer stmt.Close()
+							run(a, fixture.Exec("SET statement_timeout='2ms'", 0))
 							out.Result, out.Err = stmt.ExecContext(p.Ctx)
 							if err := stmt.Close(); err != nil {
 								t.Fatal(err)
 							}
 						} else {
+							run(a, fixture.Exec("SET statement_timeout='2ms'", 0))
 							out.Result, out.Err = a.ExecContext(p.Ctx, own)
 						}
 						if out.Result != nil {

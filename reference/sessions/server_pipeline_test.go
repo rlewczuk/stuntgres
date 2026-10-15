@@ -1,3 +1,5 @@
+//go:build !noservertests
+
 package reference_test
 
 import (

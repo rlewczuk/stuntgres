@@ -6,6 +6,29 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Queued isolation-conflict execution timeout
+
+`TestReferenceTransactionIsolationQueuedConflictTimeout` retains a REPEATABLE READ
+snapshot of10 while another transaction updates to20 and deletes the same row.
+Direct and actually prepared UPDATE/DELETE attempts keep that holder live until
+the existing2ms statement execution budget expires. Prepared routes complete
+Prepare before enabling that budget: analysis time is not the row-wait witness.
+The timer duration is unchanged; no retry or post-timeout queue polling is used.
+The mutation must return no result and exact57014 statement-timeout diagnostics,
+including the real PostgreSQL physical updating/deleting tuple Context. The
+transaction then reports25P02; both rollbacks preserve the original value10.
+
+Run each command under an external900-second deadline, also with `RACE=1` for
+selected race proof:
+
+```sh
+make check RUN='^TestReferenceTransactionIsolationQueuedConflictTimeout$'
+make check RUN='^TestReferenceTransactionIsolationQueuedConflictTimeout$' REFERENCE=1
+```
+
+These affected-surface checks do not replace whole-project quickcheck or
+post-integration finalcheck.
+
 ### Inherited physical mutation and ALTER admission
 
 `TestReferenceInheritanceDMLContention` independently specifies physical child
