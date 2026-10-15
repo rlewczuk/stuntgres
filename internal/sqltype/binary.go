@@ -45,6 +45,8 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 			input = JSONB
 		}
 		ids, arity, id = [4]ID{input}, 1, Text
+	case "jsonb_pretty":
+		ids, arity, id = [4]ID{JSONB}, 1, Text
 	case "json_object", "jsonb_object":
 		ids, arity, id = [4]ID{1009, 1009}, len(args), JSON
 		if name == "jsonb_object" {
@@ -253,6 +255,15 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return p.jsonbExistence(ctx, values[0], values[1])
 	case "json_typeof", "jsonb_typeof":
 		return p.jsonScalar(ctx, a)
+	case "jsonb_pretty":
+		if a.jsonb == nil {
+			return Value{}, fmt.Errorf("invalid JSONB payload")
+		}
+		text, err := jsonbPrettyOutput(ctx, &a.jsonb.root)
+		if err != nil {
+			return Value{}, err
+		}
+		return String(p.result.Type, text), nil
 	case "json_object", "jsonb_object":
 		return p.textObject(ctx, values)
 	case "json_array_length":

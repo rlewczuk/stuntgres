@@ -37,7 +37,7 @@ func JSONFunctionCall(name string, visible bool, count, names int) (JSONFunction
 	definition := JSONFunctionDefinition{Input: sqltype.JSON, Result: sqltype.Text, ArgumentIntent: LikeArgument}
 	switch name {
 	case "json_typeof":
-	case "jsonb_typeof":
+	case "jsonb_typeof", "jsonb_pretty":
 		definition.Input = sqltype.JSONB
 	case "json_array_length":
 		definition.Result = sqltype.Int4

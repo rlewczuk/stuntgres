@@ -70,7 +70,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	}
 	if decoration != "" {
 		diagnosticName := name
-		if name == "json_object_keys" || definition.Elements {
+		if name == "json_object_keys" || name == "jsonb_pretty" || definition.Elements {
 			diagnosticName = objectNameText(raw.Name)
 		}
 		return nil, expressionError("42809", decoration+" specified, but "+diagnosticName+" is "+message, raw.Pos)

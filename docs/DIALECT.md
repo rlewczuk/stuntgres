@@ -758,6 +758,12 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Wrong-root length/keys use PostgreSQL English 22023 diagnostics with absent
   runtime Position. Key sets reuse target zip/padding and lateral FROM stages;
   scalar stored consumers and query key views retain symbolic calls on replay.
+  `jsonb_pretty(jsonb)` is a strict immutable JSONB-to-TEXT scalar. It formats
+  the canonical payload with four-space indentation, LF, escaped JSON strings,
+  exact numeric scale and multiline empty containers, without a trailing LF.
+  SQL NULL stays NULL; JSON null renders `null`. Stored expressions retain the
+  symbolic call on native replay. Typed JSON/TEXT inputs require explicit
+  JSONB conversion; no JSON pretty counterpart or formatter options are added.
   `json_each(json)` and `json_each_text(json)` return paired key/value records:
   SELECT targets expose RECORD, while FROM exposes key TEXT and value JSON/TEXT.
   Raw JSON spelling, internal nested whitespace and duplicate occurrences remain

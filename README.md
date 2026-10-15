@@ -13,6 +13,17 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## JSONB pretty output — change note
+
+`jsonb_pretty(jsonb)` returns TEXT with PostgreSQL-compatible four-space
+indentation, LF line breaks and JSON escaping. It renders the actual canonical
+JSONB value, retaining numeric scale and last-wins keys rather than source
+whitespace. Empty containers are multiline; SQL NULL remains SQL NULL, while
+JSON null produces the text `null`. The strict immutable scalar supports
+prepared calls, stored expressions and symbolic native Dump/Restore.
+No JSON pretty function or formatting options are added.
+See [the contract and feature smoke](reference/binary_json_arrays/README.md#jsonb-pretty-output).
+
 ## JSON and JSONB extraction — change note
 
 JSON supports key/index `->` and `->>`, TEXT[] paths `#>` and `#>>`, and

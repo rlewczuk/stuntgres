@@ -282,11 +282,30 @@ func numericOutput(v Value) string {
 			return v.text
 		}
 	}
-	point := int64(len(v.text)) + v.exponent
-	integer := point
-	if integer < 1 {
-		integer = 1
+	var b strings.Builder
+	// Background cannot fail; callers rendering request-owned output use their
+	// own context and discard the private builder on cancellation.
+	_ = appendNumericOutput(context.Background(), &b, v)
+	return b.String()
+}
+
+func appendNumericOutput(ctx context.Context, b *strings.Builder, v Value) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
+	switch v.special {
+	case numericNaN:
+		b.WriteString("NaN")
+		return nil
+	case numericInfinity:
+		b.WriteString("Infinity")
+		return nil
+	case numericNegativeInfinity:
+		b.WriteString("-Infinity")
+		return nil
+	}
+	point := int64(len(v.text)) + v.exponent
+	integer := max(point, 1)
 	length := integer
 	if v.scale > 0 {
 		length += 1 + v.scale
@@ -294,12 +313,16 @@ func numericOutput(v Value) string {
 	if v.negative {
 		length++
 	}
-	var b strings.Builder
 	b.Grow(int(length))
 	if v.negative {
 		b.WriteByte('-')
 	}
 	for i := range integer {
+		if i&1023 == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
 		index := i
 		if point <= 0 {
 			index = -1
@@ -313,6 +336,11 @@ func numericOutput(v Value) string {
 	if v.scale > 0 {
 		b.WriteByte('.')
 		for i := range v.scale {
+			if i&1023 == 0 {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+			}
 			index := point + i
 			if index >= 0 && index < int64(len(v.text)) {
 				b.WriteByte(v.text[index])
@@ -321,7 +349,7 @@ func numericOutput(v Value) string {
 			}
 		}
 	}
-	return b.String()
+	return ctx.Err()
 }
 func roundNumeric(v Value, scale int64) Value {
 	v.scale = scale

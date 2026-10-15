@@ -6,6 +6,41 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSONB pretty output
+
+The `TestReferenceJSONBPretty` family independently specifies exact TEXT for
+scalars, empty/nested containers, canonical byte-length key ordering,
+duplicate elimination, Unicode/control escaping and exact numeric scale.
+Column, extraction and constructor inputs demonstrate actual-value formatting,
+not source-whitespace retention. Direct/prepared and held calls check complete
+TEXT metadata before iteration (including NULL/empty results), owned values,
+inference, domains, qualification, signature/decorated-call diagnostics and
+input failure phases. PostgreSQL 18.0 accepts explicit `VARIADIC` on this
+single-argument call; named `jsonb =>` does not resolve.
+
+Stored default/generated/check/index/view consumers cover multirow failure
+atomicity and recovery. Native phases retain old rows/descriptions across
+replacement, check deterministic redump and failed/canceled Restore atomicity,
+then replay the whole emitted dump on PostgreSQL when enabled. Active
+SELECT/INSERT cancellation observes provider/server admission, joins the
+worker, checks unchanged destination rows and reuses the same held handles.
+Private `TestJSONBPretty` units supplement these public witnesses with payload
+cache independence, immutability and deterministic writer/traversal cancellation.
+
+```sh
+make check RUN='^TestReferenceJSONBPretty'
+make check RUN='^TestReferenceJSONBPretty' REFERENCE=1
+make check RUN='^TestJSONBPretty'
+make check RUN='^TestReferenceJSONBPrettyCancellation$' RACE=1
+make check RUN='^TestReferenceJSONBPrettyFeatureSmoke$'
+make check RUN='^TestReferenceJSONBPrettyFeatureSmoke$' REFERENCE=1
+```
+
+The smoke performs real formatting, metadata, held recovery, diagnostic and
+stored/replay exercises using the same behavioral helpers, without allocating
+the large active-cancellation payload. Shared exact numeric-output regressions:
+`make check RUN='^TestNumeric(CodecAndBounds|TypmodsAndImmutableSizing)$'`.
+
 ### JSON extraction
 
 The `TestReferenceJSONExtract` family specifies JSON-only `->`, `->>`, `#>`,
