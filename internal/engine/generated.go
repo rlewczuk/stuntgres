@@ -321,7 +321,7 @@ func generationImmutable(node BoundExpr) bool {
 	case installedLevenshteinFunctionExpression:
 		return args(n.Args)
 	case installedCryptoFunctionExpression:
-		return args(n.Args)
+		return n.procedure != nil && n.procedure.volatility == Immutable && args(n.Args)
 	case installedFunctionExpression:
 		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.arg})
 	case sqlJSONExpression:

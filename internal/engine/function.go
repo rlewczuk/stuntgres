@@ -24,7 +24,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if strings.EqualFold(name, "unaccent") || strings.EqualFold(name, "daitch_mokotoff") {
 		return b.bindInstalledFunction(raw)
 	}
-	if strings.EqualFold(name, "digest") || strings.EqualFold(name, "hmac") {
+	if strings.EqualFold(name, "digest") || strings.EqualFold(name, "hmac") || strings.EqualFold(name, "crypt") || strings.EqualFold(name, "gen_salt") {
 		return b.bindInstalledCrypto(raw)
 	}
 	if strings.EqualFold(name, "levenshtein") || strings.EqualFold(name, "levenshtein_less_equal") {

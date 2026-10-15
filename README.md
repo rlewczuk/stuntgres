@@ -3985,14 +3985,15 @@ See [fields, visibility and controls](https://www.postgresql.org/docs/18/catalog
 Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned counterpart.
 
-**Pgcrypto digest/HMAC change note:** installed pgcrypto1.4 supplies exactly four
-IMMUTABLE STRICT PARALLEL SAFE scalar overloads: digest(TEXT,TEXT),
-digest(BYTEA,TEXT), hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT), all returning raw
-BYTEA. Supported algorithms are md5, sha1, sha224, sha256, sha384 and sha512,
+**Pgcrypto change note:** installed pgcrypto1.4 supplies seven STRICT PARALLEL SAFE
+scalar overloads: immutable digest(TEXT,TEXT), digest(BYTEA,TEXT),
+hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT) return raw BYTEA; immutable
+crypt(TEXT,TEXT) and volatile gen_salt(TEXT[,INT4]) return TEXT.
+Supported digest/HMAC algorithms are md5, sha1, sha224, sha256, sha384 and sha512,
 including observed hyphenated SHA aliases and SHA2-256. TEXT hashes exact UTF8
 octets; BYTEA hashes arbitrary raw bytes. Builtin md5 still returns hexadecimal
 TEXT. Any NULL argument skips hashing after demanded child expressions; a
-constant failing sibling is not suppressed. Unsupported algorithms report22023
+constant failing sibling is not suppressed. Unsupported digest/HMAC algorithms report22023
 with the normalized name (ASCII case-folded, UTF8-safe63-byte truncation, no trim).
 Standard-library streaming bounds scratch memory, including oversized HMAC keys.
 Installed namespace/USAGE, exact overload identities, defaults/CHECK/generated
@@ -4000,10 +4001,22 @@ columns/index/view consumers and native Dump/Reset/Restore use the existing
 catalog/control paths. Old native Rows retain their bytes and metadata; failed
 replay is atomic and named owners must exist in the destination. Selected pgcrypto
 validation rejects mixed crypto/fuzzy provider identities rather than allowing a
-different provider's dispatch branch to admit a crypto member. No arbitrary
-OpenSSL algorithms, crypt, encryption, PGP, random-byte or FIPS functions are added.
-Feature smoke: `make check RUN='^TestReferencePgcryptoFeatureSmoke$'`;
-add `REFERENCE=1` for the pinned PostgreSQL counterpart.
+different provider's dispatch branch to admit a crypto member.
+Bcrypt accepts PostgreSQL's exact `$2a$` and `$2x$` salt heads, costs04..31,
+the first72 password bytes (even within a UTF8 character), full stored hashes
+and ignored salt suffixes. The standard-library-only Blowfish schedule uses
+constant scratch space and polls cancellation each cost round. gen_salt accepts
+case-insensitive bf without trimming; omitted/zero cost means6, and sixteen
+strong random bytes produce a canonical29-character salt independently of SQL
+random state. Volatile salts are valid defaults/views, not generated columns or
+expression indexes. Stored salts/hashes survive native replay without regeneration.
+Non-bf algorithms, including `$2b$`/`$2y$` dispatch, are native unsupported
+boundaries (0A000), not extra accepted bcrypt variants; `$2$` retains39000.
+No arbitrary OpenSSL algorithms, encryption, PGP, random-byte or FIPS functions
+are added. Password smoke:
+`make check RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'`;
+add `REFERENCE=1` for the pinned PostgreSQL counterpart. Digest/HMAC smoke remains
+`make check RUN='^TestReferencePgcryptoFeatureSmoke$'`.
 
 
 LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,

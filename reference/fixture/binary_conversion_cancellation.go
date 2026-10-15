@@ -17,6 +17,14 @@ func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn,
 	activeProviderCancel(t, p, b, c, query, provider, "", nil, operation)
 }
 
+// BinaryConversionActiveCancelAfter additionally observes caller-defined progress
+// after provider/server admission and before cancellation, under the same bounded
+// context and worker cleanup. The callback must not use the busy connection.
+func BinaryConversionActiveCancelAfter(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
+	t.Helper()
+	activeProviderCancel(t, p, b, c, query, provider, "", admitted, operation)
+}
+
 // SleepActiveCancel observes a real wait, rather than a precancelled request.
 func SleepActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
 	t.Helper()

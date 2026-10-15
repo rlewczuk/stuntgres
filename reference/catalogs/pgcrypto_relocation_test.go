@@ -21,11 +21,14 @@ func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	pgcryptoResult(t, p, c, r, "digest", "SELECT pgcrypto_part.digest($1::bytea,'sha256')", "5240672d7b51756b829ad0ef8d9468b7a078afa2f410484fd3892dab47becb72", []byte{0, 128, 255})
 	pgcryptoResult(t, p, c, r, "hmac", "SELECT pgcrypto_part.hmac('what do ya want for nothing?','Jefe','sha256')", "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843")
 	pgcryptoResult(t, p, c, r, "hmac", "SELECT pgcrypto_part.hmac($1::bytea,$2::bytea,'sha256')", "f085c3bd7fc8d8f90f1a475a943a7f03a97c496a81013f8d54d2e2d229ab562c", []byte{0, 128, 255}, []byte{255, 0, 128})
+	pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
+	pgcryptoPasswordGenerated(t, p, c, r, "SELECT pgcrypto_part.gen_salt('bf')", "pgcrypto_part.crypt", 6)
+	pgcryptoPasswordGenerated(t, p, c, r, "SELECT pgcrypto_part.gen_salt('bf',4)", "pgcrypto_part.crypt", 4)
 }
 
 func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string]int64 {
 	t.Helper()
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND (proname='digest' OR proname='hmac')")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +48,7 @@ func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 4 {
+	if len(ids) != 7 {
 		t.Fatal("procedure inventory", ids)
 	}
 	return ids
@@ -140,7 +143,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		}
 	}
 	// Every sequence consumes a real catalog OID. Stop at the observed upper
-	// bound, and require actual collisions for all four procedures below.
+	// bound, and require actual collisions for all seven procedures below.
 	collisions := make(map[int64]string)
 	sequenceNamespaces := make(map[int64]int64)
 	for i := range 128 {
@@ -202,7 +205,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 	}
 	pgcryptoReplayOverloads(t, p, c, r)
 	consumerIDs := pgcryptoConsumerDependencies(t, p, c, r, destination)
-	cryptoHeld := pgcryptoHoldFour(t, p, c)
+	cryptoHeld := pgcryptoHoldMembers(t, p, c)
 	for _, call := range cryptoHeld {
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Statement: call.statement, SQL: call.step.Query}, r, call.step)
 	}

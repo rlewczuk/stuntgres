@@ -8,11 +8,16 @@ import (
 // PgcryptoInput chooses between documented signatures using SQL usages.
 // Unknown data/key prefer TEXT; known BYTEA requires compatible other operands.
 
-func PgcryptoInput[E any](name string, args []Argument[E], text, bytea sqltype.Usage) (sqltype.Usage, Resolution) {
+func PgcryptoInput[E any](name string, args []Argument[E], text, bytea, integer sqltype.Usage) (sqltype.Usage, Resolution) {
 	count := 2
 	if name == "hmac" {
 		count = 3
-	} else if name != "digest" {
+	} else if name == "gen_salt" {
+		if len(args) != 1 && len(args) != 2 {
+			return sqltype.Usage{}, Missing
+		}
+		count = len(args)
+	} else if name != "digest" && name != "crypt" {
 		return sqltype.Usage{}, Missing
 	}
 	if len(args) != count {
@@ -20,7 +25,7 @@ func PgcryptoInput[E any](name string, args []Argument[E], text, bytea sqltype.U
 	}
 	input := text
 	for _, arg := range args[:count-1] {
-		if arg.Usage.Type != nil && arg.Usage.Type.BaseType().ID() == sqltype.Bytea {
+		if (name == "digest" || name == "hmac") && arg.Usage.Type != nil && arg.Usage.Type.BaseType().ID() == sqltype.Bytea {
 			input = bytea
 		}
 	}
@@ -32,6 +37,9 @@ func PgcryptoInput[E any](name string, args []Argument[E], text, bytea sqltype.U
 		if i == count-1 {
 			target = text
 		}
+		if name == "gen_salt" && i == 1 {
+			target = integer
+		}
 		if _, err := sqltype.PlanCoercion(arg.Usage, target, sqltype.Implicit); err != nil {
 			return sqltype.Usage{}, Missing
 		}
@@ -39,12 +47,15 @@ func PgcryptoInput[E any](name string, args []Argument[E], text, bytea sqltype.U
 	return input, Resolved
 }
 
-func CoercePgcryptoArguments[E any, B ArgumentCoercer[E]](b B, args []Argument[E], input, text sqltype.Usage) ([]E, error) {
+func CoercePgcryptoArguments[E any, B ArgumentCoercer[E]](b B, name string, args []Argument[E], input, text, integer sqltype.Usage) ([]E, error) {
 	children := make([]E, len(args))
 	for i, arg := range args {
 		target := input
 		if i == len(args)-1 {
 			target = text
+		}
+		if name == "gen_salt" && i == 1 {
+			target = integer
 		}
 		child, err := b.CoerceArgument(arg, CoercionRequest{Intent: DirectFormalArgument, Target: target})
 		if err != nil {
@@ -75,12 +86,39 @@ func (e Pgcrypto[E, C, P]) Eval(c C) (sqltype.Value, error) {
 		}
 		values[i] = value
 	}
+	if e.Plan.Name() == "gen_salt" {
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		cost, null, err := e.Plan.PrepareSalt(values[:len(e.Args)]...)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if null {
+			return sqltype.Null(e.Usage.Type), nil
+		}
+		entropyContext, ok := any(c).(interface{ FunctionPgcryptoEntropy([]byte) error })
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("missing pgcrypto entropy context")
+		}
+		var entropy [16]byte
+		if err := entropyContext.FunctionPgcryptoEntropy(entropy[:]); err != nil {
+			if canceled := ctx.Err(); canceled != nil {
+				return sqltype.Value{}, canceled
+			}
+			return sqltype.Value{}, sqlError("22023", "gen_salt: Failed to generate strong random bits")
+		}
+		if err := ctx.Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.String(e.Usage.Type, sqltype.PgcryptoSalt(cost, entropy)), nil
+	}
 	return e.Plan.Evaluate(ctx, values[:len(e.Args)]...)
 }
 
 func NewPgcrypto[E Expression[C], C Context, P any](info Info[P], name string, args []E) (Pgcrypto[E, C, P], error) {
 	var usages [3]sqltype.Usage
-	if len(args) < 2 || len(args) > 3 {
+	if len(args) < 1 || len(args) > 3 {
 		return Pgcrypto[E, C, P]{}, fmt.Errorf("invalid crypto call")
 	}
 	for i, arg := range args {

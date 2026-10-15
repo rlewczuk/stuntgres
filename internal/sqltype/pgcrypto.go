@@ -16,35 +16,51 @@ import (
 
 // PgcryptoPlan records only the admitted SQL signature, never a frame's algorithm.
 type PgcryptoPlan struct {
-	name   string
-	result Usage
-	input  ID
+	name      string
+	result    Usage
+	input     ID
+	count     int
+	arguments [3]ID
 }
 
 func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error) {
-	count := 2
-	if name == "hmac" {
+	count, resultID := 2, Bytea
+	switch name {
+	case "digest":
+	case "hmac":
 		count = 3
-	} else if name != "digest" {
+	case "crypt":
+		resultID = Text
+	case "gen_salt":
+		count, resultID = len(args), Text
+		if count != 1 && count != 2 {
+			return PgcryptoPlan{}, fmt.Errorf("invalid crypto signature")
+		}
+	default:
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto function")
 	}
-	if len(args) != count || result.Type == nil || result.Type.ID() != Bytea || args[0].Type == nil {
+	if len(args) != count || result.Type == nil || result.Type.ID() != resultID || args[0].Type == nil {
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto signature")
 	}
 	input := args[0].Type.ID()
-	if input != Text && input != Bytea {
+	if input != Text && (input != Bytea || name != "digest" && name != "hmac") {
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
 	}
+	plan := PgcryptoPlan{name: name, result: result, input: input, count: count}
 	for i, arg := range args {
 		want := input
 		if i == count-1 {
 			want = Text
 		}
+		if name == "gen_salt" && i == 1 {
+			want = Int4
+		}
 		if arg.Type == nil || arg.Type.ID() != want {
 			return PgcryptoPlan{}, fmt.Errorf("invalid crypto argument")
 		}
+		plan.arguments[i] = want
 	}
-	return PgcryptoPlan{name: name, result: result, input: input}, nil
+	return plan, nil
 }
 
 func (p PgcryptoPlan) Name() string { return p.name }
@@ -97,26 +113,31 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
-	count := 2
-	if p.name == "hmac" {
-		count = 3
+	null, err := p.validateValues(values)
+	if err != nil {
+		return Value{}, err
 	}
-	if len(values) != count {
-		return Value{}, fmt.Errorf("invalid crypto values")
+	if null {
+		return Null(p.result.Type), nil
 	}
-	for i, value := range values {
-		want := p.input
-		if i == count-1 {
-			want = Text
+	count := p.count
+	if p.name == "crypt" {
+		password, err := values[0].Text()
+		if err != nil {
+			return Value{}, err
 		}
-		if value.Type() == nil || value.Type().ID() != want {
-			return Value{}, fmt.Errorf("invalid crypto value type")
+		salt, err := values[1].Text()
+		if err != nil {
+			return Value{}, err
 		}
+		hash, err := pgcryptoBcrypt(ctx, password, salt)
+		if err != nil {
+			return Value{}, err
+		}
+		return String(p.result.Type, hash), nil
 	}
-	for _, value := range values {
-		if value.IsNull() {
-			return Null(p.result.Type), nil
-		}
+	if p.name == "gen_salt" {
+		return Value{}, fmt.Errorf("gen_salt requires entropy")
 	}
 	algorithm, err := values[count-1].Text()
 	if err != nil {
@@ -167,4 +188,75 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 		return Value{}, err
 	}
 	return Binary(p.result.Type, string(bytes))
+}
+
+func (p PgcryptoPlan) validateValues(values []Value) (bool, error) {
+	if len(values) != p.count {
+		return false, fmt.Errorf("invalid crypto values")
+	}
+	null := false
+	for i, value := range values {
+		if value.Type() == nil || value.Type().ID() != p.arguments[i] {
+			return false, fmt.Errorf("invalid crypto value type")
+		}
+		null = null || value.IsNull()
+	}
+	return null, nil
+}
+
+// PrepareSalt validates before the function carrier requests strong entropy.
+func (p PgcryptoPlan) PrepareSalt(values ...Value) (uint8, bool, error) {
+	if p.name != "gen_salt" {
+		return 0, false, fmt.Errorf("invalid salt plan")
+	}
+	null, err := p.validateValues(values)
+	if err != nil || null {
+		return 0, null, err
+	}
+	name, err := values[0].Text()
+	if err != nil {
+		return 0, false, err
+	}
+	if !pgcryptoSaltAlgorithmEqual(name, "bf") {
+		for _, excluded := range [...]string{"des", "md5", "xdes", "sha256crypt", "sha512crypt"} {
+			if pgcryptoSaltAlgorithmEqual(name, excluded) {
+				return 0, false, pgcryptoError("0A000", "gen_salt: unsupported salt algorithm")
+			}
+		}
+		return 0, false, pgcryptoError("22023", "gen_salt: Unknown salt algorithm")
+	}
+	cost := int64(6)
+	if len(values) == 2 {
+		cost, err = values[1].Integer()
+		if err != nil {
+			return 0, false, err
+		}
+		if cost == 0 {
+			cost = 6
+		}
+	}
+	if cost < 4 || cost > 31 {
+		return 0, false, pgcryptoError("22023", "gen_salt: Incorrect number of rounds")
+	}
+	return uint8(cost), false, nil
+}
+
+func pgcryptoSaltAlgorithmEqual(raw, lower string) bool {
+	if len(raw) != len(lower) {
+		return false
+	}
+	for i := range raw {
+		c := raw[i]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		if c != lower[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func pgcryptoError(code, message string) error {
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }

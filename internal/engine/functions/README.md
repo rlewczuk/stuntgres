@@ -28,13 +28,22 @@ fuzzystrmatch identity, strictness, immutable binding, owned text[] construction
 generated consumers and control remapping remain engine responsibilities.
 
 Installed pgcrypto calls reuse this package's SQL-usage overload selection,
-formal coercion hooks and immutable `Pgcrypto` carrier. The engine separately
-owns the installed procedure address, namespace/ACL, dependency and replay
-identity. `internal/sqltype/pgcrypto.go` owns raw digest/HMAC plans and shares
-bounded string streaming with builtin binary hashes. All reached children run
-once in source order before strict NULL handling; no algorithm is cached across
-parameter frames. Six standard-library hashes return raw BYTEA, distinct from
-builtin md5's hexadecimal TEXT.
+formal coercion hooks and reconstructible `Pgcrypto` carrier. The engine separately
+owns installed procedure address, namespace/ACL, intrinsic volatility, dependency,
+replay identity and the narrow strong-entropy context capability.
+`internal/sqltype/pgcrypto.go` owns admitted signature/result plans, raw digest/HMAC
+and validated bf salt costs. The adjacent public-domain bcrypt kernel uses fixed
+Blowfish state, byte-oriented72-byte key expansion, PostgreSQL2a/2x semantics,
+canonical custom base64 and per-round cancellation. Six hashes return raw BYTEA;
+crypt/gen_salt return TEXT, with volatile gen_salt entropy requested once only
+after demanded children, strict NULL handling and name/count validation.
+All reached children run once in source order. Plans retain no password, salt,
+entropy or frame-specific algorithm across executions. Builtin md5 still returns
+hexadecimal TEXT.
+Closed gen_salt DEFAULT recipes use the same provider-identity and closed-tree
+admission at binding and serialization; unrelated volatile producers and
+row/parameter/stage-dependent recipes remain excluded. This does not weaken
+the separate generated-column/expression-index immutability rules.
 
 Installed fuzzystrmatch Levenshtein calls reuse shared SQL-usage analysis and
 formal coercion: TEXT,TEXT followed by INT4 costs/bound, with INT4 results.
@@ -91,6 +100,7 @@ make check RUN='^(TestSumProviders|TestSumIntegralTransitions|TestSumFloatingTra
 make check RUN='^(TestRandomIntegerSampler|TestRandomRuntimeNullEvaluatesSibling|TestUUIDGenerationPacking|TestUUIDGenerationAscendingClock)$'
 make check RUN='^(TestDatetimeSleepWait|TestDatetimeSleepCleanup|TestQueryAggregateRealAdvanceFailure)$' RACE=1
 make check RUN='^TestPgcrypto(OverloadResolution|RawVectors|StrictDemand|Cancellation)$'
+make check RUN='^TestPgcrypto(Password(Entropy|Volatility)|Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation))$'
 ```
 
 ```sh

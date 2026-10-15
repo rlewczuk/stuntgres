@@ -27,6 +27,12 @@ func TestPgcryptoOverloadResolution(t *testing.T) {
 		{"hmac", []sqltype.ID{sqltype.Text, sqltype.Bytea, 0}, 0, Missing},
 		{"digest", []sqltype.ID{sqltype.Int4, 0}, 0, Missing},
 		{"digest", []sqltype.ID{0}, 0, Missing},
+		{"crypt", []sqltype.ID{0, 0}, sqltype.Text, Resolved},
+		{"crypt", []sqltype.ID{sqltype.Bytea, 0}, 0, Missing},
+		{"gen_salt", []sqltype.ID{0}, sqltype.Text, Resolved},
+		{"gen_salt", []sqltype.ID{0, 0}, sqltype.Text, Resolved},
+		{"gen_salt", []sqltype.ID{sqltype.Text, sqltype.Int2}, sqltype.Text, Resolved},
+		{"gen_salt", []sqltype.ID{sqltype.Text, sqltype.Int8}, 0, Missing},
 	} {
 		args := make([]Argument[struct{}], len(test.ids))
 		for i, id := range test.ids {
@@ -34,7 +40,7 @@ func TestPgcryptoOverloadResolution(t *testing.T) {
 				args[i].Usage = types[id].Usage()
 			}
 		}
-		input, resolution := PgcryptoInput(test.name, args, text, binary)
+		input, resolution := PgcryptoInput(test.name, args, text, binary, types[sqltype.Int4].Usage())
 		if resolution != test.resolution || resolution == Resolved && input.Type.ID() != test.input {
 			t.Fatal(test, input, resolution)
 		}

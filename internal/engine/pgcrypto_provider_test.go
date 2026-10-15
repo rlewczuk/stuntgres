@@ -31,13 +31,24 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 func TestPgcryptoProviderIdentity(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.version != "1.4" || len(ext.members) != 4 || ext.Namespace() != (ObjectAddress{}) {
+	if ext.version != "1.4" || len(ext.members) != 7 || ext.Namespace() != (ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	seen := map[ObjectAddress]bool{}
+	expected := []struct {
+		name       string
+		signature  procedureSignature
+		result     OID
+		volatility Volatility
+	}{
+		{"digest", "25,25", 17, Immutable}, {"digest", "17,25", 17, Immutable},
+		{"hmac", "25,25,25", 17, Immutable}, {"hmac", "17,17,25", 17, Immutable},
+		{"crypt", "25,25", 25, Immutable}, {"gen_salt", "25", 25, Volatile}, {"gen_salt", "25,23", 25, Volatile},
+	}
 	for i, address := range ext.members {
 		proc := view.state.descriptors[address].(*procedureDescriptor)
-		if seen[address] || proc.signature != pgcryptoSignatures[i] || proc.owner != ext.owner || proc.namespace != ext.targetNamespace || proc.result != 17 || !proc.strict || proc.volatility != Immutable {
+		want := expected[i]
+		if seen[address] || proc.name != want.name || proc.signature != want.signature || proc.owner != ext.owner || proc.namespace != ext.targetNamespace || proc.result != want.result || !proc.strict || proc.volatility != want.volatility {
 			t.Fatal(proc)
 		}
 		seen[address] = true
@@ -58,7 +69,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	if count != 4 {
+	if count != 7 {
 		t.Fatal(count)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
@@ -66,6 +77,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.provider = stockUnaccent },
 		func(p *procedureDescriptor) { p.queryCodec = stockIntarray },
 		func(p *procedureDescriptor) { p.fuzzy = stockFuzzystrmatch },
+		func(p *procedureDescriptor) { p.name = "crypt" },
 		func(p *procedureDescriptor) { p.signature = "25" },
 		func(p *procedureDescriptor) { p.result = 25 },
 		func(p *procedureDescriptor) { p.revision = 0 },

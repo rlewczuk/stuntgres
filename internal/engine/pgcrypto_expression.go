@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"crypto/rand"
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/functions"
@@ -12,6 +13,14 @@ type installedCryptoFunctionExpression struct {
 	functions.Pgcrypto[BoundExpr, *EvalContext, ExprProperties]
 	procedure *procedureDescriptor
 	ref       ObjectRef
+}
+
+func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
+	if err := c.FunctionContext().Err(); err != nil {
+		return err
+	}
+	_, err := rand.Read(bytes)
+	return err
 }
 
 func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundExpr, error) {
@@ -30,6 +39,16 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	}
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	issue := functions.FunctionLabels(raw)
+	if issue.Malformed {
+		return nil, fmt.Errorf("invalid function argument labels")
+	}
+	if issue.Positional {
+		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
+	}
+	if issue.Duplicate != "" {
+		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
 	}
 	names := make([]string, len(operands))
 	for i, o := range operands {
@@ -50,8 +69,8 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	canonical := strings.ToLower(name)
-	text, bytea := b.typ(sqltype.Text).Usage(), b.typ(sqltype.Bytea).Usage()
-	input, resolution := functions.PgcryptoInput(canonical, operands, text, bytea)
+	text, bytea, integer := b.typ(sqltype.Text).Usage(), b.typ(sqltype.Bytea).Usage(), b.typ(sqltype.Int4).Usage()
+	input, resolution := functions.PgcryptoInput(canonical, operands, text, bytea, integer)
 	if resolution != functions.Resolved || raw.Variadic || len(raw.ArgNames) != 0 || raw.Distinct || raw.All || raw.Star || raw.Window != nil || raw.Filter != nil || len(raw.Order) != 0 {
 		return failure()
 	}
@@ -65,15 +84,21 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 			signature = "17,17,25"
 		}
 	}
+	if canonical == "gen_salt" {
+		signature = "25"
+		if len(operands) == 2 {
+			signature = "25,23"
+		}
+	}
 	proc := procedureInNamespaces(auth.catalog, path, name, signature)
 	if proc == nil || proc.crypto != stockPgcrypto {
 		return failure()
 	}
-	args, err := functions.CoercePgcryptoArguments(b, operands, input, text)
+	args, err := functions.CoercePgcryptoArguments(b, canonical, operands, input, text, integer)
 	if err != nil {
 		return nil, err
 	}
-	properties := ExprProperties{Volatility: Immutable}
+	properties := ExprProperties{Volatility: proc.volatility}
 	for _, arg := range args {
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
@@ -83,7 +108,11 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	call, err := functions.NewPgcrypto[BoundExpr, *EvalContext](functionInfo(b.info(bytea, raw.Pos, properties)), canonical, args)
+	result := bytea
+	if proc.result == 25 {
+		result = text
+	}
+	call, err := functions.NewPgcrypto[BoundExpr, *EvalContext](functionInfo(b.info(result, raw.Pos, properties)), canonical, args)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +128,7 @@ func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
 		}
 	}
 	proc, ok := v.state.descriptors[n.ref.Address].(*procedureDescriptor)
-	if !ok || proc != n.procedure || proc.crypto != stockPgcrypto || proc.name != n.Plan.Name() || proc.signature != cryptoExpressionSignature(n) || proc.result != 17 {
+	if !ok || proc != n.procedure || proc.crypto != stockPgcrypto || proc.name != n.Plan.Name() || proc.signature != cryptoExpressionSignature(n) {
 		return fmt.Errorf("stuntgres: invalid stored crypto identity")
 	}
 	if err := stockPgcrypto.validateProcedure(v, proc); err != nil {
@@ -109,6 +138,15 @@ func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
 }
 
 func cryptoExpressionSignature(n installedCryptoFunctionExpression) procedureSignature {
+	if n.Plan.Name() == "gen_salt" {
+		if len(n.Args) == 1 {
+			return "25"
+		}
+		if len(n.Args) == 2 {
+			return "25,23"
+		}
+		return ""
+	}
 	if len(n.Args) == 2 {
 		if n.Args[0].ResultUsage().Type.ID() == sqltype.Bytea {
 			return "17,25"
@@ -122,4 +160,43 @@ func cryptoExpressionSignature(n installedCryptoFunctionExpression) procedureSig
 		return "25,25,25"
 	}
 	return ""
+}
+
+// Only genuine installed crypto calls introduce volatility here. Like the
+// existing UUID/time default owners, recurse through supported scalar wrappers
+// without admitting unrelated volatile producers or frame-dependent recipes.
+func closedPgcryptoDefault(node BoundExpr) bool {
+	if node == nil {
+		return true
+	}
+	p := node.Properties()
+	if p.RowDependent || p.ParameterDependent || p.StageDependent {
+		return false
+	}
+	switch n := node.(type) {
+	case installedCryptoFunctionExpression:
+		if n.procedure == nil || n.procedure.crypto != stockPgcrypto || n.ref.Address != n.procedure.address || n.ref.Epoch == 0 || n.Plan.Name() != n.procedure.name || n.Validate() != nil {
+			return false
+		}
+		member, ok := pgcryptoLookup(n.procedure.name, cryptoExpressionSignature(n))
+		if !ok || n.procedure.signature != member.signature || n.procedure.result != member.result || n.procedure.volatility != member.volatility {
+			return false
+		}
+	case coercionExpression, collationExpression, rowExpression, fieldExpression,
+		comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression,
+		nullTestExpression, truthTestExpression, logicalExpression, distinctExpression,
+		conditionalExpression, caseExpression, scalarArrayComparisonExpression,
+		functions.Binary[BoundExpr, *EvalContext, ExprProperties],
+		functions.String[BoundExpr, *EvalContext, ExprProperties],
+		functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin],
+		functions.Format[BoundExpr, *EvalContext, ExprProperties],
+		functions.NullCount[BoundExpr, *EvalContext, ExprProperties],
+		functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties],
+		functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+	default:
+		return p.Volatility <= Stable
+	}
+	valid := true
+	boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedPgcryptoDefault(child) })
+	return valid
 }

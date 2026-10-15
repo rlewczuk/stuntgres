@@ -10,21 +10,35 @@ type pgcryptoProvider struct{ version string }
 
 var stockPgcrypto = &pgcryptoProvider{version: "1.4"}
 
-var pgcryptoSignatures = [...]procedureSignature{"25,25", "17,25", "25,25,25", "17,17,25"}
+type pgcryptoMember struct {
+	name       string
+	signature  procedureSignature
+	result     OID
+	volatility Volatility
+}
 
-func pgcryptoName(signature procedureSignature) string {
-	switch signature {
-	case "25,25", "17,25":
-		return "digest"
-	case "25,25,25", "17,17,25":
-		return "hmac"
+var pgcryptoMembers = [...]pgcryptoMember{
+	{"digest", "25,25", 17, Immutable},
+	{"digest", "17,25", 17, Immutable},
+	{"hmac", "25,25,25", 17, Immutable},
+	{"hmac", "17,17,25", 17, Immutable},
+	{"crypt", "25,25", 25, Immutable},
+	{"gen_salt", "25", 25, Volatile},
+	{"gen_salt", "25,23", 25, Volatile},
+}
+
+func pgcryptoLookup(name string, signature procedureSignature) (pgcryptoMember, bool) {
+	for _, member := range pgcryptoMembers {
+		if member.name == name && member.signature == signature {
+			return member, true
+		}
 	}
-	return ""
+	return pgcryptoMember{}, false
 }
 
 func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.members = make([]ObjectAddress, len(pgcryptoSignatures))
-	for i, signature := range pgcryptoSignatures {
+	ext.members = make([]ObjectAddress, len(pgcryptoMembers))
+	for i, member := range pgcryptoMembers {
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
 			return err
@@ -35,7 +49,7 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		}
 		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: pgcryptoName(signature), signature: signature, owner: owner, result: 17, volatility: Immutable, strict: true, crypto: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, owner: owner, result: member.result, volatility: member.volatility, strict: true, crypto: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
@@ -48,14 +62,18 @@ func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 
 func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid pgcrypto manifest") }
-	if p != stockPgcrypto || ext.name != "pgcrypto" || ext.version != p.version || len(ext.members) != len(pgcryptoSignatures) {
+	if p != stockPgcrypto || ext.name != "pgcrypto" || ext.version != p.version || len(ext.members) != len(pgcryptoMembers) {
 		return invalid()
 	}
-	seen := make(map[procedureSignature]bool, len(pgcryptoSignatures))
+	seen := make(map[pgcryptoMember]bool, len(pgcryptoMembers))
 	var owner authorization.PrincipalRef
 	for i, address := range ext.members {
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || proc.name != pgcryptoName(proc.signature) || proc.name == "" || proc.result != 17 || proc.volatility != Immutable || !proc.strict || seen[proc.signature] || v.state.names[descriptorNameKey(proc)] != address {
+		if !ok {
+			return invalid()
+		}
+		member, admitted := pgcryptoLookup(proc.name, proc.signature)
+		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || !proc.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		if i == 0 {
@@ -66,7 +84,7 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 		if owner == (authorization.PrincipalRef{}) {
 			return invalid()
 		}
-		seen[proc.signature] = true
+		seen[member] = true
 	}
 	return nil
 }

@@ -59,7 +59,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	if err != nil {
 		return nil, err
 	}
-	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) {
+	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) {
 		return nil, expressionError("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
@@ -116,8 +116,9 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 }
 
 // One recursive serializer validates persisted scalar trees without Eval.
-// DEFAULT admits closed Immutable/Stable trees, selected UUID generation trees,
-// and fixed nextval leaves with coercion wrappers. CHECK also admits its owner row.
+// DEFAULT admits closed Immutable/Stable trees, selected UUID/time generation
+// trees, genuine installed gen_salt recipes and fixed nextval leaves with
+// coercion wrappers. CHECK also admits its owner row.
 type scalarRenderer struct {
 	// A cooking-only reader preserves authentic catalog identity while resolving
 	// exact preceding metadata effects; ordinary serialization leaves it nil.
@@ -164,7 +165,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollationAt(view, r.definition, u); err != nil {

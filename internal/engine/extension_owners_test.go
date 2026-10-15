@@ -35,6 +35,9 @@ func TestPgcryptoOwnerMetadata(t *testing.T) {
 		{Kind: "procedure", Name: "digest", Signature: "17,25", Owner: "postgres"},
 		{Kind: "procedure", Name: "hmac", Signature: "25,25,25", Owner: "postgres"},
 		{Kind: "procedure", Name: "hmac", Signature: "17,17,25", Owner: "postgres"},
+		{Kind: "procedure", Name: "crypt", Signature: "25,25", Owner: "postgres"},
+		{Kind: "procedure", Name: "gen_salt", Signature: "25", Owner: "postgres"},
+		{Kind: "procedure", Name: "gen_salt", Signature: "25,23", Owner: "postgres"},
 	}}
 	if err != nil || len(records) != 1 || !reflect.DeepEqual(records[0], expected) {
 		t.Fatal("owner metadata", records, err)

@@ -127,6 +127,15 @@ PostgreSQL independently observes its actual query and optional wait event.
 The existing admission deadline remains15 seconds, and every exit cancels and
 joins the worker before held statements or physical connections close.
 
+`BinaryConversionActiveCancelAfter` uses the same observer, deadline, cancellation
+and worker-join implementation, with an additional progress callback after real
+provider/server admission and before cancellation. The callback uses the supplied
+bounded context and a different connection, never the busy physical connection.
+Consumers must assert a real independently specified progress transition, not
+delay cancellation by a timer or weaken provider admission. The password multirow
+witness observes nontransactional sequence progress into the later cost31 row
+after an earlier literal-hash row.
+
 Native complete-stack sampling stops the world. The first sample is immediate;
 after an unsuccessful complete sample, a reusable timer waits1 millisecond with
 context/completion-aware selection before sampling again. The delay begins
@@ -145,9 +154,12 @@ make check RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneA
 make check REFERENCE=1 RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
 make check RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
 make check REFERENCE=1 RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
+make check RUN='^TestReferencePgcryptoPasswordCancellation$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoPasswordCancellation$'
 make check RACE=1 RUN='^TestReference(OrderedSetAggregateActiveCancellation|BinaryConversionActiveCancellation|JSONArrayLengthCancellation|ConversionCancellation)$'
 make check RACE=1 RUN='^TestReferenceDatetime(SleepCancellation|SleepFeatureSmoke|ZoneActiveCancellation)$'
 make check RACE=1 RUN='^TestReference(QueryParallelCancellation|QueryRecursiveCTELifecycle|TemporaryViewCancellation)$'
+make check RACE=1 RUN='^TestReferencePgcryptoPasswordCancellation$'
 ```
 
 Each invocation has an external900-second deadline. These selected proofs do

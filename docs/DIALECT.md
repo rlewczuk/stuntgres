@@ -645,25 +645,46 @@ arguments survive stored rendering, generated/default/CHECK/view consumers and
 native Dump/Reset/Restore; no always-on builtin aliases are installed.
 
 
-## Installed pgcrypto digest and HMAC
+## Installed pgcrypto hashing and bcrypt passwords
 
-Registered pgcrypto1.4 installs only digest(TEXT,TEXT), digest(BYTEA,TEXT),
-hmac(TEXT,TEXT,TEXT) and hmac(BYTEA,BYTEA,TEXT). Results are raw BYTEA for md5,
-sha1, sha224, sha256, sha384 and sha512; TEXT input is exact UTF8 octets and
-BYTEA input is arbitrary binary. Unknown data/key operands prefer TEXT; known
-mixed TEXT/BYTEA HMAC has no overload. Namespace lookup and schema USAGE are
+Registered pgcrypto1.4 installs seven scalar overloads: digest(TEXT,TEXT),
+digest(BYTEA,TEXT), hmac(TEXT,TEXT,TEXT), hmac(BYTEA,BYTEA,TEXT),
+crypt(TEXT,TEXT), gen_salt(TEXT) and gen_salt(TEXT,INT4). Digest/HMAC results
+are raw BYTEA for md5, sha1, sha224, sha256, sha384 and sha512; TEXT input is
+exact UTF8 octets and BYTEA input is arbitrary binary. Unknown data/key operands
+prefer TEXT; known mixed TEXT/BYTEA HMAC has no overload. Salt count uses ordinary
+implicit INT4 coercion, not BIGINT/NUMERIC narrowing. Password results are TEXT.
+Namespace lookup and schema USAGE are
 actual installed authority, not always-on builtins. Observed SHA hyphen aliases,
 SHA2-256 and ASCII case aliases identify only these six algorithms.
 
-Strict NULL returns typed BYTEA NULL after required child evaluation/constant
-simplification; it does not mask division-by-zero siblings. Algorithm names
+Strict NULL returns typed BYTEA or TEXT NULL after required child evaluation/constant
+simplification; it does not mask division-by-zero siblings. Digest/HMAC algorithm names
 fold ASCII case and truncate at63 bytes on a UTF8 boundary without trimming or
 notices; unsupported names raise22023. HMAC streams keys larger than the hash
 block before passing a bounded effective key to the standard-library provider.
 Installed immutable consumers and native controls preserve procedure signatures,
 owners and executable expressions. Availability now includes pgcrypto beside
-unaccent, selected-type intarray and selected-function fuzzystrmatch. Full OpenSSL
-inventory, other pgcrypto functions and arbitrary shared-library loading remain excluded.
+unaccent, selected-type intarray and selected-function fuzzystrmatch.
+
+Password hashing implements bf only, with a fixed-size stdlib-only Blowfish
+schedule. Only exact `$2a$`/`$2x$` heads select bcrypt, with costs04..31 and
+the first72 password bytes; short keys cycle through their terminating NUL.
+2x retains historical signed-octet expansion. Stored hash/salt suffix bytes
+after29 are ignored, and noncanonical final salt padding bits normalize away.
+Malformed recognized bf salts raise22023 `invalid salt`; other crypt algorithms
+and `$2b$`/`$2y$` dispatch are explicit native0A000 boundaries, while `$2$`
+retains39000 `crypt(3) returned NULL`. High costs remain cancellable each round.
+gen_salt recognizes bf case-insensitively without trimming, with omitted/zero
+cost6 and allowed4..31. Its sixteen strong random bytes are independent of SQL
+random state. Unknown names and invalid bf counts retain22023 diagnostics;
+documented non-bf generators are native0A000 boundaries.
+crypt is immutable; gen_salt is intrinsically volatile, including after stored
+expression reconstruction. Defaults/views may generate fresh salts; generated
+columns/expression indexes may not. Native controls preserve stored salt/hash
+data, exact seven-member identities and executable recipes. Full OpenSSL
+inventory, other pgcrypto functions, configuration/FIPS and arbitrary
+shared-library loading remain excluded.
 Pgcrypto members must carry only their genuine provider identity; simultaneous
 crypto/fuzzy markers are rejected by both manifest and descriptor admission.
 

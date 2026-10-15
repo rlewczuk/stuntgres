@@ -150,7 +150,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = len(fuzzystrmatchMembers)
 	case record.Name == "pgcrypto" && record.Version == "1.4":
-		expectedMembers = 4
+		expectedMembers = len(pgcryptoMembers)
 	default:
 		return invalid()
 	}
@@ -184,8 +184,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
 			case "pgcrypto":
-				name := pgcryptoName(procedureSignature(member.Signature))
-				valid = name != "" && member.Name == name
+				_, valid = pgcryptoLookup(member.Name, procedureSignature(member.Signature))
 			}
 			if record.Name == "fuzzystrmatch" {
 				valid = fuzzystrmatchResult(member.Name, procedureSignature(member.Signature)) != 0

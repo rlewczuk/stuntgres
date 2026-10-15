@@ -1081,15 +1081,16 @@ make check RUN='^TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataVa
 make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceAvailableExtensions(Transactions|Controls|JoinConsistency))$'
 ```
 
-### Pgcrypto digest/HMAC selected proof
+### Pgcrypto digest/HMAC and password selected proof
 
 The native registry contains unaccent1.1, selected-type intarray1.5,
-selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs only four genuine immutable/strict/
-parallel-safe TEXT/BYTEA digest/HMAC overloads for six algorithms. Exact signatures
-are asserted using the supported public OID→REGPROCEDURE text identity, not an
-OIDVECTOR/proargtypes capability. Namespace, positive distinct IDs, owner and
-membership edges remain independently asserted; PostgreSQL's full stock member
-inventory is not equated to native's four.
+selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4. Pgcrypto installs seven
+genuine strict/parallel-safe overloads: four immutable BYTEA digest/HMAC members,
+immutable crypt(TEXT,TEXT) returning TEXT, and volatile gen_salt(TEXT[,INT4])
+returning TEXT. Exact name/signature/result/volatility pairs are asserted using
+public OID→REGPROCEDURE text identity, not OIDVECTOR/proargtypes. Namespace,
+positive distinct IDs, owner and membership edges remain independently asserted;
+PostgreSQL's full stock member inventory is not equated to native's selected seven.
 
 Fixed RFC/independently calculated digest/HMAC vectors cover empty, binary,
 UTF8, exact-block and oversized keys through direct/new/held prepared frames.
@@ -1107,7 +1108,7 @@ has no schema GRANT/REVOKE: the ordinary private schema initially denies the
 reader, then explicit ALTER SCHEMA OWNER enables both unqualified path lookup
 and qualified calls without changing the installed procedures' owners.
 
-Restore's strict owner manifest admits pgcrypto1.4 only with the complete four
+Restore's strict owner manifest admits pgcrypto1.4 only with the complete seven
 procedure name/signature pairs; dictionary/type members, duplicates, missing or
 extra members and foreign signatures are rejected. The existing unaccent1.1
 and intarray1.5 manifests retain their separate validation. Actual dumped
@@ -1125,10 +1126,10 @@ evidence of actual Restore collision handling.
 `TestReferencePgcryptoConsumersAndControls` includes a native-only real-pipeline
 relocation phase. An ordinary independent-Driver replay establishes candidate
 procedure identities. A second identically initialized destination allocates
-live TEMP sequences until all four procedure OIDs have actual cross-class
+live TEMP sequences until all seven procedure OIDs have actual cross-class
 collisions. Public Restore must relocate every imported procedure while retaining
-the TEMP OIDs, rows and generator capture. Fixed bytes are asserted for all four
-overloads after ordinary and collision replay. Defaults, CHECKs, generated
+the TEMP OIDs, rows and generator capture. Fixed digest/HMAC and crypt results,
+plus salt format/cost assertions, cover all seven overloads after ordinary and collision replay. Defaults, CHECKs, generated
 columns, expression indexes, stored views and a nested scalar-subquery view
 remain executable. Procedure dependencies compare complete seven-field addresses
 resolved independently from the named default/generated attrdefs, CHECKs, index
@@ -1158,7 +1159,7 @@ Saved column metadata is rechecked after consumption without querying metadata
 on the exhausted cursor. The deliberately blocking final TEMP view adds its
 namespace/relation/rewrite identities, internal ownership edge and persistent
 projected-column dependency edges to the final refusal snapshot.
-Four held crypto statements are prepared after relocation. Every wrong-version,
+Seven held crypto statements are prepared after relocation. Every wrong-version,
 unknown-provider, malformed-manifest, late-SQL, cancellation, private-TEMP-placement
 and retained-dependent-TEMP-view refusal uses the same postcondition: unchanged
 persistent dump, procedure/consumer/owner identities, exact dependency tuples,
@@ -1170,15 +1171,57 @@ These are source assertions requiring fresh selected native and pinned-reference
 proof; test definitions alone are not passing evidence.
 
 ```sh
-make check RUN='^TestReferencePgcrypto(DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferencePgcrypto(DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
 make check RUN='^TestReferenceAvailableExtensionsFiltering$'
 make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
 make check RUN='^TestReferenceBinaryHash(Vectors|MD5Overloads|Consumers|Controls|Diagnostics|Quoted|Metadata|Inference|PreparedOwnership|Smoke)$'
 make check REFERENCE=1 RUN='^TestReferenceBinaryHash(Vectors|MD5Overloads|Consumers|Controls|Diagnostics|Quoted|Metadata|Inference|PreparedOwnership|Smoke)$'
-make check RUN='^TestPgcrypto(ProviderIdentity|ExpressionIdentity|OwnerMetadata|ControlRemap|OverloadResolution|RawVectors|StrictDemand|Cancellation)$'
+make check RUN='^TestPgcrypto(Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation)|ProviderIdentity|ExpressionIdentity|OwnerMetadata|ControlRemap|OverloadResolution|RawVectors|StrictDemand|Cancellation|Password(Entropy|Volatility))$'
 make check RUN='^(TestExtensionOwner(Metadata|ManifestAdmission)|TestIntarrayProviderIdentity)$'
 ```
+
+Password witnesses use published PostgreSQL/Openwall vectors plus pinned18.0
+UTF8/C observations:2a versus historical2x octet expansion, 71/72/73-byte
+truncation including split UTF8, stored hashes, arbitrary ignored suffixes and
+noncanonical salt padding. Bf salt generation tests omitted/zero default6,
+cost4 and cheap31, strong entropy independent of SQL reseeding, repeated held
+frames/rows/sessions, strict TEXT NULLs and exact coercion/failure stages.
+Non-bf crypt/generator exclusions assert explicit native0A000 independently
+of PostgreSQL DES fallback hashes and real non-bf generator success.
+`PasswordRelocation` additionally forces all seven actual OID collisions while
+preserving stored random salts/hashes, crypt generated-column/view recipes and
+gen_salt defaults, exact dependency addresses, held members, future writes and
+failed replay atomicity. `PasswordConsumersAndControls` retains old TEXT Rows,
+metadata, held rebinding and same/independent Driver replay without regenerating
+stored salts. Volatile generated-column/index refusals include complete fields.
+`PasswordCancellation` observes the real `pgcryptoBcrypt` worker/server query at
+cost31 before cancellation. Its multirow source is explicitly ordered, despite
+reverse seed order: the first row supplies the independently published completed
+foox hash without bcrypt, and only the later row runs row-dependent parameterized
+cost31 crypt. A nontransactional sequence marks both the successful prefix and
+later-row crypto arguments. The shared admission helper waits for exact progress2
+(autocommit) or4 (transaction) through a separate observer before canceling; this
+also prevents PG active-query observation from canceling before that boundary.
+Same-owner currval confirms the progress after cancellation/rollback. No cursor,
+result or prefix rows may publish; sentinel data, held-statement continuation and
+explicit transaction abort/rollback recovery remain independently asserted.
+Private calibrated allocation budgets cover input size and cost independently.
+
+Standalone feature smoke (same public scenario, no duplicate runner):
+
+```sh
+make check RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'
+make check RACE=1 RUN='^(TestPgcryptoBcryptCancellation|TestReferencePgcryptoPasswordCancellation)$'
+```
+
+Expected smoke observations: exact60-character release hashes/TEXT metadata,
+canonical29-character usable bf salt, default cost06, full invalid-salt22023
+diagnostic, immutable crypt versus volatile gen_salt metadata, and native stored
+salt/hash preservation plus executable defaults/views after Reset/Restore.
+These descriptions are assertions awaiting root verification, not proof results.
+
 
 Selected checks use external900-second deadlines; the root alone runs these
 after edits. Whole-project Docker-free verification remains `make quickcheck`.

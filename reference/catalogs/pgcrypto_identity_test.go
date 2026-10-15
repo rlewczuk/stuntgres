@@ -21,11 +21,19 @@ func pgcryptoInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, owner, expect
 	if err := c.QueryRowContext(p.Ctx, "SELECT e.oid,extnamespace,extversion,extrelocatable,rolname FROM pg_extension e JOIN pg_roles r ON r.oid=e.extowner WHERE extname='pgcrypto'").Scan(&ext, &ns, &version, &relocatable, &gotOwner); err != nil || ext <= 0 || ns <= 0 || version != "1.4" || !relocatable || gotOwner != owner {
 		t.Fatalf("extension identity %d %d %q %v %q: %v", ext, ns, version, relocatable, gotOwner, err)
 	}
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,proname,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE pronamespace=$1 AND (proname='digest' OR proname='hmac')", ns)
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid,proname,p.oid::regprocedure::text,prorettype,provolatile,proisstrict,proparallel,rolname FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE pronamespace=$1 AND proname IN ('digest','hmac','crypt','gen_salt')", ns)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := map[string]bool{"digest:pgcrypto_part.digest(text,text)": false, "digest:pgcrypto_part.digest(bytea,text)": false, "hmac:pgcrypto_part.hmac(text,text,text)": false, "hmac:pgcrypto_part.hmac(bytea,bytea,text)": false}
+	expected := map[string]bool{
+		"digest:pgcrypto_part.digest(text,text)":        false,
+		"digest:pgcrypto_part.digest(bytea,text)":       false,
+		"hmac:pgcrypto_part.hmac(text,text,text)":       false,
+		"hmac:pgcrypto_part.hmac(bytea,bytea,text)":     false,
+		"crypt:pgcrypto_part.crypt(text,text)":          false,
+		"gen_salt:pgcrypto_part.gen_salt(text)":         false,
+		"gen_salt:pgcrypto_part.gen_salt(text,integer)": false,
+	}
 	ids := map[int64]bool{}
 	for rows.Next() {
 		var id, ret int64
@@ -36,7 +44,14 @@ func pgcryptoInventory(t *testing.T, p *fixture.Pair, c *sql.Conn, owner, expect
 		}
 		key := name + ":" + signature
 		seen, ok := expected[key]
-		if !ok || seen || id <= 0 || ids[id] || ret != 17 || vol != "i" || !strict || parallel != "s" || memberOwner != expectedMemberOwner {
+		wantRet, wantVol := int64(17), "i"
+		if name == "crypt" || name == "gen_salt" {
+			wantRet = 25
+		}
+		if name == "gen_salt" {
+			wantVol = "v"
+		}
+		if !ok || seen || id <= 0 || ids[id] || ret != wantRet || vol != wantVol || !strict || parallel != "s" || memberOwner != expectedMemberOwner {
 			t.Fatalf("procedure identity %d %s %d %s %v %s %s; expected member owner %s", id, key, ret, vol, strict, parallel, memberOwner, expectedMemberOwner)
 		}
 		expected[key] = true

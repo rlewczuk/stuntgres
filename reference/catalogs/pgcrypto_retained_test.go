@@ -162,13 +162,16 @@ type pgcryptoHeldCall struct {
 	step      fixture.Step
 }
 
-func pgcryptoHoldFour(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoHeldCall {
+func pgcryptoHoldMembers(t *testing.T, p *fixture.Pair, c *sql.Conn) []pgcryptoHeldCall {
 	t.Helper()
 	calls := []fixture.Step{
 		fixture.Select("SELECT pgcrypto_part.digest($1::text,'sha256')", []string{"digest"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, pgcryptoDigestVectors[3].abc)}}, "abc"),
 		fixture.Select("SELECT pgcrypto_part.digest($1::bytea,'sha256')", []string{"digest"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, "5240672d7b51756b829ad0ef8d9468b7a078afa2f410484fd3892dab47becb72")}}, []byte{0, 128, 255}),
 		fixture.Select("SELECT pgcrypto_part.hmac($1::text,$2::text,'sha256')", []string{"hmac"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843")}}, "what do ya want for nothing?", "Jefe"),
 		fixture.Select("SELECT pgcrypto_part.hmac($1::bytea,$2::bytea,'sha256')", []string{"hmac"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, "f085c3bd7fc8d8f90f1a475a943a7f03a97c496a81013f8d54d2e2d229ab562c")}}, []byte{0, 128, 255}, []byte{255, 0, 128}),
+		fixture.Select("SELECT pgcrypto_part.crypt($1,$2) AS value", []string{"value"}, []string{"TEXT"}, [][]any{{pgcryptoPasswordFoox}}, "foox", pgcryptoPasswordSalt),
+		fixture.Select("SELECT pgcrypto_part.gen_salt($1) LIKE '$2a$06$%' AS valid", []string{"valid"}, []string{"BOOL"}, [][]any{{true}}, "bf"),
+		fixture.Select("SELECT pgcrypto_part.gen_salt($1,$2) LIKE '$2a$04$%' AS valid", []string{"valid"}, []string{"BOOL"}, [][]any{{true}}, "bf", 4),
 	}
 	var held []pgcryptoHeldCall
 	for _, step := range calls {
