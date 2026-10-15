@@ -44,13 +44,14 @@ func metaphoneManifest(t *testing.T, dump, schema, owner string) {
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.Name != "fuzzystrmatch" || record.Schema != schema || record.Owner != owner || record.Version != "1.2" || len(record.Members) != 8 {
+	if record.Name != "fuzzystrmatch" || record.Schema != schema || record.Owner != owner || record.Version != "1.2" || len(record.Members) != 10 {
 		t.Fatal("owner manifest", record)
 	}
 	want := map[string]bool{
 		"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true,
 		"levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true,
 		"metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true,
+		"soundex:25": true, "difference:25,25": true,
 	}
 	for _, member := range record.Members {
 		key := member.Name + ":" + member.Signature

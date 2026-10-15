@@ -1623,12 +1623,11 @@ and session_user before installation and after reset. The extension remains
 installer-owned (`dm_installer`); the procedure belongs to fixed bootstrap
 superuserOID10. Its exact declared name is native `postgres` versus pinned
 fixture initdb `stuntgres`, not the fixture's separate native-replay postgres role.
-Native fuzzystrmatch membership has eight selected overloads: DM, four
-Levenshtein signatures and three Metaphone signatures. PostgreSQL's additional functions are not falsely
-asserted absent on the oracle.
-The native-only adjacent soundex witness retains the existing capability
-diagnostic0A000 `functions are unsupported` at Position8, not a new missing-
-function42883 promise or adjacent-function implementation.
+Native fuzzystrmatch membership has ten selected overloads: DM, four
+Levenshtein signatures, three Metaphone signatures and two Soundex signatures.
+The upstream-only undocumented `text_soundex` alias is not falsely asserted
+absent on PostgreSQL. Selected Soundex calls now execute: qualified
+soundex('John') is J500 and difference('Ann','Anne') is4.
 Native pg_proc does not expose proargtypes: its exact argument signature25 is
 checked against the real installed descriptor in the provider identity unit,
 while an explicit PostgreSQL-only metadata phase asserts proargtypes25. The
@@ -1680,11 +1679,11 @@ slides/narrow-band extension. These pathological exact outputs are release
 witnesses, not ordinary mathematical bound or sentinel guarantees.
 
 Installation requires four genuine selected identities/extension edges on both
-backends, with total native membership8 including retained DM and Metaphone. Stored SQL uses a
+backends, with total native membership10 including retained DM, Metaphone and Soundex. Stored SQL uses a
 relocated provider in defaults/generated/CHECK/view, nested/CASE, grouping and
 join expressions. Failed atomic inserts leave original rows unchanged. Controls
 share the SQL setup, then use real native APIs for Dump ordering, exact
-eight-member symbolic manifests, retained INT4 rows, held reanalysis, independent
+ten-member symbolic manifests, retained INT4 rows, held reanalysis, independent
 Driver/named-owner replay and failed/I/O/canceled Restore atomicity. PostgreSQL
 has no invented control equivalent.
 
@@ -1710,7 +1709,7 @@ timeout 900s go run "$SESSION_TMP/fuzzy-levenshtein-smoke.go"
 ```
 It must exit silently0 after independently checking distance3, weighted3,
 bounded exact3/greater-than2, Unicode255/nonempty256 error/empty256 bypass,
-typed NULL, held weighted/bounded frames, retained DM codes and membership8,
+typed NULL, held weighted/bounded frames, retained DM codes and membership10,
 stored recipes, Dump/Reset/Restore, independent Driver replay and failed-Restore
 preservation. Selected proof and smoke do not replace whole-project Docker-free
 quickcheck or post-integration finalcheck.
@@ -1741,7 +1740,7 @@ literal-call view independently returns AK/SM0/SMT before and after Restore,
 including independent Driver replay; this proves persisted call arguments and
 qualified invocation without depending on identifier quoting in serialized SQL.
 Controls shares the SQL phase, then separately checks native Dump ordering,
-exact8-member owner manifest, Reset/Restore, old TEXT rows/metadata,
+exact10-member owner manifest, Reset/Restore, old TEXT rows/metadata,
 SAME held reanalysis, independent Driver replay and failed/canceled restore
 atomicity. PostgreSQL has no fictitious equivalent of these native APIs.
 
@@ -1757,7 +1756,7 @@ Use external900-second deadlines. FeatureSmoke expects KM/KMP/KMP, AX cap2 AK,
 Smith SM0/XMT, Schmidt XMT/SMT, typed NULL/empty/empty-cap bypass, generated/view
 rows, WHERE id2, SAME held reuse and cap0 error followed by cap1 success. Native
 phases actually restore and reinvoke consumers/functions/held statements,
-validate membership8 and reject a failed replacement without losing invocation.
+validate membership10 and reject a failed replacement without losing invocation.
 The standalone public-consumer program is retained in session
 `local://fuzzy-metaphone-smoke.go`, materialized outside the checkout and run as:
 
@@ -1769,4 +1768,54 @@ Expected success is quiet exit0 only after independent rows/type/diagnostic/
 held/generated/WHERE/manifest/restore assertions. Selected proof does not replace
 whole-project Docker-free quickcheck or post-integration finalcheck.
 
+
+### Soundex selected proof
+
+The seven `TestReferenceSoundex` definitions independently specify only
+`soundex(text) RETURNS text` and `difference(text,text) RETURNS int4`.
+Manual18.6 F.16.1 and unchanged REL_18_0/REL_18_6 source ground the expectations;
+the runtime remains pinned PostgreSQL18.0 UTF8/C. Initial oracle discovery
+confirmed Codes/Boundaries/Diagnostics/Installation before native implementation,
+including full metadata and diagnostics. No discovery-only backend filter remains.
+
+Ann/Anne are unequal spellings sharing A500/difference4; Anne/Andrew score2
+and Anne/Margaret0. Original-byte adjacency is deliberate: Ashcraft A226,
+BHB/B2B B100, B1B B000, D3D D000. Empty and no-ASCII-letter codes are empty TEXT,
+not NULL or0000; two such buffers agree4. Inputs have no255-byte limit.
+PostgreSQL's documented multibyte limitation is retained, not approximated by
+Unicode normalization/transliteration: Émile M400 versus Emile E540.
+
+Direct literals/binds, fresh Prepare and SAME held name/NULL/empty/name frames
+assert independent values and complete TEXT/INT4 metadata even with zero rows.
+Both runtime-row NULL and the exact literal NULL/division witness demand22012.
+Failure expectations include exact English primary, all exposed logical fields
+including empties, nil error cursors and preparation/execution stages.
+Installation checks genuine namespace/owner/procedure/dependency identities,
+while stored views/defaults/generated/CHECKs exercise both result types.
+Controls share real SQL setup with PostgreSQL and separately exercise native
+Dump ordering, exact10-member named-owner manifest, retained old rows/detached
+metadata, held reanalysis, independent Driver replay and failed/canceled Restore
+preservation. Native control APIs are not claimed as PostgreSQL facilities.
+
+Run every changed definition in both modes, with external900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceSoundex(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceSoundex(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
+make check RUN='^(TestReferenceDaitchMokotoff(Installation|Controls)|TestReferenceLevenshtein(Installation|Controls)|TestReferenceMetaphone(Installation|Controls|FeatureSmoke))$'
+make check REFERENCE=1 RUN='^(TestReferenceDaitchMokotoff(Installation|Controls)|TestReferenceLevenshtein(Installation|Controls)|TestReferenceMetaphone(Installation|Controls|FeatureSmoke))$'
+make check RUN='^(TestSoundex(Kernel|Expression|ExpressionIdentity|ExpressionRemap|ExpressionProperties)|TestDaitchMokotoffProviderIdentity|TestMetaphoneExpressionIdentity|TestLevenshteinExpressionIdentity)$'
+```
+
+The standalone public-consumer source is session evidence at
+`local://fuzzy-soundex-smoke.go`, materialized outside the checkout:
+
+```sh
+timeout 900s go run "$SESSION_TMP/fuzzy-soundex-smoke.go"
+```
+
+Expected success is quiet exit0 only after actual independent phonetic/lexical,
+byte/NULL/metadata/held/stored/identity/manifest/replacement assertions.
+Selected proof and smoke do not replace whole-project Docker-free quickcheck
+or post-integration finalcheck.
 

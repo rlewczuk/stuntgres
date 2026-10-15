@@ -111,7 +111,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		t.Fatal("immutable call not folded", folded)
 	}
 	// The symbolic codec rejects incomplete old one-member records, as well as
-	// duplicate/foreign members in a complete eight-member manifest.
+	// duplicate/foreign members in a complete ten-member manifest.
 	metadata, err := extensionOwnerMetadata(e.CatalogRead(), e.roleRead(e.CatalogRead(), e.roles), ext)
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		case "foreign_signature":
 			bad.Members[1].Signature = "25"
 		case "foreign_name":
-			bad.Members[1].Name = "soundex"
+			bad.Members[1].Name = "text_soundex"
 		}
 		encoded, err := json.Marshal(bad)
 		if err != nil {

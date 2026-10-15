@@ -308,6 +308,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case installedSoundexFunctionExpression:
+		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
 		return args(n.Args)
 	case installedLevenshteinFunctionExpression:
@@ -492,6 +494,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
 		return args(n.Args)
@@ -875,6 +879,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case functions.Math[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args)
+	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
 		return args(n.Args)

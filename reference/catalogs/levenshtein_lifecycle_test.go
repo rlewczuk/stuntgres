@@ -52,8 +52,9 @@ func levenshteinInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE classid=1255 AND objid=$1 AND refclassid=3079 AND refobjid=$2 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}, id, ext))
 	}
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(8)}}, ext))
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError("SELECT soundex('John')", fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: "8"}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(10)}}, ext))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, metaphoneSelect("SELECT lev_addon.soundex('John')", "soundex", "J500"))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, levenshteinSelect("SELECT lev_addon.difference('Ann','Anne')", "difference", int64(4)))
 	}
 }
 

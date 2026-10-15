@@ -3551,7 +3551,7 @@ and [selected proof](reference/catalogs/README.md#registered-extension-selected-
 
 Change note: `CREATE EXTENSION fuzzystrmatch [WITH SCHEMA schema]
 [VERSION '1.2']` installs `daitch_mokotoff(text) RETURNS text[]`, the four
-Levenshtein overloads, and the three Metaphone signatures described below.
+Levenshtein overloads, three Metaphone signatures, and two Soundex signatures below.
 This selected immutable, strict, parallel-safe provider preserves every six-digit
 alternative in PostgreSQL's element order: John returns `{160000,460000}` and
 Bierschbach returns all eight published codes. NULL, empty and unencodable-only
@@ -3564,10 +3564,24 @@ Views, text[] defaults/CHECKs and STORED generated columns retain actual immutab
 procedure dependencies; native controls remap providers and owned array elements
 while already returned rows keep their old arrays/metadata. Availability reports
 the real selected provider, not full upstream fuzzystrmatch member coverage.
-Soundex, new array operators and general extension loaders are not
-added. This provider has no dictionary helpers, so unaccent's own-TEMP
+New array operators and general extension loaders are not added.
+This provider has no dictionary helpers, so unaccent's own-TEMP
 helper-resolution restriction does not apply.
 See [selected proof](reference/catalogs/README.md#daitch-mokotoff-selected-proof).
+
+**Soundex — change note:** installed fuzzystrmatch1.2 exposes exactly
+`soundex(text) RETURNS text` and `difference(text,text) RETURNS int4`, immutable,
+strict and parallel safe. Ann and Anne are different spellings with the same
+A500 code; their difference score is4, while Anne/Andrew is2. Difference counts
+matching code positions, not edit distance. The C-locale byte algorithm preserves
+original-byte adjacency: Ashcraft A226, BHB B100, B1B B000. Empty/no-ASCII-letter
+inputs produce empty TEXT; two such inputs have difference4. There is no255-byte
+input limit. PostgreSQL explicitly cautions that Soundex works poorly with
+multibyte encodings, including UTF8: Émile is M400, not Emile's E540; no Unicode
+normalization or transliteration is substituted. Direct/prepared and stored
+expressions retain real installed procedure identities through native controls.
+See [Soundex selected proof](reference/catalogs/README.md#soundex-selected-proof)
+and the [PostgreSQL manual](https://www.postgresql.org/docs/18/fuzzystrmatch.html#FUZZYSTRMATCH-SOUNDEX).
 
 **Levenshtein edit distance — change note:** installed fuzzystrmatch1.2 adds
 `levenshtein(text,text)`, `levenshtein(text,text,int,int,int)`,

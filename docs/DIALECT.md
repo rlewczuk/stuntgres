@@ -537,9 +537,10 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
 ## Daitch–Mokotoff installed function
 
-The fuzzystrmatch1.2 provider installs exactly eight overloads:
-`daitch_mokotoff(text) RETURNS text[]`, the four INT4 Levenshtein signatures
-and three TEXT Metaphone signatures below, not the complete upstream extension.
+The fuzzystrmatch1.2 provider installs exactly ten overloads:
+`daitch_mokotoff(text) RETURNS text[]`, four INT4 Levenshtein signatures,
+three TEXT Metaphone signatures and the two Soundex signatures below,
+not the complete upstream extension.
 Installation is required; missing/off-path calls use normal function resolution.
 The immutable, strict, parallel-safe function emits all alternative six-digit
 codes in release order, with significant array element order and no truncation.
@@ -555,7 +556,19 @@ transactional installation and native ownership/remapping use the existing
 extension registry. Generated columns may consume this genuinely immutable
 function; a volatile child is still volatile. No dictionary/helper TEMP exclusion
 is inherited from unaccent. Availability's stock comment does not promise
-Soundex or arbitrary loaders.
+the undocumented `text_soundex` alias or arbitrary loaders.
+
+### Soundex
+
+Installed `soundex(text) RETURNS text` and `difference(text,text) RETURNS int4`
+are immutable, strict and parallel safe. Ann/Anne both yield A500 and score4;
+Anne/Andrew score2. Agreement counts matching positions, not spelling equality
+or edit distance. The C-locale byte kernel preserves original-byte adjacency,
+including H/W separators and raw-digit collisions (BHB B100, B1B B000).
+Empty/no-ASCII-letter inputs yield empty TEXT, with difference4 between two such
+inputs; there is no255-byte limit. Multibyte encodings, including UTF8, work
+poorly as documented: Émile M400 differs from Emile E540. No Unicode approximation
+is used. See [PostgreSQL F.16.1](https://www.postgresql.org/docs/18/fuzzystrmatch.html#FUZZYSTRMATCH-SOUNDEX).
 
 ### Metaphone and Double Metaphone
 

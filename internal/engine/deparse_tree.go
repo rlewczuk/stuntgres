@@ -321,6 +321,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		fmt.Fprintf(out, "NullCount %d", n.Kind)
 		err = args(n.Args)
+	case installedSoundexFunctionExpression:
+		fmt.Fprintf(out, "InstalledSoundex %d %s", n.ref.Address.ObjectID, n.procedure.signature)
+		err = args(n.Args)
 	case installedMetaphoneFunctionExpression:
 		fmt.Fprintf(out, "InstalledMetaphone %d %s", n.ref.Address.ObjectID, n.procedure.signature)
 		err = args(n.Args)

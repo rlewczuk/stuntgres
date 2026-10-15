@@ -52,6 +52,8 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		return
 	}
 	switch n := expr.(type) {
+	case installedSoundexFunctionExpression:
+		r.add(n.ref.Address)
 	case installedMetaphoneFunctionExpression:
 		r.add(n.ref.Address)
 	case installedLevenshteinFunctionExpression:

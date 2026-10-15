@@ -57,7 +57,7 @@ func metaphoneInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE classid=3079 AND objid=$1 AND refclassid=2615 AND refobjid=$2 AND deptype='n'", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}, ext, ns))
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(8)}}, ext))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(10)}}, ext))
 	}
 }
 

@@ -24,6 +24,8 @@ var fuzzystrmatchMembers = [...]struct {
 	{"metaphone", "25,23", 25},
 	{"dmetaphone", "25", 25},
 	{"dmetaphone_alt", "25", 25},
+	{"soundex", "25", 25},
+	{"difference", "25,25", 23},
 }
 
 func fuzzystrmatchResult(name string, signature procedureSignature) OID {

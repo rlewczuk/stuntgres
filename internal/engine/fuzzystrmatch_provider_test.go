@@ -34,14 +34,14 @@ func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFuncti
 func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	view := e.CatalogRead()
-	if len(ext.members) != 8 {
+	if len(ext.members) != 10 {
 		t.Fatal("member count", ext.members)
 	}
 	proc := view.state.descriptors[ext.members[0]].(*procedureDescriptor)
 	if proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.owner != ext.owner || proc.result != 1009 || proc.signature != "25" || proc.volatility != Immutable || !proc.strict || proc.fuzzy != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
-	expected := map[string]OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25}
+	expected := map[string]OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
 	addresses := map[ObjectAddress]bool{}
 	for _, address := range ext.members {
 		member := view.state.descriptors[address].(*procedureDescriptor)
@@ -76,11 +76,11 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			members++
 		}
 	}
-	if members != 8 {
+	if members != 10 {
 		t.Fatal("membership edges", members)
 	}
 	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.name = "soundex" }, func(p *procedureDescriptor) { p.signature = "23" },
+		func(p *procedureDescriptor) { p.name = "text_soundex" }, func(p *procedureDescriptor) { p.signature = "23" },
 		func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.volatility = Stable },
 		func(p *procedureDescriptor) { p.strict = false }, func(p *procedureDescriptor) { p.provider = stockUnaccent },
 		func(p *procedureDescriptor) { p.queryCodec = stockIntarray }, func(p *procedureDescriptor) { p.fuzzy = &fuzzystrmatchProvider{version: "1.2"} },
@@ -120,10 +120,10 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		}
 		return err
 	}})
-	if err != nil || len(records) != 1 || len(records[0].Members) != 8 || records[0].Members[0].Name != "daitch_mokotoff" || records[0].Members[0].Signature != "25" {
+	if err != nil || len(records) != 1 || len(records[0].Members) != 10 || records[0].Members[0].Name != "daitch_mokotoff" || records[0].Members[0].Signature != "25" {
 		t.Fatal("symbolic ownership", records, err)
 	}
-	symbolic := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true, "metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true}
+	symbolic := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true, "metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true, "soundex:25": true, "difference:25,25": true}
 	for _, member := range records[0].Members {
 		key := member.Name + ":" + member.Signature
 		if member.Kind != "procedure" || member.Owner != "postgres" || !symbolic[key] {
@@ -136,7 +136,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	}
 	for _, payload := range []string{
 		`{"name":"fuzzystrmatch","schema":"public","version":"1.1","owner":"postgres","members":[]}`,
-		`{"name":"fuzzystrmatch","schema":"public","version":"1.2","owner":"postgres","members":[{"kind":"procedure","name":"soundex","signature":"25","owner":"postgres"}]}`,
+		`{"name":"fuzzystrmatch","schema":"public","version":"1.2","owner":"postgres","members":[{"kind":"procedure","name":"text_soundex","signature":"25","owner":"postgres"}]}`,
 		`{"name":"fuzzystrmatch","schema":"public","version":"1.2","owner":"postgres","members":[]}`,
 	} {
 		if _, _, err := decodeExtensionOwners(" " + extensionOwnersMarker + " " + base64.StdEncoding.EncodeToString([]byte(payload))); err == nil {

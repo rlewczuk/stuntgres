@@ -197,6 +197,23 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
+	case installedSoundexFunctionExpression:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		proc, ok := descriptor.(*procedureDescriptor)
+		if !ok || proc.fuzzy != stockFuzzystrmatch {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped Soundex function")
+		}
+		changed = changed || n.procedure != proc
+		n.procedure = proc
+		n.Soundex, err = n.Reconstruct(functionInfo(info), n.Args)
+		if err == nil {
+			err = n.validate(view)
+		}
+		rebound = n
 	case installedMetaphoneFunctionExpression:
 		n.Args = children(n.Args)
 		if err != nil {

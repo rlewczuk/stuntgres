@@ -579,6 +579,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return children(r.Args, written)
 		}
+		if n, ok := bound.(installedSoundexFunctionExpression); ok {
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(installedMetaphoneFunctionExpression); ok {
 			return children(r.Args, n.Args)
 		}

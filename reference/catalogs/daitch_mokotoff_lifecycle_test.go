@@ -43,10 +43,11 @@ func daitchInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass::oid AND objid=$1 AND refclassid='pg_extension'::regclass::oid AND refobjid=$2 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}, proc, ext))
 	if !b.PG {
-		// Upstream installs additional functions; native installs eight selected
+		// Upstream installs additional functions; native installs ten selected
 		// overloads, so total membership is native-only.
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass::oid AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(8)}}, ext))
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError("SELECT soundex('John')", fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: "8"}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass::oid AND refobjid=$1 AND deptype='e'", []string{"count"}, []string{"INT8"}, [][]any{{int64(10)}}, ext))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, metaphoneSelect("SELECT dm_addon.soundex('John')", "soundex", "J500"))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, levenshteinSelect("SELECT dm_addon.difference('Ann','Anne')", "difference", int64(4)))
 	}
 }
 

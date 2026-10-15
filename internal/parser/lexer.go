@@ -1135,10 +1135,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	// Installed Metaphone scalars reuse the existing full scalar-call grammar,
+	// Installed Metaphone and Soundex scalars reuse the full scalar-call grammar,
 	// including positional-prefix VARIADIC rejection at signature resolution.
 	// Do not classify bare column/alias names or widen ordinary call grammar.
-	if token.code == IDENT && (strings.EqualFold(token.lexeme.text, "metaphone") || strings.EqualFold(token.lexeme.text, "dmetaphone") || strings.EqualFold(token.lexeme.text, "dmetaphone_alt")) {
+	if token.code == IDENT && (strings.EqualFold(token.lexeme.text, "metaphone") || strings.EqualFold(token.lexeme.text, "dmetaphone") || strings.EqualFold(token.lexeme.text, "dmetaphone_alt") || strings.EqualFold(token.lexeme.text, "soundex") || strings.EqualFold(token.lexeme.text, "difference")) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {

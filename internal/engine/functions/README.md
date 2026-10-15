@@ -72,6 +72,15 @@ with machine-readable modified source under clause4(b), or satisfy another
 applicable license condition. This does not relicense the distinct NC permission
 or imply copyright-holder endorsement.
 
+Installed `Soundex` owns TEXT argument coercion, selected TEXT/INT4 results,
+strict source-order sibling demand, validation and reconstruction. Its engine
+wrapper owns actual provider identity/ACL/dependencies. The byte kernel borrows
+input, polls context on long scans, retains immediately preceding original-byte
+codes (including B1B digit collision), and uses fixed four-byte buffers.
+No-ASCII-letter buffers remain zero; difference compares all four positions
+without allocating code strings, so two empty/no-letter inputs agree4.
+There is no input-length limit, Unicode normalization or transliteration.
+
 ## Testing
 
 Run from repository root; use `make check RUN='...'` for individual or small
@@ -92,6 +101,7 @@ make check RUN='^TestLevenshtein(Distance|Weights|Bounds|ReleaseInt32|Unicode|Ca
 make check RUN='^TestLevenshtein(ExpressionIdentity|Remap)$'
 make check RUN='^TestMetaphone(Signatures|Codes|Boundaries|StrictDemand|Cancellation|ExpressionIdentity|Remap|ParserAdmission)$'
 make check RUN='^TestDoubleMetaphone(Codes|Boundaries|Cancellation|Allocations)$'
+make check RUN='^TestSoundex(Kernel|Expression|ExpressionIdentity|ExpressionRemap|ExpressionProperties)$'
 ```
 
 Range inspection/hull carriers retain same-generation `sqltype` plans and at
