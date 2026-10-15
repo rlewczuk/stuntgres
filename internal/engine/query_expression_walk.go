@@ -178,6 +178,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		walk(e.Arg)
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:

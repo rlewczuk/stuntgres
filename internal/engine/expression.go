@@ -1269,6 +1269,14 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.Arg = arg
+		next, folded, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || folded, err
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		var args []BoundExpr
 		for i, arg := range e.Args {

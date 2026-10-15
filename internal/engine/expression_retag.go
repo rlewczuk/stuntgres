@@ -694,6 +694,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args, array, info.usage.Type, integer, ref, conflict)
 		rebound = n
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		n.Arg = child(n.Arg)
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Arg)
+		rebound = n
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)
 		if err != nil {

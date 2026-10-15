@@ -176,6 +176,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 			v = merge(v, Stable)
 		}
 		return v
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arg)
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:

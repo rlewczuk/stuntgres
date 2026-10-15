@@ -92,6 +92,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.RangeInspectFunctionName(name) {
 		return b.bindRangeInspect(raw)
 	}
+	if parser.UUIDExtractFunctionName(name) {
+		return b.bindUUIDExtract(raw)
+	}
 	// Shared syntax must never silently discard labels in adjacent providers.
 	if len(raw.ArgNames) != 0 && !parser.AdvisorySessionFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)

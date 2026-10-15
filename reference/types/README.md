@@ -6,6 +6,32 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### UUID extraction selected proof
+
+The untagged `TestReferenceUUIDExtract` families specify PostgreSQL 18.0
+`uuid_extract_timestamp(uuid)` / `uuid_extract_version(uuid)` outcomes.
+Only RFC variant prefixes 8/9/a/b are accepted; all version nibbles 0–15 are
+returned as INT2. Timestamp extraction supports v1 (100-ns ticks truncated
+to microseconds) and v7 (Unix milliseconds), never v6; other versions and
+unsupported variants return typed NULL. Timestamp metadata is TIMESTAMPTZ.
+Shared scenarios cover direct/prepared/held binds, malformed-input recovery,
+full independent English diagnostics, relation authorization, raw metadata,
+generated/default/check/view/index recipes and native replacement controls.
+
+```sh
+make check RUN='^TestReferenceUUIDExtract(Values|Versions|Timestamps|Metadata|Binds)$' REFERENCE=1
+make check RUN='^TestReferenceUUIDExtract(Diagnostics|Authorization|Cancellation)$' REFERENCE=1
+make check RUN='^TestReferenceUUIDExtract(Stored|Controls|FeatureSmoke)$' REFERENCE=1
+```
+
+Run identical selectors without `REFERENCE=1` for native proof, with an external
+900-second deadline for every invocation. Feature smoke is selected with
+`make check RUN='^TestReferenceUUIDExtractFeatureSmoke$'` (also `REFERENCE=1`).
+It expects four independently specified source rows, correct held-bind recovery,
+timestamp boundary vectors, version/variant outcomes, denied reader access and
+stored recipe round trips. Native-only phases exercise Dump/Reset/Restore and
+actual emitted-SQL replay on PostgreSQL; they are not PostgreSQL control APIs.
+
 ### Range inspection selected proof
 
 The shared untagged `TestReferenceRangeInspect` definitions cover the six

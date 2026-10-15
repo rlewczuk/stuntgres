@@ -292,6 +292,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Args)
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return generationImmutable(n.Arg)
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
@@ -461,6 +463,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return generationHasTableOID(n.Arg)
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
@@ -822,6 +826,11 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.Validate(); err != nil {
+			return err
+		}
+		return validateGenerationPlan(view, d, n.Arg)
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:

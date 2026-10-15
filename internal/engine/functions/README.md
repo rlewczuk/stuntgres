@@ -62,6 +62,23 @@ Public nine-family, metadata/diagnostic/ACL, held-bind and native stored-recipe
 witnesses live under
 [range inspection selected proof](../../../reference/types/README.md#range-inspection-selected-proof).
 
+UUID extraction uses one strict unary `UUIDExtract` carrier with exact immutable
+intrinsic properties. It classifies the two variant bits before reading the
+version nibble; only v1/v7 produce timestamps. Unsigned integer arithmetic
+preserves PostgreSQL 18.0 truncation without clock, entropy, formatting or
+per-evaluation allocation. The binder supplies catalog-owned UUID and
+TIMESTAMPTZ/INT2 usages; retag/remap reconstructs the same carrier with fresh
+usages rather than retaining source descriptors.
+
+```sh
+make check RUN='^TestUUIDExtract(Vectors|VariantMatrix|VersionMatrix|StrictDemand|Cancellation|Properties|Identity|Remap|ScalarLifecycle|ParserAdmission)$'
+```
+
+Public cases and standalone feature smoke share the
+[UUID extraction reference scenarios](../../../reference/types/README.md#uuid-extraction-selected-proof).
+Run selected checks with an external 900-second deadline; the root owns
+whole-project verification.
+
 True leaf units live here; engine-integrated binding, parameter, descriptor,
 publication, native-control, grouping/window and resource-cleanup assertions stay
 with their engine owner. Borrowed array/format payload invariants accompany the

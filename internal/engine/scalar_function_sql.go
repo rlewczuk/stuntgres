@@ -184,6 +184,15 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			return name
 		})
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.Validate(); err != nil {
+			return "", err
+		}
+		arg, err := r.sql(ctx, view, n.Arg)
+		if err != nil {
+			return "", err
+		}
+		return "pg_catalog." + n.Kind.Name() + "(" + arg + ")", nil
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range n.Args {
 			if arg == nil {

@@ -227,6 +227,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("ArraySearch " + n.Plan.Name() + " namespace " + n.Namespace)
 		err = args(n.Args)
+	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("UUIDExtract " + n.Kind.Name())
+		err = child(n.Arg)
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("RangeInspect " + n.Plan.Name())
 		err = args(n.Args)

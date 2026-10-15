@@ -27,6 +27,22 @@ Bit casts, arrays, ordering/index/grouping providers and aggregate DISTINCT
 remain outside this scalar feature.
 See [contracts and selected smoke](reference/binary_json_arrays/README.md#bit-string-scalar-operators).
 
+## UUID extraction — change note
+
+`uuid_extract_timestamp(uuid)` returns TIMESTAMPTZ for version 1 and version 7
+UUIDs; all other versions, including version 6, return typed NULL.
+Version 1 Gregorian 100-ns ticks are truncated to microseconds before epoch
+conversion. Version 7 uses Unix milliseconds and ignores submillisecond bits.
+`uuid_extract_version(uuid)` returns the complete version nibble, 0 through 15,
+as SMALLINT (INT2), not a whitelist of standardized versions.
+Both functions accept exactly the RFC variant with fourth-group leading digit
+8, 9, a or b; other variants and NULL inputs produce typed NULL.
+
+These strict immutable scalars reuse ordinary UUID input, stored expressions,
+prepared UUID parameter inference and session timestamp presentation. They do
+not generate UUIDs or consume a clock or entropy. See
+[selected dual-mode proof and feature smoke](reference/types/README.md#uuid-extraction-selected-proof).
+
 ## Array dimensions and cardinality — change note
 
 The selected PostgreSQL §9.19 scalar functions `array_dims(anyarray)`,
