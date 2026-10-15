@@ -72,6 +72,7 @@ const (
 	functionJSONKeysCursor
 	functionJSONEachCursor
 	functionJSONElementsCursor
+	functionJSONBElementsCursor
 	functionSeriesCursor
 	functionMultirangeCursor
 )
@@ -80,6 +81,7 @@ type functionSetCursor struct {
 	cursor                 sqltype.StringFieldCursor
 	keys                   sqltype.JSONKeyCursor
 	each                   sqltype.JSONEachCursor
+	binaryElements         sqltype.JSONBElementCursor
 	members                sqltype.MultirangeCursor
 	elements               sqltype.JSONElementsCursor
 	owned                  []sqltype.Value
@@ -100,6 +102,9 @@ func (s *functionSetCursor) close() {
 	}
 	if s.initialized && s.kind == functionJSONEachCursor {
 		s.each.Close()
+	}
+	if s.initialized && s.kind == functionJSONBElementsCursor {
+		s.binaryElements.Close()
 	}
 	if s.initialized && s.kind == functionMultirangeCursor {
 		s.members.Close()
@@ -236,6 +241,22 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{keys: cursor, kind: functionJSONKeysCursor, initialized: true}, nil
+	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if len(call.Args) != 1 {
+			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSONB elements arguments")
+		}
+		value, err := call.Args[0].Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		cursor, err := call.Plan.Open(c.Context, value)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{binaryElements: cursor, kind: functionJSONBElementsCursor, initialized: true}, nil
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
@@ -399,6 +420,8 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 		value, present, err = s.keys.Next(ctx)
 	} else if s.kind == functionJSONEachCursor {
 		value, present, err = s.each.Next(ctx)
+	} else if s.kind == functionJSONBElementsCursor {
+		value, present, err = s.binaryElements.Next(ctx)
 	} else if s.kind == functionMultirangeCursor {
 		value, present, err = s.members.Next(ctx)
 	} else if s.kind == functionJSONElementsCursor {

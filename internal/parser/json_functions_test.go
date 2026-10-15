@@ -6,7 +6,7 @@ import (
 )
 
 func TestJSONFunctionCallAST(t *testing.T) {
-	for _, name := range []string{"json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text"} {
+	for _, name := range []string{"json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text"} {
 		for _, tc := range []struct {
 			written, want       string
 			qualified, variadic bool
@@ -68,7 +68,7 @@ func TestJSONFunctionParserConsumersAndDecorations(t *testing.T) {
 			t.Fatal(query, err)
 		}
 	}
-	for _, name := range []string{"jsonb_each", "jsonb_each_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_build_object", "jsonb_object"} {
+	for _, name := range []string{"jsonb_each", "jsonb_each_text", "json_build_object", "jsonb_object"} {
 		if JSONFunctionName(name) {
 			t.Fatal("promoted adjacent capability", name)
 		}

@@ -1,0 +1,113 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
+	engine := New()
+	view := engine.CatalogRead()
+	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
+	for _, name := range []string{"jsonb_array_elements", "jsonb_array_elements_text"} {
+		id := sqltype.JSONB
+		if name == "jsonb_array_elements_text" {
+			id = sqltype.Text
+		}
+		value, err := b.typ(sqltype.JSONB).Input(context.Background(), `[1,null,[2]]`, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		arg := literalExpression{expressionInfo: expressionInfo{usage: b.typ(sqltype.JSONB).Usage()}, value: value}
+		original, err := functions.NewJSONBElements[BoundExpr, *EvalContext](functionInfo(expressionInfo{usage: b.typ(id).Usage(), pos: parser.Position{Offset: 20, Character: 21}, properties: ExprProperties{StageDependent: true}}), name, BoundExpr(arg))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := original.Reconstruct(original.Info, nil); err == nil {
+			t.Fatal("zero children accepted")
+		}
+		if _, err := original.Reconstruct(original.Info, []BoundExpr{arg, arg}); err == nil {
+			t.Fatal("two children accepted")
+		}
+		if _, err := original.Eval(&EvalContext{Context: context.Background()}); err == nil {
+			t.Fatal("unlifted evaluation accepted")
+		}
+		fresh := jsonObjectUnitTypes()
+		mapped, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
+		if err != nil || !changed {
+			t.Fatal(changed, err)
+		}
+		next := mapped.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties])
+		assertFirst := func(call BoundExpr, result *sqltype.Descriptor, want string) {
+			t.Helper()
+			cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, call)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cursor.close()
+			v, ok, err := cursor.next(context.Background(), result)
+			if err != nil || !ok {
+				t.Fatal("missing first element", ok, err)
+			}
+			got, err := result.Output(context.Background(), v)
+			if err != nil || got != want {
+				t.Fatalf("element=%q want=%q error=%v", got, want, err)
+			}
+		}
+		assertFirst(next, fresh[id], "1")
+		root := &functionFromNode{calls: []BoundExpr{original}, querySchema: querySchema{{Usage: original.ResultUsage()}}, frame: 1}
+		replacementValue, err := b.typ(sqltype.JSONB).Input(context.Background(), `[9]`, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		replacement := queryProbe(arg.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return replacementValue, nil })
+		rewritten, err := rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
+			if n == original.Args[0] {
+				return replacement, true, nil
+			}
+			return n, false, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertFirst(rewritten.(*functionFromNode).calls[0], b.typ(id), "9")
+		assertFirst(root.calls[0], b.typ(id), "1")
+		draws := 0
+		// Use the reminted argument captured before replacing its expression.
+		input := mapped.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]).Args[0]
+		next.Args = []BoundExpr{queryProbe(fresh[sqltype.JSONB].Usage(), func(c *EvalContext) (sqltype.Value, error) { draws++; return input.Eval(c) })}
+		cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, want := range []string{"1", "null", "[2]"} {
+			v, ok, err := cursor.next(context.Background(), fresh[id])
+			if err != nil || !ok {
+				t.Fatal("missing reminted element", i, ok, err)
+			}
+			if i == 1 && id == sqltype.Text {
+				if !v.IsNull() {
+					t.Fatal("JSON null did not become SQL NULL")
+				}
+				continue
+			}
+			got, err := fresh[id].Output(context.Background(), v)
+			if err != nil || got != want {
+				t.Fatalf("element%d=%q want=%q error=%v", i, got, want, err)
+			}
+		}
+		cursor.close()
+		if draws != 1 {
+			t.Fatal("repeated child evaluation", draws)
+		}
+		failure := errors.New("selected child failure")
+		next.Args = []BoundExpr{queryProbe(fresh[sqltype.JSONB].Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+		if c, err := openFunctionCall(&EvalContext{Context: context.Background()}, next); !errors.Is(err, failure) || c.initialized {
+			t.Fatal("published failed invocation", c, err)
+		}
+	}
+}

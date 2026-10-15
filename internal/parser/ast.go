@@ -1410,7 +1410,7 @@ func singletonArgument(expr Expr) bool {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			case "gen_random_uuid", "uuidv4", "uuidv7":
 			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax":
-			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text", "json_strip_nulls":
+			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_strip_nulls":
 			case "generate_series", "generate_subscripts", "unnest":
 			case "unaccent":
 			case "regexp_count", "regexp_instr", "regexp_like", "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":

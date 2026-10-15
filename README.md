@@ -1982,9 +1982,22 @@ SELECT labels use the function name; FROM columns use the scalar OUT name
 Both signatures admit `from_json` named notation and ordinary direct/prepared,
 target/FROM/lateral/ordinality and symbolic stored/native-control routes.
 Wrong object/scalar roots report exact English 22023 diagnostics without a
-runtime position. JSONB expansion and record-population remain excluded.
+runtime position. Record-population remains excluded.
 Feature smoke: `make check RUN='^TestReferenceJSONElementsFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
+
+Change note: `jsonb_array_elements(jsonb)` and
+`jsonb_array_elements_text(jsonb)` expand top-level arrays into scalar JSONB/TEXT
+sets, preserving order, duplicate occurrences, canonical nested values and numeric
+scale. TEXT decodes strings and maps JSON null to SQL NULL; JSONB keeps JSON null.
+SQL NULL and empty arrays yield zero rows with full metadata. Non-array roots
+raise exact English 22023 object/scalar errors without a position. FROM's named
+OUT column is `value`, including under a table alias; explicit column aliases
+win, while target labels remain function names. Existing SRF zip/padding,
+LATERAL, ordinality, prepared recovery, atomic writes and symbolic replay apply.
+Feature smoke: `make check RUN='^TestReferenceJSONBElementsFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to that selector.
+
 
 Change note: JSONB storage normalizes whitespace and key order, keeps the last
 decoded duplicate key, and preserves exact finite decimals and their display

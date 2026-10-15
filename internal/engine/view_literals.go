@@ -551,6 +551,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
+		if n, ok := bound.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}

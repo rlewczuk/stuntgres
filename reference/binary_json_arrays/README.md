@@ -177,6 +177,33 @@ SAME-held recovery, VARBIT/BIT/BOOL metadata, and integer1<<32→1. Expected
 successful checks are quiet exit zero; recorded root verification, not these
 commands or source expectations, establishes exercised evidence.
 
+### JSONB array element expansion
+
+`TestReferenceJSONBElements` covers exactly `jsonb_array_elements(jsonb)` and
+`jsonb_array_elements_text(jsonb)`. Shared direct/prepared bodies independently
+specify ordered top-level values using ordinality and ORDER BY, canonical JSONB,
+numeric scale and string decoding, strict empty/NULL sets, JSON null versus SQL
+NULL, full logical English diagnostics and execution stages, named OUT `value`
+metadata and raw carriers, held-statement recovery, query consumers, lateral
+padding, atomic writes, authority/placement, view renames and native replay.
+Constant-literal and source-dependent target/FROM views for both functions retain
+independent canonical value, null and metadata assertions through restore and
+actual PostgreSQL execution of emitted dump SQL.
+Cancellation stores large nested elements before observing actual cursor output
+work, tests read/write cancellation without partial publication, and reuses held
+statements after recovery. Native Dump/Reset/Restore phases have no invented
+PostgreSQL control equivalent; emitted dump SQL is replayed on the pinned server.
+
+```sh
+make check RUN='^TestReferenceJSONBElements'
+make check RUN='^TestReferenceJSONBElements' REFERENCE=1
+make check RUN='^TestReferenceJSONBElementsFeatureSmoke$'
+make check RUN='^TestReferenceJSONBElementsFeatureSmoke$' REFERENCE=1
+```
+
+Expected success is quiet exit zero after independent assertions. Recorded root
+verification establishes exercised evidence; these commands are not evidence.
+
 ### JSON object member expansion
 
 `TestReferenceJSONEach` independently specifies `json_each(json)` and

@@ -64,7 +64,7 @@ func TestJSONArrayLengthParserIdentifierBoundaries(t *testing.T) {
 			t.Fatal("unbounded name admission", name)
 		}
 	}
-	for _, name := range []string{"jsonb_array_elements", "jsonb_array_elements_text", "json_array", "jsonb_array"} {
+	for _, name := range []string{"json_array", "jsonb_array"} {
 		if JSONFunctionName(name) {
 			t.Fatal("adjacent function admitted", name)
 		}

@@ -14,7 +14,7 @@ func isStringSet(expr BoundExpr) bool {
 }
 func isQuerySet(expr BoundExpr) bool {
 	switch expr.(type) {
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
 		return true
 	}
 	return isStringSet(expr)
@@ -25,7 +25,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 		return isStringSet(call)
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.ReturnsSet()
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
 		return true
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.Operation() == sqltype.RangeConstruct
@@ -47,7 +47,8 @@ func selectedFunctionSourceName(name string) bool {
 
 // A selected scalar OUT name controls the column label, not the range alias.
 func functionScalarOutName(expr BoundExpr) string {
-	if _, ok := expr.(functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]); ok {
+	switch expr.(type) {
+	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		return "value"
 	}
 	return ""
@@ -90,6 +91,8 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
+	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
@@ -137,6 +140,8 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		}
 		call.Args = args
 		return call, nil
+	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Reconstruct(call.Info, args)
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid JSON each arguments")

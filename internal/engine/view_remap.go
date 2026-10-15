@@ -243,6 +243,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
+	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = args(n.Args)
+		next = n
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n

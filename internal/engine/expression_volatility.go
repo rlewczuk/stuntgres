@@ -124,6 +124,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.Args...)
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
+	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Args...)
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
 	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:

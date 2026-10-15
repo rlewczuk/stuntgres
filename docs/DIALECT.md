@@ -751,8 +751,19 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   nested Unicode during processing and use exact array/scalar 22023 diagnostics.
   Aliases, whole rows, multi-column ROWS FROM padding/ordinality, target-set zip,
   function-only lateral sources and stored/native replay share existing stages.
-  These signatures admit `from_json` named notation; `jsonb_each*` and
-  record-population functions remain excluded.
+  These signatures admit `from_json` named notation.
+  `jsonb_array_elements(jsonb)` and `jsonb_array_elements_text(jsonb)` expand
+  immediate array elements in sequence without flattening nested containers.
+  Results remain scalar JSONB/TEXT: FROM exposes the named OUT column `value`
+  even under a table alias; explicit column aliases override it. Target labels
+  remain function names. JSONB results retain canonical values and numeric
+  scale; TEXT decodes strings and maps JSON null to SQL NULL. Empty arrays and
+  SQL NULL produce zero rows with complete metadata. Object/scalar roots raise
+  22023 `cannot extract elements from an object` / `cannot extract elements from
+  a scalar`, with no error position. Both use the existing target zip, lateral,
+  ROWS FROM/ordinality, cancellation and symbolic view/native replay paths.
+  `jsonb_each*` and record-population functions remain excluded; no implicit
+  JSON-to-JSONB input conversion is added.
   JSON-only extraction includes `(json,text/int4) -> json/text` via `->`/`->>`,
   `(json,text[]) -> json/text` via `#>`/`#>>`, and immutable variadic
   `json_extract_path` / `json_extract_path_text`. Object keys and integer array

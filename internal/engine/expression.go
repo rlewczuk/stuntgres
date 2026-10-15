@@ -852,6 +852,12 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err
+	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
+		if changed {
+			e.Args = []BoundExpr{arg}
+		}
+		return e, changed, err
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {

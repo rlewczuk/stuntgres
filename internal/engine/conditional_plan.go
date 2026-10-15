@@ -412,6 +412,13 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err // Cardinality belongs to its query stage.
+	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
+		arg, failure := child(e.Args[0])
+		err = failure
+		if changed {
+			e.Args = []BoundExpr{arg}
+		}
+		return e, changed, err // Cardinality belongs to its query stage.
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		arg, failure := child(e.Args[0])
 		err = failure
