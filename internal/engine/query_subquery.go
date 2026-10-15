@@ -10,16 +10,17 @@ import (
 // Correlated scans reopen; uncorrelated hashed occurrences retain a built RHS.
 type subqueryExpression struct {
 	expressionInfo
-	kind          parser.SubqueryKind
-	queryPlan     *BoundQuery
-	comparisons   []comparisonExpression
-	ordering      []sqltype.Comparison
-	membership    []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
-	operator      string
-	negate        bool
-	presenceOnly  bool
-	cteDefinition bool // Analysis-only graph edge, never expression demand.
-	jsonArray     *sqlJSONArrayQuery
+	kind           parser.SubqueryKind
+	queryPlan      *BoundQuery
+	comparisons    []comparisonExpression
+	ordering       []sqltype.Comparison
+	membership     []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
+	operator       string
+	negate         bool
+	presenceOnly   bool
+	cteDefinition  bool // Analysis-only graph edge, never expression demand.
+	jsonArray      *sqlJSONArrayQuery
+	leftExpansions map[int]compositeExpansionBinding // Analysis-only source associations.
 }
 
 func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {
@@ -56,18 +57,18 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	}
 	b.subqueryDemand = true
 	var left []comparisonOperand
+	var leftExpansions map[int]compositeExpansionBinding
 	if raw.Left != nil {
-		fields := []parser.Expr{raw.Left}
+		var err error
 		if row, ok := raw.Left.(parser.RowExpr); ok {
-			fields = row.Fields
+			left, leftExpansions, err = b.rowComparisonOperands(row)
+		} else {
+			var operand comparisonOperand
+			operand, err = b.comparisonOperand(raw.Left)
+			left = []comparisonOperand{operand}
 		}
-		left = make([]comparisonOperand, len(fields))
-		for i, field := range fields {
-			var err error
-			left[i], err = b.comparisonOperand(field)
-			if err != nil {
-				return nil, err
-			}
+		if err != nil {
+			return nil, err
 		}
 	}
 	query, err := b.bindSelect(raw.Query, false)
@@ -104,6 +105,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	properties := queryDemandProperties(project, presenceOnly)
 	properties.StageDependent = true
 	e := subqueryExpression{expressionInfo: b.info(usage, raw.Pos, properties), kind: raw.Kind, queryPlan: query, negate: raw.Negate, presenceOnly: presenceOnly}
+	e.leftExpansions = leftExpansions
 	if raw.Kind == parser.SubqueryScalar || raw.Kind == parser.SubqueryExists {
 		return e, nil
 	}
@@ -299,6 +301,24 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 		if err != nil {
 			return sqltype.Value{}, err
 		}
+		if e.distinct() {
+			distinct := valueLeft.IsNull() != right.IsNull()
+			if !valueLeft.IsNull() && !right.IsNull() {
+				value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+				equal, err := value.Boolean()
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+				distinct = !equal
+			}
+			if distinct {
+				return sqltype.Boolean(e.usage.Type, e.operator == "IS DISTINCT FROM"), nil
+			}
+			continue
+		}
 		if len(e.comparisons) == 1 {
 			return comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
 		}
@@ -342,7 +362,7 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 	if unknown {
 		return sqltype.Null(e.usage.Type), nil
 	}
-	truth := e.operator == "=" || e.operator == "<=" || e.operator == ">="
+	truth := e.operator == "=" || e.operator == "<=" || e.operator == ">=" || e.operator == "IS NOT DISTINCT FROM"
 	return sqltype.Boolean(e.usage.Type, truth), nil
 }
 

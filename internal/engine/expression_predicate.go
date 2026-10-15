@@ -149,6 +149,16 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		truth := [...]Truth{True, True, False, False, Unknown, Unknown}
 		return truthTestExpression{b.info(boolUsage, raw.Pos, child.Properties()), child, truth[index], index%2 == 1}, nil
 	case parser.IsDistinct, parser.IsNotDistinct:
+		if left, ok := raw.Left.(parser.RowExpr); ok {
+			if right, ok := raw.Right.(parser.RowExpr); ok {
+				mode := "IS DISTINCT FROM"
+				if raw.Kind == parser.IsNotDistinct {
+					mode = "IS NOT DISTINCT FROM"
+				}
+				operator := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: raw.Pos}
+				return b.bindRowPredicate(operator, sqltype.CompareEqual, left, right, mode)
+			}
+		}
 		if rawNull(raw.Left) {
 			return b.nullTest(raw.Right, raw.Pos, raw.Kind == parser.IsDistinct, context)
 		}

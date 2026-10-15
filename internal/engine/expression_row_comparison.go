@@ -14,6 +14,8 @@ type rowComparisonExpression struct {
 	comparisons []comparisonExpression
 	ordering    []sqltype.Comparison
 	operator    string
+	// Analysis-only associations retain original expanded source occurrences.
+	expansions [2]map[int]compositeExpansionBinding
 }
 
 func (e rowComparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -24,25 +26,58 @@ func (e rowComparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 }
 
 func (b *expressionBinder) bindRowComparison(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr) (BoundExpr, error) {
-	if len(left.Fields) != len(right.Fields) {
+	return b.bindRowPredicate(raw, operator, left, right, raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+}
+
+// Analyze constructors without allocating RECORD values or finalizing unknowns.
+func (b *expressionBinder) rowComparisonOperands(raw parser.RowExpr) ([]comparisonOperand, map[int]compositeExpansionBinding, error) {
+	list, err := b.expandRawList(raw.Fields)
+	if err != nil {
+		return nil, nil, err
+	}
+	fields := make([]comparisonOperand, len(list.raw))
+	for i, field := range list.raw {
+		if list.nodes != nil && list.nodes[i] != nil {
+			fields[i] = comparisonOperand{node: list.nodes[i], raw: field}
+		} else {
+			fields[i], err = b.comparisonOperand(field)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+	if len(fields) > 1664 {
+		return nil, nil, expressionError("54011", "ROW expressions can have at most 1664 entries", raw.Pos)
+	}
+	return fields, list.expansions, nil
+}
+
+func (e rowComparisonExpression) distinct() bool {
+	return e.operator == "IS DISTINCT FROM" || e.operator == "IS NOT DISTINCT FROM"
+}
+
+func (b *expressionBinder) bindRowPredicate(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr, mode string) (BoundExpr, error) {
+	lhs, le, err := b.rowComparisonOperands(left)
+	if err != nil {
+		return nil, err
+	}
+	rhs, re, err := b.rowComparisonOperands(right)
+	if err != nil {
+		return nil, err
+	}
+	if len(lhs) != len(rhs) {
 		return nil, expressionError("42601", "unequal number of entries in row expressions", raw.Pos)
 	}
-	if len(left.Fields) == 0 {
+	e := rowComparisonExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, ExprProperties{}), operator: mode, expansions: [2]map[int]compositeExpansionBinding{le, re}}
+	if len(lhs) == 0 && !e.distinct() {
 		return nil, expressionError("0A000", "cannot compare rows of zero length", raw.Pos)
 	}
-	e := rowComparisonExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, ExprProperties{}), operator: raw.Name.Parts[len(raw.Name.Parts)-1].Text, comparisons: make([]comparisonExpression, len(left.Fields))}
+	e.comparisons = make([]comparisonExpression, len(lhs))
 	if operator > sqltype.CompareNotEqual {
-		e.ordering = make([]sqltype.Comparison, len(left.Fields))
+		e.ordering = make([]sqltype.Comparison, len(lhs))
 	}
-	for i := range left.Fields {
-		l, err := b.comparisonOperand(left.Fields[i])
-		if err != nil {
-			return nil, err
-		}
-		r, err := b.comparisonOperand(right.Fields[i])
-		if err != nil {
-			return nil, err
-		}
+	for i, l := range lhs {
+		r := rhs[i]
 		node, err := b.bindComparisonOperands(raw, operator, l, r)
 		if err != nil {
 			return nil, err
@@ -70,7 +105,7 @@ func (e subqueryExpression) compare(c *EvalContext, left []sqltype.Value) (sqlty
 }
 
 func renderRowComparison(e rowComparisonExpression, operand func(BoundExpr) (string, error), operator string) (string, error) {
-	if len(e.comparisons) == 0 {
+	if len(e.comparisons) == 0 && !e.distinct() {
 		return "", fmt.Errorf("stuntgres: invalid stored row comparison")
 	}
 	left, right := make([]string, len(e.comparisons)), make([]string, len(e.comparisons))
@@ -85,5 +120,16 @@ func renderRowComparison(e rowComparisonExpression, operand func(BoundExpr) (str
 			return "", err
 		}
 	}
-	return "((" + strings.Join(left, ", ") + ") " + operator + " (" + strings.Join(right, ", ") + "))", nil
+	constructor := ""
+	if len(e.comparisons) < 2 {
+		constructor = "ROW"
+	}
+	return "(" + constructor + "(" + strings.Join(left, ", ") + ") " + operator + " " + constructor + "(" + strings.Join(right, ", ") + "))", nil
+}
+
+// Reuse the constructor's copy-on-change ownership mapping for analysis-only
+// expansion associations; executable pairs are mapped by their existing owners.
+func mapRowComparisonExpansions(expansions map[int]compositeExpansionBinding, child func(BoundExpr) (BoundExpr, bool, error)) (map[int]compositeExpansionBinding, bool, error) {
+	row, changed, err := mapRowAnalysis(rowExpression{expansions: expansions}, child)
+	return row.expansions, changed, err
 }

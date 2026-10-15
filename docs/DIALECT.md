@@ -727,6 +727,12 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   COMMIT, slot-only projection and trusted replacement transport produced entries
   without replaying SQL or caching CHECK truth. Physical rewrites and affected
   restored owner-dependent expressions execute under their real statement owner.
+- Structural ROW-constructor comparisons use scalar field providers: equality
+  and inequality combine three-valued field results; ordering stops at the first
+  unequal or NULL pair. `IS [NOT] DISTINCT FROM` always returns Boolean, including
+  empty constructors. Constructor expansion also applies to row IN/NOT IN and
+  quantified subqueries. This does not enable composite-datum comparisons,
+  composite-valued field comparisons, or internal `*` comparison operators.
 - `aclitem` and `aclitem[]` are ordinary stored values, not authorization grants.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.

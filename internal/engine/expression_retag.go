@@ -407,6 +407,12 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				comparisons[i] = next.(comparisonExpression)
 			}
 		}
+		var expansionChanged bool
+		n.leftExpansions, expansionChanged, err = mapRowComparisonExpansions(n.leftExpansions, mapChild)
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || expansionChanged
 		if n.jsonArray != nil {
 			copy := *n.jsonArray
 			copy.input = child(copy.input)
@@ -1261,6 +1267,14 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if pairs != nil {
 				pairs[i] = next.(comparisonExpression)
 			}
+		}
+		for side, expansions := range n.expansions {
+			var replaced bool
+			n.expansions[side], replaced, err = mapRowComparisonExpansions(expansions, mapChild)
+			if err != nil {
+				return nil, false, err
+			}
+			changed = changed || replaced
 		}
 		if !changed {
 			return node, false, nil

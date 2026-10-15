@@ -702,10 +702,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return `"substring"(` + source + ", " + pattern + ", " + escape + ")", nil
 	case rowComparisonExpression:
-		if len(n.comparisons) == 0 {
-			return "", fmt.Errorf("stuntgres: invalid row comparison")
+		spelling := n.operator
+		if !n.distinct() {
+			if len(n.comparisons) == 0 {
+				return "", fmt.Errorf("stuntgres: invalid row comparison")
+			}
+			spelling = operator(n.comparisons[0].namespace, n.operator)
 		}
-		return renderRowComparison(n, child, operator(n.comparisons[0].namespace, n.operator))
+		return renderRowComparison(n, child, spelling)
 	case functions.Regexp[BoundExpr, *EvalContext, ExprProperties]:
 		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r

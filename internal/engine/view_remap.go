@@ -105,6 +105,10 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			}
 			n.comparisons[i] = mapped.(comparisonExpression)
 		}
+		n.leftExpansions, _, err = mapRowComparisonExpansions(n.leftExpansions, func(old BoundExpr) (BoundExpr, bool, error) {
+			next := child(old)
+			return next, true, err
+		})
 		next = n
 	case domainValueExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		next = n
@@ -281,6 +285,18 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		n.comparisons = append([]comparisonExpression(nil), n.comparisons...)
 		for i, pair := range n.comparisons {
 			n.comparisons[i] = child(pair).(comparisonExpression)
+		}
+		if err != nil {
+			return nil, err
+		}
+		for side, expansions := range n.expansions {
+			n.expansions[side], _, err = mapRowComparisonExpansions(expansions, func(old BoundExpr) (BoundExpr, bool, error) {
+				next := child(old)
+				return next, true, err
+			})
+			if err != nil {
+				return nil, err
+			}
 		}
 		next = n
 	case scalarArrayComparisonExpression:

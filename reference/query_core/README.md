@@ -90,6 +90,29 @@ positions, source occurrence order and child-specific rowmark ownership.
 Run those private units with
 `make check RUN='^TestQuery(Subquery|DerivedSubquerySyntax)'`.
 
+### Structural row comparison coverage
+
+The untagged `row_compare_*_test.go` scenarios retain independent direct/prepared
+values, expanded constructors, full diagnostics, BOOL metadata, held parameters,
+and stored recipe/native replay assertions. Run both modes with an external
+900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceRowCompare(Values|Subquery|Constructors|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceRowCompare(Values|Subquery|Constructors|Diagnostics)$'
+make check RUN='^TestReferenceRowCompare(Metadata|Held|Stored)$'
+make check REFERENCE=1 RUN='^TestReferenceRowCompare(Metadata|Held|Stored)$'
+make check RUN='^TestRowComparison(DistinctPairs|Analysis|StoredRemap)$'
+make check RUN='^TestExprCollation(RowOperandDemand|RetagAuthority)$'
+```
+
+The session-only `local://row-compare-smoke.go` handoff is a standalone public-API
+program, run from the worktree using `go run /absolute/session/path/row-compare-smoke.go`.
+It checks row equality/NULL ordering, total DISTINCT, fresh held parameters,
+subquery membership, arity recovery and stored native Dump/Reset/Restore.
+The root records its actual argv and observations; it is not a permanent program
+or a replacement for either selected reference mode.
+
 ### SELECT CTE verification
 
 The untagged `reference/query_core/query_cte_*_test.go` definitions independently

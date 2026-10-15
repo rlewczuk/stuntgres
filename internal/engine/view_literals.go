@@ -430,23 +430,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 			return selectedArrayArguments(r.Args, n.Args)
 		case rowComparisonExpression:
-			for side, arg := range r.Args {
-				row, ok := arg.(parser.RowExpr)
-				if !ok || len(row.Fields) != len(n.comparisons) {
-					return fmt.Errorf("stuntgres: mismatched row comparison syntax")
-				}
-				(*ordinal)++ // The represented RowExpr itself has no scalar datum.
-				for i, field := range row.Fields {
-					operand := n.comparisons[i].left
-					if side == 1 {
-						operand = n.comparisons[i].right
-					}
-					if err := child(field, operand); err != nil {
-						return err
-					}
-				}
-			}
-			return nil
+			return b.captureRowComparison(r.Args, n, path, ordinal)
 		case subqueryExpression:
 			if len(r.Args) != 2 {
 				return fmt.Errorf("stuntgres: mismatched row subquery syntax")
@@ -518,6 +502,8 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 	case parser.PredicateExpr:
 		switch n := bound.(type) {
+		case rowComparisonExpression:
+			return b.captureRowComparison([]parser.Expr{r.Left, r.Right}, n, path, ordinal)
 		case nullTestExpression:
 			return child(r.Left, n.child)
 		case truthTestExpression:
@@ -1320,18 +1306,56 @@ func (b *expressionBinder) captureSubqueryLeft(raw parser.Expr, n subqueryExpres
 	}
 	if row, ok := raw.(parser.RowExpr); ok {
 		(*ordinal)++
-		if len(row.Fields) != len(n.comparisons) {
-			return fmt.Errorf("stuntgres: mismatched frozen row comparison")
-		}
-		for i, field := range row.Fields {
-			if err := b.captureViewLiteralTree(field, n.comparisons[i].left, path, ordinal); err != nil {
-				return err
-			}
-		}
-		return nil
+		return b.captureRowComparisonFields(row, n.comparisons, 0, n.leftExpansions, path, ordinal)
 	}
 	if len(n.comparisons) != 1 {
 		return fmt.Errorf("stuntgres: mismatched frozen scalar comparison")
 	}
 	return b.captureViewLiteralTree(raw, n.comparisons[0].left, path, ordinal)
+}
+
+func (b *expressionBinder) captureRowComparison(raw []parser.Expr, n rowComparisonExpression, path viewLiteralPath, ordinal *int) error {
+	if len(raw) != 2 {
+		return fmt.Errorf("stuntgres: mismatched row comparison syntax")
+	}
+	for side, arg := range raw {
+		row, ok := arg.(parser.RowExpr)
+		if !ok {
+			return fmt.Errorf("stuntgres: mismatched row comparison syntax")
+		}
+		(*ordinal)++ // The structural constructor has no scalar datum.
+		if err := b.captureRowComparisonFields(row, n.comparisons, side, n.expansions[side], path, ordinal); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *expressionBinder) captureRowComparisonFields(row parser.RowExpr, pairs []comparisonExpression, side int, expansions map[int]compositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
+	path.argument = 0
+	slot := 0
+	for source, field := range row.Fields {
+		if expansion, ok := expansions[source]; ok {
+			if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
+				return err
+			}
+			slot += len(expansion.fields)
+			continue
+		}
+		if slot >= len(pairs) {
+			return fmt.Errorf("stuntgres: missing row comparison source association")
+		}
+		operand := pairs[slot].left
+		if side == 1 {
+			operand = pairs[slot].right
+		}
+		if err := b.captureNormalizedViewLiteralTree(field, operand, path, ordinal); err != nil {
+			return err
+		}
+		slot++
+	}
+	if slot != len(pairs) {
+		return fmt.Errorf("stuntgres: invalid row comparison source association")
+	}
+	return nil
 }

@@ -1319,8 +1319,11 @@ executing an unused volatile sibling; whole-constructor analysis and immutable
 preflight remain required. Correlated RETURNING whole rows retain their lexical
 OLD/NEW owner and nearer-name shadowing. Admitted scalar function-source aliases
 remain scalar; ordinality/multiple-call aliases retain genuine tuple presence.
-Anonymous constructed results report RECORD; composite comparisons remain
-unsupported. Executable named-composite arrays support storage and textual I/O.
+Anonymous constructed results report RECORD. Structural constructor predicates
+support field-wise `=`, `<>`, lexical `<`, `<=`, `>`, `>=`, total Boolean
+`IS [NOT] DISTINCT FROM`, and row IN/NOT IN/quantified subqueries, including
+constructor field expansion. Composite-datum comparisons remain unsupported.
+Executable named-composite arrays support storage and textual I/O.
 Named assignments preserve descriptor identity: equal-shaped distinct named
 types are not interchangeable. Direct UPDATE/INSERT VALUES may contextually
 construct anonymous ROW values; projected RECORD in INSERT SELECT requires an
