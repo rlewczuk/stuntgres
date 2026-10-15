@@ -242,6 +242,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 					return err
 				}
 			}
+			if call := b.windowCalls[n.call]; call.defaultValue != nil {
+				if err := child(r.Args[2], call.defaultValue); err != nil {
+					return err
+				}
+			}
 			spec := b.windowCalls[n.call].spec
 			for i, key := range r.Window.Partition {
 				if err := child(key, spec.partition[i]); err != nil {

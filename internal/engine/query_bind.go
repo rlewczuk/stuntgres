@@ -614,6 +614,9 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if call.ordinal != nil {
 			analysis = append(analysis, call.ordinal)
 		}
+		if call.defaultValue != nil {
+			analysis = append(analysis, call.defaultValue)
+		}
 		analysis = append(analysis, call.spec.partition...)
 		for _, key := range call.spec.order {
 			analysis = append(analysis, key.expression)

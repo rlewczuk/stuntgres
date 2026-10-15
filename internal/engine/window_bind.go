@@ -46,14 +46,16 @@ const (
 	windowLast
 	windowNth
 	windowNtile
+	windowLead
+	windowLag
 )
 
 func (operation windowOperation) frameDependent() bool {
-	return operation != windowNumber && operation != windowNtile
+	return operation != windowNumber && operation != windowNtile && operation != windowLead && operation != windowLag
 }
 
 func (operation windowOperation) evaluatesArgument() bool {
-	return operation == windowFirst || operation == windowLast || operation == windowNth || operation == windowNtile
+	return operation == windowFirst || operation == windowLast || operation == windowNth || operation == windowNtile || operation == windowLead || operation == windowLag
 }
 
 type windowCall struct {
@@ -62,6 +64,7 @@ type windowCall struct {
 	operation    windowOperation
 	argument     BoundExpr
 	ordinal      BoundExpr
+	defaultValue BoundExpr
 	provider     aggregateProvider
 	raw          *parser.WindowSpec
 	analysisOnly bool // Matched ORDER target: retain binding ownership, not execution.
@@ -131,8 +134,14 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	b.argumentOwner = argumentWindowOwner{active: true, window: true}
 	defer func() { b.argumentOwner = parentOwner }()
 	resultUsage := b.typ(sqltype.Int8).Usage()
-	var argument, ordinal BoundExpr
-	if windowValueName(raw.Name) {
+	var argument, ordinal, defaultValue BoundExpr
+	if windowOffsetName(raw.Name) {
+		var err error
+		argument, ordinal, defaultValue, resultUsage, err = b.resolveWindowOffsetSignature(raw, name)
+		if err != nil {
+			return nil, err
+		}
+	} else if windowValueName(raw.Name) {
 		var err error
 		argument, ordinal, resultUsage, err = b.resolveWindowValueSignature(raw, name)
 		if err != nil {
@@ -183,7 +192,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if len(raw.Order) > 0 {
 		return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", raw.Pos)
 	}
-	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || windowValueName(raw.Name)) {
+	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || windowValueName(raw.Name) || windowOffsetName(raw.Name)) {
 		return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", raw.Pos)
 	}
 	if err := b.windowAllowed(raw.Pos); err != nil {
@@ -192,7 +201,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
-	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || windowValueName(raw.Name) || (raw.Name == "count" && raw.Star)) {
+	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || windowValueName(raw.Name) || windowOffsetName(raw.Name) || (raw.Name == "count" && raw.Star)) {
 		found := false
 		for _, definition := range b.windowRaw {
 			if definition.Name.Text == raw.Window.Name.Text {
@@ -215,15 +224,19 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Filter != nil {
 		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
 	}
-	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !windowValueName(raw.Name) && (raw.Name != "count" || !raw.Star) {
+	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !windowValueName(raw.Name) && !windowOffsetName(raw.Name) && (raw.Name != "count" || !raw.Star) {
 		return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 	}
-	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal}
+	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal, defaultValue: defaultValue}
 	switch raw.Name {
 	case "row_number":
 		call.operation = windowNumber
 	case "ntile":
 		call.operation = windowNtile
+	case "lead":
+		call.operation = windowLead
+	case "lag":
+		call.operation = windowLag
 	case "first_value":
 		call.operation = windowFirst
 	case "last_value":
@@ -248,20 +261,25 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Name == "ntile" {
 		info.properties = mergeExpressionProperties(info.properties, argument.Properties())
 	}
-	if windowValueName(raw.Name) {
+	if windowValueName(raw.Name) || windowOffsetName(raw.Name) {
 		info.properties = mergeExpressionProperties(info.properties, argument.Properties())
 		if ordinal != nil {
 			info.properties = mergeExpressionProperties(info.properties, ordinal.Properties())
 		}
 		var err error
-		info, err = b.collatedInfo(info, argument)
+		if defaultValue != nil {
+			info.properties = mergeExpressionProperties(info.properties, defaultValue.Properties())
+			info, err = b.collatedInfo(info, argument, defaultValue)
+		} else {
+			info, err = b.collatedInfo(info, argument)
+		}
 		if err != nil {
 			return nil, err
 		}
 	}
 	expr := &windowExpression{expressionInfo: info, slot: -1, frame: b.frameID(), call: len(b.windowCalls)}
 	call.expression = expr
-	expr.nullable = call.operation == windowSum || call.operation == windowNtile || windowValueName(raw.Name)
+	expr.nullable = call.operation == windowSum || call.operation == windowNtile || windowValueName(raw.Name) || windowOffsetName(raw.Name)
 	b.windowCalls = append(b.windowCalls, call)
 	return expr, nil
 }
@@ -455,7 +473,7 @@ func (b *expressionBinder) sameWindowCall(a, c windowCall) bool {
 	}
 	// Arguments can own child queries hidden by the window leaf. This is
 	// semantic target equality, not permission to merge volatile executions.
-	if (a.operation == windowSum || a.operation.evaluatesArgument()) && (!sameRecordUsage(a.expression.ResultUsage(), c.expression.ResultUsage()) || !b.sameQueryTarget(a.argument, c.argument) || !b.sameQueryTarget(a.ordinal, c.ordinal)) {
+	if (a.operation == windowSum || a.operation.evaluatesArgument()) && (!sameRecordUsage(a.expression.ResultUsage(), c.expression.ResultUsage()) || !b.sameQueryTarget(a.argument, c.argument) || !b.sameQueryTarget(a.ordinal, c.ordinal) || !b.sameQueryTarget(a.defaultValue, c.defaultValue)) {
 		return false
 	}
 	if a.raw != nil || c.raw != nil {
@@ -743,6 +761,13 @@ func (b *expressionBinder) finishWindows(root LogicalNode, keys []BoundExpr, gro
 					return nil, err
 				}
 				preparedCalls[i].ordinal = next
+			}
+			if call.defaultValue != nil {
+				next, err := b.rewriteGroup(call.defaultValue, keys)
+				if err != nil {
+					return nil, err
+				}
+				preparedCalls[i].defaultValue = next
 			}
 			for j, key := range spec.partition {
 				next, err := b.rewriteGroup(key, keys)

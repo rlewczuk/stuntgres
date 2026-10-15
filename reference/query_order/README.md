@@ -6,6 +6,47 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Lead and lag windows
+
+The ten `TestReferenceQueryWindowOffset` definitions share direct and actual
+prepared scenarios with independently specified rows, types, counts and complete
+diagnostics. They cover partition edges, omitted/zero/negative/NULL/extreme INT4
+offsets, current-row defaults, selected NULLs, lazy role evaluation and exact
+volatile draw sets without assuming inter-call scheduling. Frames/exclusions do
+not select members; runtime frame bounds are nevertheless validated.
+Types distinguishes unknown anyelement overloads from three-argument
+anycompatible resolution, domains/base widening, collations and fixed OIDs.
+Metadata checks real cursor descriptors before iteration, including empty and
+LIMIT0 results, typed NULL scans and independently observed pq transport flags.
+Lifecycle/Views cover same-held failure recovery, atomic INSERT, cancellation,
+default-only permissions/dependencies, rename/deparse/exported replay and native
+Dump/Restore/Reset with retained cursors and failed-replacement preservation.
+NestedDefaults distinguishes scalar child windows whose only difference is the
+correlated default: projecting +id while ordering by -id must reverse rows.
+Internal nested-comparison and lowering mechanics protect third-child stage
+transformation/writeback, companion datum sharing and retained input ownership.
+
+```sh
+make check RUN='^TestReferenceQueryWindowOffset' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowOffset'
+make check RUN='^TestResolveWindowOffset$'
+make check RUN='^TestQueryWindowOffset' RACE=1
+make check RUN='^TestReferenceQueryWindowOffsetFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowOffsetFeatureSmoke$'
+```
+
+Use an external900-second deadline per command. FeatureSmoke checks six-row
+partition vectors and per-row defaults, signed extremes and exclusion
+independence, NUMERIC/TEXT resolution, full Unicode diagnostics, populated/empty
+metadata, held recovery, unchanged sentinel91 after late INSERT errors and
+captured named-window view replay/native controls. Internal endpoint, graph,
+ownership, registration and cancellation units supplement public SQL evidence.
+Shared window-child proof uses focused existing
+`^TestReferenceQueryWindowValue(Execution|Frames|Views|Lifecycle|Diagnostics)$`
+and `^TestReferenceQueryWindowNtile(Execution|Frames|ArgumentDemand|Views|Lifecycle)$`
+selections in both modes, plus native `^TestQueryWindow(Value|Offset)` mechanics.
+Whole-project Docker-free verification remains ordinary `make quickcheck`.
+
 ### Ntile window buckets
 
 The eight `TestReferenceQueryWindowNtile` definitions share direct and actual

@@ -449,14 +449,18 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 	}
 	defer child.Close()
 	offsets := make([]windowFrameOffsets, len(n.specs))
-	demanded := make([]bool, len(n.specs))
+	const membership, validateBounds uint8 = 1, 2
+	demanded := make([]uint8, len(n.specs))
 	ntileCount := 0
 	for i, call := range n.calls {
 		if call.operation == windowNtile {
 			ntileCount++
 		}
 		if call.operation.frameDependent() {
-			demanded[n.specIndices[i]] = true
+			demanded[n.specIndices[i]] |= membership | validateBounds
+		}
+		if call.operation == windowLead || call.operation == windowLag {
+			demanded[n.specIndices[i]] |= validateBounds
 		}
 	}
 	if err := child.drain(ctx); err != nil {
@@ -472,7 +476,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		}
 	}
 	for i, spec := range n.specs {
-		if demanded[i] {
+		if demanded[i]&validateBounds != 0 {
 			offsets[i], err = evaluateWindowOffsets(ctx, state, spec)
 			if err != nil {
 				return indexedStage{}, err
@@ -537,7 +541,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 			partition := &ordered.partitions[partitionIndex]
 			sums.initialized = false
 			clear(ntiles)
-			if demanded[specIndex] && (spec.frame.unit != parser.FrameRows || spec.frame.exclusion == parser.ExcludeGroup || spec.frame.exclusion == parser.ExcludeTies) && len(spec.order) > 0 && partition.peerEnds == nil {
+			if demanded[specIndex]&membership != 0 && (spec.frame.unit != parser.FrameRows || spec.frame.exclusion == parser.ExcludeGroup || spec.frame.exclusion == parser.ExcludeTies) && len(spec.order) > 0 && partition.peerEnds == nil {
 				for start := 0; start < len(partition.rows); {
 					end := start + 1
 					for end < len(partition.rows) {
@@ -567,7 +571,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					}
 					peerEnd = partition.peerEnds[group]
 				}
-				if demanded[specIndex] && (spec.frame.unit == parser.FrameRows || i == peerStart) {
+				if demanded[specIndex]&membership != 0 && (spec.frame.unit == parser.FrameRows || i == peerStart) {
 					if spec.frame.unit == parser.FrameRows {
 						head, err = windowRowsEndpoint(ctx, spec.frame.start.kind, offsets[specIndex].integerStart, i, len(partition.rows), false)
 					} else if spec.frame.unit == parser.FrameGroups {
@@ -616,6 +620,8 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					case windowNtile:
 						value, err = ntiles[ntileIndex].evaluate(ctx, valueEvaluation, &child, call, partition.rows, i)
 						ntileIndex++
+					case windowLead, windowLag:
+						value, err = evaluateWindowOffset(ctx, valueEvaluation, &child, call, partition.rows, i)
 					case windowCount:
 						value, err = windowFrameCount(ctx, call.expression.ResultUsage(), 0, windowMaskCount(spec.frame.exclusion, head, tail, i, peerStart, peerEnd))
 					case windowFirst, windowLast, windowNth:

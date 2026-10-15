@@ -673,6 +673,33 @@ ORDER key. This neither caches a selected value across rows nor merges genuinely
 different value/ordinal expressions. Both children retain grouping, authorization,
 dependency, capture and descriptor-remapping ownership.
 
+lead(value [,offset [,default]]) and lag use the complete partition, not the
+current frame or its exclusions. Omitted offset is1 and omitted default is a
+typed NULL. Offsets are signed INT4: zero selects the current member; negative
+offsets reverse direction, including MinInt32 without negation overflow.
+The offset expression runs on each current row first. NULL returns a typed NULL
+without evaluating either value or default. Otherwise value runs only on the
+selected row, or default only on the current row when that target is absent.
+A selected NULL remains NULL rather than using the default. Volatile values are
+not cached even when several outputs select the same member. Retained whole
+sort targets follow the matching rule above; differing defaults remain distinct.
+Frames do not choose these members, but written frame offsets still undergo
+runtime NULL/negative validation, including when no frame-sensitive call exists.
+
+One-/two-argument lead/lag overloads use anyelement: the value must already have
+a concrete type. The three-argument overload uses anycompatible for value and
+default, excluding the offset from common-type selection. Unknown-only values
+then resolve to TEXT; an agreed known domain is preserved, while domain/base or
+different domains resolve through their base types. Known offset arguments must
+implicitly coerce to INT4; unknown literals/parameters infer INT4. Common result
+collation includes the default even when its runtime branch is unreachable.
+Computed outputs are known nullable, have typmod-1 and no physical column origin,
+including empty results. All three children retain grouping, scalar-query demand,
+authorization, dependency, capture, lowering and destination-remapping ownership.
+Held statements retain no runtime partition/argument cache; errors publish no
+partial output or INSERT prefix, and subsequent valid executions start fresh.
+
+
 ntile(buckets) returns INT4 labels1..B across the complete ordered partition,
 with the first N%B buckets receiving one extra row. For six rows and four
 buckets the labels are1,1,2,2,3,4, not ceil(row*B/N). More buckets than rows emit

@@ -113,6 +113,28 @@ prepared UUID parameter inference and session timestamp presentation. They do
 not generate UUIDs or consume a clock or entropy. See
 [selected dual-mode proof and feature smoke](reference/types/README.md#uuid-extraction-selected-proof).
 
+## Lead and lag windows — change note
+
+`lead(value [, offset [, default]]) OVER (...)` and `lag` select relative
+to the current row in its complete partition, respecting NULL members.
+Omitted offset is1; zero selects the current row and negative offsets reverse
+direction. A NULL offset returns NULL without evaluating value/default.
+An out-of-partition target evaluates the default on the current row; an
+in-partition NULL value does not use that default. Value expressions evaluate
+only on selected members, without a cross-row cache.
+
+One-/two-argument overloads retain the concrete value type and reject an
+unconstrained unknown value. Three arguments resolve value/default to one
+implicitly compatible type, including domain identity when both agree.
+Offsets infer INT4; smallint coerces implicitly, bigint/numeric/known text do not.
+Frames and exclusions do not change selected members, but written frame bounds
+are still validated. Outputs are known nullable with unsized result typmods.
+Default-only dependencies and permissions survive stored-view replay and native
+controls. See [window contracts](docs/QUERIES.md) and
+[selected proof](reference/query_order/README.md#lead-and-lag-windows).
+Feature smoke: `make check RUN='^TestReferenceQueryWindowOffsetFeatureSmoke$'`
+and `make check RUN='^TestReferenceQueryWindowOffsetFeatureSmoke$' REFERENCE=1`.
+
 ## Ntile window buckets — change note
 
 `ntile(integer) OVER (...)` returns nullable INT4 bucket labels across each
@@ -1486,7 +1508,7 @@ Feature smoke: `make check RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`.
 
 Change note: selected PostgreSQL18 windows support `row_number()`, `count(*)`,
-`sum(expr)` and `first_value`/`last_value`/`nth_value` with default or explicit
+`sum(expr)`, `ntile`, `lead`/`lag` and `first_value`/`last_value`/`nth_value` with default or explicit
 RANGE/GROUPS/ROWS frames, typed offsets, partition/order keys
 and inherited named `WINDOW` definitions. GROUPS requires window ORDER BY and
 measures bigint offsets in complete peer groups: keys1,1,2,3,3 with1PRECEDING

@@ -229,7 +229,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		input := child(n.child)
 		var calls []windowCall
 		for i, call := range n.calls {
-			for j, expression := range [2]BoundExpr{call.argument, call.ordinal} {
+			for j, expression := range [3]BoundExpr{call.argument, call.ordinal, call.defaultValue} {
 				if expression == nil || err != nil {
 					continue
 				}
@@ -241,8 +241,10 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 					}
 					if j == 0 {
 						calls[i].argument = next
-					} else {
+					} else if j == 1 {
 						calls[i].ordinal = next
+					} else {
+						calls[i].defaultValue = next
 					}
 					changed = true
 				}

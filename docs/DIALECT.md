@@ -986,12 +986,18 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   definitions, and general lateral derived sources remain excluded. MERGE rejects
   its own WITH RECURSIVE; a recursive SELECT inside its derived source is admitted.
   Window providers are row_number(), count(*), ntile(integer),
-  existing integer/numeric/floating sum(expr), and first_value/last_value/nth_value.
+  existing integer/numeric/floating sum(expr), first_value/last_value/nth_value,
+  and lead/lag with optional INT4 offset and per-row default.
   Ntile returns nullable INT4 balanced full-partition buckets, larger buckets
   first, independent of frames/exclusions. Initial NULL bucket arguments retry;
   after positive initialization later arguments are not evaluated. Reached
   nonpositive buckets raise22014. Value functions retain concrete input types
   and PostgreSQL RESPECT NULLS; nth_value uses a current-row one-based INT4 ordinal.
+  Lead/lag select in the complete partition regardless of frame/exclusion;
+  written frame bounds still validate. Zero/negative offsets are legal, NULL
+  offsets suppress value/default evaluation, and only absent targets use the
+  current-row default. One/two arguments use anyelement; three use anycompatible
+  value/default resolution. Unknown-only value input needs the third overload.
   MONEY/INTERVAL SUM, expression-count windows, explicit null-treatment/FROM LAST,
   DISTINCT/call-local aggregate ORDER and window aggregate filters remain excluded.
 - MERGE supports RETURNING expressions, source/target rows, OLD/NEW aliases and

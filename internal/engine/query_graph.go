@@ -86,6 +86,7 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 		for _, call := range n.calls {
 			visit(call.argument)
 			visit(call.ordinal)
+			visit(call.defaultValue)
 		}
 		for _, spec := range n.specs {
 			args(spec.partition)

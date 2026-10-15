@@ -447,7 +447,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 
 func ordinaryAggregate(name string) bool {
 	switch name {
-	case "first_value", "last_value", "nth_value", "ntile":
+	case "first_value", "last_value", "nth_value", "ntile", "lead", "lag":
 		return true
 	case "rank", "dense_rank", "percent_rank", "cume_dist":
 		return true

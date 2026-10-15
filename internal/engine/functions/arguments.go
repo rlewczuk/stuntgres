@@ -88,6 +88,26 @@ func ResolveNtile(visible, star bool, count int, argument, integer sqltype.Usage
 	return Resolved, plan
 }
 
+// Offset windows have anyelement value overloads at arity one/two, and
+// anycompatible value/default at arity three. Common-type choice is binder-owned.
+func ResolveWindowOffset(visible, star bool, count int, value, offset, integer sqltype.Usage) (Resolution, sqltype.CoercionPlan) {
+	var plan sqltype.CoercionPlan
+	if !visible || star || count < 1 || count > 3 {
+		return Missing, plan
+	}
+	if count > 1 && offset.Type != nil {
+		var err error
+		plan, err = sqltype.PlanCoercion(offset, integer, sqltype.Implicit)
+		if err != nil {
+			return Missing, plan
+		}
+	}
+	if count < 3 && !value.Type.Concrete() {
+		return UnknownPolymorphic, plan
+	}
+	return Resolved, plan
+}
+
 type CoercionIntent uint8
 
 const (

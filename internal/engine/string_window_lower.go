@@ -15,6 +15,9 @@ func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boun
 		if call.ordinal != nil {
 			requests = append(requests, call.ordinal)
 		}
+		if call.defaultValue != nil {
+			requests = append(requests, call.defaultValue)
+		}
 	}
 	originalWidth := len(requests)
 	requests, templates := querySetPeerClosure(requests, companions)
@@ -40,6 +43,10 @@ func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boun
 		}
 		if calls[i].ordinal != nil {
 			calls[i].ordinal = requests[offset]
+			offset++
+		}
+		if calls[i].defaultValue != nil {
+			calls[i].defaultValue = requests[offset]
 			offset++
 		}
 	}
