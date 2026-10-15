@@ -72,6 +72,22 @@ func ResolveWindowValue(visible, star, nth bool, count int, value, ordinal, inte
 	return Resolved, plan
 }
 
+// Ntile has one monomorphic INT4 formal, including unknown literals/parameters.
+func ResolveNtile(visible, star bool, count int, argument, integer sqltype.Usage) (Resolution, sqltype.CoercionPlan) {
+	var plan sqltype.CoercionPlan
+	if !visible || star || count != 1 {
+		return Missing, plan
+	}
+	if argument.Type != nil {
+		var err error
+		plan, err = sqltype.PlanCoercion(argument, integer, sqltype.Implicit)
+		if err != nil {
+			return Missing, plan
+		}
+	}
+	return Resolved, plan
+}
+
 type CoercionIntent uint8
 
 const (

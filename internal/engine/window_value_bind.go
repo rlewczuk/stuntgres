@@ -80,7 +80,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []B
 	}
 	hasValues := false
 	for _, call := range calls {
-		hasValues = hasValues || call.operation >= windowFirst
+		hasValues = hasValues || call.operation.evaluatesArgument()
 	}
 	if !hasValues {
 		return nil
@@ -98,7 +98,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []B
 	owners := make([]*windowExpression, 0, len(calls))
 	retain := func(expression BoundExpr) {
 		leaf, ok := expression.(*windowExpression)
-		if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || calls[leaf.call].operation < windowFirst {
+		if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
 			return
 		}
 		for _, owner := range owners {
@@ -125,7 +125,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []B
 		}
 		walkBoundExpression(expression, func(child BoundExpr) {
 			leaf, ok := child.(*windowExpression)
-			if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || calls[leaf.call].operation < windowFirst {
+			if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
 				return
 			}
 			for _, owner := range owners {

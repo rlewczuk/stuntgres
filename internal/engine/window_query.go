@@ -450,8 +450,12 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 	defer child.Close()
 	offsets := make([]windowFrameOffsets, len(n.specs))
 	demanded := make([]bool, len(n.specs))
+	ntileCount := 0
 	for i, call := range n.calls {
-		if call.operation != windowNumber {
+		if call.operation == windowNtile {
+			ntileCount++
+		}
+		if call.operation.frameDependent() {
 			demanded[n.specIndices[i]] = true
 		}
 	}
@@ -500,11 +504,12 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		success = true
 		return indexedStage{source: source, schema: n.Schema()}, nil
 	}
+	ntiles := make([]windowNtileState, ntileCount)
 	// Reuse one frame-local evaluator and its virtual-identity buffers across
-	// actual value calls, rather than allocating them per member/output.
+	// actual value/ntile calls, rather than allocating them per member/output.
 	var valueEvaluation *EvalContext
 	for _, call := range n.calls {
-		if call.operation >= windowFirst {
+		if call.operation.evaluatesArgument() {
 			evaluation := state.evaluation(ctx)
 			valueEvaluation = &evaluation
 			break
@@ -531,6 +536,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		for partitionIndex := range ordered.partitions {
 			partition := &ordered.partitions[partitionIndex]
 			sums.initialized = false
+			clear(ntiles)
 			if demanded[specIndex] && (spec.frame.unit != parser.FrameRows || spec.frame.exclusion == parser.ExcludeGroup || spec.frame.exclusion == parser.ExcludeTies) && len(spec.order) > 0 && partition.peerEnds == nil {
 				for start := 0; start < len(partition.rows); {
 					end := start + 1
@@ -592,6 +598,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					}
 					source.windowValues[row*width+entry.callIndex] = entry.result
 				}
+				ntileIndex := 0
 				for callIndex, call := range n.calls {
 					if n.specIndices[callIndex] != specIndex {
 						continue
@@ -606,6 +613,9 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					switch call.operation {
 					case windowNumber:
 						value, err = sqltype.Integer(call.expression.ResultUsage().Type, int64(i)+1)
+					case windowNtile:
+						value, err = ntiles[ntileIndex].evaluate(ctx, valueEvaluation, &child, call, partition.rows, i)
+						ntileIndex++
 					case windowCount:
 						value, err = windowFrameCount(ctx, call.expression.ResultUsage(), 0, windowMaskCount(spec.frame.exclusion, head, tail, i, peerStart, peerEnd))
 					case windowFirst, windowLast, windowNth:

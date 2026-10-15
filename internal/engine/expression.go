@@ -2007,7 +2007,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		case parser.SubqueryExpr:
 			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.partitionConsumer, r.Pos)
 		case parser.AggregateExpr:
-			if r.Window == nil && r.Name != "row_number" && !windowValueName(r.Name) {
+			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !windowValueName(r.Name) {
 				for _, arg := range r.Args {
 					if _, err := b.bind(arg, expressionPolicy{context: projectionContext}); err != nil {
 						return nil, err
@@ -2114,6 +2114,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}()
 			if windowValueName(r.Name) {
 				if _, _, _, err := b.resolveWindowValueSignature(r, name); err != nil {
+					return nil, err
+				}
+				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
+			}
+			if r.Name == "ntile" {
+				if _, err := b.resolveNtileSignature(r, name); err != nil {
 					return nil, err
 				}
 				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)

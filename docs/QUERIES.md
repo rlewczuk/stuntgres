@@ -596,6 +596,32 @@ ORDER key. This neither caches a selected value across rows nor merges genuinely
 different value/ordinal expressions. Both children retain grouping, authorization,
 dependency, capture and descriptor-remapping ownership.
 
+ntile(buckets) returns INT4 labels1..B across the complete ordered partition,
+with the first N%B buckets receiving one extra row. For six rows and four
+buckets the labels are1,1,2,2,3,4, not ceil(row*B/N). More buckets than rows emit
+labels1..N; tied peers may split, so use unique window ORDER keys when a label
+must belong to a particular row. Frames/exclusions do not affect ntile results
+or demand runtime offsets when ntile is the only provider; frame-sensitive
+siblings still demand their own frame. Static frame analysis always applies.
+
+The bucket argument is evaluated on the current row only until initialization
+succeeds. Initial NULLs return typed NULL without advancing bucket membership;
+the next row retries, with all initial NULL rows still in the denominator.
+For five rows with bucket arguments NULL,2,0,NULL,-1, results are NULL,1,1,1,2.
+After the first positive argument, later arguments are not evaluated at all.
+A reached nonpositive value raises22014
+`argument of ntile must be greater than zero`, without a parser position.
+Empty input and LIMIT0 suppress runtime bucket evaluation; nonempty EXISTS
+still demands the window target. The formal is integer: smallint and existing
+integer domains coerce implicitly; bigint/text/boolean/numeric signatures do not.
+Unknown strings, NULL and parameters infer INT4 through existing coercion.
+Computed ntile outputs are known nullable even with positive constants.
+State belongs to each actual call/partition/execution, never a held plan or view.
+Bucket expressions retain grouping, scalar-child, authorization, dependency,
+capture and remapping ownership, including when runtime evaluation is suppressed.
+Upper sort-target matching follows the retained whole-window-output rule above,
+not blanket merging of volatile calls.
+
 Arguments participate in authorization, grouping, capture and descriptor remap
 even when runtime membership is empty. Window providers beyond the ones above,
 MONEY/INTERVAL SUM, count(expr), FILTER, DISTINCT, call-local aggregate ORDER,

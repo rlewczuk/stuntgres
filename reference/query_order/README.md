@@ -6,6 +6,48 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Ntile window buckets
+
+The eight `TestReferenceQueryWindowNtile` definitions share direct and actual
+prepared SQL contracts, with independently specified rows, INT4 metadata, full
+logical diagnostics and affected counts. Execution covers divisible and
+nondivisible counts, larger buckets first, excess/maximal buckets, singleton,
+empty/LIMIT0/EXISTS demand, NULL partitions, descending order, peer bags, named
+windows and grouped/scalar consumers. ArgumentDemand distinguishes NULL retry
+with the full denominator from eager or repeated bucket evaluation, checks
+separate call state and exact sequence effects without fixing call scheduling.
+Frames covers ROWS/RANGE/GROUPS and every exclusion, standalone eliminated
+offsets and demanded frame-sensitive siblings.
+
+Diagnostics asserts prepare/execute stages, Unicode character carets, signature
+and child-analysis precedence, unpositioned22014 and portal parameter Context.
+Metadata checks descriptors before iteration, raw INT4 cells and sql.NullInt64.
+Lifecycle holds one statement through2/3/NULL/0/-1/2, proves late-partition INSERT
+atomicity, exact affected counts and cancellation/recovery. Views covers
+bucket-only and scalar-child dependency/authorization, rename/deparse replay,
+pristine native Dump/Restore, source/destination Reset, retained cursors and
+failed-Restore preservation. Restore intentionally rejects INSERT query sources
+with0A000 before evaluating ntile; the existing live INSERT SELECT witness
+separately demands late22014. A subsequent valid dump restores executable ntile
+views. Native control phases do not invent PG control APIs.
+
+```sh
+make check RUN='^TestReferenceQueryWindowNtile' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowNtile'
+make check RUN='^TestQueryWindowNtile' RACE=1
+make check RUN='^TestReferenceQueryWindowNtileFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowNtileFeatureSmoke$'
+```
+
+Use an external900-second deadline for each selected command. FeatureSmoke
+actually checks five-row delayed-NULL labels NULL,1,1,1,2; six-row B4 labels
+1,1,2,2,3,4 with an empty excluded frame; same-held22014 recovery; unchanged
+sentinel91 after a late-partition failure; and persisted view/control replay.
+True signature/parser/state/graph/remap/unwind/cancellation units supplement
+these public scenarios. Runtime state uses INT8 counters with conceptual
+large-partition tests rather than allocating billions of rows.
+Use `make quickcheck` for whole-project Docker-free verification.
+
 ### Window value functions
 
 The seven `TestReferenceQueryWindowValue` definitions share direct and actual

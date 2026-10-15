@@ -43,6 +43,24 @@ prepared UUID parameter inference and session timestamp presentation. They do
 not generate UUIDs or consume a clock or entropy. See
 [selected dual-mode proof and feature smoke](reference/types/README.md#uuid-extraction-selected-proof).
 
+## Ntile window buckets — change note
+
+`ntile(integer) OVER (...)` returns nullable INT4 bucket labels across each
+complete ordered partition, distributing extra rows to the earliest buckets.
+Frames and EXCLUDE do not alter these labels; tied peers may be split. The first
+positive bucket argument initializes that actual call once per partition, so
+later argument expressions are not evaluated. Initial NULLs return NULL and
+retry on the next row without shrinking the full-partition denominator.
+Reached nonpositive arguments raise22014; empty input and LIMIT0 do not evaluate
+them. Smallint and unknown literals/parameters use the existing INT4 coercion.
+
+Same-held executions recover after errors and start fresh. Stored views retain
+bucket-only dependencies and permissions through deparse and native controls.
+See [window contracts](docs/QUERIES.md) and
+[ntile selected proof](reference/query_order/README.md#ntile-window-buckets).
+Feature smoke: `make check RUN='^TestReferenceQueryWindowNtileFeatureSmoke$'`
+and `make check RUN='^TestReferenceQueryWindowNtileFeatureSmoke$' REFERENCE=1`.
+
 ## Array dimensions and cardinality — change note
 
 The selected PostgreSQL §9.19 scalar functions `array_dims(anyarray)`,
