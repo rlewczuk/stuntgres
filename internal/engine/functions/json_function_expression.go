@@ -49,6 +49,8 @@ func JSONFunctionCall(name string, visible bool, count, names int) (JSONFunction
 		definition.Input, definition.Keys = sqltype.JSONB, true
 	case "json_each", "json_each_text":
 		definition.Each = true
+	case "jsonb_each", "jsonb_each_text":
+		definition.Input, definition.Each = sqltype.JSONB, true
 	case "json_array_elements", "json_array_elements_text":
 		definition.Elements = true
 		if name == "json_array_elements" {

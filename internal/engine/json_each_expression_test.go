@@ -27,11 +27,14 @@ func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) f
 func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 	engine := New()
 	view := engine.CatalogRead()
-	for _, name := range []string{"json_each", "json_each_text"} {
+	for _, name := range []string{"json_each", "json_each_text", "jsonb_each", "jsonb_each_text"} {
 		b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 		original := jsonEachUnitMarker(t, b, name, `{"a":1}`)
-		valueID := sqltype.JSON
-		if name == "json_each_text" {
+		inputID, valueID := sqltype.JSON, sqltype.JSON
+		if strings.HasPrefix(name, "jsonb_") {
+			inputID, valueID = sqltype.JSONB, sqltype.JSONB
+		}
+		if strings.HasSuffix(name, "_text") {
 			valueID = sqltype.Text
 		}
 		shape := original.ResultUsage().Type
@@ -47,7 +50,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("record remap", changed, err)
 		}
 		next := mapped.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties])
-		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
+		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[inputID] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation remap", next)
 		}
 		cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
@@ -112,7 +115,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
-	for _, name := range []string{"json_each", "json_each_text"} {
+	for _, name := range []string{"json_each", "json_each_text", "jsonb_each", "jsonb_each_text"} {
 		marker := jsonEachUnitMarker(t, b, name, `{"a":null}`)
 		series, err := b.bindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 8}}))
 		if err != nil {
@@ -130,7 +133,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		}
 		key, _ := row[1].Text()
 		number, _ := row[0].Integer()
-		if number != 7 || key != "a" || row[2].IsNull() != (name == "json_each_text") {
+		if number != 7 || key != "a" || row[2].IsNull() != strings.HasSuffix(name, "_text") {
 			t.Fatal("record presence/null conflated", row)
 		}
 		present, err = invocation.nextFrom(context.Background(), calls, row)

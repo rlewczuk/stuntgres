@@ -21,9 +21,4 @@ func TestJSONBElementsOrdinaryIdentifiersAndFromSyntax(t *testing.T) {
 			t.Fatal("missing function admission", f)
 		}
 	}
-	for _, f := range []string{"jsonb_each", "jsonb_each_text"} {
-		if JSONFunctionName(f) {
-			t.Fatal("adjacent capability admitted", f)
-		}
-	}
 }

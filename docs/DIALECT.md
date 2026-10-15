@@ -856,8 +856,17 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   22023 `cannot extract elements from an object` / `cannot extract elements from
   a scalar`, with no error position. Both use the existing target zip, lateral,
   ROWS FROM/ordinality, cancellation and symbolic view/native replay paths.
-  `jsonb_each*` and record-population functions remain excluded; no implicit
-  JSON-to-JSONB input conversion is added.
+  `jsonb_each(jsonb)` and `jsonb_each_text(jsonb)` return key TEXT/value JSONB
+  or TEXT records through the same target/FROM, alias, ordinality, lateral and
+  stored/native replay paths as JSON each. Canonical decoded-key byte-length
+  then byte order and last-duplicate-wins normalization come from JSONB.
+  Numeric scale and nested containers are retained; text strings decode and
+  JSON null becomes SQL NULL only in text mode. Empty objects/SQL NULL yield
+  zero rows with full schema; all non-object roots raise 22023
+  `cannot call jsonb_each on a non-object` / `cannot call jsonb_each_text on a
+  non-object`, with absent runtime Position. Named `from_json` is admitted.
+  Record-population functions and general table functions remain excluded;
+  no implicit JSON-to-JSONB input conversion is added.
   JSON-only extraction includes `(json,text/int4) -> json/text` via `->`/`->>`,
   `(json,text[]) -> json/text` via `#>`/`#>>`, and immutable variadic
   `json_extract_path` / `json_extract_path_text`. Object keys and integer array

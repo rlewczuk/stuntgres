@@ -71,3 +71,29 @@ func TestJSONFunctionScalarRuntimeNull(t *testing.T) {
 		}
 	}
 }
+
+func TestJSONBEachFunctionAdmission(t *testing.T) {
+	types := formatUnitTypes()
+	for _, name := range []string{"jsonb_each", "jsonb_each_text"} {
+		definition, resolution := JSONFunctionCall(name, true, 1, 0)
+		if resolution != Resolved || definition.Input != sqltype.JSONB || !definition.Each || definition.Keys || definition.Elements {
+			t.Fatal("invalid record signature", definition, resolution)
+		}
+		for _, tc := range []struct {
+			visible      bool
+			count, names int
+		}{{false, 1, 0}, {true, 0, 0}, {true, 2, 0}, {true, 1, 1}} {
+			if _, resolution := JSONFunctionCall(name, tc.visible, tc.count, tc.names); resolution != Missing {
+				t.Fatal("invalid signature admitted", tc)
+			}
+		}
+		for _, id := range []sqltype.ID{sqltype.Text, sqltype.JSON, sqltype.Int4} {
+			if ResolveJSONArgument(types[id].Usage(), types[sqltype.JSONB].Usage()) != Missing {
+				t.Fatal("implicit JSONB conversion admitted", id)
+			}
+		}
+		if ResolveJSONArgument(sqltype.Usage{}, types[sqltype.JSONB].Usage()) != Resolved {
+			t.Fatal("unknown argument rejected")
+		}
+	}
+}

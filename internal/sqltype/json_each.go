@@ -13,15 +13,20 @@ type JSONEachPlan struct {
 }
 
 func BindJSONEach(name string, input, result Usage) (JSONEachPlan, error) {
-	if name != "json_each" && name != "json_each_text" {
+	inputID, valueID := JSON, JSON
+	switch name {
+	case "json_each":
+	case "json_each_text":
+		valueID = Text
+	case "jsonb_each":
+		inputID, valueID = JSONB, JSONB
+	case "jsonb_each_text":
+		inputID, valueID = JSONB, Text
+	default:
 		return JSONEachPlan{}, fmt.Errorf("invalid JSON each name")
 	}
-	if !input.Valid() || input.Typmod != -1 || input.Type.ID() != JSON || !result.Valid() || result.Typmod != -1 || result.Type.ID() != 2249 || result.Type.CompositeLen() != 2 {
+	if !input.Valid() || input.Typmod != -1 || input.Type.ID() != inputID || !result.Valid() || result.Typmod != -1 || result.Type.ID() != 2249 || result.Type.CompositeLen() != 2 {
 		return JSONEachPlan{}, fmt.Errorf("invalid JSON each usage")
-	}
-	valueID := JSON
-	if name == "json_each_text" {
-		valueID = Text
 	}
 	for i, id := range []ID{Text, valueID} {
 		member := result.Type.CompositeMember(i)
@@ -29,7 +34,7 @@ func BindJSONEach(name string, input, result Usage) (JSONEachPlan, error) {
 		if i == 1 {
 			memberName = "value"
 		}
-		if member.Attribute != int32(i+1) || member.Name != memberName || member.Usage.Type.ID() != id || member.Usage.Typmod != -1 || (id == JSON && member.Usage.Type != input.Type) {
+		if member.Attribute != int32(i+1) || member.Name != memberName || !member.Usage.Valid() || member.Usage.Type.ID() != id || member.Usage.Typmod != -1 || (id == inputID && member.Usage.Type != input.Type) {
 			return JSONEachPlan{}, fmt.Errorf("invalid JSON each member usage")
 		}
 	}
@@ -39,11 +44,12 @@ func (p JSONEachPlan) Name() string       { return p.name }
 func (p JSONEachPlan) ResultUsage() Usage { return p.result }
 
 type JSONEachCursor struct {
-	result  *Descriptor
-	text    string
-	members []jsonMember
-	index   int
-	asText  bool
+	result   *Descriptor
+	text     string
+	members  []jsonMember
+	document Value
+	index    int
+	asText   bool
 }
 
 func (p JSONEachPlan) Open(ctx context.Context, value Value) (JSONEachCursor, error) {
@@ -53,8 +59,18 @@ func (p JSONEachPlan) Open(ctx context.Context, value Value) (JSONEachCursor, er
 	if err := ctx.Err(); err != nil {
 		return JSONEachCursor{}, err
 	}
-	cursor := JSONEachCursor{result: p.result.Type, asText: p.name == "json_each_text"}
+	cursor := JSONEachCursor{result: p.result.Type, asText: p.name == "json_each_text" || p.name == "jsonb_each_text"}
 	if value.null {
+		return cursor, nil
+	}
+	if p.input.Type.ID() == JSONB {
+		if value.jsonb == nil {
+			return JSONEachCursor{}, fmt.Errorf("invalid JSONB payload")
+		}
+		if value.jsonb.root.kind != jsonbObject {
+			return JSONEachCursor{}, failure("22023", "cannot call "+p.name+" on a non-object")
+		}
+		cursor.document = value
 		return cursor, nil
 	}
 	scan := jsonScanResult{mode: jsonScanEach}
@@ -74,6 +90,23 @@ func (c *JSONEachCursor) Next(ctx context.Context) (Value, bool, error) {
 	}
 	if c.result == nil {
 		return Value{}, false, fmt.Errorf("closed JSON each cursor")
+	}
+	if c.document.jsonb != nil {
+		fields := c.document.jsonb.root.fields
+		if c.index == len(fields) {
+			return Null(c.result), false, nil
+		}
+		member := &fields[c.index]
+		keyType := c.result.CompositeMember(0).Usage.Type
+		value, err := jsonbExtractResult(ctx, c.document, &member.value, c.result.CompositeMember(1).Usage.Type)
+		if err != nil {
+			return Value{}, false, err
+		}
+		row, err := OwnedCompositeValue(c.result, []Value{String(keyType, member.key), value})
+		if err == nil {
+			c.index++
+		}
+		return row, err == nil, err
 	}
 	if c.index == len(c.members) {
 		return Null(c.result), false, nil

@@ -32,7 +32,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			operand = o
 		}
 	}
-	if name == "json_object_keys" || name == "json_each" || name == "json_each_text" || name == "json_array_elements" || name == "json_array_elements_text" || name == "jsonb_array_elements" || name == "jsonb_array_elements_text" {
+	if name == "json_object_keys" || name == "json_each" || name == "json_each_text" || name == "jsonb_each" || name == "jsonb_each_text" || name == "json_array_elements" || name == "json_array_elements_text" || name == "jsonb_array_elements" || name == "jsonb_array_elements_text" {
 		if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
 			return nil, err
 		}
@@ -42,7 +42,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	}
 	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
 	namedCount := len(raw.ArgNames)
-	if (name == "json_each" || name == "json_each_text" || name == "json_array_elements" || name == "json_array_elements_text" || name == "jsonb_array_elements" || name == "jsonb_array_elements_text") && namedCount == 1 && raw.ArgNames[0].Text == "from_json" {
+	if (name == "json_each" || name == "json_each_text" || name == "jsonb_each" || name == "jsonb_each_text" || name == "json_array_elements" || name == "json_array_elements_text" || name == "jsonb_array_elements" || name == "jsonb_array_elements_text") && namedCount == 1 && raw.ArgNames[0].Text == "from_json" {
 		namedCount = 0
 	}
 	definition, resolution := functions.JSONFunctionCall(name, visible, len(raw.Args), namedCount)
@@ -70,7 +70,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	}
 	if decoration != "" {
 		diagnosticName := name
-		if name == "json_object_keys" || name == "jsonb_pretty" || definition.Elements {
+		if name == "json_object_keys" || name == "jsonb_pretty" || name == "jsonb_each" || name == "jsonb_each_text" || definition.Elements {
 			diagnosticName = objectNameText(raw.Name)
 		}
 		return nil, expressionError("42809", decoration+" specified, but "+diagnosticName+" is "+message, raw.Pos)
@@ -79,7 +79,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 	usage := b.typ(definition.Result).Usage()
 	if definition.Each {
 		value := input.Usage()
-		if name == "json_each_text" {
+		if name == "json_each_text" || name == "jsonb_each_text" {
 			value = b.typ(sqltype.Text).Usage()
 		}
 		shape, err := sqltype.RecordShape([]sqltype.CompositeMember{

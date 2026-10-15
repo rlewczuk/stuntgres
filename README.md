@@ -2172,9 +2172,23 @@ rows with complete metadata; arrays/scalars use PostgreSQL English 22023
 diagnostics without runtime cursor positions. Function aliases, record fields,
 target zip/padding, multi-column ROWS FROM padding, ordinality, lateral sources,
 held statements and stored/native replay use the ordinary query pipeline.
-Only named argument `from_json` is admitted. This does not add `jsonb_each*`,
-record-population functions or general table functions.
+Only named argument `from_json` is admitted. Record-population functions and
+general table functions remain excluded.
 Feature smoke: `make check RUN='^TestReferenceJSONEachFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
+Change note: `jsonb_each(jsonb)` and `jsonb_each_text(jsonb)` expand immediate
+object members through the same paired RECORD/key-value query machinery.
+Unlike JSON expansion, JSONB uses canonical decoded-key byte-length/byte order
+and retains only the last duplicate key. Values preserve canonical JSONB and
+numeric scale; the text variant decodes strings and maps JSON null to SQL NULL.
+Nested containers remain single values. Empty objects and SQL NULL yield no
+rows with complete metadata. Every non-object root raises 22023
+`cannot call jsonb_each on a non-object` (or `jsonb_each_text`), without a
+runtime position. Both support `from_json`, aliases, ordinality, target zip,
+lateral correlation, held statements, atomic INSERT SELECT and native view replay.
+Typed JSON/TEXT still require explicit JSONB conversion.
+Feature smoke: `make check RUN='^TestReferenceJSONBEachFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
 Change note: `json_array_elements(json)` and `json_array_elements_text(json)`

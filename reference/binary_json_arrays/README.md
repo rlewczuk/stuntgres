@@ -479,6 +479,45 @@ one sequence value. Direct and prepared executions use fresh sequences.
 Both completed definitions run every available backend with independently
 specified expectations; no discovery filters remain.
 
+### JSONB object member expansion
+
+`TestReferenceJSONBEach` independently specifies both binary object-expansion
+signatures: canonical key order observed via ordinality, decoded duplicate
+last-wins normalization, canonical nested JSONB/numeric scale, text conversion,
+SQL/JSON null distinction, full metadata, and complete PostgreSQL diagnostics.
+Direct and SAME-held consumers cover recovery, predecessor demand, volatile
+qualification, atomic writes, authorization rechecking, and cancellation during
+stored nested-value conversion. Shared stored-view/CTAS/rename assertions run on
+both backends; native Dump/Reset/Restore retains old results and replays the
+actual emitted SQL on pinned PostgreSQL when available.
+
+Selected proof (repeat each selector without `REFERENCE=1` for native proof):
+
+```sh
+make check RUN='^TestReferenceJSONBEach(Values|Typing|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBEach(Metadata|QueryStructure)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBEach(ParametersAndLifecycle|PredecessorDemand|VolatileDemand)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBEach(Cancellation|AuthorityAndControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBEach(ParametersAndLifecycle|Cancellation|AuthorityAndControls)$' RACE=1
+make check RUN='^(TestJSONBEach.*|TestJSONEach.*|TestJSONFunctionCallAST|TestJSONFunctionParserConsumersAndDecorations|TestJSONBElementsOrdinaryIdentifiersAndFromSyntax)$'
+```
+
+Feature smoke:
+
+```sh
+make check RUN='^TestReferenceJSONBEachFeatureSmoke$'
+make check RUN='^TestReferenceJSONBEachFeatureSmoke$' REFERENCE=1
+```
+
+Expected quiet success: CREATE0/held INSERT3; normalized keys a,b,o,zz at
+ordinalities1–4 with canonical nested values; complete empty/NULL metadata;
+present null records versus absent padded rows; LEFT LATERAL preservation;
+held error/recovery, predecessor exclusion, no partial INSERT prefix, views,
+CTAS, renames and native controls/actual emitted-SQL replay. PostgreSQL's shared
+SQL phase alone does not prove native controls. All commands need an external
+900-second deadline. Existing JSONEach selectors above retain source-preserving
+regression coverage; common fixture and backend selection remain unchanged.
+
 ### JSON null-field stripping
 
 `TestReferenceJSONStripNulls` specifies the JSON-only `json_strip_nulls(target,
@@ -1195,7 +1234,7 @@ SAME-held reuse and stored/native/PostgreSQL replay. `TypedDefinitionClasses`
 distinguishes explicit ROWS FROM ownership, scalar results, named composites
 and domains, and existing `json_each`/`json_each_text` OUT records, retaining
 function-resolution precedence and full direct/prepared Unicode diagnostics.
-It does not require the adjacent, unimplemented `jsonb_each` provider.
+JSONB OUT-record expansion has separate focused `TestReferenceJSONBEach` coverage.
 
 Typing assertions retain exact public ColumnTypes, raw transport and
 literal/parameter-bound outer-domain peeling versus element-domain identity.

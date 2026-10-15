@@ -174,7 +174,7 @@ func TestJSONEachEagerErrorsAndCancellation(t *testing.T) {
 			t.Fatal("scalar result admitted")
 		}
 		if _, err := BindJSONEach("jsonb_each", types[JSON].Usage(), p.result); err == nil {
-			t.Fatal("adjacent signature admitted")
+			t.Fatal("JSON input admitted for JSONB signature")
 		}
 	}
 }

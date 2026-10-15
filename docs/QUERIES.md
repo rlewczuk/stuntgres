@@ -411,7 +411,8 @@ wrapper places siblings in a real-row-only projection. Earlier failures prevent
 later events, and initialized cursors close without replacing the primary error.
 Key-demanded sets share their local expansion owner and window slots.
 
-`json_each(json)` and `json_each_text(json)` each own one record-valued cursor.
+`json_each(json)`, `json_each_text(json)`, `jsonb_each(jsonb)` and
+`jsonb_each_text(jsonb)` each own one record-valued cursor.
 SELECT expansion keeps one RECORD marker slot per call. FROM alone exposes the
 record's key/value members: immutable result usages determine contiguous spans,
 so mixed ROWS FROM advances each call once, pads every exhausted record member
@@ -422,6 +423,11 @@ first field unless an explicit positional column alias does so. Empty and SQL
 NULL inputs retain their schema before iteration. These selected calls reuse
 ordinary correlation, retained views and generation remapping, not independent
 key/value invocations or a separate function-source store.
+JSONB each borrows canonical immutable object fields, preserving last-key-wins
+normalization and byte-length/byte key ordering without reparsing output.
+Each invocation owns only its iteration state; JSONB values retain nested
+payloads, while text values decode strings and map JSON null to SQL NULL.
+SQL NULL is strict and empty; non-object JSONB roots fail before publication.
 
 Correlated function sources use the actual predecessor frame and demanded inherited
 prefixes, with physical/version provenance separate from function outputs.
