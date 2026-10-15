@@ -89,6 +89,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	}
 	next := *mood
 	next.acl = authorization.ACLValue{Explicit: true}
+	next.aclSyntheticDefault = false
 	next.revision++
 	revoke := e.BeginCatalogStage(e.CatalogRead())
 	if err := revoke.Replace(&next); err != nil {

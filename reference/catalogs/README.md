@@ -6,6 +6,192 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Object ACL inquiry contract
+
+The `TestReferenceObjectACL...` scenarios independently specify the single
+PostgreSQL 18 signature `pg_get_acl(oid, oid, integer) -> aclitem[]`, including
+formal names `classid`, `objid`, `objsubid`. They retrieve stored ACLs, not
+effective permissions or synthesized defaults. Column addresses use `pg_class`
+1259 and stable attribute numbers; column grants do not change the table ACL or
+other columns. NULL ACL and explicit empty `{}` are distinct.
+Owner/grantor labels use independently configured fixture identities: native
+`postgres`, pinned PostgreSQL `stuntgres` (`fixture/lifecycle.go` username).
+For example, the single PUBLIC column grant is `{=r/postgres}` natively and
+`{=r/stuntgres}` on the oracle; no actual result is normalized to hide this.
+
+Selected tests:
+
+- `TestReferenceObjectACLSignatures`: direct/newly prepared calls, parameter
+  inference, qualified/quoted/named notation, scalar composition, grouping,
+  joins and stored views.
+- `TestReferenceObjectACLNulls`: each strict NULL slot, inferred nil parameters,
+  typed subscripting/empty expansion and demanded argument errors.
+- `TestReferenceObjectACLValues`: exact column SELECT expansion, grant options,
+  revokes, table/column separation, unrelated ACL preservation and explicit empty.
+- `TestReferenceObjectACLAddresses`: missing/ACL-less classes, dropped/system
+  attributes, signed AttrNumber wrapping, nonrelation subids and sequence ACLs.
+  PostgreSQL exercises real sequence GRANT expansion; native asserts its existing
+  exact 0A000 rejection and unchanged NULL, supplemented by private explicit ACL
+  lookup through the existing native ACL publication seam.
+- `TestReferenceObjectACLTypes`: fresh domain/enum/composite/row/array raw NULLs,
+  custom type creation defaults and subsequent baseline restoration.
+- `TestReferenceObjectACLDatabase`: independently asserted existing native
+  `{postgres=C*/postgres}` versus pinned PostgreSQL NULL; catalog consistency
+  is supplementary, not the source of expected values.
+- `TestReferenceObjectACLDiagnostics`: complete error fields, direct/prepare/
+  execute stages, nil outputs, named labels, scalar decorations, input ranges,
+  unknown classes and a multibyte diagnostic position.
+- `TestReferenceObjectACLMetadata`: raw array/scalar values, empty/NULL/explicit
+  empty results and descriptors before iteration, including backend-specific
+  ScanType/nullability and absence of length/precision.
+  Native direct inquiry arrays are known nullable; expanded unnest ACLITEM
+  scalars preserve the existing unknown computed-expression nullability.
+- `TestReferenceObjectACLHeldExecution`: SAME prepared calls across grants,
+  revokes, role/column rename and dropped-column gaps, raw inquiry without table
+  SELECT, and retained rows/metadata across mutation.
+  The observer receives real schema USAGE on PostgreSQL and temporary public
+  schema ownership natively; the bootstrap-owned table is not transferred and
+  the observer still receives exact 42501 for its ordinary table SELECT.
+  Role RENAME is a PostgreSQL-positive/native-exact-0A000 producer boundary:
+  native retains the same reader identity/spelling and both modes preserve
+  preexisting Rows, fresh held grant/revoke and column identity transitions.
+- `TestReferenceObjectACLLifecycle`: actual returned ACL array data and stored
+  regclass inquiry recipes, supported native Reset/Dump/Restore, retained rows
+  and destination role-identity remapping.
+- `TestReferenceObjectACLControls`: unchanged explicit authorization ACL Dump
+  rejection before any writer call and exact atomic Restore-GRANT rejection.
+- `TestReferenceObjectACLCancellation`: native direct/held precancel, pinned
+  observed server cancellation using the existing fixture, and SAME-owner/
+  preheld inquiry continuation.
+- `TestReferenceObjectACLFeatureSmoke`: standalone NULL -> column grant ->
+  one-row expansion -> revoke witness, untouched table/column, typed ACL-less/
+  NULL calls, returned data/recipe native roundtrip and atomic control rejection.
+
+The database difference is intentional; see [native database catalog
+policy](../../docs/DIALECT.md). Native lifecycle does not persist arbitrary
+authorization grants. The lifecycle test stores function-produced ACLITEM[]
+**data**, removes the source column grant, then serializes data and recipes.
+It does not whitelist GRANT replay or claim persisted authorization.
+
+Oracle-first selected groups (external deadline 900 seconds per invocation):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceObjectACL(Signatures|Nulls|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceObjectACL(Values|Addresses|Types|Database)$'
+make check REFERENCE=1 RUN='^TestReferenceObjectACL(Metadata|HeldExecution)$'
+make check REFERENCE=1 RUN='^TestReferenceObjectACL(Lifecycle|Controls|Cancellation)$'
+make check REFERENCE=1 RUN='^TestReferenceObjectACLFeatureSmoke$'
+```
+
+Repeat each selector without `REFERENCE=1` after oracle discovery, with the same
+completed definitions and no temporary PG-only selection. Before integration,
+both selected modes must pass. Selected race proof:
+
+```sh
+make check RACE=1 RUN='^TestReferenceObjectACL(HeldExecution|Cancellation|Controls)$'
+```
+
+Expectations originate in the PostgreSQL 18 release contract and the pinned
+18.0 oracle-discovery runs. They include exact diagnostics/stages, named/scalar
+decorations, signed-int16 subid wrapping, raw type ACLs, last-column-revoke NULL,
+VARIADIC admission and pq metadata. They are not learned from native output.
+Both unfiltered modes must be rerun after implementation changes.
+
+#### Standalone public API smoke
+
+Besides the permanent reference smoke, save the following program as `main.go`
+in a fresh temporary directory outside the checkout. From the repository root
+run `go run /absolute/temporary/directory/main.go` with an external 900-second
+deadline, then remove that temporary directory. Expected output is exactly
+`object ACL public smoke passed`; any contract mismatch panics/exits nonzero.
+The program uses only the public driver, SQL and native-control APIs.
+
+```go
+package main
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"stuntgres"
+)
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	connector, err := stuntgres.NewDriver().OpenConnector("object-acl-public-smoke")
+	must(err)
+	db := sql.OpenDB(connector)
+	defer db.Close()
+	exec := func(q string) { _, err := db.ExecContext(ctx, q); must(err) }
+	check := func(q, want string, valid bool) {
+		var got sql.NullString
+		must(db.QueryRowContext(ctx, q).Scan(&got))
+		if got.Valid != valid || valid && got.String != want {
+			panic(fmt.Sprintf("%s: got %#v want %q/%v", q, got, want, valid))
+		}
+	}
+	exec("CREATE TABLE acl_smoke(a int,b int)")
+	exec("INSERT INTO acl_smoke VALUES (7,9)")
+	exec("CREATE TABLE acl_saved(acl aclitem[])")
+	exec("CREATE VIEW acl_recipe AS SELECT pg_get_acl(1259,'acl_smoke'::regclass,1) AS acl")
+	var oid int64
+	must(db.QueryRowContext(ctx, "SELECT 'acl_smoke'::regclass::oid").Scan(&oid))
+	stmt, err := db.PrepareContext(ctx, "SELECT pg_get_acl($1,$2,$3)")
+	must(err)
+	defer stmt.Close()
+	held := func(want string, valid bool) {
+		var got sql.NullString
+		must(stmt.QueryRowContext(ctx, int64(1259), oid, int64(1)).Scan(&got))
+		if got.Valid != valid || valid && got.String != want {
+			panic(fmt.Sprintf("held ACL %#v want %q/%v", got, want, valid))
+		}
+	}
+	held("", false)
+	exec("GRANT SELECT(a) ON acl_smoke TO PUBLIC")
+	held("{=r/postgres}", true)
+	check("SELECT unnest(pg_get_acl(1259,'acl_smoke'::regclass,1))", "=r/postgres", true)
+	check("SELECT pg_get_acl(1259,'acl_smoke'::regclass,0)", "", false)
+	check("SELECT pg_get_acl(1259,'acl_smoke'::regclass,2)", "", false)
+	exec("INSERT INTO acl_saved SELECT pg_get_acl(1259,'acl_smoke'::regclass,1)")
+	exec("REVOKE SELECT(a) ON acl_smoke FROM PUBLIC")
+	held("", false)
+	must(stmt.Close())
+	var dump bytes.Buffer
+	must(stuntgres.Dump(ctx, db, &dump))
+	must(stuntgres.Reset(ctx, db))
+	must(stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())))
+	check("SELECT acl FROM acl_saved", "{=r/postgres}", true)
+	check("SELECT acl FROM acl_recipe", "", false)
+	exec("GRANT SELECT(a) ON acl_smoke TO PUBLIC")
+	var rejected bytes.Buffer
+	err = stuntgres.Dump(ctx, db, &rejected)
+	if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit relation or column ACL" || rejected.Len() != 0 {
+		panic(fmt.Sprintf("Dump boundary: %v/%q", err, rejected.String()))
+	}
+	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE acl_replacement(a int); GRANT SELECT ON acl_replacement TO PUBLIC"))
+	var state interface{ SQLState() string }
+	if !errors.As(err, &state) || state.SQLState() != "0A000" {
+		panic(fmt.Sprintf("Restore boundary: %v", err))
+	}
+	check("SELECT pg_get_acl(1259,'acl_smoke'::regclass,1)", "{=r/postgres}", true)
+	check("SELECT a::text FROM acl_smoke", "7", true)
+	check("SELECT count(*)::text FROM pg_class WHERE relname='acl_replacement' AND relnamespace=(SELECT oid FROM pg_namespace WHERE nspname='public')", "0", true)
+	fmt.Println("object ACL public smoke passed")
+}
+```
+
 ### pg_db_role_setting selected proof
 
 `TestReferencePGDBRoleSetting` independently specifies relation2964 and its

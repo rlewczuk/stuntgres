@@ -718,6 +718,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case currentSchemasExpression:
 		children = []BoundExpr{e.arg}
+	case objectACLExpression:
+		children = e.args[:]
 	case accessInquiryExpression:
 		children = e.arguments()
 	case namespaceInquiryExpression:

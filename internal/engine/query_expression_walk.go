@@ -64,6 +64,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		walk(e.child)
 	case currentSchemasExpression:
 		walk(e.arg)
+	case objectACLExpression:
+		args(e.args[:])
 	case accessInquiryExpression:
 		args(e.arguments())
 	case namespaceInquiryExpression:

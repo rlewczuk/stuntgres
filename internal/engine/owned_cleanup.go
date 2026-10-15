@@ -120,6 +120,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		case *typeDescriptor:
 			next := *old
 			next.acl = nextACL
+			next.aclSyntheticDefault = false
 			next.revision = revision
 			err = stage.Replace(&next)
 		case *relationDescriptor:

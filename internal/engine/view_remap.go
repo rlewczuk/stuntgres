@@ -402,6 +402,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
 		next = n
+	case objectACLExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		next = n
 	case accessInquiryExpression:
 		for i := range n.count {
 			n.args[i] = child(n.args[i])

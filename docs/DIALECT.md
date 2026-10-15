@@ -109,6 +109,42 @@ it does not enforce policies, require table SELECT, or add a `row_security`
 setting. Relation-name schema access remains separate. See
 [authorization inquiry contracts](AUTHORIZATION.md#membership-provenance-and-publication).
 
+`pg_get_acl(classid oid, objid oid, objsubid integer) -> aclitem[]` is a strict
+STABLE inquiry into **stored** catalog ACLs, not effective permissions, inherited
+rights or synthesized defaults. Direct/newly prepared/held calls share the typed
+expression path; held calls borrow current execution-time catalog and authority.
+No SELECT privilege on the queried object is required. Name casts such as
+REGCLASS still use their normal schema/name resolution.
+
+Supported existing descriptors expose relation, namespace, type, procedure and
+database ACLs. Recognized PostgreSQL classes without native instances produce
+missing-object NULLs; no language/FDW/server/large-object provider is fabricated.
+Recognized ACL-less classes return NULL before object lookup. Unknown class IDs,
+including pg_attribute1249 and pg_parameter_acl6243, raise XX000 rather than
+being confused with missing objects. `(0,0,subid)` returns NULL.
+
+Column addresses use pg_class1259, not pg_attribute. Nonzero relation subids
+enter the column path and narrow to signed int16 AttrNumber before lookup:
+65537/-65535 wrap to attribute1, while 65536 does not become whole-object lookup.
+Missing/dropped/system-without-ACL attributes return NULL. Stable attribute
+numbers survive rename and retain drop gaps. Nonrelation subids are ignored.
+Table grants are not merged into column ACLs. Stored absence returns NULL;
+explicit empty remains a typed `{}`; explicit entries retain grantor, grantee,
+rights and grant options.
+
+Type effective USAGE baselines retain creation-time raw-ACL provenance: a
+synthetic default is raw NULL, while a real explicit ACL, even baseline-equal,
+is not. This does not change type authorization or add SQL type GRANT support.
+Existing [database catalog policy](#pg_database-current-attachment-metadata) is unchanged: native initial
+`{postgres=C*/postgres}` differs intentionally from PostgreSQL's default NULL.
+
+The inquiry creates no authorization state. Stored inquiry recipes and returned
+ACLITEM[] **data** use existing native Dump/Restore, including role-name remapping;
+raw numeric OIDs are not remapped dependencies. Explicit authorization grants
+remain unsupported serialization and reject before output, and Restore-GRANT
+remains atomic/rejected. Real explicit type ACLs cannot be silently normalized
+back to a synthetic baseline during recipe serialization.
+
 ## Transactions and retained handles
 
 Many modifying utilities remain excluded from explicit native transactions;

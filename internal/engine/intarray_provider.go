@@ -49,10 +49,11 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ext.targetNamespace, extension: ext.address, revision: revision, owner: owner, acl: stage.creationACL(owner, ext.targetNamespace, authorization.DefaultTypes), array: array.ID()}); err != nil {
+	acl, synthetic := stage.creationTypeACL(owner, ext.targetNamespace)
+	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ext.targetNamespace, extension: ext.address, revision: revision, owner: owner, acl: acl, aclSyntheticDefault: synthetic, array: array.ID()}); err != nil {
 		return err
 	}
-	if err := stage.Create(&typeDescriptor{typ: array, namespace: ext.targetNamespace, revision: revision, owner: owner, acl: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false)}); err != nil {
+	if err := stage.Create(&typeDescriptor{typ: array, namespace: ext.targetNamespace, revision: revision, owner: owner, acl: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), aclSyntheticDefault: true}); err != nil {
 		return err
 	}
 	for i := range 2 {

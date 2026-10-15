@@ -1,0 +1,205 @@
+package engine
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
+)
+
+func TestObjectACLAddressLookup(t *testing.T) {
+	e := New()
+	view := e.CatalogRead()
+	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
+	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
+	relation := &relationDescriptor{address: ObjectAddress{ClassID: 1259, ObjectID: 48001}, attributes: []int32{1, 3}, acl: whole, columnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
+	view.state = cloneCatalog(view.state)
+	view.state.descriptors[relation.address] = relation
+	schema := &namespaceDescriptor{address: ObjectAddress{ClassID: 2615, ObjectID: 48002}, acl: whole}
+	view.state.descriptors[schema.address] = schema
+	check := func(address ObjectAddress, want authorization.ACLValue) {
+		t.Helper()
+		got, err := rawObjectACL(view, address)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("address %#v got %#v want %#v: %v", address, got, want, err)
+		}
+	}
+	for _, class := range []OID{1259, 2615, 1247, 1255, 1262, 2612, 1213, 2328, 1417, 2995, 2613} {
+		hasACL, known := objectACLClass(class)
+		if !hasACL || !known {
+			t.Fatal("released ACL-bearing class", class, hasACL, known)
+		}
+		check(ObjectAddress{ClassID: class}, authorization.ACLValue{})
+	}
+	// Independently enumerated REL_18_0 ObjectProperty ACL-less classes.
+	for _, class := range []OID{2601, 2602, 2603, 2605, 3456, 2606, 2607, 826, 3079, 2616, 2617, 2753, 1260, 1261, 2618, 3576, 2620, 3256, 3466, 3602, 3600, 3601, 3764, 6104, 6100, 3381, 1418} {
+		hasACL, known := objectACLClass(class)
+		if hasACL || !known {
+			t.Fatal("released ACL-less class", class, hasACL, known)
+		}
+		check(ObjectAddress{ClassID: class, ObjectID: 999999, SubID: -1}, authorization.ACLValue{})
+	}
+	for _, class := range []OID{0, 1249, 6243, 999999} {
+		if hasACL, known := objectACLClass(class); hasACL || known {
+			t.Fatal("unregistered class", class)
+		}
+		_, err := rawObjectACL(view, ObjectAddress{ClassID: class, ObjectID: 1})
+		if err == nil {
+			t.Fatal("unknown class became NULL", class)
+		}
+	}
+	for _, subid := range []int32{0, 1, -1, 65537} {
+		check(ObjectAddress{SubID: subid}, authorization.ACLValue{})
+		check(ObjectAddress{ClassID: 2615, ObjectID: 48002, SubID: subid}, whole)
+	}
+	check(relation.address, whole)
+	for _, subid := range []int32{1, 65537, -65535} {
+		check(ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, column)
+	}
+	for _, subid := range []int32{2, 3, 4, -1, 65536, -65536} {
+		check(ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, authorization.ACLValue{})
+	}
+	roles := e.roles.root.Read(authorization.PrincipalRef{})
+	array, _ := view.LookupType(sqltype.ACLItemArray)
+	for _, acl := range []authorization.ACLValue{{}, {Explicit: true}, column} {
+		value, err := e.pgClassACL(roles, array, acl)
+		if err != nil || value.Type() != array || value.IsNull() == acl.Explicit || value.ArrayLen() != len(acl.Entries) {
+			t.Fatal("typed raw ACL conversion", value, err)
+		}
+	}
+	var foreign authorization.Domain
+	bad := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(foreign.Principal(10), owner, authorization.SelectPrivilege, 0)}}
+	if _, err := e.pgClassACL(roles, array, bad); err == nil {
+		t.Fatal("foreign principal escaped checked ACLITEM constructor")
+	}
+	t.Run("explicit_sequence_acl", func(t *testing.T) {
+		// Use actual descriptor staging and the existing ACL publication seam;
+		// no sequence GRANT SQL or new producer is introduced by this inquiry.
+		engine := New()
+		catalog := engine.CatalogRead()
+		principal := engine.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		stage := engine.BeginCatalogStage(catalog)
+		options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		engine.mu.Lock()
+		sequence, err := engine.newTableDescriptorLocked(ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, "acl_unit_sequence", principal, engine.sequenceColumnsLocked(), nil)
+		engine.mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		sequence.relationKind, sequence.sequence = sequenceRelation, &options
+		sequence.sequencePlanStamp = sequence.revision
+		if err := stage.Create(sequence); err != nil {
+			t.Fatal(err)
+		}
+		domainUnitPublish(t, engine, stage)
+		ref := ObjectRef{owner: engine.owner, Epoch: engine.CatalogRead().Epoch(), Address: sequence.address}
+		want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			objectACLUnitEntry(principal, principal, authorization.SelectPrivilege|authorization.UpdatePrivilege|authorization.UsagePrivilege, 0),
+			{Grantor: principal, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
+		}}
+		if err := engine.SetObjectACL(context.Background(), ref, want); err != nil {
+			t.Fatal(err)
+		}
+		got, err := rawObjectACL(engine.CatalogRead(), sequence.address)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatal("sequence raw ACL", got, want, err)
+		}
+	})
+}
+
+func TestObjectACLExpressionProperties(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, query := range []string{"SELECT pg_get_acl($1,$2,$3)", "SELECT pg_get_acl(objsubid => $1,classid => $2,objid => $3)", "SELECT pg_get_acl(NULL,NULL,NULL)"} {
+		q := domainUnitBindSelect(t, e, op, query)
+		n, ok := q.Root.(*projectNode).expressions[0].(objectACLExpression)
+		if !ok || n.ResultUsage().Type.ID() != sqltype.ACLItemArray || n.Properties().Volatility != Stable || n.validateStored() != nil {
+			t.Fatal("typed STABLE recipe", n)
+		}
+		for i, arg := range n.args {
+			if arg.ResultUsage().Type.ID() != objectACLTypes[n.slots[i]] {
+				t.Fatal("wrong formal argument type", i, arg.ResultUsage())
+			}
+		}
+		children := 0
+		boundExpressionChildren(n, func(BoundExpr) { children++ })
+		if children != 3 {
+			t.Fatal("lexical children", children)
+		}
+		bad := n
+		bad.slots[1] = bad.slots[0]
+		if bad.validateStored() == nil {
+			t.Fatal("accepted duplicate formal slot")
+		}
+		bad = n
+		bad.properties.Volatility = Immutable
+		if bad.validateStored() == nil {
+			t.Fatal("accepted immutable inquiry")
+		}
+		if query == "SELECT pg_get_acl(NULL,NULL,NULL)" {
+			value, err := n.Eval(&EvalContext{Context: context.Background()})
+			if err != nil || !value.IsNull() || value.Type().ID() != sqltype.ACLItemArray {
+				t.Fatal("strict typed NULL without authority", value, err)
+			}
+		}
+	}
+	// A stored recipe has no result/catalog cache; remint every child's carrier.
+	view := e.CatalogRead()
+	array, _ := view.LookupType(sqltype.ACLItemArray)
+	oid, _ := view.LookupType(sqltype.Oid)
+	integer, _ := view.LookupType(sqltype.Int4)
+	n := objectACLExpression{expressionInfo: expressionInfo{usage: array.Usage(), properties: ExprProperties{Volatility: Stable}}, slots: [3]uint8{0, 1, 2}}
+	for i, typ := range []*sqltype.Descriptor{oid, oid, integer} {
+		n.args[i] = literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: sqltype.Null(typ)}
+	}
+	destination := New().CatalogRead()
+	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		typ, _ := destination.LookupType(d.ID())
+		return typ
+	})
+	if err != nil || !changed {
+		t.Fatal("retag recipe", changed, err)
+	}
+	fresh := mapped.(objectACLExpression)
+	if fresh.ResultUsage().Type == n.ResultUsage().Type || fresh.validateStored() != nil {
+		t.Fatal("foreign result carrier retained", fresh)
+	}
+	for i, arg := range fresh.args {
+		if arg.ResultUsage().Type == n.args[i].ResultUsage().Type {
+			t.Fatal("foreign argument carrier retained", i)
+		}
+	}
+	remapped, err := remapBoundExpression(n, func(ref ObjectRef) ObjectRef { return ref }, nil)
+	if err != nil || remapped.(objectACLExpression).validateStored() != nil {
+		t.Fatal("stored remap", err)
+	}
+	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, func(child BoundExpr) (BoundExpr, bool, error) {
+		if literal, ok := child.(literalExpression); ok && literal.value.Type().ID() == sqltype.Oid {
+			literal.value, _ = sqltype.OIDValue(oid, 42)
+			return literal, true, nil
+		}
+		return child, false, nil
+	})
+	if err != nil || !changed || rewritten.(objectACLExpression).args[0].(literalExpression).value.IsNull() || !n.args[0].(literalExpression).value.IsNull() {
+		t.Fatal("leaf rewrite mutated original recipe or skipped children", changed, err)
+	}
+	// Named recipes must render their NULL children in written order.
+	n.slots, n.labels = [3]uint8{2, 0, 1}, [3]string{"objsubid", "classid", "objid"}
+	n.args = [3]BoundExpr{n.args[2], n.args[0], n.args[1]}
+	text, err := n.sql("pg_catalog.pg_get_acl", func(arg BoundExpr) (string, error) {
+		if !arg.(literalExpression).value.IsNull() {
+			t.Fatal("named render changed a NULL child")
+		}
+		return "NULL", nil
+	})
+	if err != nil || text != "pg_catalog.pg_get_acl(objsubid => NULL, classid => NULL, objid => NULL)" {
+		t.Fatal("named written-order render", text, err)
+	}
+}

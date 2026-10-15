@@ -73,17 +73,20 @@ func refreshableTemporalCapture(c temporalConstant) bool {
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
 // seam. A sqltype ID is a projection, not an authorization token.
 type typeDescriptor struct {
-	typ            *sqltype.Descriptor
-	comment        string
-	namespace      ObjectAddress
-	revision       DefinitionRevision
-	owner          authorization.PrincipalRef
-	extension      ObjectAddress
-	acl            authorization.ACLValue
-	dimensions     int32
-	array          sqltype.ID
-	owningRelation ObjectAddress
-	domainChecks   []domainCheckConstraint
+	typ       *sqltype.Descriptor
+	comment   string
+	namespace ObjectAddress
+	revision  DefinitionRevision
+	owner     authorization.PrincipalRef
+	extension ObjectAddress
+	acl       authorization.ACLValue
+	// aclSyntheticDefault distinguishes effective baseline USAGE from raw NULL
+	// typacl. Copies/owner remaps retain it; genuine ACL replacement clears it.
+	aclSyntheticDefault bool
+	dimensions          int32
+	array               sqltype.ID
+	owningRelation      ObjectAddress
+	domainChecks        []domainCheckConstraint
 }
 
 func (d *typeDescriptor) Address() ObjectAddress {
@@ -111,6 +114,9 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	t, ok := descriptor.(*typeDescriptor)
 	if !ok || t.typ == nil || t.typ.ID() == 0 {
 		return fmt.Errorf("stuntgres: invalid type descriptor")
+	}
+	if t.aclSyntheticDefault && !authorization.MatchesDefaultBaseline(t.acl, t.owner, authorization.DefaultTypes, false) {
+		return fmt.Errorf("stuntgres: invalid synthetic type ACL")
 	}
 	ns, ok := view.Descriptor(descriptor.Namespace())
 	if !ok || ns.Kind() != NamespaceObject {

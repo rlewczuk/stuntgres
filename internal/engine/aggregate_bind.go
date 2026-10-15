@@ -157,6 +157,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case currentSchemasExpression:
 		o, ok := other.(currentSchemasExpression)
 		return ok && same(e.arg, o.arg)
+	case objectACLExpression:
+		o, ok := other.(objectACLExpression)
+		if !ok || e.slots != o.slots || e.labels != o.labels {
+			return false
+		}
+		for i, arg := range e.args {
+			if !same(arg, o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case accessInquiryExpression:
 		o, ok := other.(accessInquiryExpression)
 		if !ok || e.rowSecurity != o.rowSecurity || e.count != o.count {
@@ -800,6 +811,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
 		expr = e
+	case objectACLExpression:
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case accessInquiryExpression:
 		for i := range e.count {
 			e.args[i] = rewrite(e.args[i])
@@ -1422,6 +1439,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case currentSchemasExpression:
 		walk(e.arg)
+	case objectACLExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
 	case accessInquiryExpression:
 		for _, arg := range e.arguments() {
 			walk(arg)

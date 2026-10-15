@@ -122,6 +122,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	replacement := *a
 	replacement.revision++
 	replacement.acl = authorization.ACLValue{Explicit: true}
+	replacement.aclSyntheticDefault = false
 	if err = change.Replace(&replacement); err != nil {
 		t.Fatal(err)
 	}
@@ -191,6 +192,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	stage := e.BeginCatalogStage(auth.catalog)
 	next := *a
 	next.acl = authorization.ACLValue{Explicit: true}
+	next.aclSyntheticDefault = false
 	next.revision++
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)

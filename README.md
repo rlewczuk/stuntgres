@@ -51,6 +51,26 @@ JSONPath execution and JSON equality are not added.
 See [JSON contracts](reference/binary_json_arrays/README.md#json-extraction)
 and [JSONB contracts and smoke](reference/binary_json_arrays/README.md#jsonb-extraction).
 
+## Object ACL inquiry — change note
+
+`pg_get_acl(classid oid, objid oid, objsubid integer)` is a strict STABLE
+`aclitem[]` expression. It returns the stored object or column ACL, not effective
+permissions or synthesized defaults. A column address uses class1259 (`pg_class`)
+and its stable attribute number; column grants leave table/other-column ACLs
+unchanged. Missing objects and recognized ACL-less kinds return NULL; unknown
+class IDs error. NULL ACLs remain distinct from explicit empty arrays.
+
+Held calls read current metadata, without requiring SELECT on the queried table.
+Native type authorization's synthetic USAGE baseline does not become a raw type
+ACL. The existing database boundary remains: native `{postgres=C*/postgres}`,
+versus fresh PostgreSQL NULL. Returned ACLITEM[] data and stored inquiry recipes
+use existing native lifecycle support; arbitrary explicit authorization ACLs
+still reject Dump/Restore rather than being silently discarded.
+
+See [contracts, selected proof and standalone smoke](reference/catalogs/README.md#object-acl-inquiry-contract).
+Feature smoke: `make check RUN='^TestReferenceObjectACLFeatureSmoke$'`
+and the same command with `REFERENCE=1`.
+
 ## Role membership and row-security inquiries — change note
 
 `pg_has_role([user,] role, privilege)` supports all six PostgreSQL NAME/OID
@@ -3632,6 +3652,10 @@ Feature smoke: `make check RUN='^TestReferenceCollationLegacyVisibility$'`.
 Index identity/path/control witnesses:
 `make check RUN='^TestVisibilityInquiryIndexRelations$'`;
 `make check REFERENCE=1 RUN='^TestReferenceVisibilityInquiryIndexRelations$'`.
+
+Object ACL inquiry `pg_get_acl(oid,oid,integer) -> aclitem[]` supports raw object
+and `pg_class` column addresses, named arguments and typed NULLs. See the
+[object ACL contract](reference/catalogs/README.md#object-acl-inquiry-contract).
 
 Object comment inquiries support `col_description(oid,integer)`,
 `obj_description(oid,name)`, legacy `obj_description(oid)` and

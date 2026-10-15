@@ -65,6 +65,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		d := base.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}].(*typeDescriptor)
 		next := *d
 		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UsagePrivilege, 0)}}
+		next.aclSyntheticDefault = false
 		next.revision++
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)

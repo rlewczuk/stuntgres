@@ -20,6 +20,14 @@ func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema Obje
 	}
 	return creationDefaultACL(s.base, owner, schema, class)
 }
+
+// CreationDefaultACL normalizes baseline-equal defaults. Types retain a
+// materialized baseline for effective USAGE checks, so remember at creation
+// whether that value represents raw catalog absence rather than an explicit ACL.
+func (s *CatalogStage) creationTypeACL(owner authorization.PrincipalRef, schema ObjectAddress) (authorization.ACLValue, bool) {
+	acl := s.creationACL(owner, schema, authorization.DefaultTypes)
+	return acl, authorization.MatchesDefaultBaseline(acl, owner, authorization.DefaultTypes, false)
+}
 func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key defaultACLKey, record *defaultACLRecord) {
 	if c.defaultOriginals == nil {
 		c.defaultOriginals = make(map[defaultACLKey]*defaultACLRecord)

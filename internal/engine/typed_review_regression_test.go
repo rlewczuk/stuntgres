@@ -220,6 +220,7 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ObjectAddress, acl auth
 	defer e.DiscardCatalogStage(stage)
 	next := *stage.base.state.descriptors[address].(*typeDescriptor)
 	next.acl, next.revision = acl, next.revision+1
+	next.aclSyntheticDefault = false
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}

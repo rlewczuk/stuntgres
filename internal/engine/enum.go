@@ -73,7 +73,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	acl := stage.creationACL(auth.state.CurrentUser, ns.Address, authorization.DefaultTypes)
+	acl, synthetic := stage.creationTypeACL(auth.state.CurrentUser, ns.Address)
 	arrayOID, err := e.allocateOIDLocked()
 	if err != nil {
 		return err
@@ -82,8 +82,8 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, array: array.ID()}); err != nil {
+	if err := stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, aclSyntheticDefault: synthetic, array: array.ID()}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false)})
+	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), aclSyntheticDefault: true})
 }

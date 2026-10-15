@@ -73,7 +73,7 @@ func (r *domainReplayNames) associate(d *typeDescriptor) {
 }
 
 func defaultDomainACL(d *typeDescriptor) bool {
-	if !d.acl.Explicit {
+	if !d.aclSyntheticDefault || !d.acl.Explicit {
 		return false
 	}
 	var public, owner, options authorization.Privileges

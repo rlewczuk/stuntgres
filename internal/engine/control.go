@@ -292,6 +292,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				views = append(views, dumpView{principal.Name, text})
 				continue
 			case *typeDescriptor:
+				// A recipe can regenerate synthetic type defaults, never a real
+				// explicit ACL (even one equal to the effective baseline).
+				if t.acl.Explicit && !defaultDomainACL(t) {
+					message := "stuntgres: dump cannot serialize changed type ACL"
+					if t.typ.IsDomain() || t.typ.IsEnum() {
+						message = "stuntgres: dump cannot serialize changed domain ACL"
+					} else if t.typ.IsComposite() {
+						message = "stuntgres: dump cannot serialize changed composite ACL"
+					}
+					e.mu.Unlock()
+					return fmt.Errorf("%s", message)
+				}
 				if t.typ.IsQueryInt() || t.extension != (ObjectAddress{}) {
 					if err := (typeProvider{}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()

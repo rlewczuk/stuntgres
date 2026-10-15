@@ -173,6 +173,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 		next := *old
 		next.revision++
 		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
+		next.aclSyntheticDefault = false
 		if err := setup.Replace(&next); err != nil {
 			t.Fatal(err)
 		}

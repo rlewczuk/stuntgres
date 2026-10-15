@@ -127,13 +127,14 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	relation.rowType = typ.ID()
 	baseline := authorization.DefaultBaseline(relation.owner, authorization.DefaultTypes, false)
 	acl := baseline
+	synthetic := true
 	if relation.relationKind == compositeRelation {
-		acl = stage.creationACL(relation.owner, relation.namespace, authorization.DefaultTypes)
+		acl, synthetic = stage.creationTypeACL(relation.owner, relation.namespace)
 	}
-	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, array: array.ID(), owningRelation: relation.address}); err != nil {
+	if err := stage.Create(&typeDescriptor{typ: typ, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: acl, aclSyntheticDefault: synthetic, array: array.ID(), owningRelation: relation.address}); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: baseline, owningRelation: relation.address})
+	return stage.Create(&typeDescriptor{typ: array, namespace: relation.namespace, revision: relation.revision, owner: relation.owner, acl: baseline, aclSyntheticDefault: true, owningRelation: relation.address})
 }
 
 func (stage *CatalogStage) synchronizeRowType(relation *relationDescriptor) error {

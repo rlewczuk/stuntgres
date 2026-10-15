@@ -35,6 +35,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		current := e.CatalogRead()
 		replacement := *current.state.descriptors[typeRef.Address].(*typeDescriptor)
 		replacement.acl = acl
+		replacement.aclSyntheticDefault = false
 		replacement.revision++
 		stage := e.BeginCatalogStage(current)
 		if err := stage.Replace(&replacement); err != nil {

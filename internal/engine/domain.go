@@ -85,7 +85,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	acl := stage.creationACL(auth.state.CurrentUser, ns.Address, authorization.DefaultTypes)
+	acl, synthetic := stage.creationTypeACL(auth.state.CurrentUser, ns.Address)
 	arrayOID, err := e.allocateOIDLocked()
 	if err != nil {
 		return err
@@ -100,14 +100,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	domain := &typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, dimensions: int32(len(s.Base.ArrayBounds)), array: array.ID()}
+	domain := &typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, aclSyntheticDefault: synthetic, dimensions: int32(len(s.Base.ArrayBounds)), array: array.ID()}
 	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
 		return err
 	}
 	if err = stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false)})
+	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), aclSyntheticDefault: true})
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {

@@ -660,6 +660,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(visibilityInquiryExpression); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.arg)
 		}
+		if n, ok := bound.(objectACLExpression); ok {
+			return children(r.Args, n.args[:])
+		}
 		if n, ok := bound.(accessInquiryExpression); ok {
 			return children(r.Args, n.arguments())
 		}
