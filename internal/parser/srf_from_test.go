@@ -48,15 +48,15 @@ func TestSRFFromParser(t *testing.T) {
 			}
 			alias := statements[0].(*Select).From.(*AliasReference)
 			offset := strings.Index(input, "(v ") + 1
-			if !alias.HasColumnDefinitions || len(alias.Columns) != 1 || alias.Columns[0].Text != "v" || alias.Columns[0].Pos.Offset != offset || alias.Columns[0].Pos.Character != utf8.RuneCountInString(input[:offset])+1 {
+			if len(alias.ColumnDefinitions) != 1 || len(alias.Columns) != 0 || alias.ColumnDefinitions[0].Name.Text != "v" || alias.ColumnDefinitions[0].Name.Pos.Offset != offset || alias.ColumnDefinitions[0].Name.Pos.Character != utf8.RuneCountInString(input[:offset])+1 {
 				t.Fatal("lost column definition name/position", input, alias)
 			}
 			name := "integer"
 			if strings.Contains(sql, "v text") {
 				name = "text"
 			}
-			if alias.ColumnDefinitionType.Name != name || alias.ColumnDefinitionType.Pos.Offset <= offset {
-				t.Fatal("lost column definition type syntax", input, alias.ColumnDefinitionType)
+			if alias.ColumnDefinitions[0].Type.Name != name || alias.ColumnDefinitions[0].Type.Pos.Offset <= offset {
+				t.Fatal("lost column definition type syntax", input, alias.ColumnDefinitions[0].Type)
 			}
 		}
 	}

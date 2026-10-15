@@ -30,7 +30,7 @@ func TestJSONElementsFormalAndColumnDefinitionAST(t *testing.T) {
 		}
 		alias, ok := statements[0].(*Select).From.(*AliasReference)
 		offset := strings.Index(query, "v json")
-		if !ok || !alias.HasColumnDefinitions || len(alias.Columns) != 1 || alias.Columns[0].Text != "v" || alias.ColumnDefinitionType.Name != "json" || alias.Columns[0].Pos.Offset != offset || alias.Columns[0].Pos.Character != utf8.RuneCountInString(query[:offset])+1 {
+		if !ok || len(alias.ColumnDefinitions) != 1 || len(alias.Columns) != 0 || alias.ColumnDefinitions[0].Name.Text != "v" || alias.ColumnDefinitions[0].Type.Name != "json" || alias.ColumnDefinitions[0].Name.Pos.Offset != offset || alias.ColumnDefinitions[0].Name.Pos.Character != utf8.RuneCountInString(query[:offset])+1 {
 			t.Fatal("lost scalar definition position", alias)
 		}
 	}

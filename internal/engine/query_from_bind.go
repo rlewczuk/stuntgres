@@ -311,7 +311,11 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	return nil, missing
 }
 
-func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, namespace queryNamespace, failure error) {
+func (b *expressionBinder) bindFrom(item parser.FromItem) (LogicalNode, queryNamespace, error) {
+	return b.bindFromWithDefinitions(item, nil)
+}
+
+func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definitions []parser.FunctionColumnDefinition) (root LogicalNode, namespace queryNamespace, failure error) {
 	// FROM preorder is shared with the renderer. Capture the namespace after
 	// aliases and USING have been applied, before a parent rebases its slots.
 	defer func() {
@@ -347,13 +351,13 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 	case *parser.FunctionTable:
 		normalized := parser.NormalizedFunctionCalls(n)
 		for _, raw := range normalized {
-			if selectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
-				return b.bindMixedFunctionTable(normalized, n.Ordinality, ordinal)
+			if len(definitions) != 0 || selectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
+				return b.bindMixedFunctionTable(normalized, n.Ordinality, ordinal, definitions, !n.RowsFrom && len(normalized) > 1)
 			}
 		}
 		return b.bindStringTable(n)
 	case *parser.FunctionFrom:
-		return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal)
+		return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal, definitions, false)
 	case *parser.DerivedQuery:
 		query, err := b.bindSelectScoped(n.Query, false, true)
 		if err != nil {
@@ -419,37 +423,12 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		b.queryHidden = append(b.queryHidden, q)
 		return &sourceNode{querySchema: relation.columns, ref: ref, occurrence: leaf}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.columns}, nil
 	case *parser.AliasReference:
-		root, ns, err := b.bindFrom(n.Input)
+		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		if n.HasColumnDefinitions {
-			count, ordinality := 0, false
-			switch source := n.Input.(type) {
-			case *parser.FunctionTable:
-				count, ordinality = len(parser.NormalizedFunctionCalls(source)), source.Ordinality
-				if !source.RowsFrom && count > 1 {
-					failure := expressionError("42601", "UNNEST() with multiple arguments cannot have a column definition list", n.Columns[0].Pos).(*sqlstate.Error)
-					failure.Hint = "Use separate UNNEST() calls inside ROWS FROM(), and attach a column definition list to each one."
-					return nil, queryNamespace{}, failure
-				}
-			case *parser.FunctionFrom:
-				count, ordinality = len(source.Calls), source.Ordinality
-			}
-			message := `a column definition list is only allowed for functions returning "record"`
-			hint := ""
-			if count > 1 {
-				message = "ROWS FROM() with multiple functions cannot have a column definition list"
-				hint = "Put a separate column definition list for each function inside ROWS FROM()."
-			} else if ordinality {
-				message = "WITH ORDINALITY cannot be used with a column definition list"
-				hint = "Put the column definition list inside ROWS FROM()."
-			} else if function, ok := root.(*functionFromNode); ok && len(function.calls) == 1 {
-				message = functionColumnDefinitionMessage(function.calls[0])
-			}
-			failure := expressionError("42601", message, n.Columns[0].Pos).(*sqlstate.Error)
-			failure.Hint = hint
-			return nil, queryNamespace{}, failure
+		if n.Name.Text == "" {
+			return root, ns, nil
 		}
 		aliasWidth := len(ns.columns)
 		switch scan := root.(type) {
@@ -957,7 +936,7 @@ func functionColumnDefinitionMessage(call BoundExpr) string {
 	return `a column definition list is only allowed for functions returning "record"`
 }
 
-func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int) (LogicalNode, queryNamespace, error) {
+func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (LogicalNode, queryNamespace, error) {
 	calls := make([]BoundExpr, len(rawCalls))
 	schema := make([]ColumnDescriptor, 0, len(calls))
 	oldClause := b.aggregateClause
@@ -985,8 +964,31 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		if len(raw.ColumnDefinitions) != 0 {
-			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(expr), raw.ColumnDefinitions[0].Pos)
+		calls[i] = expr
+	}
+	if len(definitions) != 0 {
+		pos := definitions[0].Name.Pos
+		switch {
+		case multiUnnest:
+			return nil, queryNamespace{}, functionDefinitionError("UNNEST() with multiple arguments cannot have a column definition list", "Use separate UNNEST() calls inside ROWS FROM(), and attach a column definition list to each one.", pos)
+		case len(calls) > 1:
+			return nil, queryNamespace{}, functionDefinitionError("ROWS FROM() with multiple functions cannot have a column definition list", "Put a separate column definition list for each function inside ROWS FROM().", pos)
+		case ordinality:
+			return nil, queryNamespace{}, functionDefinitionError("WITH ORDINALITY cannot be used with a column definition list", "Put the column definition list inside ROWS FROM().", pos)
+		}
+	}
+	for i, raw := range rawCalls {
+		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+		columns := raw.ColumnDefinitions
+		if len(definitions) != 0 {
+			if len(columns) != 0 {
+				return nil, queryNamespace{}, expressionError("42601", "multiple column definition lists are not allowed for the same function", definitions[0].Name.Pos)
+			}
+			columns = definitions
+		}
+		expr, err := b.completeFunctionDefinitions(raw, calls[i], columns)
+		if err != nil {
+			return nil, queryNamespace{}, err
 		}
 		if !validFunctionSourceCall(expr) {
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)

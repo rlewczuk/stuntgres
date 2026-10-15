@@ -780,6 +780,21 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		argRenderer := r
+		argRenderer.showImplicit = true
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
+			text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+		}
+		if n.Plan.BaseIndex() == 1 {
+			parts[0], parts[1] = "from_json => "+parts[0], "base => "+parts[1]
+		}
+		return pgIdentifier(n.Plan.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		argRenderer := r
 		argRenderer.showImplicit = true

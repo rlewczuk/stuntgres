@@ -189,6 +189,13 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.Info = functionInfo(info)
 		rebound = n
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		rebound = n
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)
 		if err != nil {

@@ -1833,10 +1833,8 @@ type FunctionExpr struct {
 	Filter    Expr
 	Within    bool
 	WithinPos Position
-	// Per-function ROWS FROM definitions use the same diagnostic-only shape
-	// as AliasReference; no anonymous-record provider is introduced.
-	ColumnDefinitions    []Identifier
-	ColumnDefinitionType TypeName
+	// Per-function definitions belong to the corresponding ROWS FROM member.
+	ColumnDefinitions []FunctionColumnDefinition
 }
 
 // JSONFormat retains explicit SQL/JSON clauses and their diagnostic positions.

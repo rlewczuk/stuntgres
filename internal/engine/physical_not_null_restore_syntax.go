@@ -163,7 +163,7 @@ func restorePhysicalNotNullSyntax(raw *parser.Delete) (physicalNotNullRepair, bo
 		return repair, false
 	}
 	alias, ok := target.From.(*parser.AliasReference)
-	if !ok || alias.Name.Text != "nn" || len(alias.Columns) != 0 || alias.HasColumnDefinitions {
+	if !ok || alias.Name.Text != "nn" || len(alias.Columns) != 0 || len(alias.ColumnDefinitions) != 0 {
 		return repair, false
 	}
 	table, ok := alias.Input.(*parser.TableReference)

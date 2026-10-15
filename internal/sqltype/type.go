@@ -596,6 +596,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		}
 		return d.arrayInput(ctx, text, typmod, env)
 	}
+	if d.IsDeferredRecord() {
+		return Value{}, failure("0A000", "input of anonymous composite types is not implemented")
+	}
 	if d.IsComposite() {
 		if err := validateCompositeInput(ctx, text); err != nil {
 			return Value{}, err

@@ -52,15 +52,15 @@ func TestArrayRelationalFromNormalization(t *testing.T) {
 		}
 		raw = statements[0].(*Select).From.(*FunctionTable)
 		call := raw.Calls[0]
-		if len(call.ColumnDefinitions) != 2 || call.ColumnDefinitions[0].Text != "x" || call.ColumnDefinitions[1].Text != "y" || len(NormalizedFunctionCalls(raw)) != 1 {
+		if len(call.ColumnDefinitions) != 2 || call.ColumnDefinitions[0].Name.Text != "x" || call.ColumnDefinitions[1].Name.Text != "y" || len(NormalizedFunctionCalls(raw)) != 1 {
 			t.Fatal("per-function definition did not block rewrite")
 		}
 		at := strings.Index(q, "x INT")
-		if call.ColumnDefinitions[0].Pos.Offset != at || call.ColumnDefinitions[0].Pos.Character != utf8.RuneCountInString(q[:at])+1 {
+		if call.ColumnDefinitions[0].Name.Pos.Offset != at || call.ColumnDefinitions[0].Name.Pos.Character != utf8.RuneCountInString(q[:at])+1 {
 			t.Fatal("definition name location")
 		}
 		at = strings.Index(q, "INT")
-		if call.ColumnDefinitionType.Pos.Offset != at || call.ColumnDefinitionType.Pos.Character != utf8.RuneCountInString(q[:at])+1 {
+		if call.ColumnDefinitions[0].Type.Pos.Offset != at || call.ColumnDefinitions[0].Type.Pos.Character != utf8.RuneCountInString(q[:at])+1 {
 			t.Fatal("definition type location")
 		}
 	}

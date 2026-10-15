@@ -1679,7 +1679,7 @@ func JSONBSetFunctionName(name string) bool {
 // JSONFunctionName admits only the selected ordinary JSON processing calls.
 // Case-insensitive syntax admission does not change quoted resolution spelling.
 func JSONFunctionName(name string) bool {
-	for _, selected := range [...]string{"json_typeof", "jsonb_typeof", "jsonb_pretty", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "jsonb_each", "jsonb_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_strip_nulls", "json_extract_path", "json_extract_path_text", "jsonb_extract_path", "jsonb_extract_path_text"} {
+	for _, selected := range [...]string{"json_typeof", "jsonb_typeof", "jsonb_pretty", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "jsonb_each", "jsonb_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_strip_nulls", "json_extract_path", "json_extract_path_text", "jsonb_extract_path", "jsonb_extract_path_text", "json_populate_record", "json_populate_recordset", "json_to_record", "json_to_recordset"} {
 		if strings.EqualFold(name, selected) {
 			return true
 		}

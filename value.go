@@ -272,7 +272,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	if d.Usage().CatalogNullUsage() {
 		return reflect.TypeFor[any]()
 	}
-	if d.BaseType().IsQueryInt() || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() {
+	if d.BaseType().IsQueryInt() || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() || d.IsDeferredRecord() {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {

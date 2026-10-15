@@ -13,6 +13,9 @@ func isStringSet(expr BoundExpr) bool {
 	return ok && e.Plan.Name() == "string_to_table"
 }
 func isQuerySet(expr BoundExpr) bool {
+	if record, ok := expr.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]); ok {
+		return record.Plan.ReturnsSet()
+	}
 	switch expr.(type) {
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, unnestExpression:
 		return true
@@ -23,7 +26,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
 	case objectAddressExpression:
 		return true
-	case commitTimestampExpression:
+	case commitTimestampExpression, functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		return isStringSet(call)
@@ -88,6 +91,8 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
 	case objectAddressExpression:
 		return call.args[:]
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Args
 	case commitTimestampExpression:
 		if call.arg != nil {
 			return []BoundExpr{call.arg}
@@ -129,6 +134,8 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		}
 		copy(call.args[:], args)
 		return call, nil
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Reconstruct(call.Info, args)
 	case commitTimestampExpression:
 		if len(args) != 0 {
 			if call.arg == nil || len(args) != 1 {
@@ -268,7 +275,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 			return nil, queryNamespace{}, err
 		}
 		if len(call.ColumnDefinitions) != 0 {
-			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(expr), call.ColumnDefinitions[0].Pos)
+			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(expr), call.ColumnDefinitions[0].Name.Pos)
 		}
 		if !isStringSet(expr) {
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", call.Pos)

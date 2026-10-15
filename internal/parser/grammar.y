@@ -124,6 +124,7 @@ package parser
  functionTable *FunctionTable
  functionTables []FunctionExpr
  identifiers []Identifier
+ functionColumnDefinitions []FunctionColumnDefinition
  identifier *Identifier
  viewOptions []ViewOption
  viewOption ViewOption
@@ -517,7 +518,8 @@ package parser
 %type <functionTable> function_table function_table_base
 %type <call> function_table_call rows_function_call
 %type <functionTables> function_table_calls
-%type <identifiers> alias_columns using_columns function_column_definition_tail
+%type <identifiers> alias_columns using_columns
+%type <functionColumnDefinitions> function_column_definition_tail
 %type <identifier> using_alias
 %type <joinKind> inner_join
 %type <desc> optional_outer
@@ -2182,12 +2184,30 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
 from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} }
- | from_base AS from_alias '(' using_columns type function_column_definition_tail ')' {
+ | from_base AS from_alias '(' using_columns type column_collation function_column_definition_tail ')' {
     switch $1.(type) {
     case *FunctionTable, *FunctionFrom:
-       $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:append($5,$7...),HasColumnDefinitions:true,ColumnDefinitionType:$6}
+       if len($5)!=1 {sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1}
+       $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},ColumnDefinitions:append([]FunctionColumnDefinition{{Name:$5[0],Type:$6,Collation:$7}},$8...)}
     default:
        sqllex.(*lexer).syntax(lexeme{text:$6.Name,pos:$6.Pos});return 1
+    }
+   }
+ | from_base from_alias '(' using_columns type column_collation function_column_definition_tail ')' {
+    switch $1.(type) {
+    case *FunctionTable, *FunctionFrom:
+       if len($4)!=1 {sqllex.(*lexer).syntax(lexeme{text:$5.Name,pos:$5.Pos});return 1}
+       $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},ColumnDefinitions:append([]FunctionColumnDefinition{{Name:$4[0],Type:$5,Collation:$6}},$7...)}
+    default:
+       sqllex.(*lexer).syntax(lexeme{text:$5.Name,pos:$5.Pos});return 1
+    }
+   }
+ | from_base AS '(' name type column_collation function_column_definition_tail ')' {
+    switch $1.(type) {
+    case *FunctionTable, *FunctionFrom:
+       $$=&AliasReference{Input:$1,ColumnDefinitions:append([]FunctionColumnDefinition{{Name:Identifier{Text:$4.text,Pos:$4.pos},Type:$5,Collation:$6}},$7...)}
+    default:
+       sqllex.(*lexer).syntax(lexeme{text:$5.Name,pos:$5.Pos});return 1
     }
    } ;
 function_table_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
@@ -2203,7 +2223,7 @@ function_table_call: check_function_head function_args ')' {call,ok:=selectedSca
 /* Per-call definitions belong only to ROWS FROM members. Keeping AS off the
  * ordinary call lets from_atom own both named aliases and top-level definitions. */
 rows_function_call: function_table_call {$$=$1}
- | function_table_call AS '(' using_columns type function_column_definition_tail ')' {$$=$1;$$.ColumnDefinitions=append($4,$6...);$$.ColumnDefinitionType=$5} ;
+ | function_table_call AS '(' name type column_collation function_column_definition_tail ')' {$$=$1;$$.ColumnDefinitions=append([]FunctionColumnDefinition{{Name:Identifier{Text:$4.text,Pos:$4.pos},Type:$5,Collation:$6}},$7...)} ;
 function_table_calls: rows_function_call {$$=[]FunctionExpr{$1}}
  | function_table_calls ',' rows_function_call {$$=append($1,$3)} ;
 function_table_base: function_table_call {$$=&FunctionTable{Calls:[]FunctionExpr{$1},Pos:$1.Pos}}
@@ -2218,12 +2238,8 @@ from_alias: name {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return
 alias_columns: /* empty */ { $$=nil } | '(' using_columns ')' { $$=$2 } ;
 using_columns: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | using_columns ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
-/* Selected function sources reject definition lists during analysis. Consume
- * every typed member here so the binder, rather than comma lookahead, owns that
- * diagnostic and its first-column position. No record-definition provider is
- * introduced; the first type remains the existing diagnostic syntax witness. */
 function_column_definition_tail: /* empty */ { $$=nil }
- | function_column_definition_tail ',' name type { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+ | function_column_definition_tail ',' name type column_collation { $$=append($1,FunctionColumnDefinition{Name:Identifier{Text:$3.text,Pos:$3.pos},Type:$4,Collation:$5}) } ;
 using_alias: /* empty */ { $$=nil } | AS from_alias { $$=&Identifier{Text:$2.text,Pos:$2.pos} } ;
 where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }

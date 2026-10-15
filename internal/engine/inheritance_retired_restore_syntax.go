@@ -88,7 +88,7 @@ func restoreRetiredSyntax(raw *parser.Update) (retiredRepair, error) {
 		}
 	}
 	alias, ok := sub.Query.From.(*parser.AliasReference)
-	if !ok || alias.Name.Text != "retired" || len(alias.Columns) != 0 || alias.HasColumnDefinitions {
+	if !ok || alias.Name.Text != "retired" || len(alias.Columns) != 0 || len(alias.ColumnDefinitions) != 0 {
 		return reject()
 	}
 	var values *parser.ValuesQuery

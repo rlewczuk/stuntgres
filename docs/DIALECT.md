@@ -1113,8 +1113,23 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   zero rows with full schema; all non-object roots raise 22023
   `cannot call jsonb_each on a non-object` / `cannot call jsonb_each_text on a
   non-object`, with absent runtime Position. Named `from_json` is admitted.
-  Record-population functions and general table functions remain excluded;
-  no implicit JSON-to-JSONB input conversion is added.
+  JSON record conversion includes `json_populate_record`, `json_populate_recordset`,
+  `json_to_record` and `json_to_recordset`, not their JSONB counterparts. Named
+  composites and explicit typed AS lists support recursive field coercion,
+  rectangular arrays, typmods, plain domains and existing scalar/array/composite
+  domain CHECKs. Domain NOT NULL/default DDL retains its documented boundary.
+  Missing fields preserve a non-NULL base or become SQL NULL; explicit JSON null
+  overrides a base. Physical table constraints/defaults are not row-type defaults.
+  Only recordsets are SRFs; scalar whole-NULL FROM calls still supply one expanded
+  row. Typed AS lists work with/without aliases and per ROWS FROM member; put
+  definitions inside ROWS FROM when adding WITH ORDINALITY. Populate accepts
+  base/from_json names; to-record calls do not accept from_json named notation.
+  Anonymous non-NULL scalar results without a descriptor fail at execution,
+  while strict SQL NULL can remain an unresolved RECORD NULL. Computed metadata
+  is available even for empty results. Calls remain STABLE and use existing
+  stored-expression/native replay, cancellation and atomic-publication paths.
+  General table functions remain excluded; no implicit JSON-to-JSONB input
+  conversion is added.
   JSON-only extraction includes `(json,text/int4) -> json/text` via `->`/`->>`,
   `(json,text[]) -> json/text` via `#>`/`#>>`, and immutable variadic
   `json_extract_path` / `json_extract_path_text`. Object keys and integer array

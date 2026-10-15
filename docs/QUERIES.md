@@ -465,6 +465,39 @@ Each invocation owns only its iteration state; JSONB values retain nested
 payloads, while text values decode strings and map JSON null to SQL NULL.
 SQL NULL is strict and empty; non-object JSONB roots fail before publication.
 
+The four JSON record converters share these function-source spans and ordinary
+scalar evaluation. `json_populate_record(base,json)` and `json_to_record(json)`
+are scalar, even when used in FROM; a whole SQL NULL result expands to one row
+of typed NULL fields. Only their `recordset` counterparts enter target-set
+lifting. Recordsets take an array of objects, restart every row from the original
+base, and yield no rows for SQL NULL or an empty array. Assert sequence order
+through explicit WITH ORDINALITY/ORDER BY, not an unordered SELECT.
+Processing validates every string in a demanded object before converting its
+fields. Recordsets process one object before decoding later rows, so a later
+Unicode error cannot mask an earlier typed-field error. Unicode diagnostics
+retain the original document's line and Context, including multiline arrays.
+
+`json_to_record`/`json_to_recordset` in FROM require ordered typed definitions:
+`f(...) AS r(a int,b text)`, `f(...) r(a int,b text)` or `f(...) AS (a int,b text)`.
+Per-member `ROWS FROM(f(...) AS (a int,b text), ...)` keeps each complete
+descriptor and permits outer WITH ORDINALITY and name-only aliases. Named
+composite/OUT providers reject redundant definitions. Binding resolves ordinary
+arguments and nested-SRF placement before definition conflicts, then completes
+anonymous source shape before expansion. An anonymous populate ROW keeps its
+original input field names even when output definitions rename the columns.
+Output reconciliation admits directional implicit binary compatibility, including
+TEXT/VARCHAR, without applying output typmod sizing or changing payloads. Original
+ROW conversion names and typmods remain in force; declared output usages own the
+metadata and returned field identities. Function/I/O/numeric assignment casts do
+not qualify. Incompatible anonymous output widths/types fail at execution, not preparation;
+`NULL::record` can instead obtain its genuine conversion shape from the typed
+FROM list.
+Result metadata does not depend on the first produced row, and each held or
+correlated invocation owns its conversion/cursor state. Stored views render
+symbolic member types and collations so native Dump/Restore and emitted SQL
+replay resolve the target owner's descriptors.
+
+
 Correlated function sources use the actual predecessor frame and demanded inherited
 prefixes, with physical/version provenance separate from function outputs.
 Rendering publishes finalized predecessor slots, never future/right slots early.

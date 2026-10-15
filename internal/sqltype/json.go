@@ -39,6 +39,8 @@ type jsonLexer struct {
 	kind                                               byte
 	decode, discard                                    bool
 	decoded                                            string
+	origin                                             string
+	originOffset                                       int
 }
 
 func (d *Descriptor) jsonInput(ctx context.Context, text string) (Value, error) {
@@ -53,6 +55,9 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 	// Classification needs syntax only. Uniqueness validates decoded escapes
 	// throughout the document; processing keeps its existing decoding demand.
 	l := jsonLexer{ctx: ctx, text: text, line: 1, decode: build || scan != nil && (scan.unique || !scan.classify && scan.mode != jsonScanElements)}
+	if scan != nil {
+		l.origin, l.originOffset = scan.origin, scan.originOffset
+	}
 	var local [32]jsonState
 	stack := local[:1]
 	stack[0] = jsonValue
@@ -75,7 +80,10 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 		if scan != nil && scan.extract != nil {
 			scan.extract.finish(&l, len(stack)-1, stack[len(stack)-1])
 		}
-		if scan != nil && scan.extract == nil && memberActive && len(stack) == 2 && (stack[1] == jsonObjectNext || elements && stack[1] == jsonArrayNext) {
+		if scan != nil && scan.record != nil {
+			scan.record.finish(&l, len(stack)-1, stack[len(stack)-1])
+		}
+		if scan != nil && scan.record == nil && scan.extract == nil && memberActive && len(stack) == 2 && (stack[1] == jsonObjectNext || elements && stack[1] == jsonArrayNext) {
 			member.end = l.end
 			scan.members = append(scan.members, member)
 			memberActive = false
@@ -92,6 +100,9 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 			} else {
 				l.discard = state != jsonObjectFirst && state != jsonObjectKey && !(scan.mode == jsonScanEachText && state == jsonObjectValue)
 			}
+		}
+		if scan != nil && scan.record != nil {
+			l.discard = false
 		}
 		if err := l.next(); err != nil {
 			return Value{}, err
@@ -111,15 +122,23 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 				return Value{}, err
 			}
 		}
+		if scan != nil && scan.record != nil {
+			scan.record.token(&l, len(stack)-1, state)
+		}
 		if scan != nil && state == jsonValue {
 			scan.root = l.kind
+			if scan.recordSet && scan.recordName != "" && l.kind == 's' {
+				if err := jsonRecordCheckString(ctx, text, scan.origin, scan.originOffset); err != nil {
+					return Value{}, err
+				}
+			}
 			if err := scan.checkRoot(); err != nil {
 				return Value{}, err
 			}
 		}
 		objectValue := !elements && state == jsonObjectValue
 		arrayValue := elements && (state == jsonArrayFirst || state == jsonArrayValue) && l.kind != ']'
-		if scan != nil && scan.extract == nil && !scan.classify && scan.mode != jsonScanKeys && len(stack) == 2 && (objectValue || arrayValue) {
+		if scan != nil && scan.record == nil && scan.extract == nil && !scan.classify && scan.mode != jsonScanKeys && len(stack) == 2 && (objectValue || arrayValue) {
 			member.start, member.kind, member.decoded = l.start, l.kind, l.decoded
 			memberActive = true
 		}
@@ -188,7 +207,7 @@ func (d *Descriptor) scanJSON(ctx context.Context, text string, scan *jsonScanRe
 				return Value{}, l.expected("string")
 			}
 			if scan != nil {
-				if scan.extract == nil && !scan.classify && !elements && len(stack) == 2 {
+				if scan.record == nil && scan.extract == nil && !scan.classify && !elements && len(stack) == 2 {
 					if scan.mode == jsonScanKeys {
 						scan.keys = append(scan.keys, l.decoded)
 					} else {
@@ -290,6 +309,22 @@ func (l *jsonLexer) invalid() error {
 	return l.fail(fmt.Sprintf("Token \"%s\" is invalid.", l.text[l.start:l.end]))
 }
 func (l *jsonLexer) fail(detail string) error {
+	if l.origin != "" {
+		// Only error formatting needs the preceding rows. Normal traversal
+		// borrows a row slice without copying or rescanning the prefix.
+		full := *l
+		prefix := l.origin[:l.originOffset]
+		full.text, full.origin = l.origin, ""
+		full.start += l.originOffset
+		full.end += l.originOffset
+		full.line += strings.Count(prefix, "\n")
+		if l.line == 1 {
+			full.lineStart = strings.LastIndexByte(prefix, '\n') + 1
+		} else {
+			full.lineStart += l.originOffset
+		}
+		return full.fail(detail)
+	}
 	start := l.lineStart
 	for l.end-start >= 50 {
 		_, width := utf8.DecodeRuneInString(l.text[start:l.end])

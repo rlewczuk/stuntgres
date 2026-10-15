@@ -13,6 +13,9 @@ func validExpressionUsageAt(view CatalogRead, reader definitionReader, usage sql
 		return false
 	}
 	typ := usage.Type
+	if typ.IsDeferredRecord() {
+		return true
+	}
 	if occurrenceRecordArray(typ) {
 		return validExpressionUsageAt(view, reader, typ.Element().Usage())
 	}
@@ -34,6 +37,9 @@ func recordTypeMapper(leaf func(*sqltype.Descriptor) *sqltype.Descriptor, collat
 	var records map[*sqltype.Descriptor]*sqltype.Descriptor
 	var mapType func(*sqltype.Descriptor) *sqltype.Descriptor
 	mapType = func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		if old.IsDeferredRecord() {
+			return old
+		}
 		if old == nil || !occurrenceRecordArray(old) && (old.ID() != 2249 || !old.IsComposite()) {
 			return leaf(old)
 		}
@@ -99,6 +105,9 @@ func recordTypeMapper(leaf func(*sqltype.Descriptor) *sqltype.Descriptor, collat
 
 func sameRecordUsage(left, right sqltype.Usage) bool {
 	if left == right {
+		return true
+	}
+	if left.Type.IsDeferredRecord() && right.Type.IsDeferredRecord() && left.Typmod == right.Typmod && left.Collation == right.Collation {
 		return true
 	}
 	if occurrenceRecordArray(left.Type) && occurrenceRecordArray(right.Type) {

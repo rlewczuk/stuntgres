@@ -281,6 +281,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties], functions.Random[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeOverlaps[BoundExpr, *EvalContext, ExprProperties],
+		functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties],
 		functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties],
 		functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties],
 		functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties],

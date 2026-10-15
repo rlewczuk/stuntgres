@@ -12,6 +12,26 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node BoundExpr, u sqltype.Usage) (string, error) {
 	switch n := node.(type) {
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		if _, err := n.Reconstruct(n.Info, n.Args); err != nil {
+			return "", err
+		}
+		if n.Plan.ReturnsSet() {
+			return "", fmt.Errorf("stuntgres: stored scalar contains JSON recordset")
+		}
+		parts := make([]string, len(n.Args))
+		for i, arg := range n.Args {
+			text, err := r.sql(ctx, view, arg)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+		}
+		if n.Plan.BaseIndex() == 1 {
+			parts[0] = "from_json => " + parts[0]
+			parts[1] = "base => " + parts[1]
+		}
+		return "pg_catalog." + n.Plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 	case installedSoundexFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Soundex reference")

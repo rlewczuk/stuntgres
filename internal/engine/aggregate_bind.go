@@ -335,6 +335,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || e.Plan.Name() != o.Plan.Name() || e.Plan.BaseIndex() != o.Plan.BaseIndex() || e.Defined != o.Defined || !sameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i, arg := range e.Args {
+			if !same(arg, o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONEach[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan.Name() == o.Plan.Name() && sameRecordUsage(e.ResultUsage(), o.ResultUsage()) && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
@@ -1082,6 +1093,15 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		e.Args = append([]BoundExpr(nil), e.Args...)
+		for i, arg := range e.Args {
+			e.Args[i] = rewrite(arg)
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
@@ -1616,6 +1636,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		walk(e.Args[0])
 	case functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Args[0])
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
+			walk(arg)
+		}
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Args[0])
 	case functions.JSONElements[BoundExpr, *EvalContext, ExprProperties]:

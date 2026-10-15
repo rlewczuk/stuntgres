@@ -52,12 +52,19 @@ type JoinReference struct {
 
 func (*JoinReference) fromItem() {}
 
+// FunctionColumnDefinition retains every declared member and source position.
+// It is distinct from a range alias's optional name-only column renaming.
+type FunctionColumnDefinition struct {
+	Name      Identifier
+	Type      TypeName
+	Collation *ObjectName
+}
+
 type AliasReference struct {
-	Input                FromItem
-	Name                 Identifier
-	Columns              []Identifier
-	HasColumnDefinitions bool
-	ColumnDefinitionType TypeName
+	Input             FromItem
+	Name              Identifier
+	Columns           []Identifier
+	ColumnDefinitions []FunctionColumnDefinition
 }
 
 func (*AliasReference) fromItem() {}

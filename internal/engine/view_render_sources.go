@@ -557,6 +557,13 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
+		if n.Name.Text == "" {
+			alias := v.namespaceAlias(ns)
+			if v.functionSources {
+				return v.functionSourceAlias(from, alias, nil), nil
+			}
+			return v.aliasFrom(from, ns, alias), nil
+		}
 		if v.rowTargets != nil && from.rowSource {
 			from.rowTarget = n.Name.Text
 			from.rowTargetSQL = quoteIdentifier(n.Name.Text)

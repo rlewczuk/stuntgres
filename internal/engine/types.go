@@ -379,6 +379,9 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
+	if unknownNull && d.ID() == 2249 && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 {
+		return sqltype.DeferredRecord().Usage(), nil
+	}
 	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !thresholdArrayInput || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}

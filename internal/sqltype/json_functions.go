@@ -29,9 +29,34 @@ type jsonScanResult struct {
 	extract          *jsonExtraction
 	classify, unique bool
 	duplicate        bool
+	record           *jsonRecordDocument
+	recordName       string
+	recordSet        bool
+	origin           string
+	originOffset     int
 }
 
 func (s *jsonScanResult) checkRoot() error {
+	if s.recordName != "" {
+		if s.recordSet {
+			if s.root == '[' {
+				return nil
+			}
+			kind := "a scalar"
+			if s.root == '{' {
+				kind = "an object"
+			}
+			return failure("22023", "cannot call "+s.recordName+" on "+kind)
+		}
+		if s.root == '{' {
+			return nil
+		}
+		kind := "a scalar"
+		if s.root == '[' {
+			kind = "an array"
+		}
+		return failure("22023", "cannot call populate_composite on "+kind)
+	}
 	if s.extract != nil || s.classify {
 		return nil
 	}

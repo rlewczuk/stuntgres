@@ -15,13 +15,14 @@ func TestJSONEachColumnDefinitionAST(t *testing.T) {
 				t.Fatal(input, statements, err)
 			}
 			alias, ok := statements[0].(*Select).From.(*AliasReference)
-			if !ok || !alias.HasColumnDefinitions || len(alias.Columns) != 3 || alias.ColumnDefinitionType.Name != "text" {
+			if !ok || len(alias.ColumnDefinitions) != 3 || len(alias.Columns) != 0 || alias.ColumnDefinitions[0].Type.Name != "text" {
 				t.Fatal("lost definition list", alias)
 			}
 			for i, name := range []string{"k", "v", "n"} {
 				offset := strings.Index(input, name+" ")
-				if alias.Columns[i].Text != name || alias.Columns[i].Pos.Offset != offset || alias.Columns[i].Pos.Character != utf8.RuneCountInString(input[:offset])+1 {
-					t.Fatal("lost typed-member position", input, alias.Columns[i])
+				member := alias.ColumnDefinitions[i]
+				if member.Name.Text != name || member.Name.Pos.Offset != offset || member.Name.Pos.Character != utf8.RuneCountInString(input[:offset])+1 {
+					t.Fatal("lost typed-member position", input, member)
 				}
 			}
 		}

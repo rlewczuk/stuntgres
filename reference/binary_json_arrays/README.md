@@ -56,6 +56,86 @@ Expected observations: installed ordered aggregate `{2,NULL,2}`; enum rows
 `(2,1),(2,2),(NULL,3)` with explicit ordinality ordering; unordered target bag
 two2+NULL; empty/whole-NULL INT4 schema; prepared inputs; exact bad-signature
 diagnostic; native Dump→Reset→Restore preserves both stored wrapper recipes.
+### JSON record conversion
+
+The `TestReferenceJSONRecord` scenarios independently specify the four JSON
+record functions (not JSONB counterparts): base/missing/explicit-NULL behavior,
+decoded last-key matching, recursive composites and rectangular SQL arrays,
+typed definitions, direct/prepared and same-held execution, lateral/ordinal
+composition, public metadata, stored consumers and late-row write atomicity.
+
+The scenarios specify independent rows, complete public metadata, full English
+diagnostic records and direct/prepare/execute stages.
+Named/domain composites retain logical identity while pq reports an empty
+database type name; anonymous RECORD reports RECORD. Strict scalar SQL NULL
+bypasses anonymous descriptor demand, but non-NULL anonymous scalar calls fail
+at execution. Anonymous populate ROW fields match their original f1/f2 names
+even when a FROM definition list renames the output. Missing RECORD-typed
+members are accepted as SQL NULL. Populate accepts and reorders base/from_json
+named arguments; to-record does not accept the from_json name.
+
+The same regression bodies run on every available backend. The
+`Discovery`-named entrypoints retain the descriptor/domain/definition contracts.
+Native domain NOT NULL declaration failures are explicitly asserted; shared
+CHECK(VALUE IS NOT NULL) cases exercise actual NULL constraint enforcement.
+Real PostgreSQL retains the separate genuine NOT NULL conversion witnesses.
+
+Descriptors also pins runtime anonymous-row layout mismatches and contextual
+`NULL::record` success. Its shared direct/prepared scan-order matrix checks
+earlier field errors versus later Unicode or shape errors, whole-object decoding
+before conversion, non-object first-token decoding, and full-document multiline
+Context. The shared `output-layout` matrix pins accepted TEXT/VARCHAR binary
+reconciliation, declared VARCHAR metadata despite output typmod differences,
+original ROW conversion names/typmods and NULL fields. BPCHAR-to-TEXT and numeric
+assignment casts remain incompatible; one-member width diagnostics use singular
+wording. No temporary observation guard or deliberately failing probe remains.
+PostgreSQL-only `pg_typeof` identity witnesses are separate from the explicit
+native inquiry boundary; shared native cases inspect actual typed results,
+metadata, coercion and domain checks without adding an inquiry provider.
+
+```sh
+make check RUN='^TestReferenceJSONRecordDiscovery(Domains|Descriptors|Definitions)$' REFERENCE=1
+make check RUN='^TestReferenceJSONRecord(Values|Nested|Grammar)$' REFERENCE=1
+make check RUN='^TestReferenceJSONRecord(Metadata|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceJSONRecord(Held|Composition|Consumers)$' REFERENCE=1
+make check RUN='^TestReferenceJSONRecord(Controls|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceJSONRecord(Held|Controls|Cancellation)$' RACE=1
+make check RUN='^TestJSONRecord(Plan|Conversion|Ownership|Cancellation|Expression|Parser|Binding|Remap)$'
+```
+
+The first selector checks domain-over-composite identity/NULL checks,
+anonymous scalar/FROM descriptors and ordinary-signature versus typed-list,
+member-count and ordinality diagnostic precedence. The remaining selectors
+check conversion/grammar constants, every public pre-iteration metadata field,
+full diagnostic records and prepare/execute stages, then same-held
+recovery, mixed-width padding, per-left ordinal reset and persistent consumers.
+`REFERENCE=1` adds the existing pinned release fixture, not a local server.
+Run the same reference selectors without `REFERENCE=1` for native proof.
+Controls exercise real native Dump/Reset/Restore, independent target ownership,
+retained cursors/metadata, failed/canceled staged replacement and actual unmodified
+dump replay on PostgreSQL. Restored rows, typed views, metadata, domain CHECKs and
+fresh writes are independently asserted; incidental dump strings are not compared.
+The existing Restore query-source whitelist rejection is asserted separately
+from a genuine allowed `INSERT VALUES` replay with a good earlier tuple and a
+bad later typed composite field. Both retain the independently specified state.
+PostgreSQL also witnesses type renaming; native asserts the existing unsupported
+rename syntax and unchanged original type/view, while fresh-driver Restore
+provides the actual native ownership/remapping witness.
+Cancellation waits for real processing/server
+admission, joins SELECT/INSERT workers, preserves the sentinel and recovers on
+the same owner and held statements. The feature smoke combines all four calls,
+nested values, pre-iteration metadata, same-held recovery, mixed-width ordinality,
+late-row atomicity and the actual control/replay path.
+
+```sh
+make check RUN='^TestReferenceJSONRecordFeatureSmoke$'
+make check RUN='^TestReferenceJSONRecordFeatureSmoke$' REFERENCE=1
+```
+
+Expected smoke values include `1`, `{2,"a b"}`, `(4,"a b c")`; held `(2,keep)`
+then `(7,NULL)` and recovery; ordinal rows `(1,NULL,10,1)`, `(2,NULL,11,2)`,
+`(NULL,NULL,12,3)`; unchanged sentinel after a bad later row; and independently
+specified restored view/composite values on native and the actual PG replay.
 
 ### JSONB containment
 

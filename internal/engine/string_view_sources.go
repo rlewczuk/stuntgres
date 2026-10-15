@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 )
 
@@ -27,6 +28,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog Catal
 	}
 	calls := parser.NormalizedFunctionCalls(raw)
 	texts := make([]string, len(calls))
+	hasDefinitions := false
 	for i, call := range calls {
 		path := viewLiteralPath{clause: viewFunctionLiteral, target: root.viewOrdinal + i}
 		if root.regexpNamespace {
@@ -36,10 +38,31 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog Catal
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
+		if record, ok := root.calls[i].(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]); ok && record.Defined {
+			shape := record.ResultUsage().Type
+			members := make([]string, shape.CompositeLen())
+			for j := range members {
+				member := shape.CompositeMember(j)
+				declaration, err := catalogTypeDeclaration(catalog, member.Usage)
+				if err != nil {
+					return viewRenderFrom{}, err
+				}
+				members[j] = v.presentation.identifier(member.Name) + " " + declaration
+				if member.Usage.Collation.ID != 0 {
+					name := collationSQLName(catalog, member.Usage.Collation.ID)
+					if name == "" {
+						return viewRenderFrom{}, fmt.Errorf("stuntgres: missing record member collation")
+					}
+					members[j] += " COLLATE " + name
+				}
+			}
+			text += " AS (" + strings.Join(members, ", ") + ")"
+			hasDefinitions = true
+		}
 		texts[i] = text
 	}
 	text := texts[0]
-	if raw.RowsFrom || len(calls) > 1 {
+	if raw.RowsFrom || len(calls) > 1 || hasDefinitions {
 		text = "ROWS FROM (" + strings.Join(texts, ", ") + ")"
 	}
 	if raw.Ordinality {

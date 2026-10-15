@@ -195,6 +195,33 @@ JSONB storage does not itself imply GIN or additional JSON processing providers.
 JSONPath retains an immutable typed representation; typed input alone does not
 provide a general path evaluator.
 
+JSON record conversion uses declared field usages rather than text-only record
+payloads. The four JSON populate/to-record functions decode keys exactly and
+convert only the last duplicate member in descriptor order. Objects recursively
+populate composites; JSON arrays become rectangular SQL arrays with lower bounds
+1, and empty nested arrays canonicalize to the zero-dimensional empty array.
+Strings supply decoded contents to scalar/array/composite input codecs, except
+JSON/JSONB fields which receive a JSON string value. Other scalar input retains
+the JSON token's textual spelling. Explicit JSON null becomes SQL NULL, even in
+a JSON field. Missing fields retain an existing base field or use typed NULL;
+table DEFAULT, CHECK and NOT NULL declarations are not inherited by a row type.
+Conversion-destination typmods and supported domain CHECKs remain authoritative, including
+fresh NULL/array/composite construction. Domain-over-composite results retain
+logical identity. Unresolved RECORD can transport SQL NULL without pretending
+to be an executable zero-field record. A typed FROM definition can supply that
+deferred shape. Anonymous populate ROW values retain their original conversion
+descriptor and typmods. Output definitions must have the same width and accept
+the returned fields by directional implicit binary compatibility, not arbitrary
+assignment coercion. Accepted fields receive the declared output identity without
+re-input, sizing or truncation: TEXT `long` can be returned through VARCHAR(2)
+while metadata still advertises length 2. The original conversion descriptor's
+VARCHAR limits remain enforced before this output-only reconciliation.
+Native composite carriers are owned strings; pq reports unknown named-composite
+OIDs with an empty database type name, and anonymous RECORD with `RECORD`.
+These logical result identities do not add an executable native `pg_typeof`
+provider.
+
+
 JSONB containment `@>`/`<@` compares immutable structural nodes and returns
 BOOL with unknown computed nullability. Object keys match at the same depth;
 arrays ignore order/duplicates with an immediate primitive-membership exception,

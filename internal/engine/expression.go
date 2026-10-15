@@ -939,6 +939,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.Args = []BoundExpr{arg}
 		}
 		return e, changed, err
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		var args []BoundExpr
+		for i, old := range e.Args {
+			arg, changed, err := preflightCoercionsWithPolicy(c, old, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.Args...)
+				}
+				args[i] = arg
+			}
+		}
+		if args != nil {
+			e.Args = args
+		}
+		return e, args != nil, nil
 	case functions.JSONEach[BoundExpr, *EvalContext, ExprProperties]:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Args[0], decisiveDefaults)
 		if changed {
@@ -2968,7 +2986,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if target.Type.ID() == sqltype.Regclass {
 		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
-	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
+	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !target.Type.IsDeferredRecord() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
 	if unsupportedTarget && !b.datetimeZoneOperands {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
@@ -3024,6 +3042,10 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	// locations, captured identities and child effects remain authoritative.
 	child, annotations := domainCoercionInput(child, target)
 	source := child.ResultUsage()
+	if unknownNull && target.Type.IsDeferredRecord() && source == target {
+		// This is NULL transport, not a general RECORD cast/coercion edge.
+		return child, nil
+	}
 	if outerPolicy.stringInput && target.Type.ID() == sqltype.Char && source == target {
 		// The literal/input path already applied the CHAR codec. Retain that
 		// resolved datum without admitting CHAR to general explicit coercion.

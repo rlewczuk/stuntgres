@@ -2338,9 +2338,26 @@ rows with complete metadata; arrays/scalars use PostgreSQL English 22023
 diagnostics without runtime cursor positions. Function aliases, record fields,
 target zip/padding, multi-column ROWS FROM padding, ordinality, lateral sources,
 held statements and stored/native replay use the ordinary query pipeline.
-Only named argument `from_json` is admitted. Record-population functions and
-general table functions remain excluded.
+Only named argument `from_json` is admitted. General table functions remain
+excluded.
 Feature smoke: `make check RUN='^TestReferenceJSONEachFeatureSmoke$'`;
+pinned counterpart: add `REFERENCE=1` to the identical selector.
+
+Change note: `json_populate_record`, `json_populate_recordset`, `json_to_record`
+and `json_to_recordset` convert JSON objects into named composites or explicitly
+typed FROM records. Missing members retain a non-NULL base's values, otherwise
+become typed SQL NULL; these are base-value defaults, not table DEFAULTs.
+Explicit JSON null overrides a base. Decoded keys match exactly, the final
+duplicate wins, and nested objects/rectangular SQL arrays use destination codecs,
+typmods and supported domain CHECKs. Physical table constraints are not inherited
+by its row type. Scalar calls retain one composite cell/expanded FROM row;
+recordsets yield zero rows for SQL NULL or empty arrays. Typed AS lists retain
+every member type and work per member inside ROWS FROM, including ordinality.
+Held statements, metadata before iteration, stored expressions and native owned
+state use the ordinary query and replay paths. The four functions are STABLE,
+not immutable generated-column/index expressions. JSONB counterparts and general
+table functions remain outside this selection.
+Feature smoke: `make check RUN='^TestReferenceJSONRecordFeatureSmoke$'`;
 pinned counterpart: add `REFERENCE=1` to the identical selector.
 
 Change note: `jsonb_each(jsonb)` and `jsonb_each_text(jsonb)` expand immediate

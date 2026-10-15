@@ -78,12 +78,14 @@ const (
 	functionMultirangeCursor
 	functionArrayCursor
 	functionNumericSeriesCursor
+	functionJSONRecordCursor
 )
 
 type functionSetCursor struct {
 	cursor                 sqltype.StringFieldCursor
 	keys                   sqltype.JSONKeyCursor
 	each                   sqltype.JSONEachCursor
+	record                 sqltype.JSONRecordCursor
 	binaryElements         sqltype.JSONBElementCursor
 	members                sqltype.MultirangeCursor
 	elements               sqltype.JSONElementsCursor
@@ -119,6 +121,9 @@ func (s *functionSetCursor) close() {
 	}
 	if s.initialized && s.kind == functionNumericSeriesCursor {
 		s.numericSeries.Close()
+	}
+	if s.initialized && s.kind == functionJSONRecordCursor {
+		s.record.Close()
 	}
 	s.owned = nil
 	s.array = sqltype.Value{}
@@ -189,6 +194,30 @@ func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInv
 }
 func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
 	switch call := expression.(type) {
+	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if !call.Plan.ReturnsSet() {
+			value, err := call.Eval(c)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
+		}
+		var values [2]sqltype.Value
+		for i, arg := range call.Args {
+			value, err := arg.Eval(c)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			values[i] = value
+		}
+		cursor, err := call.Plan.Open(c.Context, values[:len(call.Args)], c.FunctionInput())
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{record: cursor, kind: functionJSONRecordCursor, initialized: true}, nil
 	case seriesExpression:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
@@ -521,6 +550,8 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 		value, present, err = s.keys.Next(ctx)
 	} else if s.kind == functionJSONEachCursor {
 		value, present, err = s.each.Next(ctx)
+	} else if s.kind == functionJSONRecordCursor {
+		value, present, err = s.record.Next(ctx)
 	} else if s.kind == functionJSONBElementsCursor {
 		value, present, err = s.binaryElements.Next(ctx)
 	} else if s.kind == functionMultirangeCursor {

@@ -8,6 +8,9 @@ import (
 
 func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if jsonRecordFunction(name) {
+		return b.bindJSONRecord(raw, visible)
+	}
 	var operand functions.Argument[BoundExpr]
 	var singleName [1]string
 	var names []string
