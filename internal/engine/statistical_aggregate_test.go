@@ -23,19 +23,36 @@ func TestStatisticalAggregateSlotsAndMetadata(t *testing.T) {
 			t.Fatal("moment metadata", i, c)
 		}
 	}
+	_, selected, selectedSource := queryCoreFixture(t, "SELECT corr(2,1),covar_pop(2,1),covar_samp(2,1),regr_avgx(2,1),regr_avgy(2,1),regr_count(2,1),regr_intercept(2,1),regr_r2(2,1) FROM t")
+	defer selectedSource.close()
+	for i, c := range selected.Root.Schema() {
+		want := sqltype.Float8
+		if i == 5 {
+			want = sqltype.Int8
+		}
+		if c.Usage.Type.ID() != want || c.Usage.Typmod != -1 || c.Nullable != (i != 5) || !c.NullabilityKnown || c.OriginTable != 0 || c.OriginAttribute != 0 {
+			t.Fatal("paired statistic metadata", i, c)
+		}
+	}
 }
 
 func TestStatisticalAggregateViewRemapping(t *testing.T) {
 	source, destination := New(), New()
 	ctx := context.Background()
-	for _, regression := range []bool{false, true} {
+	for _, final := range []int{-1, int(sqltype.RegressionSlope), int(sqltype.RegressionSxx), int(sqltype.RegressionSxy), int(sqltype.RegressionSyy),
+		int(sqltype.RegressionCorr), int(sqltype.RegressionCovarPop), int(sqltype.RegressionCovarSamp), int(sqltype.RegressionAvgx),
+		int(sqltype.RegressionAvgy), int(sqltype.RegressionIntercept), int(sqltype.RegressionR2), -2} {
 		input, _ := source.CatalogRead().LookupType(sqltype.Numeric)
 		result := input
 		var provider aggregateProvider = functions.NewStatisticalAggregate(input, result.Usage(), true, true)
-		if regression {
+		if final >= 0 {
 			input, _ = source.CatalogRead().LookupType(sqltype.Float8)
 			result = input
-			provider = functions.NewRegressionAggregate(input, result.Usage(), sqltype.RegressionSlope)
+			provider = functions.NewRegressionAggregate(input, result.Usage(), sqltype.RegressionOperation(final))
+		} else if final == -2 {
+			input, _ = source.CatalogRead().LookupType(sqltype.Float8)
+			result, _ = source.CatalogRead().LookupType(sqltype.Int8)
+			provider = functions.NewRegressionCountAggregate(input, result.Usage())
 		}
 		node := &aggregateNode{child: &singletonNode{}, calls: []aggregateCall{{provider: provider}}}
 		mapped, err := remapViewQuery(destination.CatalogRead(), node, func(ref ObjectRef) ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -70,8 +87,14 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 		}
 		text, err := v.Type().Output(ctx, v)
 		want := "1.4142135623730950"
-		if regression {
-			want = "1"
+		if final >= 0 {
+			want = map[sqltype.RegressionOperation]string{
+				sqltype.RegressionSlope: "1", sqltype.RegressionSxx: "2", sqltype.RegressionSxy: "2", sqltype.RegressionSyy: "2",
+				sqltype.RegressionCorr: "1", sqltype.RegressionCovarPop: "1", sqltype.RegressionCovarSamp: "2",
+				sqltype.RegressionAvgx: "2", sqltype.RegressionAvgy: "2", sqltype.RegressionIntercept: "0", sqltype.RegressionR2: "1",
+			}[sqltype.RegressionOperation(final)]
+		} else if final == -2 {
+			want = "2"
 		}
 		if err != nil || text != want {
 			t.Fatal(text, want, err)
@@ -80,7 +103,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 }
 
 func TestStatisticalAggregateEagerCancellation(t *testing.T) {
-	for _, call := range []string{"var_pop(1::numeric)", "stddev_pop(1::numeric)", "var_samp(1::double precision)", "regr_sxx(2,1)"} {
+	for _, call := range []string{"var_pop(1::numeric)", "stddev_pop(1::numeric)", "var_samp(1::double precision)", "regr_sxx(2,1)", "regr_intercept(2,1)", "regr_count(2,1)"} {
 		for _, phase := range []string{"advance", "finalize", "prepublication"} {
 			_, q, source := queryCoreFixture(t, "SELECT "+call+" FROM t")
 			project := q.Root.(*projectNode)

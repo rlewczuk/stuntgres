@@ -6,6 +6,68 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Correlation, covariance and regression finalizers
+
+The untagged `correlation_regression*_test.go` definitions cover exactly `corr`,
+`covar_pop`, `covar_samp`, `regr_avgx`, `regr_avgy`, `regr_count`,
+`regr_intercept` and `regr_r2`. Arguments are Y then X, independently coerced to
+FLOAT8; only complete non-NULL pairs contribute. Seven results are nullable
+FLOAT8; `regr_count` is exact INT8 and returns nonnullable zero for no pairs.
+
+`Values` specifies known/negative/large-offset vectors, singleton and constant
+axes, excluded pairs, empty metadata, all six numeric input coercions, full-pair
+DISTINCT, FILTER/ALL, grouping/HAVING, quoted/qualified names and SAME-held
+unknown parameters. `Boundaries` specifies imperfect-relation tolerance,
+released nonfinite branch ordering, unused-axis average overflow and count
+independence from huge/nonfinite moment payloads. `Diagnostics` checks complete
+portable error fields, character positions, prepare/execute staging, generated
+expression and native window boundaries, argument demand and FILTER rejection.
+`Lifecycle` and `FeatureSmoke` share bounded acceptance/control helpers: all
+eight known results, empty zero-count, both constant axes, SAME-held freshness,
+successful INSERT affected counts, native retained results and symbolic-view
+Dump/Reset/Restore, then late-overflow INSERT atomicity. Inherited statistical
+cancellation and replacement machinery remains in its existing scenarios.
+
+The known `(3,1),(5,2),(7,3)` vector in the order above is
+`1,4/3,2,2,5,3,1,1`. No pairs yield seven NULLs and exact count0.
+Constant X makes correlation/intercept/r² NULL; varying X with constant Y makes
+intercept equal Y and r²1, while correlation remains NULL. Named nonexact
+mathematical witnesses use SQL intervals with
+`abs(actual-expected) <= 1e-12*max(1,abs(expected))`; other raw numeric cells,
+NULL, counts, metadata and diagnostics retain exact fixture comparisons.
+No global approximate comparator or floating accumulation-order promise is added.
+
+Root runs these selected commands under an external 900-second deadline,
+oracle-first during discovery and both modes for completed definitions:
+
+```sh
+make check RUN='^TestReferenceCorrelationRegression(Values|Boundaries|Diagnostics|Lifecycle|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceCorrelationRegression(Values|Boundaries|Diagnostics|Lifecycle|FeatureSmoke)$'
+make check RUN='^TestReferenceCorrelationRegressionFeatureSmoke$'
+make check RUN='^TestReferenceCorrelationRegressionFeatureSmoke$' REFERENCE=1
+```
+
+The metadata helper's INT8 branch also requires the existing statistical
+definitions to run in both modes after this change:
+`make check RUN='^TestReferenceStatisticalAggregate'` and the same command with
+`REFERENCE=1`. Native controls remain explicit native-only phases; real
+PostgreSQL has independently expected SQL outcomes, not invented control APIs.
+
+Bounded private supplements reuse the existing statistical suites:
+`TestStatisticalAggregateRegressionFinalizers` checks released finalizer branch
+precedence and repeatable nonmutating results;
+`TestStatisticalAggregateRegressionCount` checks both descriptor owners, typed
+NULL admission, exact increments above2^53 and through MaxInt64, full overflow
+diagnostics/state retention, cancellation and allocation-free Advance.
+`TestStatisticalAggregateSlotsAndMetadata`, `TestStatisticalAggregateViewRemapping`,
+`TestStatisticalAggregateWindowSignatures` and
+`TestStatisticalAggregateEagerCancellation` cover the new result owner and
+nonnullable metadata, destination reconstruction, signature-only window boundary
+and deterministic Advance/Finalize/prepublication cancellation.
+Root's selected private proof:
+`make check RUN='^TestStatisticalAggregate'`; selected race proof:
+`make check RUN='^(TestStatisticalAggregateRegressionCount|TestStatisticalAggregateEagerCancellation|TestReferenceCorrelationRegressionLifecycle)$' RACE=1`.
+
 ### Regression moments, variance and standard deviation
 
 The untagged `statistical_aggregate*_test.go` scenarios independently specify

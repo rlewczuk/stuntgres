@@ -8,13 +8,19 @@ import (
 
 func statisticalAggregateName(name string) bool {
 	switch name {
-	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy":
+	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
+		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":
 		return true
 	}
 	return false
 }
 func regressionAggregateName(name string) bool {
-	return name == "regr_slope" || name == "regr_sxx" || name == "regr_sxy" || name == "regr_syy"
+	switch name {
+	case "regr_slope", "regr_sxx", "regr_sxy", "regr_syy", "corr", "covar_pop", "covar_samp",
+		"regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":
+		return true
+	}
+	return false
 }
 
 func (b *expressionBinder) bindStatisticalAggregate(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
@@ -48,7 +54,10 @@ func (b *expressionBinder) bindStatisticalAggregate(raw parser.AggregateExpr, na
 	}
 	var provider aggregateProvider
 	var operation aggregateOperation
-	if regressionAggregateName(raw.Name) {
+	if raw.Name == "regr_count" {
+		operation = aggregateRegrCount
+		provider = functions.NewRegressionCountAggregate(b.typ(sqltype.Float8), usage)
+	} else if regressionAggregateName(raw.Name) {
 		final := sqltype.RegressionSlope
 		switch raw.Name {
 		case "regr_sxx":
@@ -57,6 +66,20 @@ func (b *expressionBinder) bindStatisticalAggregate(raw parser.AggregateExpr, na
 			final = sqltype.RegressionSxy
 		case "regr_syy":
 			final = sqltype.RegressionSyy
+		case "corr":
+			final = sqltype.RegressionCorr
+		case "covar_pop":
+			final = sqltype.RegressionCovarPop
+		case "covar_samp":
+			final = sqltype.RegressionCovarSamp
+		case "regr_avgx":
+			final = sqltype.RegressionAvgx
+		case "regr_avgy":
+			final = sqltype.RegressionAvgy
+		case "regr_intercept":
+			final = sqltype.RegressionIntercept
+		case "regr_r2":
+			final = sqltype.RegressionR2
 		}
 		operation = aggregateRegrSlope + aggregateOperation(final)
 		provider = functions.NewRegressionAggregate(b.typ(sqltype.Float8), usage, final)
@@ -98,6 +121,9 @@ func (b *expressionBinder) resolveStatisticalSignature(raw parser.AggregateExpr,
 		return args, sqltype.Usage{}, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
 	result := b.typ(sqltype.Float8)
+	if raw.Name == "regr_count" {
+		result = b.typ(sqltype.Int8)
+	}
 	for i, o := range operands {
 		typ := o.descriptor()
 		if arity == 2 {

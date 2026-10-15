@@ -220,3 +220,47 @@ func TestStatisticalAggregateFloatRegression(t *testing.T) {
 		t.Fatal("regression must multiply by reciprocal, not divide", got, err)
 	}
 }
+
+func TestStatisticalAggregateRegressionFinalizers(t *testing.T) {
+	d := testTypes()[Float8]
+	nan := math.NaN()
+	for _, tc := range []struct {
+		name  string
+		state FloatRegressionState
+		want  [7]float64
+		null  [7]bool
+	}{
+		{"empty", FloatRegressionState{}, [7]float64{}, [7]bool{true, true, true, true, true, true, true}},
+		{"singleton", FloatRegressionState{n: 1, sx: 2, sy: 7}, [7]float64{0, 0, 0, 2, 7, 0, 0}, [7]bool{true, false, true, false, false, true, true}},
+		{"constant x", FloatRegressionState{n: 3, sx: 6, sy: 12, syy: 8}, [7]float64{0, 0, 0, 2, 4, 0, 0}, [7]bool{true, false, false, false, false, true, true}},
+		{"constant y", FloatRegressionState{n: 3, sx: 6, sxx: 2, sy: 6}, [7]float64{0, 0, 0, 2, 2, 2, 1}, [7]bool{true}},
+		{"known", FloatRegressionState{n: 3, sx: 6, sxx: 2, sy: 15, syy: 8, sxy: 4}, [7]float64{1, 4.0 / 3, 2, 2, 5, 1, 1}, [7]bool{}},
+		{"nonfinite x", FloatRegressionState{n: 1, sx: math.Inf(1), sxx: nan, sy: 1, sxy: nan}, [7]float64{0, nan, 0, math.Inf(1), 1, nan, 1}, [7]bool{true, false, true}},
+		{"nonfinite y", FloatRegressionState{n: 1, sx: 1, sy: math.Inf(1), syy: nan, sxy: nan}, [7]float64{0, nan, 0, 1, math.Inf(1), 0, 0}, [7]bool{true, false, true, false, false, true, true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := tc.state
+			for i, op := range []RegressionOperation{RegressionCorr, RegressionCovarPop, RegressionCovarSamp, RegressionAvgx, RegressionAvgy, RegressionIntercept, RegressionR2} {
+				for range 2 {
+					v, err := tc.state.Result(d, op)
+					if err != nil || v.IsNull() != tc.null[i] {
+						t.Fatal(op, v, err)
+					}
+					if !v.IsNull() {
+						got, err := v.Float()
+						if err != nil || !(got == tc.want[i] || math.IsNaN(got) && math.IsNaN(tc.want[i])) {
+							t.Fatal(op, got, tc.want[i], err)
+						}
+					}
+				}
+			}
+			// Compare bits because NaN is intentionally not equal to itself.
+			after := tc.state
+			for i, value := range [6]float64{after.n, after.sx, after.sxx, after.sy, after.syy, after.sxy} {
+				if math.Float64bits(value) != math.Float64bits([6]float64{before.n, before.sx, before.sxx, before.sy, before.syy, before.sxy}[i]) {
+					t.Fatal("finalization mutated state")
+				}
+			}
+		})
+	}
+}

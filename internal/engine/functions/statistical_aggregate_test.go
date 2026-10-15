@@ -2,6 +2,9 @@ package functions
 
 import (
 	"context"
+	"errors"
+	"math"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
@@ -133,5 +136,101 @@ func TestStatisticalAggregateProviderCancellation(t *testing.T) {
 				t.Fatal("canceled finalization poisoned state", err)
 			}
 		}
+	}
+}
+
+func TestStatisticalAggregateRegressionCount(t *testing.T) {
+	ctx := context.Background()
+	types := numericUnitTypes()
+	d, result := types[sqltype.Float8], types[sqltype.Int8]
+	p := NewRegressionCountAggregate(d, result.Usage())
+	state, err := p.Init(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	isolated, err := p.Init(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCount := func(state any, want int64) {
+		t.Helper()
+		for range 2 {
+			v, err := p.Finalize(ctx, state)
+			n, readErr := v.Integer()
+			if err != nil || readErr != nil || v.IsNull() || v.Type() != result || n != want {
+				t.Fatal("pair count", v, want, err, readErr)
+			}
+		}
+	}
+	assertCount(state, 0)
+	one, _ := sqltype.Float(d, 1)
+	for _, pair := range [][2]sqltype.Value{{sqltype.Null(d), one}, {one, sqltype.Null(d)}, {sqltype.Null(d), sqltype.Null(d)}} {
+		if err := p.Advance(ctx, state, pair[0], pair[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertCount(state, 0)
+	foreign, _ := sqltype.Float(numericUnitTypes()[sqltype.Float8], 1)
+	for _, pair := range [][2]sqltype.Value{{foreign, one}, {one, foreign}, {sqltype.Null(d), foreign}, {foreign, sqltype.Null(d)}, {{}, one}, {one, {}}} {
+		if err := p.Advance(ctx, state, pair[0], pair[1]); err == nil {
+			t.Fatal("invalid descriptor accepted")
+		}
+	}
+	for _, bad := range []any{nil, struct{}{}, (*countState)(nil)} {
+		if err := p.Advance(ctx, bad, one, one); err == nil {
+			t.Fatal("invalid advance state accepted")
+		}
+		if v, err := p.Finalize(ctx, bad); err == nil || v.Type() != nil {
+			t.Fatal("invalid final state published", err)
+		}
+	}
+	for _, number := range []float64{1e308, math.Inf(1), math.NaN()} {
+		v, _ := sqltype.Float(d, number)
+		if err := p.Advance(ctx, state, v, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertCount(state, 3)
+	assertCount(isolated, 0)
+	s := state.(*countState)
+	s.count = 1 << 53
+	if err := p.Advance(ctx, state, one, one); err != nil {
+		t.Fatal(err)
+	}
+	assertCount(state, 9007199254740993)
+	s.count = math.MaxInt64 - 1
+	if err := p.Advance(ctx, state, one, one); err != nil {
+		t.Fatal(err)
+	}
+	assertCount(state, math.MaxInt64)
+	var diagnostic *sqlstate.Error
+	if err := p.Advance(ctx, state, one, one); !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "bigint out of range"}) {
+		t.Fatal(err)
+	}
+	assertCount(state, math.MaxInt64)
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if value, err := p.Init(canceled); err != context.Canceled || value != nil {
+		t.Fatal("canceled init", value, err)
+	}
+	if err := p.Advance(canceled, state, one, one); err != context.Canceled {
+		t.Fatal("canceled advance", err)
+	}
+	if value, err := p.Finalize(canceled, state); err != context.Canceled || value.Type() != nil {
+		t.Fatal("canceled finalization", value, err)
+	}
+	assertCount(state, math.MaxInt64)
+	// Cancellation after reading the result must still publish no value.
+	probe := &avgCheckContext{Context: ctx, cancelAt: 3}
+	if value, err := p.Finalize(probe, state); err != context.Canceled || value.Type() != nil {
+		t.Fatal("post-work cancellation", value, err)
+	}
+	s.count = 0
+	if allocations := testing.AllocsPerRun(100, func() {
+		if err := p.Advance(ctx, state, one, one); err != nil {
+			panic(err)
+		}
+	}); allocations != 0 {
+		t.Fatal("pair count advance allocations", allocations)
 	}
 }

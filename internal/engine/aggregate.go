@@ -63,6 +63,14 @@ const (
 	aggregateRegrSxx
 	aggregateRegrSxy
 	aggregateRegrSyy
+	aggregateCorr
+	aggregateCovarPop
+	aggregateCovarSamp
+	aggregateRegrAvgx
+	aggregateRegrAvgy
+	aggregateRegrIntercept
+	aggregateRegrR2
+	aggregateRegrCount
 )
 
 type aggregateCall struct {

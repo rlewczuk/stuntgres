@@ -5,7 +5,7 @@ import (
 	"math"
 )
 
-// RegressionOperation identifies only the four supported PostgreSQL finalizers.
+// RegressionOperation identifies PostgreSQL floating regression finalizers.
 type RegressionOperation uint8
 
 const (
@@ -13,6 +13,13 @@ const (
 	RegressionSxx
 	RegressionSxy
 	RegressionSyy
+	RegressionCorr
+	RegressionCovarPop
+	RegressionCovarSamp
+	RegressionAvgx
+	RegressionAvgy
+	RegressionIntercept
+	RegressionR2
 )
 
 // FloatRegressionState is REL_18_0's six-field Youngs-Cramer state, not the
@@ -74,7 +81,7 @@ func (s *FloatRegressionState) Add(y, x Value) error {
 }
 
 func (s *FloatRegressionState) Result(d *Descriptor, operation RegressionOperation) (Value, error) {
-	if s == nil || d == nil || d.id != Float8 || operation > RegressionSyy {
+	if s == nil || d == nil || d.id != Float8 || operation > RegressionR2 {
 		return Value{}, fmt.Errorf("invalid regression descriptor, operation or state")
 	}
 	if s.n == 0 {
@@ -93,6 +100,36 @@ func (s *FloatRegressionState) Result(d *Descriptor, operation RegressionOperati
 		result = s.sxy
 	case RegressionSyy:
 		result = s.syy
+	case RegressionCorr:
+		if s.sxx == 0 || s.syy == 0 {
+			return Null(d), nil
+		}
+		result = s.sxy / math.Sqrt(float64(s.sxx*s.syy))
+	case RegressionCovarPop:
+		result = s.sxy / s.n
+	case RegressionCovarSamp:
+		if s.n < 2 {
+			return Null(d), nil
+		}
+		result = s.sxy / (s.n - 1)
+	case RegressionAvgx:
+		result = s.sx / s.n
+	case RegressionAvgy:
+		result = s.sy / s.n
+	case RegressionIntercept:
+		if s.sxx == 0 {
+			return Null(d), nil
+		}
+		result = (s.sy - float64(s.sx*s.sxy)/s.sxx) / s.n
+	case RegressionR2:
+		if s.sxx == 0 {
+			return Null(d), nil
+		}
+		if s.syy == 0 {
+			result = 1
+		} else {
+			result = float64(s.sxy*s.sxy) / float64(s.sxx*s.syy)
+		}
 	}
 	return Float(d, result)
 }

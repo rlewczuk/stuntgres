@@ -392,7 +392,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				result.Nullable, result.NullabilityKnown = false, false
 			default:
 				result.NullabilityKnown = true
-				result.Nullable = operation != aggregateCount
+				result.Nullable = operation != aggregateCount && operation != aggregateRegrCount
 			}
 		}
 		if window, ok := expr.(*windowExpression); ok {

@@ -114,7 +114,7 @@ remain explicit in [driver contracts](DRIVER.md).
 
 ## Statistical aggregates
 
-The six variance/stddev names and four selected regression names are ordinary
+The six variance/stddev names and twelve bivariate statistics names are ordinary
 aggregates; see [query execution](QUERIES.md#blocking-stages-bounds-and-shared-producers).
 Integer/NUMERIC unary moments use exact sums and squares, released decimal
 division precision and same-scale square-root rounding, not binary64 conversion.
@@ -125,10 +125,21 @@ unordered floating accumulation order. Finite float overflow raises22003
 `value overflows numeric format`. Admitted nonfinite inputs yield NaN moments,
 subject to empty/sample-singleton and axis-specific regression rules.
 Regression inputs are Y first, X second, one DOUBLE PRECISION signature.
-`stddev` and `variance` are sample aliases with their own labels. All result
-metadata is nullable and unconstrained; native restoration remaps provider
-ownership. Statistical grouping remains serial and statistical windows remain
-outside the existing native window capability.
+The bivariate set includes `regr_slope`, `regr_sxx`, `regr_sxy`, `regr_syy`,
+`corr`, `covar_pop`, `covar_samp`, `regr_avgx`, `regr_avgy`, `regr_count`,
+`regr_intercept` and `regr_r2`. Both inputs independently coerce to FLOAT8 and
+only complete non-NULL pairs contribute. Floating averages retain both axes'
+moment overflow checks. Count instead uses checked exact INT8 arithmetic without
+moment evaluation, returning zero for no pairs. Other empty outputs are NULL;
+sample covariance requires two pairs, correlation requires nonzero variance on
+both axes, and intercept/r² require nonzero X variance. With varying X and
+constant Y, intercept is Y and r² is1.
+`stddev` and `variance` are sample aliases with their own labels. Metadata is
+typmod -1 with zero physical origin; only pair count is known nonnullable.
+Named approximate floating witnesses use relative/absolute tolerance
+`1e-12*max(1,abs(expected))`, never approximate counts, NULLs or diagnostics.
+Native restoration remaps input/result ownership. Statistical grouping remains
+serial and statistical windows remain outside the existing native window capability.
 
 ## Parallel execution
 

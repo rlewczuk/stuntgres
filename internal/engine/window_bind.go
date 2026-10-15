@@ -326,7 +326,8 @@ func (b *expressionBinder) resolveWindowAggregateSignature(raw parser.AggregateE
 				usage = b.typ(sqltype.Float8).Usage()
 			}
 		}
-	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy":
+	case "var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
+		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2":
 		var args [2]BoundExpr
 		args, usage, err = b.resolveStatisticalSignature(raw, name, operands, types)
 		arg = args[0]

@@ -49,6 +49,9 @@ func statisticalMetadata(pg bool, types []string) func(*testing.T, *sql.Rows) {
 		}
 		for i, c := range columns {
 			want := reflect.TypeOf(float64(0))
+			if types[i] == "INT8" {
+				want = reflect.TypeOf(int64(0))
+			}
 			if types[i] == "NUMERIC" {
 				want = reflect.TypeOf("")
 				if pg {
@@ -69,7 +72,7 @@ func statisticalMetadata(pg bool, types []string) func(*testing.T, *sql.Rows) {
 			} else if precision != 0 || scale != 0 || ok {
 				t.Errorf("DecimalSize %d/%d/%v", precision, scale, ok)
 			}
-			if nullable, known := c.Nullable(); nullable != !pg || known != !pg {
+			if nullable, known := c.Nullable(); nullable != (!pg && types[i] != "INT8") || known != !pg {
 				t.Errorf("Nullable %v/%v", nullable, known)
 			}
 		}

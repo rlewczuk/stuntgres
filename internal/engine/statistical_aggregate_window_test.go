@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -12,9 +11,10 @@ import (
 )
 
 func TestStatisticalAggregateWindowSignatures(t *testing.T) {
-	for _, name := range []string{"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy"} {
+	for _, name := range []string{"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx", "regr_sxy", "regr_syy",
+		"corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count", "regr_intercept", "regr_r2"} {
 		valid, unknown, invalid := "1", "NULL", "TRUE"
-		if strings.HasPrefix(name, "regr_") {
+		if regressionAggregateName(name) {
 			valid, unknown, invalid = "2,1", "NULL,NULL", "1,TRUE"
 		}
 		for _, tc := range []struct {
@@ -44,8 +44,11 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 				usage, err := b.resolveWindowAggregateSignature(raw, callee, &argument)
 				if tc.code == "" {
 					want := tc.result
-					if strings.HasPrefix(name, "regr_") {
+					if regressionAggregateName(name) {
 						want = sqltype.Float8
+					}
+					if name == "regr_count" {
+						want = sqltype.Int8
 					}
 					if err != nil || usage.Type == nil || usage.Type.ID() != want || usage.Typmod != -1 || argument == nil {
 						t.Fatal(usage, argument, err)

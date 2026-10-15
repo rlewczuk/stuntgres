@@ -3954,13 +3954,34 @@ X=1,2,3 and Y=2,4,6 the results are respectively 2,2,4,8. Empty input returns
 NULL; a finite singleton has zero sums and NULL slope. Zero X variance gives
 NULL slope; zero Y variance with varying X gives zero slope. Floating roundoff
 is not clamped, and the six-field REL_18_0 transition checks both axes even if
-only one component is requested. All ten names use ordinary grouping,
+only one component is requested. These ten names use ordinary grouping,
 FILTER/DISTINCT/ALL/in-call ordering, direct/prepared execution and stored-view
 restoration, with nullable typmod -1 metadata and atomic eager publication.
 They do not add native window or parallel aggregate execution.
 Feature smoke: `make check RUN='^TestReferenceStatisticalAggregateSmoke$'`
 and `make check RUN='^TestReferenceStatisticalAggregateSmoke$' REFERENCE=1`;
 these assert moments, prepared inputs, metadata, native restore and atomic errors.
+
+Change note: `corr`, `covar_pop`, `covar_samp`, `regr_avgx`, `regr_avgy`,
+`regr_count`, `regr_intercept` and `regr_r2` extend the same ordinary aggregate
+pipeline. All take Y first, X second and independently coerce numeric inputs to
+DOUBLE PRECISION; only complete non-NULL pairs contribute. Seven return nullable
+FLOAT8; `regr_count` returns nonnullable INT8, including exact zero for no pairs.
+Count uses checked integer arithmetic independent of floating moments, so huge
+finite or nonfinite payloads do not cause moment overflow in a count-only call.
+All have typmod -1 and no physical origin; unknown parameters infer FLOAT8.
+For `(Y,X)=(3,1),(5,2),(7,3)`, results in the order above are
+`1,4/3,2,2,5,3,1,1`. No pairs yield seven NULLs and count0. Sample covariance
+needs two pairs. Correlation needs nonzero variance on both axes; intercept and
+r² need nonzero X variance. With varying X and constant Y, intercept is Y and
+r² is1. Floating averages still check both axes for transition overflow.
+Named approximate mathematical witnesses use
+`abs(actual-expected) <= 1e-12*max(1,abs(expected))`; counts, NULLs, metadata and
+diagnostics stay exact. No unordered floating accumulation order is promised.
+Native statistical windows and parallel grouping remain unsupported.
+Feature smoke: `make check RUN='^TestReferenceCorrelationRegressionFeatureSmoke$'`
+and the same command with `REFERENCE=1`; it exercises all eight outputs,
+empty/constant cases, held-statement freshness, native restore and atomic errors.
 
 Change note: `sum(SMALLINT/INTEGER)` returns INT8; `sum(BIGINT/NUMERIC)`
 returns unrestricted NUMERIC; `sum(REAL)` returns FLOAT4 and
