@@ -19,9 +19,11 @@ func TestReferenceHypotheticalAggregateCancellation(t *testing.T) {
 		}
 		defer stmt.Close()
 		for _, prepared := range []bool{false, true} {
-			// Admission is observed by the fixture: real PostgreSQL activity or
-			// the native sort/worker stack, never workload size or sleeping alone.
-			fixture.BinaryConversionActiveCancel(t, p, b, c, q, "sortOrderedAggregate", func(ctx context.Context) fixture.RelationOutcome {
+			// Observe this worker inside aggregate execution, before child drain.
+			// Waiting for its later sort excludes active input materialization
+			// from admission and can miss the fixed deadline under race load.
+			// Private units separately cancel inside actual sorting/comparison.
+			fixture.BinaryConversionActiveCancel(t, p, b, c, q, "openAggregateNode", func(ctx context.Context) fixture.RelationOutcome {
 				var rows *sql.Rows
 				var err error
 				if prepared {

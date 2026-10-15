@@ -233,9 +233,15 @@ including actual emitted dump replay, not a wrapper invoking baseline tests.
 Contextual direct enum literals and typed NULLs reuse their owning leaf
 annotation on replay; nested explicit enum casts and domain/base conversions
 remain present rather than accumulating another annotation on every Restore.
-Cancellation observes actual native sort/worker or PostgreSQL activity before
-cancelling, joins the worker through the fixture, and recovers on the same held
-statement with a small independently specified input.
+Cancellation observes the exact native worker inside `openAggregateNode`
+(aggregate execution before child drain), or actual PostgreSQL query activity.
+The fixture retains its fixed 15-second admission deadline, rejects unpublished
+output and bounds worker joining. The same four-form, two-key query uses a
+64³-row active input and recovers on the same held statement with a small,
+independently specified 2³-row input. Public admission does not wait for the
+later aggregate sort after all input evaluation/retention; deterministic private
+units separately prove cancellation inside sorting, placement, dense peers,
+direct children, finalization and prepublication.
 
 The PostgreSQL 18.0 fixture **crashed** when executing 50 direct/order pairs.
 Release `nodeAgg.c` allocates `LOCAL_FCINFO(..., FUNC_MAX_ARGS)` but requests
