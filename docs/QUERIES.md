@@ -591,8 +591,8 @@ executor-owned tuple buffer and target scratch; it never inserts or mutates a
 hypothetical row in shared inputs. Sorting and placement use one comparator.
 Cancellation/errors precede row or INSERT batch publication.
 
-These are aggregate overloads, not new ranking window providers. Existing
-ordering, collation and unsupported-carrier boundaries remain unchanged.
+These aggregate overloads remain distinct from zero-argument ranking windows.
+Existing ordering, collation and unsupported-carrier boundaries remain unchanged.
 See [selected tests and smoke](../reference/aggregates/README.md#hypothetical-set-aggregates),
 including the pinned PostgreSQL 18.0 50-pair execution defect.
 
@@ -683,9 +683,10 @@ ROWS/RANGE/GROUPS determine membership independently; EXCLUDE then removes the
 current occurrence, its peers, or its other peers. TIES never inserts an absent
 current row. Peers use all window ORDER keys; without ORDER the entire partition
 is one peer group even for ROWS. count(*) returns0 for an empty masked frame;
-sum(expr) returns NULL. Native direct count(*) and row_number() results are known
-nonnullable, while SUM results are known nullable. Stored view columns retain the
-existing known-nullable relation metadata contract, including count outputs.
+sum(expr) returns NULL. Native direct count(*), row_number() and ranking results
+are known nonnullable, while SUM results are known nullable. Stored view columns
+retain the existing known-nullable relation metadata contract, including count
+and ranking outputs.
 Without a real exclusion, SUM retains transition state while the frame head is
 unchanged, appending entering members and reusing full/growing-frame results.
 Moving heads restart the existing no-inverse providers. Real exclusions restart
@@ -700,6 +701,21 @@ argument occurrences. A matched ORDER call does not execute again, but its
 analyzed child graph retains authorization and dependency ownership.
 Integer inputs widen to bigint (smallint/integer) or numeric (bigint);
 numeric/real/double retain their existing SUM result types.
+
+rank(), dense_rank(), percent_rank() and cume_dist() require OVER and use the
+full partition after WHERE/group/HAVING, before outer ORDER/LIMIT. Only window
+ORDER keys define peers; NULLs peer and an orderless partition is one peer group.
+For N rows and the current zero-based peer interval [s,e), with zero-based peer
+ordinal g, results are `s+1`, `g+1`, `s/(N-1)` (zero for N=1), and `e/N`.
+The first two return INT8 and the latter two FLOAT8, all nonNULL. Ties therefore
+leave rank gaps; terminal ties can keep percent_rank below one. Empty input
+retains the complete schema without emitting a row. Ranking ignores membership
+and exclusions, including ROWS frames, and alone does not evaluate runtime frame
+offsets. A frame-sensitive count/SUM/value sibling still demands its own bounds.
+Positive-argument calls retain the real hypothetical-set aggregate overload and
+its WITHIN GROUP requirement; star selects the zero-argument window overload.
+Direct/prepared, INSERT SELECT and stored views use the same window stage and
+native persistence paths. See [ranking proof and smoke](../reference/query_order/README.md#ranking-windows).
 
 first_value(expr), last_value(expr) and nth_value(expr,n) return the input's
 concrete type from the admitted frame, including domain/enum/array identities.

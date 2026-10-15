@@ -449,12 +449,15 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 	}
 	defer child.Close()
 	offsets := make([]windowFrameOffsets, len(n.specs))
-	const membership, validateBounds uint8 = 1, 2
+	const membership, validateBounds, peers uint8 = 1, 2, 4
 	demanded := make([]uint8, len(n.specs))
 	ntileCount := 0
 	for i, call := range n.calls {
 		if call.operation == windowNtile {
 			ntileCount++
+		}
+		if call.operation.ranking() {
+			demanded[n.specIndices[i]] |= peers
 		}
 		if call.operation.frameDependent() {
 			demanded[n.specIndices[i]] |= membership | validateBounds
@@ -541,7 +544,8 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 			partition := &ordered.partitions[partitionIndex]
 			sums.initialized = false
 			clear(ntiles)
-			if demanded[specIndex]&membership != 0 && (spec.frame.unit != parser.FrameRows || spec.frame.exclusion == parser.ExcludeGroup || spec.frame.exclusion == parser.ExcludeTies) && len(spec.order) > 0 && partition.peerEnds == nil {
+			needsPeers := demanded[specIndex]&peers != 0 || demanded[specIndex]&membership != 0 && (spec.frame.unit != parser.FrameRows || spec.frame.exclusion == parser.ExcludeGroup || spec.frame.exclusion == parser.ExcludeTies)
+			if needsPeers && len(spec.order) > 0 && partition.peerEnds == nil {
 				for start := 0; start < len(partition.rows); {
 					end := start + 1
 					for end < len(partition.rows) {
@@ -617,6 +621,18 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 					switch call.operation {
 					case windowNumber:
 						value, err = sqltype.Integer(call.expression.ResultUsage().Type, int64(i)+1)
+					case windowRank:
+						value, err = sqltype.Integer(call.expression.ResultUsage().Type, int64(peerStart)+1)
+					case windowDenseRank:
+						value, err = sqltype.Integer(call.expression.ResultUsage().Type, int64(group)+1)
+					case windowPercentRank:
+						ratio := float64(0)
+						if len(partition.rows) > 1 {
+							ratio = float64(peerStart) / float64(len(partition.rows)-1)
+						}
+						value, err = sqltype.Float(call.expression.ResultUsage().Type, ratio)
+					case windowCumeDist:
+						value, err = sqltype.Float(call.expression.ResultUsage().Type, float64(peerEnd)/float64(len(partition.rows)))
 					case windowNtile:
 						value, err = ntiles[ntileIndex].evaluate(ctx, valueEvaluation, &child, call, partition.rows, i)
 						ntileIndex++

@@ -55,10 +55,10 @@ func (b *expressionBinder) bindHypotheticalSet(raw parser.AggregateExpr, name pa
 		return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
 	if !raw.Within {
-		return nil, expressionError("42809", "WITHIN GROUP is required for ordered-set aggregate "+raw.Name, raw.Pos)
+		return nil, expressionError("42809", "WITHIN GROUP is required for ordered-set aggregate "+objectNameText(name), raw.Pos)
 	}
 	if raw.Window != nil {
-		return nil, expressionError("0A000", "OVER is not supported for ordered-set aggregate "+raw.Name, raw.Pos)
+		return nil, expressionError("0A000", "OVER is not supported for ordered-set aggregate "+objectNameText(name), raw.Pos)
 	}
 	if len(raw.Args) != len(raw.Order) || len(raw.Args) == 0 {
 		d := functionSignatureErrorForTypes(name, raw.Pos, types).(*sqlstate.Error)

@@ -48,14 +48,22 @@ const (
 	windowNtile
 	windowLead
 	windowLag
+	windowRank
+	windowDenseRank
+	windowPercentRank
+	windowCumeDist
 )
 
 func (operation windowOperation) frameDependent() bool {
-	return operation != windowNumber && operation != windowNtile && operation != windowLead && operation != windowLag
+	return operation != windowNumber && operation != windowNtile && operation != windowLead && operation != windowLag && !operation.ranking()
 }
 
 func (operation windowOperation) evaluatesArgument() bool {
 	return operation == windowFirst || operation == windowLast || operation == windowNth || operation == windowNtile || operation == windowLead || operation == windowLag
+}
+
+func (operation windowOperation) ranking() bool {
+	return operation >= windowRank && operation <= windowCumeDist
 }
 
 type windowCall struct {
@@ -154,6 +162,20 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, err
 		}
 		resultUsage = b.typ(sqltype.Int4).Usage()
+	} else if hypotheticalSetName(raw.Name) {
+		if _, err := b.bindAggregateFilter(raw); err != nil {
+			return nil, err
+		}
+		visible, err := b.builtinVisible(name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		if !visible {
+			return nil, functionSignatureErrorForTypes(name, raw.Pos, nil)
+		}
+		if raw.Name == "percent_rank" || raw.Name == "cume_dist" {
+			resultUsage = b.typ(sqltype.Float8).Usage()
+		}
 	} else if raw.Name == "count" || raw.Name == "row_number" {
 		args := make([]BoundExpr, len(raw.Args))
 		for i, arg := range raw.Args {
@@ -192,7 +214,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if len(raw.Order) > 0 {
 		return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", raw.Pos)
 	}
-	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || windowValueName(raw.Name) || windowOffsetName(raw.Name)) {
+	if raw.Filter != nil && (raw.Name == "row_number" || raw.Name == "ntile" || hypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name)) {
 		return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", raw.Pos)
 	}
 	if err := b.windowAllowed(raw.Pos); err != nil {
@@ -201,7 +223,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
-	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || windowValueName(raw.Name) || windowOffsetName(raw.Name) || (raw.Name == "count" && raw.Star)) {
+	if raw.Window.Name != nil && raw.Filter == nil && (raw.Name == "row_number" || raw.Name == "ntile" || raw.Name == "sum" || hypotheticalSetName(raw.Name) || windowValueName(raw.Name) || windowOffsetName(raw.Name) || (raw.Name == "count" && raw.Star)) {
 		found := false
 		for _, definition := range b.windowRaw {
 			if definition.Name.Text == raw.Window.Name.Text {
@@ -224,13 +246,21 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	if raw.Filter != nil {
 		return nil, expressionError("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
 	}
-	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !windowValueName(raw.Name) && !windowOffsetName(raw.Name) && (raw.Name != "count" || !raw.Star) {
+	if raw.Name != "sum" && raw.Name != "row_number" && raw.Name != "ntile" && !hypotheticalSetName(raw.Name) && !windowValueName(raw.Name) && !windowOffsetName(raw.Name) && (raw.Name != "count" || !raw.Star) {
 		return nil, expressionError("0A000", "window function provider is unsupported", raw.Pos)
 	}
 	call := windowCall{raw: raw.Window, argument: argument, ordinal: ordinal, defaultValue: defaultValue}
 	switch raw.Name {
 	case "row_number":
 		call.operation = windowNumber
+	case "rank":
+		call.operation = windowRank
+	case "dense_rank":
+		call.operation = windowDenseRank
+	case "percent_rank":
+		call.operation = windowPercentRank
+	case "cume_dist":
+		call.operation = windowCumeDist
 	case "ntile":
 		call.operation = windowNtile
 	case "lead":

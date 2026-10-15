@@ -6,6 +6,46 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Ranking windows
+
+The seven `TestReferenceQueryWindowRank` definitions share direct and actual
+prepared scenarios for rank, dense_rank, percent_rank and cume_dist. Independent
+rows distinguish ties/gaps, terminal ties, NULL partitions/keys, typed peers,
+multiple sort permutations, singleton/empty output and full-partition ratios.
+Metadata checks INT8/int64 and FLOAT8/float64, typed nullable scans and descriptors
+before iteration. Pinned pq flags are nullable(false,false), length(0,false)
+and decimal-size(0,0,false); native computed results are known nonnullable.
+Diagnostics assert every logical error field and prepare/execute stage, including
+qualified positive-argument hypothetical overloads, missing OVER, star acceptance,
+Unicode character positions, child precedence and named-window registration.
+
+Frames distinguishes peer demand from ROWS/RANGE/GROUPS membership and exclusions.
+Ranking-only NULL/negative runtime offsets are eliminated; count siblings retain
+22004/22013 validation. Lifecycle covers held denominator/peer recomputation,
+late-key errors even with outer LIMIT, statement-atomic INSERT SELECT and owner
+continuation after cancellation. Views exercises hidden-key rename, named capture,
+pg_views/pg_get_viewdef replay and pristine native Dump/Restore with retained
+cursors. Native control phases are explicit and do not invent PostgreSQL APIs.
+The migrated hypothetical Grammar witness retains the distinct aggregate
+assertions and now shares the successful ranking-window expectation.
+
+```sh
+make check RUN='^(TestReferenceQueryWindowRank(Execution|Frames|Metadata|Diagnostics|Lifecycle|Views|FeatureSmoke)|TestReferenceHypotheticalAggregate(Grammar|Execution|Diagnostics))$'
+make check RUN='^(TestReferenceQueryWindowRank(Execution|Frames|Metadata|Diagnostics|Lifecycle|Views|FeatureSmoke)|TestReferenceHypotheticalAggregate(Grammar|Execution|Diagnostics))$' REFERENCE=1
+make check RUN='^TestQueryWindowRank(Descriptors|PeerDemand|Cancellation)$'
+make check RUN='^TestReferenceQueryWindow(NtileFrames|ValueFrames|OffsetDemand)$'
+make check RUN='^TestReferenceQueryWindow(NtileFrames|ValueFrames|OffsetDemand)$' REFERENCE=1
+make check RUN='^TestReferenceQueryWindowRankFeatureSmoke$'
+make check RUN='^TestReferenceQueryWindowRankFeatureSmoke$' REFERENCE=1
+```
+
+Use an external900-second deadline per selected command. FeatureSmoke exercises
+four-column ties/gaps/ratio vectors, named inheritance, singleton/empty metadata,
+ROWS exclusion with count, complete wrong-arity/missing-OVER Unicode diagnostics
+and exported view/pristine native restoration. Internal descriptor, peer-demand
+and actual-stack sort/peer cancellation units supplement the public SQL proof.
+Whole-project Docker-free verification remains `make quickcheck`.
+
 ### Lead and lag windows
 
 The ten `TestReferenceQueryWindowOffset` definitions share direct and actual

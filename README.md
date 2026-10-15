@@ -417,11 +417,23 @@ Change note: hypothetical-set `rank`, `dense_rank`, `percent_rank`, and
 They compare the hypothetical tuple with the admitted input tuples, retaining
 NULLs and applying each key's direction, NULL placement and pairwise collation.
 Direct arguments run once per group; empty global groups return `(1,1,0,1)`.
-This does not add ranking window providers or new ordering capabilities.
+These aggregate overloads remain distinct from the zero-argument ranking windows;
+neither feature expands the admitted ordering capabilities.
 See [hypothetical-set contracts](docs/QUERIES.md#hypothetical-set-aggregates) and
 [selected proof](reference/aggregates/README.md#hypothetical-set-aggregates).
 Feature smoke: `make check RUN='^TestReferenceHypotheticalAggregateFeatureSmoke$'`
 and `make check RUN='^TestReferenceHypotheticalAggregateFeatureSmoke$' REFERENCE=1`.
+
+Change note: `rank()`, `dense_rank()`, `percent_rank()` and `cume_dist()` now
+execute as peer-aware full-partition windows. Rank retains gaps after ties;
+dense rank counts peer groups. Percent rank is `(rank-1)/(partition_size-1)`
+(zero for a singleton), while cumulative distribution includes all current peers.
+Rank outputs are nonnullable bigint; ratios are nonnullable double precision.
+Frames/exclusions do not change these results or demand runtime frame offsets
+unless a frame-sensitive sibling needs them. Same-named hypothetical aggregates
+still require `WITHIN GROUP`. See [ranking tests](reference/query_order/README.md#ranking-windows).
+Feature smoke: `make check RUN='^TestReferenceQueryWindowRankFeatureSmoke$'`
+and `make check RUN='^TestReferenceQueryWindowRankFeatureSmoke$' REFERENCE=1`.
 
 Change note: supported read-only SELECT scans now execute concurrently in-process
 over one immutable statement snapshot. `max_parallel_workers_per_gather` defaults
@@ -1531,8 +1543,9 @@ See [period overlap](https://www.postgresql.org/docs/18/functions-datetime.html)
 Feature smoke: `make check RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceDatetimeOverlapsFeatureSmoke$'`.
 
-Change note: selected PostgreSQL18 windows support `row_number()`, `count(*)`,
-`sum(expr)`, `ntile`, `lead`/`lag` and `first_value`/`last_value`/`nth_value` with default or explicit
+Change note: selected PostgreSQL18 windows support `row_number()`, `rank()`,
+`dense_rank()`, `percent_rank()`, `cume_dist()`, `count(*)`, `sum(expr)`, `ntile`,
+`lead`/`lag` and `first_value`/`last_value`/`nth_value` with default or explicit
 RANGE/GROUPS/ROWS frames, typed offsets, partition/order keys
 and inherited named `WINDOW` definitions. GROUPS requires window ORDER BY and
 measures bigint offsets in complete peer groups: keys1,1,2,3,3 with1PRECEDING
@@ -4384,7 +4397,8 @@ ordering only orders result groups. Each call can use different source-key order
 Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
 Dump/Restore use the same eager pipeline. All existing aggregates admit
 FILTER, DISTINCT, default-equivalent ALL and call-local ORDER BY. Window execution
-is restricted to row_number(), count(*), existing integer/numeric/floating SUM,
+is restricted to row_number(), rank(), dense_rank(), percent_rank(), cume_dist(),
+count(*), existing integer/numeric/floating SUM, ntile, lead/lag,
 and first_value/last_value/nth_value;
 window FILTER, DISTINCT and call-local aggregate ORDER BY remain excluded.
 Feature smoke: `make check RUN='^TestReferenceStringAggSmoke$'`;

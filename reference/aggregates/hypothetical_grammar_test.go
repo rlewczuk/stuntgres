@@ -35,13 +35,10 @@ func TestReferenceHypotheticalAggregateGrammar(t *testing.T) {
 		orderedSetBoth(t, p, c, b, orderedSetValue("SELECT (SELECT rank(20) WITHIN GROUP(ORDER BY a.v)) AS v FROM hs_input AS a", "INT8", int64(2)))
 		q := "SELECT (SELECT rank(20,b.v) WITHIN GROUP(ORDER BY a.v,a.v) FROM hs_input AS b) FROM hs_input AS a"
 		orderedSetBoth(t, p, c, b, orderedSetDiagnostic(q, "42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", "b.v)", ""))
-		// Window overloads remain distinct and deliberately have no new native provider.
-		q = "SELECT rank() OVER(ORDER BY v) AS v FROM hs_input"
-		if b.PG {
-			orderedSetBoth(t, p, c, b, fixture.Select(q, []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2)}, {int64(2)}, {int64(4)}}))
-		} else {
-			orderedSetBoth(t, p, c, b, orderedSetDiagnostic(q, "0A000", "window function provider is unsupported", "rank", ""))
-		}
+		// The same-named hypothetical aggregate and ranking window overload
+		// remain distinct, with independently specified successful results.
+		q = "SELECT rank() OVER(ORDER BY v) AS v FROM hs_input ORDER BY v"
+		orderedSetBoth(t, p, c, b, fixture.Select(q, []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2)}, {int64(2)}, {int64(4)}}))
 	})
 }
 

@@ -1009,8 +1009,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   retained; all four results are nonNULL even for empty global groups.
   Direct expressions use final grouped keys, once per executed call/group.
   The function argument cap is 100 across both lists, without a smaller tuple
-  limit. Ranking window overloads, custom aggregates and expanded ordering
-  families remain outside this feature. See the selected proof's PostgreSQL
+  limit. These aggregate overloads remain distinct from ranking windows.
+  Custom aggregates and expanded ordering families remain outside this feature.
+  See the selected proof's PostgreSQL
   18.0 execution-boundary caveat for 50 pairs.
 - Temporal providers retain exclusions for timezone age/finite inquiries,
   epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
@@ -1019,9 +1020,14 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   demand with existing type/equality providers. SEARCH/CYCLE, recursive modifying
   definitions, and general lateral derived sources remain excluded. MERGE rejects
   its own WITH RECURSIVE; a recursive SELECT inside its derived source is admitted.
-  Window providers are row_number(), count(*), ntile(integer),
-  existing integer/numeric/floating sum(expr), first_value/last_value/nth_value,
-  and lead/lag with optional INT4 offset and per-row default.
+  Window providers are row_number(), rank(), dense_rank(), percent_rank(),
+  cume_dist(), count(*), ntile(integer), existing integer/numeric/floating
+  sum(expr), first_value/last_value/nth_value, and lead/lag with optional INT4
+  offset and per-row default. Ranking uses full-partition ORDER peers, independent
+  of frames/exclusions: rank retains gaps, dense_rank counts peer groups,
+  percent_rank returns (rank-1)/(N-1) or zero for N=1, and cume_dist returns the
+  inclusive peer-end position/N. Rank outputs are nonnullable INT8; ratios are
+  nonnullable FLOAT8. Ranking-only runtime frame offsets are not demanded.
   Ntile returns nullable INT4 balanced full-partition buckets, larger buckets
   first, independent of frames/exclusions. Initial NULL bucket arguments retry;
   after positive initialization later arguments are not evaluated. Reached

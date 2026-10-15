@@ -2234,7 +2234,21 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if r.Schema != nil {
 				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 			}
+			parentAggregates, parentWindows := b.aggregates, b.windowCalls
+			defer func() {
+				if bindError != nil {
+					b.aggregates, b.windowCalls = parentAggregates, parentWindows
+				}
+			}()
 			if hypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 {
+				if r.Window != nil {
+					var err error
+					node, err = b.bindWindow(r, name)
+					if err != nil {
+						return nil, err
+					}
+					break
+				}
 				if _, err := b.bindAggregateFilter(r); err != nil {
 					return nil, err
 				}
@@ -2245,22 +2259,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if !visible {
 					return nil, functionSignatureErrorForTypes(name, r.Pos, nil)
 				}
-				if r.Window == nil {
-					return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
-				}
-				if r.Distinct {
-					return nil, expressionError("0A000", "DISTINCT is not implemented for window functions", r.Pos)
-				}
-				if len(r.Order) > 0 {
-					return nil, expressionError("0A000", "aggregate ORDER BY is not implemented for window functions", r.Pos)
-				}
-				if r.Filter != nil {
-					return nil, expressionError("0A000", "FILTER is not implemented for non-aggregate window functions", r.Pos)
-				}
-				if err := b.windowAllowed(r.Pos); err != nil {
-					return nil, err
-				}
-				return nil, expressionError("0A000", "window function provider is unsupported", r.Pos)
+				return nil, expressionError("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
 			}
 			if r.Within && !orderedSetName(r.Name) {
 				return b.rejectOrdinaryWithin(r)
@@ -2273,12 +2272,6 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				break
 			}
-			parentAggregates, parentWindows := b.aggregates, b.windowCalls
-			defer func() {
-				if bindError != nil {
-					b.aggregates, b.windowCalls = parentAggregates, parentWindows
-				}
-			}()
 			if windowValueName(r.Name) {
 				if _, _, _, err := b.resolveWindowValueSignature(r, name); err != nil {
 					return nil, err
