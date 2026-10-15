@@ -1346,6 +1346,32 @@ It remains non-concrete and unavailable as a declared storage, domain, parameter
 cast or generic comparison/ordering type. Catalog mutation and row locks retain
 their native `0A000` exclusions. See [selected proof and smoke](../reference/catalogs/README.md#pg_attribute-selected-proof).
 
+## pg_opclass supported operator classes
+
+`pg_catalog.pg_opclass` is a read-only PUBLIC catalog with the released nine
+nonnull columns: OID `oid`, OID `opcmethod`, NAME `opcname`, OID
+`opcnamespace`, OID `opcowner`, OID `opcfamily`, OID `opcintype`, BOOL
+`opcdefault`, OID `opckeytype`. Relation2616 reuses row type10013; NAME has
+C collation950. Captured results retain their generation, while held numeric
+parameter queries read fresh owned descriptors after native replacement.
+
+The inventory contains29 implemented btree403 and29 hash405 classes, independent
+of user indexes. Names/identities/family/input/default/storage facts match the
+pinned PostgreSQL18.0 UTF8/C oracle's supported subset. VARCHAR aliases use
+TEXT25 input and are nondefault; pattern aliases are nondefault. Btree name_ops
+has keytype cstring2275, versus hash keytype0. Concrete enums share anyenum3500
+input; domains and object aliases reuse their original provider classes.
+Existing JSONB hash uses class10089/family4034, distinct from btree10088/4033.
+
+Recognized diagnostic-only array/tid/record/range/multirange/bit/varbit/pg_lsn/
+tsquery/tsvector classes are not advertised without executable method providers.
+The existing native hash-array0A000 and btree-array42704 boundaries remain;
+no gin/gist/spgist/brin provider, class DDL, catalog writes, pg_am/pg_opfamily
+source or pg_index.indclass/vector projection is added. Method and family OIDs
+are exact references, not a claim that neighboring catalogs are queryable.
+Full diagnostic and lifecycle expectations and actual feature smoke selectors
+are in [the catalog proof](../reference/catalogs/README.md#pg_opclass-selected-proof).
+
 ## Collation, encoding and indexes
 
 REGCOLLATION identifies existing encoding-applicable collation catalog objects,

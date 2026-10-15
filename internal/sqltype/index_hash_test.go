@@ -24,6 +24,7 @@ func TestHashIndexClassProviders(t *testing.T) {
 		{"text_pattern_ops", Text, 10056}, {"tid_ops", 27, 10055}, {"time_ops", Time, 10039}, {"timestamp_ops", Timestamp, 10046},
 		{"timestamptz_ops", Timestamptz, 10040}, {"timetz_ops", Timetz, 10042}, {"uuid_ops", UUID, 10066}, {"varchar_ops", VarChar, 10045},
 		{"varchar_pattern_ops", VarChar, 10057}, {"xid_ops", 28, 10051},
+		{"jsonb_ops", JSONB, 10089}, {"xid8_ops", Xid8, 10052},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, ok := LookupHashIndexClass(tc.name)

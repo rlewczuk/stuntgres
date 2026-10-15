@@ -133,20 +133,18 @@ func TestReferenceIndexMaintenanceDecoratedMetadataOracle(t *testing.T) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 		indexMaintenanceDecoratedSetup(run)
 		// Independently observed released identities from the real PG18 oracle.
-		// This catalog control does not add a native inquiry source.
-		if b.PG {
-			run(fixture.Select(`SELECT o.opcname,o.oid::bigint,o.opcintype::regtype::text FROM pg_opclass o JOIN pg_am am ON am.oid=o.opcmethod WHERE am.amname='btree' AND o.opcname IN ('oid_ops','bpchar_ops','int4_ops','varchar_ops','text_pattern_ops','varchar_pattern_ops','bpchar_pattern_ops') ORDER BY o.opcname`, []string{"opcname", "oid", "opcintype"}, []string{"NAME", "INT8", "TEXT"}, [][]any{
-				{"bpchar_ops", int64(10004), "character"},
-				{"bpchar_pattern_ops", int64(4219), "character"},
-				{"int4_ops", int64(1978), "integer"},
-				{"oid_ops", int64(1981), "oid"},
-				{"text_pattern_ops", int64(4217), "text"},
-				{"varchar_ops", int64(10044), "text"},
-				{"varchar_pattern_ops", int64(4218), "text"},
-			}))
-		}
-		// Catalog-only phases remain PG controls after the shared maintenance body;
-		// native has no new pg_index/pg_opclass SQL source.
+		// Standalone class facts are shared; no pg_am source is needed.
+		run(fixture.Select(`SELECT opcname,oid::bigint,opcintype::regtype::text FROM pg_opclass WHERE opcmethod=403 AND opcname IN ('oid_ops','bpchar_ops','int4_ops','varchar_ops','text_pattern_ops','varchar_pattern_ops','bpchar_pattern_ops') ORDER BY opcname`, []string{"opcname", "oid", "opcintype"}, []string{"NAME", "INT8", "TEXT"}, [][]any{
+			{"bpchar_ops", int64(10004), "character"},
+			{"bpchar_pattern_ops", int64(4219), "character"},
+			{"int4_ops", int64(1978), "integer"},
+			{"oid_ops", int64(1981), "oid"},
+			{"text_pattern_ops", int64(4217), "text"},
+			{"varchar_ops", int64(10044), "text"},
+			{"varchar_pattern_ops", int64(4218), "text"},
+		}))
+		// Complete vectors and expression/predicate fields remain PG-only:
+		// native pg_index does not expose those fields or indclass.
 		metadata := func(label string) {
 			if !b.PG {
 				return

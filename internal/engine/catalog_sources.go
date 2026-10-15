@@ -104,6 +104,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"castsource", sqltype.Oid}, {"casttarget", sqltype.Oid}, {"castfunc", sqltype.Oid}, {"castcontext", sqltype.Char}, {"castmethod", sqltype.Char}}},
+		{2616, "pg_opclass", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"opcmethod", sqltype.Oid}, {"opcname", sqltype.Name}, {"opcnamespace", sqltype.Oid}, {"opcowner", sqltype.Oid}, {"opcfamily", sqltype.Oid}, {"opcintype", sqltype.Oid}, {"opcdefault", sqltype.Bool}, {"opckeytype", sqltype.Oid}}},
 		{3501, "pg_enum", []struct {
 			name string
 			typ  sqltype.ID
@@ -245,7 +249,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2606 {
 				d.columns[i].Nullable = i >= 20
 			}
-			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 3501 || spec.oid == 2610 {
+			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 3501 || spec.oid == 2610 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -341,6 +345,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 2605 {
 		return capturePGCast(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == 2616 {
+		return capturePGOpclass(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 3501 {
 		return capturePGEnum(ctx, catalog, ref, source)

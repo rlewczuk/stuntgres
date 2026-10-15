@@ -6,6 +6,58 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_opclass selected proof
+
+The `TestReferencePGOpclass` scenarios specify the nine released columns,
+OID/NAME/BOOL raw codecs and metadata, fixed class/method/family/input identities,
+default and key-storage distinctions, PUBLIC reads, held execution, diagnostics,
+index/data agreement and native Dump/Reset/Restore. Expected tuples are independent
+of native lookup. Native coverage requires the complete supported 58-row bag
+(29 btree and 29 hash classes); PostgreSQL permits additional implemented classes.
+Array/record/range and other diagnostic-only native classes are not advertised.
+These tests do not add pg_am, pg_opfamily or pg_index.indclass SQL support.
+
+The oracle-first checkpoint confirmed the released identities using the existing
+pinned PostgreSQL 18.0 UTF8/C fixture before production changes.
+`JSONBIdentity/admission` creates a real JSONB hash index, checks equality,
+prepared fresh parameters and INSERT/UPDATE/DELETE before reading pg_opclass.
+The private supplemental `TestPGOpclassJSONBHashIdentity` checks the existing
+root, actual candidate probe and exact stored class identity without new APIs.
+The native identity must be hash10089, not inherited btree10088.
+
+Run each bounded group in both modes with an external 900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGOpclass(Inventory|Shape|Metadata|JSONBIdentity)$'
+make check RUN='^TestReferencePGOpclass(Inventory|Shape|Metadata|JSONBIdentity)$'
+make check REFERENCE=1 RUN='^TestReferencePGOpclass(IndexSemantics|Diagnostics)$'
+make check RUN='^TestReferencePGOpclass(IndexSemantics|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferencePGOpclass(HeldExecution|Lifecycle|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferencePGOpclass(HeldExecution|Lifecycle|Cancellation|FeatureSmoke)$'
+make check RUN='^TestPGOpclassJSONBHashIdentity$'
+make check RUN='^Test(IndexClassMetadata(Inventory|Providers)|PGOpclass(CaptureOwnership|IndexIdentity)|HashIndexClassProviders)$'
+make check RUN='^TestReferenceIndexMaintenanceDecoratedMetadataOracle$'
+make check REFERENCE=1 RUN='^TestReferenceIndexMaintenanceDecoratedMetadataOracle$'
+make check RACE=1 RUN='^TestReferencePGOpclass(HeldExecution|Lifecycle|Cancellation)$'
+```
+
+Standalone permanent feature smoke:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferencePGOpclassFeatureSmoke$'
+make check RUN='^TestReferencePGOpclassFeatureSmoke$'
+```
+
+Expected success is quiet exit0 after exact INT4 btree/hash tuples and nine-column
+metadata; default/nondefault VARCHAR, pattern and NAME keytype distinctions;
+direct/held index creation, method/deparse agreement and maintained data;
+complete missing-class diagnostics with no residue; native array exclusion versus
+real PostgreSQL admission; and a persistent catalog view/indexed-data native
+Dump/Reset/Restore roundtrip retaining old rows and refreshing held reads.
+PostgreSQL lifecycle SQL asserts the independently selected supported subset of
+its broader catalog. Native controls have no invented PostgreSQL API equivalent.
+Smoke supplements, not replaces, selected dual-mode proof and whole quickcheck.
+
 ### Object ACL inquiry contract
 
 The `TestReferenceObjectACL...` scenarios independently specify the single

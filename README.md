@@ -13,6 +13,19 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Operator-class catalog — change note
+
+`pg_catalog.pg_opclass` exposes the nine PostgreSQL operator-class metadata
+columns for implemented btree/hash classes, with exact released OIDs, method/
+family/input linkage, default flags and key-storage types. The catalog is
+PUBLIC-readable and immutable; it describes supported providers, not only
+currently created indexes. Domains and concrete enums do not invent new classes.
+The existing JSONB hash provider now reports its own hash-class identity rather
+than the btree identity. No new index provider, pg_am/pg_opfamily source or
+pg_index vector columns are introduced.
+See [native limits](docs/DIALECT.md#pg_opclass-supported-operator-classes) and
+[selected proof and feature smoke](reference/catalogs/README.md#pg_opclass-selected-proof).
+
 ## JSONB containment — change note
 
 JSONB `@>` and reverse `<@` return BOOL for structural containment. Object
