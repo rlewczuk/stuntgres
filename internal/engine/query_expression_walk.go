@@ -154,6 +154,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
+	case installedMetaphoneFunctionExpression:
+		args(e.Args)
 	case installedLevenshteinFunctionExpression:
 		args(e.Args)
 	case installedCryptoFunctionExpression:

@@ -199,10 +199,10 @@ func levenshteinManifest(t *testing.T, dump string) {
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.Name != "fuzzystrmatch" || record.Schema != "lev_addon" || record.Owner != "lev_owner" || record.Version != "1.2" || len(record.Members) != 5 {
+	if record.Name != "fuzzystrmatch" || record.Schema != "lev_addon" || record.Owner != "lev_owner" || record.Version != "1.2" || len(record.Members) != 8 {
 		t.Fatal("symbolic provider manifest", record)
 	}
-	want := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true}
+	want := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true, "metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true}
 	for _, member := range record.Members {
 		key := member.Name + ":" + member.Signature
 		if member.Kind != "procedure" || member.Owner != "lev_owner" || !want[key] {

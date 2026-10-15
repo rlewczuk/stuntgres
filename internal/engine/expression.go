@@ -451,6 +451,28 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return e, true, nil
 	case domainValueExpression:
 		return e, false, nil
+	case installedMetaphoneFunctionExpression:
+		var args []BoundExpr
+		for i, arg := range e.Args {
+			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.Args...)
+				}
+				args[i] = next
+			}
+		}
+		if args != nil {
+			next, err := e.Reconstruct(e.Info, args)
+			if err != nil {
+				return nil, false, err
+			}
+			e.Metaphone = next
+		}
+		return e, args != nil, nil
 	case installedLevenshteinFunctionExpression:
 		var args []BoundExpr
 		for i, arg := range e.Args {

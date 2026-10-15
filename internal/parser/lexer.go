@@ -1135,6 +1135,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
+	// Installed Metaphone scalars reuse the existing full scalar-call grammar,
+	// including positional-prefix VARIADIC rejection at signature resolution.
+	// Do not classify bare column/alias names or widen ordinary call grammar.
+	if token.code == IDENT && (strings.EqualFold(token.lexeme.text, "metaphone") || strings.EqualFold(token.lexeme.text, "dmetaphone") || strings.EqualFold(token.lexeme.text, "dmetaphone_alt")) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = TX_TIME_FUNC
+		}
+	}
 	if token.code == IDENT && (NamespaceInquiryFunctionName(token.lexeme.text) || AccessInquiryFunctionName(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}

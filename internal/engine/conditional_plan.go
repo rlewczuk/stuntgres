@@ -995,6 +995,28 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.Args = args
 		}
 		expression = e
+	case installedMetaphoneFunctionExpression:
+		var args []BoundExpr
+		for i, old := range e.Args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.Args...)
+				}
+				args[i], changed = node, true
+			}
+		}
+		if args != nil {
+			next, failure := e.Reconstruct(e.Info, args)
+			if failure != nil {
+				return nil, false, failure
+			}
+			e.Metaphone = next
+		}
+		expression = e
 	case installedLevenshteinFunctionExpression:
 		var args []BoundExpr
 		for i, old := range e.Args {
@@ -1368,6 +1390,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		}
 		return true
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case installedMetaphoneFunctionExpression:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false

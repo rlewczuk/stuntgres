@@ -200,6 +200,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.Args...)
 	case functions.NullCount[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
+	case installedMetaphoneFunctionExpression:
+		return children(n.Args...)
 	case installedLevenshteinFunctionExpression:
 		return children(n.Args...)
 	case installedCryptoFunctionExpression:

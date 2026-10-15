@@ -3477,8 +3477,8 @@ excluded. See [registered extensions](https://www.postgresql.org/docs/18/sql.htm
 and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 
 Change note: `CREATE EXTENSION fuzzystrmatch [WITH SCHEMA schema]
-[VERSION '1.2']` installs `daitch_mokotoff(text) RETURNS text[]` and the four
-Levenshtein overloads described below.
+[VERSION '1.2']` installs `daitch_mokotoff(text) RETURNS text[]`, the four
+Levenshtein overloads, and the three Metaphone signatures described below.
 This selected immutable, strict, parallel-safe provider preserves every six-digit
 alternative in PostgreSQL's element order: John returns `{160000,460000}` and
 Bierschbach returns all eight published codes. NULL, empty and unencodable-only
@@ -3491,7 +3491,7 @@ Views, text[] defaults/CHECKs and STORED generated columns retain actual immutab
 procedure dependencies; native controls remap providers and owned array elements
 while already returned rows keep their old arrays/metadata. Availability reports
 the real selected provider, not full upstream fuzzystrmatch member coverage.
-Soundex, Metaphone, new array operators and general extension loaders are not
+Soundex, new array operators and general extension loaders are not
 added. This provider has no dictionary helpers, so unaccent's own-TEMP
 helper-resolution restriction does not apply.
 See [selected proof](reference/catalogs/README.md#daitch-mokotoff-selected-proof).
@@ -3511,6 +3511,21 @@ NULL produces typed INT4 NULL after demanded siblings, not suppressed errors.
 Installation, qualified/search-path resolution, stored expressions and native
 control remapping retain genuine provider identities; DM remains available.
 See [Levenshtein selected proof](reference/catalogs/README.md#levenshtein-selected-proof).
+
+**Metaphone — change note:** installed fuzzystrmatch1.2 provides
+`metaphone(text,integer)`, `dmetaphone(text)` and `dmetaphone_alt(text)`,
+all immutable, strict, parallel-safe TEXT functions. Metaphone GUMBO with
+cap4 returns `KM`; Double Metaphone gumbo returns `KMP` in both variants.
+Smith has primary `SM0` and alternate `XMT`; Schmidt has `XMT` and `SMT`.
+Metaphone's nonempty input and requested output are limited to255 **bytes**;
+the output cap must be positive. Empty input returns empty even for an invalid
+non-NULL cap; NULL propagates after demanded arguments. Double Metaphone has
+no255-byte input limit and returns independently truncated, unpadded codes of
+at most4 bytes. These release algorithms use ASCII/C-locale byte rules, not
+Unicode transliteration; punctuation breaks phonemes and multibyte input can
+give surprising results. Installed identity, privileges, stored consumers and
+native restore use the same provider authority as DM/Levenshtein.
+See [Metaphone selected proof](reference/catalogs/README.md#metaphone-selected-proof).
 
 
 Change note: read-only `pg_catalog.pg_collation` exposes all twelve PostgreSQL18

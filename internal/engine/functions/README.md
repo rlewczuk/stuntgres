@@ -48,6 +48,30 @@ including empty label slots for a positional prefix before a named suffix.
 The installed Levenshtein binder reuses shared malformed-label validation before
 missing-signature resolution; these overloads declare no SQL argument names.
 
+Installed Metaphone calls use the same shared analysis/formal-coercion contract:
+TEXT plus INT4 for `metaphone`, unary TEXT for `dmetaphone`/`dmetaphone_alt`,
+all returning TEXT. `Metaphone` owns strict source-order demand, validation and
+reconstruction; the installed engine wrapper owns identity/ACL/dependencies.
+Exactly these three actual call heads reuse the parser's existing full scalar
+route, preserving qualified spelling, source positions, named labels and
+positional-prefix VARIADIC for normal signature rejection. Bare identifiers
+remain identifiers; no general VARIADIC grammar or callable overload is added.
+The single kernel retains REL_18_0's nontraditional rules and255-byte boundaries.
+Double Metaphone borrows the input through an ASCII-uppercase byte reader with
+five virtual trailing spaces, caches full-input SlavoGermanic classification,
+and uses independent fixed4-byte outputs. No input-sized uppercase copy, rune
+conversion, padding allocation, result cache or alternate fallback is introduced.
+Long scans poll the borrowed evaluation context.
+
+Single Metaphone retains its complete release PGDG/Schwern/Philips provenance.
+The Double Metaphone files retain the complete Maurice Aubrey/Text::DoubleMetaphone
+and North Carolina State Highway Patrol notices. The Perl original Artistic
+alternative and full terms are in `dmetaphone_LICENSE.txt`; modified source is
+Freely Available under clause3(a). Binary redistributors should accompany it
+with machine-readable modified source under clause4(b), or satisfy another
+applicable license condition. This does not relicense the distinct NC permission
+or imply copyright-holder endorsement.
+
 ## Testing
 
 Run from repository root; use `make check RUN='...'` for individual or small
@@ -66,6 +90,8 @@ make check REFERENCE=1 RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagno
 make check RUN='^TestReferenceDaitchMokotoff(Codes|Boundaries|Diagnostics|Installation|StoredExpressions|Controls|FeatureSmoke)$'
 make check RUN='^TestLevenshtein(Distance|Weights|Bounds|ReleaseInt32|Unicode|Cancellation|NamedArguments)$'
 make check RUN='^TestLevenshtein(ExpressionIdentity|Remap)$'
+make check RUN='^TestMetaphone(Signatures|Codes|Boundaries|StrictDemand|Cancellation|ExpressionIdentity|Remap|ParserAdmission)$'
+make check RUN='^TestDoubleMetaphone(Codes|Boundaries|Cancellation|Allocations)$'
 ```
 
 Range inspection/hull carriers retain same-generation `sqltype` plans and at

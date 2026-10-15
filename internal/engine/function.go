@@ -27,6 +27,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if strings.EqualFold(name, "levenshtein") || strings.EqualFold(name, "levenshtein_less_equal") {
 		return b.bindInstalledLevenshtein(raw)
 	}
+	if strings.EqualFold(name, "metaphone") || strings.EqualFold(name, "dmetaphone") || strings.EqualFold(name, "dmetaphone_alt") {
+		return b.bindInstalledMetaphone(raw)
+	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
 		return b.bindSimilarEscape(raw)
 	}

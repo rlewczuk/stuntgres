@@ -501,9 +501,9 @@ witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
 ## Daitch–Mokotoff installed function
 
-The fuzzystrmatch1.2 provider installs exactly five overloads:
-`daitch_mokotoff(text) RETURNS text[]` and the four INT4 Levenshtein signatures
-below, not the complete upstream extension.
+The fuzzystrmatch1.2 provider installs exactly eight overloads:
+`daitch_mokotoff(text) RETURNS text[]`, the four INT4 Levenshtein signatures
+and three TEXT Metaphone signatures below, not the complete upstream extension.
 Installation is required; missing/off-path calls use normal function resolution.
 The immutable, strict, parallel-safe function emits all alternative six-digit
 codes in release order, with significant array element order and no truncation.
@@ -519,7 +519,21 @@ transactional installation and native ownership/remapping use the existing
 extension registry. Generated columns may consume this genuinely immutable
 function; a volatile child is still volatile. No dictionary/helper TEMP exclusion
 is inherited from unaccent. Availability's stock comment does not promise
-Soundex/Metaphone or arbitrary loaders.
+Soundex or arbitrary loaders.
+
+### Metaphone and Double Metaphone
+
+Installed `metaphone(text,integer)`, `dmetaphone(text)` and
+`dmetaphone_alt(text)` return TEXT with immutable/strict/parallel-safe properties.
+Metaphone caps output independently from the input: nonempty source must fit255
+bytes, requested length must be1–255, input length errors precede cap errors.
+Empty source bypasses cap validation; NULL suppresses only the kernel after
+demanded argument evaluation. Nonletters may produce empty (not NULL) output.
+Double Metaphone has no255-byte input limit; primary and alternate codes are
+independently truncated to4 characters without padding or alternate fallback.
+Both algorithms preserve PostgreSQL18.0 bytewise C-locale behavior, including
+punctuation-sensitive lookaround and limited multibyte behavior, not Unicode
+normalization/transliteration. Named formals, extra overloads and SRFs are absent.
 
 ### Levenshtein edit distance
 
