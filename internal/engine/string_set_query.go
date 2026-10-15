@@ -75,6 +75,7 @@ const (
 	functionJSONBElementsCursor
 	functionSeriesCursor
 	functionMultirangeCursor
+	functionArrayCursor
 )
 
 type functionSetCursor struct {
@@ -84,6 +85,7 @@ type functionSetCursor struct {
 	binaryElements         sqltype.JSONBElementCursor
 	members                sqltype.MultirangeCursor
 	elements               sqltype.JSONElementsCursor
+	array                  sqltype.Value
 	owned                  []sqltype.Value
 	position               int
 	scalar                 sqltype.Value
@@ -113,6 +115,7 @@ func (s *functionSetCursor) close() {
 		s.elements.Close()
 	}
 	s.owned = nil
+	s.array = sqltype.Value{}
 	s.exhausted = true
 }
 func (s *functionSetInvocation) close() {
@@ -168,13 +171,19 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		}
 		cursor.exhausted = cursor.step > 0 && cursor.current > cursor.stop || cursor.step < 0 && cursor.current < cursor.stop
 		return cursor, nil
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
 		}
 		value, err := call.args[0].Eval(c)
 		if err != nil {
 			return functionSetCursor{}, err
+		}
+		if input := call.args[0].ResultUsage().Type; input.BaseType().IsArray() {
+			if value.Type() != input || input.BaseType().Element() != call.ResultUsage().Type {
+				return functionSetCursor{}, fmt.Errorf("stuntgres: invalid array unnest generation")
+			}
+			return functionSetCursor{array: value, kind: functionArrayCursor, initialized: true, exhausted: value.IsNull() || value.ArrayLen() == 0}, nil
 		}
 		cursor, err := sqltype.OpenMultirange(c.Context, call.args[0].ResultUsage(), call.ResultUsage(), value)
 		if err != nil {
@@ -375,6 +384,18 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	}
 	if !s.initialized {
 		return sqltype.Value{}, false, fmt.Errorf("stuntgres: unopened function set cursor")
+	}
+	if s.kind == functionArrayCursor {
+		if s.position == s.array.ArrayLen() {
+			s.close()
+			return sqltype.Null(typ), false, nil
+		}
+		value := s.array.ArrayElement(s.position)
+		if value.Type() != typ {
+			return sqltype.Value{}, false, fmt.Errorf("stuntgres: invalid array unnest element generation")
+		}
+		s.position++
+		return value, true, nil
 	}
 	if s.kind == functionSeriesCursor {
 		if s.step > 0 && s.current > s.stop || s.step < 0 && s.current < s.stop {
@@ -673,7 +694,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 // Result usages are the immutable source of FROM spans. Targets continue to
 // occupy one record-valued marker slot; only FROM expands member columns.
 func functionFromCallWidth(call BoundExpr) int {
-	if typ := call.ResultUsage().Type; typ.IsComposite() {
+	if typ := call.ResultUsage().Type.BaseType(); typ.IsComposite() {
 		return typ.CompositeLen()
 	}
 	return 1
@@ -686,13 +707,13 @@ func validateFunctionFromLayout(n *functionFromNode) error {
 	offset := 0
 	for _, call := range n.calls {
 		width := functionFromCallWidth(call)
-		if !validFunctionSourceCall(call) || width < 1 || offset+width > len(n.Schema()) {
+		if !validFunctionSourceCall(call) || width < 0 || offset+width > len(n.Schema()) {
 			return fmt.Errorf("stuntgres: invalid function source layout")
 		}
 		for j := range width {
 			usage := call.ResultUsage()
-			if usage.Type.IsComposite() {
-				usage = usage.Type.CompositeMember(j).Usage
+			if base := usage.Type.BaseType(); base.IsComposite() {
+				usage = base.CompositeMember(j).Usage
 			}
 			if usage != n.Schema()[offset+j].Usage {
 				return fmt.Errorf("stuntgres: invalid function source usage")
@@ -721,21 +742,22 @@ func (s *functionSetInvocation) nextFrom(ctx context.Context, calls []BoundExpr,
 			return false, err
 		}
 		width := functionFromCallWidth(calls[i])
-		if typ.IsComposite() {
-			if ok && (value.IsNull() || value.Type() != typ || value.CompositeLen() != width) {
+		if base := typ.BaseType(); base.IsComposite() {
+			if ok && (value.Type() != typ || !value.IsNull() && value.CompositeLen() != width) {
 				return false, fmt.Errorf("stuntgres: invalid function record")
 			}
 			for j := range width {
-				if ok {
+				if ok && !value.IsNull() {
 					row[offset+j] = value.CompositeField(j)
 				} else {
-					row[offset+j] = sqltype.Null(typ.CompositeMember(j).Usage.Type)
+					row[offset+j] = sqltype.Null(base.CompositeMember(j).Usage.Type)
 				}
 			}
 		} else {
 			row[offset] = value
 		}
 		offset += width
+		// Row presence comes from the cursor, even when a composite has no fields.
 		present = present || ok
 	}
 	return present, ctx.Err()

@@ -14,7 +14,7 @@ func isStringSet(expr BoundExpr) bool {
 }
 func isQuerySet(expr BoundExpr) bool {
 	switch expr.(type) {
-	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
+	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, unnestExpression:
 		return true
 	}
 	return isStringSet(expr)
@@ -25,7 +25,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 		return isStringSet(call)
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.ReturnsSet()
-	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, multirangeUnnestExpression:
+	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, unnestExpression:
 		return true
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Plan.Operation() == sqltype.RangeConstruct
@@ -82,7 +82,7 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.args
 	case subscriptsExpression:
 		return call.args
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		return call.args
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
@@ -120,9 +120,9 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		}
 		call.args = args
 		return call, nil
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		if len(args) != 1 {
-			return nil, fmt.Errorf("stuntgres: invalid multirange unnest arguments")
+			return nil, fmt.Errorf("stuntgres: invalid unnest arguments")
 		}
 		call.args = args
 		return call, nil
@@ -235,6 +235,9 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 		expr, err := b.bindFunctionSource(call)
 		if err != nil {
 			return nil, queryNamespace{}, err
+		}
+		if len(call.ColumnDefinitions) != 0 {
+			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(expr), call.ColumnDefinitions[0].Pos)
 		}
 		if !isStringSet(expr) {
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", call.Pos)

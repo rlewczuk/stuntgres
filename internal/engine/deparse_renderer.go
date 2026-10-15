@@ -602,6 +602,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		switch call := n.child.(type) {
 		case functions.DatetimeSleep[BoundExpr, *EvalContext, ExprProperties]:
 			simpleFunctionCall = true
+		case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+			simpleFunctionCall = true
 		case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 			simpleFunctionCall = true
 		case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
@@ -740,7 +742,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			}
 		}
 		return pgIdentifier("generate_subscripts") + "(" + strings.Join(args, ", ") + ")", nil
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		argRenderer := r
 		argRenderer.showImplicit = true
 		arg, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})
@@ -856,6 +858,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		return function(n.Kind.Name(), n.Args, true)
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return function(n.Kind.Name(), n.Args, true)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:

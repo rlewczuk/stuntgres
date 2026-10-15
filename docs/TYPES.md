@@ -420,6 +420,31 @@ Explicit VARIADIC decoration does not expand an otherwise matching call.
 Stored scalar and native replacement routes preserve mapped descriptor ownership
 without introducing new leaf equality providers or additional codecs.
 
+`array_sample` and `array_shuffle` retain the physical input array family after
+outer-domain peeling, including logical element-domain identity. Selection
+operates on first-axis slices, preserving each trailing dimension/lower bound
+and NULL element. Shuffle retains the first bound too; sample sets it to 1 and
+its length to the requested INT4 count. Count 0 yields rank0 `{}`; whole NULL
+array/count yields a typed NULL. Count boundaries use first-axis length, not
+flattened cardinality. Both functions are volatile and use separate session
+entropy from seedable scalar random functions; their output has no fixed order.
+
+Unary array `unnest` retains element type identity and collation while flattening
+all dimensions in storage order (last subscript fastest). NULL elements produce
+present rows; empty/whole-NULL inputs produce zero rows with full element schema.
+Ordinality is INT8 starting at 1, unrelated to array bounds. FROM expands named
+composite elements and domains over composites through their physical member
+layout; a NULL composite element is one member-NULL row, not exhaustion. Target
+unnest instead produces one logical element-valued column.
+
+Array-element typmods are not invented for polymorphic results. A domain over
+VARCHAR(3) still carries its underlying length 3; ordinary array unnest produces
+unsized VARCHAR. Native truthfully reports its unbounded length as MaxInt64;
+pinned lib/pq independently reports `-5` for that unsized typmod. The adapter
+artifact is not reproduced in native metadata. Domain INT transports as INT4;
+user array OIDs retain native catalog names versus pq's empty type-name inventory.
+
+
 Ordinary array `=`, `<>`/`!=`, `<`, `<=`, `>`, `>=` require the same physical
 array descriptor after whole-domain peeling. Array element-domain and enum
 identities remain distinct. Compare row-major elements first, then count, rank,

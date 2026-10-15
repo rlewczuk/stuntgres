@@ -301,8 +301,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case multirangeUnnestExpression:
-		o, ok := other.(multirangeUnnestExpression)
+	case unnestExpression:
+		o, ok := other.(unnestExpression)
 		return ok && e.ResultUsage() == o.ResultUsage() && same(e.args[0], o.args[0])
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])
@@ -493,6 +493,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.String[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+			return false
+		}
+		for i := range e.Args {
+			if !same(e.Args[i], o.Args[i]) {
+				return false
+			}
+		}
+		return true
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || e.Kind != o.Kind || e.ResultUsage() != o.ResultUsage() || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -975,7 +986,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		e.args = []BoundExpr{rewrite(e.args[0])}
 		stage(&e.expressionInfo)
 		expr = e
@@ -1163,6 +1174,15 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.Info = functionInfo(info)
 		expr = e
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		e.Args = append([]BoundExpr(nil), e.Args...)
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1459,7 +1479,7 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		walk(e.args[0])
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Args[0])
@@ -1552,6 +1572,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args {
+			walk(arg)
+		}
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)
 		}

@@ -99,6 +99,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return functions.Regexp[BoundExpr, *EvalContext, ExprProperties]{RegexpCall: call}, nil
 	}
+	if parser.ArrayRandomFunctionName(name) {
+		return b.bindArrayRandom(raw)
+	}
 	if parser.ArrayInspectFunctionName(name) {
 		return b.bindArrayInspect(raw)
 	}
@@ -110,7 +113,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindArraySearch(raw, visible)
 	}
 	if strings.EqualFold(name, "unnest") {
-		return b.bindMultirangeUnnest(raw)
+		return b.bindUnnest(raw)
 	}
 	if parser.RangeInspectFunctionName(name) {
 		return b.bindRangeInspect(raw)

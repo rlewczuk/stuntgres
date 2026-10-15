@@ -25,8 +25,9 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog Catal
 	if root == nil {
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen string function source")
 	}
-	texts := make([]string, len(raw.Calls))
-	for i, call := range raw.Calls {
+	calls := parser.NormalizedFunctionCalls(raw)
+	texts := make([]string, len(calls))
+	for i, call := range calls {
 		path := viewLiteralPath{clause: viewFunctionLiteral, target: root.viewOrdinal + i}
 		if root.regexpNamespace {
 			path.source, path.target = root.viewOrdinal, i
@@ -38,7 +39,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog Catal
 		texts[i] = text
 	}
 	text := texts[0]
-	if raw.RowsFrom {
+	if raw.RowsFrom || len(calls) > 1 {
 		text = "ROWS FROM (" + strings.Join(texts, ", ") + ")"
 	}
 	if raw.Ordinality {

@@ -177,6 +177,29 @@ Feature smoke: `make check RUN='^TestReferenceArrayOrderFeatureSmoke$'` and
 `make check REFERENCE=1 RUN='^TestReferenceArrayOrderFeatureSmoke$'`.
 See [array ordering coverage](reference/binary_json_arrays/README.md#ordinary-array-comparisons).
 
+## Array sample, shuffle and unnest — change note
+
+`array_sample(anyarray, integer)` selects first-axis items without replacement;
+`array_shuffle(anyarray)` permutes those items. A multidimensional item is an
+entire slice, not one flattened element. Shuffle retains every bound; sample
+resets the first lower bound to 1 and retains trailing bounds. Zero samples are
+canonical empty arrays. Counts outside 0..first-axis length report PostgreSQL
+22023 diagnostics. Random results are checked by invariants, never a sequence.
+Their separate session entropy does not perturb `random()` or promise
+reproducibility after `setseed`.
+
+Unary array `unnest` expands storage order, including NULL elements, in FROM or
+the target list and scalar wrappers. Unqualified multiargument FROM `unnest`
+zips independently typed inputs and pads shorter inputs with typed NULLs.
+Qualified or non-FROM multiargument calls remain missing functions; no new
+overload or general SRF framework is introduced. Existing multirange expansion,
+lateral sources, ordinality, composite/domain elements, stored views and native
+replacement ownership share the existing query lane.
+
+Feature smoke: `make check RUN='^TestReferenceArrayRelationalFeatureSmoke$'`
+and `make check RUN='^TestReferenceArrayRelationalFeatureSmoke$' REFERENCE=1`.
+See [selected coverage](reference/binary_json_arrays/README.md#array-sample-shuffle-and-unnest).
+
 ## Array dimensions and cardinality — change note
 
 The selected PostgreSQL §9.19 scalar functions `array_dims(anyarray)`,
@@ -255,8 +278,9 @@ order. Both use the existing int4/int8/numeric companions, including domains,
 typed binds, target/FROM composition, stored recipes and native controls.
 Empty range construction returns `{}`; SQL NULL construction returns NULL.
 Empty or NULL expansion returns zero rows with the companion range metadata.
-Named-family constructors, multiple constructor arguments, array/tsvector
-unnest, temporal multiranges and new casts/operators remain excluded.
+Named-family constructors, multiple constructor arguments, tsvector unnest,
+temporal multiranges and new casts/operators remain excluded. Array unnest is
+covered by the separate array-relational change note above.
 See [typed range contracts](docs/TYPES.md) and
 [selected proof](reference/types/README.md#multirange-constructor-and-expansion-selected-proof).
 

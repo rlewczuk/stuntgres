@@ -656,13 +656,14 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   in ascending canonical order. Typed NULL construction is NULL; empty input is
   `{}`. NULL/empty expansion emits no rows, retaining range result metadata.
   Target/FROM, lateral, ordinality, explicit ROWS FROM zip and scalar/SRF nesting
-  reuse existing query composition. Named-family/multiple-range constructors,
-  array/tsvector unnest and multiargument FROM unnest shorthand remain excluded.
+  reuse existing query composition. Named-family/multiple-range constructors
+  and tsvector unnest remain excluded. Array unnest and multiargument FROM
+  shorthand use the selected array-relational behavior described below.
   A selected RANGE-valued DEFAULT still cannot be authored: default expressions
   do not gain column references, parameters, subqueries or explicit range casts.
-  Native temporal constructor and array-unnest capability boundaries report
-  0A000; they are not PostgreSQL missing-function claims for those valid upstream
-  signatures. No excluded provider is supplied as a fallback.
+  Native temporal constructor capability boundaries report 0A000; they are not
+  PostgreSQL missing-function claims for valid upstream signatures. No excluded
+  provider is supplied as a fallback.
   Carrier traversal is shared, but no default capability is fabricated.
   Daterange columns store civil DATE bounds with finite day canonicalization and
   explicit infinity distinct from omission. Tsrange columns use continuous
@@ -917,6 +918,25 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Invalid signatures use 42883; JSON and known TEXT do not implicitly become
   JSONB. Stored consumers retain operator syntax through deparse/Dump/Restore.
   Adjacent JSONB operators and SQL-callable `jsonb_exists*` remain excluded.
+- Selected array-relational functions are `array_sample(anyarray, integer)`,
+  `array_shuffle(anyarray)` and unary array `unnest(anyarray)`. Random operations
+  use complete first-axis slices, retain element/domain identities without leaf
+  equality or output providers, and are always VOLATILE. Shuffle retains shape
+  and bounds; sample resets first lower bound to 1, preserves trailing bounds
+  and returns canonical empty for count 0. Invalid counts raise 22023 against
+  first-axis length, not cardinality. Whole NULL arguments produce typed NULL.
+  A separate physical-session entropy stream is independent of `setseed` and
+  `random()`; no deterministic array sequence or new parallel admission is promised.
+  Unary unnest is valid in FROM, targets and scalar wrappers, flattening storage
+  order including NULLs. Unqualified, undecorated multiargument FROM spelling is
+  normalized to zipped unary `pg_catalog.unnest` calls, with shorter inputs padded
+  by typed NULLs. Qualified/non-FROM/decorated multiargument calls do not acquire
+  an overload. Per-function typed definitions block rewriting; top-level typed
+  definitions retain PostgreSQL precedence. Unary explicit VARIADIC is accepted
+  where the ordinary selected signature matches; no named formals are added.
+  Already executable composite/domain-composite array elements expand their
+  member layout in FROM; present NULL composites remain present member-NULL rows.
+  Target output keeps one logical composite column. This adds no RECORD provider.
 - Selected scalar array inspection includes `array_dims(anyarray)` returning
   TEXT, `array_ndims(anyarray)` and `cardinality(anyarray)` returning INT4,
   and `array_length/lower/upper(anyarray, integer)` returning INT4. These read

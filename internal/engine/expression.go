@@ -842,7 +842,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 		})
@@ -1342,6 +1342,11 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		next, changed, err := mapArrayRandomChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
+		return next, changed, err
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		next, changed, err := mapArrayInspectChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)

@@ -401,7 +401,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		return e.mapChildren(func(arg BoundExpr) (BoundExpr, bool, error) {
 			return simplifyConditional(c, arg, decisiveDefaults)
 		})
@@ -712,6 +712,14 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 				}
 			}
 		}
+		expression = e
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		var did bool
+		e, did, err = mapArrayRandomChildren(e, func(old BoundExpr) (BoundExpr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || did
 		expression = e
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		var did bool
@@ -1320,6 +1328,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		return false // Volatile even for strict NULL, empty and singleton arrays.
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			if !literal(arg) {

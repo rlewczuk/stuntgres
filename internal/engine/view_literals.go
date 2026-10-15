@@ -550,7 +550,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(subscriptsExpression); ok {
 			return children(r.Args, n.args)
 		}
-		if n, ok := bound.(multirangeUnnestExpression); ok {
+		if n, ok := bound.(unnestExpression); ok {
 			return children(r.Args, n.args)
 		}
 		if n, ok := bound.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]); ok {
@@ -776,6 +776,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.String[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
 		}
+		if n, ok := bound.(functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]); ok {
+			return selectedArrayArguments(r.Args, n.Args)
+		}
 		if n, ok := bound.(functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
@@ -933,7 +936,7 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored string function frame")
 				}
-				for i, call := range raw.Calls {
+				for i, call := range parser.NormalizedFunctionCalls(raw) {
 					if table.regexpNamespace {
 						path := viewLiteralPath{query: frame, clause: viewFunctionLiteral, source: table.viewOrdinal, target: i}
 						ordinal := 0

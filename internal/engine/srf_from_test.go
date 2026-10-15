@@ -134,7 +134,7 @@ func TestSRFFromBinding(t *testing.T) {
 		{[]parser.FunctionExpr{at(15, "generate_series", first, last)}, true, "0A000", "set-returning functions must appear at top level of FROM", "", "61"},
 		{[]parser.FunctionExpr{raw, at(15, "generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: false}})}, true, "42883", "function generate_series(boolean, boolean) does not exist", "No function matches the given name and argument types. You might need to add explicit type casts.", "15"},
 	} {
-		alias := &parser.AliasReference{Input: &parser.FunctionTable{Calls: tc.calls, Ordinality: tc.ordinality}, Name: parser.Identifier{Text: "g"}, Columns: []parser.Identifier{{Text: "v", Pos: parser.Position{Character: 101, Offset: 100}}}, HasColumnDefinitions: true, ColumnDefinitionType: parser.TypeName{Name: "integer"}}
+		alias := &parser.AliasReference{Input: &parser.FunctionTable{Calls: tc.calls, RowsFrom: len(tc.calls) > 1, Ordinality: tc.ordinality}, Name: parser.Identifier{Text: "g"}, Columns: []parser.Identifier{{Text: "v", Pos: parser.Position{Character: 101, Offset: 100}}}, HasColumnDefinitions: true, ColumnDefinitionType: parser.TypeName{Name: "integer"}}
 		_, _, err := b.bindFrom(alias)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Hint != tc.hint || diagnostic.Position != tc.position {
 			t.Fatal("deferred column definitions", tc, err)

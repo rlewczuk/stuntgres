@@ -104,7 +104,7 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.args...)
 	case subscriptsExpression:
 		return children(n.args...)
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		return children(n.args...)
 	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Pattern, n.Escape)
@@ -180,6 +180,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 			v = Stable
 		}
 		return merge(children(n.Value, n.Zone), v)
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		return merge(children(n.Args...), Volatile)
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Args...)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:

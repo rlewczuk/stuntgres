@@ -35,8 +35,8 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 	case subscriptsExpression:
 		second, ok := b.(subscriptsExpression)
 		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)
-	case multirangeUnnestExpression:
-		second, ok := b.(multirangeUnnestExpression)
+	case unnestExpression:
+		second, ok := b.(unnestExpression)
 		return ok && first.ResultUsage() == second.ResultUsage()
 	case functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties]:
 		second, ok := b.(functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties])

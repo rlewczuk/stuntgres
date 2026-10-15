@@ -511,7 +511,7 @@ package parser
 %type <objectName> relation_name
 %type <fromItem> from_list joined_table from_atom from_base update_from delete_using
 %type <functionTable> function_table function_table_base
-%type <call> function_table_call
+%type <call> function_table_call rows_function_call
 %type <functionTables> function_table_calls
 %type <identifiers> alias_columns using_columns function_column_definition_tail
 %type <identifier> using_alias
@@ -2183,15 +2183,23 @@ from_atom: from_base { $$=$1 }
 function_table_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
  | name '.' check_function_head function_args ')' {$$=$4;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
  | STRING_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
- | function {$$=$1.(FunctionExpr)}
  | sqljson_object_head sqljson_legacy_values ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:$2,Pos:$1.pos} }
  | sqljson_object_head VARIADIC target_or ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:[]Expr{$3},Variadic:true,Pos:$1.pos} }
  | sqljson_object_head sqljson_legacy_values ',' VARIADIC target_or ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"json_object",Pos:$1.pos}}},Args:append($2,$5),Variadic:true,Pos:$1.pos} }
- | transaction_time_call {$$=$1} ;
-function_table_calls: function_table_call {$$=[]FunctionExpr{$1}}
- | function_table_calls ',' function_table_call {$$=append($1,$3)} ;
+ | SELECTED_FUNC '(' function_args ')' {$$=$3;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};$$.Pos=$1.pos}
+ | name '.' SELECTED_FUNC '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
+ | name '.' OVERLAPS '(' function_args ')' {$$=$5;$$.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}};$$.Pos=$1.pos}
+ | transaction_time_base {$$=$1} ;
+/* Per-call definitions belong only to ROWS FROM members. Keeping AS off the
+ * ordinary call lets from_atom own both named aliases and top-level definitions. */
+rows_function_call: function_table_call {$$=$1}
+ | function_table_call AS '(' using_columns type function_column_definition_tail ')' {$$=$1;$$.ColumnDefinitions=append($4,$6...);$$.ColumnDefinitionType=$5} ;
+function_table_calls: rows_function_call {$$=[]FunctionExpr{$1}}
+ | function_table_calls ',' rows_function_call {$$=append($1,$3)} ;
 function_table_base: function_table_call {$$=&FunctionTable{Calls:[]FunctionExpr{$1},Pos:$1.Pos}}
- | name FROM '(' function_table_calls ')' {if $1.text!="rows"||$1.keyword==nil{sqllex.(*lexer).syntax($1);return 1};$$=&FunctionTable{Calls:$4,RowsFrom:true,Pos:$1.pos}} ;
+ | name FROM '(' function_table_calls ')' {if $1.text!="rows"||$1.keyword==nil{sqllex.(*lexer).syntax($1);return 1};$$=&FunctionTable{Calls:$4,RowsFrom:true,Pos:$1.pos}}
+ | function_table_call FILTER '(' WHERE {sqllex.(*lexer).syntax($4);return 1}
+ | function_table_call OVER '(' ')' {sqllex.(*lexer).syntax($4);return 1} ;
 function_table: function_table_base {$$=$1}
  | function_table_base WITH name {if $3.text!="ordinality" {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.Ordinality=true}
  | LATERAL function_table_base {$$=$2;$$.Lateral=true}

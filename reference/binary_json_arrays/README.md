@@ -920,6 +920,63 @@ and native replacement with emitted-SQL replay. SQL/JSON constructor syntax,
 JSONB constructors, JSON comparison and generic builtin catalog enumeration are
 not capabilities asserted by this family.
 
+### Array sample, shuffle and unnest
+
+`TestReferenceArrayRelational*` independently specifies first-axis random
+submultisets/permutations (never random backend parity), multidimensional slice
+integrity/bounds, count limits, strictness and separate entropy from `random()`.
+Unary storage order, wrapped targets, multi-input FROM padding, mixed ROWS FROM,
+lateral joins, ordinality and named composite/domain elements share the same
+definitions in native and pinned PostgreSQL18.0 modes. Full English diagnostics
+and character locations include qualified/non-FROM calls, decorated syntax,
+typed-definition precedence and rewritten unknown unary resolution.
+`ZeroWidthComposite` includes zero-field composites and domains, NULL elements,
+empty/NULL arrays, either side longest in a zip, explicit normalized ROWS FROM,
+SAME-held reuse and stored/native/PostgreSQL replay. `TypedDefinitionClasses`
+distinguishes explicit ROWS FROM ownership, scalar results, named composites
+and domains, and existing `json_each`/`json_each_text` OUT records, retaining
+function-resolution precedence and full direct/prepared Unicode diagnostics.
+It does not require the adjacent, unimplemented `jsonb_each` provider.
+
+Typing assertions retain exact public ColumnTypes, raw transport and
+literal/parameter-bound outer-domain peeling versus element-domain identity.
+`TestArrayRelationalUsage` supplements those public routes with actual binder
+providers, checking complete logical Usage (descriptor, typmod and registered
+collation) and explicit collation provenance for sample, shuffle and unnest.
+Run it with `make check RUN='^TestArrayRelationalUsage$'`. No `pg_typeof` or
+`COLLATION FOR` inquiry implementation is a prerequisite. Ordinary unsized
+VARCHAR preserves truthful native MaxInt64 length versus pq's observed `-5`;
+domain VARCHAR(3) remains length3. The mixed array/multirange unnest witness uses
+typed-table INSERT input and retains exact INT4RANGE cells and raw transport,
+without requiring explicit multirange or range-to-text casts.
+ACL tests traverse both random operands and every normalized source, including
+NULL companions, LIMIT0 and held-after-revoke. Consumer/lifecycle coverage includes
+source renames, symbolic view Dump/Reset/Restore/redump, actual emitted-SQL
+PostgreSQL replay, fresh held cursors, input immutability and atomic late failure.
+
+Run all four groups in both modes after affected changes:
+
+```sh
+make check RUN='^TestReferenceArrayRelational(RandomInvariants|SlicesAndBounds|CountDiagnostics|EntropyIsolation)$'
+make check RUN='^TestReferenceArrayRelational(RandomInvariants|SlicesAndBounds|CountDiagnostics|EntropyIsolation)$' REFERENCE=1
+make check RUN='^TestReferenceArrayRelational(UnnestStorage|UnnestZip|CompositeElements)$'
+make check RUN='^TestReferenceArrayRelational(UnnestStorage|UnnestZip|CompositeElements)$' REFERENCE=1
+make check RUN='^TestReferenceArrayRelational(ResolutionDiagnostics|TypingMetadata|Authorization)$'
+make check RUN='^TestReferenceArrayRelational(ResolutionDiagnostics|TypingMetadata|Authorization)$' REFERENCE=1
+make check RUN='^TestReferenceArrayRelational(ConsumersReplay|HeldLifecycle|FeatureSmoke)$'
+make check RUN='^TestReferenceArrayRelational(ConsumersReplay|HeldLifecycle|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceArrayRelational(ZeroWidthComposite|TypedDefinitionClasses)$'
+make check RUN='^TestReferenceArrayRelational(ZeroWidthComposite|TypedDefinitionClasses)$' REFERENCE=1
+make check RUN='^TestArrayRelationalZeroWidthComposite$'
+```
+
+Feature smoke: `make check RUN='^TestReferenceArrayRelationalFeatureSmoke$'`
+and the same command with `REFERENCE=1`. Expected assertions: prepared two-row
+INSERT; ordered unary values1,NULL,3,4; zip(1,a,1),(2,b,2),(NULL,c,3); wrapped unary
+target; exact42883/22023 diagnostics; matrix slice/bounds invariants; empty typed
+schema/held recovery; native symbolic view replacement and genuine PG replay.
+These commands are not a claim that final verification has run.
+
 ### Array dimensions and cardinality
 
 `TestReferenceArrayInspectValues`, `Typing`, `Diagnostics`,

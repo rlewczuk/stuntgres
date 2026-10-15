@@ -1402,7 +1402,7 @@ func singletonArgument(expr Expr) bool {
 		if len(e.Name.Parts) < 1 || len(e.Name.Parts) > 2 {
 			return false
 		}
-		if !e.ResolutionOnly && !e.CompositeCandidate && !NamespaceInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !AccessInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !RangeInspectFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !UUIDExtractFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) {
+		if !e.ResolutionOnly && !e.CompositeCandidate && !ArrayRandomFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !NamespaceInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !AccessInquiryFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !RangeInspectFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) && !UUIDExtractFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) {
 			switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 			case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "format":
 			case "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
@@ -1818,6 +1818,10 @@ type FunctionExpr struct {
 	Filter    Expr
 	Within    bool
 	WithinPos Position
+	// Per-function ROWS FROM definitions use the same diagnostic-only shape
+	// as AliasReference; no anonymous-record provider is introduced.
+	ColumnDefinitions    []Identifier
+	ColumnDefinitionType TypeName
 }
 
 // JSONFormat retains explicit SQL/JSON clauses and their diagnostic positions.

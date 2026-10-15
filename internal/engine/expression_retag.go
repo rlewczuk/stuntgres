@@ -153,7 +153,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		n.args = children(n.args)
 		n.expressionInfo = info
 		rebound = n
@@ -767,6 +767,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, nil
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args, text)
+		rebound = n
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
 		rebound = n
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = children(n.Args)

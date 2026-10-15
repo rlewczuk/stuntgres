@@ -102,6 +102,7 @@ type Session struct {
 	temporaryNamespace     ObjectAddress
 	sequencePath           sequencePathCache
 	random                 randomState
+	arrayRandom            randomState // independent of random()/setseed()
 	uuid                   uuidClock
 	databaseName           string
 	timeouts               sessionTimeouts

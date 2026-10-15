@@ -602,7 +602,7 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case subscriptsExpression:
 		children = e.args
-	case multirangeUnnestExpression:
+	case unnestExpression:
 		children = e.args
 	case functions.LikeEscape[BoundExpr, *EvalContext, ExprProperties]:
 		children = []BoundExpr{e.Pattern, e.Escape}
@@ -665,6 +665,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	case functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args[:]
 	case functions.String[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Args
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
 	case functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args

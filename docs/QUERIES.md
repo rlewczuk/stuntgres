@@ -43,6 +43,51 @@ SQL NULL rows are omitted; zero rows yield SQL NULL and all-omitted rows yield
 query columns retain existing ACL/dependency capture and stored-query consumer
 restrictions. Stage closure and cancellation finish before any result escapes.
 
+## Array relational expressions
+
+Unary array `unnest` shares existing target-SRF lowering and FROM function
+cursors with multirange expansion. Each invocation, prepared execution and
+lateral source owns a fresh index into the immutable input. Storage order
+includes NULL elements; zero-row inputs retain metadata. In a scalar wrapper
+such as `abs(unnest(a))`, each present element is evaluated by the existing
+scalar projection lane, not a separate expansion implementation.
+
+Only unqualified multiargument FROM `unnest(a,b,...)` without aggregate/window/
+VARIADIC decorations or per-function typed definitions is rewritten to unary
+`pg_catalog.unnest` calls. Zipping uses the longest input, typed NULL padding and
+existing ordinality, alias and lateral semantics. Qualified and target-list
+multiargument calls remain ordinary missing signatures. Explicit `ROWS FROM`
+members are normalized independently. This is syntax normalization, not a
+multiargument builtin overload or generic SRF subsystem.
+
+Ordinary function sources retain `AS alias`, optional column-name aliases and
+top-level typed-definition diagnostics. Per-function `AS (column type,...)`
+definitions are parsed only inside `ROWS FROM`; they do not consume the `AS`
+that introduces a source alias. FROM `FILTER`/`OVER` diagnostics remain owned by
+their original syntax tokens rather than scalar function resolution.
+After function resolution, typed-definition diagnostics distinguish scalar
+results, named composites (including domains), and OUT-parameter records.
+The same rejection applies to string-only and mixed sources; adding an
+unrelated sibling never makes an invalid per-function definition valid.
+Explicit `ROWS FROM` owns the multiple-function diagnostic even when its
+single written `unnest` call expands into several unary calls.
+
+Binding, frozen literal capture, symbolic rendering and replay share the same
+normalized call ordering without mutating retained ASTs. Views rendered after
+source renames or native Dump/Reset/Restore retain argument ownership and padded
+result schema. Present NULL composite elements expand to typed member NULLs;
+exhausted inputs pad identically but do not create another present invocation.
+Zero-field composites and their domains expose no member columns, but each
+element (including NULL) still creates a row and advances ordinality. Their
+zero-column spans neither stop zipping nor contribute phantom scalar columns.
+
+`array_sample` and `array_shuffle` stay volatile even on NULL/empty/singleton
+arrays. Argument dependencies, including sample count, participate in normal
+ACL/capture/preflight traversal before strictness or demand shortcuts. Existing
+immutable generated/index restrictions and conservative parallel admission
+remain unchanged. Random-state borrowing happens after argument/count validation;
+context cancellation releases ownership without publishing partial results.
+
 ## Installed Daitch–Mokotoff expressions
 
 `daitch_mokotoff(text)` resolves only through installed fuzzystrmatch procedure
@@ -226,7 +271,8 @@ must appear at top level of FROM, while child SELECTs own their target SRFs.
 Ordinary source-call binding and nested placement validation precede semantic
 column-definition rejection. After successful analysis, multiple-function
 column-definition restrictions precede ordinality restrictions, then the
-record-only restriction. This does not enable record-returning sources.
+resolved scalar/named-composite/OUT-record restriction. This does not enable
+new record-returning sources.
 Arguments evaluate once per demanded invocation; unopened sources do not run
 under LIMIT0. Native demand-driven execution need not reproduce PostgreSQL's
 physical FunctionScan materialization.

@@ -127,6 +127,10 @@ func closedUUIDDefault(node BoundExpr) bool {
 		return valid
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return closedUUIDDefault(n.Arg)
+	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
+		valid := true
+		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })
+		return valid
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties], functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })

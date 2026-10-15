@@ -344,9 +344,10 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 	case nil:
 		return &singletonNode{}, queryNamespace{}, nil
 	case *parser.FunctionTable:
-		for _, raw := range n.Calls {
+		normalized := parser.NormalizedFunctionCalls(n)
+		for _, raw := range normalized {
 			if selectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
-				return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal)
+				return b.bindMixedFunctionTable(normalized, n.Ordinality, ordinal)
 			}
 		}
 		return b.bindStringTable(n)
@@ -425,7 +426,12 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			count, ordinality := 0, false
 			switch source := n.Input.(type) {
 			case *parser.FunctionTable:
-				count, ordinality = len(source.Calls), source.Ordinality
+				count, ordinality = len(parser.NormalizedFunctionCalls(source)), source.Ordinality
+				if !source.RowsFrom && count > 1 {
+					failure := expressionError("42601", "UNNEST() with multiple arguments cannot have a column definition list", n.Columns[0].Pos).(*sqlstate.Error)
+					failure.Hint = "Use separate UNNEST() calls inside ROWS FROM(), and attach a column definition list to each one."
+					return nil, queryNamespace{}, failure
+				}
 			case *parser.FunctionFrom:
 				count, ordinality = len(source.Calls), source.Ordinality
 			}
@@ -437,8 +443,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			} else if ordinality {
 				message = "WITH ORDINALITY cannot be used with a column definition list"
 				hint = "Put the column definition list inside ROWS FROM()."
-			} else if function, ok := root.(*functionFromNode); ok && len(function.calls) == 1 && function.calls[0].ResultUsage().Type.IsComposite() {
-				message = "a column definition list is redundant for a function with OUT parameters"
+			} else if function, ok := root.(*functionFromNode); ok && len(function.calls) == 1 {
+				message = functionColumnDefinitionMessage(function.calls[0])
 			}
 			failure := expressionError("42601", message, n.Columns[0].Pos).(*sqlstate.Error)
 			failure.Hint = hint
@@ -460,12 +466,12 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			calls := 0
 			switch function := n.Input.(type) {
 			case *parser.FunctionTable:
-				calls = len(function.Calls)
+				calls = len(parser.NormalizedFunctionCalls(function))
 			case *parser.FunctionFrom:
 				calls = len(function.Calls)
 			}
 			function, composite := root.(*functionFromNode)
-			composite = composite && len(function.calls) == 1 && function.calls[0].ResultUsage().Type.IsComposite()
+			composite = composite && len(function.calls) == 1 && function.calls[0].ResultUsage().Type.BaseType().IsComposite()
 			hasScalarOut := function != nil && len(function.calls) == 1 && functionScalarOutName(function.calls[0]) != ""
 			if calls == 1 && !composite && !hasScalarOut {
 				ns.columns[0].descriptor.Name = n.Name.Text
@@ -925,6 +931,20 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 	return nil, fmt.Errorf("stuntgres: invalid function correlation owner")
 }
 
+// Function resolution must succeed before rejecting a typed definition list.
+// Anonymous RECORD shapes belong to resolved OUT parameters; named composite
+// results (including domains) retain their distinct diagnostic.
+func functionColumnDefinitionMessage(call BoundExpr) string {
+	typ := call.ResultUsage().Type.BaseType()
+	if typ.IsComposite() {
+		if typ.ID() == 2249 {
+			return "a column definition list is redundant for a function with OUT parameters"
+		}
+		return "a column definition list is redundant for a function returning a named composite type"
+	}
+	return `a column definition list is only allowed for functions returning "record"`
+}
+
 func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int) (LogicalNode, queryNamespace, error) {
 	calls := make([]BoundExpr, len(rawCalls))
 	schema := make([]ColumnDescriptor, 0, len(calls))
@@ -953,13 +973,16 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
+		if len(raw.ColumnDefinitions) != 0 {
+			return nil, queryNamespace{}, expressionError("42601", functionColumnDefinitionMessage(expr), raw.ColumnDefinitions[0].Pos)
+		}
 		if !validFunctionSourceCall(expr) {
 			return nil, queryNamespace{}, expressionError("0A000", "function table source is unsupported", raw.Pos)
 		}
 		calls[i] = expr
-		if expr.ResultUsage().Type.IsComposite() {
+		if expr.ResultUsage().Type.BaseType().IsComposite() {
 			for j := range functionFromCallWidth(expr) {
-				member := expr.ResultUsage().Type.CompositeMember(j)
+				member := expr.ResultUsage().Type.BaseType().CompositeMember(j)
 				schema = append(schema, ColumnDescriptor{Name: member.Name, Usage: member.Usage})
 			}
 		} else {
@@ -978,7 +1001,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1}
 	}
 	name := rawCalls[0].Name.Parts[len(rawCalls[0].Name.Parts)-1].Text
-	q := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !ordinality && !calls[0].ResultUsage().Type.IsComposite()}
+	q := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !ordinality && !calls[0].ResultUsage().Type.BaseType().IsComposite()}
 	if ordinal >= 0 {
 		for i, raw := range rawCalls {
 			bound := calls[i]
