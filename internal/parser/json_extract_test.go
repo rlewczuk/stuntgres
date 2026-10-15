@@ -38,3 +38,25 @@ func TestJSONExtractCallAndStoredSyntax(t *testing.T) {
 		}
 	}
 }
+
+func TestJSONBExtractCallAndOperatorSyntax(t *testing.T) {
+	for _, q := range []string{
+		`SELECT jsonb_extract_path($1,$2,$3)`,
+		`SELECT jsonb_extract_path_text(from_json => $1,VARIADIC path_elems => $2::text[])`,
+		`SELECT jsonb_extract_path($1,VARIADIC '{}'::text[])`,
+	} {
+		n, ok := orderParse(t, q).Targets[0].(FunctionExpr)
+		if !ok || n.Pos.Character != 8 {
+			t.Fatal(q, n)
+		}
+	}
+	for _, q := range []string{
+		`SELECT jsonb_extract_path(doc,'a') -> 0 FROM t`,
+		`SELECT doc ->> jsonb_extract_path_text(doc,'key') FROM t`,
+		`SELECT jsonb_extract_path(doc,'a') #>> '{0}' FROM t`,
+	} {
+		if _, ok := orderParse(t, q).Targets[0].(OperatorExpr); !ok {
+			t.Fatal(q)
+		}
+	}
+}

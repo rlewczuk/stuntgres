@@ -768,7 +768,7 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   arrays at the same depth. Thus `{"a":{"b":1},"a":{}} #> '{a,b}'` yields 1,
   and `{"x":[0],"a":[10,20,30]} #> '{a,-1}'` yields 10, unlike chained lookup.
   Empty paths trim container outer whitespace; raw root scalars retain leading
-  whitespace but drop trailing whitespace. JSONB extraction remains excluded.
+  whitespace but drop trailing whitespace.
   `json_array_elements(json)` and `json_array_elements_text(json)` expand
   immediate array members in source order as scalar JSON/TEXT rows. Nested
   containers retain source spelling/whitespace/duplicates/numbers. Raw strings
@@ -781,6 +781,25 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   use the function name. `from_json`, ordinality, target zip/nesting, lateral
   sources and symbolic stored/native replay share existing stages. JSONB
   expansion remains excluded.
+  JSONB extraction includes the same four operators and immutable variadic
+  `jsonb_extract_path` / `jsonb_extract_path_text`, returning JSONB/TEXT.
+  Key TEXT and array INT4 RHS remain distinct; INT2 promotes but INT8/numeric
+  do not implicitly narrow. Unknown RHS of known JSONB key/index operators is
+  TEXT; unknown left operands remain ambiguous between JSON and JSONB.
+  Missing/wrong shapes, out-of-range indices, NULL arguments and NULL path
+  elements return typed SQL NULL. Integer operators expose scalar roots at
+  indices 0 and -1, but nonempty scalar paths return NULL.
+  TEXT[] paths flatten row-major regardless of rank/lower bounds. Empty paths
+  select the whole document (functions require explicit VARIADIC for this).
+  Array path indices accept leading C whitespace, signs and leading zeros;
+  trailing junk/whitespace, invalid syntax and int32 overflow return NULL.
+  Object path strings always remain exact keys. Raw results preserve canonical
+  JSONB structure/output; TEXT strings decode, JSON null becomes SQL NULL and
+  other nodes render canonically. Duplicate-last-key and unrelated-sibling
+  negative paths follow the canonical tree, not JSON's released scanner state.
+  JSONB input conversion occurs before extraction, even with NULL path elements.
+  All six forms support defaults/generated/check/index/view expressions and
+  symbolic native replay, retaining named arguments and final VARIADIC syntax.
   `json_strip_nulls(target json, strip_in_arrays boolean DEFAULT false)` returns
   JSON after recursively removing null-valued object fields. Default false
   retains array nulls; true removes them recursively. Bare JSON null and empty

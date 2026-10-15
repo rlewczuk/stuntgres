@@ -17,20 +17,26 @@ type JSONExtractPlan struct {
 
 func BindJSONExtract(name string, result, document, path Usage, variadic bool) (JSONExtractPlan, error) {
 	p := JSONExtractPlan{name, result, document, path, variadic}
-	id := JSON
-	if name == "json_extract_path_text" {
+	documentID, id := JSON, JSON
+	switch name {
+	case "json_extract_path":
+	case "json_extract_path_text":
 		id = Text
-	} else if name != "json_extract_path" {
+	case "jsonb_extract_path":
+		documentID, id = JSONB, JSONB
+	case "jsonb_extract_path_text":
+		documentID, id = JSONB, Text
+	default:
 		return p, fmt.Errorf("invalid JSON extraction name")
 	}
 	pathID := Text
 	if variadic {
 		pathID = 1009
 	}
-	if !result.Valid() || !document.Valid() || !path.Valid() || result.Typmod != -1 || document.Typmod != -1 || path.Typmod != -1 || result.Type.ID() != id || document.Type.ID() != JSON || path.Type.ID() != pathID {
+	if !result.Valid() || !document.Valid() || !path.Valid() || result.Typmod != -1 || document.Typmod != -1 || path.Typmod != -1 || result.Type.ID() != id || document.Type.ID() != documentID || path.Type.ID() != pathID {
 		return p, fmt.Errorf("invalid JSON extraction signature")
 	}
-	if id == JSON && result.Type != document.Type {
+	if id == documentID && result.Type != document.Type {
 		return p, fmt.Errorf("foreign JSON extraction result")
 	}
 	if id == Text && !variadic && result.Type != path.Type {
@@ -58,6 +64,11 @@ func (p JSONExtractPlan) Evaluate(ctx context.Context, values []Value) (Value, e
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
+	if p.document.Type.ID() == JSONB && p.variadic && values[1].array != nil {
+		if err := validateJSONBExtractPath(ctx, values[1].array.elements, p.path.Type.element); err != nil {
+			return Value{}, err
+		}
+	}
 	for _, v := range values {
 		if v.null {
 			return Null(p.result.Type), nil
@@ -69,6 +80,9 @@ func (p JSONExtractPlan) Evaluate(ctx context.Context, values []Value) (Value, e
 			return Value{}, fmt.Errorf("missing JSON extraction path payload")
 		}
 		path = values[1].array.elements
+	}
+	if p.document.Type.ID() == JSONB {
+		return extractJSONB(ctx, values[0], path, p.result.Type)
 	}
 	return extractJSON(ctx, values[0], path, p.result.Type, true, true)
 }

@@ -1426,7 +1426,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" {
+		if name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
 			functionName, identifier := "pg_catalog."+name, quoteIdentifier
 			if v.presentation.deparse {
 				functionName, identifier = v.presentation.identifier(name), v.presentation.identifier
@@ -1440,7 +1440,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				if len(e.ArgNames) > i && e.ArgNames[i].Text != "" {
 					text = identifier(e.ArgNames[i].Text) + " => " + text
 				}
-				if (parser.JSONBSetFunctionName(name) || name == "json_strip_nulls" || name == "json_extract_path" || name == "json_extract_path_text") && e.Variadic && i == len(e.Args)-1 {
+				if (parser.JSONBSetFunctionName(name) || name == "json_strip_nulls" || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text") && e.Variadic && i == len(e.Args)-1 {
 					text = "VARIADIC " + text
 				}
 				parts[i] = text

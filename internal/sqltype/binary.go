@@ -27,7 +27,11 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		} else if len(args) == 2 && args[1].Type != nil && args[1].Type.ID() == Int4 {
 			right = Int4
 		}
-		ids, id = [4]ID{JSON, right}, JSON
+		document := JSON
+		if len(args) == 2 && args[0].Type != nil && args[0].Type.ID() == JSONB {
+			document = JSONB
+		}
+		ids, id = [4]ID{document, right}, document
 		if name == "->>" || name == "#>>" {
 			id = Text
 		}
@@ -140,6 +144,12 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 			return p, fmt.Errorf("mismatched binary result owner")
 		}
 	}
+	if ids[0] == JSONB && (name == "#>" || name == "#>>") {
+		element := args[1].Type.element
+		if element == nil || element.ID() != Text || id == Text && result.Type != element {
+			return p, fmt.Errorf("foreign JSONB extraction path")
+		}
+	}
 	return p, nil
 }
 func (p BinaryPlan) Name() string       { return p.name }
@@ -216,6 +226,11 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
+	if p.args[0].Type.ID() == JSONB && (p.name == "#>" || p.name == "#>>") && values[1].array != nil {
+		if err := validateJSONBExtractPath(ctx, values[1].array.elements, p.args[1].Type.element); err != nil {
+			return Value{}, err
+		}
+	}
 	for _, v := range values {
 		if v.null {
 			return Null(p.result.Type), nil
@@ -230,6 +245,9 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 	a := values[0]
 	switch p.name {
 	case "->", "->>", "#>", "#>>":
+		if a.typ.ID() == JSONB {
+			return p.jsonbExtraction(ctx, a, values[1])
+		}
 		return p.jsonExtraction(ctx, values[0], values[1])
 	case "?", "?|", "?&":
 		return p.jsonbExistence(ctx, values[0], values[1])

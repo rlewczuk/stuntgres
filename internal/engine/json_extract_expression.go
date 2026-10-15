@@ -45,7 +45,11 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 	} else if right != nil && (right.BaseType().ID() == sqltype.Int2 || right.BaseType().ID() == sqltype.Int4) {
 		rhs = b.typ(sqltype.Int4).Usage()
 	}
-	targets := [2]sqltype.Usage{b.typ(sqltype.JSON).Usage(), rhs}
+	document := b.typ(sqltype.JSON).Usage()
+	if left != nil && left.BaseType().ID() == sqltype.JSONB {
+		document = b.typ(sqltype.JSONB).Usage()
+	}
+	targets := [2]sqltype.Usage{document, rhs}
 	for i, o := range operands {
 		if o.descriptor() != nil {
 			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), targets[i], sqltype.Implicit); err != nil {
@@ -65,7 +69,7 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 		}
 		properties = mergeExpressionProperties(properties, args[i].Properties())
 	}
-	result := b.typ(sqltype.JSON).Usage()
+	result := document
 	if name == "->>" || name == "#>>" {
 		result = b.typ(sqltype.Text).Usage()
 	}
@@ -73,6 +77,10 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 }
 func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	document := b.typ(sqltype.JSON).Usage()
+	if name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
+		document = b.typ(sqltype.JSONB).Usage()
+	}
 	var local [16]functions.Argument[BoundExpr]
 	operands := local[:min(len(raw.Args), len(local))]
 	if len(raw.Args) > len(local) && len(raw.Args) <= 100 {
@@ -130,7 +138,7 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 		}
 		target := path
 		if i == 0 {
-			target = b.typ(sqltype.JSON).Usage()
+			target = document
 		}
 		if o.Usage.Type != nil {
 			if _, err := sqltype.PlanCoercion(o.Usage, target, sqltype.Implicit); err != nil {
@@ -149,7 +157,7 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 	for i, o := range operands {
 		target := path
 		if i == 0 {
-			target = b.typ(sqltype.JSON).Usage()
+			target = document
 		}
 		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: target})
 		if err != nil {
@@ -172,8 +180,8 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 	if decoration != "" {
 		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
 	}
-	result := b.typ(sqltype.JSON).Usage()
-	if name == "json_extract_path_text" {
+	result := document
+	if name == "json_extract_path_text" || name == "jsonb_extract_path_text" {
 		result = b.typ(sqltype.Text).Usage()
 	}
 	e.Info = functionInfo(b.info(result, raw.Pos, properties))

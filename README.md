@@ -13,7 +13,7 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
-## JSON extraction — change note
+## JSON and JSONB extraction — change note
 
 JSON supports key/index `->` and `->>`, TEXT[] paths `#>` and `#>>`, and
 `json_extract_path` / `json_extract_path_text`. JSON results retain source
@@ -27,8 +27,18 @@ replay. Processing validates Unicode throughout the document, even discarded
 branches, except strict NULL inputs/NULL path elements. PostgreSQL 18.0's
 released duplicate-path retention and sibling-array index state are preserved;
 path extraction is not always equivalent to repeated `->`.
-JSONB extraction, JSONPath execution and JSON equality are not added.
-See [contracts and selected smoke](reference/binary_json_arrays/README.md#json-extraction).
+JSONB supports the same four operators plus `jsonb_extract_path` and
+`jsonb_extract_path_text`, traversing its canonical immutable tree. Raw results
+are JSONB; container TEXT uses canonical output, strings decode and JSON null
+becomes SQL NULL. Paths flatten any TEXT[] rank/bounds; invalid array-path
+indices and NULL components return SQL NULL. Empty paths return the whole value.
+Integer `->`/`->>` selects a scalar root at 0 or -1; nonempty paths on scalars
+return NULL. Unlike JSON, duplicate-intermediate and unrelated-sibling paths
+use the canonical selected tree, without retained scanner matches/index state.
+All six JSONB forms support stored expressions and symbolic native replay.
+JSONPath execution and JSON equality are not added.
+See [JSON contracts](reference/binary_json_arrays/README.md#json-extraction)
+and [JSONB contracts and smoke](reference/binary_json_arrays/README.md#jsonb-extraction).
 
 ## Role membership and row-security inquiries — change note
 

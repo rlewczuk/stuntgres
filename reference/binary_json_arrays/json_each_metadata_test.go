@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string) {
+func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string, sourceColumns ...jsonTypeSourceColumn) {
 	t.Helper()
 	meta, err := r.ColumnTypes()
 	if err != nil || len(meta) != len(types) {
@@ -24,9 +24,9 @@ func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string)
 				scan = reflect.TypeFor[int32]()
 			}
 		}
-		// pq reports interface{} for JSON and RECORD; their raw carriers
-		// remain []byte. Confirmed against the pinned PostgreSQL 18.0 oracle.
-		if pg && (types[i] == "RECORD" || types[i] == "JSON") {
+		// pq reports interface{} for JSON, JSONB and RECORD; their raw carriers
+		// remain []byte. JSONB extraction also uses this shared metadata contract.
+		if pg && (types[i] == "RECORD" || types[i] == "JSON" || types[i] == "JSONB") {
 			scan = reflect.TypeFor[any]()
 		}
 		if ct.Name() != names[i] || ct.DatabaseTypeName() != types[i] || ct.ScanType() != scan {
@@ -39,8 +39,16 @@ func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string)
 		if n, k := ct.Length(); n != length || k != known {
 			t.Errorf("column%d Length=%d/%t want=%d/%t", i, n, k, length, known)
 		}
-		if n, k := ct.Nullable(); n || k {
-			t.Errorf("computed column%d Nullable=%t/%t", i, n, k)
+		wantNullable, wantKnown := false, false
+		if !pg {
+			for _, column := range sourceColumns {
+				if column.index == i {
+					wantNullable, wantKnown = column.nullable, true
+				}
+			}
+		}
+		if n, k := ct.Nullable(); n != wantNullable || k != wantKnown {
+			t.Errorf("column%d Nullable=%t/%t want=%t/%t", i, n, k, wantNullable, wantKnown)
 		}
 		if p, s, k := ct.DecimalSize(); p != 0 || s != 0 || k {
 			t.Errorf("column%d DecimalSize=%d/%d/%t", i, p, s, k)
@@ -48,8 +56,10 @@ func jsonEachMetadata(t *testing.T, r *sql.Rows, pg bool, names, types []string)
 	}
 }
 
-func jsonEachWithMetadata(s fixture.Step, pg bool) fixture.Step {
-	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { jsonEachMetadata(t, rows, pg, s.Columns, s.Types) }
+func jsonEachWithMetadata(s fixture.Step, pg bool, sourceColumns ...jsonTypeSourceColumn) fixture.Step {
+	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+		jsonEachMetadata(t, rows, pg, s.Columns, s.Types, sourceColumns...)
+	}
 	return s
 }
 

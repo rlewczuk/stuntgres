@@ -82,6 +82,53 @@ Smoke expects exact mixed values/ordinal order, complete empty metadata,
 22023 wrong-root errors, held error/empty/NULL recovery, lateral expansion,
 renamed symbolic views and native retained rows/metadata plus dump replay.
 
+### JSONB extraction
+
+`TestReferenceJSONBExtract` specifies JSONB-only `->`, `->>`, `#>`, `#>>`,
+`jsonb_extract_path` and `jsonb_extract_path_text`. Independent expectations
+cover exact TEXT keys versus INT4 array indices, negative indices, canonical
+JSONB/decoded TEXT, JSON null versus SQL NULL, missing/wrong structures and
+six-form metadata for populated, all-NULL and zero-row results.
+Computed extraction nullability is unknown. Native stored table/view columns
+retain known declared nullability, and COUNT is known nonnullable; pq exposes
+unknown nullability in each case. Stored metadata assertions specify this
+distinction explicitly, including retained native metadata after Reset.
+
+Pinned PostgreSQL 18.0 discovery confirmed root scalar integer operators at
+0/-1 select the scalar; nonempty paths on scalars return SQL NULL. TEXT[] paths
+flatten multidimensional arrays and ignore lower bounds. Empty paths select
+the whole value; ordinary one-document function calls are not empty paths.
+NULL paths/components return SQL NULL. Array path indices accept leading C
+whitespace, signs and leading zeros; malformed/overflowing/trailing-junk
+indices return SQL NULL, not mutator errors. Object keys stay exact strings.
+JSONB duplicate-intermediate and sibling-array traversal follows the canonical
+tree, deliberately unlike JSON's released scanner-state witnesses above.
+
+Full-field diagnostics cover signatures, unknown-left ambiguity, labels,
+decorations, arity, character positions, parameter conversion context and
+input-conversion precedence even with NULL-containing paths. Held statements
+alternate documents/keys/indices/paths and recover after invalid input.
+Stored DEFAULT/generated/CHECK/index/view/CTAS/INSERT SELECT SQL shares one
+scenario across backends. Native-only phases retain rows/metadata across
+Reset, restore exact dumps, reject late failed replacement atomically, and
+replay actual emitted SQL on PostgreSQL with fresh default/generated insertion.
+Dump replay preserves symbolic operators, named labels and final VARIADIC.
+Discovery established PostgreSQL expectations, not completed native proof.
+
+```sh
+make check RUN='^(TestReferenceJSONBExtract(Values|Paths|Typing|Metadata|Diagnostics|Held|StoredReplay|NativeControls|FeatureSmoke)|TestReferenceJSONExtract(Values|Paths|ReleasePaths|Typing|Metadata|Diagnostics|Held|Unicode|StoredReplay|NativeControls|FeatureSmoke))$'
+make check RUN='^(TestReferenceJSONBExtract(Values|Paths|Typing|Metadata|Diagnostics|Held|StoredReplay|NativeControls|FeatureSmoke)|TestReferenceJSONExtract(Values|Paths|ReleasePaths|Typing|Metadata|Diagnostics|Held|Unicode|StoredReplay|NativeControls|FeatureSmoke))$' REFERENCE=1
+make check RUN='^TestReferenceJSONBExtractFeatureSmoke$'
+make check RUN='^TestReferenceJSONBExtractFeatureSmoke$' REFERENCE=1
+```
+
+The feature smoke observes duplicate-last-key extraction, negative indices,
+decoded escapes, raw/text nulls, missing/wrong shapes, all four path forms,
+empty/ranked/bounded paths, scalar/operator distinctions, held recovery, exact
+diagnostics and stored/native lifecycle behavior. Successful proof requires
+independent assertions on each backend, not parity alone. JSONPath execution,
+containment/deletion and other JSONB providers are outside this extraction part.
+
 
 ### Bit-string scalar operators
 
