@@ -1252,7 +1252,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return "pg_catalog.generate_subscripts(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if parser.ArrayTransformFunctionName(name) || parser.ArraySearchFunctionName(name) || parser.ArrayInspectFunctionName(name) {
+		if name == "parse_ident" || parser.ArrayTransformFunctionName(name) || parser.ArraySearchFunctionName(name) || parser.ArrayInspectFunctionName(name) {
 			parts := make([]string, len(e.Args))
 			for i, arg := range e.Args {
 				text, err := selectedOperand(i, arg, pgRenderParent{functionArgument: true})

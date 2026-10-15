@@ -999,6 +999,13 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 						return "", err
 					}
 				}
+				if n.Plan.Name() == "parse_ident" && !n.Textual[0] {
+					label := "strict"
+					if n.Textual[i] {
+						label = "str"
+					}
+					text = label + " => " + text
+				}
 				parts[i] = text
 			}
 			if n.Syntax == parser.PrefixStringSyntax {

@@ -133,6 +133,13 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		return p, fmt.Errorf("invalid string signature")
 	}
 	switch name {
+	case "parse_ident":
+		if len(args) > 2 || len(args) == 1 && !textual[0] || len(args) == 2 && textual[0] == textual[1] || textual[2] || textual[3] {
+			return p, fmt.Errorf("invalid parse_ident roles")
+		}
+		if result.Typmod != -1 || !result.Type.IsArray() || result.Type.Element() != text.Type || result.Type.ID() != text.Type.AssociatedArray() {
+			return p, fmt.Errorf("foreign parse_ident result owner")
+		}
 	case "split_part":
 		if len(args) != 3 || result.Type.ID() != Text || !textual[0] || !textual[1] || textual[2] {
 			return p, fmt.Errorf("invalid split_part signature")
@@ -239,6 +246,13 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 		}
 		p.args[i] = u
 		target := text
+		if name == "parse_ident" && !textual[i] {
+			if u.Type.ID() != Bool || u != u.Type.Usage() {
+				return p, fmt.Errorf("invalid parse_ident boolean input")
+			}
+			p.formal[i] = u
+			continue
+		}
 		if name == "to_ascii" && i == 1 {
 			if (u.Type.ID() != Name && u.Type.ID() != Int4) || u != u.Type.Usage() {
 				return p, fmt.Errorf("invalid encoding input")
@@ -299,6 +313,17 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 	texts, err := p.stringInputs(ctx, values, input, output)
 	if err != nil {
 		return Value{}, err
+	}
+	if p.name == "parse_ident" {
+		source, strict := 0, true
+		for i := range int(p.count) {
+			if p.textual[i] {
+				source = i
+			} else {
+				strict = values[i].boolean
+			}
+		}
+		return parseIdent(ctx, p.result.Type, texts[source], strict)
 	}
 	if p.name == "split_part" {
 		index, err := values[2].Integer()

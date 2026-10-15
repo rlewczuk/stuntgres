@@ -976,7 +976,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.lexeme.text == "lateral" && token.lexeme.keyword != nil {
 		token.code = LATERAL
 	}
-	if token.code == IDENT && stringSplitFunction(token.lexeme.text) {
+	if token.code == IDENT && (stringSplitFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "parse_ident")) {
 		token.code = SELECTED_FUNC
 	}
 	if token.code == IDENT && (mathConstantFunction(token.lexeme.text) || gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.EqualFold(token.lexeme.text, "jsonb_object") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
@@ -1162,7 +1162,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
-	if token.code == SELECTED_FUNC && stringSplitFunction(token.lexeme.text) {
+	if token.code == SELECTED_FUNC && (stringSplitFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "parse_ident")) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {
@@ -1188,6 +1188,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	// Selected time, enum and delay calls reuse failure-only decorations;
 	// their binder rejects aggregate modifiers after resolving the operands.
+	if token.code == CHECK_FUNC && strings.EqualFold(token.lexeme.text, "parse_ident") {
+		token.code = TX_TIME_FUNC
+	}
 	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || JSONBSetFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || strings.EqualFold(token.lexeme.text, "unnest") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
 	}

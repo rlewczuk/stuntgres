@@ -217,6 +217,13 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 				}
 				text = "CAST(" + text + " AS " + declaration + ")"
 			}
+			if n.Plan.Name() == "parse_ident" && !n.Textual[0] {
+				label := "strict"
+				if n.Textual[i] {
+					label = "str"
+				}
+				text = label + " => " + text
+			}
 			parts[i] = text
 		}
 		if n.Syntax != parser.OrdinaryStringSyntax {

@@ -76,7 +76,11 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
 	}
 	for i, r := range raw.Args {
-		o, err := b.AnalyzeArgument(r, functions.StringArgumentAnalysis(name, i))
+		request := functions.StringArgumentAnalysis(name, i)
+		if name == "parse_ident" && stringIdentStrictArgument(raw, i) {
+			request = functions.AnalysisRequest{Intent: functions.StringOtherArgument}
+		}
+		o, err := b.AnalyzeArgument(r, request)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +88,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			operands[i] = o
 		}
 	}
-	if strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
+	if name == "parse_ident" || strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
 		if err := b.validateRangeInspectSyntax(raw); err != nil {
 			return nil, err
 		}
@@ -146,9 +150,18 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 	if nameTarget && name == "to_ascii" {
 		targets.Name = b.typ(sqltype.Name).Usage()
 	}
+	if name == "parse_ident" {
+		targets.Boolean = b.typ(sqltype.Bool).Usage()
+	}
 	textInspection := strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper")
 	selectionVisible := visible && (!textInspection || len(raw.ArgNames) == 0)
-	selection, resolution := functions.SelectStringFunction(name, selectionVisible, raw.Variadic, operands, targets)
+	var selection functions.StringSelection
+	var resolution functions.Resolution
+	if name == "parse_ident" {
+		selection, resolution = selectStringIdent(raw, visible, operands, targets)
+	} else {
+		selection, resolution = functions.SelectStringFunction(name, selectionVisible, raw.Variadic, operands, targets)
+	}
 	if resolution != functions.Resolved {
 		names := make([]string, len(operands))
 		for i, o := range operands {
@@ -162,7 +175,7 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
-	if textInspection {
+	if name == "parse_ident" || textInspection {
 		if err := rangeInspectDecorationError(raw); err != nil {
 			return nil, err
 		}

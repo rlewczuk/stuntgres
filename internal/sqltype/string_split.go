@@ -152,7 +152,7 @@ func (p StringPlan) stringInputs(ctx context.Context, values [4]Value, input Inp
 		if v.Type() != p.args[i].Type {
 			return texts, fmt.Errorf("foreign string input value")
 		}
-		if v.IsNull() || p.formal[i].Type.ID() == Int4 || p.formal[i].Type.ID() == Int8 {
+		if v.IsNull() || p.formal[i].Type.ID() == Int4 || p.formal[i].Type.ID() == Int8 || p.name == "parse_ident" && !p.textual[i] {
 			continue
 		}
 		if p.name == "to_ascii" && i == 1 {

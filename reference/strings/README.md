@@ -6,6 +6,49 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Identifier parsing selected proof
+
+The nine `TestReferenceStringIdent*` definitions in `string_ident_values_test.go`,
+`string_ident_diagnostics_test.go` and `string_ident_lifecycle_test.go` share the
+existing scenario/recorder and independently specified PostgreSQL 18 outcomes.
+They cover byte-oriented folding/quoting, strict suffix handling, NULL/coercion,
+both formal-name orders (`str`, `strict`), complete diagnostics, direct/prepared/
+held metadata, executable view deparse, atomicity and native control lifetime.
+
+```sh
+make check RUN='^TestReferenceStringIdent(Values|NullAndCoercion|NamedArguments|FramesAndMetadata|Diagnostics|BindingDiagnostics)$'
+make check RUN='^TestReferenceStringIdent(Values|NullAndCoercion|NamedArguments|FramesAndMetadata|Diagnostics|BindingDiagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceStringIdent(Stored|Lifecycle|FeatureSmoke)$'
+make check RUN='^TestReferenceStringIdent(Stored|Lifecycle|FeatureSmoke)$' REFERENCE=1
+```
+
+Use an external 900-second deadline per command. Both backends run without a
+discovery filter. Backend child names permit `/postgres$` oracle selection, at
+the cost of eagerly starting every reference package's oracle.
+
+Private scanner/plan/binding/reconstruction proof:
+
+```sh
+make check RUN='^TestStringIdent(Parse|Diagnostics|Plan|CancellationWork|Binding|Reconstruction)$'
+make check RUN='^(TestStringIdent(Reconstruction|CancellationWork)|TestReferenceStringIdent(FramesAndMetadata|Lifecycle))$' RACE=1
+```
+
+Feature smoke selects `make check RUN='^TestReferenceStringIdentFeatureSmoke$'`
+and the same command with `REFERENCE=1`. Native precancellation and Dump/Reset/
+Restore are explicit native-only phases; no PostgreSQL control API is invented.
+
+The session-owned standalone smoke source is materialized outside the repository
+and run from the worktree as `go run /ABS/OMP/SESSION/string-ident-smoke.go`.
+Expected exit0 and empty stderr accompany exactly this stdout line:
+
+```text
+quoted={SomeSchema,sometable} suffix={a,b} null=true strict=22023 type=_TEXT restored={d,e}
+```
+
+This separately observes prepared execution, metadata, quoted/default and named
+nonstrict results, typed NULL, strict22023, and native Dump/Reset/Restore. No
+smoke executable or temporary discovery harness is committed.
+
 ### Array concatenation consumer
 
 `TestReferenceStringCoreArrayConcat` replaces the obsolete missing-array-operator

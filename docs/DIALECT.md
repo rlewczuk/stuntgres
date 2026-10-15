@@ -8,6 +8,20 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## Identifier strings
+
+`parse_ident(str text, strict boolean DEFAULT true)` splits qualified identifier
+text into TEXT[], without resolving objects or truncating names. Its optional
+mode controls suffix rejection, not SQL NULL strictness: either supplied NULL
+returns typed NULL. Names `str` and `strict` may be supplied in either written
+order. Unquoted folding changes ASCII uppercase only; UTF8 bytes are preserved.
+Only the six ASCII scanner whitespace bytes separate components. Comments,
+Unicode whitespace and nested SQL identifier syntax are not interpreted.
+Nonstrict mode ignores suffixes after a complete component, but never accepts a
+missing/empty/unclosed component after a consumed dot. This does not expand the
+general function resolver, cast graph, SQL identifier lexer or catalog SQL rows.
+See [selected proof and smoke](../reference/strings/README.md#identifier-parsing-selected-proof).
+
 ## Server transport
 
 `cmd/stuntgres` uses the same engine through PostgreSQL protocol 3.0 simple

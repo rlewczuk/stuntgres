@@ -1054,6 +1054,18 @@ and [selected proofs](reference/patterns_encoding/README.md#expression-collation
 Feature smoke: `make check RUN='^TestReferenceExprCollationFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceExprCollationFeatureSmoke$'`.
 
+Change note: PostgreSQL18 `parse_ident(str text, strict boolean DEFAULT true)`
+returns owned TEXT[] identifier components. Quoted names unescape doubled
+quotes; unquoted names fold ASCII uppercase only, with no identifier truncation.
+Nonstrict mode ignores suffix data only after a complete component; a consumed
+dot still requires another valid identifier. Both catalog argument names work in
+either written order, including retained/deparsed views and native Restore.
+NULL in either supplied argument returns typed NULL before scanning. Malformed
+input reports full English22023 diagnostics without a statement position.
+See [identifier parsing proofs](reference/strings/README.md#identifier-parsing-selected-proof).
+Feature smoke: `make check RUN='^TestReferenceStringIdentFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceStringIdentFeatureSmoke$' REFERENCE=1`.
+
 Change note: PostgreSQL18 `split_part(text,text,int4)` returns a selected field,
 and `string_to_array(text,text[,text])` returns generation-owned TEXT[].
 `string_to_table` supplies real TEXT rows in targets and bounded FROM sources,

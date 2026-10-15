@@ -2046,7 +2046,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 				return fmt.Errorf("stuntgres: invalid restore scalar")
 			}
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
-			case "split_part", "string_to_array":
+			case "split_part", "string_to_array", "parse_ident":
 			case "array_position", "array_positions", "array_remove", "array_replace":
 			case "array_dims", "array_length", "array_lower", "array_upper", "array_ndims", "cardinality":
 			case "array_append", "array_prepend", "array_cat", "array_fill", "array_reverse", "array_sort", "trim_array", "array_to_string":

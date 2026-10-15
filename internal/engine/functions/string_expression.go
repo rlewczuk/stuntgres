@@ -88,7 +88,7 @@ func StringCatalogOutput(name string, textual bool, usage sqltype.Usage) bool {
 	return name == "||" && !textual && usage.Type.ContainsCatalogIdentifier()
 }
 
-type StringTargets struct{ Text, Integer, Name sqltype.Usage }
+type StringTargets struct{ Text, Integer, Name, Boolean sqltype.Usage }
 
 func (t StringTargets) usage(id sqltype.ID) sqltype.Usage {
 	switch id {
@@ -98,6 +98,8 @@ func (t StringTargets) usage(id sqltype.ID) sqltype.Usage {
 		return t.Integer
 	case sqltype.Name:
 		return t.Name
+	case sqltype.Bool:
+		return t.Boolean
 	}
 	return sqltype.Usage{}
 }
