@@ -926,10 +926,13 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   index opclasses or general §9.19 array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
-- Integer/bigint `generate_series` executes through SELECT-target expansion
+- Integer/bigint/numeric `generate_series` executes through SELECT-target expansion
   and FROM function sources, including views, CTAS and INSERT SELECT.
-  Numeric/temporal overloads inform genuine resolution and ambiguity but are
-  not executable providers. INSERT VALUES expansion remains excluded.
+  Numeric steps are exact; start/step (not stop) determine display scale.
+  Results remain unconstrained NUMERIC. NULL is empty; nonnull zero/nonfinite
+  inputs have PostgreSQL diagnostics. Unreturned successors can exceed packed
+  numeric limits without failing. Temporal overloads inform genuine resolution
+  but are not executable providers. INSERT VALUES expansion remains excluded.
   FROM aliases, ROWS FROM zip/padding, bigint ordinality and implicit/explicit
   lateral references to preceding sources use the existing function-source lane.
   Window PARTITION/ORDER keys are legal; window frames and scalar restricted

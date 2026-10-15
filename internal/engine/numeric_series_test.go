@@ -1,0 +1,176 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) seriesExpression {
+	t.Helper()
+	e := seriesExpression{expressionInfo: expressionInfo{usage: d.Usage(), pos: parser.Position{Character: 8, Offset: 7}, properties: ExprProperties{StageDependent: true}}}
+	for _, s := range args {
+		v, err := d.Input(context.Background(), s, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.args = append(e.args, literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: v})
+	}
+	return e
+}
+
+func numericSeriesUnitRead(t *testing.T, e seriesExpression) []sqltype.Value {
+	t.Helper()
+	cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cursor.close()
+	var values []sqltype.Value
+	for {
+		v, ok, err := cursor.next(context.Background(), e.ResultUsage().Type)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			return values
+		}
+		values = append(values, v)
+		if len(values) > 10 {
+			t.Fatal("unexpected cardinality")
+		}
+	}
+}
+
+func TestNumericSeriesBinding(t *testing.T) {
+	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	b.aggregateClause = "SELECT"
+	raw := nullCountRaw("generate_series", parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "0.1"}, parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "0.3"}, parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "numeric"}, Text: "0.1"})
+	x, err := b.bindFunction(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := x.(seriesExpression)
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !validFunctionSourceCall(e) || !b.queryHasTargetSet {
+		t.Fatal(x)
+	}
+	want := numericSeriesUnit(t, e.ResultUsage().Type, "0.1", "0.3", "0.1")
+	if !reflect.DeepEqual(numericSeriesUnitRead(t, e), numericSeriesUnitRead(t, want)) {
+		t.Fatal("numeric binding values")
+	}
+}
+
+func TestNumericSeriesInvocation(t *testing.T) {
+	d := seriesUnitType(t, sqltype.Numeric)
+	e := numericSeriesUnit(t, d, "0.1", "0.3", "0.1")
+	var calls []int
+	for i, arg := range e.args {
+		v := arg.(literalExpression).value
+		e.args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, i); return v, nil })
+	}
+	if got := numericSeriesUnitRead(t, e); len(got) != 3 || !reflect.DeepEqual(calls, []int{0, 1, 2}) {
+		t.Fatal(got, calls)
+	}
+	calls = nil
+	e.args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, 0); return sqltype.Null(d), nil })
+	if got := numericSeriesUnitRead(t, e); len(got) != 0 || !reflect.DeepEqual(calls, []int{0, 1, 2}) {
+		t.Fatal(got, calls)
+	}
+	sentinel := errors.New("sibling evaluation")
+	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
+	if _, err := openFunctionCall(&EvalContext{Context: context.Background()}, e); err != sentinel {
+		t.Fatal(err)
+	}
+}
+
+func TestNumericSeriesExpressionHooks(t *testing.T) {
+	view := New().CatalogRead()
+	d, _ := view.LookupType(sqltype.Numeric)
+	original := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
+	want := numericSeriesUnitRead(t, original)
+	clone, err := remapBoundExpression(original, func(r ObjectRef) ObjectRef { return r }, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := numericSeriesUnitRead(t, clone.(seriesExpression)); !reflect.DeepEqual(got, want) {
+		t.Fatal("remap", got)
+	}
+	fresh := seriesUnitType(t, sqltype.Numeric)
+	mapped, changed, err := retagBoundTypes(view, original, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+		if typ == d {
+			return fresh
+		}
+		return typ
+	})
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	mappedValues := numericSeriesUnitRead(t, mapped.(seriesExpression))
+	for i, v := range mappedValues {
+		restored, err := v.Retag(d)
+		if err != nil || restored != want[i] {
+			t.Fatal("retag", err)
+		}
+	}
+	text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Bind the actual rendered expression again rather than merely checking
+	// that a renderer emitted a function name.
+	statements, err := parser.Parse("SELECT " + text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	b.aggregateClause = "SELECT"
+	rebound, err := b.bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{context: functionArgumentContext, expected: b.typ(sqltype.Numeric).Usage()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := numericSeriesUnitRead(t, rebound.(seriesExpression))
+	if len(got) != len(want) {
+		t.Fatal("rendered cardinality")
+	}
+	for i, v := range got {
+		retagged, err := v.Retag(d)
+		if err != nil || retagged != want[i] {
+			t.Fatal("rendered expression", err)
+		}
+	}
+	rewritten, changed, err := mapBoundExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, func(n BoundExpr) (BoundExpr, bool, error) {
+		if n == original.args[0] {
+			return numericSeriesUnit(t, d, "0.20", "0.3", "0.10").args[0], true, nil
+		}
+		return n, false, nil
+	})
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	if got := numericSeriesUnitRead(t, rewritten.(seriesExpression)); !reflect.DeepEqual(got, want[1:]) {
+		t.Fatal("copy-on-change", got)
+	}
+	for _, fold := range []func() (BoundExpr, bool, error){
+		func() (BoundExpr, bool, error) {
+			return preflightCoercions(&EvalContext{Context: context.Background()}, original)
+		},
+		func() (BoundExpr, bool, error) {
+			return simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
+		},
+	} {
+		n, _, err := fold()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := numericSeriesUnitRead(t, n.(seriesExpression)); !reflect.DeepEqual(got, want) {
+			t.Fatal("fold", got)
+		}
+	}
+	if got := numericSeriesUnitRead(t, original); !reflect.DeepEqual(got, want) || original.ResultUsage().Type != d || original.args[0].ResultUsage().Type != d {
+		t.Fatal("original mutated")
+	}
+}

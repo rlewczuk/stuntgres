@@ -208,10 +208,37 @@ stored views preserve symbolic arguments and width, never live cursors.
 Dump/Restore replays eligible views and literal stored data under its existing
 whitelist; it does not enable INSERT query sources or CTAS during Restore.
 
-Numeric/temporal signatures are considered for truthful overload resolution but
-are not native executable providers. INSERT VALUES expansion remains an explicit
-native capability exclusion; FROM providers use the shared source lane below.
+Temporal signatures are considered for truthful overload resolution but are not
+native executable providers. INSERT VALUES expansion remains an explicit native
+capability exclusion; FROM providers use the shared source lane below.
 Public coverage and commands live in [reference/numeric](../reference/numeric/README.md#integer-target-series-selected-proof).
+
+## Numeric series
+
+The numeric two-/three-argument `generate_series` overloads reuse these same
+target and FROM stages. Arithmetic uses exact, invocation-private decimal
+coefficients, not floating point or precomputed row arrays. Default step is +1;
+reachable endpoints are inclusive and mismatched directions are empty.
+The first row keeps start's display scale; subsequent rows use the maximum of
+start's and step's scales. Stop's scale never contributes. For example,
+`generate_series(0.1,0.3,0.10)` yields `0.1,0.20,0.30`.
+
+Result metadata is unconstrained NUMERIC (OID1700, typmod-1), including empty
+results, domains and constrained numeric inputs. NULL arguments suppress
+provider validation only after demanded arguments have been evaluated. Nonnull
+start, stop and step are checked in that order for NaN/infinity, then zero step;
+failures are `22023` with role-specific messages and absent runtime Position.
+Validation precedes direction checks. LIMIT0 does not demand a target provider.
+
+Successor state is unpacked and exact: a valid final row whose unreturned
+successor exceeds packed numeric limits still terminates normally. For example,
+`generate_series(9e131071,9.5e131071,9e131071)` emits one value without overflow;
+ordinary numeric addition retains its normal overflow checks.
+Held executions open fresh state, and existing final publication and mutation
+staging preserve cancellation/failure atomicity. Symbolic view arguments and
+materialized literal data survive native Dump/Reset/Restore; live cursors never
+do. Temporal, INSERT VALUES and Restore query-source exclusions are unchanged.
+See [selected numeric proof and smoke](../reference/numeric/README.md#numeric-series-selected-proof).
 
 ## Array target subscripts
 
@@ -256,7 +283,7 @@ See [selected proof](../reference/numeric/README.md#array-target-subscripts-sele
 
 ## Function sources
 
-Existing integer/bigint `generate_series` and `generate_subscripts` calls use the
+Existing integer/bigint/numeric `generate_series` and `generate_subscripts` calls use the
 same typed source stage as supported string, JSON and regexp calls. Output
 aliases preserve positional names and types, including empty metadata.
 Comma sources form Cartesian products; `ROWS FROM` zips to the longest member

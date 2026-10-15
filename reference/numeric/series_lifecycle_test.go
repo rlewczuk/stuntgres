@@ -39,8 +39,12 @@ func seriesNativeCancelWorker(ctx context.Context, c *sql.Conn, st *sql.Stmt, q 
 	done <- r
 }
 
-func seriesNativeCancel(t *testing.T, p *fixture.Pair, c *sql.Conn, q string, prepared, query bool) {
+func seriesNativeCancel(t *testing.T, p *fixture.Pair, c *sql.Conn, q string, prepared, query bool, providerFrames ...string) {
 	t.Helper()
+	providerFrame := "functionSetCursor).next"
+	if len(providerFrames) != 0 {
+		providerFrame = providerFrames[0]
+	}
 	var st *sql.Stmt
 	var err error
 	if prepared {
@@ -76,7 +80,7 @@ func seriesNativeCancel(t *testing.T, p *fixture.Pair, c *sql.Conn, q string, pr
 		// Check both frames in the SAME goroutine block, not independent workers.
 		admitted := false
 		for stack := range bytes.SplitSeq(buffer[:n], []byte("\n\n")) {
-			if bytes.Contains(stack, []byte("seriesNativeCancelWorker")) && bytes.Contains(stack, []byte("functionSetCursor).next")) {
+			if bytes.Contains(stack, []byte("seriesNativeCancelWorker")) && bytes.Contains(stack, []byte(providerFrame)) {
 				admitted = true
 				break
 			}

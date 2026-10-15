@@ -178,6 +178,55 @@ make check RUN='^TestReferenceSeriesFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferenceSeriesFeatureSmoke$'
 ```
 
+### Numeric series selected proof
+
+Untagged `numeric_series_*_test.go` definitions independently specify exact
+decimal values, nonuniform seed/step scales, NULL/nonfinite/zero rules, metadata,
+overload resolution, held reuse and function-source composition. Initial pinned
+PostgreSQL18.0 discovery confirmed Values/Boundaries/Demand, Binding/HeldParameters/
+Metadata and Diagnostics/OracleDecisions/Composition expectations before native
+implementation. Later additions require fresh selected proof in both modes.
+
+Boundaries includes signed equal/non-equal extreme successors beyond packed
+numeric range, full execution, LIMIT1 and count1 witnesses, plus finest fractional
+scale. Lifecycle observes the numeric provider on the native worker's live stack;
+PostgreSQL uses observed active-owner server cancellation. Workers are joined.
+Atomicity checks late zero/nonfinite failures and admitted cancellation through
+SELECT, INSERT SELECT and CTAS. Controls exercises symbolic numeric views,
+materialized exact data, retained metadata/rows, same/fresh Driver replay,
+deterministic redump, failed/canceled Restore and actual emitted SQL on PG.
+
+Run each small group in both modes (external deadline900s each), then root
+whole-project `make quickcheck`:
+
+```sh
+make check RUN='^TestReferenceNumericSeries(Values|Boundaries|Demand)$'
+make check RUN='^TestReferenceNumericSeries(Values|Boundaries|Demand)$' REFERENCE=1
+make check RUN='^TestReferenceNumericSeries(Binding|HeldParameters|Metadata)$'
+make check RUN='^TestReferenceNumericSeries(Binding|HeldParameters|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceNumericSeries(Diagnostics|OracleDecisions|Composition)$'
+make check RUN='^TestReferenceNumericSeries(Diagnostics|OracleDecisions|Composition)$' REFERENCE=1
+make check RUN='^TestReferenceNumericSeries(Lifecycle|Atomicity|Controls)$'
+make check RUN='^TestReferenceNumericSeries(Lifecycle|Atomicity|Controls)$' REFERENCE=1
+make check RUN='^TestReferenceSeries(Boundaries|Lifecycle|Atomicity)$'
+make check RUN='^TestReferenceSeries(Boundaries|Lifecycle|Atomicity)$' REFERENCE=1
+make check RUN='^TestNumericSeries(Cursor|Specials|Successor|Cancellation|Binding|ExpressionHooks|Invocation)$'
+make check RUN='^TestReferenceNumericSeries(Lifecycle|HeldParameters|Controls)$' RACE=1
+make check RUN='^TestReferenceNumericSeries(Lifecycle|HeldParameters|Controls)$' REFERENCE=1 RACE=1
+```
+
+Permanent feature smoke covers exact tenths/descending/nonuniform scales,
+NULL empty metadata, zero/nonfinite diagnostics, actual plain and Context held
+failure/recovery, ROWS FROM zip/ordinality, demand-limited huge numeric series,
+late INSERT failure preserving99, and genuine numeric view/data replay with
+emitted SQL on PostgreSQL. Expected observations are exact asserted rows,
+metadata and diagnostics, unchanged failed mutation state, exit0 and quiet PASS:
+
+```sh
+make check RUN='^TestReferenceNumericSeriesFeatureSmoke$'
+make check RUN='^TestReferenceNumericSeriesFeatureSmoke$' REFERENCE=1
+```
+
 ### Array target subscripts selected proof
 
 Permanent untagged `subscripts_*_test.go` definitions exercise both released

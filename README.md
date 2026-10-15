@@ -728,11 +728,26 @@ series normally. LIMIT stops provider demand before eager result publication.
 Calls can be nested or zipped with other target SRFs, with typed NULL padding.
 Held statements retain inferred widths but open fresh invocations each time.
 Views retain symbolic calls; native Dump/Reset/Restore preserves those views and
-literal persisted query results, not generator state. Numeric/temporal overloads
-participate in resolution but remain native execution exclusions, as does
-INSERT VALUES expansion. FROM source support is described below. See
+literal persisted query results, not generator state. Numeric overloads now use
+the same lanes with exact decimal arithmetic (see below). Temporal overloads
+remain execution exclusions, as does INSERT VALUES expansion. FROM source support is described below. See
 [query contracts](docs/QUERIES.md#integer-target-series) and
 [selected proof and feature smoke](reference/numeric/README.md#integer-target-series-selected-proof).
+
+### Numeric series — change note
+
+`generate_series(numeric, numeric [, numeric])` executes exact decimal steps:
+`generate_series(0.1,0.3,0.1)` yields `0.1,0.2,0.3`, without floating-point drift.
+The seed retains start's display scale; subsequent rows retain the greater of
+start and step scales, never stop's scale. Results are unconstrained NUMERIC,
+including empty results and calls with constrained numeric inputs.
+NULL inputs are empty; nonnull NaN/infinite start, stop or step and zero step
+have role-specific PostgreSQL `22023` diagnostics. An unreturned successor may
+exceed numeric's packed format limit and still terminate normally past stop.
+Direct, held, target/FROM, zip/ordinality/lateral and native persistent-state
+consumers reuse existing ownership and statement atomicity.
+See [numeric series contracts](docs/QUERIES.md#numeric-series) and
+[selected proof and smoke](reference/numeric/README.md#numeric-series-selected-proof).
 
 Change note: scalar REGOPER and REGOPERATOR retain unsigned operator OIDs through
 direct/held values, distinct metadata and native logical Dump/Restore. Name-only
@@ -776,7 +791,7 @@ a native exclusion. FROM source support is described below. See
 
 ## Set-returning functions in FROM — change note
 
-Existing integer/bigint series and array subscript providers now share the
+Existing integer/bigint/numeric series and array subscript providers share the
 function-source lane with supported string, JSON and regexp providers. Sources
 retain output aliases and empty-result metadata. `ROWS FROM` zips members to the
 longest output, padding exhausted members with their own typed NULLs; comma

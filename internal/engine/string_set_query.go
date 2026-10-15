@@ -77,6 +77,7 @@ const (
 	functionSeriesCursor
 	functionMultirangeCursor
 	functionArrayCursor
+	functionNumericSeriesCursor
 )
 
 type functionSetCursor struct {
@@ -86,6 +87,7 @@ type functionSetCursor struct {
 	binaryElements         sqltype.JSONBElementCursor
 	members                sqltype.MultirangeCursor
 	elements               sqltype.JSONElementsCursor
+	numericSeries          sqltype.NumericSeriesCursor
 	array                  sqltype.Value
 	owned                  []sqltype.Value
 	position               int
@@ -114,6 +116,9 @@ func (s *functionSetCursor) close() {
 	}
 	if s.initialized && s.kind == functionJSONElementsCursor {
 		s.elements.Close()
+	}
+	if s.initialized && s.kind == functionNumericSeriesCursor {
+		s.numericSeries.Close()
 	}
 	s.owned = nil
 	s.array = sqltype.Value{}
@@ -190,6 +195,21 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		}
 		if len(call.args) != 2 && len(call.args) != 3 {
 			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid series arguments")
+		}
+		if call.ResultUsage().Type.ID() == sqltype.Numeric {
+			var values [3]sqltype.Value
+			for i, arg := range call.args {
+				value, err := arg.Eval(c)
+				if err != nil {
+					return functionSetCursor{}, err
+				}
+				values[i] = value
+			}
+			cursor, err := sqltype.OpenNumericSeries(c.Context, values[0], values[1], values[2:len(call.args)]...)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			return functionSetCursor{kind: functionNumericSeriesCursor, initialized: true, numericSeries: cursor}, nil
 		}
 		var values [3]int64
 		values[2] = 1
@@ -495,7 +515,9 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	var value sqltype.Value
 	var present bool
 	var err error
-	if s.kind == functionJSONKeysCursor {
+	if s.kind == functionNumericSeriesCursor {
+		value, present, err = s.numericSeries.Next(ctx)
+	} else if s.kind == functionJSONKeysCursor {
 		value, present, err = s.keys.Next(ctx)
 	} else if s.kind == functionJSONEachCursor {
 		value, present, err = s.each.Next(ctx)

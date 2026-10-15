@@ -242,12 +242,8 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}
-	if s.result != sqltype.Int4 && s.result != sqltype.Int8 {
-		kind := "temporal"
-		if s.result == sqltype.Numeric {
-			kind = "numeric"
-		}
-		return nil, expressionError("0A000", "generate_series with "+kind+" arguments is unsupported", raw.Pos)
+	if s.result != sqltype.Int4 && s.result != sqltype.Int8 && s.result != sqltype.Numeric {
+		return nil, expressionError("0A000", "generate_series with temporal arguments is unsupported", raw.Pos)
 	}
 	switch b.aggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
