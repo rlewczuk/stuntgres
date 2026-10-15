@@ -777,6 +777,14 @@ boundary records without repeatedly fetching/reparsing the suite's full log
 history. No `Tail` limit truncates expected errors. Exact PID/incarnation/code
 matching and the same-suffix pre-arm baseline reject stale evidence; the exact
 FATAL severity/English primary/Position remain independently asserted.
+Idle-expiration boundaries and the feature smoke use bounded full-idle-window
+retries rather than assuming a single fixed delay proves expiration. Owner probes
+restart idle timers, so retry windows back off up to one second under a five-second
+deadline; continuous short-interval owner polling would prevent expiration.
+Only a live cursor or the exact aborted-transaction diagnostic permits another
+window. The final FATAL diagnostic, unusable physical handle and rollback checks
+remain mandatory.
+
 A suite-owned Docker client reads each raw response synchronously, closes it
 on every exit, and validates complete eight-byte frame headers and bodies under
 a 32 MiB cumulative wire cap. Truncation, excess, daemon error streams and

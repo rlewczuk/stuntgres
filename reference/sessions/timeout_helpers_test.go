@@ -111,6 +111,44 @@ func (f timeoutReferenceFixture) fatalProbe(code string) {
 	f.dead()
 }
 
+// A probe can restart the owner's idle timer before a delayed timeout callback
+// runs. Retry complete idle windows, not rapid owner queries that prevent expiry.
+// The deadline bounds broken timers; unexpected errors still fail immediately.
+func (f timeoutReferenceFixture) awaitIdleFatal(code string, idle time.Duration) {
+	f.t.Helper()
+	ctx, cancel := context.WithTimeout(f.p.Ctx, 5*time.Second)
+	defer cancel()
+	for delay := 2 * idle; ; delay = min(2*delay, time.Second) {
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			f.t.Fatalf("waiting for idle timeout %s: %v", code, ctx.Err())
+		case <-timer.C:
+		}
+		rows, err := f.owner.QueryContext(ctx, "SELECT v FROM timeout_sentinel")
+		if rows != nil {
+			if err != nil {
+				rows.Close()
+				f.t.Fatal("idle probe published rows with an error", err)
+			}
+			if err := rows.Close(); err != nil {
+				f.t.Fatal("closing live idle probe", err)
+			}
+			continue
+		}
+		var state interface{ SQLState() string }
+		if code == "25P03" && errors.As(err, &state) && state.SQLState() == "25P02" {
+			want := fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")
+			fixture.AssertDiagnostic(f.t, err, &want)
+			continue
+		}
+		f.diagnostic(err, code)
+		f.dead()
+		return
+	}
+}
+
 // Keep retained native Rows open through the first fatal, then close them
 // before a later ErrBadConn probe asks database/sql to close the sql.Conn.
 func (f timeoutReferenceFixture) fatalQuery(code string) {

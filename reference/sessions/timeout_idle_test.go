@@ -34,8 +34,7 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 						want.Position = "8"
 						fixture.AssertDiagnostic(t, err, &want)
 					}
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-					f.fatalProbe(code)
+					f.awaitIdleFatal(code, 250*time.Millisecond)
 					f.rows(f.peer, 7)
 				case "wrong-outside", "wrong-inside":
 					setting := "idle_in_transaction_session_timeout"

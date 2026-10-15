@@ -147,8 +147,7 @@ func TestReferenceTimeoutFeatureSmoke(t *testing.T) {
 		borrow()
 		f.set("idle_in_transaction_session_timeout", "250ms")
 		f.beginPrivate()
-		timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-		f.fatalProbe("25P03")
+		f.awaitIdleFatal("25P03", 250*time.Millisecond)
 		f.rows(f.peer, 7)
 		if err := f.owner.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
 			t.Fatal(err)
@@ -156,8 +155,7 @@ func TestReferenceTimeoutFeatureSmoke(t *testing.T) {
 
 		borrow()
 		f.set("idle_session_timeout", "250ms")
-		timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-		f.fatalProbe("57P05")
+		f.awaitIdleFatal("57P05", 250*time.Millisecond)
 		f.rows(f.peer, 7)
 		if err := f.owner.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
 			t.Fatal(err)
