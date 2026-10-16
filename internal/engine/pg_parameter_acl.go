@@ -1,0 +1,45 @@
+package engine
+
+import (
+	"context"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
+)
+
+// Parameter identities and sparse membership belong to the grant owner. Read
+// only actual descriptors, using the statement's matching catalog/role roots.
+func (e *Engine) capturePGParameterACL(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	rows := make([][]sqltype.Value, 0)
+	for _, descriptor := range catalog.state.descriptors {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		d, ok := descriptor.(*parameterDescriptor)
+		if !ok {
+			continue
+		}
+		if err := (parameterProvider{}).Validate(catalog, d); err != nil {
+			return nil, err
+		}
+		if err := validateACL(roles, d); err != nil {
+			return nil, err
+		}
+		id, err := sqltype.OIDValue(source.columns[0].Usage.Type, uint32(d.address.ObjectID))
+		if err != nil {
+			return nil, err
+		}
+		acl, err := e.pgClassACL(roles, source.columns[2].Usage.Type, d.acl)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, []sqltype.Value{id, sqltype.String(source.columns[1].Usage.Type, d.name), acl})
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return &querySource{ref: ref, anonymous: rows}, nil
+}

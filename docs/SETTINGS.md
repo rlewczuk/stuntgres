@@ -68,11 +68,21 @@ implement absent settings, privileged deny-only custom/statistics providers or
 readonly mutation. Unrepresented work_mem/sort_mem grant targets remain42704,
 not invented native knobs.
 
-There is no new native pg_parameter_acl or has_parameter_privilege SQL provider.
-Pinned PostgreSQL catalog/inquiry observations supplement actual SET behaviour
-and private authority units; they do not become native execution shims. Native
-ALTER SYSTEM remains42601 at SYSTEM (Position7); storing its ACL bit does not
-add filesystem/configuration-file execution.
+The read-only `pg_catalog.pg_parameter_acl` catalog projects the owner's actual
+sparse records: allocated entry `oid`, canonical TEXT `parname`, and typed
+`paracl ACLITEM[]`. Registered parameters and valid dotted custom names use the
+same authority; SET/SHOW alone never creates a row. Returning to the owner-only
+`sA` baseline removes the row, while an explicit empty ACL remains nonnull `{}`.
+PUBLIC catalog SELECT allows an ordinary non-grantee to see all entries, subject
+to the usual current table/column access checks, not represented SET privileges.
+Fresh direct/prepared/held reads see completed changes; already opened output
+retains its ACL and role display snapshot.
+
+There is no native has_parameter_privilege SQL provider. Native ALTER SYSTEM
+remains42601 at SYSTEM (Position7); storing its ACL bit does not add
+filesystem/configuration-file execution. Parameter grants in an explicit
+transaction and native catalog GRANT remain unsupported. Dump rejects parameter
+ACLs before output; Reset clears them without removing catalog availability.
 
 
 ## Custom setting Go API
@@ -230,6 +240,13 @@ Public setting definitions use `make check RUN='^TestReferenceSettings[A-Za-z0-9
 and the same selector with `REFERENCE=1`. Typed native registrations and genuine
 PostgreSQL configuration witnesses remain separate; arbitrary PostgreSQL
 placeholders do not validate native typed registration.
+
+Parameter catalog definitions and positive lifecycle smoke live in
+[reference/catalogs Testing](../reference/catalogs/README.md#pg_parameter_acl-selected-proof).
+Their eight `TestReferencePGParameterACL` definitions run with the same selector
+in native and pinned `REFERENCE=1` modes; component capture, ownership, snapshot,
+authorization and cancellation proofs use
+`make check RUN='^TestPGParameterACL(ShapeAndOwnership|Capture|Snapshot|Authorization|Cancellation)$' RACE=1`.
 
 Public timeout workloads keep actual direct Execute, Prepare and held statements.
 Active-owner cleanup uses Go Rollback rather than recovery commands submitted

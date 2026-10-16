@@ -643,8 +643,15 @@ aliases and dotted custom names share one target; late invalid targets publish
 no prefix. Default-equivalent sparse state can disappear, while explicit empty
 authority remains meaningful. SET/RESET/set_config consult the actual setting
 registry and SET right; USERSET application_name does not become protected.
-ALTER SYSTEM metadata does not implement that native command or an unknown
-setting, pg_parameter_acl, or has_parameter_privilege provider.
+The read-only pg_parameter_acl relation projects actual allocated entries and
+typed ACL provenance, including PUBLIC, grant options and explicit empty `{}`.
+Default PUBLIC SELECT exposes all rows to non-grantees; ordinary current catalog
+table/column SELECT checks apply independently of represented parameter rights,
+including empty/FALSE/LIMIT0 and held execution. Captured catalog/role roots keep
+already opened output immutable while fresh executions see completed grants.
+ALTER SYSTEM metadata does not implement that native command, an unknown setting
+or a has_parameter_privilege provider. Native catalog GRANT and explicit-
+transaction parameter grants remain unsupported; catalog reads add neither.
 
 Builtin tablespaces pg_default/pg_global have owning descriptors and CREATE ACLs.
 The readonly pg_tablespace projection includes nullable spcacl before spcoptions.
@@ -838,3 +845,10 @@ atomicity are distinct witnesses, not interchangeable authentication routes.
 Schema/path scenarios use `^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$` in
 both modes. See [testing](TESTING.md) and
 [predefined-role oracle contracts](../reference/roles/README.md#predefined-role-oracle-first-contracts).
+
+Parameter ACL catalog proof is documented under
+[reference/catalogs Testing](../reference/catalogs/README.md#pg_parameter_acl-selected-proof).
+`TestPGParameterACLAuthorization` publishes genuine relation/column ACL changes
+through CatalogStage and checks current execution, without adding native catalog
+GRANT. The shared public definitions retain independent PostgreSQL catalog-grant
+denial/column-grant witnesses in their explicit PostgreSQL-only phase.

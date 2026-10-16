@@ -733,7 +733,8 @@ The attached database supports CREATE/TEMPORARY/CONNECT (CTc), including fresh
 authenticated CONNECT and current-role TEMP allocation/CREATE. Parameter SET/ALTER
 SYSTEM metadata (sA) and builtin tablespace CREATE use actual descriptor ACLs and
 delegation/cleanup; they do not add missing settings, ALTER SYSTEM execution,
-parameter inquiry catalogs or physical tablespaces. Native unsupported external
+has_parameter_privilege or physical tablespaces. The read-only pg_parameter_acl
+catalog exposes actual parameter ACL descriptors. Native unsupported external
 grant families have explicit class boundaries, and unrepresentable ACLs fail Dump
 before output.
 
@@ -3120,6 +3121,26 @@ statements recapture the empty source, and Dump omits catalog rows/default comma
 Feature smoke: `make check RUN='^TestReferencePGDBRoleSettingSmoke$'`; repeat with
 `REFERENCE=1` for pinned PostgreSQL18.0. See the
 [selected proof and owner boundary](reference/catalogs/README.md#pg_db_role_setting-selected-proof).
+
+Change note: [`pg_catalog.pg_parameter_acl`](https://www.postgresql.org/docs/18/catalog-pg-parameter-acl.html)
+now exposes actual sparse parameter ACL records as `oid OID NOT NULL`,
+`parname TEXT NOT NULL`, and nullable `paracl ACLITEM[]`. Relation6243 is an
+indexed, cluster-shared table in `pg_global`, with bootstrap ownership and
+ordinary PUBLIC SELECT. Reads include every actual granted entry, including
+canonical dotted custom names and explicit empty `{}` ACLs; merely changing a
+setting does not create a row. GRANT/REVOKE owns stable identity, ACL provenance
+and default-equivalent removal, not the catalog reader.
+
+Direct, prepared and held executions recapture completed changes while opened
+rows retain their typed ACLs and captured role display names. Normal current
+table/column SELECT checks apply even for empty/FALSE/LIMIT0 reads; parameter
+SET privileges neither filter rows nor confer catalog access. Native catalog
+GRANT, explicit-transaction parameter grants, missing setting providers,
+has_parameter_privilege, external ALTER SYSTEM execution and positive ACL
+Dump/Restore remain outside this read capability. Dump still rejects parameter
+ACLs before output; Reset clears entries but preserves catalog metadata.
+Feature smoke: `make check RUN='^TestReferencePGParameterACLFeatureSmoke$'`;
+repeat with `REFERENCE=1`. See [selected proof](reference/catalogs/README.md#pg_parameter_acl-selected-proof).
 
 Change note: table/column GRANT and REVOKE now retain independent grantor
 origins, owner implicit options, PUBLIC and inherited role authority. All eight

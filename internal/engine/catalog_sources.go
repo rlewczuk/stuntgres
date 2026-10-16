@@ -38,6 +38,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"spcname", sqltype.Name}, {"spcowner", sqltype.Oid}, {"spcacl", sqltype.ACLItemArray}, {"spcoptions", sqltype.ID(1009)}}},
+		{ParameterClassID, "pg_parameter_acl", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"parname", sqltype.Text}, {"paracl", sqltype.ACLItemArray}}},
 		{1262, "pg_database", []struct {
 			name string
 			typ  sqltype.ID
@@ -231,7 +235,7 @@ func (e *Engine) initializeCatalogSources() error {
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		d.hasIndexes = representedCatalogHasIndexes(spec.oid)
-		if spec.oid == 1213 {
+		if spec.oid == 1213 || spec.oid == ParameterClassID {
 			d.owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 			d.acl.Entries[0].Grantor = d.owner
 		}
@@ -266,6 +270,12 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2964 {
 				d.columns[i].Nullable = i == 2
 				if column.typ == sqltype.ID(1009) {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
+			if spec.oid == ParameterClassID {
+				d.columns[i].Nullable = i == 2
+				if column.typ == sqltype.Text {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}
@@ -357,6 +367,9 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
 	if source.address.ObjectID == pgAttributeOID {
 		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
+	}
+	if source.address.ObjectID == ParameterClassID {
+		return e.capturePGParameterACL(ctx, catalog, roles, ref, source)
 	}
 	if source.address.ObjectID == 2964 {
 		if err := ctx.Err(); err != nil {

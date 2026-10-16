@@ -97,12 +97,17 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		}
 		var catalog CatalogRead
 		switch d.address.ObjectID {
-		case 2609, 3079:
+		case 2609, 3079, ParameterClassID:
 			catalog = scope.commentCatalog
 		default:
 			catalog = e.privateCatalogLocked(scope.owner.catalog)
 		}
-		roles := e.roleRead(catalog, scope.deparseAuth.roleRecord)
+		var roles authorization.Read
+		if d.address.ObjectID == ParameterClassID {
+			roles = scope.commentRoles
+		} else {
+			roles = e.roleRead(catalog, scope.deparseAuth.roleRecord)
+		}
 		if d.address.ObjectID == 12002 {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {

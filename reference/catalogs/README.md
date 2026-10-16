@@ -6,6 +6,66 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_parameter_acl selected proof
+
+The six `pg_parameter_acl_*_test.go` files define eight shared scenarios for the
+actual sparse catalog, not setting-value approximations. Relation6243 is a
+bootstrap-owned, indexed, permanent shared table in `pg_global`, with columns
+`oid OID NOT NULL`, `parname TEXT NOT NULL`, nullable `paracl ACLITEM[]`.
+Native origins are relation6243/attributes1–3; parname uses C collation and
+paracl has one declared dimension. Row/array ownership is asserted through
+initialized native descriptors and relational public identities, not portable
+allocator numbers or invented backing index/toast relations.
+
+Independently expected ACL elements include bootstrap `sA`, recipient SET/ALTER
+SYSTEM, separate grant options, PUBLIC and delegated grantor provenance.
+The bootstrap display is independently checked at role10 (postgres native,
+stuntgres in the pinned fixture). Both backends use real lc_messages,
+application_name and unique dotted custom GRANT targets. SET/SHOW does not create
+ACL rows; canonicalization does not make textual predicates case-insensitive.
+Updates/no-ops preserve the allocated entry OID; returning to baseline removes
+it, and regrant receives a fresh identity. The explicit-empty witness first
+grants SET to PUBLIC, then revokes owner and PUBLIC rights: the same entry
+becomes nonnull `{}` before restoring owner ALL removes it. An unseeded absent
+custom REVOKE is not an empty-ACL witness.
+
+Shape/metadata covers direct/context/noncontext/prepared/held routes and retained
+descriptions, including initialized empty catalog sources before grants and after
+default-elision or Reset. pq TEXT ScanType is string and TEXT Length is MaxInt64/known;
+OID/ACL raw byte carriers and unknown pq nullability remain distinct from the
+native contract. OID normalization does not replace independently expected
+identity relationships. Diagnostics prescribe complete fields and actual
+prepare/execute stages, invalid OID binds/recovery and ordinary pre-cancellation.
+Observer reads are unfiltered under PUBLIC SELECT. Native component tests publish
+real catalog table/column ACLs for current denial, empty/FALSE/LIMIT0 and retained
+descriptions; PostgreSQL additionally executes its real catalog GRANT/REVOKE
+counterpart. No native catalog-grant implementation is implied.
+
+Capture units use real grant-owner operations, typed independently specified
+ACLITEM masks/principals, immutable old catalog/role roots and a distinguishing
+update between statement snapshot and source opening. Cancellation checks
+enumeration of unrelated descriptors without partial output. Invalid owner or
+foreign role provenance fails rather than formatting invented data. Retained
+ACL output survives removal and Reset. Native controls assert Dump rejection
+before writer callbacks and unchanged reads, then Reset emptiness with retained
+old rows/metadata; there is no positive parameter ACL serialization contract.
+
+```sh
+make check RUN='^TestReferencePGParameterACL(Shape|Metadata|GrantedEntries|IdentityAndLifecycle|ExplicitEmpty|VisibilityAndDiagnostics|Controls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferencePGParameterACL(Shape|Metadata|GrantedEntries|IdentityAndLifecycle|ExplicitEmpty|VisibilityAndDiagnostics|Controls|FeatureSmoke)$'
+make check RUN='^TestPGParameterACL(ShapeAndOwnership|Capture|Snapshot|Authorization|Cancellation)$' RACE=1
+make check RUN='^TestReferencePGParameterACLFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferencePGParameterACLFeatureSmoke$'
+```
+
+The feature smoke performs absence -> real SET grant -> exact canonical
+name/ACL/nonzero identity -> non-grantee visibility -> held-query ALTER SYSTEM
+expansion with stable identity -> real final revoke/default removal. Unique
+cluster-shared entries and roles are cleaned with real REVOKE/DROP OWNED and
+bootstrap-right restoration, never system-catalog DML. These selected commands
+and expected observations are instructions, not claims of passing verification;
+whole-project quickcheck and post-integration finalcheck remain separate gates.
+
 ### pg_range selected proof
 
 `pg_range_test.go`, `pg_range_linkage_test.go`, `pg_range_diagnostics_test.go`
