@@ -76,6 +76,8 @@ var supportedIndexClasses = [...]struct {
 	{"varchar_pattern_ops", 405, 2229, 0, true},
 	{"bpchar_pattern_ops", 405, 2231, 0, true},
 	{"enum_ops", 405, 3523, 0, false},
+	{"inet_ops", 783, 3550, 0, true},
+	{"range_ops", 783, 3919, 0, false},
 }
 
 func IndexClassMetadataCount() int { return len(supportedIndexClasses) }
@@ -91,8 +93,10 @@ func IndexClassMetadataAt(index int) (IndexClassMetadata, bool) {
 	var ok bool
 	if fact.method == 403 {
 		class, ok = LookupIndexClass(fact.name)
-	} else {
+	} else if fact.method == 405 {
 		class, ok = LookupHashIndexClass(fact.name)
+	} else {
+		class, ok = LookupGiSTIndexClass(fact.name)
 	}
 	if !ok {
 		return IndexClassMetadata{}, false
@@ -115,6 +119,10 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 	var name string
 	var method uint32
 	switch oid {
+	case 3550:
+		name, method = "network_ops", 783
+	case 3919:
+		name, method = "range_ops", 783
 	case 2789:
 		name, method = "tid_ops", 403
 	case 2227:

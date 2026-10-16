@@ -128,12 +128,17 @@ retry:
 			return nil, err
 		}
 		n := len(index.sqlIndex.keys)
-		bound.grouping = make([]sqltype.Grouping, n)
+		if index.sqlIndex.method != gistMethod {
+			bound.grouping = make([]sqltype.Grouping, n)
+		}
 		bound.key, bound.scratch = make([]sqltype.Value, n), make([]sqltype.Value, n)
 		for j, key := range index.sqlIndex.keys {
 			usage, usageErr := indexKeyUsage(parent, key)
 			if usageErr != nil {
 				return nil, usageErr
+			}
+			if index.sqlIndex.method == gistMethod {
+				continue
 			}
 			// network_ops owns typed comparison but not generic grouping. Its
 			// claims use the existing comparator-based shared bucket.
@@ -157,7 +162,7 @@ retry:
 			if index.sqlIndex.method == hashMethod {
 				bound.hash, err = bindHashIndex(parent, index.sqlIndex)
 			} else {
-				bound.ordering, err = bindIndexOrdering(parent, index.sqlIndex)
+				bound.ordering, err = bindIndexKeys(parent, index.sqlIndex)
 			}
 			if err != nil {
 				return nil, err
@@ -254,7 +259,7 @@ func (s *StatementScope) claimUniqueRow(ref ObjectRef, row rowVersion) error {
 			if c == nil {
 				return ErrCatalogReplaced
 			}
-			if c.Deferrable {
+			if c.Deferrable || !index.sqlIndex.exactEqualityClaims() {
 				continue
 			}
 		}

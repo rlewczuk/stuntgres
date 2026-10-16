@@ -153,6 +153,12 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				}
 				c := *original
 				c.Name, c.Index = name, address
+				c.Parent, c.IsLocal = 0, true
+				definition.exclusion, err = rebindExclusionOperators(destination, &definition)
+				if err != nil {
+					return err
+				}
+				c.Operators = definition.exclusion
 				c.OID, err = e.allocateOIDLocked()
 				if err != nil {
 					return err

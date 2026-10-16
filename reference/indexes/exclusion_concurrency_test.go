@@ -185,7 +185,7 @@ func TestReferenceExclusionConcurrencyCancellation(t *testing.T) {
 			t.Fatal("conflicting operation ignored cancellation")
 		}
 		if b.PG {
-			fixture.ExclusionReferenceWaitDiagnostic(t, err, "57014", "canceling statement due to user request", true)
+			fixture.ExclusionReferenceWaitDiagnostic(t, err, "57014", "canceling statement due to user request", "t", true)
 			// lib/pq invalidates this physical connection after request-context
 			// cancellation. This is an adapter lifecycle boundary, not failed
 			// exclusion cleanup or a reason to weaken the subsequent SQL checks.

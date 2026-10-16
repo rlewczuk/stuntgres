@@ -26,7 +26,7 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 		if d.membership.defaultBound {
 			parent := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
 			for _, address := range parent.partition.children {
-				if address != d.address {
+				if address != d.address && !partitionExclusionDefaultBefore(catalog, d, catalog.state.descriptors[address].(*relationDescriptor)) {
 					if err := add(address); err != nil {
 						return nil, err
 					}
@@ -273,9 +273,15 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		appendOption("CONSTRAINT " + quoteIdentifier(constraint.Name) + " " + definition)
 	}
 	for _, constraint := range d.exclusionConstraints {
+		if constraint.Parent != 0 {
+			continue
+		}
 		index, ok := catalog.state.descriptors[constraint.Index].(*relationDescriptor)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing exclusion dump index")
+		}
+		if partitionReplaySeparateConstraint(catalog, index) {
+			continue
 		}
 		definition, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{dump: true, exclusion: true})
 		if err != nil {

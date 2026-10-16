@@ -263,11 +263,16 @@ func (e indexPropertyExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(e.usage.Type), nil
 		}
 		if e.kind == wholeIndexProperty {
-			switch property {
-			case "clusterable":
-				result, known = relation.sqlIndex.method == btreeMethod, true
-			case "index_scan", "bitmap_scan", "backward_scan":
-				result, known = true, true
+			switch relation.sqlIndex.method {
+			case btreeMethod, hashMethod, gistMethod:
+				switch property {
+				case "clusterable":
+					result, known = relation.sqlIndex.method != hashMethod, true
+				case "backward_scan":
+					result, known = relation.sqlIndex.method != gistMethod, true
+				case "index_scan", "bitmap_scan":
+					result, known = true, true
+				}
 			}
 		} else {
 			ordinal, err := values[1].Integer()
@@ -330,6 +335,29 @@ func indexAMProperty(oid uint32, property string) (bool, bool) {
 
 func indexColumnCapability(index *indexDefinition, ordinal int64, property string) (bool, bool) {
 	if ordinal <= 0 || ordinal > int64(len(index.keys)+len(index.include)) {
+		return false, false
+	}
+	if index.method == gistMethod {
+		key := ordinal <= int64(len(index.keys))
+		switch property {
+		case "orderable":
+			return false, true
+		case "asc", "desc", "nulls_first", "nulls_last", "search_array":
+			return false, key
+		case "search_nulls":
+			return key, key
+		case "distance_orderable", "returnable":
+			if !key {
+				// GiST's property callback finds no opclass for INCLUDE,
+				// before the generic nonkey-column fallback can run.
+				return false, false
+			}
+			switch index.keys[ordinal-1].class.OID() {
+			case 10017, 10078: // inet_ops has fetch; range_ops has no compress.
+				// Neither admitted class supplies distance ordering.
+				return property == "returnable", true
+			}
+		}
 		return false, false
 	}
 	if index.method == hashMethod {

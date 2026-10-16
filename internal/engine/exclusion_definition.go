@@ -14,6 +14,8 @@ type exclusionConstraint struct {
 	OID                           OID
 	Name                          string
 	Index                         ObjectAddress
+	Parent                        OID
+	IsLocal                       bool
 	Operators                     []sqltype.ExclusionOperator
 	Deferrable, InitiallyDeferred bool
 }
@@ -21,7 +23,7 @@ type exclusionConstraint struct {
 func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[string]bool) error {
 	for _, c := range parent.exclusionConstraints {
 		index, ok := view.state.descriptors[c.Index].(*relationDescriptor)
-		if !ok || parent.relationKind != tableRelation || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.sqlIndex == nil || !index.sqlIndex.isExclusion() || index.name != c.Name || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.parent != parent.address || len(c.Operators) != len(index.sqlIndex.keys) || c.InitiallyDeferred && !c.Deferrable {
+		if !ok || parent.relationKind != tableRelation && parent.partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.sqlIndex == nil || !index.sqlIndex.isExclusion() || index.name != c.Name || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.parent != parent.address || len(c.Operators) != len(index.sqlIndex.keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
 		}
 		d := index.sqlIndex
@@ -35,7 +37,7 @@ func validateExclusions(view CatalogRead, parent *relationDescriptor, names map[
 
 // Caller uses the installed catalog stage and index binder; no alternate type,
 // expression, predicate or method provider is introduced by EXCLUDE.
-func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.ExclusionConstraint) error {
+func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, raw *parser.ExclusionConstraint, recurse bool) error {
 	s := raw.Index
 	if len(s.Keys) == 0 || len(s.Keys) != len(raw.Operators) {
 		return fmt.Errorf("stuntgres: invalid exclusion declaration")
@@ -157,9 +159,12 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err != nil {
 		return err
 	}
-	c := exclusionConstraint{OID: constraintOID, Name: name, Index: ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
+	c := exclusionConstraint{OID: constraintOID, Name: name, Index: ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}, IsLocal: true, Operators: operators, Deferrable: raw.Deferrable, InitiallyDeferred: raw.InitiallyDeferred}
 	definition.constraint = exclusionBacking(&c)
 	definition.exclusion = operators
+	if err := partitionUniqueCoverage(parent, definition); err != nil {
+		return err
+	}
 	index := &relationDescriptor{address: c.Index, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, relationKind: indexRelation, sqlIndex: definition, columns: columns, attributes: attributes, index: lookup, attributeHighWater: int32(len(attributes))}
 	for i := range columns {
 		index.columns[i].Nullable = true
@@ -173,13 +178,23 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 			return err
 		}
 	}
-	return stage.Create(index)
+	if err := stage.Create(index); err != nil {
+		return err
+	}
+	if parent.partition != nil {
+		if !recurse {
+			definition.valid = len(parent.partition.children) == 0
+			return nil
+		}
+		return e.stagePartitionIndexChildren(op, stage, parent, index, false)
+	}
+	return nil
 }
 
 func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *relationDescriptor, s *parser.CreateTable) error {
 	for _, element := range s.Elements {
 		if element.Exclusion != nil {
-			if err := e.stageExclusion(op, input, auth, stage, parent, element.Exclusion); err != nil {
+			if err := e.stageExclusion(op, input, auth, stage, parent, element.Exclusion, true); err != nil {
 				return err
 			}
 		}

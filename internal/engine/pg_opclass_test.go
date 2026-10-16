@@ -22,7 +22,7 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRe
 
 func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
 	t.Helper()
-	if len(rows.anonymous) != 60 {
+	if len(rows.anonymous) != 62 {
 		t.Fatal("class count", len(rows.anonymous))
 	}
 	bag := map[uint32][]any{}
@@ -141,45 +141,67 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 
 func TestPGOpclassIndexIdentity(t *testing.T) {
 	e := New()
-	for _, q := range []string{"CREATE DOMAIN opclass_identity_domain AS INT", "CREATE TYPE opclass_identity_enum AS ENUM('a','b')", "CREATE TABLE opclass_identity(n INT,v VARCHAR,nm NAME,d opclass_identity_domain,e opclass_identity_enum)", "INSERT INTO opclass_identity VALUES(1,'one','one',1,'a')"} {
-		run(t, e, q)
+	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
+	domain, err := sqltype.Domain(48000, "identity_domain", "public.identity_domain", integer.Usage())
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range []struct {
-		name, key, method string
-		oid               OID
+	enum, err := sqltype.Enum(48001, "identity_enum", "public.identity_enum", []string{"a", "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, tc := range []struct {
+		id           sqltype.ID
+		class, input string
+		method       indexMethod
+		oid          OID
 	}{
-		{"identity_b", "n", "btree", 1978}, {"identity_h", "n pg_catalog.int4_ops", "hash", 10020},
-		{"identity_v", "v varchar_ops", "btree", 10044}, {"identity_p", "v varchar_pattern_ops", "hash", 10057},
-		{"identity_nm_b", "nm", "btree", 10028}, {"identity_nm_h", "nm", "hash", 10029},
-		{"identity_d", "d", "btree", 1978}, {"identity_e", "e", "hash", 10070},
+		{sqltype.Int4, "int4_ops", "1", btreeMethod, 1978},
+		{sqltype.Int4, "int4_ops", "1", hashMethod, 10020},
+		{sqltype.VarChar, "varchar_ops", "one", btreeMethod, 10044},
+		{sqltype.VarChar, "varchar_pattern_ops", "one", hashMethod, 10057},
+		{sqltype.Name, "name_ops", "one", btreeMethod, 10028},
+		{sqltype.Name, "name_ops", "one", hashMethod, 10029},
+		{48000, "int4_ops", "1", btreeMethod, 1978},
+		{48001, "enum_ops", "a", hashMethod, 10070},
 	} {
-		run(t, e, "CREATE INDEX "+tc.name+" ON opclass_identity USING "+tc.method+"("+tc.key+")")
-		index, root := btreeRoot(t, e, tc.name)
-		if tc.method == "hash" {
-			if root.hash == nil {
-				t.Fatal("missing real hash root", tc)
-			}
-		} else if root.hash != nil {
-			t.Fatal("btree has hash root", tc)
+		typ, _ := e.CatalogRead().LookupType(tc.id)
+		if tc.id == 48000 {
+			typ = domain
 		}
-		if got := index.sqlIndex.keys[0].class.OID(); got != uint32(tc.oid) {
-			t.Fatal("bound identity", tc, got)
+		if tc.id == 48001 {
+			typ = enum
 		}
-		m, _ := indexMaintenanceMetadata(t, e, e.CatalogRead(), tc.name)
-		if !reflect.DeepEqual(m.IndClass, []OID{tc.oid}) {
-			t.Fatal("projected index identity", tc, m.IndClass)
+		class, ok := tc.method.lookupClass(tc.class)
+		if !ok || class.OID() != uint32(tc.oid) {
+			t.Fatal("class identity", tc, class)
 		}
-		d, ref := pgOpclassUnitSource(t, e)
-		rows, err := capturePGOpclass(context.Background(), e.CatalogRead(), ref, d)
+		parent := &relationDescriptor{address: ObjectAddress{RelationClassID, OID(48100 + i*2), 0}, namespace: ObjectAddress{NamespaceClassID, PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
+		index := &relationDescriptor{address: ObjectAddress{RelationClassID, OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
+		e.state.descriptors[parent.address], e.state.descriptors[index.address] = parent, index
+		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fact := pgOpclassUnitBag(t, rows, d)[uint32(tc.oid)]
+		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.sqlIndex, &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value}}}}, nil)
+		if err != nil || root == nil || (root.hash != nil) != (tc.method == hashMethod) {
+			t.Fatal("real root", tc, root, err)
+		}
+		catalog := e.CatalogRead()
+		m, _, err := projectIndexMetadata(context.Background(), catalog, ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: index.address})
+		if err != nil || !reflect.DeepEqual(m.IndClass, []OID{tc.oid}) {
+			t.Fatal("projected index identity", tc, m.IndClass, err)
+		}
+		d, ref := pgOpclassUnitSource(t, e)
+		rows, err := capturePGOpclass(context.Background(), catalog, ref, d)
+		if err != nil {
+			t.Fatal(err)
+		}
 		method := uint32(403)
-		if tc.method == "hash" {
+		if tc.method == hashMethod {
 			method = 405
 		}
-		if fact == nil || fact[1] != method {
+		if fact := pgOpclassUnitBag(t, rows, d)[uint32(tc.oid)]; fact == nil || fact[1] != method {
 			t.Fatal("catalog/index method mismatch", tc, fact)
 		}
 	}

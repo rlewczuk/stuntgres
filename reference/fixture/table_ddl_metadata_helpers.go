@@ -57,7 +57,7 @@ func TableDDLColumnTypes(t *testing.T, postgres bool, columns []*sql.ColumnType,
 			if postgres {
 				scan = reflect.TypeFor[any]()
 			}
-		case "NUMERIC", "UUID":
+		case "NUMERIC", "UUID", "INET", "INT4RANGE":
 			scan = reflect.TypeFor[string]()
 			if postgres {
 				scan = reflect.TypeFor[any]()

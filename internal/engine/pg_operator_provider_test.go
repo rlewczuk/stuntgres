@@ -80,7 +80,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		production[fact.oid] = fact
 	}
 	universe := pgOperatorReleaseRows(t, "regoperator-pg18-inventory.tsv", 8)
-	if len(universe) != 799 || len(want) != 545 {
+	if len(universe) != 799 || len(want) != 546 {
 		t.Fatal("incomplete release evidence", len(universe), len(want))
 	}
 	seen, admitted := map[OID]bool{}, map[OID]bool{}
@@ -92,6 +92,34 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		seen[oid] = true
 		leftID, rightID := integer(candidate[3]), integer(candidate[4])
 		t.Run(fmt.Sprint(oid), func(t *testing.T) {
+			if oid == 3552 {
+				// This released predicate is executable only through the bounded
+				// exclusion owner; advertising it does not enable scalar SQL.
+				inet := physical(sqltype.Inet, false)
+				class, ok := sqltype.LookupGiSTIndexClass("inet_ops")
+				operator, err := sqltype.BindExclusionOperator(inet.Usage(), class, "&&")
+				inputs, signatureErr := operator.OperatorInputs()
+				if !ok || err != nil || signatureErr != nil || inputs != ([2]sqltype.ID{sqltype.Inet, sqltype.Inet}) || operator.IsEquality() {
+					t.Fatal("exclusion provider signature", operator, err, signatureErr)
+				}
+				left, err := inet.Input(context.Background(), "10.0.0.1/24", -1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				right, err := inet.Input(context.Background(), "10.0.0.2", -1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				match, err := operator.Matches(context.Background(), left, right)
+				if err != nil || !match {
+					t.Fatal("exclusion provider evaluation", match, err)
+				}
+				if _, ok := want[oid]; !ok || production[oid].result != 16 {
+					t.Fatal("missing released metadata", oid)
+				}
+				admitted[oid] = true
+				return
+			}
 			// Repeat generic array declarations with two genuine element types.
 			witnesses := []bool{false}
 			if leftID == 2277 || leftID == 5078 || rightID == 2277 || rightID == 5078 {

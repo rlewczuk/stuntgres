@@ -66,14 +66,7 @@ func TestReferenceRangePartitionLeafExclusion(t *testing.T) {
 			run(fixture.Select("SELECT * FROM "+parent+" ORDER BY k", []string{"k", "payload"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(10)}, {int64(2), int64(20)}, {int64(3), int64(20)}}))
 		}
 		query := "CREATE TABLE rp_ex_virtual(k INT,payload INT,CONSTRAINT rp_ex_virtual_key EXCLUDE USING btree(k WITH =,payload WITH =)) PARTITION BY RANGE(k)"
-		if b.PG {
-			run(fixture.Exec(query, 0))
-			run(fixture.Select("SELECT count(*) AS n FROM rp_ex_virtual", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		} else {
-			fail := referenceRangeError(query, "0A000", "partitioned table constraint combination is unsupported", fixture.Diagnostic{})
-			fail.ErrorStage = "execute"
-			run(fail)
-			run(referenceRangeError("SELECT * FROM rp_ex_virtual", "42P01", `relation "rp_ex_virtual" does not exist`, fixture.Diagnostic{Position: "15"}))
-		}
+		run(fixture.Exec(query, 0))
+		run(fixture.Select("SELECT count(*) AS n FROM rp_ex_virtual", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
 	})
 }

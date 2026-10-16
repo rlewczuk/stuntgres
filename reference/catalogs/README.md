@@ -125,7 +125,7 @@ supplements, never substitutes for, whole-project quickcheck.
 ### pg_operator selected proof
 
 The `TestReferencePGOperator` scenarios use the independent
-[545-row released supported inventory](../../docs/design/pg-operator-pg18-supported.tsv)
+[546-row released supported inventory](../../docs/design/pg-operator-pg18-supported.tsv)
 and [all-family admission/provenance note](../../docs/design/pg-operator-pg18-oracle.md).
 All 15 fields are asserted, including numeric implementation/estimator references;
 native inventory reads are unfiltered so extra records fail. This does not
@@ -480,10 +480,10 @@ The `TestReferencePGOpclass` scenarios specify the nine released columns,
 OID/NAME/BOOL raw codecs and metadata, fixed class/method/family/input identities,
 default and key-storage distinctions, PUBLIC reads, held execution, diagnostics,
 index/data agreement and native Dump/Reset/Restore. Expected tuples are independent
-of native lookup. Native coverage requires the complete supported 60-row bag
-(30 btree and 30 hash classes); PostgreSQL permits additional implemented classes.
-Array/record/range and other diagnostic-only native classes are not advertised.
-These tests do not add pg_am, pg_opfamily or pg_index.indclass SQL support.
+of native lookup. Native coverage requires the complete supported62-row bag
+(30 btree,30 hash and two feature-local GiST classes); PostgreSQL permits others.
+GiST inet_ops is explicitly nondefault18.0; range_ops admits canonical anyrange.
+Other array/record/range classes remain unadvertised unless actually executable.
 
 The oracle-first checkpoint confirmed the released identities using the existing
 pinned PostgreSQL 18.0 UTF8/C fixture before production changes.
@@ -2526,4 +2526,16 @@ Expected success is quiet exit0 only after actual independent phonetic/lexical,
 byte/NULL/metadata/held/stored/identity/manifest/replacement assertions.
 Selected proof and smoke do not replace whole-project Docker-free quickcheck
 or post-integration finalcheck.
+
+
+The partitioned-exclusion class cutover changes the shared inventory consumed by:
+
+```sh
+make check RUN='^TestReferencePGOpclass(Inventory|IndexSemantics|Diagnostics|HeldExecution|Lifecycle|FeatureSmoke)$'
+make check RUN='^TestReferencePGOpclass(Inventory|IndexSemantics|Diagnostics|HeldExecution|Lifecycle|FeatureSmoke)$' REFERENCE=1
+```
+
+These selected proofs require independent pinned18.0 confirmation of GiST
+inet_ops10017/network_ops3550/input869/nondefault and
+range_ops10078/family3919/input3831/default. No native-derived golden is used.
 

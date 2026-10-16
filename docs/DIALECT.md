@@ -682,7 +682,7 @@ RANGE `ALTER TABLE ... ATTACH PARTITION` accepts an existing ordinary or
 partitioned relation, with `FOR VALUES` or `DEFAULT`, including explicit
 transactions and savepoints. Ordinary `DETACH PARTITION` retains the child as a
 standalone table or virtual root, including transactions/savepoints.
-CONCURRENTLY/FINALIZE, other partition hierarchy alterations, update/delete,
+CONCURRENTLY/FINALIZE, unrelated partition hierarchy alterations, update/delete,
 row locking and explicit hierarchy locking remain excluded. Foreign keys
 involving partition hierarchies retain their existing unsupported boundary.
 Conflict arbitration and MERGE cannot target partition
@@ -720,8 +720,9 @@ ADD USING INDEX on an exact captured physical member when dependency ordering
 requires it. A deferred virtual local UNIQUE/PRIMARY tree instead uses a captured
 conventional constraint definition after its intended plain tree is attached.
 Exact operation/definition/table/subtree origins fence this private replay;
-PRIMARY replay retains already-present NOT NULL facts. Public hierarchy ADD and
-other hierarchy alterations remain excluded; these origins do not authorize user SQL.
+PRIMARY replay retains already-present NOT NULL facts. Public hierarchy ADD
+EXCLUDE and selected constraint DROP use their own bounded action admission;
+other hierarchy ADD/alterations remain excluded. Private origins do not authorize user SQL.
 A permanent partitioned parent cannot attach an ordinary temporary candidate;
 existing temporary namespace/session authority remains the persistence boundary.
 A NOT VALID child NOT NULL constraint cannot satisfy a validated parent
@@ -2177,9 +2178,10 @@ the subtype's existing btree class, not a range index class.
 Temporal companions4533/4534/4535 retain their released nonzero identities but
 remain lookup-only; catalog metadata grants no codec/storage capability.
 Arrays, multiranges, domains over ranges and range-bearing columns do not
-acquire separate pg_range rows. User-defined range DDL, constructors, named
-canonical/subdiff execution and range GiST/SP-GiST/hash/btree providers are not
-added.
+acquire separate pg_range rows. The bounded logical GiST `range_ops` provider
+supports range exclusion overlap. User-defined range DDL, constructors, named
+canonical/subdiff execution and general range GiST/SP-GiST/hash/btree providers
+are not added.
 
 PUBLIC SELECT covers direct, prepared and held reads, including empty/NULL
 parameters. Unordered results are bags. Native INSERT/UPDATE/DELETE reject
@@ -2333,8 +2335,9 @@ by routine alias lookup. See [the evidence note](design/regproc-pg18-oracle.md).
 REGOPER/REGOPERATOR provide the complete released builtin operator identity
 inventory, exact signature lookup and captured symbolic output, including
 lookup-only operand type identities. The `pg_catalog.pg_operator` projection
-exposes all 15 released columns for 545 currently executable exact overloads,
-not all 799 aliases. Operand/result declarations remain exact, including generic
+exposes all 15 released columns for 545 scalar-executable exact overloads plus
+one exclusion-only INET `&&` provider, not all 799 aliases. Operand/result
+declarations remain exact, including generic
 polymorphic identities; implementation/estimator fields use REGPROC and preserve
 zero `-` and valid identity-only references without requiring SQL pg_proc rows.
 See [released admission evidence](design/pg-operator-pg18-oracle.md).
@@ -2358,8 +2361,9 @@ or object resolution. DROP retires the actual conversion provider atomically;
 subsequent statements select fresh defaults while returned results retain theirs.
 
 Index providers are not a general PostgreSQL optimizer or physical access-method
-implementation. GiST, SP-GiST, GIN and extension-backed providers are not implied
-by logical B-tree/HASH capabilities. HASH retains one-key/no-INCLUDE limits and
+implementation. The bounded logical GiST provider supports exclusion constraints;
+general GiST, SP-GiST, GIN and extension-backed providers are not implied by the
+logical index capabilities. HASH retains one-key/no-INCLUDE limits and
 excludes standalone partial indexes. Partial concurrent indexes and concurrent
 DROP/REINDEX are unavailable. Native index metadata disclosure requires schema
 visibility plus readable parent-table authority, unlike PostgreSQL's unfiltered

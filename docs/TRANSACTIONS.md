@@ -562,3 +562,13 @@ streaming rows/statements before recovery. Retry serialization failures as whole
 transactions; bound acyclic waits with lock timeout or caller deadlines. Native
 replacement errors have no PostgreSQL command-equivalence oracle. See
 [testing](TESTING.md) and [development](DEVELOPMENT.md).
+
+Partitioned exclusions retain physical-leaf conflict ownership and the existing
+selective event/completion authority. Parent-named SET CONSTRAINTS selects the
+inherited provider subtree; declaration flags remain unchanged by transient modes.
+Selected recursive EXCLUDE ADD/DROP stages the complete provider closure before
+publication. A late coverage/build conflict or cancellation publishes no prefix.
+Hierarchy INSERT atomicity, savepoint rollback and prepared completion use the same
+immutable roots as ordinary exclusions; this does not enable hierarchy UPDATE,
+DELETE, row movement, arbitration or MERGE.
+

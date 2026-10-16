@@ -56,7 +56,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 			if err != nil {
 				t.Fatal("existing exclusion admission", err)
 			}
-			inputs, err := bound.EqualityInputs()
+			inputs, err := bound.OperatorInputs()
 			if err != nil || inputs != ([2]sqltype.ID{tc.canonical, tc.canonical}) {
 				t.Fatal("canonical operator inputs", inputs, tc.canonical, err)
 			}
@@ -76,10 +76,10 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if equal, err := bound.Equal(context.Background(), first, first); err != nil || !equal {
+				if equal, err := bound.Matches(context.Background(), first, first); err != nil || !equal {
 					t.Fatal("original equality", equal, err)
 				}
-				if equal, err := bound.Equal(context.Background(), first, second); err != nil || equal {
+				if equal, err := bound.Matches(context.Background(), first, second); err != nil || equal {
 					t.Fatal("distinct original inputs", equal, err)
 				}
 			}
@@ -109,7 +109,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 			}
 		})
 	}
-	if _, err := (sqltype.ExclusionOperator{}).EqualityInputs(); err == nil {
+	if _, err := (sqltype.ExclusionOperator{}).OperatorInputs(); err == nil {
 		t.Fatal("unbound exclusion signature accepted")
 	}
 }

@@ -1211,7 +1211,8 @@ unchanged original roots and complete root/leaf-owned storage/index/generator cl
 `TestReferenceRangePartitionLeafExclusion` and the existing Controls body reuse
 ordinary physical exclusion producers, enforcing exact direct/prepared conflicts,
 late cross-leaf atomicity and genuine Dump/Restore/SQL replay. Virtual exclusions
-retain the explicit execution boundary; no adjacent constraint rollout is inferred.
+and selected recursive EXCLUDE lifecycle are described below; adjacent hierarchy
+DML remains outside that cutover.
 `TestReferenceRangePartitionFailureOrder` composes both arity preflights, lower
 NULL, lower/later volatile demand, malformed upper expressions and finite
 transformation failures after MIN/MAX. Complete diagnostics, nonrewinding sequence
@@ -1566,3 +1567,61 @@ make check RUN='^TestEnum(GenerationPublicationAtomicity|OperationSafetyCapture)
 Incoming enum staged-table fixture callers pass the empty FK reference-grant
 inventory explicitly; their original provenance/publication/safety assertions
 are unchanged.
+
+### Partitioned exclusions
+
+The release oracle is PostgreSQL18.0, not development-source index comparison.
+`TestReferencePartitionExclusionDefinition`, `Hierarchy`, `Attachment`, `Rows`,
+`Metadata`, `Deferral`, `Atomicity`, `Concurrency`, `Controls`, `Capabilities`,
+`Collation`, `IncompleteControls` and `FeatureSmoke`
+prescribe independent diagnostics, actual overlap, typed direct/prepared values,
+virtual/physical provider ancestry, scoped local declarations, rollback and native
+replacement. GiST membership uses the native logical exclusion provider, not a
+physical PostgreSQL index or an extension-installed scalar operator class.
+
+Run each group natively and with `REFERENCE=1`, under an external900-second deadline:
+
+```sh
+make check RUN='^TestReferencePartitionExclusion(Definition|Attachment|Metadata)$'
+make check RUN='^TestReferencePartitionExclusion(Hierarchy|Rows|Deferral)$'
+make check RUN='^TestReferencePartitionExclusion(Atomicity|Concurrency|Controls|FeatureSmoke)$'
+make check RUN='^TestReferencePartitionExclusion(Capabilities|Collation)$'
+make check RUN='^TestReferencePartitionExclusionIncompleteControls$'
+make check RUN='^TestReferencePartitionExclusionConcurrency$' RACE=1
+make check RUN='^TestReferenceRangePartitionLeafExclusion$'
+make check RUN='^TestReferenceExclusion(MethodBoundaries|ConcurrencyCancellation|PreparedPeerOutcome)$'
+```
+
+Every changed preexisting definition above also requires both selected modes.
+The LIST equality-family case retains PostgreSQL-valid overlap and independently
+asserts native42601 at LIST, with its exact character Position; it does not skip
+the scenario or claim native LIST support. Controls replay the actual emitted
+native SQL on the pinned server, with no exclusion index ATTACH rewrite.
+
+GiST capability assertions distinguish key and INCLUDE false/NULL results,
+including clusterable true and backward scans false. TEXT B-tree exclusions
+separately prove exact collation identity through rejected definitions,
+descendant creation, populated subtree attachment and preserved provider graphs.
+
+Incomplete controls cover ONLY gaps, partial and DEFAULT-gap trees, independently
+constrained attached subtrees, complete-invalid and childless-invalid roots, and
+nested local scope. Exact graph/validity, typed rows, canonical dump bytes,
+unmodified emitted-SQL PostgreSQL replay and future enforcement are asserted.
+
+For a standalone public smoke, open an isolated `stuntgres.NewDriver()` connector
+with `sql.OpenDB`, create RANGE(INET) plus DEFAULT leaves and declare
+`EXCLUDE USING gist(tenant inet_ops WITH =,during WITH &&)`. Insert tenant
+10.0.0.1 `[1,5)`, require prepared same-tenant `[3,7)`23P01 from the low leaf,
+then accept another tenant, another partition and adjacent `[5,8)`. Read original
+INT4/INET/INT4RANGE values and metadata, inspect public x ancestry and GiST operator
+identities, roll back a late multileaf conflict, then Dump→Reset→Restore→redump.
+Reprepare after replacement and prove both restored conflict and new-tenant
+admission. Keep the program independent of the reference fixture so it exercises
+the embedding API directly.
+
+Extend the standalone recipe with populated overlapping gaps before ONLY ADD,
+later covered children, a populated attached subtree with an independent local
+exclusion, and complete-invalid/childless-invalid roots. Recheck provider gaps and
+invalid flags before and after native replay, require canonical bytes and prove
+both unconstrained-gap acceptance and restored covered-provider rejection.
+

@@ -143,7 +143,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			}
 			sql.WriteString(identifier(presented.class.Name))
 		}
-		if index.sqlIndex.method != hashMethod {
+		if index.sqlIndex.method == btreeMethod {
 			if key.desc {
 				sql.WriteString(" DESC")
 			} else if presentation.dump {

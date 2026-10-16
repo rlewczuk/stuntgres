@@ -36,6 +36,9 @@ func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement 
 		if rowSecurityActions(s.Actions) || tablespaceOnlyActions(s.Actions) {
 			return nil
 		}
+		if partitionExclusionAddActions(s) {
+			return nil
+		}
 		if partitionConstraintDropActions(d, s.Actions) {
 			return nil
 		}

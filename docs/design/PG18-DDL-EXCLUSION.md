@@ -21,9 +21,9 @@ transaction state separate from transaction READ DEFERRABLE. Deferrable UNIQUE,
 general transactional CREATE and standalone rename boundaries remain unchanged.
 Feature-local standalone RENAME CONSTRAINT supports actual EX attachments through
 the existing rename publisher; active explicit transactions retain utility0A000.
-No GiST/SP-GiST, range, extension, physical storage/WAL or PostgreSQL server pg_dump
-implementation is claimed. Missing native methods are capability boundaries, not
-claims that PostgreSQL rejects their process-local algorithms.
+Feature-local logical GiST INET equality and range overlap are supplied by the
+partitioned-exclusion cutover. General GiST/SP-GiST, extension, physical storage/WAL
+and PostgreSQL server pg_dump implementations remain outside native capability.
 
 ## Definition and identity ownership
 

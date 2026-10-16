@@ -92,6 +92,9 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 		if relation.sqlIndex.method == hashMethod {
 			method = 405
 		}
+		if relation.sqlIndex.method == gistMethod {
+			method = 783
+		}
 	}
 	shared := relation.relationKind == catalogRelation && (relation.address.ObjectID == 1213 || relation.address.ObjectID == 1262 || relation.address.ObjectID == 2396 || relation.address.ObjectID == 2964 || relation.address.ObjectID == ParameterClassID)
 	tablespace := uint32(0)

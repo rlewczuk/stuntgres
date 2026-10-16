@@ -65,12 +65,12 @@ func TestExclusionOperatorFamily(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					got, err := operator.Equal(ctx, left, right)
+					got, err := operator.Matches(ctx, left, right)
 					if err != nil || got != tc.equal {
 						t.Fatal(got, tc.equal, err)
 					}
 					for _, pair := range [][2]Value{{Null(typ), right}, {left, Null(typ)}, {Null(typ), Null(typ)}} {
-						if match, err := operator.Equal(ctx, pair[0], pair[1]); err != nil || match {
+						if match, err := operator.Matches(ctx, pair[0], pair[1]); err != nil || match {
 							t.Fatal("NULL exclusion comparison", match, err)
 						}
 					}
@@ -90,7 +90,7 @@ func TestExclusionOperatorFamily(t *testing.T) {
 					}
 					canceled, cancel := context.WithCancel(ctx)
 					cancel()
-					if _, err := operator.Equal(canceled, left, right); !errors.Is(err, context.Canceled) {
+					if _, err := operator.Matches(canceled, left, right); !errors.Is(err, context.Canceled) {
 						t.Fatal("provider cancellation", err)
 					}
 				}

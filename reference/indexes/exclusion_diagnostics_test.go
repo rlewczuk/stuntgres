@@ -115,11 +115,8 @@ func TestReferenceExclusionMethodBoundaries(t *testing.T) {
 	t.Run("gist_scalar_method_boundary", func(t *testing.T) {
 		fixture.ExclusionReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			q := "CREATE TABLE t(v INT,CONSTRAINT ex EXCLUDE USING gist(v WITH =))"
-			d := fixture.ControlsReferenceDiagnostic("0A000", "non-btree indexes are unsupported")
-			if b.PG {
-				d = fixture.ControlsReferenceDiagnostic("42704", `data type integer has no default operator class for access method "gist"`)
-				d.Hint = "You must specify an operator class for the index or define a default operator class for the data type."
-			}
+			d := fixture.ControlsReferenceDiagnostic("42704", `data type integer has no default operator class for access method "gist"`)
+			d.Hint = "You must specify an operator class for the index or define a default operator class for the data type."
 			fixture.ExclusionReferenceRun(t, p, b, b.DB, fixture.ErrorDiagnostic(q, d))
 		})
 	})
@@ -134,11 +131,8 @@ func TestReferenceExclusionMethodBoundaries(t *testing.T) {
 			run(fixture.ErrorDiagnostic("INSERT INTO t VALUES('(1,2)')", fixture.ExclusionReferenceConflict("t", "ex", "v", "(1,2)", "(1,2)")))
 		})
 	})
-	t.Run("range_overlap_external_provider", func(t *testing.T) {
+	t.Run("range_overlap_provider", func(t *testing.T) {
 		fixture.ExclusionReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-			if !b.PG {
-				return
-			} // Range/GiST execution remains an explicit provider boundary.
 			run := func(s fixture.Step) { fixture.ExclusionReferenceRun(t, p, b, b.DB, s) }
 			run(fixture.Exec("CREATE TABLE t(v INT4RANGE,CONSTRAINT ex EXCLUDE USING gist(v WITH &&))", 0))
 			run(fixture.Exec("INSERT INTO t VALUES('[1,3)')", 1))

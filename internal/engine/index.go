@@ -48,10 +48,10 @@ type logicalIndexEntry struct {
 	position int // Physical slot in the simultaneously published immutable storage.
 }
 type logicalIndexRoot struct {
-	entries    []logicalIndexEntry // Ordered B-tree keys, including NULLs.
+	entries    []logicalIndexEntry // Ordered B-tree keys or unordered logical GiST membership.
 	hash       *hashIndexRoot
 	membership map[RowID]VersionID // Immutable; partial roots only.
-	rowEntries map[RowID]int       // Sorted-entry ordinals, only checked unique/exclusion expression keys.
+	rowEntries map[RowID]int       // Entry ordinals, only checked unique/exclusion expression keys.
 }
 type indexOrdering struct {
 	slots       []int
@@ -322,7 +322,7 @@ func buildIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *inde
 
 func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *indexDefinition, store *relationStorage, capture *indexBuildCapture) ([]logicalIndexEntry, error) {
 	ctx := evaluation.Context
-	o, err := bindIndexOrdering(parent, d)
+	o, err := bindIndexKeys(parent, d)
 	if err != nil {
 		return nil, err
 	}
@@ -360,8 +360,10 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 			entries = append(entries, entry)
 		}
 	}
-	if err := o.sort(ctx, entries); err != nil {
-		return nil, err
+	if d.method == btreeMethod {
+		if err := o.sort(ctx, entries); err != nil {
+			return nil, err
+		}
 	}
 	return entries, nil
 }
@@ -369,7 +371,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 	ctx := evaluation.Context
 	d := index.sqlIndex
 	validate := (d.unique || d.isExclusion()) && (d.constraint != nil || d.valid || reconstruct)
-	o, err := bindIndexOrdering(parent, d)
+	o, err := bindIndexKeys(parent, d)
 	if err != nil {
 		return nil, err
 	}
@@ -440,6 +442,30 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 		}
 		// No changed root to install; the publisher keeps its actual predecessor.
 		return nil, ctx.Err()
+	}
+	if d.method == gistMethod {
+		// Preserve immutable predecessor entries and cached produced keys.
+		// Validation needs the complete candidate membership even in PREPARE.
+		entries := make([]logicalIndexEntry, 0, len(old)+len(added))
+		for _, entry := range old {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if ended[entry.row] != entry.version {
+				entries = append(entries, entry)
+			}
+		}
+		entries = append(entries, added...)
+		root := newLogicalIndexRoot(d, entries)
+		if validate {
+			if err := validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building); err != nil {
+				return nil, err
+			}
+		}
+		if !materialize {
+			return nil, ctx.Err()
+		}
+		return root, ctx.Err()
 	}
 	if err := o.sort(ctx, added); err != nil {
 		return nil, err
@@ -554,6 +580,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			method := btreeMethod
 			if s.Method == "hash" {
 				method = hashMethod
+			}
+			if s.Method == "gist" {
+				method = gistMethod
 			}
 			if err := validateIndexReloptions(s.Options, method, false); err != nil {
 				return fail(err)

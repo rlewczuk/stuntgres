@@ -3,12 +3,14 @@
 ## Provenance and status
 
 The companion `pg-operator-pg18-supported.tsv` is an independently constructed
-expected inventory, **545 admitted records out of 799 released identities**;
-254 remain identity-only. It has a header and exactly15 raw catalog columns,
+expected inventory, **546 admitted records out of 799 released identities**;
+253 remain identity-only. Of the admitted records, 3552 is executable through
+the bounded exclusion provider rather than general scalar SQL. The inventory
+has a header and exactly15 raw catalog columns,
 ordered numerically by OID. Root confirmed the initial531-row metadata against
 pinned PostgreSQL18.0 before production. Subsequent rebases synchronize existing
 TID/INET and ACL-inclusion providers as documented below. The latest complete
-545-row definitions require fresh root-owned proof; source facts are not a pass.
+546-row definitions require fresh root-owned proof; source facts are not a pass.
 No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
@@ -370,3 +372,23 @@ actual held statement, with public result metadata checked on every route.
 
 The545-row bag/provider/reference/control/smoke definitions require fresh root
 proof and Review3. No checks or formatters were run by the implementer.
+
+## Partitioned exclusion provider metadata
+
+The logical GiST INET provider additionally owns operator3552,
+`&&(inet,inet)`, including ordinary local exclusion declarations. Its released
+metadata is BOOL, binary, nonmerge/nonhash, self-commutator3552, no negator,
+procedure3551 (`network_overlap`), restriction3560 (`networksel`) and
+join3561 (`networkjoinsel`). These fields come from the released
+[`pg_operator.dat`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_operator.dat)
+and [`pg_proc.dat`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat).
+Existing lookup-only procedure identities suffice: this change adds neither
+callable network routines nor general scalar INET overlap admission.
+
+This adds one bounded exclusion-provider record to the preceding545 scalar
+records; historical partition audits below describe their original snapshots.
+`TestPGOperatorProviderAgreement` exercises the actual exclusion binder and
+predicate for3552 separately from the scalar binder. The shared partition
+exclusion Metadata scenario exercises persistent ordinary INET-overlap metadata
+and conflicts. New definitions require fresh selected native and pinned proof;
+no verification is claimed by this implementation note.

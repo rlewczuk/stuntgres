@@ -7,7 +7,7 @@ that level, with matching effective collation/equality capability. INCLUDE is no
 coverage; expression partition keys reject these constraints. Independent leaf
 keys remain independent. Virtual indexes have no heap/index storage. Physical
 leaves enforce real cloned keys and primary NOT NULL definitions. Nonunique virtual
-index creation, virtual REINDEX, generated/identity/serial/exclusion combinations,
+index creation, virtual REINDEX, generated/identity/serial combinations,
 hierarchy UPDATE/DELETE/row marks/LOCK and unrelated ALTER remain bounded out.
 
 Constraint/index OIDs, stable attribute numbers and immediate-parent edges are
@@ -322,3 +322,52 @@ local://partition-constraints-smoke.go; launch and selected proof instructions a
 in [TESTING](../../reference/tables/README.md#partitioned-constraints--selected-proof). The smoke checks
 row/metadata/backing/ancestry/kind/validity/dependency/duplicate and healthy-write
 observations on both sides, not merely acceptance of emitted SQL.
+
+## Partitioned exclusion cutover
+
+EXCLUDE extends the existing coverage/remap/recursive index stage, not a parallel
+hierarchy walker. Every applicable partition key must be a simple exclusion key
+with matching collation and the partition equality's actual canonical signature.
+Each declaration owns target-plus-descendant scope. An independent child-local
+declaration is not widened by unrelated ancestor partition keys.
+
+Each exclusion owns immediate Parent and IsLocal provenance, a distinct backing
+and its own immutable rebound operator slice. Virtual roots own no membership;
+physical leaves retain runtime conflict diagnostics and actual logical GiST roots.
+The shared structural comparator validates generated provider structure, while
+PostgreSQL18.0 automatic adoption refuses all independent exclusion candidates.
+Explicit exclusion index ATTACH preserves earlier55000 checks before42P17.
+Selected ONLY ADD leaves an incomplete virtual index rather than cloning children.
+
+DETACH severs crossing edges only; scoped DROP follows inherited edges and retains
+independent local constraints. Dump projects names through the existing constraint
+scheduler, declares local providers once, and restores inherited names without
+explicit exclusion index ATTACH. Destination operator rebinding and constraint
+Parent remapping use the installed replacement pipeline.
+
+Temporary constraint names are allocated in schema/table-name order, then by the
+original backing index's schema/name within each table, across both unique and
+exclusion constraints. This allocation is separate from declaration/clone order:
+PARTITION OF can reconstruct local constraints before inherited constraints even
+when the original table added locals later. Neither that slice permutation nor
+replacement OID allocation may change the canonical redump bytes. The private
+naming projection preserves captured constraint slices, provenance, definitions
+and addresses; the existing generated-name reconciliation and final rename
+barriers still own PostgreSQL replay.
+
+Invalid local virtual exclusions are separate existing declaration events,
+rendered as captured `ALTER TABLE ONLY ... ADD CONSTRAINT`. Gap memberships precede
+the declaration; covered memberships follow it and create only the saved
+inherited providers. A captured DEFAULT gap may precede bounded children while
+empty, so only contradictory DEFAULT-last dependencies are omitted. Existing
+data-readiness edges remain authoritative.
+
+Without a captured gap, existing collision-reserved scratch preparation and
+completion events retain complete-invalid or childless-invalid state. Scratch
+is removed before captured DEFAULT membership and rows. Actual child
+detach/reattach is not a substitute: PostgreSQL18.0 exclusion nonadoption would
+duplicate independent providers. Membership and populated ATTACH own clone
+creation, name reservation and rename readiness. Terminal names follow logical
+final-name order rather than original provider OIDs; existing ATTACH preload
+dependencies remain intact, without a global row/name barrier.
+

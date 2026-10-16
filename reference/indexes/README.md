@@ -297,3 +297,21 @@ ALTER with original catalog preserved, unnamed UNIQUE ownership, actual native
 Dump/Reset/Restore with held-handle reuse, and DROP ownership/canonical redump.
 Exit zero with no output is the expected observation; reference FeatureSmoke
 and full native-control/fence families remain required independent proof.
+
+### Logical GiST exclusion cutover
+
+`TestReferenceExclusionMethodBoundaries` now exercises real INT4RANGE overlap in
+both modes; missing scalar GiST classes report42704 with the independently
+specified default-class hint. SP-GiST and POINT remain explicit native boundaries.
+The partitioned-exclusion witness uses explicit INET `inet_ops WITH =` and
+canonical anyrange `&&`, not a B-tree alias or extension. Selected proof:
+
+```sh
+make check RUN='^TestReferenceExclusion(MethodBoundaries|ConcurrencyCancellation|PreparedPeerOutcome)$'
+make check RUN='^TestReferenceExclusion(MethodBoundaries|ConcurrencyCancellation|PreparedPeerOutcome)$' REFERENCE=1
+```
+
+The latter two definitions are included because the shared cancellation/peer
+helpers migrated signatures. See [hierarchy proof](../tables/README.md#partitioned-exclusions)
+for scoped providers, release18.0 fresh cloning, persistence and standalone smoke.
+

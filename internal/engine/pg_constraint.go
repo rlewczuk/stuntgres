@@ -173,7 +173,12 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef
 			builder.oid(row, 10, c.Index.ObjectID)
 			builder.boolean(row, 4, c.Deferrable)
 			builder.boolean(row, 5, c.InitiallyDeferred)
-			builder.boolean(row, 18, true)
+			builder.oid(row, 11, c.Parent)
+			builder.boolean(row, 16, c.IsLocal)
+			if c.Parent != 0 {
+				builder.integer(row, 17, 1)
+			}
+			builder.boolean(row, 18, c.Parent == 0)
 			index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
 			if !ok || index.sqlIndex == nil || len(index.sqlIndex.keys) != len(c.Operators) {
 				return nil, fmt.Errorf("stuntgres: missing exclusion metadata provider")
@@ -193,7 +198,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef
 					return nil, err
 				}
 				op := c.Operators[i]
-				inputs, err := op.EqualityInputs()
+				inputs, err := op.OperatorInputs()
 				if err != nil {
 					return nil, err
 				}

@@ -66,6 +66,10 @@ func pgOpclassFacts() [][]any {
 			rows = append(rows, []any{f.hash, int64(405), f.name, int64(11), int64(10), f.hfamily, f.input, def, int64(0)})
 		}
 	}
+	rows = append(rows,
+		[]any{int64(10017), int64(783), "inet_ops", int64(11), int64(10), int64(3550), int64(869), false, int64(0)},
+		[]any{int64(10078), int64(783), "range_ops", int64(11), int64(10), int64(3919), int64(3831), true, int64(0)},
+	)
 	sort.Slice(rows, func(i, j int) bool { return rows[i][0].(int64) < rows[j][0].(int64) })
 	return rows
 }
@@ -152,14 +156,11 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 60 {
+	if len(facts) != 62 {
 		t.Fatal("inventory", len(facts))
 	}
 	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {
-		q := "SELECT opcname FROM pg_catalog.pg_opclass WHERE opcname='" + name + "'"
-		if b.PG {
-			q += " AND opcmethod=403"
-		}
+		q := "SELECT opcname FROM pg_catalog.pg_opclass WHERE opcname='" + name + "' AND opcmethod=403"
 		want := [][]any{}
 		if b.PG {
 			want = [][]any{{name}}
@@ -167,7 +168,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(q, []string{"opcname"}, []string{"NAME"}, want))
 	}
 	if !b.PG {
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT opcname FROM pg_opclass WHERE opcmethod NOT IN (403,405)", []string{"opcname"}, []string{"NAME"}, nil))
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT opcname FROM pg_opclass WHERE opcmethod NOT IN (403,405,783)", []string{"opcname"}, []string{"NAME"}, nil))
 	}
 }
 

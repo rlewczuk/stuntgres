@@ -186,6 +186,13 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *relati
 			c.IsLocal = true
 		}
 	}
+	if len(child.exclusionConstraints) != 0 {
+		nextChild.exclusionConstraints = slices.Clone(child.exclusionConstraints)
+		for i := range nextChild.exclusionConstraints {
+			nextChild.exclusionConstraints[i].Parent = 0
+			nextChild.exclusionConstraints[i].IsLocal = true
+		}
+	}
 	if err := stage.Replace(&nextParent); err != nil {
 		return err
 	}

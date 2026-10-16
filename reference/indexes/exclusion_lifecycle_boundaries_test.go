@@ -45,7 +45,7 @@ func TestReferenceExclusionPreparedPeerOutcome(t *testing.T) {
 				if outcome.Result != nil {
 					t.Fatal("timed-out exclusion insert returned result")
 				}
-				fixture.ExclusionReferenceWaitDiagnostic(t, outcome.Err, "55P03", "canceling statement due to lock timeout", b.PG)
+				fixture.ExclusionReferenceWaitDiagnostic(t, outcome.Err, "55P03", "canceling statement due to lock timeout", "t", b.PG)
 				run(peer, fixture.Exec("SET lock_timeout=0", 0))
 				command := "ROLLBACK PREPARED"
 				if commit {

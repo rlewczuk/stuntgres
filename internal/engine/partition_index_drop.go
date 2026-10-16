@@ -114,6 +114,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDes
 		next.uniqueConstraints = slices.Clone(table.uniqueConstraints)
 		next.revision++
 		next.uniqueConstraints = slices.DeleteFunc(next.uniqueConstraints, func(c uniqueConstraint) bool { return c.Index == index.address })
+		next.exclusionConstraints = slices.DeleteFunc(slices.Clone(table.exclusionConstraints), func(c exclusionConstraint) bool { return c.Index == index.address })
 		if err := stagePartitionDescriptor(stage, &next); err != nil {
 			return err
 		}
@@ -137,6 +138,17 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid OID) erro
 			}
 			index := view.state.descriptors[c.Index].(*relationDescriptor)
 			if err := e.stagePartitionIndexDrop(stage, index); err != nil {
+				return err
+			}
+		}
+		for _, c := range table.exclusionConstraints {
+			if c.Parent != oid {
+				continue
+			}
+			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
+				return err
+			}
+			if err := e.stagePartitionIndexDrop(stage, view.state.descriptors[c.Index].(*relationDescriptor)); err != nil {
 				return err
 			}
 		}
@@ -171,13 +183,13 @@ func partitionConstraintDropActions(table *relationDescriptor, actions []parser.
 				break
 			}
 		}
+		found = found || slices.ContainsFunc(table.exclusionConstraints, func(c exclusionConstraint) bool { return c.Name == action.Constraint.Text })
 		if found {
 			selected = true
 			continue
 		}
 		if slices.ContainsFunc(table.notNullConstraints, func(c notNullConstraint) bool { return c.Name == action.Constraint.Text }) ||
 			slices.ContainsFunc(table.checkConstraints, func(c checkConstraint) bool { return c.Name == action.Constraint.Text }) ||
-			slices.ContainsFunc(table.exclusionConstraints, func(c exclusionConstraint) bool { return c.Name == action.Constraint.Text }) ||
 			slices.ContainsFunc(table.foreignKeys, func(c foreignKeyConstraint) bool { return c.Name == action.Constraint.Text }) {
 			return false
 		}
@@ -200,6 +212,25 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 		current := view.state.descriptors[table.address].(*relationDescriptor)
 		found := false
 		for _, c := range current.uniqueConstraints {
+			if c.Name != action.Constraint.Text {
+				continue
+			}
+			found = true
+			if c.Parent != 0 {
+				return Result{}, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, table.name))
+			}
+			index := view.state.descriptors[c.Index].(*relationDescriptor)
+			if err := partitionIndexDropDependency(view, index); err != nil {
+				return Result{}, err
+			}
+			if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
+				return Result{}, err
+			}
+			if err := e.stagePartitionIndexDrop(stage, index); err != nil {
+				return Result{}, err
+			}
+		}
+		for _, c := range current.exclusionConstraints {
 			if c.Name != action.Constraint.Text {
 				continue
 			}

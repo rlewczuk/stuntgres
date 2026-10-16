@@ -40,6 +40,25 @@ PostgreSQL child-XID allocator are added.
 See [compatibility boundaries](docs/DIALECT.md#transaction-identity-information)
 and [selected proof and smoke](reference/locking_transactions/README.md#transaction-identity-oracle-first-contract).
 
+## Partitioned exclusions — change note
+
+Partitioned EXCLUDE declarations use virtual parent indexes and actual leaf
+providers. Each declaration covers its target's and descendants' partition keys
+with the partition family's actual equality operator and collation. Independently
+local child exclusions do not acquire unrelated ancestor-key requirements.
+The bounded logical GiST provider admits explicit INET `inet_ops WITH =` and
+range `range_ops WITH &&`; it is not a physical GiST tree or `btree_gist`.
+CREATE, selected EXCLUDE ADD/DROP, RANGE ATTACH/DETACH, public ancestry/operator
+metadata and native Dump/Restore share the existing atomic hierarchy machinery.
+PostgreSQL18.0 attachment clones fresh exclusion providers rather than adopting
+equivalent local constraints; explicit exclusion index ATTACH fails42P17.
+Native replay also preserves ONLY-created provider gaps and invalid virtual
+indexes, including complete-invalid and childless states, without strengthening
+the captured constraints.
+Hierarchy UPDATE/DELETE, row movement, arbitration/MERGE and native LIST syntax
+remain outside this feature. See [selected proof and smoke](reference/tables/README.md#partitioned-exclusions).
+
+
 ## Session messages — change note
 
 Native `LISTEN`, `NOTIFY` (including payloads), and `UNLISTEN` now provide
@@ -978,11 +997,12 @@ logical dumps use typed numeric identities to preserve overloaded and unknown
 OIDs losslessly. Companion arrays remain lookup-only.
 
 Change note: `pg_catalog.pg_operator` exposes all 15 released metadata columns
-for the 545 currently supported exact overloads, including concrete mixed-width
-and declared polymorphic identities, typed implementation/estimator references,
-PUBLIC reads and captured prepared/control lifetimes. This executable metadata
-subset is distinct from all 799 REGOPER/REGOPERATOR aliases; lookup-only
-references do not add operator behavior or SQL `pg_proc` rows. See the
+for 545 scalar-executable exact overloads plus the exclusion-only INET `&&`
+provider. These 546 records include concrete mixed-width and declared polymorphic
+identities, typed implementation/estimator references, PUBLIC reads and captured
+prepared/control lifetimes. This executable metadata subset is distinct from all
+799 REGOPER/REGOPERATOR aliases; lookup-only references do not add operator
+behavior or SQL `pg_proc` rows. See the
 [release admission evidence](docs/design/pg-operator-pg18-oracle.md) and
 [selected checks and smoke](reference/catalogs/README.md#pg_operator-selected-proof).
 
@@ -3993,8 +4013,10 @@ not transaction READ DEFERRABLE. Omitted/named ON CONFLICT DO NOTHING can select
 nondeferrable exclusions; unique inference cannot. Selected deferrable arbiters
 fail55000 only when a row is demanded. UNIQUE deferral remains unsupported.
 Native Dump/Reset/Restore preserves definitions and data, not transient modes or
-events. GiST/SP-GiST, range/extension providers, physical indexes/WAL and server
-pg_dump are not introduced. See [the contract](https://www.postgresql.org/docs/18/ddl-constraints.html)
+events. The bounded logical GiST provider supports INET equality/overlap and
+range overlap for exclusion constraints. General GiST/SP-GiST and extension-backed
+providers, physical indexes/WAL and server pg_dump are not introduced.
+See [the contract](https://www.postgresql.org/docs/18/ddl-constraints.html)
 and [design](docs/design/PG18-DDL-EXCLUSION.md).
 Feature smoke: `make check RUN='^TestReferenceExclusionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceExclusionFeatureSmoke$'`.

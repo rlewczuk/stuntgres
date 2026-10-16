@@ -78,6 +78,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if partitionUniqueReplayAllowed(op, auth, s, old) {
 		return e.executePartitionUniqueReplayLocked(scope, op, auth, s, old)
 	}
+	if hierarchyRelation(old) && partitionExclusionAddActions(s) {
+		return e.executePartitionExclusionAddLocked(scope, op, auth, s, old)
+	}
 	if hierarchyRelation(old) && partitionConstraintDropActions(old, s.Actions) {
 		return e.executePartitionConstraintDropLocked(scope, auth, old, s)
 	}
@@ -276,7 +279,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				copy.exclusionConstraints = slices.Clone(next.exclusionConstraints)
 				next = &copy
 				e.mu.Lock()
-				err = e.stageExclusion(op, scope.input, auth, stage, next, action.Exclusion)
+				err = e.stageExclusion(op, scope.input, auth, stage, next, action.Exclusion, true)
 				e.mu.Unlock()
 				if err == nil {
 					addedIndexes = append(addedIndexes, next.exclusionConstraints[len(next.exclusionConstraints)-1].Index)

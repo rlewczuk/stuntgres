@@ -278,7 +278,7 @@ already exist; role creation and ACL restoration are not added by this event.
 
 ### Exclusion events
 
-Equality exclusion definitions own real nonunique integrity indexes and independent
+Exclusion definitions own real nonunique integrity indexes and independent
 constraint identities. They do not strengthen key-share/no-key-update eligibility.
 Deferral events enlist only actual potential conflicts, not synthetic future-peer
 obligations. Savepoints retain immutable event/mode/projection snapshots; repairing
@@ -287,7 +287,8 @@ retain the same dirty ticket through completion. Completion resources own waits,
 deadlocks and cancellation; reads retain their ordinary MVCC view.
 
 Replacement remaps providers and enforcing roots, but transient modes/events are
-not serialized. GiST/SP-GiST, range/extension exclusion providers and physical
+not serialized. Feature-local logical GiST INET equality and range overlap also
+use these events. General GiST/SP-GiST, extension providers and physical
 PostgreSQL RI/index/WAL mechanisms remain outside native capability.
 
 ## Default definitions and demand
@@ -899,3 +900,31 @@ PostgreSQL replay are distinct proof phases. Raw adapter metadata and complete
 backend-specific diagnostics are asserted before normalization. Public deadline/
 effect callbacks alone do not prove queue order. See [testing](TESTING.md) and
 [dual-mode development](DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition).
+
+### Partitioned exclusion providers
+
+Each local declaration covers every partition key of its target and descendants
+with actual equality, matching canonical operator inputs, stable attributes and
+effective collation. INCLUDE and expressions do not provide coverage. Independent
+child-local constraints are scoped locally rather than requiring all ancestor keys.
+Virtual indexes own metadata only; actual leaf providers enforce all-key conflict.
+INET GiST equality and range overlap use genuine logical method/class identities.
+
+CREATE and selected EXCLUDE ADD/DROP reuse staged recursive index production.
+RANGE ATTACH preserves independent exclusions and clones a fresh inherited graph,
+as PostgreSQL18.0 does; explicit matching exclusion index ATTACH fails42P17.
+DETACH makes crossing providers local but retains the detached subtree's internal
+edges. DROP follows inherited edges only. Catalogs expose actual immediate Parent,
+local/inheritance and declaration deferral flags and canonical operator inputs.
+Dump declares each local provider once, recreates inherited providers automatically
+and restores current names with the existing rename scheduler. It never requires
+PostgreSQL-forbidden exclusion index ATTACH. Restore rebinds destination providers.
+
+ONLY ADD retains existing child gaps while future membership creates inherited
+providers. Dump/Restore preserves those gaps, independent local constraints,
+captured invalidity and data even when uncovered rows overlap. Complete-invalid
+and childless-invalid roots use collision-reserved empty scratch partitions during
+SQL replay; scratch relations disappear before captured DEFAULT membership and
+row replay. The same dependency scheduler and logical creator/name barriers retain
+canonical bytes without catalog repair or captured-child detach/reattach.
+

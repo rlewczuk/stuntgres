@@ -93,7 +93,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ObjectRe
 			return indexMetadata{}, indexesMetadata{}, fmt.Errorf("stuntgres: index class has no released identity")
 		}
 		m.IndCollation[i] = OID(usage.Collation.ID)
-		if definition.method == hashMethod {
+		if definition.method != btreeMethod {
 			continue
 		}
 		if key.desc {

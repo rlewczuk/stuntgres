@@ -583,7 +583,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	}
 	for _, descriptor := range next.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
-		if !ok || len(table.uniqueConstraints) == 0 {
+		if !ok || len(table.uniqueConstraints) == 0 && len(table.exclusionConstraints) == 0 {
 			continue
 		}
 		var changed *relationDescriptor
@@ -598,6 +598,20 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				changed = &copy
 			}
 			changed.uniqueConstraints[i].Parent = parent
+		}
+		for i, constraint := range table.exclusionConstraints {
+			parent, exists := constraintMapping[ObjectAddress{ClassID: 2606, ObjectID: constraint.Parent}]
+			if !exists || parent.ObjectID == constraint.Parent {
+				continue
+			}
+			if changed == nil {
+				copy := *table
+				changed = &copy
+			}
+			if changed.exclusionConstraints == nil || &changed.exclusionConstraints[0] == &table.exclusionConstraints[0] {
+				changed.exclusionConstraints = append([]exclusionConstraint(nil), table.exclusionConstraints...)
+			}
+			changed.exclusionConstraints[i].Parent = parent.ObjectID
 		}
 		if changed != nil {
 			next.descriptors[changed.address] = changed

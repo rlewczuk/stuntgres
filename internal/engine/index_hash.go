@@ -12,27 +12,40 @@ type indexMethod uint8
 const (
 	btreeMethod indexMethod = iota
 	hashMethod
+	gistMethod
 )
 
 func (m indexMethod) String() string {
+	if m == gistMethod {
+		return "gist"
+	}
 	if m == hashMethod {
 		return "hash"
 	}
 	return "btree"
 }
 func (m indexMethod) defaultClass(t *sqltype.Descriptor) (sqltype.IndexClass, bool) {
+	if m == gistMethod {
+		return sqltype.DefaultGiSTIndexClass(t)
+	}
 	if m == hashMethod {
 		return sqltype.DefaultHashIndexClass(t)
 	}
 	return sqltype.DefaultIndexClass(t)
 }
 func (m indexMethod) defaultClassID(id sqltype.ID) (sqltype.IndexClass, bool) {
+	if m == gistMethod {
+		return sqltype.DefaultGiSTIndexClassID(id)
+	}
 	if m == hashMethod {
 		return sqltype.DefaultHashIndexClassID(id)
 	}
 	return sqltype.DefaultIndexClassID(id)
 }
 func (m indexMethod) lookupClass(name string) (sqltype.IndexClass, bool) {
+	if m == gistMethod {
+		return sqltype.LookupGiSTIndexClass(name)
+	}
 	if m == hashMethod {
 		return sqltype.LookupHashIndexClass(name)
 	}
@@ -46,6 +59,9 @@ func bindIndexProvider(parent *relationDescriptor, d *indexDefinition) error {
 		return err
 	case hashMethod:
 		_, err := bindHashIndex(parent, d)
+		return err
+	case gistMethod:
+		_, err := bindLogicalExclusionKeys(parent, d)
 		return err
 	default:
 		return fmt.Errorf("stuntgres: invalid index method")

@@ -503,7 +503,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				// key construction. Replacement also accepts reduced validated
 				// parent/index catalogues for ordinary nonintegrity roots.
 				namespace := next.descriptors[parent.namespace].(*namespaceDescriptor)
-				ordering, err := bindIndexOrdering(parent, index.sqlIndex)
+				ordering, err := bindIndexKeys(parent, index.sqlIndex)
 				if err != nil {
 					return nil, err
 				}
@@ -658,7 +658,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 			if index.sqlIndex.method == hashMethod {
 				hash, err = bindHashIndex(parent, index.sqlIndex)
 			} else {
-				ordering, err = bindIndexOrdering(parent, index.sqlIndex)
+				ordering, err = bindIndexKeys(parent, index.sqlIndex)
 			}
 			if err != nil {
 				return err

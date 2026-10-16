@@ -406,6 +406,9 @@ func validateUniqueRoot(ctx context.Context, parent, index *relationDescriptor, 
 }
 
 func validateUniqueEntries(ctx context.Context, parent, index *relationDescriptor, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+	if index.sqlIndex.isExclusion() {
+		return validateExclusionEntries(ctx, parent, index, entries, schema, output, auth, building)
+	}
 	for i := 1; i < len(entries); i++ {
 		if err := validateUniquePair(ctx, parent, index, entries[i-1], entries[i], schema, output, auth, building, ordering); err != nil {
 			return err

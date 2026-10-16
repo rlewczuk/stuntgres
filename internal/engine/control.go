@@ -1049,6 +1049,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					if err != nil {
 						return err
 					}
+					text += constraintReplay.membershipRenames(catalog, descriptor, event)
 				}
 				if err := emit(text); err != nil {
 					return err
@@ -1353,9 +1354,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 			}
 			for _, c := range t.descriptor.exclusionConstraints {
+				if c.Parent != 0 {
+					continue
+				}
 				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing exclusion dump index")
+				}
+				if partitionReplaySeparateConstraint(catalog, index) {
+					continue
 				}
 				text, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{dump: true, exclusion: true})
 				if err != nil {

@@ -54,6 +54,9 @@ func exclusionDefinition(parent *relationDescriptor, index *relationDescriptor) 
 	return nil
 }
 func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (indexOrdering, error) {
+	if d.method == gistMethod {
+		return bindLogicalExclusionKeys(parent, d)
+	}
 	if d.method == btreeMethod {
 		return bindIndexOrdering(parent, d)
 	}
@@ -76,9 +79,9 @@ func bindExclusionOrdering(parent *relationDescriptor, d *indexDefinition) (inde
 	}
 	return bindIndexOrdering(parent, &copy)
 }
-func exclusionKeysEqual(ctx context.Context, d *indexDefinition, left, right []sqltype.Value) (bool, error) {
+func exclusionKeysMatch(ctx context.Context, d *indexDefinition, left, right []sqltype.Value) (bool, error) {
 	for i, operator := range d.exclusion {
-		match, err := operator.Equal(ctx, left[i], right[i])
+		match, err := operator.Matches(ctx, left[i], right[i])
 		if err != nil || !match {
 			return false, err
 		}
@@ -351,7 +354,7 @@ func (s *StatementScope) probeExclusion(ref ObjectRef, binding *uniqueWriteBindi
 			if own != nil && own.ended[ref.Address][entry.row.row] == entry.row.version && committed {
 				return nil
 			}
-			match, err := exclusionKeysEqual(s.op.Context(), index.sqlIndex, current.keys, entry.keys)
+			match, err := exclusionKeysMatch(s.op.Context(), index.sqlIndex, current.keys, entry.keys)
 			if err != nil || !match {
 				return err
 			}
@@ -359,7 +362,7 @@ func (s *StatementScope) probeExclusion(ref ObjectRef, binding *uniqueWriteBindi
 				if err := bound.ordering.fillKeys(entry.row.values, bound.scratch, &evaluation); err != nil {
 					return err
 				}
-				match, err = exclusionKeysEqual(s.op.Context(), index.sqlIndex, current.keys, bound.scratch)
+				match, err = exclusionKeysMatch(s.op.Context(), index.sqlIndex, current.keys, bound.scratch)
 				if err != nil || !match {
 					return err
 				}
@@ -479,8 +482,10 @@ func (s *StatementScope) probeExclusionRow(ref ObjectRef, binding *uniqueWriteBi
 		}
 		indexRef := ref
 		indexRef.Address = index.address
-		if err := s.acquireUnique(indexRef, bound, keys); err != nil {
-			return uniqueConflict{}, err
+		if index.sqlIndex.exactEqualityClaims() {
+			if err := s.acquireUnique(indexRef, bound, keys); err != nil {
+				return uniqueConflict{}, err
+			}
 		}
 		p.mu.Lock()
 		projected := cloneExclusionProjection(p.exclusionPending[s.ticket])

@@ -141,7 +141,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		}
 		want[uint32(id)] = fields
 	}
-	if len(want) != 545 || !reflect.DeepEqual(bag, want) {
+	if len(want) != 546 || !reflect.DeepEqual(bag, want) {
 		t.Fatal("capture differs from independent release bag")
 	}
 	// Full-cap row slices cannot append into their neighbours; cells are distinct.

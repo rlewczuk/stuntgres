@@ -80,7 +80,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	for oid := range indexIndices {
 		index := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
 		lateIndexes[oid] = index.sqlIndex.constraint == nil && lateTables[index.sqlIndex.parent] || partitionPreservedReplayBacking(view, index) || partitionPreservedReplayLocal(view, index)
-		if partitionReplayVirtualUniqueRoot(view, index) != nil {
+		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
 			partitionVirtualUniqueMembershipReady(view, graph, dumpEventKey{oid: oid}, view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor))
 		}
 	}
@@ -105,7 +105,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		if d.membership.defaultBound {
 			parent := view.state.descriptors[d.membership.parent].(*relationDescriptor)
 			for _, child := range parent.partition.children {
-				if child != d.address {
+				if child != d.address && !partitionExclusionDefaultBefore(view, d, view.state.descriptors[child].(*relationDescriptor)) {
 					addDumpDependency(graph, event, membership(view.state.descriptors[child].(*relationDescriptor)))
 				}
 			}
@@ -130,6 +130,20 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	lateDeclarations := make(map[OID]bool)
 	for _, event := range declarations {
 		lateDeclarations[event.oid] = lateIndexes[event.oid]
+		if _, exists := indexIndices[event.oid]; exists {
+			index := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: event.oid}].(*relationDescriptor)
+			if partitionReplayOnlyExclusion(index) {
+				lateDeclarations[event.oid] = true
+			}
+		}
+		if descriptor, ok := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: event.oid}].(*relationDescriptor); ok && descriptor.membership != nil && !partitionDumpNeedsAttach(view, descriptor) {
+			parent := view.state.descriptors[descriptor.membership.parent].(*relationDescriptor)
+			for _, index := range partitionIndexDeclarationOrder(view, parent) {
+				if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && partitionReplayOnlyExclusion(root) && partitionDumpIndexBacking(view, index.address, descriptor.address) != nil {
+					lateDeclarations[event.oid] = true
+				}
+			}
+		}
 		for _, predecessor := range graph[event] {
 			if predecessor.phase == dumpDeclaration {
 				lateDeclarations[event.oid] = lateDeclarations[event.oid] || lateDeclarations[predecessor.oid]
@@ -141,7 +155,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		address.SubID = 0
 		if _, exists := replay.temporary[address]; exists {
 			index := view.state.descriptors[address].(*relationDescriptor)
-			if root := partitionReplayVirtualUniqueRoot(view, index); root != nil {
+			if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
 				return virtualNameReady[root.address], true, nil
 			}
 			return dumpEventKey{oid: address.ObjectID, phase: dumpRename}, true, nil
@@ -168,15 +182,17 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	}
 	ready := earlyTail
 	seen := make(map[dumpEventKey]bool)
-	for _, index := range replay.finalRenameOrder() {
+	renameOrder := replay.finalRenameOrder()
+	for _, index := range renameOrder {
 		provider, err := dumpPredecessor(view, index.address, ObjectAddress{})
 		if err != nil {
 			return err
 		}
 		event := dumpEventKey{oid: index.address.ObjectID, phase: dumpRename}
-		graph[event] = []dumpEventKey{earlyTail, {oid: provider}}
-		lateNames[index.address.ObjectID] = lateDeclarations[provider]
-		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil {
+		creator := partitionConstraintCreator(view, index)
+		graph[event] = []dumpEventKey{earlyTail, creator}
+		lateNames[index.address.ObjectID] = lateDeclarations[provider] || creator.phase == dumpTableAttachment
+		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && !partitionReplayOnlyExclusion(root) {
 			// A definition creates the whole local tree. Complete its terminal
 			// names in captured logical order before any original-name consumer,
 			// independent of reminted root/leaf allocation order.
@@ -184,6 +200,9 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 				addDumpDependency(graph, event, previous)
 			}
 			virtualNameReady[root.address] = event
+		}
+		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && partitionReplayOnlyExclusion(root) {
+			lateNames[index.address.ObjectID] = true
 		}
 		if lateNames[index.address.ObjectID] {
 			// Late definitions still bind the captured private spelling. Keep
@@ -389,7 +408,7 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 			parent := view.state.descriptors[t.descriptor.membership.parent].(*relationDescriptor)
 			if t.descriptor.membership.defaultBound {
 				for _, child := range parent.partition.children {
-					if child != t.descriptor.address {
+					if child != t.descriptor.address && !partitionExclusionDefaultBefore(view, t.descriptor, view.state.descriptors[child].(*relationDescriptor)) {
 						addDumpDependency(graph, event, membership(view.state.descriptors[child].(*relationDescriptor)))
 					}
 				}
@@ -398,6 +417,9 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 				index := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: indexOID}].(*relationDescriptor)
 				backing := partitionDumpIndexBacking(view, index.address, t.descriptor.address)
 				before := !lateIndexes[indexOID] || !index.sqlIndex.valid && !partitionIndexPreservedInvalid(view, index) && backing != nil && backing.sqlIndex.valid
+				if partitionReplayOnlyExclusion(index) && backing == nil {
+					before = false
+				}
 				if index.sqlIndex.parent == t.descriptor.address && !partitionPreservedReplayBacking(view, index) && !partitionPreservedReplayLocal(view, index) || index.sqlIndex.parent == parent.address && before {
 					addDumpDependency(graph, event, dumpEventKey{oid: indexOID})
 				}
@@ -453,6 +475,65 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 			addDumpDependency(graph, event, dumpEventKey{oid: table.address.ObjectID, phase: dumpTableCompletion})
 		}
 		addDumpDependency(graph, dumpEventKey{oid: parent.sqlIndex.parent.ObjectID, phase: dumpTableCompletion}, event)
+	}
+	// Apply ONLY topology edges after membership events have their final
+	// predecessors; earlier attachment graph initialization is provisional.
+	for oid := range indexIndices {
+		index := view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		if !partitionReplayOnlyExclusion(index) {
+			continue
+		}
+		table := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		for _, address := range table.partition.children {
+			child := membership(view.state.descriptors[address].(*relationDescriptor))
+			declaration := dumpEventKey{oid: oid}
+			if partitionDumpIndexBacking(view, index.address, address) == nil {
+				addDumpDependency(graph, declaration, child)
+			} else {
+				addDumpDependency(graph, child, declaration)
+			}
+		}
+	}
+	// Captured attachment history can mint inherited indexes after independent
+	// local trees, whereas replay creates them inline. OID priority therefore
+	// cannot order their terminal names. Finish the affected creation events,
+	// then rename in captured logical order, including coexisting local trees.
+	onlyTables := make(map[ObjectAddress]bool)
+	for _, index := range renameOrder {
+		if root := partitionReplayVirtualUniqueRoot(view, index); root != nil && partitionReplayOnlyExclusion(root) {
+			onlyTables[index.sqlIndex.parent] = true
+		}
+	}
+	var names []dumpEventKey
+	var creators []dumpEventKey
+	for _, index := range renameOrder {
+		if !onlyTables[index.sqlIndex.parent] || !lateNames[index.address.ObjectID] {
+			continue
+		}
+		names = append(names, dumpEventKey{oid: index.address.ObjectID, phase: dumpRename})
+		creator := partitionConstraintCreator(view, index)
+		if !slices.Contains(creators, creator) {
+			creators = append(creators, creator)
+		}
+	}
+	for i, event := range names {
+		for _, creator := range creators {
+			addDumpDependency(graph, event, creator)
+		}
+		if i != 0 {
+			addDumpDependency(graph, event, names[i-1])
+		}
+	}
+	for _, index := range renameOrder {
+		if !onlyTables[index.sqlIndex.parent] {
+			continue
+		}
+		rows := dumpEventKey{oid: index.sqlIndex.parent.ObjectID, phase: dumpRows}
+		name := dumpEventKey{oid: index.address.ObjectID, phase: dumpRename}
+		clear(seen)
+		if !dumpEventDependsOn(graph, name, rows, seen) {
+			addDumpDependency(graph, rows, name)
+		}
 	}
 	if err := inheritanceRecipeEvents(ctx, view, graph, declarations, tables, nameReady); err != nil {
 		return err

@@ -49,7 +49,7 @@ func validateIndexReloptions(options []parser.IndexOption, method indexMethod, a
 		if o.Namespace != "" {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter namespace "%s"`, o.Namespace))
 		}
-		if name != "fillfactor" && (name != "deduplicate_items" || method == hashMethod) {
+		if name != "fillfactor" && (name != "deduplicate_items" || method != btreeMethod) {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter "%s"`, name))
 		}
 		if seen[name] {

@@ -11,23 +11,43 @@ import (
 )
 
 func partitionUniqueCoverage(table *relationDescriptor, index *indexDefinition) error {
-	if table.partition == nil || !index.unique {
+	if table.partition == nil || !index.unique && !index.isExclusion() {
 		return nil
 	}
 	kind := "UNIQUE"
 	if index.constraint != nil && index.constraint.Primary {
 		kind = "PRIMARY KEY"
 	}
+	if index.isExclusion() {
+		kind = "EXCLUDE"
+	}
 	for _, partitionKey := range table.partition.keys {
 		if partitionKey.derived != nil {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported " + kind + " constraint with partition key definition", Detail: kind + " constraints cannot be used when partition keys include expressions."}
 		}
 		found := false
-		for _, key := range index.keys {
+		for i, key := range index.keys {
 			if key.attribute != partitionKey.attribute || key.derived != nil {
 				continue
 			}
 			usage := indexKeyCollation(table.columns[table.indexForAttribute(key.attribute)].Usage, key)
+			if index.isExclusion() {
+				if usage.Collation != partitionKey.usage.Collation {
+					continue
+				}
+				operator := index.exclusion[i]
+				if !operator.IsEquality() {
+					return sqlError("0A000", fmt.Sprintf(`cannot match partition key to index on column "%s" using non-equal operator "%s"`, partitionKey.label, operator.Name))
+				}
+				inputs, err := operator.OperatorInputs()
+				equality, bindErr := sqltype.BindExclusionOperator(partitionKey.usage, partitionKey.class, "=")
+				expected, inputErr := equality.OperatorInputs()
+				found = err == nil && bindErr == nil && inputErr == nil && operator.Name == equality.Name && inputs == expected
+				if found {
+					break
+				}
+				continue
+			}
 			class := key.class
 			if class.Name == "" {
 				class, _ = sqltype.DefaultIndexClass(usage.Type)
@@ -117,12 +137,36 @@ func mapPartitionIndex(ctx context.Context, view CatalogRead, source, child *rel
 		}
 		d.predicate = predicate
 	}
+	if old.isExclusion() {
+		var err error
+		d.exclusion, err = rebindExclusionOperators(child, &d)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &d, nil
 }
 
 func partitionIndexEquivalent(ctx context.Context, view CatalogRead, table *relationDescriptor, a, b *indexDefinition) (bool, error) {
 	if a.method != b.method || a.unique != b.unique || a.nullsNotDistinct != b.nullsNotDistinct || len(a.keys) != len(b.keys) || !slices.Equal(a.include, b.include) {
 		return false, nil
+	}
+	if len(a.exclusion) != len(b.exclusion) {
+		return false, nil
+	}
+	for i, operator := range a.exclusion {
+		other := b.exclusion[i]
+		inputs, err := operator.OperatorInputs()
+		if err != nil {
+			return false, err
+		}
+		otherInputs, err := other.OperatorInputs()
+		if err != nil {
+			return false, err
+		}
+		if operator.Name != other.Name || inputs != otherInputs || operator.IsEquality() != other.IsEquality() {
+			return false, nil
+		}
 	}
 	render := func(expr BoundExpr) (string, error) { return (scalarRenderer{owner: table}).sql(ctx, view, expr) }
 	for i, key := range a.keys {
@@ -226,6 +270,10 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		return 0
 	})
 	for _, candidate := range candidates {
+		// PostgreSQL 18.0 never adopts an independent exclusion backing.
+		if parentIndex.sqlIndex.isExclusion() {
+			continue
+		}
 		// Recursive CREATE retains a reusable incomplete virtual tree. Table
 		// ATTACH requires valid existing backings and must not heal an invalid
 		// physical index left by a failed concurrent build.
@@ -279,6 +327,9 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	}
 	if parentIndex.sqlIndex.constraint != nil {
 		suffix = "key"
+		if parentIndex.sqlIndex.isExclusion() {
+			suffix = "excl"
+		}
 		if parentIndex.sqlIndex.constraint.Primary {
 			suffix = "pkey"
 			addition = ""
@@ -304,16 +355,30 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		if err != nil {
 			return nil, err
 		}
-		c := uniqueConstraint{OID: cid, Name: name, Index: index.address, Parent: backing.OID, Primary: backing.Primary, NullsNotDistinct: mapped.nullsNotDistinct, Attributes: make([]int32, len(mapped.keys))}
-		for i, key := range mapped.keys {
-			c.Attributes[i] = key.attribute
-		}
 		changed := *child
-		changed.uniqueConstraints = append(slices.Clone(child.uniqueConstraints), c)
+		if parentIndex.sqlIndex.isExclusion() {
+			var source exclusionConstraint
+			for _, c := range table.exclusionConstraints {
+				if c.OID == backing.OID {
+					source = c
+					break
+				}
+			}
+			c := exclusionConstraint{OID: cid, Name: name, Index: index.address, Parent: backing.OID, Operators: mapped.exclusion, Deferrable: source.Deferrable, InitiallyDeferred: source.InitiallyDeferred}
+			changed.exclusionConstraints = append(slices.Clone(child.exclusionConstraints), c)
+			mapped.constraint = exclusionBacking(&c)
+		} else {
+			c := uniqueConstraint{OID: cid, Name: name, Index: index.address, Parent: backing.OID, Primary: backing.Primary, NullsNotDistinct: mapped.nullsNotDistinct, Attributes: make([]int32, len(mapped.keys))}
+			for i, key := range mapped.keys {
+				c.Attributes[i] = key.attribute
+			}
+			changed.uniqueConstraints = append(slices.Clone(child.uniqueConstraints), c)
+			mapped.constraint = uniqueBacking(&c)
+		}
 		if err = stagePartitionDescriptor(stage, &changed); err != nil {
 			return nil, err
 		}
-		mapped.constraint = uniqueBacking(&c)
+		child = &changed
 	}
 	if err = stage.Create(index); err != nil {
 		return nil, err
@@ -327,8 +392,8 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 }
 
 func (e *Engine) stagePartitionIndexChildren(op *Operation, stage *CatalogStage, table, index *relationDescriptor, allowIncompleteVirtual bool) error {
-	if stage.base.state.descriptors[table.address] != nil {
-		stage.domainBases = append(stage.domainBases, table)
+	if original, ok := stage.base.state.descriptors[table.address].(*relationDescriptor); ok {
+		stage.domainBases = append(stage.domainBases, original)
 	}
 	for _, address := range table.partition.children {
 		child := e.stageRead(stage).state.descriptors[address].(*relationDescriptor)
@@ -366,6 +431,13 @@ func appendPartitionInlineIndexes(view CatalogRead, table *relationDescriptor, i
 					break
 				}
 			}
+			for _, constraint := range table.exclusionConstraints {
+				if constraint.Parent == inherited.sqlIndex.constraint.OID {
+					indexes[write] = view.state.descriptors[constraint.Index].(*relationDescriptor)
+					write++
+					break
+				}
+			}
 		}
 		indexes = indexes[:write]
 	}
@@ -373,6 +445,11 @@ func appendPartitionInlineIndexes(view CatalogRead, table *relationDescriptor, i
 		index := view.state.descriptors[constraint.Index].(*relationDescriptor)
 		if constraint.Parent == 0 && !usingIndexDump(index) {
 			indexes = append(indexes, index)
+		}
+	}
+	for _, constraint := range table.exclusionConstraints {
+		if constraint.Parent == 0 {
+			indexes = append(indexes, view.state.descriptors[constraint.Index].(*relationDescriptor))
 		}
 	}
 	return indexes
@@ -389,7 +466,7 @@ func partitionIndexDeclarationOrder(view CatalogRead, table *relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != table.address {
 			continue
 		}
-		if backing := index.sqlIndex.constraint; backing != nil && backing.kind == uniqueBackingKind && !usingIndexDump(index) {
+		if backing := index.sqlIndex.constraint; backing != nil && (backing.kind == uniqueBackingKind && !usingIndexDump(index) || backing.kind == exclusionBackingKind) {
 			continue
 		}
 		indexes = append(indexes, index)

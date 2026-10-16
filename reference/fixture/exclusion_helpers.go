@@ -40,12 +40,12 @@ func ExclusionReferenceRows(q string, values ...int64) Step {
 // The release reports physical heap coordinates during exclusion peer waits.
 // Native diagnostics cannot claim heap CTIDs; retain its logical empty Context.
 // Validate the entire PostgreSQL context grammar instead of dropping the field.
-func ExclusionReferenceWaitDiagnostic(t *testing.T, err error, code, message string, postgres bool) {
+func ExclusionReferenceWaitDiagnostic(t *testing.T, err error, code, message, table string, postgres bool) {
 	t.Helper()
 	got := ExtractDiagnostic(t, err)
 	want := ControlsReferenceDiagnostic(code, message)
 	if postgres {
-		pattern := regexp.MustCompile(`^while checking exclusion constraint on tuple \([0-9]+,[1-9][0-9]*\) in relation "t"$`)
+		pattern := regexp.MustCompile(`^while checking exclusion constraint on tuple \([0-9]+,[1-9][0-9]*\) in relation "` + regexp.QuoteMeta(table) + `"$`)
 		if !pattern.MatchString(got.Context) {
 			t.Fatalf("exclusion physical tuple Context got %q", got.Context)
 		}

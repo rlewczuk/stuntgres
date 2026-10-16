@@ -276,7 +276,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 			}
 			roots[address] = &logicalIndexRoot{hash: hash}
 		} else {
-			ordering, err := bindIndexOrdering(parent, index.sqlIndex)
+			ordering, err := bindIndexKeys(parent, index.sqlIndex)
 			if err != nil {
 				return nil, err
 			}
@@ -307,8 +307,10 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 				row := store.versions[position]
 				entries = append(entries, logicalIndexEntry{keys: keys, row: row.row, version: row.version, position: position})
 			}
-			if err := ordering.sort(ctx, entries); err != nil {
-				return nil, err
+			if index.sqlIndex.method == btreeMethod {
+				if err := ordering.sort(ctx, entries); err != nil {
+					return nil, err
+				}
 			}
 			roots[address] = newLogicalIndexRoot(index.sqlIndex, entries)
 		}

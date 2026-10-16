@@ -15,6 +15,7 @@ type IndexClass struct {
 	oid    uint32
 	enum   bool
 	hash   bool
+	gist   bool
 }
 
 // OID is the released identity. Unowned B-tree diagnostic classes do not
@@ -22,6 +23,7 @@ type IndexClass struct {
 func (c IndexClass) OID() uint32 { return c.oid }
 
 func (c IndexClass) IsHash() bool { return c.hash }
+func (c IndexClass) IsGiST() bool { return c.gist }
 
 // OIDKeyValue supplies the physical oid_ops datum for diagnostic output only.
 // Like comparison and HASH normalization, it reinterprets binary-compatible
@@ -47,7 +49,7 @@ func (c IndexClass) OIDKeyValue(v Value, oid *Descriptor) (Value, error) {
 // Inference compares the declared input and family, not class aliases or
 // CREATE's broader binary-compatible admission set.
 func (c IndexClass) SameInferenceIdentity(other IndexClass) bool {
-	return c.Family == other.Family && c.input == other.input && c.enum == other.enum && c.hash == other.hash
+	return c.Family == other.Family && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist
 }
 
 func LookupIndexClass(name string) (IndexClass, bool) {
@@ -251,6 +253,9 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 	if c.enum {
 		return t.BaseType().IsEnum()
 	}
+	if c.gist && c.input == 3831 {
+		return isRange(t.BaseType().id)
+	}
 	return c.AcceptsID(t.BaseType().id)
 }
 
@@ -297,8 +302,8 @@ type IndexComparison struct {
 }
 
 func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
-	if c.hash {
-		return IndexComparison{}, fmt.Errorf("hash class has no ordering provider")
+	if c.hash || c.gist {
+		return IndexComparison{}, fmt.Errorf("non-btree class has no ordering provider")
 	}
 	if !c.Accepts(u.Type) {
 		return IndexComparison{}, failure("42804", fmt.Sprintf("operator class %q does not accept data type %s", c.Name, u.Type.DiagnosticName()))

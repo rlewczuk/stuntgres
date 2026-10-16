@@ -110,7 +110,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 				matched := false
 				for _, descriptor := range auth.catalog.state.descriptors {
 					parent, ok := descriptor.(*relationDescriptor)
-					if !ok || parent.namespace != namespace || parent.relationKind != tableRelation {
+					if !ok || parent.namespace != namespace || parent.relationKind != tableRelation && parent.relationKind != partitionedRelation {
 						continue
 					}
 					for _, c := range parent.exclusionConstraints {
@@ -155,6 +155,23 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 			}
 			if !found {
 				return Result{}, sqlError("42704", fmt.Sprintf(`constraint "%s" does not exist`, label))
+			}
+		}
+		// Names select their inherited provider subtree, not similarly named
+		// independent local declarations. Catalog iteration has no tree order.
+		for changed := true; changed; {
+			changed = false
+			for _, descriptor := range auth.catalog.state.descriptors {
+				parent, ok := descriptor.(*relationDescriptor)
+				if !ok {
+					continue
+				}
+				for _, c := range parent.exclusionConstraints {
+					if c.Parent != 0 && selected[c.Parent] && !selected[c.OID] {
+						selected[c.OID] = true
+						changed = true
+					}
+				}
 			}
 		}
 		if candidate.byConstraint == nil {

@@ -43,12 +43,14 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 			want[r.h] = IndexClassMetadata{r.h, 405, r.hf, r.input, 0, r.name, def}
 		}
 	}
+	want[10017] = IndexClassMetadata{10017, 783, 3550, 869, 0, "inet_ops", false}
+	want[10078] = IndexClassMetadata{10078, 783, 3919, 3831, 0, "range_ops", true}
 	return want
 }
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 60 || len(want) != 60 {
+	if IndexClassMetadataCount() != 62 || len(want) != 62 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -78,7 +80,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("metadata got %#v want %#v", got, want)
 	}
-	for _, i := range []int{-1, 60, 61} {
+	for _, i := range []int{-1, 62, 63} {
 		if m, ok := IndexClassMetadataAt(i); ok || m != (IndexClassMetadata{}) {
 			t.Fatal("bounds", i, m, ok)
 		}
@@ -88,7 +90,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if again, _ := IndexClassMetadataAt(0); again.Name == m.Name {
 		t.Fatal("metadata is mutable")
 	}
-	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops", "network_ops"} {
+	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops", "network_ops"} {
 		for _, m := range got {
 			if m.Name == name {
 				t.Fatal("diagnostic-only class advertised", m)
@@ -105,6 +107,13 @@ func TestIndexClassMetadataProviders(t *testing.T) {
 	}
 	for i := range IndexClassMetadataCount() {
 		m, _ := IndexClassMetadataAt(i)
+		if m.Method == 783 {
+			c, ok := LookupGiSTIndexClass(m.Name)
+			if !ok || !c.IsGiST() || c.IsHash() || c.OID() != m.OID {
+				t.Fatal("GiST identity", m, c)
+			}
+			continue // Concrete predicate behavior is covered by TestExclusionGiSTOperators.
+		}
 		typ := types[ID(m.Input)]
 		if m.Input == 3500 {
 			typ = enum

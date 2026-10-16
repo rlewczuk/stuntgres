@@ -90,6 +90,12 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 		return key, indexDefaultClassError(u.Type.DiagnosticName(), method)
 	}
 	key.class = c
+	if method == gistMethod {
+		if raw.DirectionExplicit || raw.Nulls != parser.NullsDefault {
+			return key, sqlError("0A000", `access method "gist" does not support ordering options`)
+		}
+		return key, nil
+	}
 	if method == hashMethod {
 		if err := validateHashKeyDirection(raw); err != nil {
 			return key, err
@@ -177,7 +183,20 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 			return sqlError("0A000", "partial indexes are unsupported")
 		}
 		return nil
-	case "gin", "gist", "spgist", "brin":
+	case "gist":
+		if s.Unique {
+			return sqlError("0A000", `access method "gist" does not support unique indexes`)
+		}
+		for _, key := range s.Keys {
+			if key.DirectionExplicit {
+				return sqlError("0A000", `access method "gist" does not support ASC/DESC options`)
+			}
+			if key.Nulls != parser.NullsDefault {
+				return sqlError("0A000", `access method "gist" does not support NULLS FIRST/LAST options`)
+			}
+		}
+		return nil
+	case "gin", "spgist", "brin":
 		if len(s.Include) > 0 && s.Method == "gin" {
 			return sqlError("0A000", `access method "gin" does not support included columns`)
 		}
@@ -203,6 +222,9 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 	d := &indexDefinition{method: btreeMethod, parent: parent.address, keys: make([]indexKey, len(s.Keys)), include: make([]int32, len(s.Include)), ready: true, valid: true, live: true}
 	if s.Method == "hash" {
 		d.method = hashMethod
+	}
+	if s.Method == "gist" {
+		d.method = gistMethod
 	}
 	columns := make([]ColumnDescriptor, total)
 	attributes := make([]int32, total)

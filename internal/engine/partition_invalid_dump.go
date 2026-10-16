@@ -113,8 +113,8 @@ func partitionReplayIndexReady(view CatalogRead, graph map[dumpEventKey][]dumpEv
 }
 
 // Existing declaration/data/attachment events remain the single replay scheduler.
-// Complete-invalid tables are restored through one deterministic real valid child;
-// empty tables alone need an empty, collision-reserved DEFAULT removed afterward.
+// Manual complete-invalid trees use one real valid child. ONLY exclusions use
+// a scratch gap even with saved children, avoiding non-adoptable EXCLUDE clones.
 func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpEventKey, indexIndices map[OID]int) map[OID]partitionInvalidReplay {
 	groups := make(map[ObjectAddress][]*relationDescriptor)
 	for oid := range indexIndices {
@@ -142,6 +142,14 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 		prepare := dumpEventKey{oid: oid, phase: dumpInvalidIndexPreparation}
 		finish := dumpEventKey{oid: oid, phase: dumpInvalidIndexCompletion}
 		item := partitionInvalidReplay{table: table, child: partitionPreservedReplayChild(view, table)}
+		for _, index := range groups[table.address] {
+			if partitionReplayOnlyExclusion(index) {
+				// Never detach a captured EXCLUDE child: reattachment clones
+				// fresh providers instead of adopting its independent locals.
+				item.child = nil
+				break
+			}
+		}
 		if item.child == nil {
 			for {
 				ordinal++
@@ -159,6 +167,19 @@ func partitionInvalidDumpEvents(view CatalogRead, graph map[dumpEventKey][]dumpE
 				declaration := dumpEventKey{oid: index.address.ObjectID}
 				addDumpDependency(graph, declaration, prepare)
 				addDumpDependency(graph, finish, declaration)
+			}
+			for _, address := range table.partition.children {
+				child := view.state.descriptors[address].(*relationDescriptor)
+				member := dumpEventKey{oid: address.ObjectID}
+				if partitionDumpNeedsAttach(view, child) {
+					member.phase = dumpTableAttachment
+				}
+				addDumpDependency(graph, member, finish)
+			}
+			for event := range graph {
+				if event.phase == dumpRows {
+					addDumpDependency(graph, event, finish)
+				}
 			}
 		} else {
 			membership := dumpEventKey{oid: item.child.address.ObjectID}

@@ -80,6 +80,18 @@ func restoreAlterConstraints(raw *parser.AlterTable) error {
 			if action.Unique == nil || len(raw.Actions) != 1 || raw.Only || raw.IfExists || !strings.HasPrefix(action.Unique.Name.Text, "__stuntgres_partition_key_") {
 				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
 			}
+		case parser.AddExclusion:
+			if action.Exclusion == nil || len(raw.Actions) != 1 || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || !strings.HasPrefix(action.Exclusion.Name.Text, "__stuntgres_partition_key_") {
+				return sqlError("0A000", "restore accepts only captured private ONLY exclusion definitions")
+			}
+			for _, key := range action.Exclusion.Index.Keys {
+				if err := restoreScalar(key.Expression, true); err != nil {
+					return err
+				}
+			}
+			if err := restoreScalar(action.Exclusion.Index.Predicate, true); err != nil {
+				return err
+			}
 		case parser.SetExpression:
 			if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || action.Generation == nil {
 				return sqlError("0A000", "restore accepts only inherited ONLY generation repairs")

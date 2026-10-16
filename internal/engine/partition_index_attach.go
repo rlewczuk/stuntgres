@@ -124,6 +124,9 @@ func partitionIndexAttachCheck(op *Operation, view CatalogRead, parent, child *r
 	if child.sqlIndex.partitionParent != (ObjectAddress{}) {
 		return diagnostic("55000", fmt.Sprintf(`Index "%s" is already attached to another index.`, child.name))
 	}
+	if parent.sqlIndex.isExclusion() || child.sqlIndex.isExclusion() {
+		return diagnostic("42P17", "The index definitions do not match.")
+	}
 	mapped, err := mapPartitionIndex(op.Context(), view, table, childTable, parent.sqlIndex)
 	if err != nil {
 		return err
@@ -197,6 +200,11 @@ func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) 
 				return fmt.Errorf("stuntgres: orphan partition constraint ancestry")
 			}
 		}
+		for _, c := range table.exclusionConstraints {
+			if c.Index == index.address && c.Parent != 0 {
+				return fmt.Errorf("stuntgres: orphan partition exclusion ancestry")
+			}
+		}
 		return nil
 	}
 	parent, ok := view.state.descriptors[d.partitionParent].(*relationDescriptor)
@@ -244,6 +252,12 @@ func validatePartitionIndex(view CatalogRead, index, table *relationDescriptor) 
 		for _, c := range table.uniqueConstraints {
 			if c.Index == index.address && c.Parent == expected && c.IsLocal == (expected == 0) {
 				found = true
+			}
+		}
+		for _, c := range table.exclusionConstraints {
+			if c.Index == index.address && c.Parent == expected && c.IsLocal == (expected == 0) {
+				source := exclusionDefinition(parentTable, parent)
+				found = source != nil && c.Deferrable == source.Deferrable && c.InitiallyDeferred == source.InitiallyDeferred
 			}
 		}
 		if !found {

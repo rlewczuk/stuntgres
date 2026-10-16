@@ -29,7 +29,7 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 	}
 	for _, descriptor := range view.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
-		if ok && hierarchyRelation(table) && len(table.uniqueConstraints) != 0 {
+		if ok && hierarchyRelation(table) && (len(table.uniqueConstraints) != 0 || len(table.exclusionConstraints) != 0) {
 			tables = append(tables, table)
 		}
 	}
@@ -46,24 +46,50 @@ func partitionConstraintDumpCatalog(view CatalogRead) (CatalogRead, *partitionCo
 	}
 	ordinal := 0
 	for _, table := range tables {
-		next := *table
-		next.uniqueConstraints = slices.Clone(table.uniqueConstraints)
-		for i := range next.uniqueConstraints {
-			c := &next.uniqueConstraints[i]
+		// PARTITION OF binds local declarations before cloning inherited keys,
+		// even when the captured table added its locals after inheritance. Name
+		// allocation must not depend on that mutable slice order (or on OIDs).
+		indexes := make([]*relationDescriptor, 0, len(table.uniqueConstraints)+len(table.exclusionConstraints))
+		for _, c := range table.uniqueConstraints {
+			indexes = append(indexes, view.state.descriptors[c.Index].(*relationDescriptor))
+		}
+		for _, c := range table.exclusionConstraints {
+			indexes = append(indexes, view.state.descriptors[c.Index].(*relationDescriptor))
+		}
+		slices.SortFunc(indexes, func(a, b *relationDescriptor) int {
+			return partitionReplayNameCompare(view, a, b)
+		})
+		for _, index := range indexes {
 			for {
 				ordinal++
 				name := fmt.Sprintf("__stuntgres_partition_key_%d", ordinal)
 				if !reserved[table.namespace][name] {
 					reserved[table.namespace][name] = true
-					c.Name = name
+					replay.temporary[index.address] = name
 					break
 				}
 			}
-			replay.temporary[c.Index] = c.Name
+		}
+		next := *table
+		next.uniqueConstraints = slices.Clone(table.uniqueConstraints)
+		for i := range next.uniqueConstraints {
+			c := &next.uniqueConstraints[i]
+			c.Name = replay.temporary[c.Index]
 			old := view.state.descriptors[c.Index].(*relationDescriptor)
 			index, definition := *old, *old.sqlIndex
 			index.name = c.Name
 			definition.constraint = uniqueBacking(c)
+			index.sqlIndex = &definition
+			state.descriptors[index.address] = &index
+		}
+		next.exclusionConstraints = slices.Clone(table.exclusionConstraints)
+		for i := range next.exclusionConstraints {
+			c := &next.exclusionConstraints[i]
+			c.Name = replay.temporary[c.Index]
+			old := view.state.descriptors[c.Index].(*relationDescriptor)
+			index, definition := *old, *old.sqlIndex
+			index.name = c.Name
+			definition.constraint = exclusionBacking(c)
 			index.sqlIndex = &definition
 			state.descriptors[index.address] = &index
 		}
@@ -86,61 +112,78 @@ func (r *partitionConstraintReplay) tableRenames(view CatalogRead, table *relati
 	for _, c := range table.checkConstraints {
 		used[c.Name] = true
 	}
-	for _, c := range table.uniqueConstraints {
-		index := view.state.descriptors[c.Index].(*relationDescriptor)
-		if c.Parent == 0 && partitionReplayVirtualUniqueRoot(view, index) == nil {
-			used[c.Name] = true
+	for _, index := range partitionIndexDeclarationOrder(view, table) {
+		if index.sqlIndex.constraint != nil && index.sqlIndex.partitionParent == (ObjectAddress{}) && !partitionReplaySeparateConstraint(view, index) {
+			used[index.name] = true
 		}
 	}
 	if table.membership == nil || partitionDumpNeedsAttach(view, table) {
 		return "", nil
 	}
-	parent := r.original.state.descriptors[table.membership.parent].(*relationDescriptor)
+	return r.membershipRenames(view, table, dumpEventKey{oid: table.address.ObjectID}), nil
+}
+
+// A populated ATTACH can create an entire inherited subtree in one SQL event.
+// Reserve that complete creation sequence before freeing any generated name.
+func (r *partitionConstraintReplay) membershipRenames(view CatalogRead, table *relationDescriptor, event dumpEventKey) string {
 	type rename struct {
-		constraint uniqueConstraint
-		generated  string
+		index     *relationDescriptor
+		generated string
 	}
 	var renames []rename
-	for _, index := range partitionIndexDeclarationOrder(r.original, parent) {
-		if partitionReplayVirtualUniqueRoot(r.original, index) != nil {
-			continue
+	var reserve func(*relationDescriptor, *relationDescriptor)
+	reserve = func(child, parentIndex *relationDescriptor) {
+		index := partitionDumpIndexBacking(r.original, parentIndex.address, child.address)
+		if index == nil || index.sqlIndex.constraint == nil {
+			return
 		}
-		backing := index.sqlIndex.constraint
-		if backing == nil || backing.kind != uniqueBackingKind {
-			continue
+		if root := partitionReplayVirtualUniqueRoot(r.original, index); root != nil && !partitionReplayOnlyExclusion(root) {
+			return
 		}
-		for _, c := range table.uniqueConstraints {
-			if c.Parent == backing.OID {
-				renames = append(renames, rename{constraint: c})
-				break
-			}
+		if partitionConstraintCreator(r.original, index) != event {
+			return
 		}
-	}
-	// Reserve the complete creation sequence before any RENAME frees a stem.
-	for i := range renames {
-		c := renames[i].constraint
+		used := r.occupied[index.namespace]
+		if used == nil {
+			used = make(map[string]bool)
+			r.occupied[index.namespace] = used
+		}
 		suffix, addition := "key", ""
-		if c.Primary {
+		if index.sqlIndex.isExclusion() {
+			suffix = "excl"
+		}
+		if index.sqlIndex.constraint.Primary {
 			suffix = "pkey"
 		} else {
-			labels := make([]string, len(c.Attributes))
-			for i, a := range c.Attributes {
-				labels[i] = table.columns[table.indexForAttribute(a)].Name
+			labels := make([]string, len(index.sqlIndex.keys))
+			for i := range labels {
+				labels[i] = index.columns[i].Name
 			}
 			addition = strings.Join(labels, "_")
 		}
-		renames[i].generated = generatedConstraintName(table.name, addition, suffix, used)
-		used[renames[i].generated] = true
+		name := generatedConstraintName(child.name, addition, suffix, used)
+		used[name] = true
+		renames = append(renames, rename{index, name})
+		if event.phase == dumpTableAttachment && child.partition != nil {
+			for _, address := range child.partition.children {
+				reserve(r.original.state.descriptors[address].(*relationDescriptor), index)
+			}
+		}
+	}
+	parent := r.original.state.descriptors[table.membership.parent].(*relationDescriptor)
+	for _, index := range partitionIndexDeclarationOrder(r.original, parent) {
+		reserve(table, index)
 	}
 	var sql strings.Builder
-	schema := quoteIdentifier(view.state.descriptors[table.namespace].Name())
 	for _, rename := range renames {
-		target := r.temporary[rename.constraint.Index]
+		target := r.temporary[rename.index.address]
+		schema := quoteIdentifier(view.state.descriptors[rename.index.namespace].Name())
 		sql.WriteString("ALTER INDEX " + schema + "." + quoteIdentifier(rename.generated) + " RENAME TO " + quoteIdentifier(target) + ";\n")
+		used := r.occupied[rename.index.namespace]
 		delete(used, rename.generated)
 		used[target] = true
 	}
-	return sql.String(), nil
+	return sql.String()
 }
 
 func (r *partitionConstraintReplay) finalRenameOrder() []*relationDescriptor {

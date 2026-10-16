@@ -102,14 +102,6 @@ func TestReferenceInsertConflictProviderBoundaries(t *testing.T) {
 		insertConflictScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 			q := "CREATE TABLE t(k INT4RANGE,CONSTRAINT ex EXCLUDE USING gist(k WITH &&))"
-			if !b.PG {
-				d := fixture.ControlsReferenceDiagnostic("0A000", "non-btree indexes are unsupported")
-				s := fixture.ErrorDiagnostic(q, d)
-				s.ErrorStage = "execute"
-				run(s)
-				run(fixture.Select("SELECT relname FROM pg_class WHERE relname='t'", []string{"relname"}, []string{"NAME"}, nil))
-				return
-			}
 			run(fixture.Exec(q, 0))
 			run(fixture.Exec("INSERT INTO t VALUES('[1,3)')", 1))
 			run(fixture.Exec("INSERT INTO t VALUES('[2,4)'),('[5,7)') ON CONFLICT DO NOTHING", 1))

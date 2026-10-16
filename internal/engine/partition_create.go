@@ -125,7 +125,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	}
 	// Invalid keys/bounds and inherited definitions win over this declared
 	// implementation boundary; neither path publishes allocated auxiliaries.
-	pending.unsupportedCombination = len(child.generations) != 0 || len(child.identities) != 0 || child.partition != nil && len(child.exclusionConstraints) != 0
+	pending.unsupportedCombination = len(child.generations) != 0 || len(child.identities) != 0
 	for _, element := range syntax.Elements {
 		if element.Column != nil && serialTypeName(element.Column.TypeName) != "" {
 			pending.unsupportedCombination = true
@@ -139,6 +139,12 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	for _, constraint := range p.child.uniqueConstraints {
+		index := p.stage.descriptors[constraint.Index].(*relationDescriptor)
+		if err := partitionUniqueCoverage(p.child, index.sqlIndex); err != nil {
+			return err
+		}
+	}
+	for _, constraint := range p.child.exclusionConstraints {
 		index := p.stage.descriptors[constraint.Index].(*relationDescriptor)
 		if err := partitionUniqueCoverage(p.child, index.sqlIndex); err != nil {
 			return err

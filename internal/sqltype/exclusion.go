@@ -6,26 +6,28 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// ExclusionOperator binds the strict original-type equality, independently of
-// IndexClass.Accepts: binary index input admission is not family membership.
+// ExclusionOperator binds a strict predicate to its original stored types.
+// Binary index admission is independent of actual operator family membership.
 type ExclusionOperator struct {
 	Name        string
 	Left, Right ID
 	// Canonical inputs come from the admitted index class, independently of
 	// declaration/diagnostic types and the original stored-value comparison.
-	equalityInputs [2]ID
+	operatorInputs [2]ID
 	comparison     Comparison
 	usage          Usage
+	rangePlan      RangeOperatorPlan
 }
 
-// EqualityInputs identifies the actual canonical equality signature selected
-// by the admitted class. It does not retag values or alter comparison authority.
-func (p ExclusionOperator) EqualityInputs() ([2]ID, error) {
-	if p.Name != "=" || p.equalityInputs[0] == 0 || p.equalityInputs[1] == 0 {
+// OperatorInputs identifies the released signature without retagging values.
+func (p ExclusionOperator) OperatorInputs() ([2]ID, error) {
+	if p.operatorInputs[0] == 0 || p.operatorInputs[1] == 0 {
 		return [2]ID{}, fmt.Errorf("missing exclusion operator inputs")
 	}
-	return p.equalityInputs, nil
+	return p.operatorInputs, nil
 }
+
+func (p ExclusionOperator) IsEquality() bool { return p.Name == "=" }
 
 func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOperator, error) {
 	if u.Type == nil || !u.Type.Concrete() {
@@ -33,6 +35,9 @@ func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOpe
 	}
 	t := u.Type.BaseType()
 	id := t.ID()
+	if class.IsGiST() {
+		return bindGiSTExclusion(u, class, name)
+	}
 	operatorType := t.DiagnosticName()
 	if id == VarChar {
 		id, operatorType = Text, "text"
@@ -113,15 +118,33 @@ func BindExclusionOperator(u Usage, class IndexClass, name string) (ExclusionOpe
 	if input == 0 {
 		return ExclusionOperator{}, fmt.Errorf("missing exclusion class input")
 	}
-	return ExclusionOperator{Name: name, Left: id, Right: id, equalityInputs: [2]ID{input, input}, comparison: comparison, usage: u}, nil
+	return ExclusionOperator{Name: name, Left: id, Right: id, operatorInputs: [2]ID{input, input}, comparison: comparison, usage: u}, nil
 }
 
 // MatchesUsage prevents a captured comparison from crossing descriptor generations.
 func (p ExclusionOperator) MatchesUsage(u Usage) bool { return p.usage == u }
 
-func (p ExclusionOperator) Equal(ctx context.Context, left, right Value) (bool, error) {
+func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	if left.IsNull() || right.IsNull() {
 		return false, nil
+	}
+	if p.Name == "&&" {
+		if isRange(p.usage.Type.BaseType().id) {
+			value, err := p.rangePlan.Evaluate(ctx, [2]Value{left, right})
+			if err != nil {
+				return false, err
+			}
+			return value.Boolean()
+		}
+		if left.typ != p.usage.Type || right.typ != p.usage.Type {
+			return false, fmt.Errorf("foreign exclusion network value")
+		}
+		a, b := left.network, right.network
+		a.prefix, b.prefix = min(a.prefix, b.prefix), min(a.prefix, b.prefix)
+		return a.family == b.family && a.masked() == b.masked(), nil
 	}
 	comparison, err := p.comparison.Compare(ctx, left, right, InputEnvironment{})
 	return comparison == 0, err
