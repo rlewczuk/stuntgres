@@ -836,6 +836,15 @@ implying execution or custom operator DDL support. Ordinary output is symbolic;
 logical dumps use typed numeric identities to preserve overloaded and unknown
 OIDs losslessly. Companion arrays remain lookup-only.
 
+Change note: `pg_catalog.pg_operator` exposes all 15 released metadata columns
+for the 545 currently supported exact overloads, including concrete mixed-width
+and declared polymorphic identities, typed implementation/estimator references,
+PUBLIC reads and captured prepared/control lifetimes. This executable metadata
+subset is distinct from all 799 REGOPER/REGOPERATOR aliases; lookup-only
+references do not add operator behavior or SQL `pg_proc` rows. See the
+[release admission evidence](docs/design/pg-operator-pg18-oracle.md) and
+[selected checks and smoke](reference/catalogs/README.md#pg_operator-selected-proof).
+
 Change note: scalar REGCONFIG (3734) and REGDICTIONARY (3769) retain unsigned
 four-byte OIDs through direct/held input, distinct result metadata and native
 logical Dump/Restore. Both print zero as `-`, preserve absent numeric identities,

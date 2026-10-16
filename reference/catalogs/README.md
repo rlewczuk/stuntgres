@@ -62,6 +62,73 @@ native control round trip with retained unread cursor. Expected success is
 quiet exit0/package `ok` with these independent assertions. Selected proof
 supplements, never substitutes for, whole-project quickcheck.
 
+### pg_operator selected proof
+
+The `TestReferencePGOperator` scenarios use the independent
+[545-row released supported inventory](../../docs/design/pg-operator-pg18-supported.tsv)
+and [all-family admission/provenance note](../../docs/design/pg-operator-pg18-oracle.md).
+All 15 fields are asserted, including numeric implementation/estimator references;
+native inventory reads are unfiltered so extra records fail. This does not
+relabel the complete 799 REGOPERATOR alias inventory as executable metadata.
+
+Root completed pinned PostgreSQL18.0 discovery and observed genuine native
+missing-source failure before production. Temporary discovery filters are gone.
+CHAR/REGPROC metadata and English diagnostic contracts are independently fixed;
+pq reports an empty DatabaseTypeName for the unmapped concrete multirange result
+OID, while native retains INT4MULTIRANGE. Declared anymultirange4537 is unchanged.
+Lifecycle retains actual native Rows and saved metadata across failed/canceled/
+successful replacement, verifies the user view and sentinel, and replays actual
+native dump bytes on PostgreSQL. No fake PostgreSQL control API is supplied.
+Private ownership/cancellation and complete799-candidate actual-binder agreement
+units supplement, not replace, the public scenarios.
+
+Range/multirange and BIT/VARBIT witnesses use supported typed-column input and
+raw results, not unavailable scalar casts. Genuine enum and builtin range
+execution is shared; custom range DDL/execution is PostgreSQL-only with native's
+existing0A000 boundary asserted explicitly. Zero REGOPERATOR references display
+`0`, unlike zero REGPROC's `-`; nonzero symbolic references use the independent
+complete alias evidence.
+
+`PolymorphicRelationships` independently covers mixed SMALLINT[]/INTEGER[]
+concat/append/prepend promotion to INTEGER[], fixed anycompatible declarations,
+simple-array/enum/range relationship rejection, and nonarray text concatenation
+versus real array dispatch. Its newly specified diagnostics receive a temporary
+PG-only discovery pass before the filter is removed for native/final proof.
+The resolver, polymorphic and relationship scenarios execute uncast nonnull
+results directly, through a new Prepare, and twice through the same held
+statement, inspecting concrete result metadata on every route.
+
+Run each bounded group in both modes with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferencePGOperator(Shape|Metadata|CatalogLinks|Inventory)$' REFERENCE=1
+make check RUN='^TestReferencePGOperator(Shape|Metadata|CatalogLinks|Inventory)$'
+make check RUN='^TestReferencePGOperator(ResolverAgreement|PolymorphicIdentity|PolymorphicRelationships|References|Boundaries)$' REFERENCE=1
+make check RUN='^TestReferencePGOperator(ResolverAgreement|PolymorphicIdentity|PolymorphicRelationships|References|Boundaries)$'
+make check RUN='^TestReferencePGOperator(Diagnostics|Permissions|HeldExecution|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReferencePGOperator(Diagnostics|Permissions|HeldExecution|Lifecycle)$'
+make check RUN='^Test(PGOperator(CaptureOwnership|ProviderAgreement)|PgClassBuiltinIndexMetadata)$'
+make check RUN='^TestReferencePgClassBuiltinIndexHistory$' REFERENCE=1
+make check RUN='^TestReferencePgClassBuiltinIndexHistory$'
+make check RUN='^TestReferenceRegOperator(Inventory|ValuesMetadata|Signatures|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceRegOperator(Inventory|ValuesMetadata|Signatures|Diagnostics)$'
+make check RUN='^TestReferencePGOperator(HeldExecution|Lifecycle)$' RACE=1
+```
+
+Permanent feature smoke reuses the same scenario entrypoints:
+
+```sh
+make check RUN='^TestReferencePGOperatorFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferencePGOperatorFeatureSmoke$'
+```
+
+Expected success is quiet exit0/package `ok` with full raw schema, exact mixed
+and prefix signatures/execution, polymorphic identity stability, numeric/symbolic
+references, unsupported alias-but-no-row boundaries, PUBLIC reads, held hit/miss/
+nil, full diagnostics and genuine control/replay observations. These selected
+commands supplement whole-project quickcheck and post-integration finalcheck;
+documentation of commands is not passing evidence.
+
 ### pg_language selected proof
 
 The `TestReferencePGLanguage` definitions specify the complete native
@@ -1916,9 +1983,10 @@ are backend-specific; presence and deparsed semantics remain asserted.
 The adjacent `pg_attribute` scan is an explicit PostgreSQL-only validation phase;
 native exact column ordinals, origins, types and nullability are independently
 covered by `TestPGConstraintShapeAndOwnership`, while all 28 driver fields remain
-shared. Operator signatures and exact builtin identities use the existing shared
-`regoperator` scalar API, not an unavailable native `pg_operator` scan. Namespace
-movement uses a separately named destination relation's `pg_class.relnamespace`,
+shared. Operator signatures and exact builtin identities deliberately use the
+existing shared `regoperator` scalar identity API; those constraint tests do not
+depend on scanning executable `pg_operator` metadata. Namespace movement uses a
+separately named destination relation's `pg_class.relnamespace`,
 with nonzero/distinct-from-public identity and SAME-held constraint reexecution;
 it does not depend on native `pg_namespace` or regnamespace implementation.
 

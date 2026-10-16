@@ -120,6 +120,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"rngtypid", sqltype.Oid}, {"rngsubtype", sqltype.Oid}, {"rngmultitypid", sqltype.Oid}, {"rngcollation", sqltype.Oid}, {"rngsubopc", sqltype.Oid}, {"rngcanonical", sqltype.Regproc}, {"rngsubdiff", sqltype.Regproc}}},
+		{2617, "pg_operator", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"oprname", sqltype.Name}, {"oprnamespace", sqltype.Oid}, {"oprowner", sqltype.Oid}, {"oprkind", sqltype.Char}, {"oprcanmerge", sqltype.Bool}, {"oprcanhash", sqltype.Bool}, {"oprleft", sqltype.Oid}, {"oprright", sqltype.Oid}, {"oprresult", sqltype.Oid}, {"oprcom", sqltype.Oid}, {"oprnegate", sqltype.Oid}, {"oprcode", sqltype.Regproc}, {"oprrest", sqltype.Regproc}, {"oprjoin", sqltype.Regproc}}},
 		{3501, "pg_enum", []struct {
 			name string
 			typ  sqltype.ID
@@ -260,7 +264,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2606 {
 				d.columns[i].Nullable = i >= 20
 			}
-			if spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 3501 || spec.oid == 2610 {
+			if spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 2617 || spec.oid == 3501 || spec.oid == 2610 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -371,6 +375,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == pgRangeOID {
 		return capturePGRange(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == 2617 {
+		return capturePGOperator(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 3501 {
 		return capturePGEnum(ctx, catalog, ref, source)

@@ -1919,11 +1919,17 @@ external procedural runtimes and PostgreSQL physical persistence are not supplie
 by routine alias lookup. See [the evidence note](design/regproc-pg18-oracle.md).
 REGOPER/REGOPERATOR provide the complete released builtin operator identity
 inventory, exact signature lookup and captured symbolic output, including
-lookup-only operand type identities. This does not add execution providers,
-CREATE/ALTER/DROP OPERATOR, a native pg_operator projection, to_regoper/
-to_regoperator, or arbitrary implementation-function execution. Quoted custom
-operator DDL/catalog/dependency mechanisms are explicitly PostgreSQL-only
-reference phases; native algorithm units cover quoted output and path masking.
+lookup-only operand type identities. The `pg_catalog.pg_operator` projection
+exposes all 15 released columns for 545 currently executable exact overloads,
+not all 799 aliases. Operand/result declarations remain exact, including generic
+polymorphic identities; implementation/estimator fields use REGPROC and preserve
+zero `-` and valid identity-only references without requiring SQL pg_proc rows.
+See [released admission evidence](design/pg-operator-pg18-oracle.md).
+This does not add execution providers, CREATE/ALTER/DROP OPERATOR,
+to_regoper/to_regoperator, arbitrary implementation-function execution or
+physical planner/index storage. Quoted custom operator DDL/catalog/dependency
+mechanisms remain PostgreSQL-only reference phases; native algorithm units
+cover quoted output and path masking.
 REGCONFIG/REGDICTIONARY scalar numeric identities are executable, with lookup-only
 companion arrays. Symbolic REGDICTIONARY resolution uses only actual installed
 unaccent objects; native does not fabricate builtin `simple`/language dictionaries.

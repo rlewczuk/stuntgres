@@ -19,7 +19,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		{2224, "pg_sequence"}, {2396, "pg_shdescription"}, {2604, "pg_attrdef"},
 		{2605, "pg_cast"}, {2606, "pg_constraint"}, {2607, "pg_conversion"},
 		{2608, "pg_depend"}, {2609, "pg_description"}, {2610, "pg_index"},
-		{2612, "pg_language"},
+		{2612, "pg_language"}, {2617, "pg_operator"},
 		{2618, "pg_rewrite"}, {3079, "pg_extension"}, {3456, "pg_collation"},
 		{3501, "pg_enum"}, {3541, "pg_range"}, {3600, "pg_ts_dict"}, {3764, "pg_ts_template"},
 	}
