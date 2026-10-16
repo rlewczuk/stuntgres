@@ -74,11 +74,13 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	}
 	out.ref = ref
 	out.relation = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if err := mergeRelationKind(out.relation); err != nil {
-		return err
+	if !aggregateCatalogRelation(out.relation) {
+		if err := mergeRelationKind(out.relation); err != nil {
+			return err
+		}
 	}
 	out.storage = e.authorizationStorageLocked(auth, ref.Address)
-	if out.storage == nil && out.relation.relationKind != partitionedRelation {
+	if out.storage == nil && out.relation.relationKind != partitionedRelation && !aggregateCatalogRelation(out.relation) {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	binder.relation, binder.ref = out.relation, ref

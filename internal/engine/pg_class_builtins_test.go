@@ -16,6 +16,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 	}{
 		{1213, "pg_tablespace"}, {1249, "pg_attribute"}, {1255, "pg_proc"}, {1259, "pg_class"},
 		{1262, "pg_database"},
+		{2600, "pg_aggregate"},
 		{2224, "pg_sequence"}, {2396, "pg_shdescription"}, {2604, "pg_attrdef"},
 		{2605, "pg_cast"}, {2606, "pg_constraint"}, {2607, "pg_conversion"},
 		{2608, "pg_depend"}, {2609, "pg_description"}, {2610, "pg_index"},

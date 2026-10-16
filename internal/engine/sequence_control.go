@@ -274,9 +274,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		reserveDefinitionOIDs(reservedIDs, descriptor)
 	}
 	mapping := make(map[ObjectAddress]ObjectAddress)
-	for address := range next.descriptors {
+	remapCollision := func(address ObjectAddress) error {
 		if !retainedIDs[address.ObjectID] {
-			continue
+			return nil
 		}
 		for {
 			oid, err := e.allocateOIDLocked()
@@ -290,7 +290,21 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			destination.ObjectID = oid
 			mapping[address] = destination
 			reservedIDs[oid] = true
-			break
+			return nil
+		}
+	}
+	for address, descriptor := range next.descriptors {
+		if err := remapCollision(address); err != nil {
+			return err
+		}
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
+			// These are mapping-only identities, not callable descriptors.
+			// Publish their mapping before scalar/default/expression remapping.
+			for _, helper := range proc.aggregate.helpers {
+				if err := remapCollision(ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	if err := e.importScalarTypesLocked(next, mapping); err != nil {

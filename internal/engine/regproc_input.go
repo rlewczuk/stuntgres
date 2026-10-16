@@ -13,8 +13,9 @@ import (
 // capturedRoutineInput uses the same immutable catalog and namespace authority
 // as type input. Its function path excludes temporary namespaces.
 type capturedRoutineInput struct {
-	types capturedRegtypeInput
-	path  []ObjectAddress
+	types    capturedRegtypeInput
+	path     []ObjectAddress
+	operands *[]expressionDependency
 }
 
 func (e *Engine) captureRoutineInput(auth AuthorizationView, types capturedRegtypeInput) (capturedRoutineInput, error) {
@@ -116,6 +117,17 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	}
 	if count > 1 {
 		return 0, sqlError("42725", fmt.Sprintf(`more than one function named "%s"`, text))
+	}
+	if r.operands != nil {
+		if owner := routineDescriptorOwner(r.types.auth.catalog, selected.id); owner != nil && owner.address.ObjectID != selected.id {
+			ref := ObjectRef{owner: r.types.auth.engine.owner, Epoch: r.types.auth.catalog.Epoch(), Address: owner.address}
+			for _, operand := range *r.operands {
+				if operand.ref == ref {
+					return uint32(selected.id), nil
+				}
+			}
+			*r.operands = append(*r.operands, expressionDependency{ref: ref, revision: owner.revision})
+		}
 	}
 	return uint32(selected.id), nil
 }

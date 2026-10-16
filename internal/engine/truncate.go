@@ -18,6 +18,9 @@ type truncateRelation struct {
 }
 
 func checkTruncate(auth AuthorizationView, ref ObjectRef, d *relationDescriptor, privilege, only bool) error {
+	if aggregateCatalogRelation(d) {
+		return aggregateCatalogMutationError(auth, true)
+	}
 	if d.relationKind == foreignRelation {
 		return sqlError("0A000", "foreign table truncation is unsupported in embedded mode")
 	}

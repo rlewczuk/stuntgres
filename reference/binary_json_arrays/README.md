@@ -24,10 +24,15 @@ reanalysis, independent-driver replay and atomic invalid/canceled Restore.
 Unqualified wrapper calls created under an alternate search_path retain their
 selected procedure at each normalized syntax occurrence: aggregate, target SRF
 and FROM SRF recipes remain schema-qualified after path changes and replay.
-Shared inventory checks the documented subset; PostgreSQL also installs upstream
-internal helpers, whereas native has exactly two members. Native pg_proc does
-not add proretset: the shared public result schema proves INT4 set shape, with
-PostgreSQL-only catalog corroboration. Valid aggregate windows have PG positives
+Shared inventory checks the documented callable subset; PostgreSQL also installs
+upstream internal helpers, whereas native has exactly two callable members.
+Native state/final aliases are lookup-only metadata owned by the aggregate,
+with separate generated identities and no helper execution or helper pg_proc
+rows. Their catalog/persistence proof lives in the
+[pg_aggregate scenarios](../catalogs/README.md#pg_aggregate-oracle-first-contract).
+Native pg_proc does not add proretset: the shared public result schema proves
+INT4 set shape, with PostgreSQL-only catalog corroboration. Valid aggregate
+windows have PG positives
 and explicit existing native unsupported-provider/FILTER diagnostics.
 
 VALUES regressions pin placement versus input/signature/child/FILTER precedence,

@@ -129,6 +129,141 @@ nil, full diagnostics and genuine control/replay observations. These selected
 commands supplement whole-project quickcheck and post-integration finalcheck;
 documentation of commands is not passing evidence.
 
+### pg_aggregate oracle-first contract
+
+The shared `TestReferencePGAggregate` definitions prescribe all 22 PostgreSQL 18
+columns and a separate explicit 144-by-22 released expectation fixture in
+`pg_aggregate_fixture_test.go`. Its values come from REL_18_0 catalog data and
+header defaults, resolved against released routine/type/operator identities;
+they are not generated from native output or imported production records.
+Full-record checks numerically cast the nine REGPROC fields, while separate
+raw checks retain symbolic REGPROC, zero `-`, OID carriers, and SQL NULL seeds.
+PostgreSQL membership queries restrict to the selected 144 implemented builtin
+identities; native inventory is unfiltered. Installing scenario-owned intagg
+adds exactly one aggregate, with distinct extension-local state/final helpers,
+not the builtin kernels' identities. Native still advertises only two callable
+intagg members; metadata helper identities do not grant execution.
+
+Selected groups (each invocation needs an external 900-second deadline):
+
+```sh
+make check RUN='^TestReferencePGAggregate(Shape|Metadata|CatalogLinks|Inventory|Definitions)$' REFERENCE=1
+make check RUN='^TestReferencePGAggregate(Shape|Metadata|CatalogLinks|Inventory|Definitions)$'
+make check RUN='^TestReferencePGAggregate(Diagnostics|Permissions|Prepared)$' REFERENCE=1
+make check RUN='^TestReferencePGAggregate(Diagnostics|Permissions|Prepared)$'
+make check RUN='^TestReferencePGAggregateMutationPreflight$' REFERENCE=1
+make check RUN='^TestReferencePGAggregateMutationPreflight$'
+make check RUN='^TestReferencePGAggregate(IntaggIdentity|Lifecycle|IdentityPersistence)$' REFERENCE=1
+make check RUN='^TestReferencePGAggregate(IntaggIdentity|Lifecycle|IdentityPersistence)$'
+make check RUN='^TestReferencePGAggregateFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferencePGAggregateFeatureSmoke$'
+```
+
+`Shape`, `Metadata`, and `CatalogLinks` cover empty/populated/direct/fresh/held
+descriptors, raw carriers, first-20 NOT NULL versus nullable seeds, C collation
+for TEXT, relation2600, ordinal/type vectors, row/array links and table-not-view
+discovery. Both native and pinned pq expose the two unbounded TEXT lengths as
+MaxInt64/known. `Inventory` and `Definitions` assert exact independent bags, every
+field, unsupported overload exclusions, scalar/window/helper negatives and
+the count/array/ordered/hypothetical/statistical definitions without pretending
+their moving or parallel metadata implies added execution support.
+
+`Diagnostics`, `Permissions`, and `Prepared` exercise exact English diagnostics,
+analysis versus execution stages, nil publication on errors, PUBLIC catalog
+reads, no-op/real-target DML and existing CTE/TRUNCATE/MERGE routes, current-role
+held commands, parameter-frame recovery and native ordinary precancellation.
+`MutationPreflight` independently requires nested constant and imported-frame
+integer conversion errors before ordinary-role catalog permission denial for
+INSERT, UPDATE, DELETE, MERGE and writable UPDATE/DELETE CTEs. Direct, fresh
+prepared and superuser-prepared/reader-executed held commands share the same
+diagnostics; repeated bad/good/NULL/bad parameter frames must not retain a prior
+conversion outcome. Valid frames still deny before a volatile nextval sibling,
+with the actual sequence uncalled and sentinel7 unchanged. Completed definitions
+exercise both available backends without a discovery filter.
+The strict context.Canceled/nil-output precancel contract is not imposed on
+race-prone fast pq commands. Reader sentinel access uses real PostgreSQL schema
+USAGE or native namespace ownership, without transferring table ownership.
+The side-effect sequence receives real USAGE/SELECT through supported creation-time
+default privileges in both modes, with the default grant revoked after creation;
+the sequence's actual ACL and the sentinel table's bootstrap ownership remain intact.
+Identity joins use the admitted comma-FROM/WHERE form with explicit
+`pg_proc.oid=aggfnoid::oid` and namespace equalities in both modes. The metadata
+REGPROCEDURE witness also casts both operands to OID. These preserve relational
+identity assertions without new mixed-alias operators or cast/JOIN grammar.
+Installed intagg records have exactly 22 fields; ordinals16–22 are
+`0,2281,0,0,0,NULL,NULL`, with no surplus state-space field. Ordinary-role writes
+must yield 42501 `permission denied for table pg_aggregate` for DML. TRUNCATE
+has its independently observed command-specific 42501 primary:
+`permission denied: "pg_aggregate" is a system catalog`. Alias parameter input
+errors include the redacted unnamed-portal Context, including overflow frames.
+Stored routine aliases/arrays use the existing explicit raw string/bytes helper,
+not generic OID conversion or weakened shared fixture checks. Superuser zero-row
+PostgreSQL updates/deletes are successful, whereas native virtual-catalog
+immutability explicitly remains 0A000; these are not claimed equal boundaries.
+
+`IntaggIdentity`, `Lifecycle`, and `IdentityPersistence` cover real pg_proc joins,
+qualified helper identities, owner removal/reinstallation, eager retained Rows
+and metadata, held reader recapture, actual native Dump/Reset/Restore,
+failure/cancellation atomicity, semantic repeated dump replay, displaced receiving identities,
+Driver/opaque-DSN isolation, and actual emitted-stream PostgreSQL replay.
+Persisted scalar/domain/array/composite helper aliases, DEFAULT, ordinary view
+and opaque-composite materialized consumers must retain symbolic ownership,
+including restored INSERT and REFRESH behavior and unrelated numeric aliases.
+Native controls are explicit phases, never fictitious PostgreSQL APIs.
+Typed helper-call probes retain native's existing `internal` pseudo-type SQL
+admission rejection (0A000 `unsupported column type`), rather than inventing a
+later function-resolution error or adding pseudo-type execution. Dump ownership
+and ordering are proved by actual native Restore and PostgreSQL replay plus
+receiving helper-identity, DEFAULT and REFRESH outcomes, not serialization
+substring, qualification or recipe-wording assertions. The actual second dump
+is restored into a fresh receiving engine whose pinned physical connection owns
+actual retained TEMP sequences. Bounded allocations must first demonstrate
+REGCLASS OID collisions with every current aggregate/helper identity captured
+after the first Restore; ordinary receiver tables are not reservations. Replay
+must remap those imported identities while preserving each collider's actual
+TEMP OID and nextval state, then pass the full semantic consumer checks.
+View cast/deparse formatting is not byte-pinned. Failed/canceled controls retain
+the actual aggregate/helper identities and independently expected user results.
+The installed-identity test SQL filters independent routine/namespace inputs
+inside derived relations before joining, avoiding broad late-WHERE Cartesian
+products. All owner/namespace equalities and zero/multiple-row checks remain;
+the namespace membership witness still includes every routine, so extra
+aggregate membership cannot be hidden by an expected-name filter. This changes
+only the fixture SQL shape, not production join or helper-lookup behavior.
+
+Standalone feature smoke is the `FeatureSmoke` selector above. It expects real
+count/array/percentile/rank results `3`, `{1,2,3}`, `2`, `2`, their complete
+independent definitions, the exact empty schema, installed intagg aggregation
+and identity joins, same-held-reader authority and denied mutation with sentinel7
+retained, followed by the helper-persistence native control/replay cycle.
+
+The completed shared definitions run both available backends without a discovery
+filter. PostgreSQL replay requires a nonempty stream emitted by the scenario's
+actual native Dump; missing output fails rather than bypassing replay. Initial
+PG-only SQL discovery established expectations before production, but did not
+exercise native controls or emitted-stream replay. Final selected dual-mode
+proof must exercise those phases too. Root owns formatting and verification;
+definition readiness and initial oracle discovery are not production passes.
+
+Source/component proof covers exact capture ownership and type generations,
+144 owned released signatures, cancellation/no partial publication, independent
+row slots, unchanged observation frontiers, helper validation/allocation
+exhaustion, owner retirement, immutable remapping and retained-TEMP ID collisions.
+The existing catalog index/table-summary and extension ownership/remap matrices
+include the aggregate source and its metadata-only identities.
+
+```sh
+make check RUN='^Test(PGAggregate.*|PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity|IntaggIdentityRemap|IntaggProviderManifest|ExtensionOwnerManifestAdmission)$'
+make check RUN='^TestReference(PgClassBuiltinIndexHistory|PGTableViewsBuiltins)$'
+make check RUN='^TestReference(PgClassBuiltinIndexHistory|PGTableViewsBuiltins)$' REFERENCE=1
+make check RUN='^TestReferenceIntagg(Controls|UnqualifiedRecipes|ValuesDiagnostics|TemporaryControls)$'
+make check RUN='^TestReferenceIntagg(Controls|UnqualifiedRecipes|ValuesDiagnostics|TemporaryControls)$' REFERENCE=1
+make check RUN='^TestReferenceRegProc(PreparedAuthority|Persistence|MaterializedPersistence)$'
+make check RUN='^TestReferenceRegProc(PreparedAuthority|Persistence|MaterializedPersistence)$' REFERENCE=1
+make check RUN='^TestReferencePGAggregate(Lifecycle|Prepared)$' RACE=1
+```
+
+
 ### pg_language selected proof
 
 The `TestReferencePGLanguage` definitions specify the complete native
@@ -810,7 +945,7 @@ retain independently specified metadata, raw codecs, rows and diagnostics.
 Case-specific names scope database-wide catalog bags; table permission does not
 filter metadata discovery.
 
-`BuiltinIndexHistory` checks all twenty-two represented indexed table catalogs and
+`BuiltinIndexHistory` checks represented indexed table catalogs, including pg_aggregate, and
 every represented view negative through direct, fresh and SAME prepared readers,
 without inventing native backing-index rows. `FirstChildRollback` starts with a
 childless RANGE parent: successful first ATTACH sets history only in the owner's
@@ -883,7 +1018,7 @@ invalid Restore atomicity and Reset. No standalone smoke scaffold is committed.
 The historical standalone reader checked the then-eighteen indexed builtin table
 facts and represented view negatives initially and after successful/failed Restore
 and Reset. The maintained `BuiltinIndexHistory` definition includes pg_database,
-pg_attribute, pg_namespace and pg_db_role_setting, giving twenty-two represented indexed catalogs.
+pg_attribute, pg_namespace, pg_db_role_setting and pg_aggregate.
 Selected proof and standalone smoke do not replace whole-project quickcheck.
 
 ### pg_tablespace and CREATE TABLESPACE selected proof

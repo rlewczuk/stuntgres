@@ -207,13 +207,24 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	for i, address := range ext.members {
 		mapping[address] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(900001 + i)}
 	}
+	aggregate := before.state.descriptors[ext.members[0]].(*procedureDescriptor)
+	for i, helper := range aggregate.aggregate.helpers {
+		mapping[ObjectAddress{ClassID: ProcedureClassID, ObjectID: helper.id}] = ObjectAddress{ClassID: ProcedureClassID, ObjectID: OID(900003 + i)}
+	}
 	next := cloneCatalog(before.state)
-	for address := range mapping {
+	for address := range before.state.descriptors {
+		if _, moved := mapping[address]; !moved {
+			continue
+		}
 		delete(next.names, descriptorNameKey(before.state.descriptors[address]))
 		delete(next.descriptors, address)
 	}
-	for address, destination := range mapping {
-		descriptor := remapExtensionDescriptor(before.state.descriptors[address], mapping)
+	for address, original := range before.state.descriptors {
+		destination, moved := mapping[address]
+		if !moved {
+			continue
+		}
+		descriptor := remapExtensionDescriptor(original, mapping)
 		next.descriptors[destination] = descriptor
 		next.names[descriptorNameKey(descriptor)] = destination
 	}

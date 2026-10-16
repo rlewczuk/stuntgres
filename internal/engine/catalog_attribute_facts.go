@@ -90,6 +90,8 @@ func initializeCatalogAttributes(d *relationDescriptor) {
 				fact.notNull = i < 7
 			case pgLanguageOID:
 				fact.notNull = i < 8
+			case pgAggregateOID:
+				fact.notNull = i < 20
 			case 3079:
 				fact.notNull = i < 6
 			case 3600:

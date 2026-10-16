@@ -31,6 +31,7 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 	resolver := input.Regproc.(capturedRoutineInput)
 	resolver.types.position = pos
 	resolver.types.qualified = &constant.qualified
+	resolver.operands = &constant.operands
 	input.Regproc = resolver
 	if types, ok := input.Regtype.(capturedRegtypeInput); ok {
 		types.position = pos

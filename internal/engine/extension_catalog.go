@@ -57,6 +57,7 @@ type procedureDescriptor struct {
 	fuzzy                         *fuzzystrmatchProvider
 	crypto                        *pgcryptoProvider
 	intagg                        *intaggProvider
+	aggregate                     *ownedAggregate
 	conversion                    sqltype.EncodingConversionHandler
 	acl                           authorization.ACLValue
 	dictionary                    ObjectAddress
@@ -147,6 +148,9 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
+		if d.aggregate != nil && d.intagg != stockIntagg {
+			return invalid()
+		}
 		if d.foreign != nil {
 			p := d.foreign
 			if p.name.Name != d.name || d.extension != (ObjectAddress{}) || d.provider != nil || d.queryCodec != nil || d.fuzzy != nil || d.crypto != nil || d.intagg != nil || d.conversion.Name() != "" {

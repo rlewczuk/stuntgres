@@ -13,14 +13,29 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Aggregate definition catalog — change note
+
+`pg_catalog.pg_aggregate` exposes all 22 PostgreSQL 18 definition fields for
+exactly 144 implemented builtin aggregate signatures, plus the actual installed
+intagg aggregate when present. REGPROC fields retain routine identity and symbolic
+output; optional zero routines are `-`, while absent seeds are SQL NULL.
+Catalog access does not require future aggregate implementations or a complete
+builtin `pg_proc` projection. Installed intagg state/final helper identities are
+extension-local lookup metadata, not new callable functions.
+Ordinary-role DML reports PostgreSQL 42501/English diagnostics under the current
+effective role; native superuser mutation remains explicitly unsupported.
+See [native limits](docs/DIALECT.md#pg_aggregate-existing-aggregate-definitions)
+and [selected proof and smoke](reference/catalogs/README.md#pg_aggregate-oracle-first-contract).
+
 ## Installed intagg — change note
 
 `CREATE EXTENSION intagg` installs the two documented compatibility wrappers:
 `int_array_aggregate(integer)` and `int_array_enum(integer[])`. They reuse
 existing array aggregation and stored-element expansion, retaining duplicates,
 NULL elements and installed procedure identity through native replay. Installation
-is required; neither name is a builtin alias. No helper routines or new array type
-are exposed. Aggregate windows remain outside the native execution subset.
+is required; neither name is a builtin alias. No callable helper routines or new
+array type are exposed. Metadata-only state/final routine identities belong to
+the installed aggregate. Aggregate windows remain outside native execution.
 See [native limits](docs/DIALECT.md#intagg-installed-wrappers) and
 [selected proof and smoke](reference/binary_json_arrays/README.md#intagg-installed-wrappers).
 

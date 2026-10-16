@@ -31,8 +31,17 @@ func routineIdentityByOID(view CatalogRead, id OID) (routineIdentity, bool) {
 	if p, ok := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: id}].(*procedureDescriptor); ok {
 		return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}, true
 	}
-	p, ok := routineByOID[id]
-	return p, ok
+	if p, ok := routineByOID[id]; ok {
+		return p, true
+	}
+	if owner := routineDescriptorOwner(view, id); owner != nil {
+		for _, helper := range owner.aggregate.helpers {
+			if helper.id == id {
+				return helper, true
+			}
+		}
+	}
+	return routineIdentity{}, false
 }
 
 func routineNamespaceVisible(view CatalogRead, namespace ObjectAddress) bool {
@@ -50,6 +59,15 @@ func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, 
 		}
 		if p := procedureInNamespaces(view, namespaceSelection{qualified: namespace}, name, signature); p != nil {
 			return routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}, 1
+		}
+		for _, d := range view.state.descriptors {
+			if owner, ok := d.(*procedureDescriptor); ok && owner.aggregate != nil && owner.namespace == namespace {
+				for _, helper := range owner.aggregate.helpers {
+					if helper.name == name && helper.signature == signature {
+						return helper, 1
+					}
+				}
+			}
 		}
 		if namespace.ObjectID == PGCatalogNamespaceOID {
 			if p, ok := routineBySignature[routineKey{name, signature}]; ok {
@@ -84,9 +102,16 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 			continue
 		}
 		for _, d := range view.state.descriptors {
-			if p, ok := d.(*procedureDescriptor); ok && p.namespace == namespace && p.name == name {
-				if accept(routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}) {
+			if p, ok := d.(*procedureDescriptor); ok && p.namespace == namespace {
+				if p.name == name && accept(routineIdentity{p.address.ObjectID, p.namespace.ObjectID, p.name, p.signature}) {
 					return selected, count
+				}
+				if p.aggregate != nil {
+					for _, helper := range p.aggregate.helpers {
+						if helper.name == name && accept(helper) {
+							return selected, count
+						}
+					}
 				}
 			}
 		}

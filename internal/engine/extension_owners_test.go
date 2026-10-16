@@ -55,10 +55,11 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 	unaccent, _, unaccentExt := extensionUnitInstalled(t)
 	intarray, intarrayExt, _ := intarrayUnitInstalled(t)
 	crypto, cryptoExt := pgcryptoUnitInstalled(t)
+	intagg, intaggExt := intaggUnitInstalled(t)
 	for _, installed := range []struct {
 		e   *Engine
 		ext *extensionDescriptor
-	}{{unaccent, unaccentExt}, {intarray, intarrayExt}, {crypto, cryptoExt}} {
+	}{{unaccent, unaccentExt}, {intarray, intarrayExt}, {crypto, cryptoExt}, {intagg, intaggExt}} {
 		metadata, err := extensionOwnerMetadata(installed.e.CatalogRead(), installed.e.Roles(), installed.ext)
 		if err != nil {
 			t.Fatal(err)

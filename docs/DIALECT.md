@@ -707,7 +707,12 @@ The relocatable, superuser-required, nontrusted intagg1.1 provider installs only
 `int_array_enum(integer[]) RETURNS SETOF integer`, the documented
 [PostgreSQL18 compatibility wrappers](https://www.postgresql.org/docs/18/intagg.html).
 Upstream internal `int_agg_state`/`int_agg_final_array` are not callable native
-members. There is no second array type or arbitrary extension loader.
+members. They have distinct extension-local lookup-only identities owned by the
+actual installed aggregate, so `pg_aggregate` definitions, REGPROC/REGPROCEDURE
+values and symbolic persistence do not substitute builtin kernel OIDs. These
+aliases are not additional `pg_proc` rows or callable extension members. Removing
+the owner retires them; native replacement remaps their data/default/view
+references with the owner. There is no second array type or arbitrary loader.
 
 Fixed INT4/INT4[] signatures use ordinary installed namespace resolution and
 shared implicit coercion, including unknown NULL/parameters and SMALLINT-to-INT4.
@@ -1852,6 +1857,73 @@ INSERTs in logical dumps. Held numeric statements read the fresh generation;
 already populated unread cursors retain their original rows/types. Ordinary
 context cancellation remains context.Canceled, not a fabricated SQLSTATE.
 See [independent selected proof and actual feature smoke](../reference/catalogs/README.md#pg_range-selected-proof).
+
+## pg_aggregate existing aggregate definitions
+
+`pg_catalog.pg_aggregate` is PUBLIC-readable relation2600, a persistent table
+with logical index metadata, not a view or physical PostgreSQL storage. It has
+no row `oid`: `aggfnoid` identifies the owning aggregate signature. It reuses
+the existing native row/array types and ordinary SELECT/prepared/view pipeline.
+
+The complete column order/types are:
+
+| Columns | SQL types |
+|---|---|
+| aggfnoid, aggkind, aggnumdirectargs | REGPROC, internal CHAR, INT2 |
+| aggtransfn, aggfinalfn, aggcombinefn, aggserialfn, aggdeserialfn | REGPROC each |
+| aggmtransfn, aggminvtransfn, aggmfinalfn | REGPROC each |
+| aggfinalextra, aggmfinalextra | BOOL each |
+| aggfinalmodify, aggmfinalmodify | internal CHAR each |
+| aggsortop, aggtranstype, aggtransspace | OID, OID, INT4 |
+| aggmtranstype, aggmtransspace | OID, INT4 |
+| agginitval, aggminitval | nullable TEXT each |
+
+The first20 fields are NOT NULL; seed TEXT uses C collation950. Optional
+routine0 is a nonnull REGPROC rendered `-`; NULL seeds differ from empty text
+and text `0`. Definitions preserve released kind/direct-argument counts,
+moving/final/parallel helper identities, modification modes, state types/sizes,
+sort operators and seeds. Such metadata does not add execution of those helpers,
+moving/parallel aggregation or new aggregate input types.
+
+Native inventory is exactly144 already implemented builtin signatures across
+count, average/sum/extrema, Boolean/bitwise, array/string/range/JSON, statistics,
+regression, ordered-set and hypothetical-set families. Polymorphic declarations
+contribute one row each, not one per concrete invocation type. Unsupported
+overloads, scalar/window functions and helper routines contribute no rows.
+Future aggregate support is not a prerequisite for catalog access. Existing
+builtin `pg_proc` SQL projection remains incomplete; catalog capture does not
+fabricate callable descriptors to make every builtin join succeed.
+
+Installing intagg adds exactly its actual `int_array_aggregate(integer)` owner
+row, with its allocated `int_agg_state(internal,integer)` and
+`int_agg_final_array(internal)` metadata identities and no extra moving/combine/
+serialization declarations. Those helpers are distinct from builtin array
+kernels; the enum is not an aggregate. Off-path/quoted namespaces affect symbolic
+spelling, not metadata visibility or permission to execute helpers.
+Actual intagg `pg_proc`, qualified routine aliases and `aggfnoid` share identity.
+
+Ordinary-role INSERT/UPDATE/DELETE and existing MERGE/writable-CTE routes fail
+with42501 `permission denied for table pg_aggregate`; TRUNCATE has42501
+`permission denied: \"pg_aggregate\" is a system catalog`. Held commands recheck
+the effective role at execution; false predicates still deny, before row
+expressions cause side effects. PostgreSQL superusers can mutate system tables,
+but native virtual storage remains immutable and rejects superuser mutation
+with0A000 `catalog source mutation is unsupported`. This bounded distinction
+does not change mutation policy for other catalogs. Row locking retains its
+separate native unsupported boundary.
+
+Semantic binding, parameter admission and existing effect-free planning/coercion
+preflight precede this rejection: invalid nested constant or imported-frame
+conversions retain their errors before ordinary permission denial. Authority is
+refreshed after planning; volatile row expressions remain unevaluated on denial.
+
+Captured Rows/types/helper spelling remain stable across owner removal and
+Reset/Restore. Held readers recapture current owners. Symbolic native dumps
+serialize actual provider ownership and admitted stored values/defaults/views,
+never INSERTs into virtual `pg_aggregate`; restored helper identities remap with
+their real aggregate and receiving namespace. Failed/canceled controls preserve
+the prior catalog and user data.
+See [selected proof and smoke](../reference/catalogs/README.md#pg_aggregate-oracle-first-contract).
 
 ## pg_opclass supported operator classes
 

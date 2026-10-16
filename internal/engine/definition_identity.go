@@ -87,6 +87,13 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 func definitionOIDUsed(descriptor Descriptor, id OID) bool {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
+			for _, helper := range proc.aggregate.helpers {
+				if helper.id == id {
+					return true
+				}
+			}
+		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
 			for _, check := range domain.domainChecks {
 				if check.OID == id {
@@ -152,6 +159,11 @@ func definitionOIDUsed(descriptor Descriptor, id OID) bool {
 func reserveDefinitionOIDs(reserved map[OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*relationDescriptor)
 	if !relation {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
+			for _, helper := range proc.aggregate.helpers {
+				reserved[helper.id] = true
+			}
+		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
 			for _, check := range domain.domainChecks {
 				reserved[check.OID] = true
@@ -204,6 +216,13 @@ func validateDefinitionOIDs(view CatalogRead) error {
 		return nil
 	}
 	for _, descriptor := range view.state.descriptors {
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
+			for _, helper := range proc.aggregate.helpers {
+				if err := claim(helper.id); err != nil {
+					return err
+				}
+			}
+		}
 		if domain, ok := descriptor.(*typeDescriptor); ok {
 			for _, check := range domain.domainChecks {
 				if err := claim(check.OID); err != nil {
@@ -277,6 +296,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	var domains []*typeDescriptor
 	for address, descriptor := range next.descriptors {
 		reserved[address.ObjectID] = true
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
+			reserveDefinitionOIDs(reserved, proc)
+		}
 		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
 			domains = append(domains, domain)
 			reserveDefinitionOIDs(reserved, domain)
@@ -288,8 +310,13 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
 	claimed := make(map[OID]bool)
-	for address := range next.descriptors {
+	for address, descriptor := range next.descriptors {
 		claimed[address.ObjectID] = true
+		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
+			for _, helper := range proc.aggregate.helpers {
+				claimed[helper.id] = true
+			}
+		}
 	}
 	for _, d := range relations {
 		if d.view != nil {

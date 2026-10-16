@@ -35,6 +35,23 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, owner: owner, result: member.result, volatility: Immutable, strict: member.strict, intagg: p}
+		if i == 0 {
+			state, err := e.allocateOIDLocked()
+			if err != nil {
+				return err
+			}
+			final, err := e.allocateOIDLocked()
+			if err != nil {
+				return err
+			}
+			proc.aggregate = &ownedAggregate{
+				definition: intaggDefinition(oid, state, final),
+				helpers: [2]routineIdentity{
+					{state, ext.targetNamespace.ObjectID, "int_agg_state", "2281,23"},
+					{final, ext.targetNamespace.ObjectID, "int_agg_final_array", "2281"},
+				},
+			}
+		}
 		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
@@ -56,6 +73,9 @@ func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
 		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || proc.intagg != p || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
+		}
+		if err := validateOwnedAggregate(v, proc); err != nil {
+			return err
 		}
 		found := false
 		for j, member := range intaggMembers {

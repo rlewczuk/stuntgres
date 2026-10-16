@@ -112,6 +112,20 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"lanname", sqltype.Name}, {"lanowner", sqltype.Oid}, {"lanispl", sqltype.Bool}, {"lanpltrusted", sqltype.Bool}, {"lanplcallfoid", sqltype.Oid}, {"laninline", sqltype.Oid}, {"lanvalidator", sqltype.Oid}, {"lanacl", sqltype.ACLItemArray}}},
+		{pgAggregateOID, "pg_aggregate", []struct {
+			name string
+			typ  sqltype.ID
+		}{
+			{"aggfnoid", sqltype.Regproc}, {"aggkind", sqltype.Char}, {"aggnumdirectargs", sqltype.Int2},
+			{"aggtransfn", sqltype.Regproc}, {"aggfinalfn", sqltype.Regproc}, {"aggcombinefn", sqltype.Regproc},
+			{"aggserialfn", sqltype.Regproc}, {"aggdeserialfn", sqltype.Regproc}, {"aggmtransfn", sqltype.Regproc},
+			{"aggminvtransfn", sqltype.Regproc}, {"aggmfinalfn", sqltype.Regproc},
+			{"aggfinalextra", sqltype.Bool}, {"aggmfinalextra", sqltype.Bool},
+			{"aggfinalmodify", sqltype.Char}, {"aggmfinalmodify", sqltype.Char},
+			{"aggsortop", sqltype.Oid}, {"aggtranstype", sqltype.Oid}, {"aggtransspace", sqltype.Int4},
+			{"aggmtranstype", sqltype.Oid}, {"aggmtransspace", sqltype.Int4},
+			{"agginitval", sqltype.Text}, {"aggminitval", sqltype.Text},
+		}},
 		{2616, "pg_opclass", []struct {
 			name string
 			typ  sqltype.ID
@@ -282,6 +296,12 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == pgLanguageOID {
 				d.columns[i].Nullable = i == 8
 			}
+			if spec.oid == pgAggregateOID {
+				d.columns[i].Nullable = i >= 20
+				if column.typ == sqltype.Text {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
 			if spec.oid == 3079 {
 				d.columns[i].Nullable = i >= 6
 				if column.typ == sqltype.Text || column.typ == sqltype.ID(1009) {
@@ -369,6 +389,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == pgLanguageOID {
 		return capturePGLanguage(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == pgAggregateOID {
+		return capturePGAggregate(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 2616 {
 		return capturePGOpclass(ctx, catalog, ref, source)
