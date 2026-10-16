@@ -22,7 +22,7 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ObjectRe
 
 func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
 	t.Helper()
-	if len(rows.anonymous) != 58 {
+	if len(rows.anonymous) != 60 {
 		t.Fatal("class count", len(rows.anonymous))
 	}
 	bag := map[uint32][]any{}

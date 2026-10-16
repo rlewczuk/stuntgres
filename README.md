@@ -1285,6 +1285,18 @@ Storage smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
 operator smoke: `make check RUN='^TestReferenceINETOperatorFeatureSmoke$'`.
 Run each again with `REFERENCE=1` for the pinned PostgreSQL counterpart.
 
+Change note: externally supplied TID tuple identifiers now retain scalar type
+authority, canonical `(block,offset)` text and unsigned block/offset comparison.
+PostgreSQL18's permissive input forms (including empty components) canonicalize
+through the same codec for direct/prepared binds, stored expressions and native
+Dump/Restore. TID exports and ScanType are string; typed NULL stays NULL.
+Declared TID keys use real btree/hash providers. This does not populate `ctid`,
+invent physical row locations, add development functions, execute TID arrays or
+provide binary COPY. See [TID transport](docs/TYPES.md#tuple-identifiers) and
+[selected proof](reference/types/README.md#tuple-identifier-selected-proof).
+Feature smoke: `make check RUN='^TestReferenceTIDFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceTIDFeatureSmoke$' REFERENCE=1`.
+
 Change note: `aclitem` and `aclitem[]` now use checked typed storage, ordinary
 direct/prepared textual binds and captured canonical string results. PUBLIC,
 SQL NULL, zero rights and grant options remain distinct data. All fifteen

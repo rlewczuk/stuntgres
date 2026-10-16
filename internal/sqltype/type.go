@@ -26,6 +26,7 @@ const (
 	Regproc          ID = 24
 	Text             ID = 25
 	Oid              ID = 26
+	Tid              ID = 27
 	Xid              ID = 28
 	Cid              ID = 29
 	Xid8             ID = 5069
@@ -242,6 +243,7 @@ func Builtins() []*Descriptor {
 		{id: Int4, name: "int4", sql: "INTEGER", database: "INT4", associatedArray: 1007},
 		{id: Text, name: "text", sql: "TEXT", database: "TEXT", associatedArray: 1009},
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
+		{id: Tid, name: "tid", sql: "TID", database: "TID"},
 		{id: Xid, name: "xid", sql: "XID", database: "XID"},
 		{id: Cid, name: "cid", sql: "CID", database: "CID"},
 		{id: Xid8, name: "xid8", sql: "XID8", database: "XID8"},
@@ -628,6 +630,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.queryIntInput(ctx, text)
 	}
 	switch d.id {
+	case Tid:
+		return d.tidInput(ctx, text)
 	case ACLItem:
 		return d.aclitemInput(ctx, text, env)
 	case Inet, Cidr:
@@ -894,6 +898,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return d.queryIntOutput(ctx, v)
 	}
 	switch d.id {
+	case Tid:
+		return tidOutput(v)
 	case ACLItem:
 		return v.aclitemOutput(env)
 	case Inet, Cidr:
@@ -1043,7 +1049,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid literal value")
 	}
 	if v.null {
-		if IsNetwork(d.BaseType().id) {
+		if IsNetwork(d.BaseType().id) || d.BaseType().id == Tid {
 			return "CAST(NULL AS " + d.BaseType().SQLName() + ")", nil
 		}
 		if d.BaseType().id == Money {
@@ -1083,6 +1089,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + text + "'", nil
 	}
 	switch d.id {
+	case Tid:
+		text, err := tidOutput(v)
+		if err != nil {
+			return "", err
+		}
+		return "TID '" + text + "'", nil
 	case Inet, Cidr:
 		text, err := d.Output(ctx, v)
 		if err != nil {
@@ -1439,7 +1451,7 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
-	case Bool, Int2, Int4, Int8, Oid, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
+	case Bool, Int2, Int4, Int8, Oid, Tid, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
 		return true
 	}
@@ -1497,6 +1509,18 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.id == Tid || target.Type.id == Tid {
+		switch {
+		case source.Type == target.Type:
+			return p, nil
+		case context == Explicit && IsCharacter(source.Type.id) && target.Type.id == Tid,
+			context >= Assignment && source.Type.id == Tid && IsCharacter(target.Type.id):
+			p.method = viaIO
+			return p, nil
+		default:
+			return p, failure("42804", "incompatible source and destination types")
+		}
+	}
 	if source.Type.IsQueryInt() || target.Type.IsQueryInt() {
 		if source.Type == target.Type {
 			return p, nil
@@ -1919,7 +1943,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 			// Explicit character casts size the captured output with cast semantics.
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, true)
 		}
-		if (p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
+		if (p.source.Type.id == Tid || p.source.Type.id == JSONPath || p.source.Type.id == ACLItem) && IsCharacter(p.target.Type.id) {
 			return sizeCharacter(String(p.target.Type, text), p.target.Typmod, p.context == Explicit)
 		}
 		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
@@ -1966,7 +1990,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
 			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Text, VarChar, Time,
-			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8:
+			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8, Tid:
 		case Void:
 			message := "could not identify an ordering operator for type void"
 			return Comparison{}, &sqlstate.Error{
@@ -2195,6 +2219,21 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		return 0, nil
 	}
 	switch p.left.id {
+	case Tid:
+		ab, ao, err := a.TID()
+		if err != nil {
+			return 0, err
+		}
+		bb, bo, err := b.TID()
+		if err != nil {
+			return 0, err
+		}
+		if ab < bb || ab == bb && ao < bo {
+			return -1, nil
+		}
+		if ab > bb || ab == bb && ao > bo {
+			return 1, nil
+		}
 	case Xid, Cid:
 		right := b.oid
 		if p.right.id == Int4 {

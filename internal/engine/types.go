@@ -286,7 +286,7 @@ func storedArrayElement(typ *sqltype.Descriptor) bool {
 		return false
 	}
 	physical := typ.BaseType()
-	if sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
+	if physical.ID() == sqltype.Tid || sqltype.IsNetwork(physical.ID()) || sqltype.IsTransactionIdentifier(physical.ID()) {
 		return false
 	}
 	if physical.IsArray() {

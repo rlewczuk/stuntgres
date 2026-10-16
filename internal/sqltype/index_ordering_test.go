@@ -162,18 +162,18 @@ func TestIndexClausesSystemIdentity(t *testing.T) {
 	if class.AcceptsID(27) {
 		t.Fatal("integer class accepted tid")
 	}
-	// TID retains diagnostic-only identity; public identifiers do not gain ordering.
+	// Scalar TID ownership does not populate physical system attributes.
 	for _, d := range Builtins() {
-		if d.ID() == 27 {
-			if d.Concrete() || d.Usage().Valid() {
-				t.Fatal("system diagnostic added a storage type", d)
+		if d.ID() == Tid {
+			if !d.Concrete() || !d.Usage().Valid() {
+				t.Fatal("tid lost scalar ownership", d)
 			}
-			if _, err := BindOrdering(d.Usage()); err == nil {
-				t.Fatal("system diagnostic added an ordering provider", d)
+			if _, err := BindOrdering(d.Usage()); err != nil {
+				t.Fatal("tid ordering", err)
 			}
 			class, _ := LookupIndexClass("tid_ops")
-			if class.Accepts(d) {
-				t.Fatal("system diagnostic admitted an executable index key", d)
+			if !class.Accepts(d) || class.OID() != 10050 {
+				t.Fatal("tid executable index identity", class)
 			}
 		}
 		if d.ID() == Xid || d.ID() == Cid {

@@ -51,7 +51,7 @@ use the catalog array name for copied rank-zero declarations.
 | FLOAT4, FLOAT8 | `float64` |
 | NAME, TEXT, BPCHAR, VARCHAR | `string` |
 | Exact NUMERIC, MONEY | `string` |
-| UUID, INET, CIDR, BIT, VARBIT | Canonical `string` |
+| UUID, TID, INET, CIDR, BIT, VARBIT | Canonical `string` |
 | JSON | Exact source `string` |
 | JSONB, JSONPath | Canonical `string` |
 | DATE, TIME, TIMETZ, INTERVAL | `string` |
@@ -158,6 +158,33 @@ NULL, while retaining actual different-usage conversions.
 Dropped ACL identities cannot be losslessly reparsed from decimal output:
 Dump rejects stale rows or definition literals before any writer call, rather
 than adopting a numeric-looking role or creating principals.
+
+## Tuple identifiers
+
+TID is an externally supplied scalar `(uint32 block,uint16 offset)`, not native
+physical row storage. Output is canonical unsigned decimal `(block,offset)`.
+Both zero components and `(4294967295,65535)` are legal typed values; no page
+existence or physical tuple-limit validation is implied. Comparison orders the
+unsigned block first, then the unsigned offset, rather than textual digits.
+Equality, ordering, grouping and declared-column btree/hash keys share this value
+authority.
+
+Input preserves released PostgreSQL18 scanner behavior: signs and C whitespace
+before numbers, ignored prefixes/suffixes and directly empty components may
+canonicalize; `(,)` becomes `(0,0)` and `(-1,0)` becomes `(4294967295,0)`.
+Malformed syntax/ranges return22P02 with the original input in the English
+primary; literal locations and parameter execution context remain phase-specific.
+
+Native export and ScanType are string. String/textual-byte/Valuer parameters use
+the ordinary owned input boundary; bytes are not six-byte binary TIDs.
+Typed-nil bytes bind NULL, while nonnil empty input is invalid. NULL retains TID
+metadata on empty/all-NULL results. Explicit character input/output casts do not
+add numeric, OID or implicit TEXT comparison conversions.
+
+Defaults, CHECKs, views and native logical Dump/Restore preserve typed values and
+retained result metadata. TID array1010 remains lookup-only. Scalar support does
+not populate `ctid`, supply physical row locators, binary COPY providers or
+development-only TID functions.
 
 ## Textual structured and network transport
 

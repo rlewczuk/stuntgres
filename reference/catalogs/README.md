@@ -107,8 +107,8 @@ The `TestReferencePGOpclass` scenarios specify the nine released columns,
 OID/NAME/BOOL raw codecs and metadata, fixed class/method/family/input identities,
 default and key-storage distinctions, PUBLIC reads, held execution, diagnostics,
 index/data agreement and native Dump/Reset/Restore. Expected tuples are independent
-of native lookup. Native coverage requires the complete supported 58-row bag
-(29 btree and 29 hash classes); PostgreSQL permits additional implemented classes.
+of native lookup. Native coverage requires the complete supported 60-row bag
+(30 btree and 30 hash classes); PostgreSQL permits additional implemented classes.
 Array/record/range and other diagnostic-only native classes are not advertised.
 These tests do not add pg_am, pg_opfamily or pg_index.indclass SQL support.
 

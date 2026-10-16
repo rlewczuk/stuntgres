@@ -28,6 +28,7 @@ var supportedIndexClasses = [...]struct {
 	{"bpchar_ops", 403, 426, 0, false},
 	{"oid_ops", 403, 1989, 0, false},
 	{"xid8_ops", 403, 5067, 0, false},
+	{"tid_ops", 403, 2789, 0, false},
 	{"float4_ops", 403, 1970, 0, false},
 	{"float8_ops", 403, 1970, 0, false},
 	{"date_ops", 403, 434, 0, false},
@@ -57,6 +58,7 @@ var supportedIndexClasses = [...]struct {
 	{"bpchar_ops", 405, 427, 0, false},
 	{"oid_ops", 405, 1990, 0, false},
 	{"xid8_ops", 405, 5032, 0, false},
+	{"tid_ops", 405, 2227, 0, false},
 	{"xid_ops", 405, 2225, 0, false},
 	{"cid_ops", 405, 2226, 0, false},
 	{"float4_ops", 405, 1971, 0, false},
@@ -113,6 +115,10 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 	var name string
 	var method uint32
 	switch oid {
+	case 2789:
+		name, method = "tid_ops", 403
+	case 2227:
+		name, method = "tid_ops", 405
 	case 424:
 		name, method = "bool_ops", 403
 	case 428:

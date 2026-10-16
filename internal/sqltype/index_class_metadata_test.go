@@ -19,6 +19,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 		{"int8_ops", 20, 3124, 1976, 10021, 1977}, {"text_ops", 25, 3126, 1994, 10037, 1995},
 		{"varchar_ops", 25, 10044, 1994, 10045, 1995}, {"bpchar_ops", 1042, 10004, 426, 10005, 427},
 		{"oid_ops", 26, 1981, 1989, 10031, 1990}, {"xid8_ops", 5069, 10053, 5067, 10052, 5032},
+		{"tid_ops", 27, 10050, 2789, 10055, 2227},
 		{"xid_ops", 28, 0, 0, 10051, 2225}, {"cid_ops", 29, 0, 0, 10054, 2226},
 		{"float4_ops", 700, 10012, 1970, 10013, 1971}, {"float8_ops", 701, 3123, 1970, 10014, 1971},
 		{"date_ops", 1082, 3122, 434, 10011, 435}, {"time_ops", 1083, 10038, 1996, 10039, 1997},
@@ -47,7 +48,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 58 || len(want) != 58 {
+	if IndexClassMetadataCount() != 60 || len(want) != 60 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -77,7 +78,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("metadata got %#v want %#v", got, want)
 	}
-	for _, i := range []int{-1, 58, 59} {
+	for _, i := range []int{-1, 60, 61} {
 		if m, ok := IndexClassMetadataAt(i); ok || m != (IndexClassMetadata{}) {
 			t.Fatal("bounds", i, m, ok)
 		}
@@ -87,7 +88,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if again, _ := IndexClassMetadataAt(0); again.Name == m.Name {
 		t.Fatal("metadata is mutable")
 	}
-	for _, name := range []string{"array_ops", "tid_ops", "record_ops", "record_image_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops", "network_ops"} {
+	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops", "network_ops"} {
 		for _, m := range got {
 			if m.Name == name {
 				t.Fatal("diagnostic-only class advertised", m)
@@ -199,6 +200,11 @@ func TestIndexFamilyMetadataAuthority(t *testing.T) {
 		}
 		keys[key] = family.OID
 		seen[family.OID] = family
+	}
+	for _, want := range []IndexFamilyMetadata{{2789, 403, "tid_ops"}, {2227, 405, "tid_ops"}} {
+		if got := seen[want.OID]; got != want {
+			t.Fatal("released TID family", got, want)
+		}
 	}
 	for _, want := range []IndexFamilyMetadata{{1976, 403, "integer_ops"}, {1977, 405, "integer_ops"}, {434, 403, "datetime_ops"}, {1974, 403, "network_ops"}, {1994, 403, "text_ops"}, {1995, 405, "text_ops"}, {2229, 405, "text_pattern_ops"}} {
 		if got := seen[want.OID]; got != want {

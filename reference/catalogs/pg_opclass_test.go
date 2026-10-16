@@ -33,6 +33,7 @@ func pgOpclassFacts() [][]any {
 		{"bpchar_ops", 1042, 10004, 426, 10005, 427},
 		{"oid_ops", 26, 1981, 1989, 10031, 1990},
 		{"xid8_ops", 5069, 10053, 5067, 10052, 5032},
+		{"tid_ops", 27, 10050, 2789, 10055, 2227},
 		{"xid_ops", 28, 0, 0, 10051, 2225},
 		{"cid_ops", 29, 0, 0, 10054, 2226},
 		{"float4_ops", 700, 10012, 1970, 10013, 1971},
@@ -151,10 +152,10 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 58 {
+	if len(facts) != 60 {
 		t.Fatal("inventory", len(facts))
 	}
-	for _, name := range []string{"array_ops", "tid_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {
+	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {
 		q := "SELECT opcname FROM pg_catalog.pg_opclass WHERE opcname='" + name + "'"
 		if b.PG {
 			q += " AND opcmethod=403"

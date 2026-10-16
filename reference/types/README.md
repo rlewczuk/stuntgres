@@ -50,6 +50,38 @@ preflight barriers. Existing bitwise consumers remain covered with
 `make check RUN='^(TestBitStringOperators|TestBitwise)'`; their reference
 definitions retain the shared testing guide's separate dual-mode obligations.
 
+### Tuple identifier selected proof
+
+The untagged TID scenarios independently specify PostgreSQL18 scalar input
+(including permissive/empty/unsigned-long forms), canonical string transport,
+raw metadata, direct/prepared/held parameters, strict NULL predicates, unsigned
+component ordering, equality consumers and declared-key btree/hash behavior.
+Full malformed-input/semantic/authorization diagnostics retain their observed
+source locations and phases; later bad tuples publish no rows.
+The focused Coercion matrix covers typed TEXT/VARCHAR/BPCHAR input, canonical
+character output, explicit truncation versus assignment overflow/padding, typed
+NULL, direct/prepared routes and rejection of implicit character comparisons.
+
+```sh
+make check RUN='^TestReferenceTID(Values|Comparison|Coercion|Diagnostics|Controls|Authorization|FeatureSmoke)$'
+make check RUN='^TestReferenceTID(Values|Comparison|Coercion|Diagnostics|Controls|Authorization|FeatureSmoke)$' REFERENCE=1
+make check RUN='^(TestTID.*|TestIndexClausesSystemIdentity|TestIndexClassMetadata.*)$'
+```
+
+Affected class inventory consumers require both modes with
+`RUN='^TestReferencePGOpclass(Inventory|IndexSemantics|Diagnostics|HeldExecution|Lifecycle|FeatureSmoke)$'`.
+Standalone feature smoke is `make check RUN='^TestReferenceTIDFeatureSmoke$'`
+and the same command with `REFERENCE=1`: exact ordered IDs2,1,3, canonical TID
+strings, held textual binds, NULL, permissive input and failed-INSERT atomicity.
+Every command needs an external900-second deadline. Selected race proof can use
+`make check RUN='^TestReferenceTID(Values|Controls)$' RACE=1`.
+
+Native-only control phases exercise actual Dump/Reset/Restore, deterministic
+redump, PostgreSQL replay of the native dump and retained raw cursor metadata.
+Native ctid stays42703; PostgreSQL's actual ctid values are not pinned to allocator
+coordinates. Scalar support does not imply physical rows, executable arrays,
+binary transport or development functions. Discovery filters are not retained.
+
 ### Multirange constructor and expansion selected proof
 
 The untagged `TestReferenceRangeMore` definitions specify unary generic

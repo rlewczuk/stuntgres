@@ -3087,6 +3087,12 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	target = info.usage
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
+		if source.Type.BaseType().ID() == sqltype.Tid || target.Type.BaseType().ID() == sqltype.Tid {
+			if raw.Syntax == parser.FunctionCast {
+				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
+			}
+			return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+		}
 		if sqltype.IsRoutineAlias(source.Type.BaseType().ID()) || sqltype.IsRoutineAlias(target.Type.BaseType().ID()) {
 			return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
 		}
