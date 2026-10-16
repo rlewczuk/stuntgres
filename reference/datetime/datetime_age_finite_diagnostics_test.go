@@ -76,11 +76,7 @@ func TestReferenceDatetimeAgeFiniteResolutionDiagnostics(t *testing.T) {
 				}
 			})
 		}
-		if b.PG {
-			// xid age is a transaction counter, not the selected symbolic interval function.
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT pg_typeof(age('0'::xid))::text AS result", []string{"result"}, []string{"TEXT"}, [][]any{{"integer"}}))
-		} else {
-			datetimeAgeFiniteFailure(t, p, b, c, "SELECT age('0'::xid)", "0A000", "age with xid is unsupported", "", 8)
-		}
+		datetimeAgeFiniteValue(t, p, b, c, "age('0'::xid)", "INT4", int64(2147483647))
+		datetimeAgeFiniteValue(t, p, b, c, "age(NULL::xid)", "INT4", nil)
 	})
 }

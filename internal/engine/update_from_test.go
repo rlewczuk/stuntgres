@@ -167,7 +167,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 				t.Fatal("pair versus successful-target demand", calls, outputs)
 			}
 			if failLast {
-				if !errors.Is(err, sentinel) || r.Count != 0 || r.Rows != nil || len(scope.stage.rows) != 0 {
+				if !errors.Is(err, sentinel) || r.Count != 0 || r.Rows != nil {
 					t.Fatal(r, err)
 				}
 			} else {

@@ -148,8 +148,15 @@ func (s *StatementScope) foreignActionRow(ref ObjectRef, candidate rowVersion) (
 	return rowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }
 
-func (w *WriteStage) deleteForeignAction(ref ObjectRef, old rowVersion) error {
+func (w *WriteStage) deleteForeignAction(ref ObjectRef, old rowVersion) (err error) {
 	s := w.scope
+	defer func() {
+		if err == nil {
+			err = s.flushPhysicalEvents()
+		} else {
+			s.multiEvents = nil
+		}
+	}()
 	e := s.op.session.Engine()
 	e.locks.mu.Lock()
 	entry := e.locks.entries[lockResource{ObjectRef: ref, row: old.row}]

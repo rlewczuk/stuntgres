@@ -5,6 +5,52 @@
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+Transaction identity uses the sole canonical full-XID allocator under Engine.mu.
+Sparse retained status and optional timestamp reservations index that full identity;
+low32 mirrors remain explicit consumers, and an exact atomic full phase mirror
+prevents old status from following a later index phase with the same low bits.
+The live-low index makes collision checking constant-time, including the
+publication-to-manager-release gap. Tracking OFF allocates no timestamp map.
+
+The existing lock manager owns immutable MultiXact records, nonzero modular
+counters and actual physical-version association under manager.mu. Arbitration
+still uses ObjectRef/RowID; history adds VersionID to distinguish predecessor action
+from the successor's exact original raw xmax ID and full bag, including ended or
+mixed-mode members. Raw candidate grants imply neither assignment nor membership.
+CHECK/branch admission precedes the physical event; index and RETURNING evaluation
+follow it. Shared mutations journal successor/deletion events while private roots
+are locked and flush after Engine/owner unlock, before caller-visible evaluation.
+Manager preflight prepares the complete batch before any counter/history publication.
+Member-set reuse is a transaction-local LRU of at most 256 IDs, populated by both
+creation and member inquiry, never universal interning. A successor copies the
+original ID without allocating a new inherited set; later expansion filters only
+the new bag. Single same-XID physical strength merges preserve action versus lock
+kind; an existing MultiXact can retain several statuses of the same XID.
+Savepoints capture physical status contributions separately from grant modes;
+grant intersection only bounds stale checkpoint authority, never invents provenance.
+No Engine.mu→manager.mu acquisition is introduced; status reads ticket atomics.
+
+Ordinary UPDATE accumulates distinct accepted physical targets by amortized append,
+without copying the growing private prefix per row. Its frozen source and FROM
+winner gate supply distinctness; existing action-prefix overlaps retain immutable
+replacement merging. Append choice does not bypass ordinary target/RI validation
+or UPSERT's separate affected-row cardinality check. Physical events still precede
+unique/RETURNING boundaries, and Finish discards private stages on failure.
+
+```sh
+make check RUN='^TestTransactionIdentity(AgeArithmetic|Allocation|History|Completion|MultiHistory|GrantActions|Savepoint|Binding)$'
+make check RUN='^TestTransactionIdentity(MultiHistory|GrantActions|Savepoint|Completion)$' RACE=1
+make check RUN='^TestCommitTime(Assignment|Publication|Replacement|Expression)$'
+make check RUN='^TestPGLocks(ProjectionModes|TransactionLifetime|PredicateLifetime)$'
+make check RUN='^TestUpdateCore(MultirowAllocation|StagedPrefixOverlap|SparseAllocation)$'
+```
+
+Use external 900-second deadlines. These actual-seam units seed wrap/horizon/
+collision state, immutable bags, one-updater filtering, real grant/cancel paths,
+busy prepared claims and symbolic original provider ownership; public SQL and
+all-six-function smoke remain in `reference/locking_transactions`.
+
+
 `TestObjectACLTypeSetterProvenance` exercises actual `Engine.SetObjectACL`
 publication for domains, enums and standalone composites. Genuine replacement
 clears constructor-synthetic provenance for explicit default-equivalent, empty

@@ -151,8 +151,20 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row RowID, mark queryRo
 	return err == nil, err
 }
 
-func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hint int, mode relationLockMode) (rowVersion, bool, error) {
+func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hint int, mode relationLockMode) (result rowVersion, present bool, err error) {
 	e := s.op.session.Engine()
+	var physical rowVersion
+	defer func() {
+		if err != nil || !present {
+			return
+		}
+		kind, failure := multiLockMode(mode)
+		if failure != nil {
+			err = failure
+			return
+		}
+		err = s.physicalRowEvent(leaf.ref, physical, kind, 0)
+	}()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if _, err := currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf); err != nil {
@@ -167,7 +179,8 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 	if !found {
 		return rowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
 	}
-	present := liveVersion(current, e.commitSeq, store.ends, s.ownDeletes[leaf.ref.Address])
+	physical = current
+	present = liveVersion(current, e.commitSeq, store.ends, s.ownDeletes[leaf.ref.Address])
 	if stableIsolation(s.owner.isolation) && current.born != 0 {
 		changed := current.born > s.owner.frontier
 		if store.ends != nil {

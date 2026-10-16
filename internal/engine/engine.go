@@ -40,10 +40,13 @@ type Engine struct {
 	diagnosticTx         uint32
 	visibilityXID        uint64
 	visibility           map[TxRef]transactionVisibility
-	assignedXID          uint32
+	assignedXID          uint64
+	transactionHistory   map[uint64]transactionIdentityRecord
+	transactionHorizon   uint64
+	assignedLowIDs       map[uint32]uint64 // Latest full assignment per low32; constant-time live alias guard.
 	trackCommitTimestamp bool
 	commitTimestampBase  uint64
-	commitTimestamps     []commitTimestampEntry
+	commitTimestamps     map[uint64]commitTimestampEntry
 	lastCommittedXID     uint32
 	lastCommitTimestamp  commitTimestampEntry
 	indexBuildWaits      map[ObjectAddress]indexBuildWait

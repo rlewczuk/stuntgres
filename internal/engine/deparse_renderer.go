@@ -936,6 +936,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return text, nil
 		}
 		return function(n.Plan.Name(), n.Args, true)
+	case transactionIdentityExpression:
+		if n.arg == nil {
+			return function(n.kind.name(), nil, true)
+		}
+		args := [1]BoundExpr{n.arg}
+		return function(n.kind.name(), args[:], true)
 	case commitTimestampExpression:
 		if n.arg == nil {
 			return function(n.kind.name(), nil, true)

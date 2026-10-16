@@ -39,7 +39,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 		t.Fatal("ordering-only completion fabricated a commit")
 	}
 	// Public exhaustion cannot prevent independent visibility ordering.
-	e.assignedXID = ^uint32(0)
+	e.assignedXID = ^uint64(0)
 	if err := e.visibilityWriteLocked(b); err != nil || e.visibility[b].xid != 2 || e.visibility[b].assignedXID != 0 {
 		t.Fatal("visibility ordering depends on public assignment", err)
 	}
@@ -47,7 +47,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if err := e.assignTransactionXIDLocked(a); err != nil {
 		t.Fatal(err)
 	}
-	if e.visibility[a].assignedXID != 3 || e.visibility[a].xid != first.xid || e.commitTimestamps[0].present {
+	if e.visibility[a].assignedXID != 3 || e.visibility[a].xid != first.xid || e.commitTimestamps[3].present {
 		t.Fatal("actual assignment changed ordering or published history")
 	}
 	e.dropVisibilitySnapshotLocked(a)
@@ -58,7 +58,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 		t.Fatal(err)
 	}
 	counter, slots, ordering := e.assignedXID, len(e.commitTimestamps), e.visibilityXID
-	e.assignedXID = ^uint32(0)
+	e.assignedXID = ^uint64(0)
 	c := commitTimeUnitRef(e, 3)
 	if err := e.assignTransactionXIDLocked(c); err == nil || e.visibility[c] != (transactionVisibility{}) || len(e.commitTimestamps) != slots || e.visibilityXID != ordering {
 		t.Fatal("exhaustion partially assigned identity", err)
@@ -67,7 +67,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if err := e.assignTransactionXIDLocked(c); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibilityWriteLocked(c); err != nil || e.visibility[c].assignedXID != counter+1 || e.visibility[c].xid != ordering+1 {
+	if err := e.visibilityWriteLocked(c); err != nil || e.visibility[c].fullXID != counter+1 || uint64(e.visibility[c].assignedXID) != counter+1 || e.visibility[c].xid != ordering+1 {
 		t.Fatal("public and visibility authorities conflated", err)
 	}
 	d := commitTimeUnitRef(e, 4)
@@ -212,7 +212,7 @@ func TestCommitTimePublication(t *testing.T) {
 				observed := make(chan [3]bool, 1)
 				go func() {
 					e.mu.Lock()
-					snapshot := [3]bool{e.state != old, rowStore != nil && len(rowStore.versions) != 0, e.lastCommittedXID == xid && e.commitTimestamps[0].present}
+					snapshot := [3]bool{e.state != old, rowStore != nil && len(rowStore.versions) != 0, e.lastCommittedXID == xid && e.commitTimestamps[uint64(xid)].present}
 					e.mu.Unlock()
 					observed <- snapshot
 				}()
@@ -236,11 +236,11 @@ func TestCommitTimePublication(t *testing.T) {
 					t.Fatal("publication observer did not finish")
 				}
 				if !committed {
-					if !errors.Is(err, context.Canceled) || e.lastCommittedXID != 0 || e.commitTimestamps[0].present || e.state != old {
+					if !errors.Is(err, context.Canceled) || e.lastCommittedXID != 0 || e.commitTimestamps[uint64(xid)].present || e.state != old {
 						t.Fatal("failed publication leaked a commit", err)
 					}
 				} else {
-					if err != nil || e.lastCommittedXID != xid || !e.commitTimestamps[0].present || e.lastCommitTimestamp.stamp.Before(before) || e.lastCommitTimestamp.origin != 0 {
+					if err != nil || e.lastCommittedXID != xid || !e.commitTimestamps[uint64(xid)].present || e.lastCommitTimestamp.stamp.Before(before) || e.lastCommitTimestamp.origin != 0 {
 						t.Fatal("successful publication missing commit", err)
 					}
 					stamp := e.lastCommitTimestamp
@@ -276,10 +276,10 @@ func TestCommitTimeReplacement(t *testing.T) {
 		if _, err := e.ReplaceCatalog(context.Background(), view); err != nil {
 			t.Fatal(err)
 		}
-		if !e.trackCommitTimestamp || e.lastCommittedXID != 0 || len(e.commitTimestamps) != 0 || e.commitTimestampBase != uint64(xid)+1 || e.assignedXID != xid {
+		if !e.trackCommitTimestamp || e.lastCommittedXID != 0 || len(e.commitTimestamps) != 0 || e.commitTimestampBase != uint64(xid)+1 || e.assignedXID != uint64(xid) {
 			t.Fatal("replacement imported or reused history")
 		}
-		if err := e.assignTransactionXIDLocked(commitTimeUnitRef(e, 2)); err != nil || e.assignedXID != xid+1 {
+		if err := e.assignTransactionXIDLocked(commitTimeUnitRef(e, 2)); err != nil || e.assignedXID != uint64(xid)+1 {
 			t.Fatal("replacement identity reuse", err)
 		}
 	}

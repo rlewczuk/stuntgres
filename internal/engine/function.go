@@ -57,6 +57,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.CommitTimestampFunctionName(name) {
 		return b.bindCommitTimestamp(raw)
 	}
+	if parser.TransactionIdentityFunctionName(name) {
+		return b.bindTransactionIdentity(raw)
+	}
 	if functions.StringVariadicFunctionName(name) {
 		return b.bindStringVariadic(raw)
 	}

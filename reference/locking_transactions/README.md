@@ -38,6 +38,60 @@ make check RACE=1 RUN='^TestNotificationPreparedOriginProgress$'
 See [local notification proof and executable smoke](../sessions/README.md#session-messages)
 for the exported native receiver and physical-session lifetime contract.
 
+### Transaction identity oracle-first contract
+
+The `TestReferenceTransactionIdentity` definitions specify assignment,
+stable top-level/savepoint identity, live and retained status, wrapping ages,
+typed direct/prepared metadata and diagnostics, and actual immutable MultiXact
+bags. Generated identities are relational, not constants. Counter discovery
+uses `mxid_age('1'::xid)` and accounts for every new ID on serialized tiny rows;
+no `xmax`, XID ordering, or live-holder approximation is used.
+The six-mode schedule includes same-owner keysh/forupd/upd expansion. Separate
+CHECK rejection, UPSERT WHERE false, post-action RETURNING failure, EPQ and
+queued/canceled/NOWAIT/SKIP witnesses distinguish candidates, installed locks
+and actual modifications. Retained committed-action bags are checked publicly;
+committed-updater filtering on an old physical tuple belongs to real-seam units,
+not a new SELECT that would follow the successor.
+`TestReferenceTransactionIdentityMultixactSuccessor` additionally proves that a
+CHECK-rejected candidate stays unassigned after rollback-to, two surviving
+KEY SHARE owners supply original raw K, and a non-key updater creates only U.
+Successors inherit K without allocation; repeated actions reuse the owner's U,
+while a fresh transaction on the same connection locks the successor without
+capturing its old updater. A surviving owner's later upgrade still expands raw K.
+The empty-COPY assignment phase uses native `stuntgres.CopyFrom` on the unwrapped
+pool and PostgreSQL's COPY protocol, with the same explicit-owner unassigned
+expectations. Backend PID/activity observations are PostgreSQL-only; native
+queue/EPQ observations use the existing parked-request barrier. Successful query
+contexts remain live until returned rows are drained and closed. Assigned-owner
+cancellation uses a genuinely admitted native relation wait and PostgreSQL's
+server cancellation phase, then checks retained aborted status in both modes.
+
+These shared definitions retain independently specified values/relations, exact
+metadata and portable diagnostics; real PostgreSQL and native use the same body.
+Run each selected command with an external 900-second deadline, real mode first
+and the same completed definition in quick mode second:
+
+```sh
+make check RUN='^TestReferenceTransactionIdentity(Assignment|Ages|Metadata|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceTransactionIdentity(Assignment|Ages|Metadata|Diagnostics)$'
+make check RUN='^TestReferenceTransactionIdentity(Status|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReferenceTransactionIdentity(Status|Lifecycle)$'
+make check RUN='^TestReferenceTransactionIdentity(Multixact|MultixactLifecycle|MultixactSuccessor)$' REFERENCE=1
+make check RUN='^TestReferenceTransactionIdentity(Multixact|MultixactLifecycle|MultixactSuccessor)$'
+make check RUN='^TestReferenceTransactionIdentityFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceTransactionIdentityFeatureSmoke$'
+```
+
+The feature smoke independently checks all six functions: initially unassigned
+READ ONLY, stable allocation, in-progress/committed/aborted transitions, zero
+current age and special age, actual keysh/sh membership and retention, and empty
+strict-NULL SRF metadata. The sessions package owns default tracking-OFF status.
+The successor definition is an additional focused feature regression, not a
+replacement for the all-six-function smoke above.
+Selected lifecycle race proof adds `RACE=1`; whole-project Docker-free proof is
+`make quickcheck`, not a replacement for selected dual-mode oracle proof.
+
+
 ### Queued isolation-conflict execution timeout
 
 `TestReferenceTransactionIsolationQueuedConflictTimeout` retains a REPEATABLE READ

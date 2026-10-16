@@ -179,12 +179,12 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	}
 	manager.restoreUniqueDelta(scope.ticket)
 	held := manager.checkpoint(scope.ticket)
-	if held[strong] != rowUpdate || held[row] != rowUpdate {
+	if held[strong].mode != rowUpdate || held[row].mode != rowUpdate {
 		t.Fatal("stronger/new row grants lost", held)
 	}
 	keys := manager.checkpointUnique(scope.ticket, nil)
 	for _, mode := range keys {
-		if mode != uniqueClaim {
+		if mode.mode != uniqueClaim || len(mode.multi) != 0 {
 			t.Fatal("prior key mode lost", keys)
 		}
 	}
@@ -196,7 +196,7 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager.endUniqueDelta(scope.ticket)
-	if manager.checkpoint(scope.ticket)[strong] != rowUpdate || len(manager.checkpointUnique(scope.ticket, nil)) != 2 {
+	if manager.checkpoint(scope.ticket)[strong].mode != rowUpdate || len(manager.checkpointUnique(scope.ticket, nil)) != 2 {
 		t.Fatal("accepted candidate or stronger row contribution lost")
 	}
 	// A later release cannot be resurrected by a stale candidate journal.

@@ -29,6 +29,43 @@ context before healthy Commit. Raw driver Rollback remains available after
 caller cancellation. Physical close/termination drains operations and discards
 only attached private effects, not peer data or detached prepared entries.
 
+## Transaction identity and retention
+
+Public assignment belongs to the existing top-level transaction owner. A genuine
+write/row lock/PREPARE or explicit `pg_current_xact_id()` request reserves one
+unsigned full64 identity; its low32 mirror supplies XID lock/SSI/timestamp APIs.
+Reserved low0/1/2 are skipped on wrap and live-low alias/full64 exhaustion fail
+before mutation. Diagnostic IDs, visibility ordering and commit sequence are
+separate authorities. Describe/Prepare and if-assigned/age/status/member inquiries
+do not allocate. A read-only top transaction can explicitly request a real ID.
+Provisional UPDATE/DELETE candidate grants reserve neither an ID nor membership;
+accepted physical actions and genuine installed lock-before-qual events do.
+Thus a rejected prephysical CHECK leaves an initially unassigned owner unchanged,
+without erasing an assignment on rollback-to.
+
+Savepoints retain that full identity and first-demanded age anchor. Existing
+native savepoints do not allocate PostgreSQL child XIDs. Rollback restores actual
+row contribution provenance while keeping every already-created immutable
+MultiXact bag. The manager still arbitrates by ObjectRef/RowID; physical history
+additionally distinguishes immutable VersionID predecessors and successors.
+Only validated installed lock and modifying-action events publish membership,
+outside Engine/owner mutexes and before later RETURNING/index error observations.
+Manager batch preflight publishes no partial counter/history prefix.
+An UPDATE successor copies the original raw member ID and whole bag, not its
+new predecessor action ID, a filtered snapshot or an allocated key-share-only
+replacement. Each top transaction has its own bounded 256-entry member-set/ID
+cache; member inquiry may learn existing sets without assigning an XID.
+
+Transaction status is retained independently of commit timestamp tracking.
+Publication records commit exactly once; ordinary cleanup cannot overwrite it.
+Actual ticket retirement controls the publication-to-release in-progress gap.
+Prepared completion uses the original detached identity, and failed/denied/busy
+completion leaves it live. Disconnect, admitted cancellation and abort record
+only genuinely assigned identities. Successful logical replacement fences old
+owners and retires status/member/timestamp history without resetting counters;
+failed replacement leaves histories intact. Native retention is not physical
+CLOG/MultiXact truncation, WAL or VACUUM.
+
 ## Private roots, snapshots and eager results
 
 Statements use the existing owner, command identity, catalog overlay, immutable

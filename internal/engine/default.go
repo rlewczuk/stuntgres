@@ -291,7 +291,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties], functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties], functions.String[BoundExpr, *EvalContext, ExprProperties],
-		commitTimestampExpression,
+		transactionIdentityExpression, commitTimestampExpression,
 		functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties],
 		functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties], functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties], functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties], functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties], functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties],
 		functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], functions.Format[BoundExpr, *EvalContext, ExprProperties],

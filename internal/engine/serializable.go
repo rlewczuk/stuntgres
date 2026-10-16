@@ -235,6 +235,7 @@ func (e *Engine) endSerializable(ref TxRef, committed bool) {
 	e.endSerializableLocked(ref, committed)
 }
 func (e *Engine) endSerializableLocked(ref TxRef, committed bool) {
+	e.endTransactionIdentityLocked(ref, committed)
 	delete(e.visibility, ref)
 	for index, wait := range e.indexBuildWaits {
 		if wait.owner == ref {

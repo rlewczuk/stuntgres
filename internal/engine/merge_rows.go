@@ -11,9 +11,10 @@ import (
 // DELETE carries captured identity only; payload indexes name INSERT/UPDATE
 // rows. All records remain private until the sole statement Finish.
 type mergeActionRow struct {
-	action   parser.MergeAction
-	payload  int
-	deletion deleteCandidate
+	action     parser.MergeAction
+	payload    int
+	deletion   deleteCandidate
+	updateMode multiMode
 }
 type mergeRows struct {
 	indexWriteBatch
@@ -33,13 +34,15 @@ func (rows *mergeRows) stage(w *WriteStage, ref ObjectRef) error {
 			continue
 		}
 		end := start + 1
-		for end < len(rows.actions) && rows.actions[end].action == action.action {
+		for end < len(rows.actions) && rows.actions[end].action == action.action && rows.actions[end].updateMode == action.updateMode {
 			end++
 		}
 		first, last := action.payload, rows.actions[end-1].payload+1
 		var err error
 		if action.action == parser.MergeUpdateAction {
-			err = w.replace(ref, rows.predecessors[first:last], rows.indexWriteBatch.slice(first, last))
+			batch := rows.indexWriteBatch.slice(first, last)
+			batch.actionMode = action.updateMode
+			err = w.replace(ref, rows.predecessors[first:last], batch)
 		} else {
 			err = w.applyValidated(ref, rows.indexWriteBatch.slice(first, last))
 		}
@@ -269,6 +272,13 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 						return nil, err
 					}
 				}
+				lockMode := multiNoKeyLock
+				if strong || arm.action == parser.MergeDeleteAction {
+					lockMode = multiUpdateLock
+				}
+				if err := scope.physicalRowEvent(b.ref, latest, lockMode, 0); err != nil {
+					return nil, err
+				}
 			}
 			if !live {
 				if class == parser.MergeNotMatchedBySource && arm.action == parser.MergeDeleteAction {
@@ -355,6 +365,9 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		if err := scope.claimUniqueRow(b.ref, old); err != nil {
 			return err
 		}
+		if err := scope.physicalRowEvent(b.ref, old, multiUpdateAction, 0); err != nil {
+			return err
+		}
 		*excluded = append(*excluded, old)
 		// Retire exclusion authority in actual action order before later admission.
 		// Canonical Delete still validates the original captured provenance at stage.
@@ -404,6 +417,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		return err
 	}
 	predecessor := rowVersion{}
+	var actionMode multiMode
 	if arm.action == parser.MergeUpdateAction {
 		// Demanded projection/constraints precede second-modification arbitration.
 		if accepted[old.row] {
@@ -422,6 +436,13 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 			return err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		actionMode = multiNoKeyAction
+		if keyChanged {
+			actionMode = multiUpdateAction
+		}
+		if err := scope.physicalRowEvent(b.ref, old, actionMode, 0); err != nil {
+			return err
+		}
 		*excluded = append(*excluded, old)
 		predecessor = old
 	}
@@ -434,7 +455,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	if arm.action == parser.MergeUpdateAction {
 		accepted[old.row] = true
 	}
-	result.actions = append(result.actions, mergeActionRow{action: arm.action, payload: len(result.values)})
+	result.actions = append(result.actions, mergeActionRow{action: arm.action, payload: len(result.values), updateMode: actionMode})
 	result.predecessors = append(result.predecessors, predecessor)
 	result.append(candidate)
 	return nil

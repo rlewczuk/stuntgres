@@ -8,6 +8,9 @@ import "errors"
 type transactionVisibility struct {
 	xid, xmin             uint64
 	assignedXID           uint32
+	fullXID               uint64
+	ageAnchor             uint32
+	ageDemanded           bool
 	snapshot, safeBuilder bool
 	ticket                *relationTicket // assignment mirror only; never take manager.mu under Engine.mu
 }
@@ -31,7 +34,7 @@ func (e *Engine) registerTransactionLocks(ref TxRef) (*relationTicket, error) {
 	}
 	v := e.visibility[ref]
 	v.ticket = ticket
-	ticket.mirrorAssignedXID(v.assignedXID)
+	ticket.mirrorFullXID(v.fullXID)
 	e.visibility[ref] = v
 	e.mu.Unlock()
 	return ticket, nil
@@ -113,12 +116,12 @@ func (e *Engine) resetVisibilityPhaseLocked(ref TxRef) {
 			// These index-only hooks retire a completed internal publication
 			// phase. Final/prepared completion instead keeps manager ownership
 			// through end(), including the publication-to-notification interval.
-			v.ticket.mirrorAssignedXID(v.assignedXID)
+			v.ticket.mirrorFullXID(v.fullXID)
 		}
 		if v.assignedXID == 0 && v.ticket == nil {
 			delete(e.visibility, ref)
 		} else {
-			e.visibility[ref] = transactionVisibility{assignedXID: v.assignedXID, ticket: v.ticket}
+			e.visibility[ref] = transactionVisibility{assignedXID: v.assignedXID, fullXID: v.fullXID, ticket: v.ticket}
 		}
 	}
 }

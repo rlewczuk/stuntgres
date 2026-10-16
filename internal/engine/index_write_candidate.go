@@ -21,8 +21,9 @@ type indexWriteCandidate struct {
 // optional parallel vector preserves occurrence identity (including zero-width
 // rows) without allocating index metadata on the plain-column fast path.
 type indexWriteBatch struct {
-	values [][]sqltype.Value
-	states []indexWriteState
+	values     [][]sqltype.Value
+	states     []indexWriteState
+	actionMode multiMode // Explicit accepted physical action, never inferred from grant bits.
 }
 
 type indexWriteState struct {

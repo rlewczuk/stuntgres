@@ -1600,6 +1600,16 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
 		return folded, changed || replaced, err
+	case transactionIdentityExpression:
+		if e.arg == nil {
+			return e, false, nil
+		}
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.arg = arg
+		return e, changed, nil
 	case commitTimestampExpression:
 		if e.arg == nil {
 			return e, false, nil

@@ -53,22 +53,35 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 	return next
 }
 
-// Only conflict UPDATE's affected-RowID admission proves distinct append-only
-// effects within this command. Ordinary UPDATE/MERGE keep replacement merging.
+// Conflict UPDATE separately proves cardinality through its affected-row set.
 func (w *WriteStage) replaceDistinct(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
-	return w.replaceRows(ref, old, rows, true)
+	return w.replaceRows(ref, old, rows, true, true)
 }
 
 func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
-	return w.replaceRows(ref, old, rows, false)
+	return w.replaceRows(ref, old, rows, false, false)
 }
 
-func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, batch indexWriteBatch, distinct bool) error {
+// Ordinary UPDATE proves each accepted physical target distinct through its
+// frozen scan / FROM winner gate, and excludes existing staged RowIDs before
+// choosing this append lane. Ordinary target and RI validation still applies.
+func (w *WriteStage) appendUpdateReplacement(ref ObjectRef, old []rowVersion, rows indexWriteBatch) error {
+	return w.replaceRows(ref, old, rows, false, true)
+}
+
+func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, batch indexWriteBatch, conflictDistinct, appendOnly bool) (err error) {
 	rows := batch.values
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
 	}
 	s := w.scope
+	defer func() {
+		if err == nil {
+			err = s.flushPhysicalEvents()
+		} else {
+			s.multiEvents = nil
+		}
+	}()
 	if err := s.active(); err != nil {
 		return err
 	}
@@ -92,6 +105,41 @@ func (w *WriteStage) replaceRows(ref ObjectRef, old []rowVersion, batch indexWri
 			}
 		}
 		e.locks.mu.Unlock()
+	}
+	if len(old) != len(rows) {
+		return errors.New("stuntgres: invalid replacement shape")
+	}
+	var smallModes [1]multiMode
+	var modes []multiMode
+	if batch.actionMode == 0 {
+		modes = smallModes[:min(len(old), 1)]
+		if len(old) > 1 {
+			modes = make([]multiMode, len(old))
+		}
+	}
+	for i, predecessor := range old {
+		mode := batch.actionMode
+		if mode == 0 {
+			changed, failure := s.uniqueKeyChanged(ref, predecessor.values, rows[i])
+			if failure != nil {
+				return failure
+			}
+			mode = multiNoKeyAction
+			if changed {
+				mode = multiUpdateAction
+			}
+			modes[i] = mode
+		}
+		if mode != multiNoKeyAction && mode != multiUpdateAction {
+			return errors.New("stuntgres: invalid replacement action intent")
+		}
+		grant := noKeyUpdate
+		if mode == multiUpdateAction {
+			grant = rowUpdate
+		}
+		if err := s.acquireUpdateRowMode(ref, predecessor.row, grant); err != nil {
+			return err
+		}
 	}
 retry:
 	if err := s.validateIndexCandidates(ref, &batch); err != nil {
@@ -123,7 +171,7 @@ retry:
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if s.foreignActionAuth != nil || !distinct && s.mutationStorage(ref) == nil && s.partitionRelations[ref.Address] == nil {
+	if s.foreignActionAuth != nil || !conflictDistinct && s.mutationStorage(ref) == nil && s.partitionRelations[ref.Address] == nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
 			return err
 		}
@@ -137,7 +185,7 @@ retry:
 			return errors.New("stuntgres: invalid staged row")
 		}
 	}
-	if distinct {
+	if conflictDistinct {
 		if s.insertConflict == nil || s.insertConflict.update == nil {
 			return errors.New("stuntgres: distinct replacement without conflict update")
 		}
@@ -151,7 +199,7 @@ retry:
 		return errors.New("stuntgres: version identity exhausted")
 	}
 	var versions, distinctRows []rowVersion
-	if distinct {
+	if appendOnly {
 		prefix := w.rows[ref.Address]
 		distinctRows = slices.Grow(prefix, len(rows))[:len(prefix)+len(rows)]
 		versions = distinctRows[len(prefix):]
@@ -192,13 +240,18 @@ retry:
 		if w.rows == nil {
 			w.rows = make(map[ObjectAddress][]rowVersion)
 		}
-		if distinct {
+		if appendOnly {
 			w.rows[ref.Address] = distinctRows
 		} else {
 			w.rows[ref.Address] = mergePrivateRows(w.rows[ref.Address], versions, true)
 		}
 		w.replacing = true
 		for i, next := range versions {
+			mode := batch.actionMode
+			if mode == 0 {
+				mode = modes[i]
+			}
+			s.multiEvents = append(s.multiEvents, multiEvent{tuple: multiTuple{lockResource{ObjectRef: ref, row: old[i].row}, old[i].version}, mode: mode, successor: next.version})
 			s.recordForeignActionReplacement(ref, old[i], next)
 		}
 	}

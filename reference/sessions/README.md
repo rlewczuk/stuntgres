@@ -6,6 +6,22 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Transaction status with default tracking
+
+`TestReferenceTransactionIdentityStatusDefaultTracking` independently requires
+`track_commit_timestamp=off`, unassigned read-only inquiry, and actual
+in-progress/committed/aborted status through direct and held prepared calls.
+Status retention must not depend on optional commit timestamp tracking.
+
+```sh
+make check RUN='^TestReferenceTransactionIdentityStatusDefaultTracking$' REFERENCE=1
+make check RUN='^TestReferenceTransactionIdentityStatusDefaultTracking$'
+```
+
+Use external 900-second deadlines. The complementary tracking-ON definitions
+and all-six-function smoke live in `reference/locking_transactions`.
+
+
 ### Session messages
 
 The six untagged `TestReferenceSessionMessages` definitions exercise the same

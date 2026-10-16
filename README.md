@@ -26,6 +26,20 @@ reports an explicit unsupported-provider error, never a fabricated zero count or
 host inventory. See [native limits](docs/DIALECT.md#types-expressions-and-catalogs) and
 [selected tests and smoke](reference/patterns_encoding/README.md#collation-management-functions).
 
+## Transaction identity information — change note
+
+`age(xid)`, `mxid_age(xid)`, `pg_current_xact_id()`,
+`pg_current_xact_id_if_assigned()`, `pg_xact_status(xid8)` and
+`pg_get_multixact_members(xid)` use actual transaction and physical-row lock/action
+authorities. Read-only inquiry never allocates; explicit current-ID requests assign
+a stable full top-level XID8, including within savepoints. Status and immutable
+six-mode member bags survive ordinary completion and abort independently of
+optional commit timestamp tracking. Native retention lasts until successful
+engine replacement, not physical VACUUM/WAL truncation; no system columns or
+PostgreSQL child-XID allocator are added.
+See [compatibility boundaries](docs/DIALECT.md#transaction-identity-information)
+and [selected proof and smoke](reference/locking_transactions/README.md#transaction-identity-oracle-first-contract).
+
 ## Session messages — change note
 
 Native `LISTEN`, `NOTIFY` (including payloads), and `UNLISTEN` now provide

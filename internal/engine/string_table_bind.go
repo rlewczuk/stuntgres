@@ -13,6 +13,9 @@ func isStringSet(expr BoundExpr) bool {
 	return ok && e.Plan.Name() == "string_to_table"
 }
 func isQuerySet(expr BoundExpr) bool {
+	if call, ok := expr.(transactionIdentityExpression); ok {
+		return call.kind == identityMembers
+	}
 	if call, ok := expr.(aclValueExpression); ok {
 		return call.kind == aclExplode
 	}
@@ -33,6 +36,8 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 	case aclValueExpression:
 		return call.kind != aclContains
 	case objectAddressExpression, functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
+		return true
+	case transactionIdentityExpression:
 		return true
 	case commitTimestampExpression, functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return true
@@ -57,8 +62,8 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 // by validFunctionSourceCall after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {
 	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
-		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) ||
-		name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
+		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) || parser.TransactionIdentityFunctionName(name) ||
+		name == "age" || name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
 
 // A selected scalar OUT name controls the column label, not the range alias.
@@ -105,6 +110,11 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.Args
 	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Args
+	case transactionIdentityExpression:
+		if call.arg != nil {
+			return []BoundExpr{call.arg}
+		}
+		return nil
 	case commitTimestampExpression:
 		if call.arg != nil {
 			return []BoundExpr{call.arg}
@@ -156,6 +166,14 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		return call.Reconstruct(call.Info, args)
 	case functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Reconstruct(call.Info, args)
+	case transactionIdentityExpression:
+		if (call.arg == nil) != (len(args) == 0) || len(args) > 1 {
+			return nil, fmt.Errorf("stuntgres: invalid transaction identity arguments")
+		}
+		if len(args) == 1 {
+			call.arg = args[0]
+		}
+		return call, nil
 	case commitTimestampExpression:
 		if len(args) != 0 {
 			if call.arg == nil || len(args) != 1 {

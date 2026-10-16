@@ -262,6 +262,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return !n.Plan.Membership()
 	case aclValueExpression:
 		return n.kind != aclContains
+	case transactionIdentityExpression:
+		return true
 	case commitTimestampExpression:
 		return true
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:

@@ -328,7 +328,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 				t.Fatal("row waiter must retain old key4 and earlier command-prefix key2 only", before)
 			}
 			for resource, mode := range baseline {
-				if before[resource] != mode {
+				if before[resource].mode != mode.mode || len(before[resource].multi) != 0 || len(mode.multi) != 0 {
 					t.Fatal("prior transaction grant lost")
 				}
 			}
@@ -342,11 +342,11 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 				t.Fatal("FALSE branch retained speculative key", before, after)
 			}
 			for resource, mode := range before {
-				if after[resource] != mode {
+				if after[resource].mode != mode.mode || len(after[resource].multi) != 0 || len(mode.multi) != 0 {
 					t.Fatal("FALSE branch changed retained claim", resource)
 				}
 			}
-			if e.locks.checkpoint(ticket)[lockResource{ObjectRef: ref, row: id}]&wantMode == 0 {
+			if e.locks.checkpoint(ticket)[lockResource{ObjectRef: ref, row: id}].mode&wantMode == 0 {
 				t.Fatal("FALSE branch lost row grant")
 			}
 			// Omitting the same key is independent of the retained row lock.

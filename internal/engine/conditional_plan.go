@@ -810,6 +810,16 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
+	case transactionIdentityExpression:
+		if e.arg != nil {
+			arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			e.arg = arg
+			changed = changed || did
+		}
+		expression = e
 	case commitTimestampExpression:
 		if e.arg != nil {
 			arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
@@ -1562,7 +1572,7 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		// Keep constructors symbolic: their inert identities need the statement
 		// authority, and stored definitions must retain their child dependencies.
 		return false
-	case commitTimestampExpression, objectAddressExpression:
+	case transactionIdentityExpression, commitTimestampExpression, objectAddressExpression:
 		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return literal(e.Arg)

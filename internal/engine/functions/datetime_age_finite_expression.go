@@ -39,8 +39,6 @@ func (e DatetimeAgeFinite[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	return e.Plan.Evaluate(ctx, values[:e.Count], c.FunctionInput())
 }
 
-const ageDiagnosticXid sqltype.ID = 28
-
 func ageFiniteCategory(id sqltype.ID) byte {
 	switch id {
 	case sqltype.Date, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Time:
@@ -55,7 +53,7 @@ func ageFinitePreferred(id sqltype.ID) bool {
 	return id == sqltype.Timestamptz || id == sqltype.Interval
 }
 
-var datetimeAgeCandidates = [...]sqltype.ID{sqltype.Timestamp, sqltype.Timestamptz, ageDiagnosticXid}
+var datetimeAgeCandidates = [...]sqltype.ID{sqltype.Timestamp, sqltype.Timestamptz, sqltype.Xid}
 var datetimeFiniteCandidates = [...]sqltype.ID{sqltype.Date, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval}
 
 type DatetimeAgeFinitePreparation struct {
@@ -77,7 +75,7 @@ func PrepareDatetimeAgeFinite[E any](name string, visible, variadic bool, args [
 		for _, arg := range args {
 			if d := arg.Usage.Type; d != nil {
 				source := d.BaseType().ID()
-				if source != id && id != ageDiagnosticXid && !(source == sqltype.Time && id == sqltype.Interval) {
+				if source != id && id != sqltype.Xid && !(source == sqltype.Time && id == sqltype.Interval) {
 					p.Demand |= temporalDemand(id)
 				}
 			}
@@ -107,7 +105,7 @@ func ResolveDatetimeAgeFinite[E any](prepared DatetimeAgeFinitePreparation, name
 				exact++
 				continue
 			}
-			if id == ageDiagnosticXid {
+			if id == sqltype.Xid {
 				ok = false
 				break
 			}
@@ -174,9 +172,6 @@ func ResolveDatetimeAgeFinite[E any](prepared DatetimeAgeFinitePreparation, name
 	}
 	if matches > 1 {
 		return TemporalSelection{Resolution: Ambiguous}
-	}
-	if selected == ageDiagnosticXid {
-		return TemporalSelection{Unsupported: "age with xid is unsupported"}
 	}
 	if selected == sqltype.Timestamptz {
 		return TemporalSelection{Unsupported: name + " with time zone is unsupported"}

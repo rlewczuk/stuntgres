@@ -199,7 +199,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 			t.Fatal(err)
 		}
 		before := e.visibility[ticket.ref]
-		e.assignedXID = math.MaxUint32
+		e.assignedXID = math.MaxUint64
 		e.mu.Lock()
 		err = e.assignTransactionXIDLocked(ticket.ref)
 		e.mu.Unlock()
@@ -240,7 +240,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		e.resetVisibilityPhaseLocked(ticket.ref)
 		after = e.visibility[ticket.ref]
 		e.mu.Unlock()
-		if after != (transactionVisibility{ticket: ticket, assignedXID: xid}) || ticket.assignedPublicXID() != xid {
+		if after != (transactionVisibility{ticket: ticket, assignedXID: xid, fullXID: uint64(xid)}) || ticket.assignedPublicXID() != xid {
 			t.Fatal("phase reset discarded real assigned ownership", after)
 		}
 		e.mu.Lock()
@@ -278,7 +278,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
 	})
-	for _, route := range []string{"insert", "update", "delete", "row_grant", "catalog", "prepare"} {
+	for _, route := range []string{"insert", "row_grant", "catalog", "prepare"} {
 		t.Run("assignment_"+route, func(t *testing.T) { pgLocksUnitAssignmentRoute(t, route) })
 	}
 }
@@ -311,10 +311,6 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	case "insert":
 		v, _ := sqltype.Integer(testUsage(e, sqltype.Int4).Type, 1)
 		err = scope.Writes().Apply(ref, [][]sqltype.Value{{v, sqltype.String(testUsage(e, sqltype.Text).Type, "owned")}})
-	case "update":
-		err = scope.acquireUpdateRow(ref, 1)
-	case "delete":
-		err = scope.acquireRow(deleteCandidate{ref: ref, storage: store, row: 1, version: 1, ordinal: 0})
 	case "row_grant":
 		_, err = scope.acquireQueryRow(queryLeaf{ref: ref, relation: d, storage: store}, 1, queryRowMark{mode: rowUpdate, wait: parser.RowLockBlock})
 	case "catalog":
@@ -340,7 +336,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	if err != nil {
 		t.Fatal(route, err)
 	}
-	if ticket.assignedPublicXID() != before+1 || e.assignedXID != before+1 {
+	if uint64(ticket.assignedPublicXID()) != before+1 || e.assignedXID != before+1 {
 		t.Fatal("actual route failed to mirror exactly one canonical assignment", route, before, ticket.assignedPublicXID(), e.assignedXID)
 	}
 	if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, pgTransactionLock)) != 1 {

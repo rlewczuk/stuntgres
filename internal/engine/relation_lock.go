@@ -86,19 +86,36 @@ type lockResource struct {
 	completion *relationTicket
 }
 type relationTicket struct {
-	manager           *relationLockManager
-	ref               TxRef
-	session           SessionToken
-	persistent        bool
-	detached          bool // prepared transaction: independent of its former physical session
-	resources         map[lockResource]struct{}
-	assignedXID       uint32 // sync/atomic only: canonical TX mirror; end or completed index phase retires ownership
-	uniqueDeltaActive bool
-	uniqueDelta       []lockResource
+	manager            *relationLockManager
+	ref                TxRef
+	session            SessionToken
+	persistent         bool
+	detached           bool // prepared transaction: independent of its former physical session
+	resources          map[lockResource]struct{}
+	assignedXID        uint32 // sync/atomic only: canonical TX mirror; end or completed index phase retires ownership
+	fullXID            uint64 // sync/atomic only: exact canonical phase identity, not an allocator.
+	ended              uint32 // sync/atomic only: ownership retirement, readable without manager.mu.
+	completion         uint32 // sync/atomic only: transactionIdentityState before ownership release.
+	multiContributions map[multiTuple]uint8
+	multiCache         []uint32
+	uniqueDeltaActive  bool
+	uniqueDelta        []lockResource
 }
 
-func (t *relationTicket) assignedPublicXID() uint32    { return atomic.LoadUint32(&t.assignedXID) }
-func (t *relationTicket) mirrorAssignedXID(xid uint32) { atomic.StoreUint32(&t.assignedXID, xid) }
+func (t *relationTicket) assignedPublicXID() uint32 { return atomic.LoadUint32(&t.assignedXID) }
+func (t *relationTicket) mirrorFullXID(xid uint64) {
+	atomic.StoreUint64(&t.fullXID, xid)
+	atomic.StoreUint32(&t.assignedXID, uint32(xid))
+}
+func (t *relationTicket) assignedFullXID() uint64 { return atomic.LoadUint64(&t.fullXID) }
+func (t *relationTicket) ownershipEnded() bool    { return atomic.LoadUint32(&t.ended) != 0 }
+func (t *relationTicket) retireOwnership()        { atomic.StoreUint32(&t.ended, 1) }
+func (t *relationTicket) completionState() transactionIdentityState {
+	return transactionIdentityState(atomic.LoadUint32(&t.completion))
+}
+func (t *relationTicket) mirrorCompletion(state transactionIdentityState) {
+	atomic.StoreUint32(&t.completion, uint32(state))
+}
 
 type relationRequest struct {
 	ticket       *relationTicket
@@ -131,18 +148,21 @@ type relationEntry struct {
 	pins    int
 }
 type relationLockManager struct {
-	mu         sync.Mutex
-	engine     *Engine
-	catalog    *catalogOwner
-	epoch      CatalogEpoch
-	owners     map[TxRef]*relationTicket
-	sessions   map[SessionToken]*relationTicket
-	entries    map[lockResource]*relationEntry
-	keyBuckets map[uniqueLockBucket]*uniqueLockBucketState
+	mu           sync.Mutex
+	engine       *Engine
+	catalog      *catalogOwner
+	epoch        CatalogEpoch
+	owners       map[TxRef]*relationTicket
+	sessions     map[SessionToken]*relationTicket
+	entries      map[lockResource]*relationEntry
+	keyBuckets   map[uniqueLockBucket]*uniqueLockBucketState
+	multiNext    uint32
+	multiRows    map[multiTuple]multiRow
+	multiHistory map[uint32][]multiMember
 }
 
 func newRelationLockManager(e *Engine) *relationLockManager {
-	return &relationLockManager{engine: e, catalog: e.owner, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
+	return &relationLockManager{engine: e, catalog: e.owner, multiNext: 1, owners: make(map[TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
 }
 func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	m.mu.Lock()
@@ -201,7 +221,11 @@ func (m *relationLockManager) valid(t *relationTicket) bool {
 }
 
 // A checkpoint contains only held contributions, never pending requests.
-type relationLockCheckpoint map[lockResource]relationLockMode
+type relationCheckpointHold struct {
+	mode  relationLockMode
+	multi map[VersionID]uint8
+}
+type relationLockCheckpoint map[lockResource]relationCheckpointHold
 
 func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoint {
 	m.mu.Lock()
@@ -215,8 +239,16 @@ func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoi
 			continue
 		}
 		if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 {
-			held[ref] = entry.holders[t].mode
+			held[ref] = relationCheckpointHold{mode: entry.holders[t].mode}
 		}
+	}
+	for tuple, bits := range t.multiContributions {
+		h := held[tuple.lockResource]
+		if h.multi == nil {
+			h.multi = make(map[VersionID]uint8)
+		}
+		h.multi[tuple.version] = bits
+		held[tuple.lockResource] = h
 	}
 	return held
 }
@@ -227,6 +259,7 @@ func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckp
 	var notify *relationRequest
 	m.mu.Lock()
 	if m.valid(t) && !t.persistent {
+		m.restoreMultiContributionsLocked(t, held)
 		for ref := range t.resources {
 			if ref.completion != nil || ref.kind != ordinaryResource {
 				continue
@@ -235,7 +268,7 @@ func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckp
 			if entry == nil {
 				continue
 			}
-			mode := entry.holders[t].mode & held[ref]
+			mode := entry.holders[t].mode & held[ref].mode
 			if mode == entry.holders[t].mode {
 				continue
 			}
@@ -266,7 +299,7 @@ func (m *relationLockManager) checkpointUnique(t *relationTicket, held relationL
 		for ref := range t.resources {
 			if ref.key != nil && ref.kind == ordinaryResource && ref.completion == nil {
 				if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 {
-					held[ref] = entry.holders[t].mode
+					held[ref] = relationCheckpointHold{mode: entry.holders[t].mode}
 				}
 			}
 		}
@@ -286,7 +319,7 @@ func (m *relationLockManager) restoreUnique(t *relationTicket, held relationLock
 				continue
 			}
 			hold := entry.holders[t]
-			mode := hold.mode & held[ref]
+			mode := hold.mode & held[ref].mode
 			if mode == hold.mode {
 				continue
 			}
@@ -583,6 +616,7 @@ func (m *relationLockManager) endLocked(t *relationTicket, err error, notify **r
 	if !m.valid(t) {
 		return
 	}
+	t.retireOwnership()
 	if t.persistent {
 		delete(m.sessions, t.session)
 	} else {
@@ -603,14 +637,19 @@ func (m *relationLockManager) endLocked(t *relationTicket, err error, notify **r
 		m.retire(ref, e)
 	}
 	clear(t.resources)
+	m.retireMultiOwnerLocked(t)
+	t.multiContributions = nil
+	t.multiCache = nil
 }
 func (m *relationLockManager) fence(epoch CatalogEpoch) {
 	var notify *relationRequest
 	m.mu.Lock()
 	if epoch > m.epoch {
+		m.retireMultiXactsLocked()
 		m.epoch = epoch
 		for ref := range m.owners {
 			if ref.epoch < epoch {
+				m.owners[ref].retireOwnership()
 				clear(m.owners[ref].resources)
 				delete(m.owners, ref)
 			}

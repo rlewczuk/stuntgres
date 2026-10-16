@@ -316,12 +316,11 @@ finalcheck nor parity alone replaces both selected public modes.
 
 ### Transaction-identifier age boundary
 
-Public XID scalar admission does not implement PostgreSQL's transaction counter
-or `age(xid)`. `TestReferenceDatetimeAgeFiniteResolutionDiagnostics` retains the
-real PostgreSQL integer-result-type witness while native direct/prepared calls
-reject the separately owned overload with 0A000 `age with xid is unsupported` at
-function Position8. The diagnostic-only candidate must never reach a temporal
-age/isfinite executable plan. Other resolution and temporal cases remain intact.
+`TestReferenceDatetimeAgeFiniteResolutionDiagnostics` now specifies the separately
+owned transaction-counter overload as shared direct/prepared INT4 results:
+`age('0'::xid)` is 2147483647 and typed NULL stays NULL. The overload uses the
+canonical transaction counter, not the temporal interval codec. Existing UNKNOWN
+ambiguity and other temporal resolution boundaries remain unchanged.
 Run this changed definition in both modes, with external900-second deadlines:
 
 ```sh

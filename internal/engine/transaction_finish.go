@@ -223,6 +223,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.stage.deletes = nil
 	s.notificationActions = nil
 	s.notificationEvents = nil
+	s.multiEvents = nil
 	s.ownDeletes = nil
 	s.ownWrites = nil
 	s.existingIndexOutputs = nil

@@ -828,6 +828,14 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
+		if n, ok := bound.(transactionIdentityExpression); ok {
+			if n.arg == nil && len(r.Args) == 0 {
+				return nil
+			}
+			if n.arg != nil && len(r.Args) == 1 {
+				return child(r.Args[0], n.arg)
+			}
+		}
 		if n, ok := bound.(commitTimestampExpression); ok {
 			if n.arg == nil && len(r.Args) == 0 {
 				return nil

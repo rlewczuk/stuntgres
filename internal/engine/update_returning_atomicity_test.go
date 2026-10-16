@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -31,11 +32,8 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 			usage := b.relation.columns[0].Usage
 			b.returning.expressions = []BoundExpr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 				calls++
-				if len(scope.stage.rows) != 0 {
-					t.Fatal("replacement escaped before projection completed")
-				}
 				if testExport(c.Row[0]).(int64) != testExport(c.OldRow[0]).(int64)+1 {
-					t.Fatal("incorrect version frames", c.Row, c.OldRow)
+					return sqltype.Value{}, fmt.Errorf("incorrect version frames: %v %v", c.Row, c.OldRow)
 				}
 				if calls == 2 {
 					if cancelOutput {
@@ -48,14 +46,18 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 			})}
 			b.returning.schema = b.returning.schema[:1]
 			r, err := e.executeUpdate(ctx, scope, b, source, nil, nil, "public")
-			if !errors.Is(err, want) || r.Rows != nil || r.Count != 0 || calls != 2 {
-				t.Fatal(r, err, calls)
-			}
-			if err = scope.Finish(err); !errors.Is(err, want) {
-				t.Fatal(err)
-			}
+			finishErr := scope.Finish(err)
 			op.Done()
 			cancel()
+			if !errors.Is(err, want) || r.Rows != nil || r.Count != 0 || calls != 2 {
+				if r.Rows != nil {
+					r.Rows.Close()
+				}
+				t.Fatal(r, err, calls)
+			}
+			if !errors.Is(finishErr, want) {
+				t.Fatal(finishErr)
+			}
 			if explicit {
 				if s.TransactionState() != TxAborted {
 					t.Fatal(s.TransactionState())

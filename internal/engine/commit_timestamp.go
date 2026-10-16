@@ -194,11 +194,8 @@ func (n commitTimestampExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		if n.kind == commitTimestampLast {
 			xid, entry = e.lastCommittedXID, e.lastCommitTimestamp
-		} else if uint64(xid) >= e.commitTimestampBase {
-			index := uint64(xid) - e.commitTimestampBase
-			if index < uint64(len(e.commitTimestamps)) {
-				entry = e.commitTimestamps[index]
-			}
+		} else {
+			entry = e.lookupCommitTimestampLocked(xid)
 		}
 		e.mu.Unlock()
 	}

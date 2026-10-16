@@ -305,6 +305,15 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		})
 	case aclValueExpression:
 		return n.sql(func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+	case transactionIdentityExpression:
+		if err := n.validate(); err != nil {
+			return "", err
+		}
+		if n.arg == nil {
+			return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), nil)
+		}
+		args := [1]BoundExpr{n.arg}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), args[:])
 	case commitTimestampExpression:
 		if err := n.validate(); err != nil {
 			return "", err

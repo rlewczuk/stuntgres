@@ -393,6 +393,9 @@ func (s *StatementScope) foreignKeyParentExists(ref ObjectRef, job foreignKeyJob
 		if locator.position >= 0 && locator.position < len(rows.committed) {
 			parent := rows.committed[locator.position]
 			if parent.row == locator.row && parent.version == locator.version && rows.committedLive(parent) {
+				if err := s.physicalRowEvent(ref, parent, multiKeyShare, 0); err != nil {
+					return false, err
+				}
 				return foreignKeyRowsMatch(s.op.Context(), job.comparisons, child, parent.values, s.input)
 			}
 		}

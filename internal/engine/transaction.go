@@ -312,6 +312,7 @@ type StatementScope struct {
 	controlOutcome                 controlOutcome
 	replacementRead                bool
 	ticket                         *relationTicket
+	multiEvents                    []multiEvent
 	viewCreationNamespace          ObjectRef
 	viewPersistence                string
 	viewBinding                    binding

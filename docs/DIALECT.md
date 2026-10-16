@@ -66,6 +66,44 @@ missing/empty/unclosed component after a consumed dot. This does not expand the
 general function resolver, cast graph, SQL identifier lexer or catalog SQL rows.
 See [selected proof and smoke](../reference/strings/README.md#identifier-parsing-selected-proof).
 
+## Transaction identity information
+
+The six selected PostgreSQL18 signatures execute with genuine typed XID/XID8
+values: `age(xid) -> INT4`, `mxid_age(xid) -> INT4`, current and if-assigned
+zero-argument inquiries `-> XID8`, `pg_xact_status(xid8) -> TEXT`, and
+`pg_get_multixact_members(multixid xid) -> SETOF RECORD(xid xid, mode text)`.
+Current-ID requests assign even in READ ONLY; if-assigned/age/status/member
+inquiries and preparation never assign. The first demanded XID age anchor is
+stable through the top transaction; MultiXact age reads the live next counter.
+Both ages use signed32 modular subtraction and their PostgreSQL special IDs.
+
+The full64 allocator skips reserved low32 values and refuses exhaustion or live
+low32 aliasing before publication. Low32 lock/SSI/timestamp carriers remain
+intentional mirrors, not independent allocators. Status retains actual assigned
+commits/aborts, checks real active/prepared ownership, and returns NULL below the
+replacement horizon; timestamp tracking is not a prerequisite.
+
+MultiXacts are immutable bags produced by installed physical row locks and actual
+modifying events, not a projection of current grant bits. Predecessor action and
+successor state have distinct native version identities. A successor copies the
+original raw member ID and entire bag, not the newly computed action ID or a
+live-only key-share reconstruction. Member-set reuse is transaction-local and
+bounded to 256 cached IDs, including sets learned through member inquiry.
+Modes are keysh/sh/fornokeyupd/forupd/nokeyupd/upd; the same XID can have multiple
+lock statuses, with at most one modifying member. Queues, failed conditional
+acquisition, empty scans and rejected preheap CHECKs do not create members.
+Genuine lock-before-qual and pre-index actions can survive a later SQL failure
+as retained history. Output ordering is unspecified.
+
+History lasts for the engine lifetime until successful Reset/Restore advances
+retention horizons without resetting counters. Failed replacement changes none
+of it; Dump contains symbolic stored expressions, not live identities/history.
+There is no physical CLOG/VACUUM truncation, WAL, xmax/system-column support or
+separate PostgreSQL subtransaction-XID allocation. Savepoints preserve the top
+identity and restore live contribution provenance without rewriting old bags.
+See [transaction ownership](TRANSACTIONS.md#transaction-identity-and-retention)
+and [selected proof/smoke](../reference/locking_transactions/README.md#transaction-identity-oracle-first-contract).
+
 ## Commit timestamp retention
 
 Commit-time inquiries track actual successful assigned-XID transaction
@@ -82,8 +120,10 @@ writes back to a savepoint does not erase the top-level assignment before COMMIT
 Native history remains available for the engine lifetime until successful
 Reset/Restore retires it. There is no physical VACUUM retention horizon, WAL,
 standby recovery or replication-origin administration in this feature.
-No wraparound reuse is simulated: assigned-XID exhaustion fails before
-publication. See [startup configuration](DRIVER.md#commit-timestamp-startup-configuration)
+Full identities advance through low32 wrap, with sparse timestamp reservations
+keyed by the actual full assignment. Input XID resolves only its newest candidate
+epoch, never an older committed alias when the newest assignment aborted.
+See [startup configuration](DRIVER.md#commit-timestamp-startup-configuration)
 and [replacement semantics](FIXTURES.md#commit-timestamp-history).
 
 ## Server transport
@@ -1317,12 +1357,13 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   [network transport](TYPES.md#textual-structured-and-network-transport).
   This adds no INET XOR/shifts, containment, named helper functions, network
   arrays, grouping/hash providers or OS-networking mechanism.
-- XID/CID/XID8 are externally supplied scalar identifiers, not generated system
-  attributes or integer/OID aliases. XID supports equality/inequality (including
-  INT4 only on its right); CID only equality; XID8 unsigned comparisons/order.
+- XID/CID/XID8 are distinct scalar identifiers, not integer/OID aliases or
+  generated system attributes. XID supports equality/inequality (including INT4
+  only on its right); CID only equality; XID8 unsigned comparisons/order.
   Explicit XID8→XID retains low32 bits. String I/O is admitted, not numeric/OID
-  casts. Identifier companion arrays remain lookup-only; no system-column
-  population, transaction-ID allocation or epoch synthesis is implied.
+  casts. Identifier companion arrays remain lookup-only. Scalar input itself
+  does not allocate; the selected transaction-information functions above own
+  actual assignment, full epochs and retention, without populating system columns.
 - JSONPath supports the selected `jsonb_path_query_array` consumer described
   below, not SQL/JSON query syntax or GIN. JSON has no equality provider.
   Catalog type identities do not imply executable codecs.

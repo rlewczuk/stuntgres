@@ -107,7 +107,7 @@ func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 		found = strings.EqualFold(name, "format") || name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" || name == "overlay" || stringReplacementFunction(name) || stringPaddingFunction(name) || datetimeFunctionName(name)
 		found = found || stringSplitFunction(name)
 		found = found || e.Syntax == SimilarEscapeFunctionSyntax
-		found = found || !datetimeOnly && (RangeInspectFunctionName(name) || UUIDExtractFunctionName(name) || CommitTimestampFunctionName(name))
+		found = found || !datetimeOnly && (TransactionIdentityFunctionName(name) || RangeInspectFunctionName(name) || UUIDExtractFunctionName(name) || CommitTimestampFunctionName(name))
 		found = found || !datetimeOnly && (RegexpFunctionName(name) || strings.EqualFold(name, "json_object_keys") || strings.EqualFold(name, "json_each") || strings.EqualFold(name, "json_each_text") || strings.EqualFold(name, "jsonb_each") || strings.EqualFold(name, "jsonb_each_text") || strings.EqualFold(name, "json_array_elements") || strings.EqualFold(name, "json_array_elements_text") || strings.EqualFold(name, "jsonb_array_elements") || strings.EqualFold(name, "jsonb_array_elements_text") || strings.EqualFold(name, "generate_series") || strings.EqualFold(name, "generate_subscripts") || strings.EqualFold(name, "unnest"))
 		if !found && !singletonArgument(e) {
 			return false, false

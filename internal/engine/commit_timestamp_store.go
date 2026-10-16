@@ -21,32 +21,46 @@ func (e *Engine) assignTransactionXIDLocked(ref TxRef) error {
 	if v.assignedXID != 0 {
 		return nil
 	}
-	if e.assignedXID == ^uint32(0) {
-		return errors.New("stuntgres: transaction identity exhausted")
+	full, err := nextFullTransactionID(e.assignedXID)
+	if err != nil {
+		return err
 	}
-	xid := e.assignedXID + 1
+	xid := uint32(full)
+	if prior, ok := e.assignedLowIDs[xid]; ok {
+		record := e.transactionHistory[prior]
+		live := record.ticket == nil && record.state == transactionInProgress
+		if record.ticket != nil {
+			live = !record.ticket.ownershipEnded() && record.ticket.assignedFullXID() == prior
+		}
+		if live {
+			return errors.New("stuntgres: live transaction identity collision")
+		}
+	}
 	if e.trackCommitTimestamp {
-		index := uint64(xid) - e.commitTimestampBase
-		if index >= uint64(^uint(0)>>1) {
-			return errors.New("stuntgres: commit timestamp history exhausted")
+		if e.commitTimestamps == nil {
+			e.commitTimestamps = make(map[uint64]commitTimestampEntry)
 		}
-		needed := int(index) + 1
-		if needed > cap(e.commitTimestamps) {
-			capacity := max(needed, max(16, cap(e.commitTimestamps)*2))
-			next := make([]commitTimestampEntry, needed, capacity)
-			copy(next, e.commitTimestamps)
-			e.commitTimestamps = next
-		} else if needed > len(e.commitTimestamps) {
-			e.commitTimestamps = e.commitTimestamps[:needed]
+		if full > 0xffffffff {
+			delete(e.commitTimestamps, full-(1<<32))
 		}
+		e.commitTimestamps[full] = commitTimestampEntry{}
 	}
 	if e.visibility == nil {
 		e.visibility = make(map[TxRef]transactionVisibility)
 	}
-	e.assignedXID = xid
-	v.assignedXID = xid
+	if e.transactionHistory == nil {
+		e.transactionHistory = make(map[uint64]transactionIdentityRecord)
+	}
+	e.transactionHistory[full] = transactionIdentityRecord{ticket: v.ticket}
+	if e.assignedLowIDs == nil {
+		e.assignedLowIDs = make(map[uint32]uint64)
+	}
+	e.assignedLowIDs[xid] = full
+	e.assignedXID = full
+	v.assignedXID, v.fullXID = xid, full
 	if v.ticket != nil {
-		v.ticket.mirrorAssignedXID(xid)
+		v.ticket.mirrorFullXID(full)
+		v.ticket.mirrorCompletion(transactionInProgress)
 	}
 	e.visibility[ref] = v
 	if node := e.serializable.nodes[ref]; node != nil {
@@ -62,12 +76,14 @@ func (e *Engine) recordCommitTimestampLocked(ref TxRef) {
 	if v.assignedXID == 0 {
 		return
 	}
+	e.endTransactionIdentityLocked(ref, true)
 	if e.trackCommitTimestamp {
 		entry := commitTimestampEntry{stamp: time.Now().UTC().Truncate(time.Microsecond), present: true}
-		e.commitTimestamps[uint64(v.assignedXID)-e.commitTimestampBase] = entry
+		e.commitTimestamps[v.fullXID] = entry
 		e.lastCommittedXID, e.lastCommitTimestamp = v.assignedXID, entry
 	}
 	v.assignedXID = 0
+	v.fullXID = 0
 	e.visibility[ref] = v
 }
 
@@ -75,4 +91,20 @@ func (e *Engine) retireCommitTimestampsLocked() {
 	e.commitTimestamps = nil
 	e.commitTimestampBase = uint64(e.assignedXID) + 1
 	e.lastCommittedXID, e.lastCommitTimestamp = 0, commitTimestampEntry{}
+	clear(e.transactionHistory)
+	clear(e.assignedLowIDs)
+	e.transactionHorizon, _ = nextFullTransactionID(e.assignedXID)
+}
+
+// XID input names the newest possible retained epoch only. An absent/aborted
+// newest assignment never falls back to an older completion with the same low32.
+func (e *Engine) lookupCommitTimestampLocked(xid uint32) commitTimestampEntry {
+	full := e.assignedXID&^uint64(0xffffffff) | uint64(xid)
+	if full > e.assignedXID && full >= 1<<32 {
+		full -= 1 << 32
+	}
+	if full < e.commitTimestampBase {
+		return commitTimestampEntry{}
+	}
+	return e.commitTimestamps[full]
 }

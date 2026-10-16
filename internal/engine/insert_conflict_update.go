@@ -106,6 +106,13 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, candidate *ind
 		if _, duplicate := c.affectedRows[old.row]; duplicate {
 			return conflictUpdateCardinalityError()
 		}
+		lockMode, err := multiLockMode(mode)
+		if err != nil {
+			return err
+		}
+		if err := s.physicalRowEvent(ref, old, lockMode, 0); err != nil {
+			return err
+		}
 		if c.frame == nil {
 			c.frame = make([]sqltype.Value, 2*c.width)
 		}
@@ -151,6 +158,13 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, candidate *ind
 			return err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		actionMode := multiNoKeyAction
+		if keyChanged {
+			actionMode = multiUpdateAction
+		}
+		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
+			return err
+		}
 		replacement := indexWriteCandidate{values: row}
 		if err := s.checkUniqueRow(ref, &replacement, []rowVersion{old}, indexWriteBatch{}); err != nil {
 			return err
@@ -160,6 +174,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ObjectRef, candidate *ind
 			return err
 		}
 		var batch indexWriteBatch
+		batch.actionMode = actionMode
 		batch.append(replacement)
 		if err := s.Writes().replaceDistinct(ref, []rowVersion{old}, batch); err != nil {
 			return err

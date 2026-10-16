@@ -808,6 +808,11 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
+	case transactionIdentityExpression:
+		if e.arg == nil {
+			return 0, nil
+		}
+		children = []BoundExpr{e.arg}
 	case commitTimestampExpression:
 		if e.arg == nil {
 			return 0, nil

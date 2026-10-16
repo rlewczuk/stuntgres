@@ -165,7 +165,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	e.mu.Unlock()
 	// Phase reset withdraws all ordering/snapshot advertisement, not the
 	// registered ticket's canonical assignment association.
-	wantSelf := transactionVisibility{assignedXID: builderVisibility.assignedXID, ticket: scope.ticket}
+	wantSelf := transactionVisibility{assignedXID: builderVisibility.assignedXID, fullXID: builderVisibility.fullXID, ticket: scope.ticket}
 	if !associated || builderVisibility.ticket != scope.ticket || self != wantSelf || mirroredXID != wantSelf.assignedXID {
 		t.Fatal("builder retained phase advertisement or lost canonical ticket association during older wait", self, wantSelf, mirroredXID)
 	}

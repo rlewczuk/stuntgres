@@ -106,16 +106,23 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if candidate.ref.owner != e.owner || candidate.ref.Epoch != e.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return ErrCatalogReplaced
 	}
-	return e.assignTransactionXIDLocked(s.txRef)
+	return nil
 }
 
 // Delete transfers only the original identity, never a value-based substitute.
 // A peer committed deletion is a successful skip after arbitration.
-func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
+func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error) {
 	if w == nil || w.self != w || w.scope == nil {
 		return false, errors.New("stuntgres: foreign or missing write stage")
 	}
 	s := w.scope
+	defer func() {
+		if err == nil {
+			err = s.flushPhysicalEvents()
+		} else {
+			s.multiEvents = nil
+		}
+	}()
 	if err := s.active(); err != nil {
 		return false, err
 	}
@@ -206,6 +213,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 	}
 	root.rows[candidate.row] = candidate
 	s.projectExclusionDeletionLocked(e, candidate)
+	s.multiEvents = append(s.multiEvents, multiEvent{tuple: multiTuple{lockResource{ObjectRef: candidate.ref, row: original.row}, original.version}, mode: multiUpdateAction})
 	return nil
 }
 
@@ -304,6 +312,11 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 		if !live {
 			continue
+		}
+		if current.version != candidate.version {
+			if err := s.physicalRowEvent(candidate.ref, current, multiUpdateLock, 0); err != nil {
+				return Result{}, err
+			}
 		}
 		if current.version != candidate.version && b.predicate != nil {
 			evaluation.Row = physical.values(current)

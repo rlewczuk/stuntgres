@@ -307,6 +307,8 @@ func generationImmutable(node BoundExpr) bool {
 		return n.kind != aclExplode && args(n.arguments())
 	case objectAddressExpression:
 		return false
+	case transactionIdentityExpression:
+		return false
 	case commitTimestampExpression:
 		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
@@ -580,6 +582,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.arguments())
 	case objectAddressExpression:
 		return args(n.args[:])
+	case transactionIdentityExpression:
+		return n.arg != nil && generationHasTableOID(n.arg)
 	case commitTimestampExpression:
 		return n.arg != nil && generationHasTableOID(n.arg)
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
@@ -985,6 +989,14 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			return err
 		}
 		return args(n.args[:])
+	case transactionIdentityExpression:
+		if err := n.validate(); err != nil {
+			return err
+		}
+		if n.arg != nil {
+			return validateGenerationPlan(view, d, n.arg)
+		}
+		return nil
 	case commitTimestampExpression:
 		if err := n.validate(); err != nil {
 			return err

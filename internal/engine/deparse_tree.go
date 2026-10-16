@@ -255,6 +255,11 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("ArraySearch " + n.Plan.Name() + " namespace " + n.Namespace)
 		err = args(n.Args)
+	case transactionIdentityExpression:
+		out.WriteString("TransactionIdentity " + n.kind.name())
+		if n.arg != nil {
+			err = child(n.arg)
+		}
 	case commitTimestampExpression:
 		out.WriteString("CommitTimestamp " + n.kind.name())
 		if n.arg != nil {

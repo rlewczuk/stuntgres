@@ -160,6 +160,9 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err != nil || !live {
 				return false, err
 			}
+			if err := s.physicalRowEvent(ref, latest, multiKeyShare, 0); err != nil {
+				return false, err
+			}
 			match, err = foreignKeyRowsMatch(s.op.Context(), job.comparisons, latest.values, event.old.values, s.input)
 			if err != nil || !match {
 				return false, err
@@ -258,6 +261,15 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if !live {
 			continue
 		}
+		if old.version != candidate.version {
+			lockMode, err := multiLockMode(mode)
+			if err != nil {
+				return err
+			}
+			if err := s.physicalRowEvent(ref, old, lockMode, 0); err != nil {
+				return s.foreignActionError(err, job, event, action, auth.catalog)
+			}
+		}
 		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, old.values, event.old.values, s.input)
 		if err != nil {
 			return err
@@ -307,13 +319,20 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		actionMode := multiNoKeyAction
+		if keyChanged {
+			actionMode = multiUpdateAction
+		}
+		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
+			return s.foreignActionError(err, job, event, action, auth.catalog)
+		}
 		predecessor := [1]rowVersion{old}
 		proposal := indexWriteCandidate{values: row}
 		if err = s.checkUniqueRow(ref, &proposal, predecessor[:], indexWriteBatch{}); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		replacement := [1][]sqltype.Value{row}
-		batch := indexWriteBatch{values: replacement[:]}
+		batch := indexWriteBatch{values: replacement[:], actionMode: actionMode}
 		batch.set(0, proposal)
 		if err = s.stage.replace(ref, predecessor[:], batch); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)

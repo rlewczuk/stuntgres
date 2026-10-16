@@ -208,7 +208,7 @@ func (s *StatementScope) acquireUpdateRowMode(ref ObjectRef, row RowID, mode rel
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
-	return e.assignTransactionXIDLocked(s.txRef)
+	return nil
 }
 
 type updateCandidate struct {
@@ -358,9 +358,11 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 	}
 	type physicalBatch struct {
-		ref  ObjectRef
-		old  []rowVersion
-		rows indexWriteBatch
+		ref    ObjectRef
+		old    []rowVersion
+		rows   indexWriteBatch
+		staged int
+		prior  map[RowID]struct{}
 	}
 	var single physicalBatch
 	single.ref = b.ref
@@ -409,6 +411,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			eval.bindQueryIdentity(stage.source, stage.index(candidate.sourceIndex))
 		}
 		if old.version != candidate.version {
+			if err := s.physicalRowEvent(ref, old, multiNoKeyLock, 0); err != nil {
+				return Result{}, err
+			}
 			matches, err := updateMatches(&eval, b.update.predicate)
 			if err != nil {
 				return Result{}, err
@@ -457,6 +462,13 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			}
 		}
 		batch.old = append(batch.old, old)
+		actionMode := multiNoKeyAction
+		if keyChanged {
+			actionMode = multiUpdateAction
+		}
+		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
+			return Result{}, err
+		}
 		proposal := indexWriteCandidate{values: physicalRow}
 		if err := s.checkUniqueRow(ref, &proposal, batch.old, batch.rows); err != nil {
 			return Result{}, err
@@ -469,6 +481,32 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				row[i] = physicalRow[slot]
 			}
 		}
+		batch.rows.append(proposal)
+		one := batch.rows.slice(len(batch.old)-1, len(batch.old))
+		one.actionMode = actionMode
+		// Other action producers can have staged this physical target already.
+		// Index only their prefix/additions; our accepted targets are distinct
+		// and appending never mutates a prefix retained by an earlier view.
+		existing := s.stage.rows[ref.Address]
+		if len(existing) < batch.staged {
+			batch.staged = 0
+		}
+		for _, predecessor := range existing[batch.staged:] {
+			if batch.prior == nil {
+				batch.prior = make(map[RowID]struct{})
+			}
+			batch.prior[predecessor.row] = struct{}{}
+		}
+		_, overlap := batch.prior[old.row]
+		if overlap {
+			err = s.Writes().replace(ref, batch.old[len(batch.old)-1:], one)
+		} else {
+			err = s.Writes().appendUpdateReplacement(ref, batch.old[len(batch.old)-1:], one)
+		}
+		if err != nil {
+			return Result{}, err
+		}
+		batch.staged = len(s.stage.rows[ref.Address])
 		if output != nil {
 			eval.Row, eval.OldRow = row, oldValues
 			if b.update.from != nil {
@@ -487,7 +525,6 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			}
 			output.count++
 		}
-		batch.rows.append(proposal)
 		count++
 		if b.update.from != nil {
 			updated[identity] = true
@@ -500,19 +537,6 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
-	}
-	if batches == nil {
-		if err := s.Writes().replace(single.ref, single.old, single.rows); err != nil {
-			return Result{}, err
-		}
-	} else {
-		for _, batch := range batches {
-			if len(batch.old) != 0 {
-				if err := s.Writes().replace(batch.ref, batch.old, batch.rows); err != nil {
-					return Result{}, err
-				}
-			}
-		}
 	}
 	keep = true
 	if output != nil {

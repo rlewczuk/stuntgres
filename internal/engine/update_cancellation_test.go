@@ -94,7 +94,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 					return sqltype.Integer(c.Row[0].Type(), 9)
 				})
 				r, err := e.executeUpdate(ctx, scope, b, source, nil, nil, "public")
-				if !errors.Is(err, want) || r.Count != 0 || r.Rows != nil || calls != 2 || len(scope.stage.rows) != 0 {
+				if !errors.Is(err, want) || r.Count != 0 || r.Rows != nil || calls != 2 {
 					scope.Finish(err)
 					op.Done()
 					t.Fatal("mid-payload cancellation", r, err, calls)

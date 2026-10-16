@@ -83,7 +83,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					e.state = &next
 					original = e.state
 				case "xid":
-					e.assignedXID = ^uint32(0)
+					e.assignedXID = ^uint64(0)
 				}
 				err = e.publishRowsPrepared(op, ref, nil, nil, changes, nil, nil, nil)
 				if failure != "success" {

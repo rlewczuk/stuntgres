@@ -1101,8 +1101,9 @@ physical ABI. High-byte output is printable escaped text. Nonnull VOID result
 output is an empty string with VOID metadata, not a TEXT alias; VOID storage/input
 and arbitrary binary receive remain excluded.
 
-XID and CID are distinct unsigned32 scalars; XID8 carries unsigned64 bits, including
-epoch information supplied by the caller. They are not OID or integer aliases.
+XID and CID are distinct unsigned32 scalars; XID8 carries unsigned64 bits,
+including real full transaction epochs and externally supplied identities.
+They are not OID or integer aliases.
 Direct/prepared binds accept canonical text or bytes, contextual signed Go integer
 input, and NULL. Native results export fresh canonical decimal `[]byte` with
 XID/CID/XID8 metadata and `[]byte` ScanType; SQL NULL is untyped nil. Use text or
@@ -1125,6 +1126,10 @@ not allocate transaction IDs, compute snapshots or populate system columns.
 Existing public `pg_get_expr`/`pg_get_constraintdef` render canonical identifier
 constants with explicit scalar annotations, including typed NULL and retained
 XID8→XID conversion trees. Their native post-Restore text remains type-owned.
+Selected transaction-information providers consume these same descriptors and
+own canonical generated full identities: see [transaction identity](TRANSACTIONS.md#transaction-identity-and-retention).
+XID age remains an INT4 counter overload, not a temporal INTERVAL operation.
+MultiXact members have fixed XID/TEXT OUT metadata even for strict NULL/empty sets.
 
 `pg_cast` reflects complete-context edges declared by the existing coercion
 owner, not a second execution graph. Function OIDs are metadata references and

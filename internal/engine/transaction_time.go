@@ -114,6 +114,8 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 			}
 		}
 		return true
+	case transactionIdentityExpression:
+		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case commitTimestampExpression:
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:

@@ -10,7 +10,6 @@ import (
 )
 
 // The candidates are only this PG18 function family's homogeneous signatures.
-// XID is diagnostic-only for age: scalar admission does not add an age overload.
 func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [2]functions.Argument[BoundExpr]
@@ -33,9 +32,12 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 	signature := func() (BoundExpr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
-			names[i] = datetimeFormattingTypeName(o.Usage.Type)
+			names[i] = functionNamedType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
 		}
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	}
+	if len(raw.ArgNames) != 0 {
+		return signature()
 	}
 	prepared := functions.PrepareDatetimeAgeFinite(name, visible, raw.Variadic, operands)
 	selection := functions.ResolveDatetimeAgeFinite(prepared, name, operands, b.temporalTypesForDemand(prepared.Demand))
@@ -58,6 +60,22 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
+	if selected == sqltype.Xid {
+		if raw.ResolutionOnly {
+			return signature()
+		}
+		if err := b.validateRangeInspectSyntax(raw); err != nil {
+			return nil, err
+		}
+		if err := rangeInspectDecorationError(raw); err != nil {
+			return nil, err
+		}
+		arg, err := b.CoerceArgument(operands[0], functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.typ(sqltype.Xid).Usage()})
+		if err != nil {
+			return nil, err
+		}
+		return b.identityExpression(raw, identityAge, arg)
+	}
 	e := functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties]{Count: len(operands)}
 	properties := ExprProperties{Volatility: Immutable}
 	if functions.DatetimeAgeFiniteIntrinsicStable(name, e.Count) {

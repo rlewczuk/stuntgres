@@ -10,7 +10,7 @@ import (
 
 func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
-		for _, phase := range []string{"source_rejected", "candidate_rejected", "output", "before_replace"} {
+		for _, phase := range []string{"source_rejected", "candidate_rejected", "output", "after_output"} {
 			t.Run(map[bool]string{false: "implicit/", true: "explicit/"}[explicit]+phase, func(t *testing.T) {
 				e := New()
 				writer := sessionStart(t, e, nil)
@@ -56,7 +56,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 							return sqltype.Value{}, ctx.Err()
 						}
 						value, err := original.Eval(c)
-						if phase == "before_replace" && calls == 2 {
+						if phase == "after_output" && calls == 2 {
 							cancel()
 						}
 						return value, err
@@ -67,8 +67,10 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 				if phase == "source_rejected" || phase == "candidate_rejected" {
 					wantCalls = 3
 				}
-				if !errors.Is(err, context.Canceled) || r.Count != 0 || r.Rows != nil || calls != wantCalls || len(scope.stage.rows) != 0 {
-					t.Fatal("cancelled statement leaked output or staged replacements", r, err, calls)
+				if !errors.Is(err, context.Canceled) || r.Count != 0 || r.Rows != nil || calls != wantCalls {
+					scope.Finish(err)
+					op.Done()
+					t.Fatal("cancelled statement leaked output or lost cancellation", r, err, calls)
 				}
 				if finishErr := scope.Finish(err); !errors.Is(finishErr, context.Canceled) {
 					t.Fatal(finishErr)

@@ -199,6 +199,19 @@ func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInv
 }
 func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
 	switch call := expression.(type) {
+	case transactionIdentityExpression:
+		if call.kind == identityMembers {
+			rows, err := call.openMembers(c)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			return functionSetCursor{owned: rows, kind: functionOwnedSetCursor, initialized: true}, nil
+		}
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
 	case aclValueExpression:
 		if call.kind == aclExplode {
 			cursor, err := call.openACL(c)
