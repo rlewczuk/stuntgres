@@ -867,11 +867,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
 		}
-		if !v.presentation.deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB) {
+		if !v.presentation.deparse && !usage.Type.IsDomain() && (usage.Type.IsArray() || usage.Type.IsEnum() || usage.Type.IsComposite() || usage.Type.ID() == sqltype.JSON || usage.Type.ID() == sqltype.JSONB || usage.Type.ID() == sqltype.JSONPath) {
 			switch e.Child.(type) {
 			case parser.LiteralExpr, parser.TypedLiteralExpr:
 				if literal, captured := v.literals[literalPath]; captured && literal.ResultUsage() == usage {
-					// Captured array, enum, composite and JSON datums own their typed cast.
+					// Captured array, enum, composite, JSON and JSONPath datums own their typed cast.
 					// Elide only this exact leaf annotation, not outer casts,
 					// domain checks, typmod changes or actual conversions.
 					return text, nil
@@ -1449,7 +1449,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if parser.ACLValueFunctionName(name) || parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
+		if parser.ACLValueFunctionName(name) || parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || name == "jsonb_path_query_array" || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
 			functionName, identifier := "pg_catalog."+name, quoteIdentifier
 			if v.presentation.deparse {
 				functionName, identifier = v.presentation.identifier(name), v.presentation.identifier
@@ -1463,7 +1463,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				if len(e.ArgNames) > i && e.ArgNames[i].Text != "" {
 					text = identifier(e.ArgNames[i].Text) + " => " + text
 				}
-				if (parser.JSONBSetFunctionName(name) || name == "json_strip_nulls" || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text") && e.Variadic && i == len(e.Args)-1 {
+				if (parser.JSONBSetFunctionName(name) || name == "jsonb_path_query_array" || name == "json_strip_nulls" || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text") && e.Variadic && i == len(e.Args)-1 {
 					text = "VARIADIC " + text
 				}
 				parts[i] = text

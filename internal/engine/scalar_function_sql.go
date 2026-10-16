@@ -210,6 +210,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		return jsonStripNullsSQL(n, "pg_catalog.json_strip_nulls", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return jsonExtractSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbPathQueryArraySQL(n, "pg_catalog.jsonb_path_query_array", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return jsonbSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

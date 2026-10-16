@@ -387,7 +387,9 @@ func jsonbOutput(ctx context.Context, root *jsonbNode) (string, error) {
 				return "", err
 			}
 		case jsonbNumber:
-			b.WriteString(numericOutput(n.number.value()))
+			if err := appendNumericOutput(ctx, &b, n.number.value()); err != nil {
+				return "", err
+			}
 		case jsonbBoolean:
 			if n.boolean {
 				b.WriteString("true")

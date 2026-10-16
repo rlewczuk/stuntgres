@@ -1263,8 +1263,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Explicit XID8→XID retains low32 bits. String I/O is admitted, not numeric/OID
   casts. Identifier companion arrays remain lookup-only; no system-column
   population, transaction-ID allocation or epoch synthesis is implied.
-- JSONPath storage does not implement SQL/JSON query execution or GIN. JSON has
-  no equality provider. Catalog type identities do not imply executable codecs.
+- JSONPath supports the selected `jsonb_path_query_array` consumer described
+  below, not SQL/JSON query syntax or GIN. JSON has no equality provider.
+  Catalog type identities do not imply executable codecs.
 - Scalar `IN`/`NOT IN` lists and scalar operators with array-expression
   `ANY`/`SOME`/`ALL` reuse existing scalar comparison providers; array forms
   additionally require a concrete associated array and executable array codec.
@@ -1480,6 +1481,27 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `jsonb_objectagg` is not an alias. SQL/JSON local ORDER BY, DISTINCT/ALL and
   multiple pairs remain excluded; object aggregate window execution remains
   unsupported natively for both ordinary and SQL/JSON forms.
+  `jsonb_path_query_array(target jsonb,path jsonpath,vars jsonb DEFAULT '{}',
+  silent boolean DEFAULT false)` is an immutable, strict, parallel-safe scalar
+  JSONB provider. It supports ordered navigation, wildcards/recursive descent,
+  variables, strict/lax wrapping and structural checks, three-valued filters,
+  comparisons, exists, starts-with and PostgreSQL regex flags `ismxq`.
+  As in PostgreSQL, `x` is unsupported unless quote flag `q` overrides it;
+  `q` retains `i` but ignores `s`, `m` and `x`.
+  Negative subscripts are not counted backward; `last` names the final element.
+  No match returns `[]`, JSON null/unknown returns `[null]`, and SQL NULL in any
+  formal returns SQL NULL after ordinary child processing. Nonobject vars and
+  demanded missing variables are unsuppressible errors. Silent strict structural
+  errors stop traversal and preserve the preceding prefix, unlike lax misses;
+  predicate structural failures become unknown. Defaults are real children,
+  named/mixed calls retain written order, and GROUP identity distinguishes
+  written labels/order and omitted versus explicit defaults. Stored defaults,
+  generated/CHECK/view/index expressions and native replay use ordinary routine
+  ACL/dependency and descriptor authority. Existing strict-NULL pruning and
+  runtime-parameter optimizer boundaries remain unchanged. Demanded arithmetic
+  and all scalar methods raise native `0A000` through silent/predicate layers;
+  unreachable branches are not eagerly rejected. Other JSONPath query functions,
+  operators, `_tz`, SQL/JSON query forms and GIN remain unsupported.
   `jsonb_set` and `jsonb_set_lax` return typed immutable JSONB through ordinary
   direct/prepared and stored scalar consumers. TEXT[] paths require existing
   intermediate parents; only a missing final item is created by the default

@@ -287,6 +287,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties],
 		functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties],
 		functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties],
+		functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties],
 		functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeBin[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeTrunc[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeAgeFinite[BoundExpr, *EvalContext, ExprProperties], functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties],
 		functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties], functions.NumericFormatting[BoundExpr, *EvalContext, ExprProperties], functions.String[BoundExpr, *EvalContext, ExprProperties],

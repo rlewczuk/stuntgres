@@ -134,7 +134,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties], functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties], functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties], functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

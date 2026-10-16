@@ -890,6 +890,7 @@ var builtinRoutineDeclarations = [...]builtinRoutineDeclaration{
 	{routineIdentity{3849, PGCatalogNamespaceOID, "upper", "3831"}, functionRoutine, 2283, true, Immutable, 's', false, 0, 0, rangeRoutineProvider},
 	{routineIdentity{3850, PGCatalogNamespaceOID, "isempty", "3831"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, rangeRoutineProvider},
 	{routineIdentity{3851, PGCatalogNamespaceOID, "lower_inc", "3831"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, rangeRoutineProvider},
+	{routineIdentity{4007, PGCatalogNamespaceOID, "jsonb_path_query_array", "3802,4072,3802,16"}, functionRoutine, 3802, true, Immutable, 's', false, 0, 2, jsonRoutineProvider},
 	{routineIdentity{3852, PGCatalogNamespaceOID, "upper_inc", "3831"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, rangeRoutineProvider},
 	{routineIdentity{3853, PGCatalogNamespaceOID, "lower_inf", "3831"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, rangeRoutineProvider},
 	{routineIdentity{3854, PGCatalogNamespaceOID, "upper_inf", "3831"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, rangeRoutineProvider},

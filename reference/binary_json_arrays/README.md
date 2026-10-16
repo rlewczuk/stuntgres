@@ -1941,6 +1941,104 @@ rows. No discovery filter, success logging or observation fallback is retained.
 Change note: JSONPath oracle-discovery envelopes are replaced with quiet shared
 reference assertions; quick-mode failure precedes production implementation.
 
+### JSONPath navigation and array queries
+
+The `TestReferenceJSONPathNavigate` family specifies the permanent scalar
+`jsonb_path_query_array(target jsonb,path jsonpath,vars jsonb DEFAULT '{}',
+silent boolean DEFAULT false)`. It returns JSONB, not a set or SQL array.
+Ordered matches retain duplicates and whole selected containers. Empty sequence,
+JSON null/unknown and SQL NULL are independently asserted as `[]`, `[null]` and
+a NULL cell. The function is strict/immutable/parallel-safe, with the real
+OID4007 full four-input declaration and two defaults.
+
+Navigation/Recursive/ScopeVariables cover accessors, wildcard and recursive
+order, root/current/last restoration and variables. StrictLax/Conditions/Regex
+cover one-level wrapping/unwrapping, numeric subscripts, all three-valued truth
+tables, Cartesian comparisons, exists and PostgreSQL regex behavior. Regex
+flags use `ismxq`; `x` alone retains its input-time unsupported diagnostic,
+whereas `q` ignores `x`, `s` and `m`. Suppression pins strict silent prefix
+`[1]` for `[{"x":1},{},{"x":3}]`, not an empty result or lax `[1,3]`.
+Predicate structural failures become unknown; missing variables, nonobject vars,
+ordinary SQL errors and cancellation are not silenced. CapabilityBoundary
+asserts genuine PostgreSQL arithmetic/method results and native demanded
+`0A000`, including predicate/exists/silent contexts and unreachable branches.
+
+Subscripts pins complete operand demand before cardinality/type validation:
+late missing variables and structural errors retain their diagnostic precedence
+after two earlier values. Strict recursive structural-ignore clips partially
+valid ranges rather than discarding them; ordinary strict bounds still fail.
+
+Arguments/Diagnostics/Metadata/Held assert default and named/mixed calls,
+formal inference/domains, every strict-NULL slot, complete diagnostics and input
+positions, JSONB metadata before Next, retained rows and same-held recovery.
+QuotedDiagnostics independently pins decoded quotes, backslashes and newlines
+inside missing-variable/member messages without Go string escaping. Missing
+variables remain unsuppressible; strict missing-member failures obey silent.
+Consumers pins the oracle's nine GROUP forms: identical omitted/full/named calls
+and `:=` versus `=>` match; named versus positional, reordered names and omitted
+versus explicit defaults do not. Constant unused CASE arms can fail planning;
+row-dependent arms retain ordinary demand. Stored/RoutineAuthority assert real
+default/generated/CHECK/view/index consumers, virtual failure-detail markers,
+volatility, full-signature dependency and EXECUTE revoke/grant. A known-NULL
+strict call avoids demand, but WHERE false does not bypass routine admission.
+Atomicity/Cancellation/Controls cover failed/canceled writes, active evaluator
+work and recovery, native Dump/Reset/Restore/fresh-driver replay, old cursors,
+deterministic redump, all-formal Restore parameter rejection and actual emitted
+SQL replay on PostgreSQL.
+
+Variadic pins redundant final `VARIADIC` acceptance for positional calls and
+named/mixed calls whose final written formal matches its supplied ordinal.
+Reordered final names or a final named silent argument skipping vars fail42883;
+positional-after-named retains42601. This routine is nonvariadic: the redundant
+decoration is retained only for stored presentation, not GROUP identity.
+Both decorated SELECT/plain GROUP and plain SELECT/decorated GROUP match.
+RecursiveBoundary pins recursive `{last}` excluding a scalar traversal root
+while retaining descendant leaves of containers and undemanded continuations.
+RecursiveRanges independently covers every pairing of lower/upper levels
+`0`, `1`, `2` and `last` in strict/lax traversal. Only two `last` bounds select
+descendant leaves; a `last` lower bound with a finite upper bound selects
+nothing and does not demand a continuation. Numeric ranges retain preorder.
+
+Run each small batch in both modes; each command has an external900-second
+deadline. Add `REFERENCE=1` to each native command for the pinned18.0 counterpart:
+
+```sh
+make check RUN='^TestReferenceJSONPathNavigate(Navigation|Recursive|ScopeVariables)$'
+make check RUN='^TestReferenceJSONPathNavigate(StrictLax|Conditions|Regex)$'
+make check RUN='^TestReferenceJSONPathNavigate(Arguments|Suppression|CapabilityBoundary)$'
+make check RUN='^TestReferenceJSONPathNavigate(Diagnostics|QuotedDiagnostics|Metadata|Held)$'
+make check RUN='^TestReferenceJSONPathNavigate(Consumers|Stored|RoutineAuthority)$'
+make check RUN='^TestReferenceJSONPathNavigate(Atomicity|Cancellation|Controls)$'
+make check RUN='^TestReferenceJSONPathNavigateSubscripts$'
+make check RUN='^TestReferenceJSONPathNavigate(RecursiveBoundary|RecursiveRanges|Variadic)$'
+make check RUN='^TestReferenceJSONPathNavigate(RecursiveBoundary|RecursiveRanges|Variadic)$' REFERENCE=1
+make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$'
+make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$' REFERENCE=1
+make check RUN='^TestJSONBPathQueryArray(Plan|Reconstruct)$'
+make check RUN='^TestJSONBPathQueryArrayDeclaration$'
+make check RUN='^TestJSONPathNavigate(Traversal|Conditions|Suppression)$'
+make check RUN='^TestJSONPathNavigate(StateIsolation|Cancellation)$'
+make check RUN='^TestJSONPathNavigateStateIsolation$' RACE=1
+```
+
+FeatureSmoke expects `[2, 3]` from variable filtering, strict silent prefix
+`[1]`, unknown `[null]`, literal case-insensitive regex `["A.B"]`, and an
+unsuppressed missing-variable42704. It also exercises held error/recovery and
+a named stored view through native controls and real PostgreSQL SQL replay.
+The private reconstruction unit is non-SQL and checks fresh descriptor ownership,
+unchanged original children and retained presentation/properties/routine recipe.
+The native declaration unit supplements PostgreSQL's full pg_proc inquiry with
+the actual bound OID4007 scalar/strict/immutable/default2 declaration, full
+four-input signature, real default children and original lifetime admission.
+Native pg_proc retains its existing limited column surface; the reference
+scenario independently asserts that boundary rather than adding catalog fields.
+Replay retains captured JSONPath leaf typing without accumulating duplicate
+casts on redump; outer explicit casts, domains and typmod conversions remain
+part of the stored recipe.
+Whole-project Docker-free verification remains `make quickcheck`.
+Other query functions/operators, `_tz`, arithmetic/scalar methods, SQL/JSON
+query syntax and GIN are not enabled by this consumer.
+
 ### Binary conversion
 
 Binary conversion uses independent pinned18.0 goldens for all128 directed pairs,

@@ -996,6 +996,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
+	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbPathQueryArraySQL(n, "jsonb_path_query_array", func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return jsonbSetSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r

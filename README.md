@@ -1234,7 +1234,8 @@ stored default/generated/CHECK/view/index consumers and native replay retain
 JSONB types and symbolic calls; failed writes/Restore and canceled work do not
 publish partial state. Public path deletion is separately available through
 `jsonb #- text[]`, and top-level deletion through `jsonb - text/integer`.
-Text-array deletion, subscripting and JSONPath execution remain excluded.
+Text-array deletion and subscripting remain excluded; JSONPath array queries
+are described in the navigation change note below.
 Feature smoke: `make check RUN='^TestReferenceJSONBSetFeatureSmoke$'` and
 `make check RUN='^TestReferenceJSONBSetFeatureSmoke$' REFERENCE=1`.
 
@@ -2822,15 +2823,34 @@ pinned counterpart: `make check RUN='^TestReferenceIntegerRangeFeatureSmoke$' RE
 Change note: JSONPath (OID4072, array4073) now has typed literal/bind IO,
 full PostgreSQL18 path grammar and input-time ARE/ERE/BRE regex validation.
 An immutable parsed representation retains mode, expressions and accessors;
-output is canonical, not evaluated. INSERT/UPDATE destinations and explicit
-CAST infer bound path types before import. SQL NULL differs from path `null`.
-Native metadata is JSONPATH/string; lib/pq reports an empty type name and
-interface{} ScanType, with raw bytes. Defaults, views, arrays/domains and native
-Dump/Restore reuse existing providers. JSON query functions/operators, path
-evaluation, regex matching and GIN remain excluded.
+output is canonical. INSERT/UPDATE destinations and explicit CAST infer bound
+path types before import. SQL NULL differs from path `null`. Native metadata
+is JSONPATH/string; lib/pq reports an empty type name and interface{} ScanType,
+with raw bytes. Defaults, views, arrays/domains and native Dump/Restore reuse
+existing providers. The array-query consumer below executes parsed paths;
+JSONPath operators, other query functions and GIN remain excluded.
 See [JSONPath typed IO](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONPathFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'`.
+
+Change note: `jsonb_path_query_array(target jsonb, path jsonpath,
+vars jsonb DEFAULT '{}', silent boolean DEFAULT false)` returns one immutable,
+strict JSONB array. Navigation preserves ordered matches and duplicates, with
+root/current/last scope, variables, strict/lax accessors, recursive descent,
+three-valued conditions, filters, exists and PostgreSQL regex matching.
+No match is `[]`; selected JSON null or unknown is `[null]`; a SQL NULL operand
+gives SQL NULL. Silent strict structural failure stops traversal and retains
+the preceding result prefix; missing variables, invalid vars shape and ordinary
+SQL errors are not suppressed. Named/default calls retain their written form
+through stored expressions and native replay, and use the real routine's ACL
+and dependency authority. GROUP matching distinguishes named/positional and
+omitted/explicit-default forms. Demanded arithmetic and scalar methods raise
+native `0A000`, even with silent enabled; unreachable branches remain undemanded.
+Other JSONPath query functions/operators, `_tz`, SQL/JSON query syntax and GIN
+remain excluded. See [navigation contracts](reference/binary_json_arrays/README.md#jsonpath-navigation-and-array-queries).
+Feature smoke: `make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$' REFERENCE=1`.
+
 
 
 

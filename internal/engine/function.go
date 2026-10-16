@@ -77,6 +77,13 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return b.bindSubscripts(raw, visible)
 	}
+	if strings.EqualFold(name, "jsonb_path_query_array") {
+		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		return b.bindJSONBPathQueryArray(raw, visible)
+	}
 	if parser.JSONBSetFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {

@@ -283,6 +283,8 @@ func generationImmutable(node BoundExpr) bool {
 		return false
 	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
+	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:
@@ -553,6 +555,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
@@ -941,6 +945,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case functions.JSONStripNulls[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Arguments())
+	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Arguments())
