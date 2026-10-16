@@ -375,15 +375,15 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		fmt.Fprintf(out, "Format variadic %t", n.Variadic)
 		err = args(n.Args)
 	case visibilityInquiryExpression:
-		if n.kind.class() == 0 || u != u.Type.Usage() || u.Type.ID() != sqltype.Bool || n.arg == nil {
+		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {
 			return fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
 		}
 		argument := n.arg.ResultUsage()
-		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != sqltype.Oid {
+		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != n.kind.formal() {
 			return fmt.Errorf("stuntgres: invalid stored visibility inquiry argument")
 		}
 		properties := n.arg.Properties()
-		properties.Volatility = max(Stable, properties.Volatility)
+		properties.Volatility = max(n.kind.volatility(), properties.Volatility)
 		if n.Properties() != properties {
 			return fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
 		}

@@ -6,6 +6,54 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Collation management functions
+
+The five `TestReferenceCollationFunctions` scenarios cover strict TEXT/TEXT/INT4
+results, actual versus unchanged recorded versions, direct/plain/prepared and
+same-held execution, full diagnostics, fresh effective-superuser authority,
+undemanded import, stored/grouped views, CHECK rendering, VOLATILE legality,
+native atomic failure/cancellation and Dump/Reset/Restore with emitted SQL replay.
+`TestReferenceCollationVersion` remains the owner of stale/empty recorded-version
+and refresh-notice coverage.
+
+Native import truthfully reports0A000 after strict NULL, effective-superuser and
+numeric namespace checks; it never synthesizes provider rows or returns fake0.
+Pinned PostgreSQL18.0 genuinely imports810 rows (four libc,806 ICU), repeats0,
+then recreates exactly one dropped imported row with a new identity and repeats0.
+Representative pinned ICU versions are153.120.42 (`af`) and153.120 (`agq-CM`);
+these are fixture evidence, not portable host/provider promises. Complete
+catalog tuples and the unrelated sentinel must survive skipped/native imports.
+
+Run each selected proof with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceCollationFunctions(Versions|Diagnostics|Privileges|Import|Lifecycle)$'
+make check REFERENCE=1 RUN='^TestReferenceCollationFunctions(Versions|Diagnostics|Privileges|Import|Lifecycle)$'
+make check RUN='^TestReferenceCollationVersion$'
+make check REFERENCE=1 RUN='^TestReferenceCollationVersion$'
+make check RUN='^TestVisibilityInquiry'
+make check RACE=1 RUN='^TestReferenceCollationFunctions(Privileges|Lifecycle)$'
+```
+
+The oracle-first discovery filter and observations are temporary and must not
+survive into these completed definitions. There is no permanent wrapper test
+that re-runs other test bodies. Standalone native feature smoke source is supplied
+in the OMP session artifact `local://collation-functions-smoke.go`; materialize
+only temporarily as `/tmp/collation-functions-smoke/main.go` and run from the
+worktree:
+
+```sh
+timeout 900s go run /tmp/collation-functions-smoke/main.go
+```
+
+The public program Pings, independently checks actual C/default/database/recorded
+NULL and builtin1 with TEXT metadata, and uses one held INT4 import statement
+across admin/ordinary role changes. Expected output records strict NULL,
+native0A000, ordinary42501, unchanged complete collation inventory and admin
+held recovery. Any mismatched result/diagnostic/effect exits nonzero. Remove the
+temporary program directory after root captures actual output; no second
+PostgreSQL harness or committed smoke script is needed.
+
 ### Shared cancellation admission — infrastructure change note
 
 The native LIKE/POSIX/SIMILAR/regexp cancellation helper follows the existing

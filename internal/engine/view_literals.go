@@ -695,7 +695,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(blockingInquiryExpression); ok {
 			return children(r.Args, n.arguments())
 		}
-		if n, ok := bound.(literalExpression); ok && n.value.IsNull() && n.value.Type().ID() == sqltype.Bool {
+		if n, ok := bound.(literalExpression); ok && n.value.IsNull() {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 				node, err := b.bindIndexPropertyStructure(r, false)
@@ -703,7 +703,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 					return err
 				}
 				return children(r.Args, node.(indexPropertyExpression).children())
-			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version":
+			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations":
 				structure, err := b.bindVisibilityInquiryStructure(r)
 				if err != nil {
 					return err

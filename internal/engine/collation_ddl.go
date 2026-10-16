@@ -42,7 +42,7 @@ var builtinCollationVersion = "1"
 
 func collationActualVersion(d *collationDescriptor) (*string, error) {
 	if d.provider == "d" {
-		return nil, nil
+		return databaseCollationActualVersion()
 	}
 	if _, err := collationSemantics(d); err != nil {
 		return nil, err

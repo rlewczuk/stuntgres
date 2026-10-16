@@ -15,6 +15,8 @@ const (
 	collationVisibility
 	conversionVisibility
 	collationVersionInquiry
+	databaseCollationVersionInquiry
+	importSystemCollationsInquiry
 )
 
 func (k visibilityInquiryKind) name() string {
@@ -29,6 +31,10 @@ func (k visibilityInquiryKind) name() string {
 		return "pg_conversion_is_visible"
 	case collationVersionInquiry:
 		return "pg_collation_actual_version"
+	case databaseCollationVersionInquiry:
+		return "pg_database_collation_actual_version"
+	case importSystemCollationsInquiry:
+		return "pg_import_system_collations"
 	}
 	return ""
 }
@@ -42,8 +48,36 @@ func (k visibilityInquiryKind) class() OID {
 		return CollationClassID
 	case conversionVisibility:
 		return ConversionClassID
+	case databaseCollationVersionInquiry:
+		return DatabaseClassID
+	case importSystemCollationsInquiry:
+		return NamespaceClassID
 	}
 	return 0
+}
+
+func (k visibilityInquiryKind) formal() sqltype.ID {
+	if k == importSystemCollationsInquiry {
+		return sqltype.Regnamespace
+	}
+	return sqltype.Oid
+}
+
+func (k visibilityInquiryKind) result() sqltype.ID {
+	switch k {
+	case collationVersionInquiry, databaseCollationVersionInquiry:
+		return sqltype.Text
+	case importSystemCollationsInquiry:
+		return sqltype.Int4
+	}
+	return sqltype.Bool
+}
+
+func (k visibilityInquiryKind) volatility() Volatility {
+	if k == collationVersionInquiry || k == databaseCollationVersionInquiry || k == importSystemCollationsInquiry {
+		return Volatile
+	}
+	return Stable
 }
 
 type visibilityInquiryExpression struct {
@@ -114,10 +148,14 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 		kind = conversionVisibility
 	case "pg_collation_actual_version":
 		kind = collationVersionInquiry
+	case "pg_database_collation_actual_version":
+		kind = databaseCollationVersionInquiry
+	case "pg_import_system_collations":
+		kind = importSystemCollationsInquiry
 	default:
 		return visibilityInquiryExpression{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
 	}
-	target := b.typ(sqltype.Oid).Usage()
+	target := b.typ(kind.formal()).Usage()
 	arg, err := b.finalizeOperand(operand, target.Type)
 	if err != nil {
 		return visibilityInquiryExpression{}, err
@@ -133,12 +171,9 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 	}
 	properties := arg.Properties()
-	properties.Volatility = max(Stable, properties.Volatility)
-	result := b.typ(sqltype.Bool).Usage()
-	if kind == collationVersionInquiry {
-		result = b.typ(sqltype.Text).Usage()
-	}
-	info, err := b.builtinRoutineInfo(b.info(result, raw.Pos, properties), catalogRoutineProvider, kind.name(), sqltype.Oid)
+	properties.Volatility = max(kind.volatility(), properties.Volatility)
+	result := b.typ(kind.result()).Usage()
+	info, err := b.builtinRoutineInfo(b.info(result, raw.Pos, properties), catalogRoutineProvider, kind.name(), kind.formal())
 	if err != nil {
 		return visibilityInquiryExpression{}, err
 	}
@@ -162,7 +197,7 @@ func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.kind.class() == 0 || e.arg == nil || e.usage.Type == nil || e.usage.Type.ID() != sqltype.Bool && e.kind != collationVersionInquiry {
+	if e.kind.class() == 0 || e.arg == nil || e.usage.Type == nil || e.usage.Type.ID() != e.kind.result() {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
 	}
 	value, err := e.arg.Eval(c)
@@ -172,23 +207,60 @@ func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error)
 	if value.IsNull() {
 		return sqltype.Null(e.usage.Type), nil
 	}
-	if c.liveScope() == nil || c.liveScope().visibilityCatalog.state == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
+	scope := c.liveScope()
+	if scope == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing statement authority")
 	}
-	oid, err := value.OID()
+	var oid uint32
+	if e.kind == importSystemCollationsInquiry {
+		oid, err = value.ObjectOID()
+	} else {
+		oid, err = value.OID()
+	}
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	scope := c.liveScope()
+	if e.kind == importSystemCollationsInquiry {
+		engine := scope.op.session.Engine()
+		engine.mu.Lock()
+		defer engine.mu.Unlock()
+		auth, err := scope.namespaceAuthorizationLocked(engine)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if !actor.Superuser {
+			return sqltype.Value{}, sqlError("42501", "must be superuser to import system collations")
+		}
+		if _, exists := auth.catalog.Descriptor(ObjectAddress{ClassID: NamespaceClassID, ObjectID: OID(oid)}); !exists {
+			return sqltype.Value{}, sqlError("3F000", fmt.Sprintf("schema with OID %d does not exist", oid))
+		}
+		return sqltype.Value{}, sqlError("0A000", "system collation import is unsupported in embedded mode")
+	}
+	if scope.visibilityCatalog.state == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
+	}
 	d, exists := scope.visibilityCatalog.Descriptor(ObjectAddress{ClassID: e.kind.class(), ObjectID: OID(oid)})
 	if !exists {
-		if e.kind == collationVersionInquiry {
-			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("collation with OID %d does not exist", oid))
+		if e.kind == collationVersionInquiry || e.kind == databaseCollationVersionInquiry {
+			kind := "collation"
+			if e.kind == databaseCollationVersionInquiry {
+				kind = "database"
+			}
+			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("%s with OID %d does not exist", kind, oid))
 		}
 		return sqltype.Null(e.usage.Type), nil
 	}
-	if e.kind == collationVersionInquiry {
-		version, err := collationActualVersion(d.(*collationDescriptor))
+	if e.kind == collationVersionInquiry || e.kind == databaseCollationVersionInquiry {
+		var version *string
+		if e.kind == databaseCollationVersionInquiry {
+			version, err = databaseCollationActualVersion()
+		} else {
+			version, err = collationActualVersion(d.(*collationDescriptor))
+		}
 		if err != nil {
 			return sqltype.Value{}, err
 		}

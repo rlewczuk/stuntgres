@@ -1806,6 +1806,31 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Recorded version metadata need not equal the current provider version, and
   an empty configured version is not NULL. Catalog readability does not supply
   ICU/arbitrary-libc execution or import the host's collation inventory.
+- Collation management exposes strict, VOLATILE
+  `pg_collation_actual_version(oid)` and
+  `pg_database_collation_actual_version(oid)` returning TEXT, and strict,
+  VOLATILE `pg_import_system_collations(regnamespace)` returning INT4.
+  Version inspection is read-only: recorded `collversion`/`datcollversion`
+  strings are not actual provider versions and are not refreshed by these calls.
+  Default collation100 uses the attached database's libc/C authority, just like
+  database-version inspection; both return NULL. Implemented builtin providers
+  return `1` independently of recorded versions; ICU inspection reports
+  `0A000 ICU is not supported in this build`.
+  Missing numeric collation/database OIDs report42704. Numeric version reads
+  do not add ownership or schema-USAGE gates.
+  Import NULL returns typed INT4 NULL without authorization or provider work.
+  Demanded non-NULL import checks the consuming statement's effective superuser
+  attribute (not inherited membership), then numeric namespace existence:
+  ordinary roles receive42501 `must be superuser to import system collations`;
+  superusers with absent numeric namespaces receive3F000
+  `schema with OID N does not exist`. Symbolic REGNAMESPACE conversion can fail
+  first. A valid native import reports0A000
+  `system collation import is unsupported in embedded mode` without changing
+  catalog rows. No OS/ICU enumeration, fake successful zero, or synthetic
+  imported definitions are supplied. Prepare and undemanded expressions do not
+  import. Real PostgreSQL coverage exercises genuine provider rows, returned
+  counts, skipped repeats and single-row replacement. See
+  [selected proof and smoke](../reference/patterns_encoding/README.md#collation-management-functions).
 - `pg_tablespace` is a PUBLIC readonly builtin-only projection per Engine:
   `(1663,pg_default,10,NULL,NULL)` and `(1664,pg_global,10,NULL,NULL)` initially,
   for named columns `oid,spcname,spcowner,spcacl,spcoptions`

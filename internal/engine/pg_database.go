@@ -8,6 +8,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// These are the attached database's native semantics, not host locale discovery.
+const nativeDatabaseProvider = "c"
+const nativeDatabaseLocale = "C"
+
+func databaseCollationActualVersion() (*string, error) {
+	locale := nativeDatabaseLocale
+	return collationActualVersion(&collationDescriptor{
+		provider: nativeDatabaseProvider, collate: &locale, ctype: &locale,
+	})
+}
+
 // Caller owns e.mu. Only the supplied catalog and paired role read participate;
 // neither session identity nor the live engine catalog replaces captured facts.
 func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
@@ -61,9 +72,9 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 	// the native semantic declaration, not a host locale or physical horizon.
 	row := []sqltype.Value{
 		oid(0, uint32(database.address.ObjectID)), text(1, database.name), oid(2, uint32(database.owner.ID())),
-		checked(sqltype.Integer(source.columns[3].Usage.Type, 6)), text(4, "c"), null(5), null(6),
+		checked(sqltype.Integer(source.columns[3].Usage.Type, 6)), text(4, nativeDatabaseProvider), null(5), null(6),
 		sqltype.Boolean(source.columns[7].Usage.Type, false), null(8), null(9), null(10), null(11),
-		text(12, "C"), text(13, "C"), null(14), null(15), null(16), acl,
+		text(12, nativeDatabaseLocale), text(13, nativeDatabaseLocale), null(14), null(15), null(16), acl,
 	}
 	if failure != nil {
 		return nil, failure

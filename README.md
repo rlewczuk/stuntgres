@@ -13,6 +13,19 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Collation version inspection — change note
+
+`pg_collation_actual_version(oid)` and
+`pg_database_collation_actual_version(oid)` inspect the implemented provider's
+actual version without refreshing recorded catalog versions. The default
+collation follows the current database's provider. Native builtin versions are
+`1`; the native libc/C database has no version. ICU data remains unavailable.
+`pg_import_system_collations(regnamespace)` is strict and checks the current
+effective superuser before numeric namespace existence. Valid native import
+reports an explicit unsupported-provider error, never a fabricated zero count or
+host inventory. See [native limits](docs/DIALECT.md#types-expressions-and-catalogs) and
+[selected tests and smoke](reference/patterns_encoding/README.md#collation-management-functions).
+
 ## Session messages — change note
 
 Native `LISTEN`, `NOTIFY` (including payloads), and `UNLISTEN` remain explicitly
