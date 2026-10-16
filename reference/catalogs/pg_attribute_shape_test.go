@@ -226,13 +226,13 @@ func TestReferencePGAttributeIdentity(t *testing.T) {
 
 func TestReferencePGAttributeBuiltins(t *testing.T) {
 	pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		// Only already represented fields: omissions are not dropped columns.
+		// Condensed catalogs retain their existing represented-field coverage.
 		for _, tc := range []struct {
 			rel   string
 			names []string
 			rows  [][]any
 		}{
-			{"pg_tablespace", []string{"oid", "spcname", "spcowner", "spcoptions"}, [][]any{{"oid", int64(1), int64(26), true, int64(0)}, {"spcname", int64(2), int64(19), true, int64(950)}, {"spcowner", int64(3), int64(26), true, int64(0)}, {"spcoptions", int64(5), int64(1009), false, int64(950)}}},
+			{"pg_tablespace", []string{"oid", "spcname", "spcowner", "spcacl", "spcoptions"}, [][]any{{"oid", int64(1), int64(26), true, int64(0)}, {"spcname", int64(2), int64(19), true, int64(950)}, {"spcowner", int64(3), int64(26), true, int64(0)}, {"spcacl", int64(4), int64(1034), false, int64(0)}, {"spcoptions", int64(5), int64(1009), false, int64(950)}}},
 			{"pg_proc", []string{"oid", "proname", "pronamespace", "proowner", "pronargs", "prorettype", "provolatile", "proisstrict", "proparallel"}, [][]any{{"oid", int64(1), int64(26), true, int64(0)}, {"proname", int64(2), int64(19), true, int64(950)}, {"pronamespace", int64(3), int64(26), true, int64(0)}, {"proowner", int64(4), int64(26), true, int64(0)}, {"proisstrict", int64(13), int64(16), true, int64(0)}, {"provolatile", int64(15), int64(18), true, int64(0)}, {"proparallel", int64(16), int64(18), true, int64(0)}, {"pronargs", int64(17), int64(21), true, int64(0)}, {"prorettype", int64(19), int64(26), true, int64(0)}}},
 			{"pg_attrdef", []string{"adbin"}, [][]any{{"adbin", int64(4), int64(194), true, int64(950)}}},
 			{"pg_constraint", []string{"conbin"}, [][]any{{"conbin", int64(28), int64(194), false, int64(950)}}},

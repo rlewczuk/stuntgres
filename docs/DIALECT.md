@@ -1587,15 +1587,20 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Recorded version metadata need not equal the current provider version, and
   an empty configured version is not NULL. Catalog readability does not supply
   ICU/arbitrary-libc execution or import the host's collation inventory.
-- `pg_tablespace` is a public readonly builtin-only projection:
-  `(1663,pg_default,10,NULL)` and `(1664,pg_global,10,NULL)` for named columns
-  `oid,spcname,spcowner,spcoptions` (OID/NAME/OID/TEXT[]). Owner 10 is the canonical
-  Engine principal, independent of bootstrap role renaming. `spcacl` is omitted,
-  not misrepresented as TEXT[]: the additional catalog ACL column/provider is
-  outside the ACL item value scope.
-  Supported wire origins retain relation 1213 and attributes 1,2,3,5.
-  `pg_tables` presents this shared catalog in `pg_global`; that metadata is not
-  a physical storage mechanism.
+- `pg_tablespace` is a PUBLIC readonly builtin-only projection per Engine:
+  `(1663,pg_default,10,NULL,NULL)` and `(1664,pg_global,10,NULL,NULL)` for named
+  columns `oid,spcname,spcowner,spcacl,spcoptions`
+  (OID/NAME/OID/ACLITEM[]/TEXT[]). Owner 10 is the canonical Engine principal,
+  independent of bootstrap role renaming or the current reader. Ordinary roles
+  see both complete rows. Both arrays are typed SQL NULL, not empty arrays:
+  NULL `spcacl` denotes default tablespace privileges, not PUBLIC CREATE.
+  The catalog relation's explicit PUBLIC SELECT ACL is separate.
+  Supported wire origins retain relation 1213 and attributes 1,2,3,4,5;
+  both arrays are nullable. Native catalog mutation remains unsupported, not
+  a claim that PostgreSQL universally forbids catalog writes.
+  `pg_tables` presents this shared catalog in `pg_global`; that logical metadata
+  is not physical storage or cross-Engine aggregation. No user tablespaces,
+  placement, filesystem inquiries or options validation are provided.
 
 ## Data type privilege descriptors
 

@@ -763,7 +763,7 @@ and Reset. The maintained `BuiltinIndexHistory` definition includes pg_database,
 pg_attribute, pg_namespace and pg_db_role_setting, giving twenty-two represented indexed catalogs.
 Selected proof and standalone smoke do not replace whole-project quickcheck.
 
-### CREATE TABLESPACE selected proof
+### pg_tablespace and CREATE TABLESPACE selected proof
 
 The shared `tablespace_*_test.go` scenarios independently specify builtin
 `pg_tablespace` rows and ownership, named projection types, direct/prepared
@@ -775,29 +775,48 @@ objects. Embedded creation must instead refuse physical locations with 0A000,
 including repeated attempts, without publishing a user row or changing sentinels.
 Reserved builtin names are not mislabeled as duplicates.
 
-The native projection deliberately omits unsupported `spcacl`; supported
-columns are `oid,spcname,spcowner,spcoptions`. Native Reset/Dump/Restore and
-retained-row witnesses are explicit control phases in the shared scenario,
-not fictitious PostgreSQL controls. Valid WITH syntax reaches the physical
-boundary after earlier validation; option-value compatibility is not claimed.
+Both backends expose `oid,spcname,spcowner,spcacl,spcoptions`, with types
+OID/NAME/OID/ACLITEM[]/TEXT[] and exact builtin rows
+`(1663,pg_default,10,NULL,NULL)` and `(1664,pg_global,10,NULL,NULL)`.
+The two array NULLs retain distinct types; they are not empty arrays or an
+invented owner ACL. Ordinary roles see both complete rows, including through
+explicit qualification without pg_catalog in the explicit search_path.
+Attribute numbers 1..5, array dimensions, nullability and collations are
+independently specified; native origins remain relation1213/attributes1..5.
+Direct, actual prepared, stored-view, empty and NULL-filtered reads retain the
+five-column shape. Held name/OID binds cover builtin, absent, NULL and reuse.
+Native Reset/Dump/Restore and retained-row witnesses are explicit control phases,
+not fictitious PostgreSQL controls.
+
+Catalog read errors assert complete diagnostics and actual preparation/execution
+stages. Invalid held OID binds use the shared Context
+`unnamed portal parameter $1 = '...'`. Safe mutation witnesses use an ordinary
+PostgreSQL role (42501); native mutation and virtual-catalog row locking refuse
+with 0A000. Native immutability is not a universal PostgreSQL catalog restriction.
+Valid WITH syntax reaches the physical boundary after earlier validation;
+option-value compatibility is not claimed. Physical native refusal is 0A000,
+where the absent-directory PostgreSQL counterpart is 58P01.
 Canonical path byte boundaries are 970 accepted lexically and 971 rejected;
 short-component and multibyte witnesses distinguish filesystem component limits
 and rune counts from the SQL validation contract. The public OID codec outcomes
 are independently specified (pq normalized strings, native int64), not compared
-as if the drivers had identical raw carriers. These instructions are not evidence.
+as if the drivers had identical raw carriers. Native Nullable is known while pq
+Nullable is generally unknown. These instructions are not evidence.
 
 ```sh
-make check REFERENCE=1 RUN='^TestReferenceTablespace'
-make check RUN='^TestReferenceTablespace'
+make check REFERENCE=1 RUN='^(TestReferenceTablespace(Metadata|RealDuplicate|PathNamePrecedence|OwnerAuthority|Syntax|Transactions|Controls|FeatureSmoke|CatalogDiagnostics)|TestReferencePGAttributeBuiltins|TestReferencePgClass(Builtins|BuiltinIndexHistory))$'
+make check RUN='^(TestReferenceTablespace(Metadata|RealDuplicate|PathNamePrecedence|OwnerAuthority|Syntax|Transactions|Controls|FeatureSmoke|CatalogDiagnostics)|TestReferencePGAttributeBuiltins|TestReferencePgClass(Builtins|BuiltinIndexHistory))$'
 make check RUN='^Test(Tablespace|CreateTablespace|PGTablespace)'
 make check RUN='^TestReferenceTablespaceFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferenceTablespaceFeatureSmoke$'
 ```
 
-The durable smoke checks builtin rows/types, owner and superuser errors,
-relative and reserved-name errors, transaction admission, physical refusal
-and unchanged sentinel/no user rows. The real-directory duplicate is covered
-by the selected family, not by reserved-name smoke assertions.
+The durable smoke checks five-field builtin rows/types and both NULL arrays,
+ordinary-role visibility, nullable attribute4/type1034/collation0 and held
+builtin/absent/NULL/builtin reads. It retains owner and superuser errors, relative
+and reserved-name errors, transaction admission, native mutation refusal,
+physical refusal and unchanged sentinel19/no user rows. The real-directory
+duplicate is covered by the selected family, not by reserved-name smoke assertions.
 
 ### pg_enum selected proof
 

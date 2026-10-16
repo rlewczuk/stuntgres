@@ -35,7 +35,7 @@ func pgTablespaceUnitRows(t *testing.T, source *querySource) {
 		name string
 	}{{1663, "pg_default"}, {1664, "pg_global"}} {
 		row := source.anonymous[i]
-		if len(row) != 4 {
+		if len(row) != 5 {
 			t.Fatal("bounded projection", row)
 		}
 		oid, err := row[0].OID()
@@ -50,8 +50,11 @@ func pgTablespaceUnitRows(t *testing.T, source *querySource) {
 		if err != nil || owner != 10 {
 			t.Fatal("canonical owner", owner, err)
 		}
-		if !row[3].IsNull() || row[3].Type().ID() != 1009 {
-			t.Fatal("typed options NULL", row[3])
+		if !row[3].IsNull() || row[3].Type().ID() != sqltype.ACLItemArray {
+			t.Fatal("typed ACL NULL", row[3])
+		}
+		if !row[4].IsNull() || row[4].Type().ID() != 1009 {
+			t.Fatal("typed options NULL", row[4])
 		}
 	}
 }
@@ -63,21 +66,21 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	if d.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.rowType == 0 || d.relationKind != catalogRelation || d.virtualView || !representedSummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
-	if !reflect.DeepEqual(d.attributes, []int32{1, 2, 3, 5}) || d.attributeHighWater != 5 {
-		t.Fatal("original attribute positions", d.attributes, d.attributeHighWater)
+	if !reflect.DeepEqual(d.attributes, []int32{1, 2, 3, 4, 5}) || d.attributeHighWater != 5 {
+		t.Fatal("attribute positions", d.attributes, d.attributeHighWater)
 	}
 	for i, want := range []struct {
 		name string
 		typ  sqltype.ID
 		attr int16
-	}{{"oid", sqltype.Oid, 1}, {"spcname", sqltype.Name, 2}, {"spcowner", sqltype.Oid, 3}, {"spcoptions", 1009, 5}} {
+	}{{"oid", sqltype.Oid, 1}, {"spcname", sqltype.Name, 2}, {"spcowner", sqltype.Oid, 3}, {"spcacl", sqltype.ACLItemArray, 4}, {"spcoptions", 1009, 5}} {
 		column := d.columns[i]
-		if column.Name != want.name || column.Usage.Type.ID() != want.typ || !column.Usage.Type.Concrete() || column.OriginTable != 1213 || column.OriginAttribute != want.attr || !column.NullabilityKnown || column.Nullable != (i == 3) {
+		if column.Name != want.name || column.Usage.Type.ID() != want.typ || !column.Usage.Type.Concrete() || column.OriginTable != 1213 || column.OriginAttribute != want.attr || !column.NullabilityKnown || column.Nullable != (i >= 3) {
 			t.Fatal("column metadata", i, column)
 		}
-	}
-	if _, exists := d.index["spcacl"]; exists {
-		t.Fatal("unsupported ACL carrier fabricated")
+		if index, ok := d.index[want.name]; !ok || index != i {
+			t.Fatal("column lookup", want.name, index, ok)
+		}
 	}
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
 		t.Fatal("public readonly ACL", d.acl)

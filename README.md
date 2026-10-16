@@ -1163,7 +1163,8 @@ and validates live direct-superuser authority, owner, canonical POSIX path and
 reserved name in PostgreSQL 18 order. Physical creation always fails explicitly
 with 0A000; no directory probes, data placement or user catalog row are performed.
 Read-only `pg_tablespace` exposes builtin identities and canonical owner OID 10
-through `oid,spcname,spcowner,spcoptions`; unsupported `spcacl` is omitted.
+through `oid,spcname,spcowner,spcacl,spcoptions` (OID/NAME/OID/ACLITEM[]/TEXT[]).
+Both arrays are typed SQL NULL; ordinary roles see both complete builtin rows.
 WITH is recognized but cannot apply or validate options without physical creation.
 See [storage and catalog limits](docs/DIALECT.md#storage-and-native-controls).
 Feature smoke: `make check RUN='^TestReferenceTablespaceFeatureSmoke$'`;

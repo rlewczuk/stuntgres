@@ -18,26 +18,43 @@ func TestReferenceTablespaceMetadata(t *testing.T) {
 			s.Prepared = prepared
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 		}
-		cols := []string{"oid", "spcname", "spcowner", "spcoptions"}
-		types := []string{"OID", "NAME", "OID", "_TEXT"}
-		if b.PG {
-			cols = []string{"oid", "spcname", "spcowner", "spcacl", "spcoptions"}
-			types = []string{"OID", "NAME", "OID", "_ACLITEM", "_TEXT"}
-		}
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT * FROM pg_tablespace WHERE FALSE", cols, types, [][]any{}))
-		if !b.PG {
-			for _, prepared := range []bool{false, true} {
-				s := fixture.Error("SELECT spcacl FROM pg_tablespace", "42703")
-				s.Prepared = prepared
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+		for _, relation := range []string{"pg_tablespace", "pg_catalog.pg_tablespace"} {
+			for _, tc := range []struct {
+				predicate string
+				rows      [][]any
+			}{
+				{"TRUE", tablespaceRows(b)},
+				{"FALSE", [][]any{}},
+				{"oid=0", [][]any{}},
+				{"spcacl IS NULL AND spcoptions IS NULL", tablespaceRows(b)},
+				{"spcacl IS NOT NULL OR spcoptions IS NOT NULL", [][]any{}},
+			} {
+				for _, prepared := range []bool{false, true} {
+					s := tablespaceStep(b, "SELECT * FROM "+relation+" WHERE "+tc.predicate+" ORDER BY oid", tc.rows)
+					s.Prepared = prepared
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+				}
 			}
-		} else {
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT spcacl FROM pg_tablespace WHERE oid=1663", []string{"spcacl"}, []string{"_ACLITEM"}, [][]any{{nil}}))
 		}
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT spcacl FROM pg_tablespace WHERE oid=1663", []string{"spcacl"}, []string{"_ACLITEM"}, [][]any{{nil}}))
+		tablespaceHeldReads(t, p, b, c)
+		tablespaceExec(t, p, b, c, "CREATE VIEW ts_contract_catalog_view AS SELECT oid,spcname,spcowner,spcacl,spcoptions FROM pg_catalog.pg_tablespace")
+		for _, prepared := range []bool{false, true} {
+			s := tablespaceStep(b, "SELECT * FROM ts_contract_catalog_view ORDER BY oid", tablespaceRows(b))
+			// View result nullability is not the base relation's NOT NULL contract.
+			s.CheckMetadata = nil
+			s.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+		}
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT attnum,attndims FROM pg_attribute WHERE attrelid=1213 AND attnum>0 ORDER BY attnum", []string{"attnum", "attndims"}, []string{"INT2", "INT2"}, [][]any{{int64(1), int64(0)}, {int64(2), int64(0)}, {int64(3), int64(0)}, {int64(4), int64(1)}, {int64(5), int64(1)}}))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT tablespace FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_tablespace'", []string{"tablespace"}, []string{"NAME"}, [][]any{{"pg_global"}}))
 		tablespaceRole(t, p, b, c, "ts_contract_catalog_reader", "")
 		tablespaceExec(t, p, b, c, "SET ROLE ts_contract_catalog_reader")
 		tablespaceBuiltins(t, p, b, c)
+		tablespaceExec(t, p, b, c, "SET search_path TO public")
+		tablespaceBuiltins(t, p, b, c)
+		tablespaceHeldReads(t, p, b, c)
+		tablespaceExec(t, p, b, c, "RESET search_path")
 		tablespaceExec(t, p, b, c, "RESET ROLE")
 	})
 }

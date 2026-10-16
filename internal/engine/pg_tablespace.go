@@ -24,7 +24,7 @@ func capturePGTablespace(ctx context.Context, ref ObjectRef, source *relationDes
 		if err != nil {
 			return nil, err
 		}
-		rows[i] = []sqltype.Value{id, sqltype.String(source.columns[1].Usage.Type, builtin.name), owner, sqltype.Null(source.columns[3].Usage.Type)}
+		rows[i] = []sqltype.Value{id, sqltype.String(source.columns[1].Usage.Type, builtin.name), owner, sqltype.Null(source.columns[3].Usage.Type), sqltype.Null(source.columns[4].Usage.Type)}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

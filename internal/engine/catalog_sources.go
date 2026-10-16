@@ -37,7 +37,7 @@ func (e *Engine) initializeCatalogSources() error {
 		{1213, "pg_tablespace", []struct {
 			name string
 			typ  sqltype.ID
-		}{{"oid", sqltype.Oid}, {"spcname", sqltype.Name}, {"spcowner", sqltype.Oid}, {"spcoptions", sqltype.ID(1009)}}},
+		}{{"oid", sqltype.Oid}, {"spcname", sqltype.Name}, {"spcowner", sqltype.Oid}, {"spcacl", sqltype.ACLItemArray}, {"spcoptions", sqltype.ID(1009)}}},
 		{1262, "pg_database", []struct {
 			name string
 			typ  sqltype.ID
@@ -212,7 +212,6 @@ func (e *Engine) initializeCatalogSources() error {
 		if spec.oid == 1213 {
 			d.owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 			d.acl.Entries[0].Grantor = d.owner
-			d.attributeHighWater = 5
 		}
 		d.virtualView = spec.oid == pgLocksOID || spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
@@ -289,11 +288,8 @@ func (e *Engine) initializeCatalogSources() error {
 			}
 			d.attributes[i] = int32(i + 1)
 			if spec.oid == 1213 {
-				d.columns[i].Nullable = i == 3
-				if i == 3 {
-					// Attribute 4 (spcacl) is omitted from this bounded projection.
-					d.columns[i].OriginAttribute = 5
-					d.attributes[i] = 5
+				d.columns[i].Nullable = i >= 3
+				if column.typ == sqltype.ID(1009) {
 					d.columns[i].Usage.Collation.ID = 950
 				}
 			}

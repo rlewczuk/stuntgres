@@ -12,10 +12,6 @@ type catalogAttribute struct {
 // numbers instead follow REL_18_0 catalog headers, including omitted neighbors.
 func catalogAttributeNumber(oid OID, name string, ordinal int32) int32 {
 	switch oid {
-	case 1213:
-		if name == "spcoptions" {
-			return 5
-		}
 	case 1255:
 		switch name {
 		case "pronargs":
@@ -85,7 +81,7 @@ func initializeCatalogAttributes(d *relationDescriptor) {
 			}
 			switch d.address.ObjectID {
 			case 1213:
-				fact.notNull = column.Name != "spcoptions"
+				fact.notNull = i < 3
 			case 1262:
 				fact.notNull = i < 14
 			case 2964:

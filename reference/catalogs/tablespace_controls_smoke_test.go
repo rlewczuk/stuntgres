@@ -31,11 +31,16 @@ func TestReferenceTablespaceControls(t *testing.T) {
 			if strings.Contains(dump.String(), "CREATE TABLESPACE") || strings.Contains(dump.String(), tablespaceAbsent) {
 				t.Fatal("Dump published physical tablespace state")
 			}
-			retained, err := c.QueryContext(p.Ctx, "SELECT oid,spcname,spcowner FROM pg_tablespace ORDER BY oid")
+			retained, err := c.QueryContext(p.Ctx, "SELECT oid,spcname,spcowner,spcacl,spcoptions FROM pg_tablespace ORDER BY oid")
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer retained.Close()
+			retainedTypes, err := retained.ColumnTypes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			tablespaceMetadata(t, retainedTypes, false)
 			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(dump.String()+";"+tablespaceSQL("ts_contract_restore", "", tablespaceAbsent)+";")); err == nil {
 				t.Fatal("Restore accepted physical creation")
 			}
@@ -64,17 +69,19 @@ func TestReferenceTablespaceControls(t *testing.T) {
 				}
 				var oid, owner int64
 				var name string
-				if err := retained.Scan(&oid, &name, &owner); err != nil {
+				var acl, options any
+				if err := retained.Scan(&oid, &name, &owner, &acl, &options); err != nil {
 					t.Fatal(err)
 				}
-				if oid != want.oid || name != want.name || owner != 10 {
-					t.Fatal("retained builtin identity changed", oid, name, owner)
+				if oid != want.oid || name != want.name || owner != 10 || acl != nil || options != nil {
+					t.Fatal("retained builtin metadata changed", oid, name, owner, acl, options)
 				}
 			}
 			if retained.Next() || retained.Err() != nil {
 				t.Fatal("unexpected retained rows", retained.Err())
 			}
 			retained.Close()
+			tablespaceMetadata(t, retainedTypes, false)
 			canceled, cancel := context.WithCancel(p.Ctx)
 			cancel()
 			if _, err := c.ExecContext(canceled, tablespaceSQL("ts_contract_canceled", "", tablespaceAbsent)); !errors.Is(err, context.Canceled) {
@@ -88,6 +95,8 @@ func TestReferenceTablespaceControls(t *testing.T) {
 func TestReferenceTablespaceFeatureSmoke(t *testing.T) {
 	tablespaceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		tablespaceBuiltins(t, p, b, c)
+		tablespaceHeldReads(t, p, b, c)
+		pgAttributeCheck(t, p, b, c, fixture.Select("SELECT attnum,atttypid,attnotnull,attcollation FROM pg_attribute WHERE attrelid=1213 AND attname='spcacl'", []string{"attnum", "atttypid", "attnotnull", "attcollation"}, []string{"INT2", "OID", "BOOL", "OID"}, [][]any{{int64(4), int64(1034), false, int64(0)}}))
 		tablespaceExec(t, p, b, c, "CREATE TABLE ts_contract_smoke_sentinel(a INT)")
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO ts_contract_smoke_sentinel VALUES(19)", 1))
 		tablespaceError(t, p, b, c, tablespaceSQL("ts_contract_smoke", "", "relative"), tablespaceDiagnostic("42P17", "tablespace location must be an absolute path"), false)
@@ -97,6 +106,7 @@ func TestReferenceTablespaceFeatureSmoke(t *testing.T) {
 		tablespaceError(t, p, b, c, tablespaceSQL("ts_contract_smoke", "ts_contract_missing", "relative"), tablespaceDiagnostic("42704", "role \"ts_contract_missing\" does not exist"), false)
 		tablespaceRole(t, p, b, c, "ts_contract_smoke_reader", "")
 		tablespaceExec(t, p, b, c, "SET ROLE ts_contract_smoke_reader")
+		tablespaceBuiltins(t, p, b, c)
 		denied := tablespaceDiagnostic("42501", "permission denied to create tablespace \"ts_contract_smoke\"")
 		denied.Hint = "Must be superuser to create a tablespace."
 		tablespaceError(t, p, b, c, tablespaceSQL("ts_contract_smoke", "ts_contract_missing", "relative"), denied, false)
@@ -104,6 +114,10 @@ func TestReferenceTablespaceFeatureSmoke(t *testing.T) {
 		tablespaceExec(t, p, b, c, "RESET ROLE")
 		for range 2 {
 			tablespaceError(t, p, b, c, tablespaceSQL("ts_contract_smoke", "", tablespaceAbsent), tablespacePhysical(b, tablespaceAbsent), false)
+		}
+		if !b.PG {
+			tablespaceError(t, p, b, c, "DELETE FROM pg_catalog.pg_tablespace WHERE oid=1663", tablespaceDiagnostic("0A000", "catalog source mutation is unsupported"), false)
+			tablespaceBuiltins(t, p, b, c)
 		}
 		tablespaceNoUserRows(t, p, b, c)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT a FROM ts_contract_smoke_sentinel", []string{"a"}, []string{"INT4"}, [][]any{{int64(19)}}))
