@@ -727,6 +727,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	switch stmt.(type) {
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return StatementDescription{}, nil
+	case *parser.AlterTableAllInTablespace:
+		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.ForeignDDL:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.CreateTablespace:

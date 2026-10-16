@@ -1331,6 +1331,22 @@ See [storage and catalog limits](docs/DIALECT.md#storage-and-native-controls).
 Feature smoke: `make check RUN='^TestReferenceTablespaceFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceTablespaceFeatureSmoke$'`.
 
+Change note: `ALTER TABLE ... SET TABLESPACE pg_default` validates live ownership,
+relation kind and destination while taking ACCESS EXCLUSIVE, even for unchanged
+placement. Tables, own TEMP tables, partitioned parents, indexes and materialized
+views retain default placement and metadata without storage rewrites. Assignment
+never recurses; mixed supported actions retain statement atomicity. Root action
+preparation preserves written-order kind, original-column TYPE and destination
+checks; execution-only movement checks do not preempt companion preparation or
+nonrewrite CHECK/NOT NULL validation. The standalone
+`ALL IN TABLESPACE ... OWNED BY ... SET TABLESPACE ... NOWAIT` validates roles
+and endpoints before its same-default-space return, without selecting or locking
+relations. Named nonshared pg_global and every bulk pg_global endpoint fail
+explicitly. There is still no user tablespace or physical relocation provider.
+See [storage limits](docs/DIALECT.md#storage-and-native-controls).
+Feature smoke: `make check RUN='^TestReferenceAlterTablespaceFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceAlterTablespaceFeatureSmoke$'`.
+
 Change note: individual `ALTER ... OWNER TO`, `REASSIGN OWNED` and
 `DROP OWNED` now operate on represented schemas, relations, user types,
 collations, the attached database and registered extension/function/dictionary

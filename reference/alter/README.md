@@ -6,6 +6,78 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### ALTER TABLE tablespace selected proof
+
+Shared public scenarios exercise validated default placement, exact diagnostics,
+direct/prepared metadata and live authority, mixed-action atomicity, held consumers,
+native Dump/Restore and named wait/cancel. Named same-space assignment takes AX;
+bulk same-space NOWAIT returns before relation selection/locking. Real PostgreSQL
+physical phases use genuine user spaces for distinct-space owner filtering,
+relocation and NOWAIT/cancellation; these are explicit native reachability limits,
+not simulated native successes. Partitioned-index creation and mixed partition
+ALTER remain independently asserted native prerequisite boundaries.
+Mixed preparation regressions preserve written-order missing-column/destination/
+kind diagnostics and cover target-type resolution, collation validation and
+assignment coercion, including exact USING hints. USING binding is completed at
+its own TYPE position: an earlier missing destination wins over an invalid USING
+reference. Every direct/prepared failure checks unchanged data, shape and placement.
+Successful TYPE captures, with and without USING, produce exact BIGINT values and
+metadata in both assignment orders; each fresh one-row seed expects INSERT count1.
+Internal inheritance capture coverage checks the complete original column identity
+(including attribute number), unchanged root capture across descendant admission,
+and independent parent/child row rewrites from 10/20 to 11/21.
+Identity TYPE retains its real sequence-AS prephase after successful target and
+USING admission, including when assignment-transformation completion fails.
+Raw USING errors retain the caller's cached tail; assignment failure discards
+only that caller's tail through actual staged AS, without publishing sequence
+metadata or generator changes. Existing failure/prephase, source-consumer and
+identity-smoke scenarios cover the distinction without relaxed expectations.
+Internal admitted-prefix proofs use actual statement admission, sequence descriptors,
+private AS generators, caller cache tails and Finish. They check that completion
+failure includes the failing occurrence but excludes later TYPE actions, admission
+errors expose no stageable prefix, real AS validation supersedes saved coercion
+without clearing an invalid-AS cache, and shared-stage disposal stays with its
+owner. These are internal lifecycle invariants, not new PostgreSQL expectations
+for public multi-TYPE combinations.
+Global movement checks remain distinct from
+failing companion preparation and CHECK validation. Bulk literal-role utilities are held across
+role creation/removal; quoted `"current_user"` stays literal. Real-space held
+identity utilities distinguish prepare-time/current/session roles by exact
+selected/excluded bags. Separate multi-candidate cancellation observes an actual
+pending AX without assuming scan order: live catalog placement stays original,
+retained Rows remain readable, and fresh post-cancel/rollback reads prove the
+complete current data bag unchanged. The single-candidate 55006 witness remains.
+
+Run each selector both without and with `REFERENCE=1`, with an external
+900-second deadline:
+
+```sh
+make check RUN='^TestReferenceAlterTablespace(Syntax|Values|Diagnostics|Kinds)$'
+make check RUN='^TestReferenceAlterTablespace(Transactions|Prepared|BulkBuiltin)$'
+make check RUN='^TestReferenceAlterTablespace(Locks|PhysicalSelection|PhysicalLocks)$'
+make check RUN='^TestReferenceAlterTablespace(Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceAlterTablespace(PreparationPrecedence|BulkLiveRoles)$'
+make check RUN='^TestReferenceAlterTablespace(PhysicalHeldRoles|PhysicalBulkCancellation)$'
+make check RUN='^TestAlterTablespace(Grammar|Preparation|Noop|TypeCapture|InheritanceTypeCapture)$'
+make check RUN='^TestAlterTablespace(AdmittedTypePrefix|AdmissionFailureNoPrefix|PrefixErrorOwnership)$'
+make check RUN='^TestReferenceAlterTypeIdentity(FailuresAndPrephase|FailureOnlyDiscardsCaller)(SourceConsumerRoutes)?$'
+make check RUN='^TestReferenceSmokeAlterTypeIdentitySmoke$'
+make check RACE=1 RUN='^TestReferenceAlterTablespace(Locks|Transactions)$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceAlterTablespace(Locks|PhysicalLocks|PhysicalBulkCancellation)$'
+```
+
+Feature smoke: `make check RUN='^TestReferenceAlterTablespaceFeatureSmoke$'`
+and `make check REFERENCE=1 RUN='^TestReferenceAlterTablespaceFeatureSmoke$'`.
+Expect default identity/data/metadata preservation, owner/missing/global errors,
+successful mixed changes with failed companions atomic, bulk preselection
+short-circuit and named lock timeout, plus native persistent control round-trip.
+
+For oracle-first discovery of only the new precedence regression (without a
+temporary backend filter), use
+`make check REFERENCE=1 RUN='^TestReferenceAlterTablespacePreparationPrecedence/postgres'`.
+Then use the unsuffixed top-level selector in ordinary mode for the native red
+baseline. Final proof must include both complete modes for all affected definitions.
+
 ### Ordinary-inheritance migration checkpoint
 
 `TestReferenceAlterDefaultInheritanceRecursion` is now untagged and shares the

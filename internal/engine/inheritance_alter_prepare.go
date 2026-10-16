@@ -36,6 +36,9 @@ type inheritancePreparedNode struct {
 // Both preparation and consumption use the incumbent physical phase ordering.
 func alterActionPhase(action parser.AlterTableActionKind) int {
 	switch action {
+	case parser.SetTablespace:
+		// Root destination preparation consumes unchanged placement before phases.
+		return -1
 	case parser.DropIdentity, parser.DropNotNull, parser.DropConstraint, parser.DropColumn, parser.DropExpression:
 		return 0
 	case parser.AlterColumnType:

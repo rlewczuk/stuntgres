@@ -665,6 +665,7 @@ package parser
 %type <tok> ownership_name_word
 %type <roleSpec> membership_role_spec membership_role_name
 %type <roleSpecs> membership_role_specs membership_role_names
+%type <roleSpecs> tablespace_owners
 %type <membershipOptions> membership_options membership_option_list
 %type <membershipOption> membership_option
 %type <grantor> membership_grantor
@@ -1553,7 +1554,8 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 /* All ALTER TABLE actions share one target prefix. Reducing alter_target on
  * some paths and rename_target on others steals action lookahead from peers. */
-alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetExpression && a.Action!=DropExpression {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { for _,a:=range $4 { if (a.Action<EnableRowSecurity || a.Action>NoForceRowSecurity) && a.Action!=SetExpression && a.Action!=DropExpression && a.Action!=SetTablespace {sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",a.Pos.Offset);return 1} } };$$=&AlterTable{Name:$3.Name,Only:$3.Only,IfExists:$3.IfExists,Actions:$4,Pos:$1.pos} }
+ | ALTER TABLE ALL IN TABLESPACE name tablespace_owners SET TABLESPACE name optional_lock_nowait { $$=&AlterTableAllInTablespace{Source:Identifier{Text:$6.text,Pos:$6.pos},Destination:Identifier{Text:$10.text,Pos:$10.pos},Owners:$7,Nowait:$11,Pos:$1.pos} }
  | alter_default_single { $$=$1 }
  | alter_default_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_rename_single { $$=$1 }
@@ -1584,6 +1586,7 @@ alter_drop_column: ALTER TABLE rename_target alter_actions { if $3.IfExists { fo
      return 1
    }
  | ALTER TABLE rename_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
+tablespace_owners: /* empty */ { $$=nil } | OWNED BY membership_role_specs { $$=$3 } ;
 alter_actions: ordinary_alter_action { $$=[]AlterTableAction{*$1} }
  | alter_actions ',' ordinary_alter_action { $$=append($1,*$3) }
  | alter_actions ',' ALTER optional_column name SET DEFAULT target_or { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 }
@@ -1595,6 +1598,7 @@ alter_column_add: ADD optional_column column {c:=$3;sqllex.(*lexer).excludePrima
  | ADD optional_column name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$3.text,TypeName:$4,Collation:$9,Constraints:$10,Pos:$3.pos};$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,Pos:$1.pos},ColumnOptions:$7,columnOptionsToken:$5}}
  | ADD optional_column IF NOT EXISTS name type options_word '(' foreign_option_list ')' column_collation nullability {c:=&Column{Name:$6.text,TypeName:$7,Collation:$12,Constraints:$13,Pos:$6.pos};$$=ForeignTableAction{Ordinary:&AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:c,Action:AddColumn,IfNotExists:true,Pos:$1.pos},ColumnOptions:$10,columnOptionsToken:$8}} ;
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
+ | SET TABLESPACE name { $$=&AlterTableAction{Action:SetTablespace,Tablespace:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | ALTER optional_column name SET NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetNotNull,Pos:$1.pos} }
  | ALTER optional_column name DROP NOT NULL { $$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
  | ALTER optional_column name SET generation_expression_word AS '(' scalar_projection ')' { expression:=$8;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetExpression,Generation:&GenerationDefinition{Expression:expression,Pos:$5.pos},Pos:$1.pos} }

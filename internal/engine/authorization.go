@@ -488,6 +488,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind = "schema"
 	} else if d.Kind() == DatabaseObject {
 		kind = "database"
+	} else if d.Kind() == TablespaceObject {
+		kind = "tablespace"
 	} else if d.Kind() == ProcedureObject {
 		kind = "function"
 	} else if d.Kind() == ForeignWrapperObject {

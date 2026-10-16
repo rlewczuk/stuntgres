@@ -7,6 +7,39 @@ semantics. This page describes native catalog/storage implementation contracts
 and compatibility limits, not a supported-syntax inventory or a claim of complete
 PostgreSQL compatibility.
 
+## Tablespace assignment boundary
+
+Named default-space assignment retains existing relation/provider identities and
+storage generations. It takes the normal owner-authorized ACCESS EXCLUSIVE grant
+and passes ordinary Finish context/authority fences; it does not publish a
+replacement descriptor, copy rows, invalidate held consumers or append dump SQL.
+Partitioned parents need no dummy store. The assignment is root-only even with
+star/without ONLY; any supported companion action keeps its own inheritance
+propagation and the single existing atomic graph publication. Ordinary-inheritance
+mixed actions remain supported; mixed partition-edge ALTER and partitioned-index
+creation retain their explicit prerequisite boundaries.
+Root action preparation follows written order: each action's kind check and
+TYPE's original-column, target, collation, USING binding and assignment-coercion
+checks precede later destination lookup/CREATE/duplicate checks. TYPE admission
+and transformation completion are separate: a raw USING/admission error never
+stages sequence AS, but an admitted TYPE's completion error still runs the actual
+identity sequence-AS prephase before returning. Its private catalog/generator
+changes are discarded; only that physical caller's already-discarded cache tail
+survives, without changing peer caches or currval/lastval.
+The pg_global movement restriction is deferred until execution: before rewritten
+rows are evaluated, or after old-row CHECK/NOT NULL scans when no rewrite is
+required. Failed movement never publishes staged companion changes.
+
+
+Bulk same-default-space assignment validates typed roles and both real builtin
+endpoints before returning, without catalog selection or locks on individual
+relations. It cannot witness native distinct-space selection or physical movement.
+Nonshared named pg_global and every bulk pg_global endpoint are invalid. No
+placement descriptor field, new provider, user tablespace or physical filesystem
+operation is implied. Default identity remains pg_class.reltablespace 0 and NULL
+tablespace summaries; canonical Dump/Restore need no new placement statement.
+
+
 ## Foreign metadata and dependencies
 
 Wrappers, servers and exact `(server,mapped-role)` user mappings are immutable

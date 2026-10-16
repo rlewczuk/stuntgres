@@ -20,7 +20,13 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: source.address}
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
-	prepared := &alterTypePreparation{usage: testUsage(e, sqltype.Int4)}
+	usage := testUsage(e, sqltype.Int4)
+	e.mu.Lock()
+	prepared, err := e.prepareAlterTypeLocked(nil, op, auth, source, ref, action, &usage)
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
 	next, transform, err := e.alterTypeCandidate(nil, op, auth, stage, source, source, ref, action, prepared)
 	if err != nil || next.columns[1].Usage.Type.ID() != sqltype.Int4 || transform.expression != nil || source.columns[1].Usage.Type.ID() != sqltype.Text {
 		t.Fatal("descriptor-only conversion executed assignment or changed capture", err)

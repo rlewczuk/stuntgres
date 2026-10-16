@@ -9,6 +9,20 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// Named ALTER lookup rejects protected relations before action preparation.
+func alterTableLookupKind(d *relationDescriptor) error {
+	switch d.relationKind {
+	case catalogRelation:
+		return sqlError("42501", fmt.Sprintf(`permission denied: "%s" is a system catalog`, d.name))
+	case compositeRelation:
+		diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, d.name)).(*sqlstate.Error)
+		diagnostic.Hint = "Use ALTER TYPE instead."
+		return diagnostic
+	default:
+		return nil
+	}
+}
+
 // The strictest captured ALTER grant protects the incarnation until Finish.
 // The caller holds Engine.mu. Every return releases it before callbacks/scanning.
 func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTable, count int) (Result, error) {
@@ -73,40 +87,45 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err := typedDirectActionsGuard(old, s.Actions); err != nil {
 		return fail(err)
 	}
-	for _, action := range s.Actions {
-		label := "ALTER COLUMN ... SET NOT NULL"
-		switch action.Action {
-		case parser.DropNotNull:
-			label = "ALTER COLUMN ... DROP NOT NULL"
-		case parser.AddNotNull, parser.AddCheck, parser.AddUnique, parser.AddForeignKey, parser.AddExclusion, parser.AddUsingIndex:
-			label = "ADD CONSTRAINT"
-		case parser.DropConstraint:
-			label = "DROP CONSTRAINT"
-		case parser.DropColumn:
-			label = "DROP COLUMN"
-		case parser.SetNotNull:
-		case parser.AddIdentity, parser.DropIdentity, parser.SetIdentity:
-			label = "ALTER COLUMN"
-		case parser.AlterColumnType:
-			label = "ALTER COLUMN ... TYPE"
-		case parser.AddColumn:
-			label = "ADD COLUMN"
-		case parser.SetExpression, parser.DropExpression:
-			label = "ALTER COLUMN"
-		case parser.EnableRowSecurity, parser.DisableRowSecurity, parser.ForceRowSecurity, parser.NoForceRowSecurity:
-			if err := rowSecurityKind(old, action.Action); err != nil {
+	var preparation alterTablePreparation
+	if scope.inheritanceAlter != nil && !scope.inheritanceAlter.descendant {
+		preparation = alterTablePreparation{actions: s.Actions, destination: scope.inheritanceAlter.tablespace, types: scope.inheritanceAlter.types}
+	} else {
+		preparation, err = e.prepareAlterTableActions(scope, op, auth, old, ref, s.Actions)
+		if err != nil {
+			if len(preparation.types) == 0 {
 				return fail(err)
 			}
-			continue
-		default:
-			return fail(fmt.Errorf("stuntgres: invalid ALTER action"))
-		}
-		if err := tableKind(old, label); err != nil {
-			return fail(err)
+			// A completed admission followed by a coercion failure still runs
+			// the real sequence-AS prephase. Its private stage is discarded,
+			// while the caller's already-discarded cache tail stays discarded.
+			e.mu.Unlock()
+			stage, stageErr := e.stageAlterIdentityTypes(scope, op, auth, old, s.Actions, preparation.types)
+			if scope.inheritanceAlter == nil {
+				e.DiscardCatalogStage(stage)
+			}
+			if stageErr != nil {
+				return Result{}, stageErr
+			}
+			return Result{}, err
 		}
 	}
+	work, destination, prepared := preparation.actions, preparation.destination, preparation.types
+	if len(work) == 0 {
+		if err := validateAlterTablespaceMove(destination); err != nil {
+			return fail(err)
+		}
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
+		e.mu.Unlock()
+		return Result{}, nil
+	}
+	if len(work) != len(s.Actions) {
+		command := *s
+		command.Actions = work
+		s = &command
+	}
 	if scope.inheritanceAlter == nil && !rowSecurityActions(s.Actions) && inheritanceParticipant(auth.catalog, old) {
-		return e.alterInheritanceLocked(scope, op, auth, s, count)
+		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
 		if err := inheritanceAlterActionsGuard(auth.catalog, old, s.Actions); err != nil {
@@ -117,6 +136,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return fail(err)
 	}
 	if rowSecurityActions(s.Actions) {
+		if err := validateAlterTablespaceMove(destination); err != nil {
+			return fail(err)
+		}
 		return e.stageRowSecurityFlagsLocked(scope, op, auth, old, rowSecurityFlags(old, s.Actions))
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
@@ -156,7 +178,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		auth.definition = op.definition
 	}
 	defer func() { op.definition = originalDefinition }()
-	prepared, preparedStage, err := e.prepareAlterIdentityTypes(scope, op, auth, old, ref, s.Actions)
+	preparedStage, err := e.stageAlterIdentityTypes(scope, op, auth, old, s.Actions, prepared)
 	stage = preparedStage
 	if stage == nil && scope.inheritanceAlter != nil {
 		stage = scope.inheritanceAlter.stage
@@ -227,11 +249,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				}
 			} else if action.Action == parser.AlterColumnType {
 				var transformation columnTransformation
-				var captured *alterTypePreparation
-				if prepared != nil {
-					captured = &prepared[typeIndex]
-					typeIndex++
-				}
+				captured := prepared[typeIndex]
+				typeIndex++
 				next, transformation, err = e.alterTypeCandidate(scope, op, auth, stage, old, next, ref, action, captured)
 				if err == nil {
 					transformations = append(transformations, transformation)
@@ -428,6 +447,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, err
 	}
 	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
+		if err := validateAlterTablespaceMove(destination); err != nil {
+			return Result{}, err
+		}
 		return Result{}, nil
 	}
 	if next != old {
@@ -652,6 +674,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	if rewrite {
+		// A rewrite creates the destination heap before evaluating old rows.
+		if err := validateAlterTablespaceMove(destination); err != nil {
+			return Result{}, err
+		}
 		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, storageOwner, next, store, frontier, transformations, additions, storedReplacements, validator)
 		if err != nil {
 			return Result{}, err
@@ -738,6 +764,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err := scope.validateAddedConstraintRows(scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
 			return Result{}, err
 		}
+	}
+	// Without a rewrite, old-row CHECK/NOT NULL validation precedes movement.
+	if err := validateAlterTablespaceMove(destination); err != nil {
+		return Result{}, err
 	}
 	var dependencyTargets []ObjectAddress
 	for _, attribute := range old.attributes {

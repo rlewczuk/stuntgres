@@ -245,6 +245,33 @@ declaration grammar and rejects 42601 at TABLESPACE. CREATE TABLE AS and CREATE
 INDEX retain their existing explicit 0A000 placement guards. Object CREATE grants
 on builtin tablespaces do not change any of these physical-provider boundaries.
 
+Named ALTER TABLE tablespace assignment admits the represented unchanged
+pg_default placement only, after normal live owner/kind checks and ACCESS
+EXCLUSIVE admission. It preserves reltablespace 0, summary NULL, descriptor and
+storage identities, held result metadata and byte-identical canonical Dump.
+It works on represented ordinary/partitioned tables, indexes and materialized
+views without demanding storage for a partitioned parent; it never moves children
+or table indexes. Supported mixed actions use existing atomic staged ALTER;
+mixed partition hierarchy alterations retain their existing 0A000 boundary.
+Partitioned-index creation remains unsupported, not a new ALTER prerequisite.
+Action-kind and original-column TYPE preparation follow written action order,
+including destination lookup/CREATE before duplicate-action detection and the
+database-default CREATE exemption. Nonshared pg_global assignment fails 22023
+at movement execution, not destination lookup. Companion preparation errors
+precede it; without a rewrite, old-row CHECK/NOT NULL failures also precede it.
+With a rewrite, movement is checked before evaluating rewritten rows. All
+failures discard the staged statement.
+
+Bulk ALTER resolves typed OWNED BY identities, source and destination in order,
+rejects either pg_global endpoint with 22023, then checks destination authority.
+pg_default to itself returns without a notice, ownership selection or relation
+locks, including NOWAIT. It is not evidence of native nonempty owner filtering,
+distinct-space empty notices, bulk NOWAIT lock failures or cancellation during
+relocation: no legal distinct nondefault pair exists natively. Genuine PostgreSQL
+reference witnesses cover those physical paths. No file relocation, extra
+tablespace descriptor or replay history is fabricated; CREATE and Restore
+boundaries above remain unchanged.
+
 Dump excludes temporary objects, session settings, prepared names, cursors,
 role creation, passwords and membership. Arbitrary explicit authorization ACLs
 and invalid indexes cannot be serialized and are rejected rather than silently discarded.

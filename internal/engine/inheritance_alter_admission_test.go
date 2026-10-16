@@ -70,7 +70,14 @@ func inheritanceAlterAdmissionScope(t *testing.T, e *Engine, role, sql string) *
 }
 func (c *inheritanceAlterAdmissionCase) run() error {
 	c.e.mu.Lock()
-	_, err := c.e.alterInheritanceLocked(c.scope, c.op, c.auth, c.raw, 0)
+	prepared, err := c.e.prepareAlterTableActions(c.scope, c.op, c.auth, c.scope.lockedDescriptor.(*relationDescriptor), c.scope.lockedRef, c.raw.Actions)
+	if err != nil {
+		c.e.mu.Unlock()
+		return err
+	}
+	command := *c.raw
+	command.Actions = prepared.actions
+	_, err = c.e.alterInheritanceLocked(c.scope, c.op, c.auth, &command, 0, prepared.destination, prepared.types)
 	return err
 }
 func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *relationDescriptor) *StatementScope {

@@ -25,6 +25,8 @@ type inheritanceAlterState struct {
 	preparing  bool
 	definition inheritanceDefinitionReader
 	prepared   map[ObjectAddress]*inheritancePreparedNode
+	tablespace ObjectRef              // Prepared root-only destination; never propagated.
+	types      []alterTypePreparation // Original root TYPE occurrences, consumed on root re-entry.
 }
 
 func cloneInheritance(graph *tableInheritance) *tableInheritance {
@@ -91,6 +93,8 @@ func inheritanceAlterOrder(catalog CatalogRead, root *relationDescriptor) []*rel
 
 func inheritanceRecursiveAction(root *relationDescriptor, a parser.AlterTableAction, only bool) bool {
 	switch a.Action {
+	case parser.SetTablespace:
+		return false // Assignment is always root-only, independent of ONLY/star.
 	case parser.AddColumn, parser.DropColumn, parser.AlterColumnType:
 		return true
 	case parser.SetExpression, parser.DropExpression:
@@ -182,7 +186,7 @@ func inheritanceOnlyActions(root *relationDescriptor, children bool, actions []p
 	return next, nil
 }
 
-func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, count int) (Result, error) {
+func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ObjectRef, types []alterTypePreparation) (Result, error) {
 	root := scope.lockedDescriptor.(*relationDescriptor)
 	actions := raw.Actions
 	if err := inheritanceAlterActionsGuard(auth.catalog, root, actions); err != nil {
@@ -219,6 +223,8 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	original := scope.statementMutation
 	var stage *CatalogStage
 	state := &inheritanceAlterState{changes: cloneCatalogChanges(scope.owner.catalog), root: root, targets: targets, selected: map[ObjectAddress]bool{}, only: raw.Only, actions: actions, events: make(map[ObjectAddress][]inheritanceAlterEvent)}
+	state.tablespace = tablespace
+	state.types = types
 	scope.inheritanceAlter = state
 	scope.catalog = state.changes
 	e.mu.Unlock()

@@ -872,11 +872,13 @@ const (
 	AddCheck
 	AddUnique
 	AddForeignKey
+	SetTablespace
 )
 
 type AlterTableAction struct {
 	Column      Identifier
 	Constraint  Identifier
+	Tablespace  Identifier
 	Action      AlterTableActionKind
 	IfExists    bool
 	IfNotExists bool
@@ -908,6 +910,16 @@ type AlterTable struct {
 }
 
 func (*AlterTable) statement() {}
+
+// AlterTableAllInTablespace is a standalone utility, not a relation action list.
+type AlterTableAllInTablespace struct {
+	Source, Destination Identifier
+	Owners              []RoleSpec
+	Nowait              bool
+	Pos                 Position
+}
+
+func (*AlterTableAllInTablespace) statement() {}
 
 // UsingIndexConstraint refers to an existing index, never a key-list creation.
 // Property flags are parser-only provenance; supported attachments are immediate.

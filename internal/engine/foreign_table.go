@@ -345,7 +345,13 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					}
 				}
 			case parser.AlterColumnType:
-				candidate, _, err = e.alterTypeCandidate(scope, scope.op, auth, stage, old, &next, ref, a, nil)
+				e.mu.Lock()
+				prepared, prepareErr := e.prepareAlterTypeLocked(scope, scope.op, auth, old, ref, a, nil)
+				e.mu.Unlock()
+				if prepareErr != nil {
+					return Result{}, prepareErr
+				}
+				candidate, _, err = e.alterTypeCandidate(scope, scope.op, auth, stage, old, &next, ref, a, prepared)
 			case parser.SetExpression, parser.DropExpression:
 				candidate, _, err = e.generationCandidate(scope, scope.op, auth, &next, a)
 			default:

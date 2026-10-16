@@ -398,6 +398,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if ownerOnly && !viewReplacement && err == nil {
 			if ref.owner != nil {
 				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
+				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
+					err = alterTableLookupKind(parentAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
+				}
 			}
 			if tableRename && ref.owner != nil && err == nil {
 				err = auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: auth.catalog.state.descriptors[ref.Address].Namespace()})
@@ -641,6 +644,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		if err := parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
 			return err
+		}
+		if _, altering := stmt.(*parser.AlterTable); altering {
+			if err := alterTableLookupKind(descriptor); err != nil {
+				return err
+			}
 		}
 		if tableRename {
 			return auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: descriptor.namespace})

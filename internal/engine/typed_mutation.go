@@ -67,15 +67,14 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 				if planned.action.Action != parser.AlterColumnType {
 					continue
 				}
-				var prepared *alterTypePreparation
+				e.mu.Lock()
+				prepared, prepareErr := e.prepareAlterTypeLocked(scope, op, auth, old, ref, planned.action, planned.usage)
+				e.mu.Unlock()
+				if prepareErr != nil {
+					return mutation, prepareErr
+				}
 				if planned.usage != nil {
-					e.mu.Lock()
-					node, dependencies, bindErr := e.bindAlterTypeUsingLocked(scope, auth, old, ref, planned.action, *planned.usage, nil)
-					e.mu.Unlock()
-					if bindErr != nil {
-						return mutation, bindErr
-					}
-					prepared = &alterTypePreparation{usage: *planned.usage, expression: node, dependencies: dependencies, declaredDimensions: planned.declaredDimensions}
+					prepared.declaredDimensions = planned.declaredDimensions
 				}
 				var transform columnTransformation
 				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.action, prepared)

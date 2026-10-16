@@ -391,7 +391,7 @@ func modifyingTag(stmt parser.Statement) string {
 		return "ALTER CONVERSION"
 	case *parser.DropConversion:
 		return "DROP CONVERSION"
-	case *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.AlterTable:
+	case *parser.AlterTableAllInTablespace, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableRenameConstraint, *parser.AlterTableDefault, *parser.AlterTable:
 		return "ALTER TABLE"
 	case *parser.CreateExtension:
 		return "CREATE EXTENSION"
