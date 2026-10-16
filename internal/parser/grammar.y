@@ -999,10 +999,10 @@ isolation_mode: READ COMMITTED { $$=IsolationReadCommitted }
  | SERIALIZABLE { $$=IsolationSerializable } ;
 mode_write: KW_U { if $1.text!="write" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_table: LOCK optional_table lock_targets optional_lock_mode optional_lock_nowait { $$=&LockTable{Targets:$3,Mode:$4,Pos:$1.pos,Nowait:$5} } ;
-truncate_table: TRUNCATE optional_table lock_targets truncate_identity drop_mode { $$=&Truncate{Targets:$3,Mode:$5,Pos:$1.pos} } ;
+truncate_table: TRUNCATE optional_table lock_targets truncate_identity drop_mode { $$=&Truncate{Targets:$3,Mode:$5,Pos:$1.pos,RestartIdentity:$4.text=="restart"} } ;
 truncate_identity: /* empty */ { $$=lexeme{} }
  | CONTINUE IDENTITY { $$=$1 }
- | RESTART IDENTITY { sqllex.(*lexer).deferUnsupported($1,"TRUNCATE RESTART IDENTITY is unsupported"); $$=$1 } ;
+ | RESTART IDENTITY { $$=$1 } ;
 optional_table: /* empty */ | TABLE ;
 lock_targets: alter_target { $$=[]LockTarget{{Name:$1.Name,Only:$1.Only}} }
  | lock_targets ',' alter_target { $$=append($1,LockTarget{Name:$3.Name,Only:$3.Only}) } ;

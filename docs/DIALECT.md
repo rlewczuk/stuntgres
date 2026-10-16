@@ -710,7 +710,11 @@ Explicit transaction refresh and refresh as Restore input remain excluded.
 Physical temporary heaps, SPI diff SQL/Context, WAL and crash durability remain
 server mechanisms, not native logical publication contracts. Trigger, pending
 trigger, foreign-write callbacks and procedural-language execution are unavailable.
-Truncation does not provide identity restart.
+TRUNCATE RESTART IDENTITY resets owned sequences transactionally to configured
+START, including selected virtual roots and supported inheritance/CASCADE closure.
+It does not reset unowned default references, undo ordinary nextval/setval
+allocations, clear local currval/lastval on rollback, or enable trigger/FDW/
+partition-FK providers.
 
 Adding generated columns and changing their destination type without an explicit
 conversion remain excluded. Direct typed-table creation cannot add identity or

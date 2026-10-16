@@ -85,8 +85,23 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		session.discardPlansGeneration++
 	}
 	if raw.Category == parser.DiscardSequences || raw.Category == parser.DiscardAll {
-		clear(session.sequences)
+		e := session.Engine()
+		e.mu.Lock()
+		if raw.Category == parser.DiscardAll {
+			clear(session.sequences) // The full plan-generation event survives.
+		} else {
+			for address, memory := range session.sequences {
+				if memory.analysisStamp == 0 {
+					delete(session.sequences, address)
+				} else {
+					// DISCARD SEQUENCES forgets values and unused tails, not
+					// an unconsumed relation-source invalidation after rollback.
+					*memory = sequenceMemory{analysisStamp: memory.analysisStamp}
+				}
+			}
+		}
 		session.lastSequence = ObjectAddress{}
+		e.mu.Unlock()
 	}
 	s.completed, s.sessionCompleted = true, true
 	return Result{}, nil

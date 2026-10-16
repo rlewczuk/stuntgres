@@ -349,8 +349,43 @@ bounded lineage token permits only proven continuity with an earlier committed
 truncation, never unrelated rewrites or same-name replacement. Retained-frontier
 birth filtering hides later inserts without copying frozen prefixes. Immutable
 eager Rows can drain afterward; retained live SQL producers still pin activity.
-Generator/cache/session-value state is unchanged by nonrestart truncation;
-restart/trigger/FDW providers are not implied.
+Generator/cache/session-value state is unchanged by nonrestart truncation.
+RESTART IDENTITY completes table closure first, then acquires ACCESS EXCLUSIVE
+on every owned sequence and checks sequence ownership (ordinary sequence grants
+are insufficient). Sequence-row readers and all four sequence functions,
+including cached/remembered calls, wait behind reset until transaction end.
+
+Fresh scalar generators start at each configured START with is_called=false;
+their descriptors, prepared dependency stamps and table/index roots share the
+same private overlay and final publication boundary. Final fences cover incoming
+host ownership changes, exact generator bindings and catalog/control epochs.
+Savepoints restore bindings and row roots, never snapshots of mutable sequence
+counters. Ordinary nextval/setval before reset remain on the binding used at
+invocation; allocations on an unchanged committed binding survive rollback.
+Replacement-local allocations disappear when that binding is rolled back.
+Earlier own sequence DDL obeys its existing binding lifetime, and repeated resets
+retain the first committed fences.
+
+Reset itself discards only the invoking session's unused cache tail, even when
+it rolls back without another sequence demand. Generation changes discard stale
+tails on later demand; a peer still using the original binding can retain its
+tail after rollback. Reset alone does not alter currval/lastval, and local values
+observed on a reverted replacement remain valid afterward. Session observations
+and cache-tail discard are not transactional undo state. Dump observes committed
+bindings, not private resets or physical-session memories. Trigger/FDW and
+partition-FK providers remain excluded.
+
+Prepared sequence literals use the existing relation-source stamp, not generator
+state or descriptor revision as an invalidation token. A committed rewrite's
+descriptor stamp informs peers. A reverted rewrite instead retains an analysis
+stamp only in the invoking physical session's existing sequence-memory entry:
+the effective source stamp is the maximum of those two stamps. This invalidates
+the whole caller literal group even without demand during the reset transaction;
+an untouched peer retains its original held binding after rollback. Zero-valid
+stamp-only entries do not define currval/lastval. DISCARD SEQUENCES clears values
+and cache tails but preserves this analysis-only event; DISCARD ALL already has
+its full plan-generation invalidation. Physical end and persistent Reset/Restore
+cleanup remove the event; exact caller-owned live TEMP provenance retains it.
 
 ## Temporary object lifetime
 

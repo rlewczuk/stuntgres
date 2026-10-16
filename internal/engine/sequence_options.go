@@ -44,6 +44,9 @@ type sequenceMemory struct {
 	next       int64
 	remaining  uint64
 	generation DefinitionRevision
+	// Local relation-source invalidation survives reverted reset without
+	// borrowing generator/cache identity or changing currval/lastval.
+	analysisStamp DefinitionRevision
 }
 
 func sequenceTypeLimits(id sqltype.ID) (int64, int64, string) {

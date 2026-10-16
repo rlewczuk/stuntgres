@@ -1274,19 +1274,29 @@ and the same command with `REFERENCE=1`.
 
 Change note: `TRUNCATE [TABLE]` atomically empties named tables, ordinary
 inheritance descendants and supported RANGE partition leaves, with `ONLY`,
-`RESTRICT`/`CASCADE` and unchanged `CONTINUE IDENTITY` state. It uses exact
-TRUNCATE rights and transaction-owned ACCESS EXCLUSIVE locks, preserves table
+`RESTRICT`/`CASCADE`, unchanged `CONTINUE IDENTITY` state and owned-sequence
+`RESTART IDENTITY`. It uses exact TRUNCATE rights and transaction-owned ACCESS EXCLUSIVE locks, preserves table
 and index definitions, and participates in rollback/savepoints. Stable snapshots
 have PostgreSQL's documented non-MVCC TRUNCATE exception; already exported native
 Rows remain owned buffers, while a live SQL cursor producer rejects truncation.
 Other sessions' temporary inheritance branches are excluded without replacing
 their storage or acquiring descendant AX locks; own-session TEMP children remain
 included.
-RESTART IDENTITY, native triggers/FDW and partition foreign keys are not added.
+RESTART resets only sequences owned by selected columns (SERIAL, identity or
+explicit OWNED BY), to their configured START rather than always1. Table/index
+roots and fresh sequence bindings commit or roll back together; ordinary
+nextval/setval allocations on an unchanged committed binding remain consumed.
+Reset alone preserves session
+currval/lastval, and rollback retains values locally observed on a reverted
+replacement. Reset discards the initiating session's unused cache tail.
+Restart requires sequence ownership and holds sequence ACCESS EXCLUSIVE until
+transaction end. Native triggers/FDW truncation and partition foreign keys remain
+unavailable.
 See [TRUNCATE](https://www.postgresql.org/docs/18/sql-truncate.html) and
 [transaction semantics](docs/TRANSACTIONS.md#whole-table-generation-replacement).
-Feature smoke: `make check RUN='^TestReferenceTruncateFeatureSmoke$'` and
-`make check REFERENCE=1 RUN='^TestReferenceTruncateFeatureSmoke$'`.
+Feature smoke: `make check RUN='^TestReferenceTruncateRestartFeatureSmoke$'` and
+`make check REFERENCE=1 RUN='^TestReferenceTruncateRestartFeatureSmoke$'`;
+see [selected proof and standalone smoke](reference/dml/README.md#truncate-restart-identity-oracle-first-contracts).
 
 Change note: FLOAT8 `cbrt`, `degrees`, `radians`, `erf`, `erfc`, `gamma`
 and zero-argument `pi()` reuse direct/prepared and stored-expression consumers.

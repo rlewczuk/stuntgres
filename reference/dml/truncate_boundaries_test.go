@@ -17,40 +17,24 @@ func TestReferenceTruncateBoundaries(t *testing.T) {
 			truncateError(t, f, f.A, "TRUNCATE pg_catalog.pg_class", expected)
 		})
 	})
-	truncateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, f fixture.ControlsReferenceFixture) {
-		truncateExec(t, f, f.A, "CREATE TABLE t(id SERIAL)", 0)
-		truncateExec(t, f, f.A, "INSERT INTO t DEFAULT VALUES", 1)
-		truncateExec(t, f, f.A, "INSERT INTO t DEFAULT VALUES", 1)
+	truncateRestartScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, f fixture.ControlsReferenceFixture, held bool) {
+		truncateRestartSeed(t, f)
 		q := "TRUNCATE t RESTART IDENTITY"
-		if !b.PG {
-			d := truncateWant("0A000", "TRUNCATE RESTART IDENTITY is unsupported")
-			d.Position = "12"
-			for _, prepared := range []bool{false, true} {
-				s := fixture.ErrorDiagnostic(q, d)
-				s.Prepared = prepared
-				s.ErrorStage = "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
-				truncateRun(t, f, f.A, s)
-			}
-			truncateRows(t, f, f.A, "t", 1, 2)
-		} else {
-			// Real PostgreSQL positive/rollback control; no native reset is implied.
-			tx := truncateBegin(t, p, f.A, nil)
-			truncateExec(t, f, tx, q, 0)
-			truncateExec(t, f, tx, "INSERT INTO t DEFAULT VALUES", 1)
-			truncateRows(t, f, tx, "t", 1)
-			tx.Rollback()
-			truncateRows(t, f, f.A, "t", 1, 2)
-			truncateExec(t, f, f.A, q, 0)
-			truncateExec(t, f, f.A, "INSERT INTO t DEFAULT VALUES", 1)
-			truncateRows(t, f, f.A, "t", 1)
-		}
+		x := truncateRestartRoute(t, p, f.A, q, held)
+		defer f.A.ExecContext(p.Ctx, "ROLLBACK")
+		truncateExec(t, f, f.A, "BEGIN", 0)
+		truncateExec(t, f, x, q, 0)
+		truncateExec(t, f, f.A, "INSERT INTO t DEFAULT VALUES", 1)
+		truncateRows(t, f, f.A, "t", 1)
+		truncateExec(t, f, f.A, "ROLLBACK", 0)
+		truncateRows(t, f, f.A, "t", 1, 2)
+		truncateExec(t, f, x, q, 0)
+		truncateExec(t, f, f.A, "INSERT INTO t DEFAULT VALUES", 1)
+		truncateRows(t, f, f.A, "t", 1)
 		d := truncateWant("42601", `syntax error at or near "junk"`)
 		d.Position = "29"
 		truncateError(t, f, f.A, "TRUNCATE t RESTART IDENTITY junk", d)
-		// Whole-input syntax wins over unavailable native RESTART admission.
+		// Whole-input syntax is checked at direct execution and held Prepare.
 		s := fixture.ErrorDiagnostic("TRUNCATE t RESTART IDENTITY junk", d)
 		s.Prepared = true
 		s.ErrorStage = "prepare"

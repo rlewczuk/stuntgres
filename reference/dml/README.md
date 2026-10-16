@@ -358,6 +358,140 @@ unique-key and logical-row pending resources before revocation, direct and held
 SQL preparation, no failed output/count/write and lock cleanup. Run this companion
 with `RACE=1`, and run the public privilege-wait selector with `RACE=1` in both modes.
 
+### TRUNCATE RESTART IDENTITY oracle-first contracts
+
+The untagged `truncate_restart_{core,transactions,cache,authority,locks,deadlock,prepared,prepared_peer,prepared_events,controls,smoke}_test.go`
+definitions use one shared scenario for direct execution and genuinely retained
+`Conn.PrepareContext` handles. `truncate_restart_helpers_test.go` owns only local
+route/setup assertions; existing CONTINUE definitions are unchanged.
+`TestReferenceTruncateBoundaries` now shares its original restart/rollback and
+committed-reset assertions across both backends and both routes, retaining the
+full malformed-suffix and physical-system-catalog boundaries.
+
+Index definitions use the existing `pg_indexes` NAME/TEXT metadata contract
+without NAME-to-TEXT casts. Lock witnesses compare OIDs explicitly through
+`regclass::oid`, without introducing new OID/regclass operator coercions.
+
+Independent contracts include configured START (SERIAL, identity, explicit
+ownership and descending sequences), ownership without defaults, unowned/default
+and detached/name-only controls, inheritance/partition/CASCADE closure and
+reciprocal physical-session TEMP exclusion. Transaction definitions distinguish
+ordinary nontransactional allocations from replacement-local allocations,
+outer rollback, constraint abort, savepoints before/after reset, repeated reset,
+prior DML and own sequence CREATE/ALTER/OWNED BY.
+
+The cache-tail-without-intervening-demand and held-shadow whole-literal-group
+rewrite/rollback cases encode pinned PostgreSQL18.0 outcomes: reset/rollback
+discards the initiating CACHE4 tail (next5), while an untouched peer can retain
+its original tail; sequence rewrite and rollback refresh the initiating caller's
+whole held literal group to a preexisting search-path shadow. The separately
+PG-proved `TestReferenceTruncateRestartPreparedPeerRollback` retains the untouched
+peer's old12/22 binding after another session resets and rolls back without peer
+demand during the transaction. The OwnSequenceDDL rollback case
+expects10 after preceding own transactional ALTER, distinct from the unchanged
+committed-generator ordinary-allocation control (next4).
+Source events use the existing sequence-memory entry's distinct analysis stamp
+and the descriptor source stamp, not generator/value/cache identity or a new
+prepared cache. Rollback/savepoint preserve the caller-local event; physical end
+and persistent control replacement remove it. Exact live TEMP identity retains
+it across controls. The bounded rollback→DISCARD SEQUENCES shadow case checks
+that discarding values/tails does not erase an unconsumed analysis event; DISCARD
+ALL relies on its existing whole-plan generation event.
+
+`TestReferenceTruncateRestartPreparedPeerCommit` complements peer rollback:
+without peer demand during the reset transaction, commit makes the preexisting
+peer consumer adopt both shadows100/200, while original owned/unowned progressions
+remain independently checked. `TestReferenceTruncateRestartPreparedNegativeEvents`
+retains the old whole literal group across ordinary nextval/currval/lastval/setval,
+unrelated restart, ownership rejection and sequence-lock rejection. Rejections
+also check unchanged selected rows/generators, unrelated state and untouched
+shadow generators. These cases use direct and genuinely held reset/activity routes.
+Authorization checks specify complete diagnostics and execution stages, including
+table-only TRUNCATE rights, ineffective ordinary sequence grants, owner reset
+with revoked ordinary sequence ACL, and all-or-none multiple-target failure.
+Lock scenarios observe actual holder/waiter relation OIDs, modes and grant state
+through `pg_locks` on both backends before cancellation or release. Sequence-row
+AS and function RX block reset AX; successful reset blocks cached nextval,
+currval, lastval and setval until transaction end. Exact lock/statement timeout
+and PostgreSQL server-cancellation diagnostics are independent expectations;
+native caller cancellation retains Go context identity.
+
+`TestReferenceTruncateRestartOwnershipDeadlock` supplies the public-SQL cycle
+counterpart to the mechanism test. Transactional OWNED BY NONE holds sequence
+SRX; an observed table-AX prefix and sequence-AX wait precede OWNED BY's closing
+table-AS request. Both bounded workers join before victim selection by40P01.
+Complete English/portable diagnostics and both observed mode/resource/blocker
+edges are independent assertions, with dynamic identities checked relationally.
+Victim rollback, original versus committed reassociation, whole-group survivor
+effects and healthy reuse of both original handles are checked for either victim.
+Pinned discovery passed these remedy definitions; that observation does not
+claim native proof or that every possible victim branch occurred in that run.
+
+Control scenarios share SQL baselines and mark native Dump/Reset/Restore phases
+explicitly. They replay dumps to witness committed state during private reset,
+preserved configured starts/ownership/progression but no session memory, old
+staged/waiter fencing and healthy replacement admission. Retained native rows,
+BYTEA and metadata remain owned; PostgreSQL streaming rows are drained before
+the conflicting utility.
+
+No backend discovery filters remain. The root runs every added/changed/migrated
+definition in both modes on the completed implementation, with an external
+900-second deadline per command:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceTruncateRestart(Core|Ownership|Closure|Transactions|Failure|Cache)$'
+make check REFERENCE=1 RUN='^TestReferenceTruncateRestart(Authorization|Locks|Prepared|Controls)$'
+make check REFERENCE=1 RUN='^TestReferenceTruncateBoundaries$'
+make check REFERENCE=1 RUN='^TestReferenceTruncateRestartPreparedPeerRollback$'
+make check REFERENCE=1 RUN='^TestReferenceTruncateRestart(PreparedPeerCommit|PreparedNegativeEvents|OwnershipDeadlock)$'
+make check RUN='^TestReferenceTruncateRestart(Core|Ownership|Closure|Transactions|Failure|Cache)$'
+make check RUN='^TestReferenceTruncateRestart(Authorization|Locks|Prepared|Controls)$'
+make check RUN='^TestReferenceTruncateBoundaries$'
+make check RUN='^TestReferenceTruncateRestartPreparedPeerRollback$'
+make check RUN='^TestReferenceTruncateRestart(PreparedPeerCommit|PreparedNegativeEvents|OwnershipDeadlock)$'
+```
+
+Mechanism units in `internal/engine/truncate_restart_{publication,overlay,locks}_test.go`
+supplement, rather than replace, shared public definitions. They inspect fresh
+generator identity/generation/stamps, first-original fences, exact storage/index
+publication frontier, savepoint binding versus counter behavior, unused local
+tails, foreign TEMP generator/lock exclusion, real queue tickets and final
+context/descriptor/storage/ownership/control vetoes. The OWNED BY/TRUNCATE cycle
+reuses the existing shared detector: after observing the real table-AX/
+sequence-AX prefix and sequence-SRX blocker, it identifies exactly one victim by
+the returned40P01 (not worker arrival order), checks complete diagnostics/exact
+cycle edges, survivor all-or-none effects, aborted-owner cleanup and healthy
+reuse. Acyclic cases retain their independent context-cancellation coverage:
+
+```sh
+make check RUN='^TestTruncateGrammar$'
+make check RUN='^TestTruncateRestart(Generation|OwnershipFence|Closure|Savepoints|Cache|Publication|FinalVeto|Locks|ControlFence)$'
+make check RACE=1 RUN='^TestTruncateRestart(Publication|FinalVeto|Locks|ControlFence)$'
+make check RACE=1 RUN='^TestReferenceTruncateRestartLocks$'
+make check REFERENCE=1 RACE=1 RUN='^TestReferenceTruncateRestartLocks$'
+make check RACE=1 RUN='^TestTruncateRestartCache$'
+make check RUN='^TestReferenceTruncateRestartFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceTruncateRestartFeatureSmoke$'
+```
+
+`TestReferenceTruncateRestartFeatureSmoke` exercises a retained utility through
+ordinary allocation→reset→rollback (restored rows/global next4, retained local1),
+committed SERIAL/identity START44 reset, unowned progression and CONTINUE, exact
+sequence-owner denial with no partial reset, sequence-row AS timeout55P03 and
+healthy same-handle reuse. A standalone native public-API source is supplied as
+the session artifact `local://PG18-DML-TRUNCATE-IDENTITY-smoke.go`; materialize it
+outside the checkout in the root's OMP session directory and run from the worktree:
+
+```sh
+timeout 900s go run "$SESSION_TMP/PG18-DML-TRUNCATE-IDENTITY-smoke.go"
+```
+
+Expected exit0 is quiet; assertions check independent values, row/type metadata,
+utility counts/LastInsertId and complete portable diagnostics. Record actual
+argv/cwd/exit/stdout/stderr and expected-versus-observed behavior. Source presence,
+test readiness and previous discovery are not exercised completed-native proof.
+
+
 ### TRUNCATE selected proof
 
 The untagged public `reference/dml/truncate_*_test.go` definitions share real

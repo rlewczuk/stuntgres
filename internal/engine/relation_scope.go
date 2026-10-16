@@ -410,7 +410,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	var definitionStamp DefinitionRevision
 	var materializedAlterAuthority *relationDescriptor
 	if err == nil && ref.owner != nil {
-		definitionStamp = preparedDefinitionStamp(auth.catalog.state.descriptors[ref.Address])
+		definitionStamp = preparedDefinitionStamp(auth.catalog.state.descriptors[ref.Address], s.op.session)
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
 			materializedAlterAuthority = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		}
@@ -571,7 +571,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		return ErrCatalogReplaced
 	}
-	if preparedDefinitionStamp(descriptor) != definitionStamp {
+	if preparedDefinitionStamp(descriptor, s.op.session) != definitionStamp {
 		s.preparedChangedDuringAdmission = true
 	}
 	if source {

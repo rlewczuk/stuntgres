@@ -338,6 +338,8 @@ type StatementScope struct {
 	inheritanceAlter               *inheritanceAlterState
 	consumedColumnDrops            map[*preparedDrop]struct{}
 	truncateRelations              []truncateRelation
+	truncateSequences              []truncateSequence
+	truncateRestart                bool
 	truncateNames                  []truncateName
 	truncateSelected               map[ObjectAddress]int
 	Expected                       *StatementDescription

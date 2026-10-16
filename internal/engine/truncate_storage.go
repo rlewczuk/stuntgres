@@ -21,9 +21,11 @@ type truncateName struct {
 	namespace ObjectAddress
 }
 type truncateGraphFence struct {
-	base    *catalogState
-	targets map[ObjectAddress]int // Immutable after acquisition; savepoints share it.
-	token   SessionToken          // Descendant TEMP exclusion matches grant-time admission.
+	base      *catalogState
+	targets   map[ObjectAddress]int // Immutable after acquisition; savepoints share it.
+	token     SessionToken          // Descendant TEMP exclusion matches grant-time admission.
+	restart   bool
+	sequences map[ObjectAddress]*sequenceGenerator // Immutable committed bindings; not counter undo.
 }
 
 // Catalog replacements do not have to honor SQL AX locks. Fence new inbound
@@ -34,6 +36,28 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 	}
 	current := e.privateCatalogLocked(c)
 	for _, fence := range c.truncateFences {
+		if fence.restart {
+			for address, generator := range fence.sequences {
+				if e.sequences[address] != generator {
+					return CatalogConflict{}
+				}
+			}
+			for address, descriptor := range current.state.descriptors {
+				d, ok := descriptor.(*relationDescriptor)
+				if !ok || !truncateOwnsSequence(d, fence.targets) {
+					continue
+				}
+				if _, observed := fence.sequences[address]; observed {
+					continue
+				}
+				// Legitimate own subsequent CREATE/OWNED BY is not an incoming
+				// host edge. Its first committed predecessor is fenced by the
+				// ordinary originals check, including changes hidden by overlays.
+				if _, own := c.descriptors[address]; !own {
+					return CatalogConflict{}
+				}
+			}
+		}
 		for address, descriptor := range current.state.descriptors {
 			if descriptor == fence.base.descriptors[address] || fence.targets[address] != 0 {
 				continue
@@ -154,8 +178,12 @@ func (s *StatementScope) stageTruncate() error {
 			err = CatalogConflict{}
 		}
 	}
+	var sequences map[ObjectAddress]*sequenceGenerator
+	if err == nil && s.truncateRestart {
+		sequences, err = s.stageTruncateSequences(auth, stage)
+	}
 	if err == nil {
-		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.catalog.state, targets: s.truncateSelected, token: s.op.session.token})
+		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.catalog.state, targets: s.truncateSelected, token: s.op.session.token, restart: s.truncateRestart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

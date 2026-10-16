@@ -57,6 +57,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	}
 	selected := make(map[ObjectAddress]int)
 	s.truncateSelected = selected
+	s.truncateRestart = stmt.RestartIdentity
 	expanded := make(map[ObjectAddress]bool)
 	var open func(ObjectRef, *truncateName, bool, bool, bool, bool) error
 	open = func(ref ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {
@@ -218,6 +219,9 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		inbound := truncateReferencers(catalog, selected)
 		e.mu.Unlock()
 		if len(inbound) == 0 {
+			if stmt.RestartIdentity {
+				return s.acquireTruncateSequences(stmt)
+			}
 			return nil
 		}
 		if stmt.Mode != parser.DropCascade {

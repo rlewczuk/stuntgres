@@ -109,10 +109,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 			}
 			continue // Missing numeric regclass input is valid until relation opening.
 		}
-		stamp := d.sequencePlanStamp
-		if d.relationKind != sequenceRelation {
-			stamp = d.revision
-		}
+		stamp := preparedDefinitionStamp(d, auth.session)
 		if stamp != constant.stamp {
 			changed = true
 		}

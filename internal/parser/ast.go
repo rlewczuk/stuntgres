@@ -1500,12 +1500,12 @@ type LockTable struct {
 
 func (*LockTable) statement() {}
 
-// Truncate is a zero-result utility. Identity defaults to CONTINUE; valid
-// RESTART is parsed completely and rejected by the parser's deferred boundary.
+// Truncate is a zero-result utility. Identity defaults to CONTINUE.
 type Truncate struct {
-	Targets []LockTarget
-	Mode    DropMode
-	Pos     Position
+	Targets         []LockTarget
+	Mode            DropMode
+	Pos             Position
+	RestartIdentity bool
 }
 
 func (*Truncate) statement() {}

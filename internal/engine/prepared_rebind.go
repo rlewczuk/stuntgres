@@ -73,16 +73,25 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 	}
 	for _, dep := range analysis.dependencies {
 		d := auth.catalog.state.descriptors[dep.ref.Address]
-		if d == nil || dep.ref.owner != e.owner || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d) != dep.revision {
+		if d == nil || dep.ref.owner != e.owner || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.revision {
 			return false
 		}
 	}
 	return true
 }
 
-func preparedDefinitionStamp(d Descriptor) DefinitionRevision {
+// Caller holds Engine.mu. Sequence source events are independent of generator
+// state and descriptor revisions. Commit exposes the descriptor's source stamp
+// to peers; a reverted reset retains its event only in the initiating session.
+func preparedDefinitionStamp(d Descriptor, session *Session) DefinitionRevision {
 	if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == sequenceRelation {
-		return relation.sequencePlanStamp
+		stamp := relation.sequencePlanStamp
+		if session != nil {
+			if memory := session.sequences[relation.address]; memory != nil {
+				stamp = max(stamp, memory.analysisStamp)
+			}
+		}
+		return stamp
 	}
 	return d.Revision()
 }
@@ -111,7 +120,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		if d == nil || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
-		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d)})
+		cell.dependencies = append(cell.dependencies, expressionDependency{ref: ref, revision: preparedDefinitionStamp(d, auth.session)})
 		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == viewRelation && relation.view != nil {
 			for _, leaf := range relation.view.sources {
 				child, err := storedViewUseReference(auth.catalog, relation, leaf.ref)

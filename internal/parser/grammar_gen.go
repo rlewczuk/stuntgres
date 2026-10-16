@@ -13374,7 +13374,7 @@ sqldefault:
 	case 377:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqlVAL.stmt = &Truncate{Targets: sqlDollar[3].lockTargets, Mode: sqlDollar[5].dropMode, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.stmt = &Truncate{Targets: sqlDollar[3].lockTargets, Mode: sqlDollar[5].dropMode, Pos: sqlDollar[1].tok.pos, RestartIdentity: sqlDollar[4].tok.text == "restart"}
 		}
 	case 378:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -13389,7 +13389,6 @@ sqldefault:
 	case 380:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[1].tok, "TRUNCATE RESTART IDENTITY is unsupported")
 			sqlVAL.tok = sqlDollar[1].tok
 		}
 	case 383:
