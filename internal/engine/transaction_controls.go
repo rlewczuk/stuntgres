@@ -108,6 +108,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		if !installedNext {
 			e.endSerializable(next, false)
 		}
+		t.finishNotificationBoundary()
 		t.mu.Unlock()
 		e.locks.end(candidate)
 		e.locks.end(old)

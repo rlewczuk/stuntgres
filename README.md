@@ -28,11 +28,16 @@ host inventory. See [native limits](docs/DIALECT.md#types-expressions-and-catalo
 
 ## Session messages — change note
 
-Native `LISTEN`, `NOTIFY` (including payloads), and `UNLISTEN` remain explicitly
-unsupported: the public native connection API has no notification receiver.
-No local queue, asynchronous notice substitute, or notification wire transport
-is added. See the [native boundary](docs/DIALECT.md#session-notifications) and
-[selected proof and smoke](reference/sessions/README.md#session-messages-unsupported).
+Native `LISTEN`, `NOTIFY` (including payloads), and `UNLISTEN` now provide
+transactional, same-engine local notifications. Receive on a pinned native
+`*sql.Conn` with `stuntgres.WaitForNotification(ctx, connection)`: committed events
+carry the full logical sender PID, channel and payload. Rollback drops outgoing
+events; subscription changes apply at commit and physical retirement clears the
+recipient. Notices are not repurposed. The server transport still rejects these
+commands explicitly; no wire notifications are added.
+See the [native boundary](docs/DIALECT.md#session-notifications),
+[receiver lifetime](docs/DRIVER.md#local-session-notifications), and
+[selected proof and standalone smoke](reference/sessions/README.md#session-messages).
 
 ## Aggregate definition catalog — change note
 
@@ -2315,8 +2320,9 @@ Native preparation is always enabled per Engine, without crash persistence,
 cluster-wide databases or a capacity setting. Reset/Restore refuse while entries
 exist; Dump remains committed-only. Executed TEMP table/sequence access prohibits
 preparation. A healthy current-transaction unexported HOLD cursor also prohibits
-PREPARE; closed/failed-after-recovery/prior exported entries do not. Notifications
-and snapshot export remain excluded. Nonholdable cursors close on detach while
+PREPARE; closed/failed-after-recovery/prior exported entries do not. Transactions
+that executed LISTEN/UNLISTEN/NOTIFY cannot prepare; existing subscriptions alone
+are allowed. Snapshot export remains excluded. Nonholdable cursors close on detach while
 exported HOLD stores survive. See [prepared transactions](docs/TRANSACTIONS.md#prepared-transactions).
 Feature smoke: `make check RUN='^TestReferencePreparedTransactionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePreparedTransactionFeatureSmoke$'`.

@@ -865,15 +865,57 @@ does not undo committed execution or replace its result. Reenter through another
 already held physical connection or a separate pool with free capacity, **not**
 the same sql.Conn or an exhausted originating pool. Preparation emits no execution
 notices. Native controls do not serialize or deliver staging notices.
-No native DO/RAISE, warning-producing procedural SQL or asynchronous
-LISTEN/NOTIFY support is implied by notice delivery.
-Native session-message commands remain
-[explicitly unsupported](DIALECT.md#session-notifications) because the public
-native connection API has no notification receiver; notice handlers are not
-a substitute.
+No native DO/RAISE or warning-producing procedural SQL is implied by notice
+delivery. Local notifications use the separate receiver below, never a notice
+callback.
 
 `make check RUN='^TestNoticesSmoke$'` exercises actual notices,
 filters, ownership, peer reentry and control round trips; Go test reports the result.
+
+## Local session notifications
+
+```go
+connection, err := db.Conn(ctx)
+if err != nil { return err }
+defer connection.Close()
+if _, err := connection.ExecContext(ctx, "LISTEN changes"); err != nil { return err }
+wait, cancel := context.WithTimeout(ctx, time.Second)
+defer cancel()
+event, err := stuntgres.WaitForNotification(wait, connection)
+if err != nil { return err }
+fmt.Println(event.PID, event.Channel, event.Payload)
+```
+
+`Notification` has `PID uint64`, `Channel string` and `Payload string`. PID is the
+full nonzero physical **logical session identity**, not an OS PID. A sender's
+self and peer events have the same PID; another physical session has another
+identity. There is no separate identity API. The helper requires an unwrapped
+native `*sql.Conn`; nil and foreign/wrapped connections return ordinary errors.
+Closed/context/database/sql errors are preserved, with a zero event on failure.
+
+The helper consumes FIFO client-ready data without starting or ending a
+transaction. New notifications are committed-only and withheld while the
+recipient is in a transaction, including aborted blocks and CHAIN. Previously
+ready data remains consumable during a later block and survives UNLISTEN or
+DISCARD ALL. Subscription changes apply at commit; rollback discards them.
+First registration has no historical backfill. Physical retirement drops only
+that recipient's state; closing a committed sender cannot retract peer events.
+
+The call holds a bounded `sql.Conn.Raw` callback and an activity lease, not
+transaction admission. Other physical sessions can commit while it waits.
+**SQL, Raw and Close on the same `*sql.Conn` serialize behind the wait.**
+Cancel the wait context, await its return, then close the borrower; concurrent
+Close cannot cancel it. Raw mutex acquisition itself has no context API, so do
+not share a connection already occupied by unbounded work.
+
+Cancellation/deadline does not poison the native connection or consume queued
+data after observed cancellation. Borrower Close, ResetSession and statement
+Close retain physical subscriptions/queues/PID; actual driver Close, abandonment
+and termination retire them. Native Reset/Restore retain this physical state and
+sticky registration history; Dump excludes it and Restore imports no source
+subscriptions/events. Notification callbacks, wire transport and SQL notification
+functions are not added. See [native limits](DIALECT.md#session-notifications) and
+[selected contracts and smoke](../reference/sessions/README.md#session-messages).
 
 
 Run `make check RUN='^TestSessionSmoke$'` for asserted isolation, preparation, physical

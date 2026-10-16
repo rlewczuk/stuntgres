@@ -6,45 +6,193 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
-### Session messages unsupported
+### Session messages
 
-`TestReferenceSessionMessagesUnsupported` covers the explicit
-[native notification boundary](../../docs/DIALECT.md#session-notifications).
-The public native connection API has no notification receiver, so this selects
-the unsupported alternative, not a local queue or a notice/wire substitute.
+The six untagged `TestReferenceSessionMessages` definitions exercise the same
+public SQL/receiver body on native and pinned PostgreSQL18:
 
-The shared scenario issues `LISTEN session_messages`,
-`NOTIFY session_messages, 'payload'`, `UNLISTEN session_messages`, and `UNLISTEN *`
-through direct `ExecContext` and actual connection `PrepareContext`.
-Native Exec returns a nil result and Prepare returns a nil statement, with
-complete portable diagnostics: both severities `ERROR`, SQLSTATE `0A000`,
-message `statement is unsupported`, position `1`, and all optional fields empty.
-PostgreSQL independently succeeds directly and after actual prepared execution,
-with zero rows affected and unsupported LastInsertId. Each command is followed
-by `SELECT 1 AS healthy` on the same pinned connection, asserting one INT4 value
-1. Statements close before the next command; PostgreSQL cleanup executes
-`UNLISTEN *` before returning that connection and before fixture teardown.
-This is rejection/recovery proof, not notification delivery or size validation.
+* `Delivery`: direct and actually prepared utilities, effect-free preparation,
+  zero affected counts, empty Query results, peer/self/default/Unicode events,
+  full positive sender PID and same-physical recovery.
+* `Transactions`: committed-only publication, rollback, exact per-transaction
+  dedup/order, both savepoint restoration paths, RELEASE, READ ONLY and implicit
+  message failure versus an explicitly committed prefix.
+* `RecipientBoundaries`: committed current-at-scan subscriptions, registered
+  add-channel history versus first-registration no-backfill, outer commit/abort
+  release, CHAIN/internal COMMIT→BEGIN withholding and irrevocable ready data.
+* `Diagnostics`: complete portable English fields, shared identifier clipping/
+  empty-name positions, 7999/8000 UTF8-byte payload limits, oversized actual
+  Prepare then failing execution, and unchanged SQL PREPARE utility rejection.
+* `Lifecycle`: borrower versus physical retirement, SAME physical timeout/reuse,
+  sender retirement, DISCARD subsets, sticky history, native Reset/Restore/Dump,
+  Driver/exact-DSN isolation and native cancellation precedence.
+* `Publication`: shared notification/row/catalog commit FIFO, concurrent listeners
+  agreeing on sender order, complete-or-none failure and concurrent public wait/
+  peer commit. Deterministic admitted waiter/lease-drain proof is internal, not
+  a runtime-stack observation or an unsupported public concurrent Close promise.
 
-Oracle-first selected proof and feature smoke (external **900-second** deadline
-per command), followed by whole-project Docker-free verification:
+The native adapter calls exported `stuntgres.WaitForNotification`; the PostgreSQL
+adapter remains inside one bounded `sql.Conn.Raw` callback on the fixture's pgx
+connection. Neither raw receiver pointer escapes and notices remain diagnostic.
+The [driver guide](../../docs/DRIVER.md#local-session-notifications) documents
+cancellation, Raw serialization and logical PID lifetime.
+
+Select each small group in **both** modes, with an external900-second deadline
+per invocation. Changed definitions require fresh native and real proof:
 
 ```sh
-make check REFERENCE=1 RUN='^TestReferenceSessionMessagesUnsupported$'
-make check RUN='^TestReferenceSessionMessagesUnsupported$'
+make check RUN='^TestReferenceSessionMessages(Delivery|Diagnostics)$'
+make check RUN='^TestReferenceSessionMessages(Delivery|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceSessionMessages(Transactions|RecipientBoundaries)$'
+make check RUN='^TestReferenceSessionMessages(Transactions|RecipientBoundaries)$' REFERENCE=1
+make check RUN='^TestReferenceSessionMessages(Lifecycle|Publication)$'
+make check RUN='^TestReferenceSessionMessages(Lifecycle|Publication)$' REFERENCE=1
+make check RUN='^TestReferencePreparedTransactionSessionBoundaries$'
+make check RUN='^TestReferencePreparedTransactionSessionBoundaries$' REFERENCE=1
+make check RUN='^TestNotification(PublicationAtomicity|PublicationRoots|SavepointRoots|IdentityAndAssignment|SessionLifecycle|ReceiveOwnership|BatchOwnership|PhysicalCloseWake)$'
+make check RUN='^TestNotification(SessionLifecycle|ReceiveOwnership|BatchOwnership|PhysicalCloseWake)$' RACE=1
+make check RUN='^TestReferenceSessionMessages(Lifecycle|Publication)$' RACE=1
 make quickcheck
 ```
 
-The focused test itself is the public-API feature smoke: real mode includes
-both native and pinned PostgreSQL backends; quick mode exercises native without
-Docker. Expected observations are successful matched tests, exact rejection
-diagnostics/nil outputs, PostgreSQL prepared execution success, zero affected
-counts, same-connection health, and successful ordered cleanup.
+Internal supplements use actual engine owners/operations: both publisher branches
+reject stale captures and retry without overwriting a concurrently replaced ready
+root, failed preflights install neither catalog nor messages, subscriptions do not
+assign XID but outgoing events do, wide session IDs are not narrowed, savepoint
+roots cap retained append capacity, payloads are shared with private recipient
+links, and cancellation/dequeue cannot double-consume. RequestEnd reasons and
+actual physical driver Close cancel admitted receive before lease drain.
+Initialization unwind and once-only quiescent detach retire only their own owner.
+The [prepared-transaction session boundary](../locking_transactions/README.md#session-message-prepare-restrictions)
+proves sticky-history restrictions and failed-PREPARE cleanup; the independent
+[rule-action NOTIFY rejection](../views/rule_authority_test.go) is unchanged.
 
-Existing transaction Query/PREPARE TRANSACTION restrictions remain covered by
-[`TestReferencePreparedTransactionUnsupportedSessionBoundaries`](../locking_transactions/prepared_transaction_restrictions_test.go);
-the separate [rule-action NOTIFY boundary](../views/rule_authority_test.go)
-is unchanged. Neither scenario is duplicated here.
+#### Server transport boundary
+
+`TestReferenceServerNotificationsUnsupported` preserves the distinction between
+the native receiver and a wire transport without notification delivery. All four
+command forms fail natively with complete `0A000` diagnostics and command-token
+character positions, including a Unicode prefix. Implicit-batch writes roll
+back, explicit blocks abort until rollback, and explicit committed prefixes
+survive. PostgreSQL independently delivers actual NotificationResponse events;
+removed-channel poison plus a subscribed sentinel witnesses both UNLISTEN forms.
+Fresh PREPARE after recovery checks transaction cleanup, not hidden subscription
+introspection. The server rejects before notification execution; no wire queue
+drain or test-only inspection API is added.
+
+```sh
+make check RUN='^TestReferenceServerNotificationsUnsupported$' REFERENCE=1
+make check RUN='^TestReferenceServerNotificationsUnsupported$'
+make check RACE=1 RUN='^TestReferenceServerNotificationsUnsupported$'
+```
+
+Each command needs an external900-second deadline. Against an actual local
+server, `LISTEN smoke` must fail with `0A000`; an implicit message
+`INSERT INTO smoke_wire VALUES(1); LISTEN smoke` must leave no inserted row.
+`BEGIN; INSERT INTO smoke_wire VALUES(2); COMMIT; LISTEN smoke` must retain its
+committed row. A rejected command in an explicit block must leave subsequent
+SELECT at `25P02` until ROLLBACK, after which the same connection remains usable.
+
+The existing `TestReferenceServerCancellation` cancellation case now observes an
+actual relation-lock wait before sending one CancelRequest on either backend.
+Native wire cancellation keys are not logical `pg_locks` PIDs, so its serialized,
+private-table witness selects the unique ungranted RowExclusiveLock instead.
+This removes a pre-admission rendezvous race while retaining exact57014/message,
+aborted ReadyForQuery and same-session rollback/recovery assertions.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceServerCancellation$'
+make check RUN='^TestReferenceServerCancellation$'
+```
+
+#### Standalone public executable smoke
+
+Save the complete source below outside the repository (for example a fresh
+`/tmp/session-messages-smoke.go`), run `go run /tmp/session-messages-smoke.go` from
+the repository root under an external900-second deadline, then remove only that
+temporary file. It uses no sockets, fixture or PostgreSQL container. Independently
+expected stdout is exactly:
+
+```text
+before-commit: withheld
+received: smoke committed sender-positive=true
+rollback: discarded
+unlisten: cleared
+```
+
+Every unexpected result or cleanup error exits nonzero. The first timed wait and
+later successful receive use the same pinned native connection.
+
+```go
+package main
+
+import (
+    "context"
+    "database/sql"
+    "errors"
+    "fmt"
+    "os"
+    "time"
+    "stuntgres"
+)
+
+func run() (err error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    connector, err := stuntgres.NewDriver().OpenConnector("notification-smoke")
+    if err != nil { return err }
+    db := sql.OpenDB(connector)
+    defer func() { err = errors.Join(err, db.Close()) }()
+    a, err := db.Conn(ctx)
+    if err != nil { return err }
+    defer func() { err = errors.Join(err, a.Close()) }()
+    b, err := db.Conn(ctx)
+    if err != nil { return err }
+    defer func() { err = errors.Join(err, b.Close()) }()
+    exec := func(c *sql.Conn, q string) error {
+        _, err := c.ExecContext(ctx, q)
+        return err
+    }
+    absent := func() error {
+        wait, stop := context.WithTimeout(ctx, 50*time.Millisecond)
+        defer stop()
+        event, err := stuntgres.WaitForNotification(wait, b)
+        if !errors.Is(err, context.DeadlineExceeded) || event != (stuntgres.Notification{}) {
+            return fmt.Errorf("expected withheld event: %+v, %v", event, err)
+        }
+        return nil
+    }
+    if err := exec(b, "LISTEN smoke"); err != nil { return err }
+    if err := exec(a, "BEGIN"); err != nil { return err }
+    if err := exec(a, "NOTIFY smoke, 'committed'"); err != nil { return err }
+    if err := absent(); err != nil { return err }
+    fmt.Println("before-commit: withheld")
+    if err := exec(a, "COMMIT"); err != nil { return err }
+    wait, stop := context.WithTimeout(ctx, 2*time.Second)
+    event, receiveErr := stuntgres.WaitForNotification(wait, b)
+    stop()
+    if receiveErr != nil { return receiveErr }
+    if event.PID == 0 || event.Channel != "smoke" || event.Payload != "committed" {
+        return fmt.Errorf("unexpected committed event: %+v", event)
+    }
+    fmt.Printf("received: %s %s sender-positive=%t\n", event.Channel, event.Payload, event.PID > 0)
+    if err := exec(a, "BEGIN"); err != nil { return err }
+    if err := exec(a, "NOTIFY smoke, 'rolled-back'"); err != nil { return err }
+    if err := exec(a, "ROLLBACK"); err != nil { return err }
+    if err := absent(); err != nil { return err }
+    fmt.Println("rollback: discarded")
+    if err := exec(b, "UNLISTEN *"); err != nil { return err }
+    if err := exec(a, "NOTIFY smoke, 'removed'"); err != nil { return err }
+    if err := absent(); err != nil { return err }
+    fmt.Println("unlisten: cleared")
+    return nil
+}
+
+func main() {
+    if err := run(); err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
+}
+```
+
 
 ### Live lock state
 
@@ -659,7 +807,7 @@ groups (external900-second deadline per invocation):
 make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(CommitRemaining|AutocommitAndPrepared|RollbackAndSavepoints|Materialization|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(FailureAndPromotion|ScopeAndPresentation|Restrictions|NestedRowLocks|PrepareBoundaries)$'
 make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(Cancellation|SessionAndControls)$'
-make check REFERENCE=1 RUN='^TestReferencePreparedTransactionUnsupportedSessionBoundaries$'
+make check REFERENCE=1 RUN='^TestReferencePreparedTransactionSessionBoundaries$'
 make check REFERENCE=1 RUN='^TestReferenceSQLCursorHold(Recursive)?CatalogChanges$'
 ```
 
@@ -787,14 +935,15 @@ authority, select the entire existing advisory family and prepared-transaction
 boundary scenario alongside every cursor definition, in both modes before review:
 
 ```sh
-make check RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)'
-make check REFERENCE=1 RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionUnsupportedSessionBoundaries$)'
+make check RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionSessionBoundaries$)'
+make check REFERENCE=1 RUN='^TestReference(SQLCursor|AdvisorySession|PreparedTransactionSessionBoundaries$)'
 ```
 
 Each command has its own900-second deadline. The prepared-transaction boundary
 scenario asserts the actual WITH HOLD/PREPARE restriction on both backends:
 0A000 `cannot PREPARE a transaction that has created a cursor WITH HOLD`.
-Its TEMP/listen/export capability boundaries remain unchanged. Hash and join logical-stage fixtures keep real
+Its TEMP/export boundaries remain unchanged; session messages now execute and
+prohibit PREPARE when transaction actions/events are retained. Hash and join logical-stage fixtures keep real
 admissions alive until stage disposal, then finish the scope before
 operation/session cleanup. The selected-private-roots join helper completes eager
 finalization before releasing its statement and operation; detached output remains
@@ -1141,7 +1290,7 @@ in both native and real pinned modes, with the same 900-second external deadline
 * H1: `^TestReferenceSQLCursorHold(CommitRemaining|AutocommitAndPrepared|RollbackAndSavepoints|Materialization|FeatureSmoke)$`
 * H2: `^TestReferenceSQLCursorHold(FailureAndPromotion|ScopeAndPresentation|CatalogChanges|RecursiveCatalogChanges|Restrictions|NestedRowLocks|PrepareBoundaries)$`
 * H3: `^TestReferenceSQLCursorHold(Cancellation|SessionAndControls)$`
-* H4: `^TestReference(SQLCursorZeroAndDirections|SQLCursorAnalysisAndDiagnostics|SQLCursorTransactionEnds|PreparedTransactionUnsupportedSessionBoundaries)$`
+* H4: `^TestReference(SQLCursorZeroAndDirections|SQLCursorAnalysisAndDiagnostics|SQLCursorTransactionEnds|PreparedTransactionSessionBoundaries)$`
 * Additional positioned preservation: `^TestReferenceDeleteCurrentOfUsingReturningAndConstraints$`
 
 Combined SCROLL/HOLD capture and saved-position witnesses are

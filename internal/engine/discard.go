@@ -47,6 +47,13 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	}
 	if raw.Category == parser.DiscardAll {
 		e := session.Engine()
+		e.mu.Lock()
+		state := session.notifications.state
+		history := state != nil && state.history
+		e.mu.Unlock()
+		if history {
+			s.notificationActions = append(s.notificationActions, notificationAction{all: true})
+		}
 		s.op.discardRoleReset = reset
 		defer func() { s.op.discardRoleReset = authorization.RoleState{} }()
 		// Commit the validated TEMP closure with the normal combined publisher.

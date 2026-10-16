@@ -217,6 +217,12 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		} else {
 			base = "CLOSE CURSOR"
 		}
+	case *parser.Listen:
+		base = "LISTEN"
+	case *parser.Unlisten:
+		base = "UNLISTEN"
+	case *parser.Notify:
+		base = "NOTIFY"
 	case *parser.Discard:
 		switch s.Category {
 		case parser.DiscardAll:

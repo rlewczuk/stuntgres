@@ -25,6 +25,8 @@ type savepointMark struct {
 	exclusionModes      exclusionModes
 	exclusionProjection *exclusionProjection
 	identity            authorization.RoleState
+	notificationActions []notificationAction
+	notificationEvents  []Notification
 }
 
 type settingsMark struct {
@@ -84,12 +86,13 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 	t.session.mu.Lock()
 	identity := t.session.authorization.state
 	t.session.mu.Unlock()
-	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity}
+	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
 	t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
+	t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
 	t.session.settings.restoreSavepoint(settings, mark.identity)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
 	t.deferrable = mark.deferrable
@@ -209,6 +212,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		case parser.RollbackSavepoint:
 			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
+			t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
 			targetIdentity := mark.identity
 			targetIdentity.CurrentUser = settings.currentRole
 			t.session.settings.restoreIdentityLocked(targetIdentity)

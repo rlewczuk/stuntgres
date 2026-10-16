@@ -49,7 +49,7 @@ type DropRule struct {
 
 func (*DropRule) statement() {}
 
-// Notify is recognized only as a rule action; transport is not an engine service.
+// Notify stages a local session notification; rule actions remain unsupported.
 type Notify struct {
 	Channel Identifier
 	Payload string
@@ -57,6 +57,21 @@ type Notify struct {
 }
 
 func (*Notify) statement() {}
+
+type Listen struct {
+	Channel Identifier
+	Pos     Position
+}
+
+func (*Listen) statement() {}
+
+type Unlisten struct {
+	Channel Identifier
+	All     bool
+	Pos     Position
+}
+
+func (*Unlisten) statement() {}
 
 // Policy conditions are optional definitions, not enforcement-time fallbacks.
 type CreatePolicy struct {

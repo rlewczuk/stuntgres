@@ -1,86 +1,156 @@
 package reference_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"stuntgres/reference/fixture"
 )
 
-func TestReferenceSessionMessagesUnsupported(t *testing.T) {
-	p := fixture.NewScenario(t)
-	want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported")
-	want.Position = "1"
-	queries := []string{
-		"LISTEN session_messages",
-		"NOTIFY session_messages, 'payload'",
-		"UNLISTEN session_messages",
-		"UNLISTEN *",
+func TestReferenceSessionMessagesDelivery(t *testing.T) {
+	t.Run("receiver-admission", func(t *testing.T) {
+		sessionMessagesScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+			r := sessionMessageConn(t, p, b)
+			ctx, cancel := context.WithCancel(p.Ctx)
+			cancel()
+			got, err := sessionMessageWait(ctx, r, b.PG)
+			if !errors.Is(err, context.Canceled) || got != (sessionMessage{}) {
+				t.Fatal("receiver admission must return zero and cancellation", got, err)
+			}
+		})
+	})
+	for _, prepared := range []bool{false, true} {
+		name := "exec"
+		if prepared {
+			name = "held-prepare"
+		}
+		t.Run(name, func(t *testing.T) {
+			sessionMessagesScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				sender, err := b.DB.Conn(p.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer sender.Close()
+				r := sessionMessageConn(t, p, b)
+				peer := sessionMessageConn(t, p, b)
+				sessionMessageSQL(t, p, b, r, "LISTEN session_messages")
+				sessionMessageSQL(t, p, b, peer, "LISTEN session_messages")
+				for _, q := range []string{
+					"LISTEN session_messages", "LISTEN session_messages",
+					"UNLISTEN absent_session_messages", "NOTIFY session_messages, 'payload'",
+					"NOTIFY session_messages", "NOTIFY session_messages, '雪☃'",
+					"UNLISTEN session_messages", "UNLISTEN *",
+				} {
+					if !prepared {
+						sessionMessageSQL(t, p, b, sender, q)
+					} else {
+						stmt, err := sender.PrepareContext(p.Ctx, q)
+						if err != nil {
+							t.Fatal("effect-free utility Prepare:", err)
+						}
+						if stmt == nil {
+							t.Fatal("Prepare returned nil statement")
+						}
+						held := fixture.HeldStatement{Executor: sender, Statement: stmt, SQL: q}
+						fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 0))
+						if err := stmt.Close(); err != nil {
+							t.Fatal(err)
+						}
+					}
+					sessionMessageHealth(t, p, b, sender)
+				}
+				var senderPID uint64
+				for _, payload := range []string{"payload", "", "雪☃"} {
+					a := sessionMessageReceive(t, p, b, r, "session_messages", payload)
+					c := sessionMessageReceive(t, p, b, peer, "session_messages", payload)
+					if senderPID == 0 {
+						senderPID = a.PID
+					}
+					if a.PID != senderPID || c.PID != senderPID {
+						t.Fatal("same sender changed identity", a, c, senderPID)
+					}
+				}
+				sessionMessageSQL(t, p, b, r, "NOTIFY session_messages, 'self'")
+				a := sessionMessageReceive(t, p, b, r, "session_messages", "self")
+				c := sessionMessageReceive(t, p, b, peer, "session_messages", "self")
+				if a.PID != c.PID || a.PID == senderPID {
+					t.Fatal("self/peer identity or physical sender distinction", a, c, senderPID)
+				}
+				// No additional send from Prepare itself may precede this sentinel.
+				sessionMessageSQL(t, p, b, sender, "NOTIFY session_messages, 'sentinel'")
+				sessionMessageReceive(t, p, b, r, "session_messages", "sentinel")
+				rows, err := sender.QueryContext(p.Ctx, "NOTIFY session_messages, 'query-route'")
+				if err != nil {
+					t.Fatal(err)
+				}
+				columns, err := rows.Columns()
+				if err != nil || len(columns) != 0 || rows.Next() {
+					rows.Close()
+					t.Fatal("utility query must have no columns or rows", columns, err)
+				}
+				if err := rows.Err(); err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				if err := rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+				sessionMessageReceive(t, p, b, r, "session_messages", "query-route")
+				sessionMessageHealth(t, p, b, sender)
+			})
+		})
 	}
-	for _, backend := range p.Backends() {
-		t.Run(backend.Name, func(t *testing.T) {
-			conn, err := backend.DB.Conn(p.Ctx)
+
+	t.Run("held-subscription-effects", func(t *testing.T) {
+		sessionMessagesScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+			r := sessionMessageConn(t, p, b)
+			sender := sessionMessageConn(t, p, b)
+			runHeld := func(q string) {
+				t.Helper()
+				stmt, err := r.PrepareContext(p.Ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := stmt.Close(); err != nil {
+						t.Error("statement close:", err)
+					}
+				}()
+				held := fixture.HeldStatement{Executor: r, Statement: stmt, SQL: q}
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 0))
+			}
+			for _, q := range []string{"UNLISTEN prepared_delivery", "UNLISTEN *"} {
+				runHeld("LISTEN prepared_delivery")
+				sessionMessageSQL(t, p, b, sender, "NOTIFY prepared_delivery, 'subscribed'")
+				sessionMessageReceive(t, p, b, r, "prepared_delivery", "subscribed")
+				runHeld(q)
+				sessionMessageSQL(t, p, b, r, "LISTEN prepared_sentinel")
+				sessionMessageSQL(t, p, b, sender, "NOTIFY prepared_delivery, 'removed'")
+				sessionMessageSQL(t, p, b, sender, "NOTIFY prepared_sentinel, 'retained'")
+				sessionMessageReceive(t, p, b, r, "prepared_sentinel", "retained")
+			}
+		})
+	})
+
+	t.Run("prepare-has-no-subscription-effects", func(t *testing.T) {
+		sessionMessagesScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+			r := sessionMessageConn(t, p, b)
+			sender := sessionMessageConn(t, p, b)
+			stmt, err := r.PrepareContext(p.Ctx, "LISTEN never_executed")
 			if err != nil {
 				t.Fatal(err)
 			}
-			t.Cleanup(func() {
-				if err := conn.Close(); err != nil {
-					t.Error("connection close:", err)
-				}
-			})
-			if backend.PG {
-				// Clean the physical session before returning it to the pool,
-				// including when an assertion interrupts the command sequence.
-				t.Cleanup(func() {
-					if _, err := conn.ExecContext(p.Ctx, "UNLISTEN *"); err != nil {
-						t.Error("UNLISTEN cleanup:", err)
-					}
-				})
+			defer stmt.Close()
+			sessionMessageSQL(t, p, b, sender, "NOTIFY never_executed, 'must-not-arrive'")
+			sessionMessageSQL(t, p, b, r, "LISTEN sentinel")
+			unlisten, err := r.PrepareContext(p.Ctx, "UNLISTEN sentinel")
+			if err != nil {
+				t.Fatal(err)
 			}
-			for _, route := range []string{"exec", "prepare"} {
-				t.Run(route, func(t *testing.T) {
-					for _, query := range queries {
-						t.Run(query, func(t *testing.T) {
-							if route == "exec" {
-								step := fixture.Exec(query, 0)
-								if !backend.PG {
-									step = fixture.ErrorDiagnostic(query, want)
-								}
-								fixture.RunStep(t, p.Ctx, conn, backend.Recorder, step)
-								return
-							}
-
-							stmt, err := conn.PrepareContext(p.Ctx, query)
-							if stmt != nil {
-								t.Cleanup(func() {
-									if err := stmt.Close(); err != nil {
-										t.Error("statement close:", err)
-									}
-								})
-							}
-							if !backend.PG {
-								if stmt != nil {
-									t.Fatal("unsupported Prepare exposed a statement")
-								}
-								fixture.AssertDiagnostic(t, err, &want)
-								return
-							}
-							if err != nil {
-								t.Fatal("Prepare:", err)
-							}
-							if stmt == nil {
-								t.Fatal("successful Prepare returned a nil statement")
-							}
-							held := fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: query}
-							fixture.RunStep(t, p.Ctx, held, backend.Recorder, fixture.Exec(query, 0))
-						})
-						// The command's statement cleanup has already run. Recovery
-						// must use this same pinned physical connection.
-						fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Select(
-							"SELECT 1 AS healthy", []string{"healthy"}, []string{"INT4"}, [][]any{{int64(1)}},
-						))
-					}
-				})
-			}
+			defer unlisten.Close()
+			sessionMessageSQL(t, p, b, sender, "NOTIFY sentinel, 'still-listening'")
+			sessionMessageReceive(t, p, b, r, "sentinel", "still-listening")
 		})
-	}
+	})
 }

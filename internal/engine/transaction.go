@@ -96,16 +96,18 @@ type transactionOwner struct {
 	frontier        CommitSeq
 	roots           map[ObjectAddress]transactionRoot
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
-	sequenceCatalog   *catalogState
-	catalog           *catalogChanges
-	savepoints        []savepointMark
-	accessedTemporary bool
-	exclusionModes    exclusionModes
-	retainedMessage   bool // Admission spans a direct multi-command message.
-	identityEntry     authorization.RoleState
-	identityCaptured  bool
-	messageBorn       bool
-	cursorCleanup     []*sqlCursor // Detached under owner lock; drained unlocked.
+	sequenceCatalog     *catalogState
+	catalog             *catalogChanges
+	savepoints          []savepointMark
+	accessedTemporary   bool
+	exclusionModes      exclusionModes
+	retainedMessage     bool // Admission spans a direct multi-command message.
+	identityEntry       authorization.RoleState
+	identityCaptured    bool
+	messageBorn         bool
+	cursorCleanup       []*sqlCursor // Detached under owner lock; drained unlocked.
+	notificationActions []notificationAction
+	notificationEvents  []Notification
 }
 
 func (t *transactionOwner) clear() {
@@ -123,6 +125,8 @@ func (t *transactionOwner) clear() {
 	t.roots = nil
 	t.sequenceCatalog = nil
 	t.catalog = nil
+	t.notificationActions = nil
+	t.notificationEvents = nil
 	clear(t.savepoints)
 	t.savepoints = nil
 	t.accessedTemporary = false
@@ -185,6 +189,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	t.next++
 	t.ref = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
 	t.state = state
+	session.notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
 	t.readOnly = settings.value("default_transaction_read_only") == "on"
 	t.deferrable = settings.value("default_transaction_deferrable") == "on"
@@ -292,6 +297,8 @@ type StatementScope struct {
 	// it is neither prepared-plan state nor a cached permission decision.
 	routineAuth                    AuthorizationView
 	stage                          WriteStage
+	notificationActions            []notificationAction
+	notificationEvents             []Notification
 	view                           *VisibilityView
 	partitionValidationView        *VisibilityView // Latest DDL scan, same owner; never the retained query snapshot.
 	finished                       bool
@@ -716,6 +723,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	switch stmt.(type) {
+	case *parser.Listen, *parser.Unlisten, *parser.Notify:
+		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.CreateTablespace:

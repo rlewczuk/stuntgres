@@ -147,68 +147,87 @@ func TestReferencePreparedTransactionSyntax(t *testing.T) {
 	})
 }
 
-func TestReferencePreparedTransactionUnsupportedSessionBoundaries(t *testing.T) {
-	fixture.PreparedReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		a, peer := fixture.LockConnections(t, p.Ctx, b.DB)
-		// TEMP and WITH HOLD execute on both backends and prove real PREPARE
-		// restrictions. Other excluded features retain their independent
-		// statement/function boundaries.
-		for _, c := range []struct {
-			q, message string
-			listening  bool
-		}{
-			{"CREATE TEMP TABLE prepared_boundary(v INT)", "cannot PREPARE a transaction that has operated on temporary objects", false},
-			{"DECLARE prepared_cursor CURSOR WITH HOLD FOR SELECT 1", "cannot PREPARE a transaction that has created a cursor WITH HOLD", false},
-			{"LISTEN prepared_channel", "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY", false},
-			// Async_UnlistenAll returns without queuing actions in a clean session.
-			// Preserve that successful PG branch as well as a real UNLISTEN witness.
-			{"UNLISTEN *", "", false},
-			{"UNLISTEN *", "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY", true},
-			{"NOTIFY prepared_channel", "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY", false},
-			{"SELECT pg_export_snapshot()", "cannot PREPARE a transaction that has exported snapshots", false},
-		} {
-			if b.PG && c.listening {
-				fixture.LockExec(t, p.Ctx, a, "LISTEN prepared_channel", 0)
+func TestReferencePreparedTransactionSessionBoundaries(t *testing.T) {
+	const messages = "cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY"
+	for _, c := range []struct {
+		name, setup, action, message string
+	}{
+		{"temporary", "", "CREATE TEMP TABLE prepared_boundary(v INT)", "cannot PREPARE a transaction that has operated on temporary objects"},
+		{"hold", "", "DECLARE prepared_cursor CURSOR WITH HOLD FOR SELECT 1", "cannot PREPARE a transaction that has created a cursor WITH HOLD"},
+		{"listen", "", "LISTEN prepared_channel", messages},
+		{"notify", "", "NOTIFY prepared_channel, 'discarded'", messages},
+		{"pristine-unlisten-all", "", "UNLISTEN *", ""},
+		{"pristine-unlisten-channel", "", "UNLISTEN prepared_channel", ""},
+		{"current-subscription-only", "LISTEN prepared_channel", "", ""},
+		{"duplicate-listen", "LISTEN prepared_channel", "LISTEN prepared_channel", messages},
+		{"net-zero", "", "LISTEN prepared_channel; UNLISTEN prepared_channel", messages},
+		{"unlisten-subscribed", "LISTEN prepared_channel", "UNLISTEN *", messages},
+		{"sticky-after-all", "LISTEN prepared_channel; UNLISTEN *", "UNLISTEN prepared_channel", messages},
+		{"sticky-after-discard", "LISTEN prepared_channel; DISCARD ALL", "UNLISTEN *", messages},
+		{"rolled-back-first-listen", "BEGIN; LISTEN prepared_channel; ROLLBACK", "UNLISTEN *", ""},
+		{"child-rollback", "", "SAVEPOINT child; LISTEN prepared_channel; NOTIFY prepared_channel; ROLLBACK TO child", ""},
+		{"child-release", "", "SAVEPOINT child; NOTIFY prepared_channel; RELEASE child", messages},
+		{"export", "", "SELECT pg_export_snapshot()", "cannot PREPARE a transaction that has exported snapshots"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			// A new fixture/pool per history case is essential: an empty
+			// subscription set is NOT a pristine physical session.
+			p := fixture.NewScenario(t)
+			for _, b := range p.Backends() {
+				t.Run(b.Name, func(t *testing.T) {
+					a, peer := fixture.LockConnections(t, p.Ctx, b.DB)
+					if c.setup != "" {
+						for _, q := range strings.Split(c.setup, "; ") {
+							fixture.LockExec(t, p.Ctx, a, q, 0)
+						}
+					}
+					fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
+					if c.action != "" {
+						rows, err := a.QueryContext(p.Ctx, c.action)
+						if !b.PG && c.name == "export" {
+							if rows != nil {
+								rows.Close()
+								t.Fatal("unsupported export exposed rows")
+							}
+							want := fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
+							want.Position = "8"
+							fixture.AssertDiagnostic(t, err, &want)
+							fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
+							return
+						}
+						if err != nil {
+							t.Fatal(c.action, err)
+						}
+						for {
+							for rows.Next() {
+							}
+							if !rows.NextResultSet() {
+								break
+							}
+						}
+						if err := rows.Err(); err != nil {
+							rows.Close()
+							t.Fatal(err)
+						}
+						if err := rows.Close(); err != nil {
+							t.Fatal(err)
+						}
+					}
+					fixture.PreparedReferenceCleanup(t, b, "boundary")
+					if c.message == "" {
+						fixture.LockExec(t, p.Ctx, a, "PREPARE TRANSACTION 'boundary'", 0)
+						fixture.PreparedReferenceOne(t, p, peer, "boundary")
+						fixture.LockExec(t, p.Ctx, peer, "ROLLBACK PREPARED 'boundary'", 0)
+					} else {
+						fixture.PreparedReferenceError(t, p.Ctx, a, "PREPARE TRANSACTION 'boundary'", "0A000", c.message)
+					}
+					fixture.PreparedReferenceAbsent(t, p, peer, "boundary")
+					fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select(
+						"SELECT 1 AS healthy", []string{"healthy"}, []string{"INT4"}, [][]any{{int64(1)}},
+					))
+				})
 			}
-			fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
-			rows, err := a.QueryContext(p.Ctx, c.q)
-			if !b.PG && !strings.HasPrefix(c.q, "CREATE TEMP TABLE") && !strings.HasPrefix(c.q, "DECLARE") {
-				if rows != nil {
-					rows.Close()
-					t.Fatal("unsupported boundary returned rows")
-				}
-				want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported")
-				want.Position = "1"
-				switch {
-				case strings.HasPrefix(c.q, "SELECT"):
-					want = fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
-					want.Position = "8"
-				}
-				fixture.AssertDiagnostic(t, err, &want)
-				fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
-				continue
-			}
-			if err != nil {
-				t.Fatal(c.q, err)
-			}
-			for rows.Next() {
-			}
-			if err := rows.Err(); err != nil {
-				t.Fatal(err)
-			}
-			rows.Close()
-			fixture.PreparedReferenceCleanup(t, b, "boundary")
-			if c.message == "" {
-				fixture.LockExec(t, p.Ctx, a, "PREPARE TRANSACTION 'boundary'", 0)
-				fixture.PreparedReferenceOne(t, p, peer, "boundary")
-				fixture.LockExec(t, p.Ctx, peer, "ROLLBACK PREPARED 'boundary'", 0)
-			} else {
-				fixture.PreparedReferenceError(t, p.Ctx, a, "PREPARE TRANSACTION 'boundary'", "0A000", c.message)
-			}
-			fixture.PreparedReferenceAbsent(t, p, peer, "boundary")
-			if c.listening {
-				fixture.LockExec(t, p.Ctx, a, "UNLISTEN *", 0)
-			}
-		}
-	})
+		})
+	}
+	t.Run("failed-prepare-message-effects", preparedMessageBoundaryEffects)
 }

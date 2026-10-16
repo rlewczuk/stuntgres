@@ -100,6 +100,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 	}
 	t.mu.Lock()
 	t.retainedMessage = false
+	t.finishNotificationBoundary()
 	t.mu.Unlock()
 	s.op.session.mu.Lock()
 	s.op.sqlFinished = true

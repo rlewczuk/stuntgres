@@ -221,8 +221,22 @@ Completion changes neither origin nor finishing-session settings.
 
 TEMP use is sticky across savepoint rollback and prohibits preparation. An
 unexported healthy holdable cursor also prohibits detach; ordinary Go Rows/Stmt
-handles do not. Detached entries have no session timers. Unsupported notification
-and snapshot-export mechanisms do not become native preparation restrictions.
+handles do not. Detached entries have no session timers. A transaction with
+retained LISTEN/UNLISTEN actions or NOTIFY events fails PREPARE with `0A000`,
+`cannot PREPARE a transaction that has executed LISTEN, UNLISTEN, or NOTIFY`.
+The failure ends the incarnation, discards all staged effects, creates no GID,
+and releases committed peer notifications at the actual outer idle boundary.
+Current subscriptions alone do not prohibit preparation. Duplicate LISTEN and
+net-zero action sequences still count; savepoint rollback removes child effects,
+RELEASE retains them. UNLISTEN is action-free only on a never-registered physical
+session with no pending actions. Committed registration history stays sticky
+through UNLISTEN ALL, DISCARD ALL and native Reset/Restore. Notification checks
+follow the existing WITH HOLD, GID-size and TEMP checks. Snapshot export remains
+unsupported. See [local notifications](DRIVER.md#local-session-notifications).
+
+Completing a detached prepared entry never consults the origin session's later
+transaction notification buffers. Only the detached row/catalog roots publish;
+later origin subscriptions and events retain their own commit/rollback outcome.
 
 The prepared catalog provider owns coherent registry snapshots. Its XID carrier
 uses the same distinct scalar identity and fresh decimal bytes as public XID

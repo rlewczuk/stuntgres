@@ -17,9 +17,8 @@ import (
 	"github.com/lib/pq"
 )
 
-// Cancellation uses an actual conflicting table lock, not an unavailable native
-// pg_sleep provider. Repeated CancelRequests are an admission rendezvous: a
-// 57014 response proves a matching request reached the registered command.
+// Cancellation uses an observed conflicting table-lock wait, not pg_sleep or
+// command registration alone, before sending exactly one CancelRequest.
 func TestReferenceServerCancellation(t *testing.T) {
 	f := fixture.NewServerFixture(t)
 	for _, b := range f.Backends() {
@@ -38,11 +37,29 @@ func TestReferenceServerCancellation(t *testing.T) {
 				victim := serverAuthenticated(t, dsn)
 				serverWantCode(t, victim.query(t, "BEGIN"), "")
 				victim.send(t, serverPacket('Q', []byte("INSERT INTO server_cancel VALUES (9)\x00")))
+				observer := f.RawPool(t, b)
+				observe, stopObservation := context.WithTimeout(f.Ctx, 10*time.Second)
+				defer stopObservation()
 				if b.PG {
-					observer := f.RawPool(t, b)
-					ctx, cancel := context.WithTimeout(f.Ctx, 10*time.Second)
-					defer cancel()
-					serverObserveCancelWait(t, ctx, observer, int(victim.pid), owner.pid, "server_cancel")
+					serverObserveCancelWait(t, observe, observer, int(victim.pid), owner.pid, "server_cancel")
+				} else {
+					// Native wire cancellation keys are not logical pg_locks PIDs.
+					// This fixture has exactly one waiter on this private table.
+					for {
+						var waiting bool
+						err := observer.QueryRowContext(observe, `SELECT EXISTS (
+							SELECT 1 FROM pg_locks WHERE locktype='relation'
+							AND relation='server_cancel'::regclass::oid
+							AND mode='RowExclusiveLock' AND NOT granted
+						)`).Scan(&waiting)
+						if err != nil {
+							t.Fatal("native cancellation relation-wait barrier:", err)
+						}
+						if waiting {
+							break
+						}
+						runtime.Gosched()
+					}
 				}
 				type reply struct {
 					frames []serverFrame
@@ -74,31 +91,20 @@ func TestReferenceServerCancellation(t *testing.T) {
 				ctx, cancel := context.WithTimeout(f.Ctx, 10*time.Second)
 				defer cancel()
 				var frames []serverFrame
-				if b.PG {
-					// The observed wait proves registration; one cancellation avoids
-					// signaling a subsequent command after this request completes.
-					serverCancel(t, dsn, victim.pid, victim.key)
-				}
-			loop:
-				for {
-					select {
-					case r := <-result:
-						joined = true
-						if r.err != nil {
-							t.Fatal(r.err)
-						}
-						frames = r.frames
-						break loop
-					case <-ctx.Done():
-						victim.Close()
-						serverWantCode(t, owner.query(t, "ROLLBACK"), "")
-						t.Fatal("cancel did not join blocked command")
-					default:
-						if !b.PG {
-							serverCancel(t, dsn, victim.pid, victim.key)
-						}
-						runtime.Gosched()
+				// Admission is now observed on both backends. A single request
+				// cannot accidentally cancel a subsequent command.
+				serverCancel(t, dsn, victim.pid, victim.key)
+				select {
+				case r := <-result:
+					joined = true
+					if r.err != nil {
+						t.Fatal(r.err)
 					}
+					frames = r.frames
+				case <-ctx.Done():
+					victim.Close()
+					serverWantCode(t, owner.query(t, "ROLLBACK"), "")
+					t.Fatal("cancel did not join blocked command")
 				}
 				serverWantCode(t, frames, "57014")
 				if serverFields(frames[0].body)['M'] != "canceling statement due to user request" {

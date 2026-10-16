@@ -14,8 +14,9 @@ import (
 )
 
 type Engine struct {
-	mu    sync.Mutex
-	locks *relationLockManager
+	mu            sync.Mutex
+	locks         *relationLockManager
+	notifications map[SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
 	owner                *catalogOwner

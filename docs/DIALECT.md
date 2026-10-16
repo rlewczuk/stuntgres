@@ -100,19 +100,35 @@ See [commands and security](../README.md#phase-1-server--change-note) and
 
 ## Session notifications
 
-Native `LISTEN`, `NOTIFY` (including `NOTIFY channel, 'payload'`),
-`UNLISTEN channel`, and `UNLISTEN *` are intentionally unsupported through
-both direct execution and preparation. The public native connection API has
-no notification receiver; synchronous [notice callbacks](DRIVER.md#notices-and-warnings)
-are diagnostics, not asynchronous notification delivery.
+Native `LISTEN`, `NOTIFY` (including a literal payload), `UNLISTEN channel`, and
+`UNLISTEN *` support local notifications between physical sessions in the same
+Engine. Receive with the public native
+[`WaitForNotification`](DRIVER.md#local-session-notifications) helper, not notice
+callbacks. Separate Driver instances and distinct exact DSNs are isolated.
 
-Valid examples beginning with these command keywords fail with SQLSTATE
-`0A000`, message `statement is unsupported`, and position `1`. This is a native
-capability rejection, not a PostgreSQL rejection of these valid commands.
-No subscription, local queue, commit-delayed delivery, rollback discard,
-unlisten/close clearing, or notification-specific name/payload validation is
-claimed. No notification API or wire-protocol notification simulation is added.
-See [selected proof and smoke](../reference/sessions/README.md#session-messages-unsupported)
+Subscription actions and outgoing events commit atomically with row/catalog
+effects; rollback and rolled-back savepoints discard them. Identical channel/
+payload pairs fold within a transaction, retaining first occurrence order.
+Different transactions retain duplicates and commit order. An active/aborted
+recipient withholds new server-pending events until the outer idle boundary;
+CHAIN and internal COMMIT→BEGIN messages do not create an intermediate scan.
+Filtering uses committed subscriptions at that boundary; a first LISTEN never
+backfills history. Already client-ready events survive UNLISTEN and DISCARD ALL.
+
+Names use the shared identifier folding, quoting and UTF8-safe 63-byte clipping
+notice. Payloads are at most 7999 UTF8 bytes; 8000 bytes fail with `22023`,
+`payload string too long`. Actual driver preparation is effect-free, including
+payload validation deferred to execution; SQL PREPARE still only accepts DML.
+These utilities are allowed READ ONLY. Pending notification actions/events forbid
+PREPARE TRANSACTION; see [transactions](TRANSACTIONS.md#prepared-transactions).
+
+The server transport rejects LISTEN/NOTIFY/UNLISTEN with `0A000`,
+`statement is unsupported`, at the command token. Rejection uses normal statement
+failure: implicit batches roll back, explicit blocks abort, and already committed
+prefixes remain committed. No wire NotificationResponse transport, rule-action
+execution, `pg_notify`, `pg_listening_channels`, or `pg_notification_queue_usage`
+is introduced.
+See [selected proof and executable smoke](../reference/sessions/README.md#session-messages)
 and PostgreSQL's [LISTEN](https://www.postgresql.org/docs/18/sql-listen.html),
 [NOTIFY](https://www.postgresql.org/docs/18/sql-notify.html), and
 [UNLISTEN](https://www.postgresql.org/docs/18/sql-unlisten.html) contracts.
@@ -561,7 +577,7 @@ blanket-banned.
 
 Native rule DDL is autocommit-only, including prepared execution; this differs
 from PostgreSQL transactional DDL. MERGE events/actions, procedural triggers
-and LISTEN/NOTIFY transport remain unavailable. Persistent rules participate
+and rule-action NOTIFY/wire notification transport remain unavailable. Persistent rules participate
 in dependency cleanup and post-data logical Dump/Restore.
 DO UPDATE actions implicitly capture dependencies on every target column present
 in their initial EXCLUDED targetlist, independently of actual column ACL reads.

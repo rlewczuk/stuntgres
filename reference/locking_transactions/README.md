@@ -6,6 +6,38 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Session-message PREPARE restrictions
+
+`TestReferencePreparedTransactionSessionBoundaries` now executes
+LISTEN/NOTIFY/UNLISTEN on both backends before asserting actual PREPARE
+restrictions, rather than expecting native unsupported commands. Existing
+subscriptions alone permit PREPARE; retained actions/events, duplicate LISTEN,
+net-zero actions, and sticky-history UNLISTEN after UNLISTEN ALL/DISCARD ALL
+forbid it. Pristine physical UNLISTEN ALL is action-free. Savepoint rollback drops
+child restrictions; RELEASE retains them. Failed PREPARE creates no GID, discards
+outgoing/staged subscriptions and releases committed pending peer messages at the
+actual outer idle boundary. TEMP/WITH HOLD and unsupported snapshot export keep
+their independent established precedence and behavior.
+
+`TestReferenceSessionMessagesPreparedOriginReuse` covers empty and row-bearing
+detached entries while the origin has a later transaction with staged NOTIFY,
+LISTEN and UNLISTEN. Completion must neither publish uncommitted events nor
+change the finisher's subscriptions. Both later-origin commit and rollback are
+independently witnessed with positive ordered sentinels and committed row reads.
+
+Run each command with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferencePreparedTransactionSessionBoundaries$'
+make check RUN='^TestReferencePreparedTransactionSessionBoundaries$' REFERENCE=1
+make check RUN='^TestReferenceSessionMessagesPreparedOriginReuse$'
+make check RUN='^TestReferenceSessionMessagesPreparedOriginReuse$' REFERENCE=1
+make check RACE=1 RUN='^TestNotificationPreparedOriginProgress$'
+```
+
+See [local notification proof and executable smoke](../sessions/README.md#session-messages)
+for the exported native receiver and physical-session lifetime contract.
+
 ### Queued isolation-conflict execution timeout
 
 `TestReferenceTransactionIsolationQueuedConflictTimeout` retains a REPEATABLE READ

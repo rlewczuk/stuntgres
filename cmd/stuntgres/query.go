@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strconv"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/parser"
@@ -88,7 +89,31 @@ func (c *client) executeQuery(ctx context.Context, source string) (out messageOu
 			scope = next
 			finished = false
 		}
-		result, err := scope.Execute(statement, 0, nil)
+		var notificationPosition int
+		switch statement := statement.(type) {
+		case *parser.Listen:
+			notificationPosition = statement.Pos.Character
+		case *parser.Notify:
+			notificationPosition = statement.Pos.Character
+		case *parser.Unlisten:
+			notificationPosition = statement.Pos.Character
+		}
+		var result engine.Result
+		if notificationPosition != 0 {
+			// Describe admits the ordinary failed-command scope without staging
+			// notification effects. Its owner/aborted gates precede diagnostics.
+			_, err = scope.Describe(statement)
+			if err == nil {
+				// Native receivers exist, but this transport cannot deliver events.
+				err = &sqlstate.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR",
+					Code: "0A000", Message: "statement is unsupported",
+					Position: strconv.Itoa(notificationPosition),
+				}
+			}
+		} else {
+			result, err = scope.Execute(statement, 0, nil)
+		}
 		err = scope.Finish(err)
 		finished = true
 		err = op.CommandError(err)

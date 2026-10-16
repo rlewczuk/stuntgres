@@ -1088,8 +1088,8 @@ The close witness also roundtrips native persistent output without the removed
 CHECK/provider while retaining the peer TEMP serial counter and stored rows.
 
 ```sh
-make check RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
-make check REFERENCE=1 RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionUnsupportedSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
+make check RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
+make check REFERENCE=1 RUN='^TestReference(TemporaryTable|SequenceTemporaryTable|Unique(CreateTransactionBoundary|TemporaryLifecycle)|PreparedTransactionSessionBoundaries|VisibilityInquiry(Boundaries|UtilityBoundaries)|ArrayNativeControls|QueryTableCreate|PGDependTransactions)'
 make check RUN='^Test(TemporaryTable|TemporaryRelation|CatalogTemporary|SchemaSearchPathSessionDefaultsAndSpecials|SerializableEvidenceActualTemporaryNamespaceAndSequenceProviders|PGDependDefaultReplay)'
 make check RUN='^TestReferenceTemporaryTableFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'

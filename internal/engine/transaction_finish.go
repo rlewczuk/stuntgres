@@ -44,6 +44,9 @@ func (s *StatementScope) Finish(err error) error {
 		if cleanupErr := s.owner.drainCursorCleanup(s.op.Context()); err == nil {
 			err = cleanupErr
 		}
+		s.owner.mu.Lock()
+		s.owner.finishNotificationBoundary()
+		s.owner.mu.Unlock()
 		// the new incarnation installed by CHAIN after its linearization.
 		s.finished = true
 		s.result = err
@@ -118,6 +121,13 @@ func (s *StatementScope) Finish(err error) error {
 				if !s.projectedRoots {
 					writes = prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
 				}
+				notificationActions := t.notificationActions
+				if len(notificationActions) == 0 {
+					notificationActions = s.notificationActions
+				} else {
+					notificationActions = append(notificationActions, s.notificationActions...)
+				}
+				notificationEvents := appendNotificationEvents(t.notificationEvents, s.notificationEvents)
 				session := s.op.session
 				e.mu.Lock()
 				session.mu.Lock()
@@ -140,6 +150,8 @@ func (s *StatementScope) Finish(err error) error {
 					t.writes = writes
 					t.deletes = deletes
 					t.catalog = catalog
+					t.notificationActions = notificationActions
+					t.notificationEvents = notificationEvents
 					if s.exclusionStarted {
 						t.exclusionModes = s.exclusionModes
 					}
@@ -191,6 +203,8 @@ func (s *StatementScope) Finish(err error) error {
 			t.sequenceCatalog = nil
 			t.frontier = 0
 			t.catalog = nil
+			t.notificationActions = nil
+			t.notificationEvents = nil
 			endedTicket = t.ticket
 			t.ticket = nil
 			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
@@ -207,6 +221,8 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	s.stage.rows = nil
 	s.stage.deletes = nil
+	s.notificationActions = nil
+	s.notificationEvents = nil
 	s.ownDeletes = nil
 	s.ownWrites = nil
 	s.existingIndexOutputs = nil
@@ -228,6 +244,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.finished = true
 	s.op.session.finishScopeTimeout(s, err != nil)
 	s.result = err
+	t.finishNotificationBoundary()
 	t.mu.Unlock()
 	if s.replacementRead {
 		e.replacementMu.RUnlock()

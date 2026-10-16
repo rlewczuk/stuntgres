@@ -66,7 +66,11 @@ func publicationNeedsXID(writes map[ObjectAddress][]rowVersion, deletes map[Obje
 
 func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
-	if publicationNeedsXID(writes, deletes, c, phase) {
+	actions, events, err := notificationEffects(op, ref, phase, scope)
+	if err != nil {
+		return err
+	}
+	if len(events) != 0 || publicationNeedsXID(writes, deletes, c, phase) {
 		e.mu.Lock()
 		err := e.assignTransactionXIDLocked(ref)
 		e.mu.Unlock()
@@ -75,43 +79,57 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		}
 	}
 	if len(writes) == 0 && len(deletes) == 0 && c == nil {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		op.session.mu.Lock()
-		defer op.session.mu.Unlock()
-		if err := publicationOperationLocked(e, op); err != nil {
-			return err
-		}
-		if ref.epoch != e.state.epoch {
-			return ErrCatalogReplaced
-		}
-		if err := e.catalogAuthorityPreflightLocked(authority, nil); err != nil {
-			return err
-		}
-		if err := e.preparedPublicationPreflightLocked(op, phase); err != nil {
-			return err
-		}
-		if err := e.discardResetPreflightLocked(op); err != nil {
-			return err
-		}
-		if err := e.serializablePrecommitLocked(ref); err != nil {
-			return err
-		}
-		if phase != nil && phase.preparing {
-			e.installPreparedLocked(phase)
+		for {
+			notifications := e.prepareNotificationPublication(op.session, actions, events)
+			e.mu.Lock()
+			op.session.mu.Lock()
+			err := publicationOperationLocked(e, op)
+			if err == nil && ref.epoch != e.state.epoch {
+				err = ErrCatalogReplaced
+			}
+			if err == nil {
+				err = e.catalogAuthorityPreflightLocked(authority, nil)
+			}
+			if err == nil {
+				err = e.preparedPublicationPreflightLocked(op, phase)
+			}
+			if err == nil {
+				err = e.discardResetPreflightLocked(op)
+			}
+			if err == nil {
+				err = e.serializablePrecommitLocked(ref)
+			}
+			if err != nil {
+				op.session.mu.Unlock()
+				e.mu.Unlock()
+				return err
+			}
+			if !e.notificationPublicationUnchangedLocked(notifications) {
+				op.session.mu.Unlock()
+				e.mu.Unlock()
+				continue
+			}
+			// Every replacement and veto precedes this first installation.
+			if phase != nil && phase.preparing {
+				e.installPreparedLocked(phase)
+			} else {
+				e.installNotificationsLocked(notifications)
+				e.serializableCommittedLocked(ref, e.commitSeq)
+				e.recordCommitTimestampLocked(ref)
+				e.finishPreparedLocked(phase)
+				e.finishDiscardRoleResetLocked(op)
+			}
+			op.session.mu.Unlock()
+			e.mu.Unlock()
 			return nil
 		}
-		e.serializableCommittedLocked(ref, e.commitSeq)
-		e.recordCommitTimestampLocked(ref)
-		e.finishPreparedLocked(phase)
-		e.finishDiscardRoleResetLocked(op)
-		return nil
 	}
 	input, output := sessionPresentation(op.session)
 	if scope != nil {
 		input, output = scope.input, scope.output
 	}
 	for {
+		notifications := e.prepareNotificationPublication(op.session, actions, events)
 		var nextCatalog *catalogState
 		var err error
 		if c != nil {
@@ -313,7 +331,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := e.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage[p.address] != p.original || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
@@ -386,6 +404,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 			return nil
 		}
 		// No callback, allocation or failure remains after this point.
+		e.installNotificationsLocked(notifications)
 		for _, p := range prepared {
 			for i, row := range p.writes {
 				slot := len(p.root) + i

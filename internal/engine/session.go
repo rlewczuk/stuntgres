@@ -40,6 +40,7 @@ const (
 	Cursors
 	Authorization
 	Transaction
+	Notifications
 	AdvisorySession
 	resourceKinds
 )
@@ -92,6 +93,7 @@ type Session struct {
 	result                 error
 	settings               *sessionSettings
 	transactions           *transactionOwner
+	notifications          sessionNotifications
 	advisory               sessionAdvisory
 	cursors                *cursorRegistry
 	preparedSQL            *sqlPreparedRegistry
@@ -219,6 +221,10 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		if err == nil {
 			s.transactions = transactions
 		}
+	}
+	if err == nil {
+		s.notifications.token = s.token
+		_, err = op.Attach(Notifications, &s.notifications)
 	}
 	if err == nil {
 		var ticket *relationTicket
@@ -474,7 +480,7 @@ func (s *Session) end() {
 	for s.leases != 0 || s.detaching {
 		s.cond.Wait()
 	}
-	for _, kind := range [...]ResourceKind{Transaction, Cursors, PreparedSQL, Temporary, AdvisorySession, Settings, Authorization} {
+	for _, kind := range [...]ResourceKind{Transaction, Notifications, Cursors, PreparedSQL, Temporary, AdvisorySession, Settings, Authorization} {
 		entry := s.resources[kind]
 		if entry == nil {
 			continue

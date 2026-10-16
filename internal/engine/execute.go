@@ -18,6 +18,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.Listen, *parser.Unlisten, *parser.Notify:
+		return scope.executeNotification(stmt, count)
 	case *parser.ForeignDDL:
 		result, err := e.executeForeignDDL(scope, stmt.(*parser.ForeignDDL), count)
 		if err == nil {
