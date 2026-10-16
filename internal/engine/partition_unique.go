@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -32,7 +33,19 @@ func partitionUniqueCoverage(table *relationDescriptor, index *indexDefinition) 
 				class, _ = sqltype.DefaultIndexClass(usage.Type)
 			}
 			comparison, err := sqltype.BindIndexOrdering(usage, class)
-			found = err == nil && usage.Collation == partitionKey.usage.Collation && comparison == partitionKey.comparison
+			partitionComparison := partitionKey.comparison
+			if table.partition.strategy == parser.PartitionHash {
+				equalityClass, ok := sqltype.LookupIndexClass(partitionKey.class.Name)
+				if !ok {
+					continue
+				}
+				var equalityErr error
+				partitionComparison, equalityErr = sqltype.BindIndexOrdering(partitionKey.usage, equalityClass)
+				if equalityErr != nil {
+					continue
+				}
+			}
+			found = err == nil && usage.Collation == partitionKey.usage.Collation && comparison == partitionComparison
 			if found {
 				break
 			}

@@ -117,15 +117,22 @@ type IndexHash struct {
 	grouping Grouping
 }
 
-func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
+func validateHashClass(u Usage, c IndexClass) error {
 	if !c.hash {
-		return IndexHash{}, fmt.Errorf("non-hash class has no hash provider")
+		return fmt.Errorf("non-hash class has no hash provider")
 	}
 	if !c.Accepts(u.Type) {
-		return IndexHash{}, failure("42804", fmt.Sprintf("operator class %q does not accept data type %s", c.Name, u.Type.DiagnosticName()))
+		return failure("42804", fmt.Sprintf("operator class %q does not accept data type %s", c.Name, u.Type.DiagnosticName()))
 	}
 	if u.Type.BaseType().IsArray() || c.oid == 0 {
-		return IndexHash{}, failure("0A000", "index operator class is unsupported")
+		return failure("0A000", "index operator class is unsupported")
+	}
+	return nil
+}
+
+func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
+	if err := validateHashClass(u, c); err != nil {
+		return IndexHash{}, err
 	}
 	normal := u.Type.BaseType()
 	if !c.enum && normal.id != c.input {
@@ -142,13 +149,12 @@ func BindIndexHash(u Usage, c IndexClass) (IndexHash, error) {
 	return IndexHash{usage: u, class: c, grouping: g}, nil
 }
 
-func (p IndexHash) normalize(v Value) (Value, error) {
-	if v.typ != p.usage.Type {
+func normalizeHashPayload(v Value, u Usage, c IndexClass) (Value, error) {
+	if v.typ != u.Type {
 		return Value{}, fmt.Errorf("invalid hash index value")
 	}
 	base := v.typ.BaseType().id
-	v.typ = p.grouping.usage.Type
-	if !v.null && p.class.input == Oid {
+	if !v.null && c.input == Oid {
 		if base == Int4 {
 			v.oid = uint32(v.integer)
 		}
@@ -156,6 +162,15 @@ func (p IndexHash) normalize(v Value) (Value, error) {
 			return Value{}, fmt.Errorf("invalid canonical regclass hash key")
 		}
 	}
+	return v, nil
+}
+
+func (p IndexHash) normalize(v Value) (Value, error) {
+	v, err := normalizeHashPayload(v, p.usage, p.class)
+	if err != nil {
+		return Value{}, err
+	}
+	v.typ = p.grouping.usage.Type
 	return v, nil
 }
 

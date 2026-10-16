@@ -8,7 +8,7 @@ import (
 // The caller retains replacementMu throughout, but providers must never run
 // under the target catalog mutex. All effects belong to an isolated real session.
 func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, mapping map[ObjectAddress]ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
-	needed := indexes.needsOwnerRepair()
+	needed := indexes.needsOwnerRepair() || hasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -90,8 +90,12 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if err == nil {
 		err = recomputeRemappedGenerations(ctx, candidate, storage, mapping, evaluation, changed)
 	}
+	var moved map[ObjectAddress]bool
 	if err == nil {
-		err = indexes.repair(ctx, &evaluation, storage, changed, auth)
+		moved, err = repairRemappedHashPartitions(ctx, &evaluation, storage, auth, indexes)
+	}
+	if err == nil {
+		err = indexes.repair(ctx, &evaluation, storage, changed, moved, auth)
 	}
 	if err == nil {
 		scope.completed = true

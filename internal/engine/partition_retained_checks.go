@@ -1,0 +1,267 @@
+package engine
+
+import (
+	"context"
+	"slices"
+	"stuntgres/internal/sqltype"
+)
+
+// Captured with the existing replacement source mutex/frontier. Source versions
+// and datum payloads remain immutable; candidate copyRows owns separate vectors.
+type partitionRowHistory struct {
+	relation *relationDescriptor
+	store    relationStorage
+	frontier CommitSeq
+}
+
+func partitionNeedsRowHistory(catalog CatalogRead, d *relationDescriptor) bool {
+	if d.membership == nil || d.partition != nil {
+		return false
+	}
+	for _, check := range d.checkConstraints {
+		if check.NotValid {
+			return partitionHashReplayTarget(catalog, d) != d
+		}
+	}
+	return false
+}
+
+func (h partitionRowHistory) nextRow(ctx context.Context, position *int, candidate rowVersion) ([]sqltype.Value, error) {
+	for *position < len(h.store.versions) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		original := h.store.versions[*position]
+		*position = *position + 1
+		if !liveVersion(original, h.frontier, h.store.ends, nil) {
+			continue
+		}
+		if original.row != candidate.row || original.version != candidate.version {
+			return nil, ErrCatalogReplaced
+		}
+		return original.values, nil
+	}
+	return nil, ErrCatalogReplaced
+}
+
+func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistory, d *relationDescriptor, attribute int32, before, after []sqltype.Value) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	oldSlot, newSlot := h.relation.indexForAttribute(attribute), d.indexForAttribute(attribute)
+	if oldSlot < 0 || newSlot < 0 {
+		return false, ErrCatalogReplaced
+	}
+	if generation, ok := h.relation.generations[attribute]; ok && generation.kind == generationVirtual {
+		// Virtual cells have no stored value. Follow the already-certified
+		// generation dependency graph to its actual stored input cells.
+		for _, dependency := range generation.dependencies {
+			address := dependency.Address
+			whole := address
+			whole.SubID = 0
+			if whole != h.relation.address {
+				continue
+			}
+			if address.SubID == 0 {
+				for _, input := range h.relation.attributes {
+					if input == attribute {
+						continue
+					}
+					changed, err := partitionRetainedAttributeChanged(ctx, h, d, input, before, after)
+					if err != nil || changed {
+						return changed, err
+					}
+				}
+			} else {
+				changed, err := partitionRetainedAttributeChanged(ctx, h, d, address.SubID, before, after)
+				if err != nil || changed {
+					return changed, err
+				}
+			}
+		}
+		return false, ctx.Err()
+	}
+	same, err := before[oldSlot].SamePayload(ctx, after[newSlot])
+	return !same, err
+}
+
+// Only material datum/provider changes make a retained NOT VALID check newly
+// relevant. Descriptor ownership alone does not change its old-row authority.
+func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, d *relationDescriptor, check checkConstraint, before, after []sqltype.Value) (bool, error) {
+	var original *checkConstraint
+	for i := range h.relation.checkConstraints {
+		if h.relation.checkConstraints[i].Name == check.Name {
+			original = &h.relation.checkConstraints[i]
+			break
+		}
+	}
+	if original == nil {
+		return false, ErrCatalogReplaced
+	}
+	for _, dependency := range original.dependencies {
+		address := dependency.ref.Address
+		whole := address
+		whole.SubID = 0
+		if whole == h.relation.address {
+			if address.SubID == 0 {
+				for _, attribute := range h.relation.attributes {
+					changed, err := partitionRetainedAttributeChanged(ctx, h, d, attribute, before, after)
+					if err != nil || changed {
+						return changed, err
+					}
+				}
+			} else {
+				changed, err := partitionRetainedAttributeChanged(ctx, h, d, address.SubID, before, after)
+				if err != nil || changed {
+					return changed, err
+				}
+			}
+			continue
+		}
+	}
+	return false, ctx.Err()
+}
+
+// Trusted catalog import preserves executable provider recipes while projecting
+// their ownership. Only material literal payloads or an owner-sensitive result,
+// not Type/Domain/Procedure/Collation address renumbering, change that recipe's
+// retained-row inputs. Compare literals before any identity normalization.
+func partitionCheckRecipeAffected(ctx context.Context, before, after BoundExpr, ownerChanged bool) (bool, error) {
+	if ownerChanged && generationHasTableOID(before) {
+		return true, ctx.Err()
+	}
+	var local [16]sqltype.Value
+	literals := local[:0]
+	var err error
+	walkBoundExpression(before, func(node BoundExpr) {
+		if err != nil {
+			return
+		}
+		err = ctx.Err()
+		if err != nil {
+			return
+		}
+		if literal, ok := node.(literalExpression); ok {
+			literals = append(literals, literal.value)
+		}
+	})
+	if err != nil {
+		return false, err
+	}
+	position, affected := 0, false
+	walkBoundExpression(after, func(node BoundExpr) {
+		if err != nil {
+			return
+		}
+		err = ctx.Err()
+		if err != nil {
+			return
+		}
+		if literal, ok := node.(literalExpression); ok {
+			if position >= len(literals) {
+				affected = true
+			} else {
+				var same bool
+				same, err = literals[position].SamePayload(ctx, literal.value)
+				affected = affected || !same
+			}
+			position++
+		}
+	})
+	return affected || position != len(literals), err
+}
+
+// This one statement-local descriptor reuses ordinary physical validation and its
+// CHECK preflight ordering. Its subset changes only when affected inputs change;
+// invalidate the existing preparation entry then, never a published descriptor.
+type partitionRetainedChecks struct {
+	descriptor     relationDescriptor
+	initialized    bool
+	recipeAffected []bool
+}
+
+func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *relationDescriptor, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *EvalContext) (*relationDescriptor, error) {
+	if !p.initialized {
+		p.descriptor = *d
+		p.descriptor.checkConstraints = slices.Clone(d.checkConstraints)
+		p.initialized = true
+		ownerChanged := snapshot.destination(h.relation.address) != h.relation.address
+		for i, check := range d.checkConstraints {
+			if !check.NotValid {
+				continue
+			}
+			var original *checkConstraint
+			for j := range h.relation.checkConstraints {
+				if h.relation.checkConstraints[j].Name == check.Name {
+					original = &h.relation.checkConstraints[j]
+					break
+				}
+			}
+			if original == nil {
+				return nil, ErrCatalogReplaced
+			}
+			affected, err := partitionCheckRecipeAffected(ctx, original.expression, check.expression, ownerChanged)
+			if err != nil {
+				return nil, err
+			}
+			// Virtual generated inputs have no stored cell payload to compare.
+			// Their captured recipe can still observe a reminted owner/literal.
+			for _, dependency := range original.dependencies {
+				address := dependency.ref.Address
+				whole := address
+				whole.SubID = 0
+				if whole != h.relation.address {
+					continue
+				}
+				for attribute, generation := range h.relation.generations {
+					if generation.kind != generationVirtual || address.SubID != 0 && address.SubID != attribute {
+						continue
+					}
+					current, exists := d.generations[attribute]
+					if !exists {
+						return nil, ErrCatalogReplaced
+					}
+					different, err := partitionCheckRecipeAffected(ctx, generation.planned, current.planned, ownerChanged)
+					if err != nil {
+						return nil, err
+					}
+					affected = affected || different
+				}
+			}
+			if affected {
+				if p.recipeAffected == nil {
+					p.recipeAffected = make([]bool, len(d.checkConstraints))
+				}
+				p.recipeAffected[i] = true
+			}
+		}
+	}
+	oldCount := len(p.descriptor.checkConstraints)
+	checks := p.descriptor.checkConstraints[:cap(p.descriptor.checkConstraints)]
+	count, changed := 0, false
+	for i, check := range d.checkConstraints {
+		if check.NotValid {
+			affected := p.recipeAffected != nil && p.recipeAffected[i]
+			if !affected {
+				var err error
+				affected, err = partitionRetainedCheckAffected(ctx, h, d, check, before, after)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if !affected {
+				continue
+			}
+		}
+		if count >= oldCount || checks[count].OID != check.OID {
+			changed = true
+		}
+		checks[count] = check
+		count++
+	}
+	p.descriptor.checkConstraints = checks[:count]
+	if changed || count != oldCount {
+		delete(evaluation.preparedChecks, &p.descriptor)
+	}
+	return &p.descriptor, nil
+}

@@ -31,6 +31,9 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if parent.partition == nil {
 		return fail(partitionAttachKindError(parent))
 	}
+	if parent.partition.strategy == parser.PartitionHash && !op.restorePartitionAttach {
+		return fail(sqlError("0A000", "hash partition attachment is unsupported"))
+	}
 	lookupAuth, err := e.partitionAttachAuthorization(op, auth)
 	if err != nil {
 		return fail(err)

@@ -1793,6 +1793,18 @@ See [RANGE partitions](https://www.postgresql.org/docs/18/ddl-partitioning.html)
 Feature smoke: `make check RUN='^TestReferenceRangePartitionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRangePartitionFeatureSmoke$'`.
 
+Change note: HASH table definitions use PostgreSQL 18 extended scalar hashing,
+positive modulus/remainder bounds and exact mixed-modulus factor/overlap validation.
+Direct/prepared INSERT routes into real leaves; parent reads and result metadata
+use the existing hierarchy paths. All concrete scalar hash classes remain available,
+including numeric, JSONB, enum/domain and reference identities; no Go/FNV hash is used.
+Hash provider coverage does not expand scalar storage: internal CHAR columns and
+general casts retain their preexisting native 0A000 boundary.
+Native Dump/Restore reroutes reminted identities and atomically rejects uncovered
+residues or incompatible destination leaf constraints. RANGE behavior is unchanged;
+LIST, public HASH ATTACH and unowned/external hash providers remain excluded.
+Selected proof commands are in [table reference testing](reference/tables/README.md#testing).
+
 Change note: RANGE `ALTER TABLE ... ATTACH PARTITION` retains an existing ordinary
 or partitioned candidate's rows, physical column order, defaults and local keys.
 Named schema, typed bounds, existing candidate/default rows and populated index

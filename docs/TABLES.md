@@ -695,8 +695,34 @@ admits qualified unconditional DETACH and only exact captured empty DEFAULT
 teardown identities, not arbitrary DROP scripts. Actual unchanged emitted SQL,
 not catalog flag writes, is the persistent-state representation.
 Gaps are logically reminted, not a physical backup. Unchanged SQL replays on PostgreSQL.
-LIST/HASH partitions, row movement, other hierarchy mutations/conflict DML, TEMP
-partition construction and nested schema partition construction remain native limits.
+HASH definitions use real PostgreSQL extended scalar support functions and the
+release's NULL-skipping, ordered uint64 row combiner, not grouping/index hashes.
+Bounds are sparse positive-int32 modulus/remainder pairs; mixed moduli must form a
+divisibility chain and disjoint residue sets. DEFAULT is forbidden. Existing scalar
+hash classes include integers/OID aliases, bool/char/name, text/bpchar/bytea, floats,
+numeric, temporal/interval, UUID, JSONB, enum and domains with owned deterministic
+collations. Arrays, unowned/custom classes and external locale providers remain
+outside the concrete hash-provider boundary.
+Internal CHAR provider support preserves signed-byte hashing without admitting
+internal CHAR user columns or general casts; those existing SQL boundaries remain.
+Named-target INSERT, leaf/ancestor constraints and parent reads reuse the existing
+hierarchy authority, including direct/prepared metadata, privacy and atomic failure.
+Dump routes data through its highest HASH ancestor and orders complete subtree
+definitions/memberships first. Restore remints actual member/reference identities,
+then reroutes imported candidate rows before rebuilding affected physical indexes.
+Rebuilt index snapshots own pre-remint row/version vectors: later candidate row-ID
+allocation cannot overwrite the identities used by index transport. Immutable
+scalar payloads remain shared; catalog/role/frontier publication fences stay intact.
+The replacement snapshot also borrows original source-row authority for HASH
+descendants with NOT VALID CHECKs, including unindexed leaves. Stable row/version
+matching skips deleted versions. Same-leaf old rows keep unrelated unchanged
+NOT VALID violations; material referenced-cell/literal/owner-input changes are
+rechecked with the ordinary validator. Descriptor retagging alone is not a change.
+Actual movement and future INSERTs continue enforcing all destination constraints.
+Retained TEMP and published old snapshots are never rewritten. A reminted key with
+no destination or an incompatible leaf-local constraint fails Restore atomically.
+LIST partitions, public HASH ATTACH, row movement, other hierarchy mutations/conflict
+DML, TEMP partition construction and nested schema partition construction remain limits.
 
 ## Logical indexes and copied definitions
 

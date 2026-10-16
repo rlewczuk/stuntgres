@@ -442,7 +442,7 @@ package parser
 %type <tok> conflict_open
 %type <expr> conflict_predicate
 %type <partitionKey> partition_by
-%type <partitionBound> partition_bound
+%type <partitionBound> partition_bound hash_bound_options hash_bound_option
 %type <partitionDatum> partition_datum
 %type <partitionData> partition_data
 %type <indexKeys> partition_keys
@@ -1083,12 +1083,37 @@ partition_by: /* empty */ {$$=nil}
  | PARTITION BY FRAME_UNIT '(' partition_keys ')' {
  if $3.text!="range" {sqllex.(*lexer).deferUnsupported($3,"partition strategy is unsupported")}
  $$=&PartitionKey{Keys:$5,Pos:$1.pos}
+ }
+ | PARTITION BY IDENT '(' partition_keys ')' {
+ if $3.text!="hash" {sqllex.(*lexer).syntax($3);return 1}
+ $$=&PartitionKey{Strategy:PartitionHash,Keys:$5,Pos:$1.pos}
  } ;
 partition_keys: partition_key {$$=[]IndexKey{$1}}
  | partition_keys ',' partition_key {$$=append($1,$3)} ;
 partition_key: index_atom column_collation index_class {$$=$1;$$.Collation=$2;$$.Opclass=$3.Opclass;$$.Options=$3.Options} ;
 partition_bound: DEFAULT {$$=PartitionBound{Default:true,Pos:$1.pos}}
- | FOR VALUES FROM '(' partition_data ')' TO '(' partition_data ')' {$$=PartitionBound{Lower:$5,Upper:$9,Pos:$1.pos}} ;
+ | FOR VALUES FROM '(' partition_data ')' TO '(' partition_data ')' {$$=PartitionBound{Lower:$5,Upper:$9,Pos:$3.pos}}
+ | FOR VALUES WITH '(' hash_bound_options ')' {
+ $$=$5;$$.Strategy=PartitionHash;$$.Pos=$3.pos
+ if $$.ModulusPos.Character==0 {sqllex.(*lexer).failAt("42601","modulus for hash partition must be specified",$3.pos.Offset);return 1}
+ if $$.RemainderPos.Character==0 {sqllex.(*lexer).failAt("42601","remainder for hash partition must be specified",$3.pos.Offset);return 1}
+ } ;
+hash_bound_options: hash_bound_option {$$=$1}
+ | hash_bound_options ',' hash_bound_option {
+ $$=$1
+ if $3.ModulusPos.Character!=0 {
+  if $$.ModulusPos.Character!=0 {sqllex.(*lexer).failAt("42710","modulus for hash partition provided more than once",$3.ModulusPos.Offset);return 1}
+  $$.Modulus=$3.Modulus;$$.ModulusPos=$3.ModulusPos
+ } else {
+  if $$.RemainderPos.Character!=0 {sqllex.(*lexer).failAt("42710","remainder for hash partition provided more than once",$3.RemainderPos.Offset);return 1}
+  $$.Remainder=$3.Remainder;$$.RemainderPos=$3.RemainderPos
+ }
+ } ;
+hash_bound_option: name NUMBER {
+ var ok bool
+ $$,ok=sqllex.(*lexer).hashBoundOption($1,$2)
+ if !ok{return 1}
+ } ;
 partition_data: partition_datum {$$=[]PartitionDatum{$1}}
  | partition_data ',' partition_datum {$$=append($1,$3)} ;
 /* MINVALUE/MAXVALUE already reduce as unreserved column names. Classify their

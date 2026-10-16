@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/parser"
 )
 
 func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, predecessors []OID) ([]OID, error) {
@@ -78,7 +79,11 @@ func partitionKeySQL(ctx context.Context, catalog CatalogRead, d *relationDescri
 		return "", nil
 	}
 	var text strings.Builder
-	text.WriteString(" PARTITION BY RANGE (")
+	if d.partition.strategy == parser.PartitionHash {
+		text.WriteString(" PARTITION BY HASH (")
+	} else {
+		text.WriteString(" PARTITION BY RANGE (")
+	}
 	for i, key := range d.partition.keys {
 		if i != 0 {
 			text.WriteString(", ")
@@ -160,6 +165,9 @@ func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relatio
 	text := "ALTER TABLE " + qualified(parent) + " ATTACH PARTITION " + qualified(d)
 	if d.membership.defaultBound {
 		return text + " DEFAULT;\n", nil
+	}
+	if d.membership.strategy == parser.PartitionHash {
+		return text + hashPartitionBoundSQL(d.membership) + ";\n", nil
 	}
 	lower, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.lower)
 	if err != nil {
@@ -280,6 +288,8 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 	}
 	if d.membership.defaultBound {
 		text.WriteString(" DEFAULT")
+	} else if d.membership.strategy == parser.PartitionHash {
+		text.WriteString(hashPartitionBoundSQL(d.membership))
 	} else {
 		lower, err := partitionTupleDumpSQL(ctx, catalog, parent.partition.keys, d.membership.lower)
 		if err != nil {
@@ -317,4 +327,22 @@ func partitionTupleDumpSQL(ctx context.Context, catalog CatalogRead, keys []part
 		}
 	}
 	return text.String(), nil
+}
+
+func hashPartitionBoundSQL(bound *partitionMembership) string {
+	return fmt.Sprintf(" FOR VALUES WITH (MODULUS %d, REMAINDER %d)", bound.modulus, bound.remainder)
+}
+
+// Replay identity-sensitive rows through their highest HASH ancestor; RANGE-only
+// trees preserve physical destinations. Parent insertion checks every ancestor.
+func partitionHashReplayTarget(catalog CatalogRead, d *relationDescriptor) *relationDescriptor {
+	target := d
+	for child := d; child.membership != nil; {
+		parent := catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
+		if parent.partition.strategy == parser.PartitionHash {
+			target = parent
+		}
+		child = parent
+	}
+	return target
 }

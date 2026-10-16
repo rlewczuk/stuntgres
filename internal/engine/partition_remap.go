@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -31,7 +32,11 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 					}
 				}
 			}
-			key.comparison, err = sqltype.BindIndexOrdering(key.usage, key.class)
+			if definition.strategy == parser.PartitionHash {
+				key.hash, err = sqltype.BindPartitionHash(key.usage, key.class)
+			} else {
+				key.comparison, err = sqltype.BindIndexOrdering(key.usage, key.class)
+			}
 			if err != nil {
 				return nil, err
 			}

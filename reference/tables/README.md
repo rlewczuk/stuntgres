@@ -1082,6 +1082,61 @@ make check REFERENCE=1 RUN='^TestReferenceTemporaryTableFeatureSmoke$'
 Both selected modes use the same completed definitions under900-second deadlines;
 ordinary quickcheck and the post-merge1800-second finalcheck remain required.
 
+### HASH partition reference coverage
+
+`hash_partition_*_test.go` uses the shared public dual-mode fixture with independent
+release-derived integer/scalar leaf fixtures, direct/fresh-prepared/held routes,
+actual result metadata, full English diagnostics and character positions, mixed
+factor/overlap precedence, ACL/privacy, cancellation and atomic inserts.
+Native control phases exercise fresh destinations, repeated Restore, retained
+TEMP/cursors/statements and real enum/domain/regclass identity changes. Twin
+destination previews independently measure reminted identity before sparse-bound
+and local-CHECK conflict tests; failure must preserve target rows and dump bytes.
+These controls are native-only, not a fabricated PostgreSQL Restore API.
+Scalar family routes have per-type subtest names. Internal CHAR explicitly retains
+the existing native column0A000 boundary while PostgreSQL exercises its real column
+routes; signed-byte support2 vectors remain in provider units. XID/CID/XID8 keep
+their admitted scalar columns and hash classes, including XID8's signed high-bit fold.
+Failed definitions prove row-type namespace availability through genuine same-name
+CREATE TYPE/DROP TYPE, not an unowned pg_type catalog query. Authorization setup
+uses real PostgreSQL schema grants and native-only schema ownership transfer,
+leaving bootstrap-owned parent/leaf tables and real table ACLs unchanged.
+`Unique` independently covers HASH PRIMARY KEY/UNIQUE admission, omitted partition
+keys, compatible explicit classes/collations and routed duplicate enforcement.
+`FinalRemap` distinguishes initial replay from final retained-TEMP repair through
+matched target allocation histories and an observed exact relation/rowtype collision.
+A numeric-OID CASE key deterministically changes scalar key0 to2 (builtin residues
+0 to2), without relying on OID hash low bits or changing leaf/index topology.
+Both source and destination own physical UNIQUE indexes; exact emptied/populated
+leaves, predicate reads, future duplicates/writes and emptied-source key reuse are
+asserted. General replay-conflict tests do not claim final-stage-only failure proof.
+`NotValidRestore` covers a populated ordinary leaf with a later NOT VALID CHECK
+attached under HASH→RANGE: old violating data and the unvalidated definition
+survive real repeated/fresh replay, while future violating writes still fail.
+Private policy units distinguish unchanged and descriptor-retagged inputs from
+relevant changed cells/literals and owner-sensitive values, without weakening
+full destination checks for actual movement. All scenarios use one HASH runner.
+
+Run each selected command in both modes, adding `REFERENCE=1` for pinned PostgreSQL,
+under external 900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceHashPartition(Definition|Routing|MixedModuli|Metadata)$'
+make check RUN='^TestReferenceHashPartition(Types|Diagnostics)$'
+make check RUN='^TestReferenceHashPartition(Atomicity|Authorization|Cancellation)$'
+make check RUN='^TestReferenceHashPartition(Controls|IdentityReplay)$'
+make check RUN='^TestReferenceHashPartition(Unique|FinalRemap)$'
+make check RUN='^TestReferenceHashPartitionNotValidRestore$'
+make check RUN='^(TestPartitionHash(Primitives|Types|Cancellation)|TestHashPartition(Bounds|Invariants|Remap|Grammar|IndexRepairTransport|RetainedCheckPolicy)|TestValueSamePayload)$'
+make check RACE=1 RUN='^TestReferenceHashPartition(Cancellation|Atomicity|IdentityReplay|FinalRemap)$'
+```
+
+The root-run throwaway `hash-part-smoke.go` is a separate public Go process, not a
+permanent test: mixed integer leaves, held RETURNING descriptors, affected counts,
+atomic errors, real fresh-destination Dump/Restore and changed enum identity routing
+must succeed before it prints its single success line. Keep its session-only source
+outside the repository. Whole-project Docker-free proof remains `make quickcheck`.
+
 ### RANGE partition reference coverage
 
 `reference/tables/range_partition_*_test.go` uses one shared scenario body in both modes.

@@ -71,6 +71,11 @@ func partitionProofTuple(tuple []partitionDatum, at int, greater bool) *partitio
 }
 
 func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, parent, relation *relationDescriptor, bound *partitionMembership, exclude bool) (bool, error) {
+	// Range endpoint implication does not prove seeded hash membership. Private
+	// replay attachment uses the ordinary full-row validation path instead.
+	if bound.strategy == parser.PartitionHash {
+		return false, scope.op.Context().Err()
+	}
 	var keys [32]BoundExpr
 	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.columns))}
 	for i, column := range parent.columns {

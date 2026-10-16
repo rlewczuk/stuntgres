@@ -276,6 +276,7 @@ func partitionAppendCompatible(old, current *relationDescriptor) bool {
 	if old == nil || current == nil || old.partition == nil || current.partition == nil ||
 		!relationDefiningAuthorityCompatible(old, current) || old.relationKind != current.relationKind ||
 		old.membership != current.membership || old.inheritance != current.inheritance ||
+		old.partition.strategy != current.partition.strategy ||
 		len(old.partition.keys) != len(current.partition.keys) ||
 		len(current.partition.children) <= len(old.partition.children) ||
 		&old.partition.keys[0] != &current.partition.keys[0] ||

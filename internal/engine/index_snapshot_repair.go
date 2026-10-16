@@ -1,6 +1,9 @@
 package engine
 
-import "context"
+import (
+	"context"
+	"slices"
+)
 
 func indexHasTableOID(index *indexDefinition) bool {
 	if predicate := index.predicate; predicate != nil && (generationHasTableOID(predicate.definition) || generationHasTableOID(predicate.execution)) {
@@ -61,13 +64,14 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalogState) map[Object
 // This is part of the existing admitted restore-repair statement, before its
 // Finish. Only genuinely changed inputs or owner-dependent expressions produce
 // new entries; all other snapshots retain their original produced data.
-func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, storage map[ObjectAddress]*relationStorage, changed map[ObjectAddress]map[int32]bool, auth AuthorizationView) error {
+func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, storage map[ObjectAddress]*relationStorage, changed map[ObjectAddress]map[int32]bool, moved map[ObjectAddress]bool, auth AuthorizationView) error {
 	if snapshot == nil {
 		return nil
 	}
+	var repairedStores map[ObjectAddress]relationStorage
 	for address, source := range snapshot.sources {
 		parentAddress := snapshot.destination(source.parent.address)
-		affected := parentAddress != source.parent.address && indexHasTableOID(source.index.sqlIndex)
+		affected := moved[parentAddress] || parentAddress != source.parent.address && indexHasTableOID(source.index.sqlIndex)
 		for attribute, different := range changed[parentAddress] {
 			affected = affected || different && indexAttributeAffected(source.index.sqlIndex, attribute)
 		}
@@ -97,7 +101,19 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &auth, true); err != nil {
 			return err
 		}
-		source.root, source.store = root, *store
+		// Transport needs pre-remint row/version identities. Candidate storage
+		// is reminted in place afterward; capture one detached vector per table
+		// for all of its repaired indexes, borrowing immutable scalar values.
+		captured, exists := repairedStores[parentAddress]
+		if !exists {
+			captured = *store
+			captured.versions = slices.Clone(store.versions)
+			if repairedStores == nil {
+				repairedStores = make(map[ObjectAddress]relationStorage)
+			}
+			repairedStores[parentAddress] = captured
+		}
+		source.root, source.store = root, captured
 		snapshot.sources[address] = source
 	}
 	return ctx.Err()

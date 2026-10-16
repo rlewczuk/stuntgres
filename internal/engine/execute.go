@@ -572,33 +572,39 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 	if err := rowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
 		return err
 	}
-	for j, column := range b.relation.columns {
+	return validatePhysicalRowConstraints(b.relation, schema, row, evaluation, func() (string, error) { return e.rowConstraintDetail(scope, named, row) })
+}
+
+// Shared by ordinary insertion and isolated native replacement. Validation does
+// not mutate row values; each caller supplies its existing disclosure authority.
+func validatePhysicalRowConstraints(relation *relationDescriptor, schema string, row []sqltype.Value, evaluation *EvalContext, detail func() (string, error)) error {
+	for j, column := range relation.columns {
 		if column.Nullable {
 			continue
 		}
-		value, err := logicalColumnValue(b.relation, j, row, evaluation)
+		value, err := logicalColumnValue(relation, j, row, evaluation)
 		if err != nil {
 			return err
 		}
 		if value.IsNull() {
-			detail, err := e.rowConstraintDetail(scope, named, row)
+			detail, err := detail()
 			if err != nil {
 				return err
 			}
-			return notNullDetailError(schema, b.relation.name, column.Name, detail)
+			return notNullDetailError(schema, relation.name, column.Name, detail)
 		}
 	}
-	if len(b.relation.checkConstraints) != 0 {
-		constraint, err := validateCheckRow(b.relation, row, evaluation)
+	if len(relation.checkConstraints) != 0 {
+		constraint, err := validateCheckRow(relation, row, evaluation)
 		if err != nil {
 			return err
 		}
 		if constraint != nil {
-			detail, err := e.rowConstraintDetail(scope, named, row)
+			detail, err := detail()
 			if err != nil {
 				return err
 			}
-			return checkDetailError(schema, b.relation.name, constraint.Name, detail)
+			return checkDetailError(schema, relation.name, constraint.Name, detail)
 		}
 	}
 	return nil

@@ -234,6 +234,24 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 		if err := t.rowReplayReferences(ctx, view, collect(&sources, &late)); err != nil {
 			return err
 		}
+		// Rerouted hash rows can land in any descendant, not just their captured
+		// physical leaf. All relevant memberships must precede this row event.
+		if target := partitionHashReplayTarget(view, t.descriptor); target != t.descriptor {
+			var requireTree func(*relationDescriptor)
+			requireTree = func(d *relationDescriptor) {
+				event := membership(d)
+				late = late || event.phase == dumpTableAttachment
+				if !slices.Contains(sources, event) {
+					sources = append(sources, event)
+				}
+				if d.partition != nil {
+					for _, address := range d.partition.children {
+						requireTree(view.state.descriptors[address].(*relationDescriptor))
+					}
+				}
+			}
+			requireTree(target)
+		}
 		rowSources[oid], lateRows[oid] = sources, late
 		target := membership(t.descriptor)
 		clear(seen)

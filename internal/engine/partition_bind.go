@@ -33,7 +33,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 	if len(raw.Keys) == 0 || len(raw.Keys) > 32 {
 		return nil, sqlError("54011", "cannot partition using more than 32 columns")
 	}
-	definition := &partitionDefinition{keys: make([]partitionKeyEntry, len(raw.Keys))}
+	definition := &partitionDefinition{strategy: raw.Strategy, keys: make([]partitionKeyEntry, len(raw.Keys))}
 	for i, r := range raw.Keys {
 		key := partitionKeyEntry{}
 		var usage sqltype.Usage
@@ -91,13 +91,26 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 			key.label = text
 			usage = planned.ResultUsage()
 		}
-		bound, err := e.bindIndexKey(op, auth, usage, r, btreeMethod)
+		method := btreeMethod
+		if raw.Strategy == parser.PartitionHash {
+			method = hashMethod
+		}
+		bound, err := e.bindIndexKey(op, auth, usage, r, method)
 		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" && r.Opclass == nil && raw.Strategy == parser.PartitionHash {
+				copy := *diagnostic
+				copy.Hint = "You must specify a hash operator class or define a default hash operator class for the data type."
+				return nil, &copy
+			}
 			return nil, err
 		}
 		key.usage = indexKeyCollation(usage, bound)
 		key.class, key.collation, key.explicitClass = bound.class, bound.collation, bound.explicitClass
-		key.comparison, err = sqltype.BindIndexOrdering(key.usage, key.class)
+		if raw.Strategy == parser.PartitionHash {
+			key.hash, err = sqltype.BindPartitionHash(key.usage, key.class)
+		} else {
+			key.comparison, err = sqltype.BindIndexOrdering(key.usage, key.class)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +123,26 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *rel
 // Transformation remains deferred: a later bind error must not mask an earlier
 // NULL or prevent a required nontransactional sequence draw.
 func preparePartitionBounds(parent *relationDescriptor, raw parser.PartitionBound) (*partitionMembership, error) {
-	bound := &partitionMembership{parent: parent.address, defaultBound: raw.Default}
+	bound := &partitionMembership{parent: parent.address, strategy: parent.partition.strategy, defaultBound: raw.Default}
+	if parent.partition.strategy == parser.PartitionHash {
+		if raw.Default {
+			return nil, sqlError("42P16", "a hash-partitioned table may not have a default partition")
+		}
+		if raw.Strategy != parser.PartitionHash {
+			return nil, expressionError("42P16", "invalid bound specification for a hash partition", raw.Pos)
+		}
+		if raw.Modulus <= 0 {
+			return nil, sqlError("42P16", "modulus for hash partition must be an integer value greater than zero")
+		}
+		if raw.Remainder >= raw.Modulus {
+			return nil, sqlError("42P16", "remainder for hash partition must be less than modulus")
+		}
+		bound.modulus, bound.remainder = raw.Modulus, raw.Remainder
+		return bound, nil
+	}
+	if raw.Strategy == parser.PartitionHash {
+		return nil, expressionError("42P16", "invalid bound specification for a range partition", raw.Pos)
+	}
 	if raw.Default {
 		return bound, nil
 	}
@@ -167,6 +199,9 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 }
 
 func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *EvalContext) error {
+	if p.bound.strategy == parser.PartitionHash {
+		return scope.op.Context().Err()
+	}
 	for side, raw := range [2][]parser.PartitionDatum{p.rawBounds.Lower, p.rawBounds.Upper} {
 		tuple := p.bound.lower
 		if side == 1 {

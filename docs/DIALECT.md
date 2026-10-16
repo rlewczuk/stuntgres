@@ -484,6 +484,27 @@ reindexing are unavailable; partition key/constraint combinations remain bounded
 RANGE keys require an admitted btree ordering provider. Native integer-array
 keys currently retain the existing missing-default-operator-class boundary;
 ordinary array storage does not add a partition ordering provider.
+
+HASH definitions use PostgreSQL 18 seeded extended hash support, ordered NULL-skipping
+key combination and unsigned modulus selection. Positive int32 moduli and valid
+remainders admit sparse coverage and mixed divisibility chains; DEFAULT is forbidden.
+The existing concrete scalar hash classes are supported, including numeric, JSONB,
+enum/domain and catalog-reference keys. Arrays and unowned/custom/external providers
+remain excluded; deterministic owned collations retain their normal authority.
+Internal CHAR retains its full signed-byte hash provider but not user-column or
+general-cast admission: those preexisting SQL paths still raise 0A000. Supporting
+a hash class does not expand the underlying scalar storage or expression dialect.
+INSERT, direct leaf constraints, parent reads and native logical replay share the
+existing hierarchy paths. Public HASH ATTACH is not enabled.
+Native Restore remints actual enum/reference identities and reroutes imported rows.
+An uncovered reminted residue or incompatible destination leaf-local constraint
+rejects replacement atomically, rather than retaining incorrectly placed rows.
+Rows retained in the same physical leaf preserve existing-row NOT VALID semantics:
+an unrelated unchanged old violation is not retroactively validated. Material
+changes to a CHECK's referenced datum, stored literal or owner-sensitive input
+still require validation; descriptor-only reownership does not. Rows entering a
+different leaf and future INSERTs retain full destination constraint enforcement.
+
 SQL tableoid reads retain the existing native missing-column boundary; physical
 identity remains represented by catalog relations and capture provenance.
 The private logical importer can replay NOT VALID CHECK or local UNIQUE/PRIMARY
@@ -696,9 +717,10 @@ immutable typed RANGE/default facts. Native output is
 Finite datums are `{type OID typmod N collation OID value "..."}` with captured
 key Usage and quoted type-owned output; sentinels are MINVALUE/MAXVALUE.
 This is intentionally not PostgreSQL nodeToString or SQL FOR VALUES text.
-Index partitions have NULL bounds. Additional partition strategies and hierarchy
-alterations, including member RENAME, are not enabled; native retained-bound
-witnesses use admitted DROP/Restore while PostgreSQL also exercises real RENAME.
+HASH bounds use `{PartitionBound strategy hash default false modulus N remainder R}`.
+Index partitions have NULL bounds. LIST and additional hierarchy alterations,
+including member RENAME, are not enabled; native retained-bound witnesses use
+admitted DROP/Restore while PostgreSQL also exercises real RENAME.
 
 ## intagg installed wrappers
 

@@ -10,9 +10,10 @@ import (
 // Captured under the source catalog/storage mutex. Replacement owns these
 // containers; roots, descriptors and scalar payloads remain immutable source data.
 type indexSnapshot struct {
-	sources map[ObjectAddress]indexSnapshotSource
-	mapping map[ObjectAddress]ObjectAddress
-	imports map[*sqltype.Descriptor]*sqltype.Descriptor
+	sources       map[ObjectAddress]indexSnapshotSource
+	mapping       map[ObjectAddress]ObjectAddress
+	imports       map[*sqltype.Descriptor]*sqltype.Descriptor
+	partitionRows map[ObjectAddress]partitionRowHistory
 }
 
 type indexSnapshotSource struct {
@@ -33,6 +34,16 @@ func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[
 	for address, descriptor := range catalog.state.descriptors {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(catalog, relation) {
+			store := storage[address]
+			if store == nil || store != catalog.owner.storage[address] {
+				return nil, ErrCatalogReplaced
+			}
+			if snapshot.partitionRows == nil {
+				snapshot.partitionRows = make(map[ObjectAddress]partitionRowHistory)
+			}
+			snapshot.partitionRows[address] = partitionRowHistory{relation: relation, store: *store, frontier: frontier}
 		}
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
@@ -104,6 +115,13 @@ func (snapshot *indexSnapshot) captureMapping(mapping map[ObjectAddress]ObjectAd
 		return
 	}
 	snapshot.mapping, snapshot.imports = maps.Clone(mapping), maps.Clone(imports)
+	if len(mapping) != 0 && len(snapshot.partitionRows) != 0 {
+		histories := make(map[ObjectAddress]partitionRowHistory, len(snapshot.partitionRows))
+		for address, history := range snapshot.partitionRows {
+			histories[snapshot.destination(address)] = history
+		}
+		snapshot.partitionRows = histories
+	}
 }
 
 func (snapshot *indexSnapshot) destination(address ObjectAddress) ObjectAddress {

@@ -102,7 +102,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	destination := state.target
 	for destination.partition != nil {
 		var values [32]partitionDatum
-		key, null, err := partitionRowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
+		key, err := partitionRowKey(destination, state.rowFor(destination, row), evaluation, values[:0])
 		if err != nil {
 			return err
 		}
@@ -112,7 +112,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 			if child.membership.defaultBound {
 				continue
 			}
-			contains, err := partitionRangeContains(evaluation.Context, destination.partition.keys, child.membership, key, null, s.input)
+			contains, err := partitionContains(evaluation.Context, destination.partition.keys, child.membership, key, s.input)
 			if err != nil {
 				return err
 			}
@@ -125,7 +125,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 			selected = state.catalog.state.descriptors[destination.partition.defaultChild].(*relationDescriptor)
 		}
 		if selected == nil {
-			return state.missingPartition(evaluation.Context, destination, key, s.output)
+			return state.missingPartition(evaluation.Context, destination, key.values, s.output)
 		}
 		destination = selected
 	}

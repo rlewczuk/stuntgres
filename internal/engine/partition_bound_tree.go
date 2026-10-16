@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/parser"
 )
 
 // Both membership and key slices belong to immutable descriptor roots. Capture
@@ -21,6 +22,9 @@ func (t partitionBoundTree) StructuralOutput(ctx context.Context) (string, error
 	}
 	if t.membership == nil {
 		return "", fmt.Errorf("stuntgres: missing partition bound")
+	}
+	if t.membership.strategy == parser.PartitionHash {
+		return fmt.Sprintf("{PartitionBound strategy hash default false modulus %d remainder %d}", t.membership.modulus, t.membership.remainder), nil
 	}
 	if t.membership.defaultBound {
 		return "{PartitionBound strategy range default true}", nil

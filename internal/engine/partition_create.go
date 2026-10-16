@@ -185,12 +185,12 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 			}
 			for i := range source.count() {
 				var values [32]partitionDatum
-				key, null, err := partitionRowKey(p.parent, mapping.mapValues(source.row(i)), &evaluation, values[:0])
+				key, err := partitionRowKey(p.parent, mapping.mapValues(source.row(i)), &evaluation, values[:0])
 				if err != nil {
 					source.close()
 					return err
 				}
-				contains, err := partitionRangeContains(ctx, p.parent.partition.keys, p.bound, key, null, scope.input)
+				contains, err := partitionContains(ctx, p.parent.partition.keys, p.bound, key, scope.input)
 				if err != nil {
 					source.close()
 					return err
@@ -282,6 +282,9 @@ func (p *pendingPartitionDefinition) validateBounds(scope *StatementScope) error
 	if p.bound.defaultBound {
 		return nil
 	}
+	if p.bound.strategy == parser.PartitionHash {
+		return nil
+	}
 	ctx := scope.op.Context()
 	order, deciding, err := comparePartitionTuple(ctx, p.parent.partition.keys, p.bound.lower, p.bound.upper, scope.input)
 	if err != nil {
@@ -312,6 +315,9 @@ type partitionBoundary struct {
 }
 
 func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
+	if p.bound.strategy == parser.PartitionHash {
+		return p.checkHashOverlap(scope)
+	}
 	count := len(p.parent.partition.children)
 	if p.parent.partition.defaultChild != (ObjectAddress{}) {
 		count--
