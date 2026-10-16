@@ -1171,7 +1171,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if n.right != nil {
 				rt = n.right.ResultUsage().Type
 			}
-			if info.usage.Type.ID() == sqltype.Bit {
+			n.provider, n.bits, n.network = sqltype.Bitwise{}, sqltype.BitStringBitwise{}, sqltype.NetworkBitwise{}
+			if info.usage.Type.ID() == sqltype.Inet {
+				n.network, err = sqltype.BindNetworkBitwise(n.operator, n.left.ResultUsage().Type, rt)
+			} else if info.usage.Type.ID() == sqltype.Bit {
 				n.bits, err = sqltype.BindBitStringBitwise(n.operator, n.left.ResultUsage().Type, rt)
 			} else {
 				n.provider, err = sqltype.BindBitwise(n.operator, n.left.ResultUsage().Type, rt)

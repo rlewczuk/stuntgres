@@ -612,14 +612,19 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", fmt.Errorf("stuntgres: invalid default bitwise right usage")
 			}
 		}
-		if u.Type.ID() == sqltype.Bit {
+		if u.Type.ID() == sqltype.Inet {
+			provider, err := sqltype.BindNetworkBitwise(n.operator, u.Type, rightType)
+			if err != nil || provider != n.network || n.provider != (sqltype.Bitwise{}) || n.bits != (sqltype.BitStringBitwise{}) {
+				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
+			}
+		} else if u.Type.ID() == sqltype.Bit {
 			provider, err := sqltype.BindBitStringBitwise(n.operator, u.Type, rightType)
-			if err != nil || provider != n.bits || n.provider != (sqltype.Bitwise{}) {
+			if err != nil || provider != n.bits || n.provider != (sqltype.Bitwise{}) || n.network != (sqltype.NetworkBitwise{}) {
 				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
 			}
 		} else {
 			provider, err := sqltype.BindBitwise(n.operator, u.Type, rightType)
-			if err != nil || provider != n.provider || n.bits != (sqltype.BitStringBitwise{}) {
+			if err != nil || provider != n.provider || n.bits != (sqltype.BitStringBitwise{}) || n.network != (sqltype.NetworkBitwise{}) {
 				return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
 			}
 		}

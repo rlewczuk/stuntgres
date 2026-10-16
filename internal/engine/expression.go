@@ -1066,6 +1066,12 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		if bitwiseConstantNull(left) || bitwiseConstantNull(right) {
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
+		// Network operators follow the release's custom-plan Execute frontier:
+		// imported parameters are available now, but retain their provenance.
+		if e.usage.Type.ID() == sqltype.Inet && networkOperatorExecutionConstant(e, c) {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
 		if decisiveDefaults || e.usage.Type.ID() == sqltype.Bit {
 			_, l := left.(literalExpression)
 			_, r := right.(literalExpression)
@@ -1094,6 +1100,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.left, e.right = left, right
 		if arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
+		if (e.left.ResultUsage().Type.ID() == sqltype.Inet || e.right != nil && e.right.ResultUsage().Type.ID() == sqltype.Inet) && networkOperatorExecutionConstant(e, c) {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		if decisiveDefaults || c.planStaticOperators {
 			// Dependence belongs to the original analyzed recipe: an imported

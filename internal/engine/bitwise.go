@@ -13,6 +13,7 @@ type bitwiseExpression struct {
 	left, right BoundExpr
 	provider    sqltype.Bitwise
 	bits        sqltype.BitStringBitwise
+	network     sqltype.NetworkBitwise
 	operator    sqltype.BitwiseOperator
 	namespace   string
 }
@@ -23,6 +24,9 @@ func (e bitwiseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.right == nil {
+		if e.usage.Type.ID() == sqltype.Inet {
+			return e.network.Unary(c.Context, a)
+		}
 		if e.usage.Type.ID() == sqltype.Bit {
 			return e.bits.Unary(c.Context, a)
 		}
@@ -31,6 +35,9 @@ func (e bitwiseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	b, err := e.right.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err
+	}
+	if e.usage.Type.ID() == sqltype.Inet {
+		return e.network.Binary(c.Context, a, b)
 	}
 	if e.usage.Type.ID() == sqltype.Bit {
 		return e.bits.Binary(c.Context, a, b)
@@ -141,8 +148,18 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 		return nil, missing()
 	}
 	bitSignature := bitStringType(lt) || bitStringType(rt)
+	networkSignature := lt != nil && sqltype.IsNetwork(lt.ID()) || rt != nil && sqltype.IsNetwork(rt.ID())
 	target, rightTarget := lt, lt
-	if bitSignature {
+	if networkSignature {
+		if op != sqltype.BitwiseNot && op != sqltype.BitwiseAnd && op != sqltype.BitwiseOr ||
+			lt != nil && !sqltype.IsNetwork(lt.ID()) || rt != nil && !sqltype.IsNetwork(rt.ID()) {
+			return nil, missing()
+		}
+		target, rightTarget = b.typ(sqltype.Inet), b.typ(sqltype.Inet)
+		if op == sqltype.BitwiseNot {
+			rightTarget = nil
+		}
+	} else if bitSignature {
 		switch op {
 		case sqltype.BitwiseNot:
 			if !bitStringType(lt) {
@@ -244,7 +261,10 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 	}
 	var provider sqltype.Bitwise
 	var bits sqltype.BitStringBitwise
-	if bitSignature {
+	var network sqltype.NetworkBitwise
+	if networkSignature {
+		network, err = sqltype.BindNetworkBitwise(op, target, rightTarget)
+	} else if bitSignature {
 		bits, err = sqltype.BindBitStringBitwise(op, target, rightTarget)
 	} else {
 		provider, err = sqltype.BindBitwise(op, target, rightTarget)
@@ -256,5 +276,40 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	return bitwiseExpression{b.info(target.Usage(), parser.ExpressionStart(raw), p), l, r, provider, bits, op, namespace}, nil
+	return bitwiseExpression{
+		expressionInfo: b.info(target.Usage(), parser.ExpressionStart(raw), p),
+		left:           l, right: r, provider: provider, bits: bits, network: network,
+		operator: op, namespace: namespace,
+	}, nil
+}
+
+// Only network signatures opt into imported-parameter Execute planning.
+// Conservative properties survive folding; availability is not SQL constness.
+func networkOperatorExecutionConstant(node BoundExpr, c *EvalContext) bool {
+	if node == nil {
+		return false
+	}
+	p := node.Properties()
+	if p.Volatility != Immutable || p.RowDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion {
+		return false
+	}
+	switch n := node.(type) {
+	case literalExpression:
+		return true
+	case parameterExpression:
+		return n.number > 0 && n.number <= len(c.Parameters)
+	case columnExpression, groupExpression, aggregateExpression, groupingExpression, subqueryExpression:
+		return false
+	}
+	found, constant := false, true
+	boundExpressionChildren(node, func(child BoundExpr) {
+		// Lexical enumeration includes absent optional operands (for example
+		// unary operators); they contribute neither demand nor readiness.
+		if child == nil {
+			return
+		}
+		found = true
+		constant = constant && networkOperatorExecutionConstant(child, c)
+	})
+	return found && constant
 }

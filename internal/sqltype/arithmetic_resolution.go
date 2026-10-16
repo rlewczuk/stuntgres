@@ -30,6 +30,7 @@ var arithmeticAddSignatures = [...]ArithmeticSignature{
 	{Time, Interval, Time}, {Interval, Time, Time},
 	{Timetz, Interval, Timetz}, {Interval, Timetz, Timetz},
 	{Interval, Interval, Interval},
+	{Inet, Int8, Inet}, {Int8, Inet, Inet},
 }
 var arithmeticSubtractSignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],
@@ -43,6 +44,7 @@ var arithmeticSubtractSignatures = [...]ArithmeticSignature{
 	{Timestamp, Timestamp, Interval}, {Timestamptz, Timestamptz, Interval},
 	{Time, Interval, Time}, {Timetz, Interval, Timetz}, {Time, Time, Interval},
 	{Interval, Interval, Interval},
+	{Inet, Int8, Inet}, {Inet, Inet, Int8},
 }
 var arithmeticMultiplySignatures = [...]ArithmeticSignature{
 	arithmeticNumericSignatures[0], arithmeticNumericSignatures[1], arithmeticNumericSignatures[2],

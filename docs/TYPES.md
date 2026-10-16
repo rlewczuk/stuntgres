@@ -167,6 +167,32 @@ Typed-nil bytes bind NULL; nonnil empty bytes are invalid network input. Network
 arrays retain lookup identities but are not executable; network grouping/hash
 providers and OS networking are not supplied by scalar storage.
 
+INET bitwise NOT, AND and OR operate on all32 IPv4 or128 IPv6 address bits,
+including host bits, and return INET. NOT preserves the input prefix; AND/OR
+use the longer prefix. CIDR operands implicitly convert to INET without
+remasking the result. INET plus BIGINT (either operand order) and INET minus
+BIGINT return INET, preserve the prefix and may cross subnet boundaries.
+INET minus INET ignores prefixes and returns INT8. Mapped IPv6 remains IPv6;
+mixed-family AND/OR/address subtraction fail22023 with the PostgreSQL English
+diagnostic. Offset overflow/underflow and rejected address differences
+fail22003 `result is out of range`, without an operator Position.
+Commuted BIGINT-plus-INET range failures retain Context
+`SQL function "int8pl_inet" statement 1`.
+
+The pinned PostgreSQL18.0 arithmetic edges are intentional compatibility:
+subtracting INT64_MIN uses its unchecked negation (the same offset as adding
+INT64_MIN); extreme IPv6 differences use the released upper-byte sign check,
+not a mathematical128-bit magnitude check. Thus maxIPv6 minus zero returns
+-1 and its reverse returns1, while ordinary positive2^63 and negative-2^63-1
+differences fail. Strict NULL suppresses the operator's value checks, not
+malformed input/signature analysis or errors from evaluated children.
+Immutable row-independent constants and imported network parameters are
+preflighted at Execute even behind FALSE filters or empty sources; row-dependent
+expressions remain lazy. These operators retain the same canonical transport
+and metadata through direct/prepared binds and native stored-recipe replay.
+Containment, named network helper functions, INET XOR/shifts and network
+array/grouping/hash providers are not added.
+
 BIT/VARBIT byte binds are textual digits, never packed bits. Typed-nil bytes are
 NULL; nonnil empty bytes can represent a nonnull empty value. Metadata reports
 bit length where available, not byte length or numeric precision.

@@ -1274,10 +1274,16 @@ Change note: INET and CIDR now store typed IPv4/IPv6 scalar values through
 direct/prepared binds, metadata and native Dump/Restore. INET preserves host
 bits; CIDR input rejects them, while INET-to-CIDR casts clear them. Canonical
 output and prefix-aware ordering distinguish network values from TEXT.
-Network arrays, helper functions and containment/arithmetic operators remain
-outside this scalar feature. See [network types](https://www.postgresql.org/docs/18/datatype-net-types.html).
-Feature smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
-pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceINETFeatureSmoke$'`.
+INET `~`, `&` and `|` return INET, as do address-plus-BIGINT (either order)
+and address-minus-BIGINT; address-minus-address returns BIGINT. Operations use
+the full IPv4/IPv6 address width, preserve host bits and enforce family/range
+boundaries. CIDR operands implicitly convert to INET. Network arrays, helper
+functions and containment operators remain outside this scalar feature.
+See [network operators](https://www.postgresql.org/docs/18/functions-net.html#CIDR-INET-OPERATORS-TABLE)
+and [network transport and boundaries](docs/TYPES.md#textual-structured-and-network-transport).
+Storage smoke: `make check RUN='^TestReferenceINETFeatureSmoke$'`;
+operator smoke: `make check RUN='^TestReferenceINETOperatorFeatureSmoke$'`.
+Run each again with `REFERENCE=1` for the pinned PostgreSQL counterpart.
 
 Change note: `aclitem` and `aclitem[]` now use checked typed storage, ordinary
 direct/prepared textual binds and captured canonical string results. PUBLIC,

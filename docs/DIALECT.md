@@ -1054,6 +1054,21 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   remain excluded. Ordering by an independent integer key does not require bit
   comparison. Raw internal CHAR declarations
   remain excluded even where real catalog/query-derived values have codecs.
+- INET `~`, `&`, `|`, address-plus-BIGINT in either order, and
+  address-minus-BIGINT return INET; address-minus-address returns INT8.
+  CIDR/domain inputs reuse implicit INET coercion. Full32/128-bit operations
+  retain host bits; NOT/offset preserve the prefix and AND/OR use its maximum.
+  Offset arithmetic may cross subnets. Mapped IPv6 remains family6.
+  Family mismatches fail22023; offset range and rejected differences fail22003
+  with exact PostgreSQL English diagnostics. Strict NULL does not bypass
+  input/signature analysis or child errors. Immutable row-independent network
+  constants and available parameters preflight at Execute, including FALSE
+  and empty sources; row-dependent values remain lazy. Stored operators reuse
+  existing default/generated/view validation and native reconstruction.
+  Pinned release arithmetic edges and diagnostic Context are documented under
+  [network transport](TYPES.md#textual-structured-and-network-transport).
+  This adds no INET XOR/shifts, containment, named helper functions, network
+  arrays, grouping/hash providers or OS-networking mechanism.
 - XID/CID/XID8 are externally supplied scalar identifiers, not generated system
   attributes or integer/OID aliases. XID supports equality/inequality (including
   INT4 only on its right); CID only equality; XID8 unsigned comparisons/order.

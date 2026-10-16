@@ -6,6 +6,50 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### INET bitwise and arithmetic selected proof
+
+The untagged `TestReferenceINETOperator` definitions independently specify
+INET `~`, `&`, `|`, both orders of address-plus-INT8, address-minus-offset,
+and INT8 address differences. Tables include both address widths, masks and
+host bits, CIDR/domain coercion, strict NULL, empty-result metadata,
+direct/prepared/held string/byte/nil binds, complete English diagnostics,
+error stages, failed-write atomicity and stored default/generated/view recipes.
+Native controls reconstruct recipes in the same and fresh Driver; emitted
+native SQL is also executed by the real PostgreSQL fixture.
+
+```sh
+make check RUN='^TestReferenceINETOperatorReleaseEdges$' REFERENCE=1
+make check RUN='^TestReferenceINETOperator(Diagnostics|ErrorFrontier)$' REFERENCE=1
+make check RUN='^TestReferenceINETOperator(Values|Resolution|MetadataAndBinds|StoredRecipes|FeatureSmoke)$' REFERENCE=1
+```
+
+The pinned PostgreSQL18.0 run confirmed source-derived INT64_MIN
+offset subtraction and modular extreme IPv6 differences. Bound parameters
+raise the same provider errors at Execute even behind FALSE/on empty sources;
+valid or NULL bound inputs retain zero rows there. Commuted-addition range
+errors include Context `SQL function "int8pl_inet" statement 1`.
+Run all three selectors both with and without `REFERENCE=1`. Every command
+needs an external900-second deadline. The bounded shared feature smoke is
+`make check RUN='^TestReferenceINETOperatorFeatureSmoke$'`, also `REFERENCE=1`;
+it asserts documented values/types, IPv6 carry, prefix retention, NULL,
+full diagnostics, held recovery and actual stored-expression execution.
+The task session additionally supplies a public-only executable smoke; it is
+not a production helper or a permanent command.
+
+Private operator-provider and binding/reconstruction proof:
+
+```sh
+make check RUN='^TestNetworkOperator(Bitwise|Arithmetic|Resolution|OwnershipAndCancellation|Allocations|BindingAndReownership|StoredValidation)$'
+```
+
+These private units supplement the public dual-mode scenarios with inline
+carrier invariants, every-byte carries/borrows, exact descriptor ownership,
+ordinary cancellation, zero-allocation successful evaluation, provider
+corruption rejection, reownership/equality, and scoped imported-parameter
+preflight barriers. Existing bitwise consumers remain covered with
+`make check RUN='^(TestBitStringOperators|TestBitwise)'`; their reference
+definitions retain the shared testing guide's separate dual-mode obligations.
+
 ### Multirange constructor and expansion selected proof
 
 The untagged `TestReferenceRangeMore` definitions specify unary generic

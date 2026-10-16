@@ -1,0 +1,370 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"strings"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func networkOperatorTyped(typ, text string) parser.Expr {
+	return parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: typ}, Text: text}
+}
+
+func TestNetworkOperatorBindingAndReownership(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, want string
+		args       []parser.Expr
+		result     sqltype.ID
+	}{
+		{"~", "63.87.254.249/24", []parser.Expr{networkOperatorTyped("inet", "192.168.1.6/24")}, sqltype.Inet},
+		{"&", "0.0.0.6/25", []parser.Expr{networkOperatorTyped("inet", "192.168.1.6/24"), networkOperatorTyped("inet", "0.0.0.255/25")}, sqltype.Inet},
+		{"|", "192.168.1.255/25", []parser.Expr{networkOperatorTyped("inet", "192.168.1.6/24"), networkOperatorTyped("inet", "0.0.0.255/25")}, sqltype.Inet},
+		{"~", "63.87.254.255/24", []parser.Expr{networkOperatorTyped("cidr", "192.168.1/24")}, sqltype.Inet},
+		{"+", "192.168.1.7/24", []parser.Expr{networkOperatorTyped("inet", "192.168.1.6/24"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}}, sqltype.Inet},
+		{"+", "192.168.1.7/24", []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, networkOperatorTyped("inet", "192.168.1.6/24")}, sqltype.Inet},
+		{"-", "192.168.1.5/24", []parser.Expr{networkOperatorTyped("inet", "192.168.1.6/24"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}}, sqltype.Inet},
+		{"-", "5", []parser.Expr{networkOperatorTyped("inet", "192.168.1.6/24"), networkOperatorTyped("inet", "192.168.1.1")}, sqltype.Int8},
+	} {
+		t.Run(tc.name+"/"+tc.want, func(t *testing.T) {
+			e := New()
+			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+			raw := bitOperatorRaw(tc.name, tc.args...)
+			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if node.ResultUsage() != b.typ(tc.result).Usage() || node.Properties() != (ExprProperties{}) {
+				t.Fatal(node.ResultUsage(), node.Properties())
+			}
+			value, err := node.Eval(&EvalContext{Context: ctx})
+			if err != nil {
+				t.Fatal(err)
+			}
+			text, err := value.Type().Output(ctx, value)
+			if err != nil || text != tc.want {
+				t.Fatal(text, err)
+			}
+			serialized, err := defaultSQL(ctx, e.CatalogRead(), node)
+			if err != nil || !strings.Contains(serialized, tc.name) {
+				t.Fatal(serialized, err)
+			}
+			if !b.sameGroupExpression(node, node) {
+				t.Fatal("self structural equality")
+			}
+			replacement := New()
+			rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+				next, _ := replacement.CatalogRead().LookupType(d.ID())
+				return next
+			})
+			if err != nil || !changed || rebound.ResultUsage().Type == node.ResultUsage().Type {
+				t.Fatal(changed, err)
+			}
+			after, err := rebound.Eval(&EvalContext{Context: ctx})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := value.Retag(rebound.ResultUsage().Type)
+			if err != nil || after != want {
+				t.Fatal(after, want, err)
+			}
+			if _, err := defaultSQL(ctx, replacement.CatalogRead(), rebound); err != nil {
+				t.Fatal(err)
+			}
+			if original, ok := node.(bitwiseExpression); ok {
+				next := rebound.(bitwiseExpression)
+				if original.network == (sqltype.NetworkBitwise{}) || original.provider != (sqltype.Bitwise{}) || original.bits != (sqltype.BitStringBitwise{}) || original.network == next.network {
+					t.Fatal("network provider ownership")
+				}
+				corrupt := original
+				corrupt.network = next.network
+				if b.sameGroupExpression(original, corrupt) {
+					t.Fatal("network provider omitted from structural equality")
+				}
+			}
+		})
+	}
+	// Exactly-once left-to-right child evaluation remains unchanged even for a
+	// strict NULL; a child's error is not the operator's suppressed family check.
+	e := New()
+	inet, _ := e.CatalogRead().LookupType(sqltype.Inet)
+	p, err := sqltype.BindNetworkBitwise(sqltype.BitwiseAnd, inet, inet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls []string
+	null := queryProbe(inet.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		calls = append(calls, "left")
+		return sqltype.Null(inet), nil
+	})
+	failure := errors.New("network child failure")
+	right := queryProbe(inet.Usage(), func(*EvalContext) (sqltype.Value, error) {
+		calls = append(calls, "right")
+		return sqltype.Value{}, failure
+	})
+	node := bitwiseExpression{expressionInfo: expressionInfo{usage: inet.Usage()}, left: null, right: right, network: p, operator: sqltype.BitwiseAnd}
+	if _, err := node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(calls, []string{"left", "right"}) {
+		t.Fatal(calls, err)
+	}
+}
+
+func TestNetworkOperatorStoredValidation(t *testing.T) {
+	t.Run("arithmetic-recipes", networkOperatorArithmeticStoredValidation)
+	t.Run("optional-preflight-children", networkOperatorOptionalPreflightChildren)
+	ctx := context.Background()
+	e := New()
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	node, err := b.bindBitwise(bitOperatorRaw("&", networkOperatorTyped("inet", "192.168.1.6/24"), networkOperatorTyped("inet", "0.0.0.255/25")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := node.(bitwiseExpression)
+	integral, err := sqltype.BindBitwise(sqltype.BitwiseAnd, b.typ(sqltype.Int4), b.typ(sqltype.Int4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bits, err := sqltype.BindBitStringBitwise(sqltype.BitwiseAnd, b.typ(sqltype.Bit), b.typ(sqltype.Bit))
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := New()
+	foreignInet, _ := foreign.CatalogRead().LookupType(sqltype.Inet)
+	foreignProvider, err := sqltype.BindNetworkBitwise(sqltype.BitwiseAnd, foreignInet, foreignInet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(bitwiseExpression) bitwiseExpression{
+		func(n bitwiseExpression) bitwiseExpression { n.network = sqltype.NetworkBitwise{}; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.network = foreignProvider; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.provider = integral; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.bits = bits; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.left = nil; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.right = nil; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.operator = sqltype.BitwiseOr; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.operator = sqltype.BitwiseOperator(255); return n },
+		func(n bitwiseExpression) bitwiseExpression { n.usage.Typmod = 4; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.usage.Type = b.typ(sqltype.Cidr); return n },
+		func(n bitwiseExpression) bitwiseExpression {
+			v, err := foreignInet.Input(ctx, "::1", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			n.right = literalExpression{expressionInfo: expressionInfo{usage: foreignInet.Usage()}, value: v}
+			return n
+		},
+	} {
+		if _, err := defaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
+			t.Fatal("invalid network recipe accepted")
+		}
+	}
+	// The inactive network field must also be rejected for existing providers.
+	for _, raw := range []parser.OperatorExpr{
+		bitOperatorRaw("&", bitOperatorLiteral("1"), bitOperatorLiteral("1")),
+		bitOperatorRaw("&", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}),
+	} {
+		other, err := b.bindBitwise(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		corrupt := other.(bitwiseExpression)
+		corrupt.network = root.network
+		if _, err := defaultSQL(ctx, e.CatalogRead(), corrupt); err == nil {
+			t.Fatal("inactive network provider accepted")
+		}
+	}
+	// Import-time preflight is scoped to network signatures and preserves the
+	// original parameter dependence even after producing an execution literal.
+	inet, int8 := b.typ(sqltype.Inet), b.typ(sqltype.Int8)
+	v4, err := inet.Input(ctx, "1.2.3.4", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v6, err := inet.Input(ctx, "::1", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parameter := parameterExpression{expressionInfo: expressionInfo{usage: inet.Usage(), properties: ExprProperties{ParameterDependent: true}}, number: 1}
+	family := root
+	family.left = parameter
+	family.right = literalExpression{expressionInfo: expressionInfo{usage: inet.Usage()}, value: v6}
+	family.properties = parameter.properties
+	for _, frame := range [][]sqltype.Value{{v4}, {v6}, {sqltype.Null(inet)}, {v4}} {
+		c := &EvalContext{Context: ctx, Parameters: frame}
+		folded, changed, err := preflightCoercions(c, family)
+		if frame[0] == v4 {
+			var d *sqlstate.Error
+			if !errors.As(err, &d) || d.Code != "22023" || d.Position != "" {
+				t.Fatal(err)
+			}
+		} else {
+			if err != nil || !changed || !folded.Properties().ParameterDependent {
+				t.Fatal(changed, err)
+			}
+			value, err := folded.Eval(c)
+			if err != nil || value.IsNull() != frame[0].IsNull() {
+				t.Fatal(value, err)
+			}
+		}
+	}
+	for _, barrier := range []ExprProperties{{RowDependent: true}, {StageDependent: true}, {DomainDependent: true}, {RuntimeDomainConversion: true}, {Volatility: Stable}, {Volatility: Volatile}} {
+		lazy := family
+		lazy.properties = mergeExpressionProperties(lazy.properties, barrier)
+		if _, changed, err := preflightCoercions(&EvalContext{Context: ctx, Parameters: []sqltype.Value{v4}}, lazy); err != nil || changed {
+			t.Fatal("network preflight crossed barrier", barrier, changed, err)
+		}
+	}
+	// Address subtraction returns INT8: network detection uses input signature,
+	// never just the result type. Offset and commuted addition share the gate.
+	one, err := sqltype.Integer(int8, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		op            sqltype.ArithmeticOperator
+		left, right   BoundExpr
+		result        *sqltype.Descriptor
+		frame         []sqltype.Value
+		code, context string
+	}{
+		{sqltype.ArithmeticSubtract, parameter, literalExpression{expressionInfo: expressionInfo{usage: inet.Usage()}, value: v6}, int8, []sqltype.Value{v4}, "22023", ""},
+		{sqltype.ArithmeticAdd, parameter, literalExpression{expressionInfo: expressionInfo{usage: int8.Usage()}, value: one}, inet, nil, "22003", ""},
+		{sqltype.ArithmeticAdd, literalExpression{expressionInfo: expressionInfo{usage: int8.Usage()}, value: one}, parameter, inet, nil, "22003", "SQL function \"int8pl_inet\" statement 1"},
+	} {
+		if tc.frame == nil {
+			max, err := inet.Input(ctx, "255.255.255.255", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.frame = []sqltype.Value{max}
+		}
+		provider, err := sqltype.BindArithmetic(tc.op, tc.left.ResultUsage().Type, tc.right.ResultUsage().Type, tc.result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n := arithmeticExpression{expressionInfo: expressionInfo{usage: tc.result.Usage(), properties: ExprProperties{ParameterDependent: true}}, left: tc.left, right: tc.right, provider: provider, operator: tc.op}
+		_, _, err = preflightCoercions(&EvalContext{Context: ctx, Parameters: tc.frame}, n)
+		var d *sqlstate.Error
+		if !errors.As(err, &d) || d.Code != tc.code || d.Context != tc.context || d.Position != "" {
+			t.Fatal(err)
+		}
+	}
+}
+
+func networkOperatorArithmeticStoredValidation(t *testing.T) {
+	ctx := context.Background()
+	e := New()
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	for _, raw := range []parser.OperatorExpr{
+		bitOperatorRaw("+", networkOperatorTyped("inet", "::1"), parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}),
+		bitOperatorRaw("+", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, networkOperatorTyped("inet", "::1")),
+		bitOperatorRaw("-", networkOperatorTyped("inet", "::1"), networkOperatorTyped("inet", "::")),
+	} {
+		node, err := b.bindArithmetic(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := node.(arithmeticExpression)
+		for _, mutate := range []func(arithmeticExpression) arithmeticExpression{
+			func(n arithmeticExpression) arithmeticExpression { n.provider = sqltype.Arithmetic{}; return n },
+			func(n arithmeticExpression) arithmeticExpression { n.operator = sqltype.ArithmeticMultiply; return n },
+			func(n arithmeticExpression) arithmeticExpression { n.usage.Type = b.typ(sqltype.Int4); return n },
+			func(n arithmeticExpression) arithmeticExpression { n.left = nil; return n },
+			func(n arithmeticExpression) arithmeticExpression { n.right = nil; return n },
+			func(n arithmeticExpression) arithmeticExpression {
+				foreign := New()
+				left, _ := foreign.CatalogRead().LookupType(n.left.ResultUsage().Type.ID())
+				right, _ := foreign.CatalogRead().LookupType(n.right.ResultUsage().Type.ID())
+				result, _ := foreign.CatalogRead().LookupType(n.usage.Type.ID())
+				n.provider, err = sqltype.BindArithmetic(n.operator, left, right, result)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return n
+			},
+		} {
+			if _, err := defaultSQL(ctx, e.CatalogRead(), mutate(root)); err == nil {
+				t.Fatal("invalid network arithmetic recipe accepted")
+			}
+		}
+	}
+}
+
+func networkOperatorOptionalPreflightChildren(t *testing.T) {
+	ctx := context.Background()
+	e := New()
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	c := &EvalContext{Context: ctx}
+	if networkOperatorExecutionConstant(nil, c) {
+		t.Fatal("absent root is not an available expression")
+	}
+	if networkOperatorExecutionConstant(bitwiseExpression{}, c) {
+		t.Fatal("absent-only operands are not execution ready")
+	}
+
+	node, err := b.bindBitwise(bitOperatorRaw("~", networkOperatorTyped("inet", "192.168.1.6/24")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !networkOperatorExecutionConstant(node, c) {
+		t.Fatal("absent unary right operand blocked readiness")
+	}
+	folded, changed, err := preflightCoercions(c, node)
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	value, err := folded.Eval(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := value.Type().Output(ctx, value)
+	if err != nil || text != "63.87.254.249/24" {
+		t.Fatal(text, err)
+	}
+
+	// The same lexical convention applies to optional operands nested below
+	// the network root, not only to the network operator's own right child.
+	inet, int8 := b.typ(sqltype.Inet), b.typ(sqltype.Int8)
+	address, err := inet.Input(ctx, "::2", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	one, err := sqltype.Integer(int8, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	negate, err := sqltype.BindArithmetic(sqltype.ArithmeticSubtract, int8, nil, int8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offset := arithmeticExpression{
+		expressionInfo: expressionInfo{usage: int8.Usage()},
+		left:           literalExpression{expressionInfo: expressionInfo{usage: int8.Usage()}, value: one},
+		provider:       negate, operator: sqltype.ArithmeticSubtract,
+	}
+	add, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, inet, int8, inet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := arithmeticExpression{
+		expressionInfo: expressionInfo{usage: inet.Usage()},
+		left:           literalExpression{expressionInfo: expressionInfo{usage: inet.Usage()}, value: address},
+		right:          offset, provider: add, operator: sqltype.ArithmeticAdd,
+	}
+	folded, changed, err = preflightCoercions(c, root)
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	value, err = folded.Eval(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err = inet.Output(ctx, value)
+	if err != nil || text != "::1" {
+		t.Fatal(text, err)
+	}
+}
