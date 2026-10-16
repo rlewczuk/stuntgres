@@ -116,6 +116,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"opcmethod", sqltype.Oid}, {"opcname", sqltype.Name}, {"opcnamespace", sqltype.Oid}, {"opcowner", sqltype.Oid}, {"opcfamily", sqltype.Oid}, {"opcintype", sqltype.Oid}, {"opcdefault", sqltype.Bool}, {"opckeytype", sqltype.Oid}}},
+		{pgRangeOID, "pg_range", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"rngtypid", sqltype.Oid}, {"rngsubtype", sqltype.Oid}, {"rngmultitypid", sqltype.Oid}, {"rngcollation", sqltype.Oid}, {"rngsubopc", sqltype.Oid}, {"rngcanonical", sqltype.Regproc}, {"rngsubdiff", sqltype.Regproc}}},
 		{3501, "pg_enum", []struct {
 			name string
 			typ  sqltype.ID
@@ -256,7 +260,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2606 {
 				d.columns[i].Nullable = i >= 20
 			}
-			if spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 3501 || spec.oid == 2610 {
+			if spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 3501 || spec.oid == 2610 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -364,6 +368,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 2616 {
 		return capturePGOpclass(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == pgRangeOID {
+		return capturePGRange(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == 3501 {
 		return capturePGEnum(ctx, catalog, ref, source)

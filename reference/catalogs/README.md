@@ -6,6 +6,62 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_range selected proof
+
+`pg_range_test.go`, `pg_range_linkage_test.go`, `pg_range_diagnostics_test.go`
+and `pg_range_lifecycle_test.go` define the seven-column PostgreSQL18 catalog
+and complete six-row bag independently from released catalog data. Inventory
+checks numeric identities and symbolic REGPROC names (including nonnull zero
+rendered `-`), direct/new-prepared/held reads, unordered multiplicities, and
+empty/NULL parameter metadata. Shape checks raw native int64/string versus
+pq bytes, ScanType/nullability/length/precision, saved metadata after Close,
+pg_class, all seven pg_attribute facts, row/array identities and pg_tables.
+PostgreSQL alone supplies pg_type reciprocal ownership SQL; private native
+`TestPGRangeCaptureOwnership` supplies actual descriptor ownership, foreign-
+generation/shape rejection, independent capture storage and cancellation.
+`TestRangeMetadata` independently checks six exact owner facts and admission,
+including preserved lookup-only temporal companions and absent domain rows.
+
+Linkage checks every subtype btree class, symbolic type identity and all nine
+REGPROCEDURE signatures, plus actual discrete/continuous six-family storage
+and absence of extra rows for domains, columns, companions and arrays. Linked
+canonical/subdiff routines are lookup-only natively: left-join witnesses are
+NULL there, while PostgreSQL additionally asserts real pg_proc signatures.
+Routine-provider joins explicitly cast REGPROC links to OID, preserving the
+identity witness without requiring mixed OID/REGPROC comparison operators.
+Nonzero temporal companion identities do not enable temporal multirange codecs.
+Diagnostics assert complete logical English records and stages; native catalog
+mutation/locking rejection preserves a sentinel and the entire bag. PostgreSQL
+ordinary-role writes assert ACL denial rather than superuser catalog mutation.
+Lifecycle consumes retained unread cursors after DDL and native Dump/Reset/
+Restore, checks held/view recovery and exact logical redump. Cancellation is
+ordinary context.Canceled natively, not a fabricated server SQLSTATE.
+
+Run each bounded selector real-first, then quick, with external
+900-second deadlines; repeat both modes after implementation:
+
+```sh
+make check RUN='^TestReferencePGRange(Inventory|Shape|Linkage)$' REFERENCE=1
+make check RUN='^TestReferencePGRange(Inventory|Shape|Linkage)$'
+make check RUN='^TestReferencePGRange(Diagnostics|Permissions)$' REFERENCE=1
+make check RUN='^TestReferencePGRange(Diagnostics|Permissions)$'
+make check RUN='^TestReferencePGRange(HeldExecution|Lifecycle|Cancellation)$' REFERENCE=1
+make check RUN='^TestReferencePGRange(HeldExecution|Lifecycle|Cancellation)$'
+make check RUN='^TestReferencePGTableViewsBuiltins$' REFERENCE=1
+make check RUN='^TestReferencePGTableViewsBuiltins$'
+make check RUN='^TestReferencePGRangeFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferencePGRangeFeatureSmoke$'
+make check RUN='^Test(RangeMetadata|PGRangeCaptureOwnership|PgClassBuiltinIndexMetadata|TableViewSummaryBuiltinIdentity)$'
+make check RUN='^TestReferencePGRange(HeldExecution|Lifecycle|Cancellation)$' RACE=1
+```
+
+FeatureSmoke composes the same cohesive helpers: full inventory, prepared
+empty/NULL metadata, provider links, real range values, complete diagnostics,
+native protected mutation/sentinel/held recovery, ordinary-role reads and
+native control round trip with retained unread cursor. Expected success is
+quiet exit0/package `ok` with these independent assertions. Selected proof
+supplements, never substitutes for, whole-project quickcheck.
+
 ### pg_language selected proof
 
 The `TestReferencePGLanguage` definitions specify the complete native

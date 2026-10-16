@@ -1796,6 +1796,63 @@ universally immutable. Held native results retain their row/types across
 Reset/Restore, while held statements read the replacement catalog.
 See [selected proof and smoke](../reference/catalogs/README.md#pg_language-selected-proof).
 
+## pg_range supported range metadata
+
+`pg_catalog.pg_range` is relation3541 in pg_catalog, owner10 (`postgres`
+natively). It has exactly seven nonnullable columns in PostgreSQL18 order:
+OID `rngtypid`, `rngsubtype`, `rngmultitypid`, `rngcollation`, `rngsubopc`,
+then REGPROC `rngcanonical`, `rngsubdiff`. Each has typmod−1, collation0 and
+four-byte type width. Row type10101 and array10100 retain reciprocal ownership.
+It is an indexed catalog table in pg_class/pg_tables, not a view; this reports
+released index metadata without synthesizing physical native index relations.
+Native pg_type SQL projection remains unavailable.
+
+The complete inventory is one row per executable builtin base range:
+
+| Range | Type | Subtype | Companion | Collation | Subtype class | Canonical | Difference |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| int4range | 3904 | 23 | 4451 | 0 | 1978 | 3914 | 3922 |
+| numrange | 3906 | 1700 | 4532 | 0 | 3125 | 0 | 3924 |
+| tsrange | 3908 | 1114 | 4533 | 0 | 3128 | 0 | 3929 |
+| tstzrange | 3910 | 1184 | 4534 | 0 | 3127 | 0 | 3930 |
+| daterange | 3912 | 1082 | 4535 | 0 | 3122 | 3915 | 3925 |
+| int8range | 3926 | 20 | 4536 | 0 | 3124 | 3928 | 3923 |
+
+Zero collation/canonicalization is a typed nonnull zero, never SQL NULL;
+REGPROC zero displays `-`. Discrete integer/date canonical routines correspond
+to actual stored canonical bounds. Continuous numeric/timestamp families retain
+their bounds and have no canonical routine. Every difference routine identifies
+two subtype arguments and float8 result through existing REGPROCEDURE lookup.
+The linked canonical/subdiff names remain lookup-only natively: they do not
+create executable named functions or pg_proc provider rows. The class link is
+the subtype's existing btree class, not a range index class.
+
+Temporal companions4533/4534/4535 retain their released nonzero identities but
+remain lookup-only; catalog metadata grants no codec/storage capability.
+Arrays, multiranges, domains over ranges and range-bearing columns do not
+acquire separate pg_range rows. User-defined range DDL, constructors, named
+canonical/subdiff execution and range GiST/SP-GiST/hash/btree providers are not
+added.
+
+PUBLIC SELECT covers direct, prepared and held reads, including empty/NULL
+parameters. Unordered results are bags. Native INSERT/UPDATE/DELETE reject
+even false predicates with `0A000` / `catalog source mutation is unsupported`;
+row locks reject with `0A000` /
+`row locking is not supported for virtual catalog relations`. PostgreSQL
+ordinary-role writes instead raise `42501` / `permission denied for table pg_range`.
+Missing columns raise `42703` / `column "missing" does not exist` (Position8,
+or14 after `/*é*/`). Invalid OID literal `bad` raises `22P02` /
+`invalid input syntax for type oid: "bad"`; literal4294967296 raises `22003` /
+`value "4294967296" is out of range for type oid`, Position8 in the selected
+literal projection. Prepared analysis errors occur at prepare; native mutation
+UPDATE rejects at prepare, INSERT/DELETE and row locks at execute.
+
+Native catalog rows regenerate after Reset/Restore and never appear as user
+INSERTs in logical dumps. Held numeric statements read the fresh generation;
+already populated unread cursors retain their original rows/types. Ordinary
+context cancellation remains context.Canceled, not a fabricated SQLSTATE.
+See [independent selected proof and actual feature smoke](../reference/catalogs/README.md#pg_range-selected-proof).
+
 ## pg_opclass supported operator classes
 
 `pg_catalog.pg_opclass` is a read-only PUBLIC catalog with the released nine

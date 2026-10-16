@@ -80,6 +80,18 @@ See [embedding API](docs/DRIVER.md#foreign-provider-registration),
 Feature smoke: `make check RUN='^TestReferenceFDWScan$'`, and the same command
 with `REFERENCE=1`; Rescan and Import smoke selectors are documented alongside it.
 
+## Range catalog — change note
+
+`pg_catalog.pg_range` exposes the seven PostgreSQL18 metadata columns for the
+six executable builtin range types. Subtype, multirange companion, subtype
+btree class and canonical/difference routine identities are exact; zero
+canonical REGPROC is nonnull and displays `-`. Ordinary direct/prepared/held
+queries and PUBLIC reads use the existing immutable catalog/control lifecycle.
+Procedure links and temporal multirange companions remain lookup-only; this
+does not enable named routines, range indexes or additional range DDL.
+See [native contract](docs/DIALECT.md#pg_range-supported-range-metadata) and
+[selected proof and feature smoke](reference/catalogs/README.md#pg_range-selected-proof).
+
 ## Language catalog — change note
 
 `pg_catalog.pg_language` exposes the nine PostgreSQL language metadata columns
