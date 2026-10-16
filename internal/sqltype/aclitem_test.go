@@ -89,7 +89,7 @@ func TestACLItemConstructor(t *testing.T) {
 		a                      *ACLAuthority
 		grantee, grantor, p, o uint32
 	}{
-		{nil, authority, 0, 10, 0, 0}, {types[Text], authority, 0, 10, 0, 0}, {types[ACLItem], nil, 0, 10, 0, 0}, {types[ACLItem], authority, 1, 0, 0, 0}, {types[ACLItem], authority, 1, 10, 1 << 15, 0}, {types[ACLItem], authority, 1, 10, 2, 1},
+		{nil, authority, 0, 10, 0, 0}, {types[Text], authority, 0, 10, 0, 0}, {types[ACLItem], nil, 0, 10, 0, 0}, {types[ACLItem], authority, 1, 10, 1 << 15, 0}, {types[ACLItem], authority, 1, 10, 2, 1},
 	} {
 		if _, err := ACLItemValue(tc.d, tc.a, tc.grantee, tc.grantor, tc.p, tc.o); err == nil {
 			t.Fatalf("invalid ACL constructor accepted: descriptor=%p authority=%p grantee=%d grantor=%d privileges=%#x options=%#x", tc.d, tc.a, tc.grantee, tc.grantor, tc.p, tc.o)

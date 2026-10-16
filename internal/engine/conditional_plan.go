@@ -976,6 +976,19 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		expression = e
+	case aclValueExpression:
+		e.properties = e.baseProperties()
+		for i, arg := range e.arguments() {
+			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i], changed = node, true
+			}
+			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+		}
+		expression = e
 	case objectACLExpression:
 		e.properties = ExprProperties{Volatility: Stable}
 		for i, arg := range e.args {
@@ -1498,6 +1511,10 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
+	case aclValueExpression:
+		// Keep constructors symbolic: their inert identities need the statement
+		// authority, and stored definitions must retain their child dependencies.
+		return false
 	case commitTimestampExpression, objectAddressExpression:
 		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:

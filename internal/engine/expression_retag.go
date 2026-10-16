@@ -605,6 +605,12 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.expressionInfo = info
 		rebound = n
+	case aclValueExpression:
+		for i := range n.arguments() {
+			n.args[i] = child(n.args[i])
+		}
+		n.expressionInfo = info
+		rebound = n
 	case objectACLExpression:
 		for i := range n.args {
 			n.args[i] = child(n.args[i])

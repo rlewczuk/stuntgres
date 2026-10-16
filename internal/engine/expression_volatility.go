@@ -200,6 +200,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 			v = merge(v, Stable)
 		}
 		return v
+	case aclValueExpression:
+		return merge(children(n.arguments()...), n.baseProperties().Volatility)
 	case objectAddressExpression:
 		return merge(children(n.args[:]...), Stable)
 	case commitTimestampExpression:

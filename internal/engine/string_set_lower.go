@@ -29,6 +29,9 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 		return false
 	}
 	switch first := a.(type) {
+	case aclValueExpression:
+		second, ok := b.(aclValueExpression)
+		return ok && first.kind == aclExplode && second.kind == aclExplode && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case seriesExpression:
 		second, ok := b.(seriesExpression)
 		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)

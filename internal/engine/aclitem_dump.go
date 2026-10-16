@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/sqltype"
 )
@@ -24,6 +25,9 @@ func preflightACLItemValue(ctx context.Context, output capturedACLItemOutput, va
 		return nil
 	}
 	if value.Type().BaseType().IsArray() {
+		if value.Type().BaseType().ID() != sqltype.ACLItemArray && containsEmptyACL(value) {
+			return fmt.Errorf("stuntgres: dump cannot serialize rank-one empty ACL inside an array of composite carriers")
+		}
 		for i := range value.ArrayLen() {
 			if err := preflightACLItemValue(ctx, output, value.ArrayElement(i)); err != nil {
 				return err

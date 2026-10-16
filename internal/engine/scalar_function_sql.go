@@ -275,6 +275,8 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			return name
 		})
+	case aclValueExpression:
+		return n.sql(func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
 	case commitTimestampExpression:
 		if err := n.validate(); err != nil {
 			return "", err

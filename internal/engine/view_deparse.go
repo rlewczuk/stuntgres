@@ -1449,7 +1449,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			}
 			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
+		if parser.ACLValueFunctionName(name) || parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
 			functionName, identifier := "pg_catalog."+name, quoteIdentifier
 			if v.presentation.deparse {
 				functionName, identifier = v.presentation.identifier(name), v.presentation.identifier

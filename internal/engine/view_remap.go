@@ -445,6 +445,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.args[i] = child(n.args[i])
 		}
 		next = n
+	case aclValueExpression:
+		for i := range n.arguments() {
+			n.args[i] = child(n.args[i])
+		}
+		next = n
 	case objectACLExpression:
 		for i := range n.args {
 			n.args[i] = child(n.args[i])

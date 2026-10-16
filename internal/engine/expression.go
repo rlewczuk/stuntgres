@@ -619,6 +619,18 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return next, changed || simplified, err
 		}
 		return e, changed, nil
+	case aclValueExpression:
+		changed := false
+		for i, arg := range e.arguments() {
+			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if did {
+				e.args[i], changed = next, true
+			}
+		}
+		return e, changed, nil
 	case objectACLExpression:
 		changed := false
 		for i, arg := range e.args {
@@ -1852,7 +1864,7 @@ type expressionPolicy struct {
 	mode             sqltype.CoercionContext
 	column           string
 	booleanConstruct string
-	// String-family textual roles alone admit internal CHAR annotations.
+	// Selected textual function roles admit internal CHAR annotations.
 	stringInput bool
 	// Only width_bucket's threshold argument consumes existing enum arrays.
 	// This is not permission for generic casts, storage or domain declarations.

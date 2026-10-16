@@ -79,6 +79,7 @@ const (
 	functionArrayCursor
 	functionNumericSeriesCursor
 	functionJSONRecordCursor
+	functionACLCursor
 )
 
 type functionSetCursor struct {
@@ -92,6 +93,7 @@ type functionSetCursor struct {
 	numericSeries          sqltype.NumericSeriesCursor
 	array                  sqltype.Value
 	owned                  []sqltype.Value
+	acl                    aclExplodeCursor
 	position               int
 	scalar                 sqltype.Value
 	kind                   functionCursorKind
@@ -124,6 +126,9 @@ func (s *functionSetCursor) close() {
 	}
 	if s.initialized && s.kind == functionJSONRecordCursor {
 		s.record.Close()
+	}
+	if s.initialized && s.kind == functionACLCursor {
+		s.acl.close()
 	}
 	s.owned = nil
 	s.array = sqltype.Value{}
@@ -194,6 +199,19 @@ func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInv
 }
 func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
 	switch call := expression.(type) {
+	case aclValueExpression:
+		if call.kind == aclExplode {
+			cursor, err := call.openACL(c)
+			if err != nil {
+				return functionSetCursor{}, err
+			}
+			return functionSetCursor{acl: cursor, kind: functionACLCursor, initialized: true}, nil
+		}
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
 	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
 		if err := evaluationContext(c); err != nil {
 			return functionSetCursor{}, err
@@ -504,6 +522,9 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	}
 	if !s.initialized {
 		return sqltype.Value{}, false, fmt.Errorf("stuntgres: unopened function set cursor")
+	}
+	if s.kind == functionACLCursor {
+		return s.acl.next(ctx, typ)
 	}
 	if s.kind == functionArrayCursor {
 		if s.position == s.array.ArrayLen() {

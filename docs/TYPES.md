@@ -132,6 +132,42 @@ and a whole-array NULL remains strict NULL. ACL ordering is unavailable.
 ACL equality does not grant native grouping/hash or scalar ACL binary
 receive/send providers.
 
+`makeaclitem(oid, oid, text, boolean)` constructs a grantee/grantor item;
+privilege names are comma-separated, case-insensitive and trimmed of C
+whitespace. All fifteen privileges are supported; `TEMP` aliases `TEMPORARY`.
+`acldefault("char", oid)` supplies PostgreSQL's thirteen object-kind defaults,
+with PUBLIC entries first where applicable and no stored grant-option bits.
+Its object-kind argument accepts explicit internal `"char"` literal and
+parameter annotations through the selected textual-input seam; this does not
+enable internal CHAR columns or an implicit TEXT-to-CHAR conversion.
+Numeric constructors retain every uint32 identity, including zero and missing
+roles, without resolving role names. A zero grantor prints `/0`; a zero grantee
+still prints the empty PUBLIC spelling. Text input continues to interpret
+digits as role names, never as an identity fallback.
+
+`aclexplode(aclitem[])` is a strict, STABLE set-returning function with fixed
+OUT columns `grantor OID`, `grantee OID`, `privilege_type TEXT`,
+`is_grantable BOOL`, including for empty and NULL sources. Duplicate entries
+retain multiplicity; zero-rights entries emit no rows. FROM, target-list,
+LATERAL, ROWS FROM and WITH ORDINALITY use the ordinary typed set machinery.
+Only `aclexplode` names its input (`acl => ...`); the constructors accept
+positional arguments only. Results have no portable order without ORDER BY.
+
+`aclitem[] @> aclitem` requires one entry with matching endpoints and supersets
+of both privilege masks; separate entries are never unioned. Scalar/scalar
+`@>` is unavailable. Both containment and expansion require rank one before
+checking for NULL elements. Non-one lower bounds are allowed.
+`acldefault('c', owner)` creates a rank-one empty ACL, unlike rank-zero text
+input `'{}'::aclitem[]`; both display `{}`. Storage and typed copies retain
+the rank, but re-inputting that display loses it. Dump emits the lossless
+`pg_catalog.acldefault('c'::"char",0::oid)` expression, also inside domains
+and supported composite members.
+Concatenation treats rank-zero input as neutral without erasing a rank-one
+empty ACL supplied in the other argument. ACL validation, containment and
+zero-rights expansion scans check cancellation at bounded progress intervals;
+canceling expansion closes its invocation without changing the retained input.
+
+
 Explicit ACL output casts to sized `varchar`/`char` use character truncation
 semantics, including domain coercions; assignments retain overlength rejection.
 NULL casts preserve typed NULL without resolving output names.
@@ -155,9 +191,15 @@ View replay preserves one exact owning typed literal cast rather than adding
 another on every Dump/Restore cycle; scalar NULL retains its source type cast.
 Public view deparse emits one exact same-usage typed ACL annotation, including
 NULL, while retaining actual different-usage conversions.
-Dropped ACL identities cannot be losslessly reparsed from decimal output:
-Dump rejects stale rows or definition literals before any writer call, rather
-than adopting a numeric-looking role or creating principals.
+Dropped ACL identities and zero grantors cannot be losslessly reparsed from
+decimal output: Dump rejects such rows or definition literals before any writer
+call, rather than adopting a numeric-looking role or creating principals.
+This boundary does not prohibit ordinary zero-ID SQL values or equality.
+The lossless empty-ACL recipe supports direct arrays, domain wrappers and
+recursively nested composite ROW members. An array of composite carriers that
+itself contains a rank-one empty ACL cannot use textual replay without losing
+the inner rank; Dump explicitly rejects that boundary during preflight, before
+writer I/O. Ordinary SQL array capabilities are unchanged.
 
 ## Tuple identifiers
 

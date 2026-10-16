@@ -974,14 +974,23 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
 - `aclitem` and `aclitem[]` are ordinary stored values, not authorization grants.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.
+  `makeaclitem`, all thirteen `acldefault` object codes and the named-OUT
+  `aclexplode` SRF execute through the typed expression path.
+  Containment is `aclitem[] @> aclitem`, not scalar/scalar: one matching entry
+  must cover both masks. Expansion and containment reject non-rank-one ACLs
+  before NULL elements. The rank-one empty column default survives typed
+  storage/replay but differs from rank-zero `'{}'::aclitem[]` text input.
   ACL binary receive/send, catalog ACL projections other than the documented
   `pg_class.relacl`, `pg_database.datacl`, `pg_attribute.attacl` and
   `pg_namespace.nspacl`, GRANT extensions, role-rename SQL and new generic
   grouping/search/hash providers are not added.
-  Native Dump requires live identities for every emitted ACL datum or definition
-  literal and rejects stale identities before writer I/O. Restore remaps both
-  principals to preexisting target roles; ordinary dropped-identity output and
-  equality remain available. See [ACL transport](TYPES.md#acl-items).
+  Numeric constructors accept missing and zero identities as inert data.
+  Native Dump requires live nonzero grantors for emitted ACL data/definition
+  literals and rejects stale identities or zero grantors before writer I/O.
+  Restore remaps principals to preexisting target roles and preserves rank-one
+  empty ACLs using a typed default expression, including composite/domain
+  carriers. Ordinary zero/dropped-identity output and equality remain available.
+  See [ACL transport](TYPES.md#acl-items).
 - Range/multirange storage does not imply general constructors, casts,
   ordering/grouping/hash/index providers, arrays or user-defined range creation.
   Selected scalar inspection (`lower`, `upper`, `isempty`, the four

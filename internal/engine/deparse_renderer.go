@@ -215,6 +215,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if v.Type().ContainsACLItem() && output.ACLItem == nil {
 		output.ACLItem = aclItemContextFormatter(ctx)
 	}
+	if containsEmptyACL(v) {
+		return catalogLiteralWithACL(ctx, r.view, n, output.ACLItem)
+	}
 	if sqltype.IsRoutineAlias(v.Type().BaseType().ID()) {
 		text, err := routineLiteralSQL(r.view, v)
 		if err != nil {
@@ -1222,6 +1225,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return function("current_schemas", []BoundExpr{n.arg}, true)
 	case objectAddressExpression:
 		return n.sql(r.identifier(n.op.name()), func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		})
+	case aclValueExpression:
+		return n.sql(func(arg BoundExpr) (string, error) {
 			argRenderer := r
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})

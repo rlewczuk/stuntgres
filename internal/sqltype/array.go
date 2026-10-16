@@ -72,6 +72,15 @@ func ArrayValue(d *Descriptor, dimensions []ArrayDimension, elements []Value) (V
 func OwnedArrayValue(d *Descriptor, dimensions []ArrayDimension, elements []Value) (Value, error) {
 	return ownedArray(d, dimensions, elements)
 }
+
+// EmptyACLArrayValue preserves PostgreSQL's one-dimensional empty ACL datum.
+// Generic array constructors and text input continue to normalize empty arrays.
+func EmptyACLArrayValue(d *Descriptor) (Value, error) {
+	if d == nil || !d.Concrete() || d.ID() != ACLItemArray || !d.IsArray() || d.Element().ID() != ACLItem {
+		return Value{}, fmt.Errorf("invalid empty ACL array descriptor")
+	}
+	return Value{typ: d, array: &arrayPayload{dimensions: []ArrayDimension{{Lower: 1, Length: 0}}}}, nil
+}
 func ownedArray(d *Descriptor, dimensions []ArrayDimension, elements []Value) (Value, error) {
 	if !d.Concrete() || !d.IsArray() || len(dimensions) > 6 {
 		return Value{}, fmt.Errorf("invalid array payload descriptor or rank")

@@ -13,6 +13,9 @@ func isStringSet(expr BoundExpr) bool {
 	return ok && e.Plan.Name() == "string_to_table"
 }
 func isQuerySet(expr BoundExpr) bool {
+	if call, ok := expr.(aclValueExpression); ok {
+		return call.kind == aclExplode
+	}
 	if record, ok := expr.(functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]); ok {
 		return record.Plan.ReturnsSet()
 	}
@@ -27,6 +30,8 @@ func isQuerySet(expr BoundExpr) bool {
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
+	case aclValueExpression:
+		return call.kind != aclContains
 	case objectAddressExpression, functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case commitTimestampExpression, functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
@@ -53,7 +58,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 func selectedFunctionSourceName(name string) bool {
 	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
 		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) ||
-		name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
+		name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
 
 // A selected scalar OUT name controls the column label, not the range alias.
@@ -92,6 +97,8 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 }
 func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
+	case aclValueExpression:
+		return call.arguments()
 	case objectAddressExpression:
 		return call.args[:]
 	case functions.JSONRecord[BoundExpr, *EvalContext, ExprProperties]:
@@ -133,6 +140,12 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 }
 func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, error) {
 	switch call := expr.(type) {
+	case aclValueExpression:
+		if len(args) != len(call.arguments()) {
+			return nil, fmt.Errorf("stuntgres: invalid ACL call arguments")
+		}
+		copy(call.args[:], args)
+		return call, nil
 	case objectAddressExpression:
 		if len(args) != 3 {
 			return nil, fmt.Errorf("stuntgres: invalid object address arguments")

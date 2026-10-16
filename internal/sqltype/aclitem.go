@@ -34,7 +34,7 @@ type ACLItemFormatter interface {
 }
 
 func ACLItemValue(d *Descriptor, authority *ACLAuthority, grantee, grantor, privileges, options uint32) (Value, error) {
-	if d == nil || d.id != ACLItem || !d.Concrete() || authority == nil || grantor == 0 || privileges & ^ACLPrivilegeMask != 0 || options & ^privileges != 0 {
+	if d == nil || d.id != ACLItem || !d.Concrete() || authority == nil || privileges & ^ACLPrivilegeMask != 0 || options & ^privileges != 0 {
 		return Value{}, fmt.Errorf("invalid aclitem value")
 	}
 	return Value{typ: d, aclitem: aclitemDatum{authority, grantee, grantor, privileges, options}}, nil
@@ -50,7 +50,7 @@ func (v Value) ACLItem() (*ACLAuthority, uint32, uint32, uint32, uint32, error) 
 }
 
 func (d aclitemDatum) valid() bool {
-	return d.authority != nil && d.grantor != 0 && d.privileges & ^ACLPrivilegeMask == 0 && d.options & ^d.privileges == 0
+	return d.authority != nil && d.privileges & ^ACLPrivilegeMask == 0 && d.options & ^d.privileges == 0
 }
 
 func (d *Descriptor) ContainsACLItem() bool {

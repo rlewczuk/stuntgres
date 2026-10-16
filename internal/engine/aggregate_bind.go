@@ -168,6 +168,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case aclValueExpression:
+		o, ok := other.(aclValueExpression)
+		if !ok || e.kind != o.kind || e.named != o.named || e.namespace != o.namespace {
+			return false
+		}
+		for i, arg := range e.arguments() {
+			if !same(arg, o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case objectACLExpression:
 		o, ok := other.(objectACLExpression)
 		if !ok || e.slots != o.slots || e.labels != o.labels {
@@ -881,6 +892,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case aclValueExpression:
+		for i := range e.arguments() {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case objectACLExpression:
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
@@ -1566,6 +1583,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		walk(e.arg)
 	case objectAddressExpression:
 		for _, arg := range e.args {
+			walk(arg)
+		}
+	case aclValueExpression:
+		for _, arg := range e.arguments() {
 			walk(arg)
 		}
 	case objectACLExpression:

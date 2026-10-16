@@ -315,6 +315,43 @@ independent destination restore, failed replacement and coexistence with
 unaccent. A passing test or smoke is
 evidence only when the root records its actual execution.
 
+### ACL construction and expansion
+
+Independent pinned PostgreSQL18.0 expectations cover all thirteen defaults,
+fifteen privilege names/options, zero and missing numeric identities, strict
+NULLs, exact signatures/English diagnostics, fixed four-field record metadata,
+duplicate-preserving expansion, target/FROM/LATERAL/ROWS FROM/ordinality and
+single-entry array/item containment. Native controls exercise real emitted SQL,
+rank-one empty ACLs inside recursively nested domains/composites, stored
+recipes, retained rows, atomic Restore and pre-writer rejection of zero/stale
+grantors and arrays of composite carriers containing empty ACLs. Expansion
+also checks both argument orders of rank-zero/rank-one empty concatenation.
+Component units cancel validation, containment and zero-rights expansion after
+scanning begins, then exercise recovery without timing-dependent SQL admission.
+
+Run each selected group in native and real pinned modes after changes:
+
+```sh
+make check RUN='^TestACLValues(Defaults|Privileges|ZeroIdentity|EmptyArray|Containment|Invocation|StoredRecipe|ScanCancellation)$'
+make check RUN='^TestACLItemConstructor$'
+make check RUN='^TestReferenceACLValues(Defaults|Construction|Expansion)$'
+make check REFERENCE=1 RUN='^TestReferenceACLValues(Defaults|Construction|Expansion)$'
+make check RUN='^TestReferenceACLValues(Operators|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceACLValues(Operators|Diagnostics)$'
+make check RUN='^TestReferenceACLValues(Controls|Lifecycle|Smoke)$'
+make check REFERENCE=1 RUN='^TestReferenceACLValues(Controls|Lifecycle|Smoke)$'
+make check RACE=1 RUN='^TestReferenceACLValues(Construction|Controls|Lifecycle)$'
+make check RUN='^TestReference(ArrayRelationalUnnest(Storage|Zip)|JSONRecordComposition)$'
+make check REFERENCE=1 RUN='^TestReference(ArrayRelationalUnnest(Storage|Zip)|JSONRecordComposition)$'
+make check RUN='^TestReferenceACLValuesSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceACLValuesSmoke$'
+```
+
+The smoke checks eight owner relation privileges with false grant flags,
+construction/output/equality/containment, strict empty record metadata,
+documented failures and actual native rank-preserving replay. No successful
+test exit is claimed here; root verification records actual observations.
+
 ### ACL item oracle-first selected proof
 
 The ACL definitions share one SQL body across native and pinned PostgreSQL,

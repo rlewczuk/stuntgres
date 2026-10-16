@@ -399,6 +399,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		}
 		fmt.Fprintf(out, "ObjectAddress %d slots %v labels %v", n.op, n.slots, n.labels)
 		err = args(n.args[:])
+	case aclValueExpression:
+		if err := n.validateStored(); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "ACLValue %d named %t namespace %s", n.kind, n.named, n.namespace)
+		err = args(n.arguments())
 	case objectACLExpression:
 		if err := n.validateStored(); err != nil {
 			return err

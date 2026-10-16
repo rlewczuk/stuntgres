@@ -156,6 +156,25 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		(left != nil && left.BaseType().ID() == sqltype.JSONB || right != nil && right.BaseType().ID() == sqltype.JSONB) {
 		return b.bindJSONBContainment(raw, operands)
 	}
+	// ACL arrays select the fixed array/item signature for an unknown RHS;
+	// a known array RHS still belongs to the generic array/array operator.
+	if raw.Name.Parts[len(raw.Name.Parts)-1].Text == "@>" && (right != nil && right.BaseType().ID() == sqltype.ACLItem && (left == nil || left.BaseType().ID() == sqltype.ACLItemArray) || right == nil && left != nil && left.BaseType().ID() == sqltype.ACLItemArray) {
+		n := aclValueExpression{kind: aclContains}
+		properties := n.baseProperties()
+		for i, typ := range n.kind.types() {
+			arg, err := b.coerceConditional(operands[i], b.typ(typ).Usage(), "@>")
+			if err != nil {
+				return nil, err
+			}
+			n.args[i] = arg
+			properties = mergeExpressionProperties(properties, arg.Properties())
+		}
+		if len(raw.Name.Parts) == 2 {
+			n.namespace = raw.Name.Parts[0].Text
+		}
+		n.expressionInfo = b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+		return n, nil
+	}
 	var selected *sqltype.Descriptor
 	for _, d := range []*sqltype.Descriptor{left, right} {
 		if d == nil {

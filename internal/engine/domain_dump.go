@@ -271,6 +271,30 @@ func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader defin
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
+	if !n.value.IsNull() && u.Type.ID() == sqltype.ACLItemArray && n.value.ArrayRank() == 1 && n.value.ArrayDimension(0) == (sqltype.ArrayDimension{Lower: 1, Length: 0}) {
+		return `pg_catalog.acldefault('c'::"char",0::oid)`, nil
+	}
+	// Composite text input discards the special empty ACL shape. Retain typed
+	// member expressions instead, including domain wrappers at every depth.
+	if !n.value.IsNull() && u.Type.IsComposite() && containsEmptyACL(n.value) {
+		declaration, err := catalogTypeDeclarationAt(view, reader, u)
+		if err != nil {
+			return "", err
+		}
+		parts := make([]string, n.value.CompositeLen())
+		for i := range parts {
+			member := n.value.CompositeField(i)
+			literal := literalExpression{expressionInfo: expressionInfo{usage: u.Type.CompositeMember(i).Usage}, value: member}
+			parts[i], err = catalogLiteralWithACLAt(ctx, view, reader, literal, aclOutput)
+			if err != nil {
+				return "", err
+			}
+		}
+		return "CAST(ROW(" + strings.Join(parts, ", ") + ") AS " + declaration + ")", nil
+	}
+	if !n.value.IsNull() && u.Type.IsArray() && u.Type.ID() != sqltype.ACLItemArray && containsEmptyACL(n.value) {
+		return "", fmt.Errorf("stuntgres: dump cannot serialize rank-one empty ACL inside an array of composite carriers")
+	}
 	if sqltype.IsRoutineAlias(u.Type.ID()) && !n.value.IsNull() {
 		return routineLiteralSQL(view, n.value)
 	}

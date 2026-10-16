@@ -1312,6 +1312,18 @@ See [ACL item transport and limits](docs/TYPES.md#acl-items).
 Feature smoke: `make check RUN='^TestReferenceACLItemSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceACLItemSmoke$'`.
 
+Change note: ACL value functions now include `makeaclitem`, all thirteen
+`acldefault` object kinds and `aclexplode` with OID/OID/TEXT/BOOL OUT fields.
+Array/item containment (`aclitem[] @> aclitem`) checks a single entry's two
+masks and endpoints, without unioning entries or adding scalar containment.
+Numeric constructors retain zero/missing identities as inert values, not
+authorization grants. Rank-one empty column ACL defaults survive typed
+storage and lossless native replay; text `{}` remains rank zero. Dump rejects
+zero grantors as well as stale identities before writer I/O.
+Feature smoke: `make check RUN='^TestReferenceACLValuesSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceACLValuesSmoke$'`.
+
+
 Change note: all sixteen PostgreSQL18 predefined role identities are seeded.
 Live INHERIT membership supplies real read/write/schema/sequence capabilities;
 `pg_maintain` uses substantive REINDEX and transaction-owned LOCK exclusion.

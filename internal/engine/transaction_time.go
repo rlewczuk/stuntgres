@@ -100,6 +100,16 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
+	case aclValueExpression:
+		if n.kind == aclExplode {
+			return false
+		}
+		for _, child := range n.arguments() {
+			if !closedTransactionTimeDefault(child) {
+				return false
+			}
+		}
+		return true
 	case commitTimestampExpression:
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:

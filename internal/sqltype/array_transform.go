@@ -68,13 +68,21 @@ func ArrayCat(ctx context.Context, a, b Value) (Value, error) {
 	if b.IsNull() {
 		return a, nil
 	}
-	if a.ArrayLen() == 0 {
+	x, y := a.ArrayRank(), b.ArrayRank()
+	// Only rank-zero arrays are neutral. A rank-one empty ACL is a real
+	// shape: retain its bounds when concatenating a nonempty peer.
+	if x == 0 {
 		return b, nil
 	}
-	if b.ArrayLen() == 0 {
+	if y == 0 {
 		return a, nil
 	}
-	x, y := a.ArrayRank(), b.ArrayRank()
+	// Both nonzero-rank empty inputs can only be the checked empty ACL
+	// shape. Reuse that immutable payload rather than passing zero extents
+	// through the generic positive-extent constructor.
+	if a.ArrayLen() == 0 && b.ArrayLen() == 0 {
+		return a, nil
+	}
 	incompatible := func(detail string) (Value, error) {
 		e := failure("2202E", "cannot concatenate incompatible arrays").(*sqlstate.Error)
 		e.Detail = detail

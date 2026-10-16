@@ -85,6 +85,16 @@ includes NULL elements; zero-row inputs retain metadata. In a scalar wrapper
 such as `abs(unnest(a))`, each present element is evaluated by the existing
 scalar projection lane, not a separate expansion implementation.
 
+`aclexplode(aclitem[])` uses the same invocation-owned target/FROM machinery,
+with fixed OUT columns grantor/grantee OID, privilege_type TEXT and
+is_grantable BOOL. It preserves duplicate ACL entries, emits one row per
+ordinary privilege bit, and has no implicit SQL ordering. NULL input emits
+zero rows with the same metadata. Rank-one empty column ACL defaults also
+emit zero rows, while rank-zero text `{}` is rejected. LATERAL reopening,
+ROWS FROM padding, aliases and ordinality retain ordinary set-source rules;
+typed column definitions are redundant for this named-OUT record provider.
+
+
 Installed intagg1.1 exposes fixed-INT4 `int_array_aggregate` and
 fixed-INT4[] `int_array_enum` wrappers over these existing query kernels.
 The aggregate includes NULLs and duplicates, with element order specified only

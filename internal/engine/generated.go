@@ -300,6 +300,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return !n.Plan.SessionDependent() && args(n.Args)
+	case aclValueExpression:
+		return n.kind != aclExplode && args(n.arguments())
 	case objectAddressExpression:
 		return false
 	case commitTimestampExpression:
@@ -495,6 +497,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case aclValueExpression:
+		return args(n.arguments())
 	case objectAddressExpression:
 		return args(n.args[:])
 	case commitTimestampExpression:
@@ -888,6 +892,11 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args)
+	case aclValueExpression:
+		if err := n.validateStored(); err != nil {
+			return err
+		}
+		return args(n.arguments())
 	case objectAddressExpression:
 		if err := n.validateStored(); err != nil {
 			return err

@@ -366,6 +366,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			*r.commentSnapshot = true
 		}
 		return n.sql("pg_catalog."+n.op.name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+	case aclValueExpression:
+		return n.sql(func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 	case objectACLExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: object ACL inquiries are unsupported in stored defaults")
