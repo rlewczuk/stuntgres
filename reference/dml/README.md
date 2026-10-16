@@ -190,8 +190,17 @@ present all-NULL composite remains present.
 
 `merge_action()` is zero-argument special syntax, lexical to MERGE RETURNING
 and its expression subqueries. It is row-dependent TEXT, not a catalog overload
-or statement-global action cache. Wrong arity gives42601 at the unexpected
-argument. Quoted/qualified calls retain PostgreSQL42883 versus the native
+or statement-global action cache. `SELECT 1 WHERE merge_action()='UPDATE'` is
+rejected with42601 and the exact message `MERGE_ACTION() can only be used in the
+RETURNING list of a MERGE command`. The shared ActionPlacement case asserts
+the full diagnostic, including absent optional fields, at direct execute and
+prepared prepare stages. Its `/*é*/ ` prefix places the token at character22,
+not byte23, preserving the UTF8 character-position contract.
+Inside MERGE RETURNING, `(SELECT 1 WHERE merge_action()='UPDATE') AS update_marker`
+is permitted: Expressions asserts an INT4 marker1 for UPDATE and SQL NULL for
+INSERT and both DELETE rows, preserving every outer output row.
+Wrong arity gives42601 at the unexpected argument.
+Quoted/qualified calls retain PostgreSQL42883 versus the native
 generic-call capability boundary0A000; no new generic function provider is
 implied. The absent SRF boundary likewise retains native `functions are
 unsupported` versus PostgreSQL's RETURNING placement diagnostic.
@@ -224,7 +233,14 @@ Native precancellation is precise; pq precancellation/session-health is not
 asserted. Actual private pending cancellation checks retirement and atomicity.
 
 Run each narrow group in native mode and again with `REFERENCE=1`, using an
-external900-second deadline per invocation:
+external900-second deadline per invocation.
+
+For the action-inspection contract, use the small
+`^TestReferenceMergeReturning(ActionPlacement|Expressions)$` group for placement
+and the nested WHERE marker, and `^TestReferenceMergeReturning(Core|Metadata)$`
+for mixed TEXT labels and populated/empty descriptors. Run each selector with
+`make check RUN='...'` and again with `REFERENCE=1`; reuse the existing
+FeatureSmoke commands below for the end-to-end mutation/output exercise.
 
 ```sh
 make check RUN='^TestReferenceMergeReturningCore$'

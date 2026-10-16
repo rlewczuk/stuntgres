@@ -1521,9 +1521,11 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   MONEY/INTERVAL SUM, expression-count windows, explicit null-treatment/FROM LAST,
   DISTINCT/call-local aggregate ORDER and window aggregate filters remain excluded.
 - MERGE supports RETURNING expressions, source/target rows, OLD/NEW aliases and
-  lexical `merge_action()` output. Plain star is source-first; target defaults
-  to NEW for INSERT/UPDATE and OLD for DELETE, with absent sides SQL NULL.
-  Output is eagerly evaluated per accepted action and published atomically.
+  lexical `merge_action()` TEXT labels INSERT/UPDATE/DELETE. An outside SELECT
+  WHERE call errors; WHERE in a RETURNING expression subquery is permitted.
+  Plain star is source-first; target defaults to NEW for INSERT/UPDATE and OLD
+  for DELETE, with absent sides SQL NULL. Output is eagerly evaluated per
+  accepted action and published atomically.
   All three match classes support DO NOTHING: first TRUE selects one action,
   FALSE/NULL fall through, and unconditional same-class successors are unreachable.
   Selected no-ops do not count, project output, evaluate mutation defaults or

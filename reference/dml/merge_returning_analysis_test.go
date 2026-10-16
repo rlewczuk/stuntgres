@@ -29,6 +29,7 @@ func TestReferenceMergeReturningActionPlacement(t *testing.T) {
 			"MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=length(merge_action())",
 			"MERGE INTO t USING (SELECT merge_action() AS a) s ON TRUE WHEN MATCHED THEN DELETE",
 			"MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(s.id,length(merge_action()))",
+			"SELECT 1 WHERE merge_action()='UPDATE'",
 		} {
 			q = "/*é*/ " + q
 			s := fixture.ImplicitError(q, mergeReturningDiagnostic(q, "merge_action()", "42601", "MERGE_ACTION() can only be used in the RETURNING list of a MERGE command"))
