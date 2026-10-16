@@ -867,6 +867,10 @@ the same sql.Conn or an exhausted originating pool. Preparation emits no executi
 notices. Native controls do not serialize or deliver staging notices.
 No native DO/RAISE, warning-producing procedural SQL or asynchronous
 LISTEN/NOTIFY support is implied by notice delivery.
+Native session-message commands remain
+[explicitly unsupported](DIALECT.md#session-notifications) because the public
+native connection API has no notification receiver; notice handlers are not
+a substitute.
 
 `make check RUN='^TestNoticesSmoke$'` exercises actual notices,
 filters, ownership, peer reentry and control round trips; Go test reports the result.

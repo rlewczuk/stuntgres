@@ -98,6 +98,25 @@ is a local administrator of its independently owned in-memory databases.
 See [commands and security](../README.md#phase-1-server--change-note) and
 [selected server proof](../reference/sessions/README.md#phase-1-server-selected-proof).
 
+## Session notifications
+
+Native `LISTEN`, `NOTIFY` (including `NOTIFY channel, 'payload'`),
+`UNLISTEN channel`, and `UNLISTEN *` are intentionally unsupported through
+both direct execution and preparation. The public native connection API has
+no notification receiver; synchronous [notice callbacks](DRIVER.md#notices-and-warnings)
+are diagnostics, not asynchronous notification delivery.
+
+Valid examples beginning with these command keywords fail with SQLSTATE
+`0A000`, message `statement is unsupported`, and position `1`. This is a native
+capability rejection, not a PostgreSQL rejection of these valid commands.
+No subscription, local queue, commit-delayed delivery, rollback discard,
+unlisten/close clearing, or notification-specific name/payload validation is
+claimed. No notification API or wire-protocol notification simulation is added.
+See [selected proof and smoke](../reference/sessions/README.md#session-messages-unsupported)
+and PostgreSQL's [LISTEN](https://www.postgresql.org/docs/18/sql-listen.html),
+[NOTIFY](https://www.postgresql.org/docs/18/sql-notify.html), and
+[UNLISTEN](https://www.postgresql.org/docs/18/sql-unlisten.html) contracts.
+
 ## SQL cursor metadata
 
 Native `pg_cursors` describes supported SQL DECLARE cursors only, not PostgreSQL

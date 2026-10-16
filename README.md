@@ -13,6 +13,14 @@ save/restore, not WAL or crash durability. Use real PostgreSQL for features outs
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Session messages — change note
+
+Native `LISTEN`, `NOTIFY` (including payloads), and `UNLISTEN` remain explicitly
+unsupported: the public native connection API has no notification receiver.
+No local queue, asynchronous notice substitute, or notification wire transport
+is added. See the [native boundary](docs/DIALECT.md#session-notifications) and
+[selected proof and smoke](reference/sessions/README.md#session-messages-unsupported).
+
 ## Aggregate definition catalog — change note
 
 `pg_catalog.pg_aggregate` exposes all 22 PostgreSQL 18 definition fields for

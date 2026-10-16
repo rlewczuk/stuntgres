@@ -6,6 +6,46 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Session messages unsupported
+
+`TestReferenceSessionMessagesUnsupported` covers the explicit
+[native notification boundary](../../docs/DIALECT.md#session-notifications).
+The public native connection API has no notification receiver, so this selects
+the unsupported alternative, not a local queue or a notice/wire substitute.
+
+The shared scenario issues `LISTEN session_messages`,
+`NOTIFY session_messages, 'payload'`, `UNLISTEN session_messages`, and `UNLISTEN *`
+through direct `ExecContext` and actual connection `PrepareContext`.
+Native Exec returns a nil result and Prepare returns a nil statement, with
+complete portable diagnostics: both severities `ERROR`, SQLSTATE `0A000`,
+message `statement is unsupported`, position `1`, and all optional fields empty.
+PostgreSQL independently succeeds directly and after actual prepared execution,
+with zero rows affected and unsupported LastInsertId. Each command is followed
+by `SELECT 1 AS healthy` on the same pinned connection, asserting one INT4 value
+1. Statements close before the next command; PostgreSQL cleanup executes
+`UNLISTEN *` before returning that connection and before fixture teardown.
+This is rejection/recovery proof, not notification delivery or size validation.
+
+Oracle-first selected proof and feature smoke (external **900-second** deadline
+per command), followed by whole-project Docker-free verification:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceSessionMessagesUnsupported$'
+make check RUN='^TestReferenceSessionMessagesUnsupported$'
+make quickcheck
+```
+
+The focused test itself is the public-API feature smoke: real mode includes
+both native and pinned PostgreSQL backends; quick mode exercises native without
+Docker. Expected observations are successful matched tests, exact rejection
+diagnostics/nil outputs, PostgreSQL prepared execution success, zero affected
+counts, same-connection health, and successful ordered cleanup.
+
+Existing transaction Query/PREPARE TRANSACTION restrictions remain covered by
+[`TestReferencePreparedTransactionUnsupportedSessionBoundaries`](../locking_transactions/prepared_transaction_restrictions_test.go);
+the separate [rule-action NOTIFY boundary](../views/rule_authority_test.go)
+is unchanged. Neither scenario is duplicated here.
+
 ### Live lock state
 
 `view_locks*_test.go` defines shared, independently expected PostgreSQL/native
