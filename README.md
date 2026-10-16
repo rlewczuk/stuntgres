@@ -3029,13 +3029,31 @@ and explicit assignment/cast-back retain the distinction between logical identit
 and physical codecs. `DROP DOMAIN [IF EXISTS] ... [RESTRICT | CASCADE]` follows
 real type/column/stored-expression dependencies: CASCADE removes dependent columns
 and views, not unrelated tables or surviving rows. Native Dump/Restore preserves
-qualified declarations, chains, owners, named/generated CHECKs and data. Domain DEFAULT/NOT NULL,
-ALTER DOMAIN, array operators/functions, type ACL-management
-SQL and transactional domain DDL remain excluded. See [domains](https://www.postgresql.org/docs/18/domains.html).
+qualified declarations, chains, owners, named/generated CHECKs and data. Domain
+DEFAULT/NOT NULL, array operators/functions and transactional domain DDL remain
+excluded. See [domains](https://www.postgresql.org/docs/18/domains.html).
 Feature smokes:
 `make check RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$'`,
 `make check RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$'`,
 and pinned `make check REFERENCE=1 RUN='^TestReferenceDomain'`.
+
+Change note: `ALTER DOMAIN` supports CHECK additions (including NOT VALID),
+selected DROP CONSTRAINT and VALIDATE CONSTRAINT. NOT VALID preserves old
+violators but checks every new conversion. Validation scans direct and derived
+domain columns in physical tables/materializations, evaluates only the selected
+CHECK, and publishes the flag atomically. Stored containers reject validating
+ADD/VALIDATE even when empty or NULL, matching PostgreSQL18.0; repeated VALIDATE
+rescans an already-valid CHECK. ALTER accepts but ignores NO INHERIT, unlike
+CREATE's rejection. Held statements retain logical IDs while observing current
+rules; old eager rows remain immutable. Own domain CHECKs appear in
+`pg_constraint` and public deparse. Native Dump emits invalid CHECKs after data,
+preserving false flags, owners and new-input enforcement through Restore.
+Domain utilities remain autocommit-only. Native structural dependency/storage
+fences may reject concurrent graph changes rather than reproduce every server
+lock schedule; no successful validation certifies a stale captured graph.
+Feature smoke: `make check RUN='^TestReferenceDomainAlterConstraintLifecycle$'`
+and the same command with `REFERENCE=1`. Full selected groups are under
+[type testing](reference/types/README.md#domain-alter-check-selected-proof).
 
 Change note: domain CHECK expressions bind `VALUE` to the immediate base type.
 TRUE and UNKNOWN pass; FALSE raises 23514 with the conversion target's schema/type

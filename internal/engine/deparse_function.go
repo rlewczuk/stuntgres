@@ -263,6 +263,23 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if e.signature == deparseConstraint || e.signature == deparseConstraintPretty {
 		found := false
 		for _, descriptor := range view.state.descriptors {
+			if domain, ok := descriptor.(*typeDescriptor); ok {
+				for _, def := range domain.domainChecks {
+					if def.OID != OID(id) {
+						continue
+					}
+					found = true
+					rendered, err := renderer.sql(c.Context, def.expression, pgRenderParent{})
+					if err != nil {
+						return sqltype.Value{}, err
+					}
+					text = "CHECK (" + rendered + ")"
+					if def.NotValid {
+						text += " NOT VALID"
+					}
+				}
+				continue
+			}
 			relation, ok := descriptor.(*relationDescriptor)
 			if !ok {
 				continue

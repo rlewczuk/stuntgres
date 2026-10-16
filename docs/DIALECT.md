@@ -723,13 +723,15 @@ exclusions; ordinary key-list attachment through table alteration is not general
 primary-key creation. Mixed default-setting/removal action lists remain excluded.
 
 Read-only `pg_catalog.pg_constraint` discovery uses PostgreSQL 18's complete
-28-column shape for actual supported table constraint owners (n/c/u/p/f/x).
-Metadata includes real relation/namespace/index identities, validity, declaration
-deferral, provenance and ordered key/operator/action vectors; inapplicable
-vectors/tree values are SQL NULL. Metadata reads do not filter by table SELECT
-privilege, and TEMP catalog discovery is distinct from session-scoped unqualified
-relation resolution. Domain constraints, constraint triggers, temporal and
-NOT ENFORCED definitions are not fabricated or admitted by this projection.
+28-column shape for actual supported table constraint owners (n/c/u/p/f/x) and
+own domain CHECKs. Metadata includes real relation/domain/namespace/index
+identities, validity, declaration deferral, provenance and ordered
+key/operator/action vectors; inapplicable vectors/tree values are SQL NULL.
+Domain rows have conrelid=0, actual contypid, own CHECK OIDs and connoinherit=false;
+derived domains do not receive copies of ancestor constraints. Metadata reads
+do not filter by table SELECT privilege, and TEMP catalog discovery is distinct
+from session-scoped unqualified relation resolution. Constraint triggers,
+temporal and NOT ENFORCED definitions are not fabricated by this projection.
 CHECK `conbin` is honest native structural PG_NODE_TREE data rather than
 PostgreSQL nodeToString bytes; compare deparsed semantics, not internal bytes.
 Catalog mutation and row locking remain unsupported through existing native
@@ -1149,10 +1151,21 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   routes, including existing nested members; subqueries and non-VALUE variables
   are rejected. TRUE/UNKNOWN pass, FALSE reports domain 23514. Fresh NULL is
   checked, while already-domain NULL can bypass conversion in the documented
-  outer-join/scalar-subquery contexts. Domain NOT NULL, inherited domain defaults
-  and domain alteration remain unavailable. Executable composite arrays support
-  storage and textual I/O; builtin/catalog row execution and composite
-  comparison/hash/key providers remain excluded.
+  outer-join/scalar-subquery contexts. Domain NOT NULL and inherited domain
+  defaults remain unavailable. Domain CHECK ADD/DROP/VALIDATE is supported in
+  autocommit, including NOT VALID's old-data/new-input distinction and selected
+  validation. Direct/derived physical uses are scanned once; stored array,
+  composite and rowtype containers reject validating changes even when empty.
+  Unstored composite/view definitions alone do not block. Repeated VALIDATE
+  rescans, including already-valid CHECKs, as in PostgreSQL18.0. ALTER's NO INHERIT
+  modifier is accepted and ignored; CREATE's rejection remains unchanged.
+  Validation uses real relation ShareLock admission, blocks writers but not
+  ordinary readers, and atomically publishes through the existing catalog owner.
+  Relevant incoming-use/storage drift returns a native publication conflict
+  without CHECK-truth replay; PostgreSQL's complete concurrency schedule is not
+  promised. Failed/canceled validation leaves its previous flag and roots intact.
+  Executable composite arrays support storage and textual I/O; builtin/catalog
+  row execution and composite comparison/hash/key providers remain excluded.
   Pending conversions are not evaluated by JOIN/MERGE capability proofs or
   conflict inference. Retained expression recipes still initialize before rows
   are demanded; existing ADD COLUMN uses real per-row conversion, and existing

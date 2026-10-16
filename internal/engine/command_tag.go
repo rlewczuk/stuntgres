@@ -60,6 +60,8 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "CREATE DOMAIN"
 	case *parser.DropDomain:
 		base = "DROP DOMAIN"
+	case *parser.AlterDomain:
+		base = "ALTER DOMAIN"
 	case *parser.CreateIndex:
 		base = "CREATE INDEX"
 	case *parser.AlterIndex:

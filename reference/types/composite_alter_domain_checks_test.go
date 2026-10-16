@@ -25,11 +25,6 @@ func TestReferenceCompositeAlterDomainChecks(t *testing.T) {
 					t.Fatal(err)
 				}
 				constraints := func(names [][]any) {
-					// Native pg_constraint intentionally projects relation constraints only.
-					// Enforcement below independently observes the real domain owners.
-					if !b.PG {
-						names = [][]any{}
-					}
 					run(fixture.Select(`SELECT conname FROM pg_constraint WHERE contypid='checked_pair'::regtype::oid ORDER BY conname`, []string{"conname"}, []string{"NAME"}, names))
 				}
 				constraints([][]any{{"field_check"}, {"keep_check"}})

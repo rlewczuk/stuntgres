@@ -608,6 +608,9 @@ type CatalogStage struct {
 	dependencyPath     []ObjectAddress
 	domainTargets      []ObjectAddress
 	domainBases        []Descriptor
+	domainValidation   *domainValidationFence
+	domainAlter        context.Context
+	domainIndexRoots   map[ObjectAddress]*logicalIndexRoot
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
@@ -1093,6 +1096,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
+		if !e.domainIndexRootsCurrent(s) {
+			e.mu.Unlock()
+			return ChangeSet{}, CatalogConflict{}
+		}
+		if s.domainValidation != nil && !s.domainValidation.current(CatalogRead{e, current}, currentStorage) {
+			e.mu.Unlock()
+			return ChangeSet{}, CatalogConflict{}
+		}
 		if !typedObservationValid(s, CatalogRead{owner: e, state: current}) {
 			e.mu.Unlock()
 			return ChangeSet{}, CatalogConflict{}
@@ -1454,6 +1465,12 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		err := p.ctx.Err()
+		if err == nil && !e.domainIndexRootsCurrent(s) {
+			err = CatalogConflict{}
+		}
+		if err == nil && s.domainValidation != nil && !s.domainValidation.current(CatalogRead{e, e.state}, e.storage) {
+			err = CatalogConflict{}
+		}
 		if err == nil && s.databasePredecessor != nil && e.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
 			err = ErrCatalogReplaced
 		}

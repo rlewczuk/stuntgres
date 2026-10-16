@@ -334,6 +334,15 @@ its old rows across compatible concurrent source publication. Exact target,
 index, provider and defining-authority fences remain strict. Genuine explicit-
 block refresh and REFRESH as native Restore input remain excluded.
 
+Domain CHECK alterations also compose with private CREATE and preceding DML in
+the existing parameterless direct-message route. ADD NOT VALID changes subsequent
+conversions immediately within that private segment; VALIDATE scans its actual
+visible own/committed rows. Catalog flags and rows publish only at owner completion.
+BEGIN promotion/savepoint recovery retains passive validation predecessor fences,
+not permission to execute a new ALTER DOMAIN in an explicit native block. Later
+owner publication performs structural/provider/storage checks without reevaluating
+CHECK truth. A later SQL failure or pre-install cancellation discards the segment.
+
 `Exec` closes all eager row results and reports the final successful command's
 count: SELECT reports its row count, and command-only utilities report zero.
 An error wins over cleanup errors and makes the public result unavailable.
@@ -829,6 +838,13 @@ Execution freshly resolves current objects/arity before validating retained
 logical parameter and result contracts. A dropped old domain parameter identity
 fails native0A000 `cached plan must not change parameter type`; same-name recreation
 does not remap that ID. Result-type changes retain the existing0A000 result guard.
+CHECK ADD/DROP/VALIDATE does not replace the domain's logical ID. Actual reused
+Go statements and SQL PREPARE conversions observe the current CHECK generation,
+including ancestor changes and NOT VALID enforcement. Successful validation
+changes only historical certification, not input eligibility. First ADD/last
+DROP leaves old eager values/descriptions immutable while refreshing current
+same-signature consumers. Restore and same-name recreation remain lifetime
+boundaries; ALTER does not weaken those parameter/result guards.
 Missing targets/columns and arity errors preserve their earlier diagnostics.
 After native Restore, use fresh prepared descriptions; retained eager rows still
 own their old values and metadata. PostgreSQL old-OID cache failures are independent

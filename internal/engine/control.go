@@ -802,6 +802,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				viewDependencies[dumpEventKey{oid: id}] = []dumpEventKey{{oid: predecessor}}
 			}
 			for _, check := range d.domainChecks {
+				if check.NotValid {
+					continue
+				}
 				for _, dependency := range check.dependencies {
 					predecessor, err := dumpPredecessor(catalog, dependency.ref.Address, d.Address())
 					if err != nil {
@@ -894,6 +897,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return err
 	}
 	invalidReplay := partitionInvalidDumpEvents(originalCatalog, viewDependencies, indexIndices)
+	if err := domainInvalidDumpEvents(ctx, catalog, viewDependencies, domainNodes); err != nil {
+		return err
+	}
 	eventOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil {
 		return err
@@ -995,6 +1001,22 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, event := range eventOrder {
 		oid := event.oid
 		if event.phase != dumpDeclaration {
+			if event.phase == dumpDomainChecks {
+				text, err := domainInvalidDumpStatement(ctx, catalog, domainNodes[oid])
+				if err != nil {
+					return err
+				}
+				// A domain may legally be owned by a role without USAGE on its
+				// schema. Replay only this post-data declaration as the existing
+				// bootstrap authority; do not transfer ownership or invent ACLs.
+				if err := setOwner("postgres"); err != nil {
+					return err
+				}
+				if err := emit(text); err != nil {
+					return err
+				}
+				continue
+			}
 			if event.phase == dumpTableCompletion {
 				continue
 			}
@@ -1066,6 +1088,29 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if declaration, exists := declarations[oid]; exists {
+			if domain := domainNodes[oid]; domain != nil && domain.typ.IsDomain() && declaration.owner != "postgres" {
+				// Owner metadata does not imply schema CREATE/USAGE. Preserve
+				// its captured identity, construct as bootstrap, then transfer only
+				// the exact fresh domain through the ordinary owner executor.
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
+					return err
+				}
+				currentOwner = declaration.owner
+				if err := setOwner("postgres"); err != nil {
+					return err
+				}
+				if err := emit(declaration.sql); err != nil {
+					return err
+				}
+				qualified, err := catalogTypeDeclaration(catalog, domain.typ.Usage())
+				if err != nil {
+					return err
+				}
+				if err := emit("ALTER DOMAIN " + qualified + " OWNER TO " + pgIdentifier(declaration.owner) + ";\n"); err != nil {
+					return err
+				}
+				continue
+			}
 			if declaration.owner != currentOwner {
 				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(declaration.owner, "'", "''") + "';\n"); err != nil {
 					return err
@@ -1589,6 +1634,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	var generationRepairs []restoredGenerationRecipe
 	var lastAuthorization, createOwner authorization.PrincipalRef
 	var pairedOwner restoredInheritedOwner
+	var pairedDomainOwner restoredDomainOwner
 	historicalRefs := make(map[ObjectAddress]ObjectRef)
 	historicalAuthority := &restoredHistoryAuthority{facts: make(map[OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
 	for statementIndex, stmt := range statements {
@@ -1618,6 +1664,8 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			physicalIndexBase = stage.CatalogRead()
 		}
 		priorAuthorization, ownerForCreate, ownerPair := lastAuthorization, createOwner, pairedOwner
+		domainOwnerPair := pairedDomainOwner
+		pairedDomainOwner = restoredDomainOwner{}
 		lastAuthorization, createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
 		pairedOwner = restoredInheritedOwner{}
 		if alteration, ok := stmt.(*parser.AlterTable); ok && physicalConstructor == nil {
@@ -1659,7 +1707,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		var pending restoredForeignKeys
 		switch s := stmt.(type) {
 		case *parser.AlterOwner:
-			if err := stage.restoreInheritedOwner(op, s, ownerPair); err != nil {
+			if s.Kind == "domain" {
+				if err := stage.restoreDomainOwner(op, s, domainOwnerPair); err != nil {
+					return err
+				}
+			} else if err := stage.restoreInheritedOwner(op, s, ownerPair); err != nil {
 				return err
 			}
 		case *parser.CreateTable:
@@ -1706,6 +1758,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 						return err
 					}
 				}
+			}
+		case *parser.AlterDomain:
+			if err := restoreDomainAlter(s); err != nil {
+				return err
 			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
 		case *parser.CreateExtension:
@@ -2024,6 +2080,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				createOwner = priorAuthorization
 			}
 			lastAuthorization = actor.Ref
+		}
+		if _, domain := stmt.(*parser.CreateDomain); domain && ownerForCreate != (authorization.PrincipalRef{}) && result.created != (ObjectRef{}) {
+			pairedDomainOwner, err = stage.captureRestoredDomainOwner(op, result.created, ownerForCreate)
+			if err != nil {
+				return err
+			}
 		}
 		if creation, ok := stmt.(*parser.CreateTable); ok && result.created != (ObjectRef{}) {
 			historicalRefs[result.created.Address] = result.created

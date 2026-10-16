@@ -84,6 +84,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeSequenceDDL(scope, stmt, count)
 	case *parser.CreateEnum, *parser.AlterEnum:
 		return e.executeEnumDDL(scope, stmt, count)
+	case *parser.AlterDomain:
+		result, err := e.executeAlterDomain(scope, stmt.(*parser.AlterDomain), count)
+		if err == nil {
+			scope.completed = true
+		}
+		return result, err
 	case *parser.AlterComposite:
 		return e.executeAlterComposite(scope, op, stmt.(*parser.AlterComposite), count)
 	case *parser.Comment:

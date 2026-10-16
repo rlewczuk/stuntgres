@@ -303,6 +303,26 @@ type DropDomain struct {
 
 func (*DropDomain) statement() {}
 
+type DomainConstraintAction uint8
+
+const (
+	DomainAddCheck DomainConstraintAction = iota + 1
+	DomainDropCheck
+	DomainValidateCheck
+)
+
+type AlterDomain struct {
+	Name       ObjectName
+	Action     DomainConstraintAction
+	Check      *CheckConstraint
+	Constraint Identifier
+	IfExists   bool
+	Mode       DropMode
+	Pos        Position
+}
+
+func (*AlterDomain) statement() {}
+
 // TypeModifier retains constant syntax until descriptor-owned resolution.
 type TypeModifier struct {
 	Integer   *int32

@@ -1,0 +1,272 @@
+package engine
+
+import (
+	"fmt"
+	"slices"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.ObjectName) (*typeDescriptor, ObjectRef, error) {
+	lookup := name
+	if len(name.Parts) == 2 {
+		parts := [2]parser.Identifier{name.Parts[0], name.Parts[1]}
+		parts[0].Pos = parser.Position{}
+		lookup.Parts = parts[:]
+	}
+	path, err := e.lookupNamespaces(auth, lookup, typeLookup)
+	if err != nil {
+		return nil, ObjectRef{}, err
+	}
+	for i := range path.count() {
+		found := auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		if len(found) == 0 {
+			continue
+		}
+		d := auth.catalog.state.descriptors[found[0]].(*typeDescriptor)
+		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.Address()}
+		diagnosticPath, err := e.referencePath(auth)
+		if err != nil {
+			return nil, ref, err
+		}
+		if !d.typ.IsDomain() {
+			return nil, ref, sqlError("42809", d.typ.DiagnosticName()+" is not a domain")
+		}
+		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
+				err = sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(auth.catalog, d, diagnosticPath))
+			}
+			return nil, ref, err
+		}
+		return d, ref, nil
+	}
+	return nil, ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", objectNameText(name)))
+}
+
+func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDomain, count int) (Result, error) {
+	if count != 0 {
+		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+	}
+	op := scope.op
+	e.mu.Lock()
+	auth, err := e.authorizationLocked(op)
+	var original *typeDescriptor
+	var ref ObjectRef
+	if err == nil {
+		original, ref, err = e.resolveAlterDomainLocked(auth, raw.Name)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return Result{}, err
+	}
+	if err = scope.acquireSequence(ref, typeExclusive, true); err != nil {
+		return Result{}, err
+	}
+	e.mu.Lock()
+	auth, err = e.authorizationLocked(op)
+	var old *typeDescriptor
+	var current ObjectRef
+	if err == nil {
+		old, current, err = e.resolveAlterDomainLocked(auth, raw.Name)
+	}
+	if err == nil && (ref != current || old != original) {
+		err = ErrCatalogReplaced
+	}
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	stage := e.BeginCatalogStage(auth.catalog)
+	stage.domainAlter = op.Context()
+	stage.authorizeLocked(auth, op.session)
+	scope.routineAuth = auth
+	scope.domainInputCatalog = auth.catalog
+	stage.domainBases = append(stage.domainBases, old)
+	next := *old
+	next.domainChecks = slices.Clone(old.domainChecks)
+	selected := -1
+	for i, check := range next.domainChecks {
+		if check.Name == raw.Constraint.Text {
+			selected = i
+			break
+		}
+	}
+	validating := raw.Action == parser.DomainValidateCheck || raw.Action == parser.DomainAddCheck && !raw.Check.NotValid
+	switch raw.Action {
+	case parser.DomainAddCheck:
+		check := *raw.Check
+		// REL_18_0 ALTER accepts but ignores NO INHERIT. CREATE keeps its
+		// own cooking rejection; never relax the shared CREATE binder.
+		check.NoInherit = false
+		err = e.bindDomainChecks(op, auth, stage, &next, []parser.ColumnConstraint{{Check: &check, Pos: check.Pos}}, scope.input)
+		if err == nil {
+			for i, c := range next.domainChecks {
+				if !slices.ContainsFunc(old.domainChecks, func(prior domainCheckConstraint) bool { return prior.OID == c.OID }) {
+					selected = i
+					break
+				}
+			}
+			next.typ, err = sqltype.Domain(old.typ.ID(), old.Name(), old.typ.SQLName(), old.typ.DomainBase(), true)
+		}
+	case parser.DomainDropCheck, parser.DomainValidateCheck:
+		if selected < 0 {
+			message := fmt.Sprintf("constraint %q of domain %q does not exist", raw.Constraint.Text, objectNameText(raw.Name))
+			if raw.Action == parser.DomainDropCheck && raw.IfExists {
+				schemaNotice(op, "00000", message+", skipping")
+				e.mu.Unlock()
+				e.DiscardCatalogStage(stage)
+				return Result{}, nil
+			}
+			err = sqlError("42704", message)
+		} else if raw.Action == parser.DomainDropCheck {
+			err = stage.removeDomainCheck(old, next.domainChecks[selected].OID)
+		} else {
+			next.domainChecks[selected].NotValid = false
+		}
+	default:
+		err = fmt.Errorf("stuntgres: invalid domain constraint action")
+	}
+	if err == nil && raw.Action != parser.DomainDropCheck {
+		next.revision, err = e.revisionLocked()
+		if err == nil {
+			err = stage.replaceDescriptor(&next, false)
+		}
+	}
+	var diagnosticPath []ObjectAddress
+	if err == nil && validating {
+		diagnosticPath, err = e.referencePath(auth)
+	}
+	e.mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
+	if err != nil {
+		return Result{}, err
+	}
+	if validating {
+		chosen := next
+		chosen.domainChecks = []domainCheckConstraint{next.domainChecks[selected]}
+		scope.routineDependencies = chosen.domainChecks[0].dependencies
+		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
+		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
+		if err != nil {
+			return Result{}, err
+		}
+		if err := evaluation.prepareOwnDomainChecks(&chosen); err != nil {
+			return Result{}, err
+		}
+		fence, discoveryErr := domainUsesAt(auth.catalog, ref.Address, diagnosticPath)
+		if fence != nil {
+			for _, relation := range fence.reads {
+				if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: relation.address}, accessShare, true); err != nil {
+					return Result{}, err
+				}
+			}
+		}
+		if discoveryErr != nil {
+			if fence != nil {
+				e.mu.Lock()
+				current := e.stageCatalogBaseLocked(stage)
+				stable := current.epoch == ref.Epoch
+				for address, descriptor := range fence.objects {
+					stable = stable && current.descriptors[address] == descriptor
+				}
+				e.mu.Unlock()
+				if !stable {
+					return Result{}, CatalogConflict{}
+				}
+			}
+			return Result{}, discoveryErr
+		}
+		for _, use := range fence.uses {
+			if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: use.relation.address}, relationShare, true); err != nil {
+				return Result{}, err
+			}
+		}
+		e.mu.Lock()
+		view := CatalogRead{e, e.stageCatalogBaseLocked(stage)}
+		currentUses, graphErr := domainUsesAt(view, ref.Address, diagnosticPath)
+		if graphErr == nil && !domainGraphEqual(fence, currentUses) {
+			graphErr = CatalogConflict{}
+		}
+		frontier := e.commitSeq
+		if graphErr == nil {
+			for i := range fence.uses {
+				use := &fence.uses[i]
+				use.storage = e.stageStorageLocked(stage, use.relation.address)
+				if use.storage == nil {
+					graphErr = CatalogConflict{}
+					break
+				}
+				use.versions = use.storage.versions[:len(use.storage.versions):len(use.storage.versions)]
+				use.ends, use.generation = use.storage.ends, use.storage.generation
+			}
+		}
+		e.mu.Unlock()
+		if graphErr != nil {
+			return Result{}, graphErr
+		}
+		stage.domainValidation = fence
+		for _, use := range fence.uses {
+			writes, deletes := scope.columnProjectionRoots(use.relation.address)
+			if err := evaluation.validateSelectedDomainRows(auth.catalog, &chosen, use, frontier, writes, deletes); err != nil {
+				return Result{}, err
+			}
+		}
+	}
+	if scope.replacementRead {
+		e.replacementMu.RUnlock()
+		scope.replacementRead = false
+	}
+	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
+	if err != nil {
+		return Result{}, err
+	}
+	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+	return Result{}, err
+}
+
+func (c *EvalContext) evaluateSelectedDomainCheck(view CatalogRead, selected *typeDescriptor, value sqltype.Value, violation error) error {
+	oldValue, oldUsage, oldActive, oldChecks := c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks
+	c.Input.DomainChecks = c
+	defer func() {
+		c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks = oldValue, oldUsage, oldActive, oldChecks
+	}()
+	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
+}
+
+func (c *EvalContext) validateSelectedDomainRows(view CatalogRead, selected *typeDescriptor, use domainValidationUse, frontier CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
+	violations := make([]error, len(use.columns))
+	for i, column := range use.columns {
+		violations[i] = domainHistoricalViolation(view, use.relation, column)
+	}
+	var replaced map[RowID]bool
+	for _, row := range writes {
+		if row.base != 0 {
+			if replaced == nil {
+				replaced = make(map[RowID]bool)
+			}
+			replaced[row.row] = true
+		}
+	}
+	scan := func(rows []rowVersion, committed bool) error {
+		for _, row := range rows {
+			if err := c.Context.Err(); err != nil {
+				return err
+			}
+			if committed && replaced[row.row] || !liveVersion(row, frontier, use.ends, deletes) {
+				continue
+			}
+			for i, column := range use.columns {
+				if err := c.evaluateSelectedDomainCheck(view, selected, row.values[column], violations[i]); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := scan(use.versions, true); err != nil {
+		return err
+	}
+	return scan(writes, false)
+}

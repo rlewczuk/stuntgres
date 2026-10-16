@@ -34,6 +34,8 @@ type catalogChanges struct {
 	readFences          []partitionReadFence
 	truncateFences      []truncateGraphFence
 	materializedSources []materializedSourceFence
+	domainValidations   []*domainValidationFence
+	domainIndexRoots    map[ObjectAddress]*logicalIndexRoot
 	domainChanged       bool
 }
 
@@ -106,6 +108,13 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.readFences = append(n.readFences, c.readFences...)
 	n.truncateFences = append(n.truncateFences, c.truncateFences...)
 	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
+	n.domainValidations = append(n.domainValidations, c.domainValidations...)
+	if c.domainIndexRoots != nil {
+		n.domainIndexRoots = make(map[ObjectAddress]*logicalIndexRoot, len(c.domainIndexRoots))
+		for address, root := range c.domainIndexRoots {
+			n.domainIndexRoots[address] = root
+		}
+	}
 	return n
 }
 

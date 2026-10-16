@@ -398,7 +398,9 @@ package parser
 %type <into> into_clause
 %type <parenthesizedQuery> select_with_parens
 %type <desc> set_modifier
-%type <stmt> create_domain drop_domain create_enum create_composite alter_enum
+%type <stmt> create_domain drop_domain alter_domain create_enum create_composite alter_enum
+%type <check> domain_alter_check
+%type <tok> domain_validate_word
 %type <stmt> alter_composite drop_composite alter_table_of
 %type <alterActions> composite_actions
 %type <alterAction> composite_action
@@ -716,6 +718,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | copy
  | INSERT_SCALAR_VALUES insert_scalar_rows { $$=&Insert{Rows:$2} }
  | drop_domain
+ | alter_domain
  | set_constraints
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql | discard
@@ -1296,6 +1299,13 @@ domain_column_constraints: column_constraint { $$=[]ColumnConstraint{$1} }
  | domain_column_constraints NO nn_inherit {if $1[len($1)-1].Check!=nil {$1[len($1)-1].Check.NoInherit=true} else {sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported")};$$=$1} ;
 drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode:$4,Pos:$1.pos} }
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
+alter_domain: ALTER DOMAIN relation_name ADD domain_alter_check {$$=&AlterDomain{Name:$3,Action:DomainAddCheck,Check:$5,Constraint:$5.Name,Pos:$1.pos}}
+ | ALTER DOMAIN relation_name DROP CONSTRAINT drop_target drop_mode {$$=&AlterDomain{Name:$3,Action:DomainDropCheck,Constraint:$6.Name,IfExists:$6.IfExists,Mode:$7,Pos:$1.pos}}
+ | ALTER DOMAIN relation_name domain_validate_word CONSTRAINT name {$$=&AlterDomain{Name:$3,Action:DomainValidateCheck,Constraint:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}} ;
+domain_alter_check: check_constraint {$$=$1}
+ | domain_alter_check NOT nn_modifier {if $3.text!="valid" {sqllex.(*lexer).syntax($3);return 1};$1.NotValid=true;$$=$1}
+ | domain_alter_check NO nn_inherit {$1.NoInherit=true;$$=$1} ;
+domain_validate_word: KW_U {if $1.text!="validate" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 drop_composite: DROP TYPE relation_names drop_mode {$$=&DropComposite{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP TYPE IF EXISTS relation_names drop_mode {$$=&DropComposite{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 alter_composite: ALTER TYPE relation_name composite_actions {$$=&AlterComposite{Name:$3,Actions:$4,Pos:$1.pos}}

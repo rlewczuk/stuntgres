@@ -80,6 +80,18 @@ descriptor or grant peer access. Final publication checks committed predecessors
 storage, namespace/index membership, ACL authority, epoch and completion resources
 before installing anything.
 
+Domain CHECK ADD/DROP/VALIDATE participates in this existing implicit route,
+without enabling domain utilities after promotion into a genuine explicit block.
+Historical validation reads the current private catalog/projected storage plus
+prior own inserts, replacements and deletions. Each successful validation carries
+immutable relevant committed predecessor graph/storage observations through
+catalogChanges cloning, savepoints and promotion. Final owner publication checks
+those committed predecessors, not an earlier private projection against the
+later private candidate: subsequent own container creation or CHECK removal can
+be legal. Peer relevant type-use/storage drift vetoes publication without CHECK
+truth replay; unrelated catalog changes remain eligible. Failed/canceled segments
+discard private flags, generations, rows and index artifacts together.
+
 Retained role retirement records exact principal obligations through savepoints,
 promotion and prepared detach. Final combined catalog/role/reference preflight
 rejects a peer's newly committed dependency with the ordinary replacement error,

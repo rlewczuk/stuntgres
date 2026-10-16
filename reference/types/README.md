@@ -410,6 +410,87 @@ array equality/inequality, complete unknown-role diagnostics with unchanged
 rows, and native Dump/Reset/Restore with held rows and deterministic redump.
 Success is quiet exit 0 and the ordinary package summary after those assertions.
 
+### Domain ALTER CHECK selected proof
+
+The `TestReferenceDomainAlterConstraint` definitions cover Lifecycle,
+Diagnostics, TargetOnly, Dependencies, Containers, RepeatedValidate, Metadata,
+Prepared, Atomicity, NativeControls, Boundaries and Messages. They share one SQL/assertion
+body per scenario across the ordinary fixture backends. Native control phases
+use public Dump/Reset/Restore, including a fresh Driver, retained eager results,
+failed/canceled replacement and actual emitted-SQL replay on pinned PostgreSQL.
+
+All twelve shared scenarios now use both backends without discovery filters.
+Root's initial Messages discovery against pinned PostgreSQL18.0 completed before
+removing its sole callback gate. The development source tree is not a release
+oracle. Catalog predicates use explicit OID casts rather than requiring
+additional OID/regtype operators. Rollback absence uses direct typed-cast and
+relation lookup diagnostics rather than requiring pg_type, to_regtype or
+to_regclass support.
+ALTER accepts and ignores NO INHERIT (`connoinherit=false`); the separate
+CREATE DOMAIN rejection remains covered by the existing CHECK scenarios.
+
+Run every changed definition in both modes after changes. Use an external
+900-second deadline for each command:
+
+```sh
+make check RUN='^TestReferenceDomainAlterConstraint(Lifecycle|Diagnostics|TargetOnly)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterConstraint(Lifecycle|Diagnostics|TargetOnly)$'
+make check RUN='^TestReferenceDomainAlterConstraint(Dependencies|Containers|RepeatedValidate)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterConstraint(Dependencies|Containers|RepeatedValidate)$'
+make check RUN='^TestReferenceDomainAlterConstraint(Metadata|Prepared|Boundaries)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterConstraint(Metadata|Prepared|Boundaries)$'
+make check RUN='^TestReferenceDomainAlterConstraint(Atomicity|NativeControls)$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterConstraint(Atomicity|NativeControls)$'
+make check RUN='^TestReferenceDomainAlterConstraintMessages$' REFERENCE=1
+make check RUN='^TestReferenceDomainAlterConstraintMessages$'
+make check RUN='^TestReferenceDomainAlterConstraint(Atomicity|Prepared|Messages)$' RACE=1
+make check RUN='^TestDomainAlterConstraint(Grammar|SelectedEvaluation|Discovery|Generations|Publication|ReplayEligibility|MessagePublication)$'
+make check RUN='^TestDomainAlterConstraint(Discovery|Generations|Publication|MessagePublication)$' RACE=1
+make check RUN='^TestReferenceCompositeAlterDomainChecks$' REFERENCE=1
+make check RUN='^TestReferenceCompositeAlterDomainChecks$'
+```
+
+Lifecycle smoke must observe old -1 surviving NOT VALID, a false flag and new
+-2 rejection, failed validation preserving false, repair followed by the same
+CHECK OID becoming true, and selective DROP retaining the independent upper
+bound. RepeatedValidate specifically requires18.0's already-valid CHECK to
+rescan and reject an empty array holder without clearing its true flag.
+NativeControls smoke must preserve a stored violator, false flags (even for a
+satisfying value), current enforcement, owners and deterministic redump.
+These selected smoke scenarios supplement the root's separate throwaway actual
+API exercise after implementation; they do not replace it.
+Messages additionally exercises private CREATE/derived domains, preceding own
+inserts/updates/deletes, current NOT VALID enforcement, repeated alterations,
+later error/cancel rollback, subsequent own container changes, BEGIN promotion
+and savepoint recovery, real multiple Query result sets and index outputs.
+For partition carriers, native UPDATE excludes even directly named attached
+members. The shared repair detaches, updates and reattaches the same physical
+child with its original bound; stable identity and root-visible data prove that
+the child is attached before each historical certification attempt.
+NativeControls proves restored domain ownership by ordinary-role ALTER
+admission on the fresh restored clone and PostgreSQL replay, with real schema
+USAGE granted only after the clone's deterministic redump. Same-driver redump
+also compares emitted owner/state declarations exactly. No source ownership
+change, permission bypass or namespace-ACL serialization extension is used.
+The cross-owner source deliberately has no schema USAGE grant for its domain
+owner. Actual emitted post-data NOT VALID additions use `postgres` replay
+authority, while domain ownership survives same/fresh Restore and PostgreSQL SQL
+replay; this does not relax ordinary ALTER admission.
+Cross-owned CREATE DOMAIN also runs as bootstrap, immediately followed by the
+qualified OWNER command restoring its captured source owner. Restore eligibility
+requires the exact fresh domain and immediate captured-owner/creator sequence,
+not arbitrary ALTER OWNER. ReplayEligibility includes adversarial ordering,
+identity, kind and target tests. PostgreSQL replay registers schema/role teardown
+before execution so assertion failures cannot contaminate the next scenario.
+
+Container discovery follows PostgreSQL's stored-container rejection, including
+empty/NULL storage; it does not recursively certify nested old values. Native
+domain utilities remain autocommit-only: Prepare is quiet inside an explicit
+block, execution rejects without publication, whereas PostgreSQL's transactional
+ALTER is legal and rolls back. PostgreSQL cancellation uses57014; native context
+cancellation remains an ordinary Go error. External archive/WAL/physical-server
+mechanisms are not native control APIs.
+
 ### Domain CHECK selected proof
 
 Run each small group first against pinned PostgreSQL with `REFERENCE=1`, then

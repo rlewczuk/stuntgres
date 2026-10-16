@@ -123,6 +123,7 @@ const (
 	dumpInheritanceChecks
 	dumpRetiredConstraints
 	dumpInheritedForeignKeys
+	dumpDomainChecks
 )
 
 type dumpEventKey struct {

@@ -17,6 +17,7 @@ import (
 type domainCheckConstraint struct {
 	OID          OID
 	Name         string
+	NotValid     bool
 	ordinal      int
 	expression   BoundExpr
 	dependencies []expressionDependency
@@ -37,6 +38,13 @@ func (e domainValueExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *CatalogStage, d *typeDescriptor, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	used := constraintNames(auth.catalog, d.namespace, nil)
 	installed := make(map[string]bool)
+	for _, check := range d.domainChecks {
+		installed[check.Name] = true
+	}
+	firstOrdinal := len(d.domainChecks)
+	for _, check := range d.domainChecks {
+		firstOrdinal = max(firstOrdinal, check.ordinal+1)
+	}
 	for ordinal, column := range raw {
 		check := column.Check
 		if check == nil {
@@ -71,7 +79,7 @@ func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *
 		if err != nil {
 			return err
 		}
-		definition := domainCheckConstraint{OID: oid, Name: name, ordinal: ordinal, expression: node}
+		definition := domainCheckConstraint{OID: oid, Name: name, NotValid: check.NotValid, ordinal: firstOrdinal + ordinal, expression: node}
 		for _, ref := range refs {
 			address := ref.Address
 			address.SubID = 0
@@ -143,14 +151,6 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 }
 
 func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
-	scope := c.liveScope()
-	if scope != nil {
-		// The live scope is the sole programme owner. Always borrow its map:
-		// a retained evaluator may outlive FETCH, and held-cursor precommit
-		// can use a different scope with the same transaction/command pair.
-		c.preparedDomainChecks = scope.domainPreparedChecks
-		c.domainPhase = domainCheckIdentity{transaction: scope.txRef, command: scope.command}
-	}
 	if base := d.typ.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
 		parent, ok := c.domainCatalog().state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.ID())}].(*typeDescriptor)
 		if !ok || parent.typ != base {
@@ -159,6 +159,17 @@ func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
 		if err := c.prepareDomainChecks(parent); err != nil {
 			return err
 		}
+	}
+	return c.prepareOwnDomainChecks(d)
+}
+
+// Historical validation initializes only the selected own programme; ordinary
+// conversions retain the ancestor traversal above.
+func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
+	scope := c.liveScope()
+	if scope != nil {
+		c.preparedDomainChecks = scope.domainPreparedChecks
+		c.domainPhase = domainCheckIdentity{transaction: scope.txRef, command: scope.command}
 	}
 	if len(d.domainChecks) == 0 {
 		return nil
@@ -245,6 +256,11 @@ func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDesc
 			return err
 		}
 	}
+	return c.evaluateOwnDomainChecks(view, target, d, candidate, nil)
+}
+
+func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeDescriptor, candidate sqltype.Value, violation error) error {
+	base := d.typ.DomainBase()
 	if len(d.domainChecks) == 0 {
 		return nil
 	}
@@ -278,6 +294,9 @@ func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDesc
 			return err
 		}
 		if truth == False {
+			if violation != nil {
+				return violation
+			}
 			name := target.typ.SQLName()
 			if c.Input.TypeDiagnosticName != nil {
 				if captured := c.Input.TypeDiagnosticName(target.typ.ID()); captured != "" {

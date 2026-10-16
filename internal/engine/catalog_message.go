@@ -24,6 +24,16 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ObjectAddress) *relationS
 	return e.storage[a]
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
+	for _, fence := range c.domainValidations {
+		if !fence.current(CatalogRead{e, e.state}, e.storage) {
+			return CatalogConflict{}
+		}
+	}
+	for address, root := range c.domainIndexRoots {
+		if e.indexRoots[address] != root {
+			return CatalogConflict{}
+		}
+	}
 	for _, f := range c.readFences {
 		s := e.storage[f.address]
 		if s != f.storage || s != nil && (len(s.versions) != f.length || s.ends != f.ends || s.generation != f.generation) {
@@ -66,6 +76,9 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 // used by the ordinary stage. Pending writes are not committed observations.
 func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, current *catalogState, authority *catalogAuthority) error {
 	if err := s.defaultPreflight(current); err != nil {
+		return err
+	}
+	if err := e.captureDomainStageLocked(s, c, current); err != nil {
 		return err
 	}
 	if r := s.materializedReplacement; r != nil {
@@ -250,6 +263,11 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		store := shape.replacement
 		if !staged {
 			store = e.stageStorageLocked(s, index.sqlIndex.parent)
+		}
+		if shape, changed := s.rowShapes[index.sqlIndex.parent]; changed {
+			// capture precedes stageCatalogChangesLocked: supplied generation
+			// roots belong to this stage's destination heap, not c's predecessor.
+			store = shape.replacement
 		}
 		if !candidate.matchesIndex(index, store) {
 			return CatalogConflict{}

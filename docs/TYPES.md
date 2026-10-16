@@ -795,6 +795,23 @@ with target domain identity and the failing own/inherited constraint name.
 Ancestors run before descendants; each domain's own checks run alphabetically.
 Checks apply to fresh input and real conversion, including COPY and admitted
 array/composite members, not on reads, downcasts, or exact same-domain assignment.
+`ALTER DOMAIN ADD CONSTRAINT ... CHECK (...) [NOT VALID]`, selected DROP
+CONSTRAINT and VALIDATE CONSTRAINT retain logical domain/array/CHECK identities.
+NOT VALID skips historical discovery, never new input checks. Validation
+initializes and evaluates only the selected own recipe; it does not re-input old
+data or invoke unrelated/ancestor CHECKs. TRUE/UNKNOWN pass and a historical
+FALSE names the physical table/column. Direct and derived domain columns in
+regular tables/materializations are scanned once. Stored containers reject
+validating ADD/VALIDATE even for empty or all-NULL storage; unstored definitions
+alone are not blockers. Repeated validation rescans already-valid CHECKs under
+the pinned18.0 contract. Failed validation leaves its original flag unchanged.
+First ADD/last DROP reowns immutable dependent generations and produced index
+artifacts without CHECK/default/generated/index truth replay. Held prepared
+conversions use current rules; previously returned rows remain owned. Public
+`pg_constraint` exposes own CHECK OIDs, contypid and validity, while
+`pg_get_constraintdef`/`pg_get_expr` render VALUE through the common deparser.
+Domain utilities retain the native explicit-transaction exclusion.
+
 Checked expression conversions retain runtime demand: a false filter or empty
 source does not consume their CHECK truth, and each actual row executes its own
 conversion even for a constant physical value and a volatile CHECK provider.

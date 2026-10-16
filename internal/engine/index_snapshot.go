@@ -24,20 +24,42 @@ type indexSnapshotSource struct {
 }
 
 func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, frontier CommitSeq) (*indexSnapshot, error) {
+	return captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
+}
+
+func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, frontier CommitSeq, parents map[ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if catalog.owner == nil || catalog.state == nil || catalog.owner.state.epoch != catalog.Epoch() || frontier != catalog.owner.commitSeq {
 		return nil, ErrCatalogReplaced
 	}
+	authority := catalog.owner.state
+	if private != nil {
+		authority = catalog.owner.privateCatalogLocked(private).state
+	}
+	actualRoot := func(address ObjectAddress) *logicalIndexRoot {
+		if private != nil {
+			if root := private.uniqueRoots[address]; root != nil {
+				return root
+			}
+		}
+		return catalog.owner.indexRoots[address]
+	}
 	snapshot := &indexSnapshot{sources: make(map[ObjectAddress]indexSnapshotSource)}
 	for address, descriptor := range catalog.state.descriptors {
+		if parents != nil {
+			index, ok := descriptor.(*relationDescriptor)
+			if !ok || index.sqlIndex == nil || parents[index.sqlIndex.parent] == nil {
+				continue
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && partitionNeedsRowHistory(catalog, relation) {
 			store := storage[address]
-			if store == nil || store != catalog.owner.storage[address] {
+			if store == nil || store != catalog.owner.privateStorageLocked(private, address) {
 				return nil, ErrCatalogReplaced
 			}
 			if snapshot.partitionRows == nil {
@@ -53,8 +75,8 @@ func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[
 		if !ok {
 			return nil, ErrCatalogReplaced
 		}
-		actual, exists := catalog.owner.state.descriptors[address].(*relationDescriptor)
-		actualParent, parentExists := catalog.owner.state.descriptors[parent.address].(*relationDescriptor)
+		actual, exists := authority.descriptors[address].(*relationDescriptor)
+		actualParent, parentExists := authority.descriptors[parent.address].(*relationDescriptor)
 		if !exists || !parentExists || !sameIndexKeySemantics(actual, index) || !indexLayoutInputsUnchanged(index, actualParent, parent) {
 			return nil, ErrCatalogReplaced
 		}
@@ -62,7 +84,7 @@ func captureIndexSnapshot(ctx context.Context, catalog CatalogRead, storage map[
 			continue
 		}
 		store, root := storage[parent.address], roots[address]
-		if store == nil || root == nil || store != catalog.owner.storage[parent.address] || root != catalog.owner.indexRoots[address] {
+		if store == nil || root == nil || store != catalog.owner.privateStorageLocked(private, parent.address) || root != actualRoot(address) {
 			return nil, ErrCatalogReplaced
 		}
 		if (root.hash != nil) != (index.sqlIndex.method == hashMethod) {
@@ -167,6 +189,12 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 // Row identities in positions are the source identities saved before remint.
 // No predicate, expression or domain conversion is executed by this transport.
 func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, positions map[ObjectAddress]map[indexRowIdentity]int) (map[ObjectAddress]*logicalIndexRoot, error) {
+	return snapshot.transportRows(ctx, next, storage, positions, false)
+}
+
+// Same-logical-ID domain generation changes retain every physical version and
+// produced key. Replacement's ordinary transport still compacts live rows.
+func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, positions map[ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ObjectAddress]*logicalIndexRoot, error) {
 	roots := make(map[ObjectAddress]*logicalIndexRoot, len(snapshot.sources))
 	checkedParents := make(map[ObjectAddress]bool)
 	collation := remappedCollationCapabilities(next, snapshot.mapping)
@@ -193,7 +221,7 @@ func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalogState
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if !liveVersion(row, source.frontier, source.store.ends, nil) {
+				if !preserveVersions && !liveVersion(row, source.frontier, source.store.ends, nil) {
 					continue
 				}
 				position, ok := selected[indexRowIdentity{row: row.row, version: row.version}]

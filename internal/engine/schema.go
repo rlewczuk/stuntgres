@@ -252,6 +252,17 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
+	// Retain the constructor's actual fresh domain identity for bounded Restore
+	// ownership pairing; never resolve an arbitrary later object by name.
+	var created ObjectRef
+	if _, domain := stmt.(*parser.CreateDomain); domain {
+		for address, descriptor := range stage.descriptors {
+			if typ, ok := descriptor.(*typeDescriptor); ok && typ.typ.IsDomain() && stage.base.state.descriptors[address] == nil {
+				created = ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: address}
+				break
+			}
+		}
+	}
 	defer e.DiscardCatalogStage(stage)
 	_, droppingTypedSource := stmt.(*parser.DropComposite)
 	if err := scope.acquireTypedSources(stage, droppingTypedSource); err != nil {
@@ -332,7 +343,10 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 			}
 		}
 	}
-	return Result{}, err
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{created: created}, nil
 }
 func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input sqltype.InputEnvironment) (*CatalogStage, error) {
 	auth, err := e.authorizationLocked(op)

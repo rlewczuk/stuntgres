@@ -1,0 +1,74 @@
+package engine
+
+// Engine.mu is held. Reuse the native snapshot scalar/key transport, retaining
+// every version and every produced predicate/expression result. ALTER must not
+// turn a metadata generation change into another CHECK or index truth event.
+func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalogState, stores map[ObjectAddress]*relationStorage) error {
+	for address, store := range stores {
+		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.base.state, next, e.stageStorageLocked(stage, address), store)
+		if err != nil {
+			return err
+		}
+		stores[address] = rebound
+	}
+	sources := make(map[ObjectAddress]*relationStorage, len(stores))
+	for address := range stores {
+		sources[address] = e.stageStorageLocked(stage, address)
+	}
+	sourceRoots := make(map[ObjectAddress]*logicalIndexRoot)
+	for address, descriptor := range stage.base.state.descriptors {
+		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && sources[index.sqlIndex.parent] != nil {
+			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
+		}
+	}
+	var private *catalogChanges
+	if stage.authSession != nil && stage.authSession.transactions.retainedMessage {
+		private = stage.authSession.transactions.catalog
+	}
+	snapshot, err := captureIndexSnapshotParents(stage.domainAlter, stage.base, sources, sourceRoots, e.commitSeq, stores, private)
+	if err != nil {
+		return err
+	}
+	if len(snapshot.sources) == 0 {
+		return nil
+	}
+	positions := make(map[ObjectAddress]map[indexRowIdentity]int)
+	for _, source := range snapshot.sources {
+		address := source.parent.address
+		if positions[address] != nil {
+			continue
+		}
+		store := stores[address]
+		selected := make(map[indexRowIdentity]int, len(store.versions))
+		for position, row := range store.versions {
+			selected[indexRowIdentity{row: row.row, version: row.version}] = position
+		}
+		positions[address] = selected
+	}
+	roots, err := snapshot.transportRows(stage.domainAlter, next, stores, positions, true)
+	if err != nil {
+		return err
+	}
+	if stage.indexCandidates == nil {
+		stage.indexCandidates = make(map[ObjectAddress]indexRootCandidate, len(roots))
+	}
+	if stage.domainIndexRoots == nil {
+		stage.domainIndexRoots = make(map[ObjectAddress]*logicalIndexRoot, len(roots))
+	}
+	for address, root := range roots {
+		index := next.descriptors[address].(*relationDescriptor)
+		store := stores[index.sqlIndex.parent]
+		stage.indexCandidates[address] = indexRootCandidate{index: index, root: root, storage: indexStorageIdentity(store), generation: store.generation, ends: store.ends, length: len(store.versions)}
+		stage.domainIndexRoots[address] = snapshot.sources[address].root
+	}
+	return nil
+}
+
+func (e *Engine) domainIndexRootsCurrent(stage *CatalogStage) bool {
+	for address, root := range stage.domainIndexRoots {
+		if e.indexRoots[address] != root {
+			return false
+		}
+	}
+	return true
+}

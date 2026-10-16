@@ -486,6 +486,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		default:
 			return "", fmt.Errorf("stuntgres: invalid deparse identity keyword")
 		}
+	case domainValueExpression:
+		return "VALUE", nil
 	case columnExpression:
 		if r.columnSQL != nil {
 			return r.columnSQL(n)

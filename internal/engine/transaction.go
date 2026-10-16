@@ -737,6 +737,11 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
 		return s.op.session.Engine().describeOperation(s, stmt)
+	case *parser.AlterDomain:
+		// This narrow utility has no parameter/result signature. Preparation
+		// must remain quiet; Execute owns read-only-first and explicit-block
+		// rejection, without resolving or changing a domain during analysis.
+		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		// Conversion utilities have no result signature. Admission, read-only
 		// precedence and the explicit-transaction boundary belong to Execute.

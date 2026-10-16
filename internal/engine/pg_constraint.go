@@ -42,6 +42,9 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef
 		if table, ok := descriptor.(*relationDescriptor); ok {
 			count += len(table.notNullConstraints) + len(table.checkConstraints) + len(table.uniqueConstraints) + len(table.foreignKeys) + len(table.exclusionConstraints)
 		}
+		if domain, ok := descriptor.(*typeDescriptor); ok {
+			count += len(domain.domainChecks)
+		}
 	}
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*28)
@@ -50,6 +53,25 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef
 	for _, descriptor := range catalog.state.descriptors {
 		if err := ctx.Err(); err != nil {
 			return nil, err
+		}
+		if domain, ok := descriptor.(*typeDescriptor); ok {
+			for _, check := range domain.domainChecks {
+				row := values[at*28 : (at+1)*28 : (at+1)*28]
+				rows[at] = row
+				at++
+				builder.initialize(row, domain.namespace.ObjectID, 0, check.OID, check.Name, "c")
+				builder.oid(row, 9, domain.Address().ObjectID)
+				builder.boolean(row, 7, !check.NotValid)
+				var err error
+				row[27], err = catalogTree(types[27], check.expression)
+				if err != nil {
+					return nil, err
+				}
+				if builder.err != nil {
+					return nil, builder.err
+				}
+			}
+			continue
 		}
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok {
@@ -65,7 +87,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ObjectRef
 			row := values[at*28 : (at+1)*28 : (at+1)*28]
 			rows[at] = row
 			at++
-			builder.initialize(row, table, id, name, kind)
+			builder.initialize(row, table.namespace.ObjectID, table.address.ObjectID, id, name, kind)
 			return row, builder.err
 		}
 		for _, c := range table.notNullConstraints {
@@ -202,7 +224,7 @@ type pgConstraintBuilder struct {
 	err   error
 }
 
-func (b *pgConstraintBuilder) initialize(row []sqltype.Value, table *relationDescriptor, id OID, name, kind string) {
+func (b *pgConstraintBuilder) initialize(row []sqltype.Value, namespace, relation, id OID, name, kind string) {
 	for i, typ := range b.types {
 		switch pgConstraintTypeIDs[i] {
 		case sqltype.Oid:
@@ -219,11 +241,11 @@ func (b *pgConstraintBuilder) initialize(row []sqltype.Value, table *relationDes
 	}
 	b.oid(row, 0, id)
 	row[1] = sqltype.String(b.types[1], name)
-	b.oid(row, 2, table.namespace.ObjectID)
+	b.oid(row, 2, namespace)
 	row[3] = sqltype.String(b.types[3], kind)
 	b.boolean(row, 6, true)
 	b.boolean(row, 7, true)
-	b.oid(row, 8, table.address.ObjectID)
+	b.oid(row, 8, relation)
 	b.boolean(row, 16, true)
 }
 func (b *pgConstraintBuilder) oid(row []sqltype.Value, i int, id OID) {

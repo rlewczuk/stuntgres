@@ -221,6 +221,9 @@ func domainDumpStatement(ctx context.Context, view CatalogRead, roles authorizat
 	}
 	var checks strings.Builder
 	for _, check := range d.domainChecks {
+		if check.NotValid {
+			continue
+		}
 		text, err := (scalarRenderer{domainValue: &base}).sql(ctx, view, check.expression)
 		if err != nil {
 			return dumpDomain{}, err

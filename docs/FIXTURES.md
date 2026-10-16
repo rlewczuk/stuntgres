@@ -216,6 +216,32 @@ validates admitted expressions through the ordinary binder/providers; replay
 does not add new public casts, defaults or expression capabilities. Invalid
 expressions and failed imports preserve old data/catalogs and held cursors.
 
+Domain CHECK validity is persistent state. Dump places valid own CHECKs inline
+in CREATE DOMAIN, then emits each invalid own CHECK as a qualified named
+`ALTER DOMAIN ... ADD CONSTRAINT ... CHECK (...) NOT VALID` after stored data.
+This narrow post-data phase uses the existing `postgres` replay authority, not
+the domain owner's session authorization: a domain can legally be owned by a
+role with no USAGE on its schema. The declaration's real owner remains intact.
+No source namespace grant is fabricated, and ordinary ALTER DOMAIN still applies
+normal namespace and ownership admission.
+Cross-owned domain declarations likewise construct under bootstrap authority,
+then immediately restore the real owner with qualified ALTER DOMAIN OWNER TO.
+The stream first records the captured source owner and returns to bootstrap.
+Native Restore admits that OWNER only for the exact constructor-created,
+permanent domain reference and captured target role, under its authenticated
+superuser importer. Any intervening statement expires the pair. This does not
+admit general ALTER OWNER replay, enum ownership replay, or ownership changes to
+existing objects; the inherited-table ownership route remains separate.
+Invalid expression-provider edges belong to that post-data event, not the
+domain's creation event. Satisfying data does not implicitly validate a CHECK;
+old violators, false flags, owners and current new-input rejection survive
+same/fresh Driver replay. Restore admits only this exact domain alteration form,
+with the ordinary scalar eligibility checks; valid ADD, DROP, VALIDATE,
+parameters, temporary destinations and arbitrary domain ALTER remain excluded.
+Failure or cancellation leaves destination roots and retained snapshots intact.
+The emitted logical SQL can be replayed on PostgreSQL; external pg_dump archives,
+pg_restore formats, WAL and physical storage are not native import APIs.
+
 Referenced roles must already exist in the target engine. Restore captures a private role
 snapshot before input I/O, starts an initialized private catalog, executes through
 the same SQL engine, remaps owners into target principal authority, then atomically

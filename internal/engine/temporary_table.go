@@ -202,6 +202,9 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err = scope.projectCatalogOverlayShapes(stage, changes); err != nil {
 		return err
 	}
+	if err = scope.reownDomainOverlayRows(stage, changes); err != nil {
+		return err
+	}
 	if r := stage.materializedReplacement; r != nil {
 		// A private CREATE WITH DATA has own rows on the old empty store.
 		// REFRESH replaces that complete target, not an append to those rows.
@@ -259,7 +262,12 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			shape.materializedConcurrent, shape.materializedContinuous = false, false
 		}
 		shape.replacement = rowShape.replacement
-		shape.relation = stage.descriptors[a].(*relationDescriptor)
+		shape.relation, _ = stage.descriptors[a].(*relationDescriptor)
+		if shape.relation == nil {
+			// An index-expression-only domain generation changes executable
+			// index authority without changing its parent's column descriptor.
+			shape.relation = stage.base.state.descriptors[a].(*relationDescriptor)
+		}
 		changes.storage[a] = shape
 	}
 	if r := stage.materializedReplacement; r != nil {
