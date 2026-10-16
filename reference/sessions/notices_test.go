@@ -32,7 +32,7 @@ func noticesCommand(t *testing.T, ctx context.Context, c *sql.Conn, record *fixt
 		}()
 		if record.RawBackend == fixture.RawPostgres {
 			for _, diagnostic := range (*notices)[before:] {
-				noticesInternalDebug(t, diagnostic)
+				fixture.NoticesInternalDebug(t, diagnostic)
 			}
 		} else if len(*notices) != before {
 			t.Fatal("native prepare delivered notice", (*notices)[before:])
@@ -203,27 +203,9 @@ func TestReferenceNoticesCommands(t *testing.T) {
 	}
 }
 
-// SQL notice witnesses remain exact. PostgreSQL debug tracing is incidental:
-// allocator identities, trace text and loader ordering are not SQL contracts.
-func referenceNoticeWitnesses(t *testing.T, postgres bool, records []fixture.Diagnostic, want fixture.Diagnostic) []fixture.Diagnostic {
-	t.Helper()
-	var witnesses []fixture.Diagnostic
-	for _, record := range records {
-		if record.Code == want.Code && record.Message == want.Message {
-			witnesses = append(witnesses, record)
-			continue
-		}
-		if !postgres {
-			t.Fatalf("unexpected non-witness diagnostic: %#v (witness %#v)", record, want)
-		}
-		noticesInternalDebug(t, record)
-	}
-	return witnesses
-}
-
 func noticesWitness(t *testing.T, pg bool, records []fixture.Diagnostic, want fixture.Diagnostic, delivered bool) {
 	t.Helper()
-	got := referenceNoticeWitnesses(t, pg, records, want)
+	got := fixture.NoticeWitnesses(t, pg, records, want)
 	if !delivered {
 		if len(got) != 0 {
 			t.Fatal(got)
@@ -232,17 +214,6 @@ func noticesWitness(t *testing.T, pg bool, records []fixture.Diagnostic, want fi
 	}
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("got %#v want %#v", got, want)
-	}
-}
-
-// Distinguish internal debug tracing from unexpected SQL notices without
-// asserting PostgreSQL implementation text, counts or execution ordering.
-func noticesInternalDebug(t *testing.T, got fixture.Diagnostic) {
-	t.Helper()
-	got.Message = ""
-	want := fixture.Diagnostic{Severity: "DEBUG", SeverityUnlocalized: "DEBUG", Code: "00000"}
-	if got != want {
-		t.Fatalf("unexpected non-witness diagnostic: %#v", got)
 	}
 }
 

@@ -90,7 +90,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	if err == nil {
 		err = s.validateLockedRelation(e)
 	}
-	if err == nil {
+	if err == nil && !s.protocolResume {
 		err = auth.checkQuerySources(c.leaves)
 	}
 	if err == nil {
@@ -239,6 +239,9 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog Catalog
 		return err
 	}
 	for _, value := range rows.values {
+		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e, roles: auth.roles, quoteAll: rows.output.QuoteAllIdentifiers}, value); err != nil {
+			return err
+		}
 		if err := captureRegObjectOutputValue(rows, catalog, collationPath, value); err != nil {
 			return err
 		}

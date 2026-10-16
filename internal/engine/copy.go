@@ -46,8 +46,20 @@ func copyTargets(relation *relationDescriptor, columns []parser.Identifier) ([]i
 }
 
 func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination io.Writer) (count int64, err error) {
+	return s.CopyProtocol(syntax, source, destination, CopyProtocolHooks{})
+}
+
+// CopyProtocol shares the native stream executor. Hooks run at reserved I/O
+// boundaries, never while admission or publication locks are held.
+func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (count int64, err error) {
 	if err = s.gate(syntax); err != nil {
 		return
+	}
+	if err = s.beginProtocolSimplePortal(); err != nil {
+		return 0, err
+	}
+	if syntax.Endpoint != parser.CopyStdin && syntax.Endpoint != parser.CopyStdout {
+		return 0, CopyBoundary(syntax)
 	}
 	var options copyOptions
 	if syntax.Query != nil {
@@ -63,26 +75,29 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 		return
 	}
 	if syntax.Query != nil {
-		result, executeErr := s.op.session.Engine().executeStatement(s, syntax.Query, 0, nil)
-		if executeErr != nil {
-			return 0, executeErr
+		rows, queryErr := s.prepareCopyQueryRows(syntax.Query)
+		if queryErr != nil {
+			return 0, queryErr
 		}
-		if result.Rows == nil {
+		if rows == nil {
 			return 0, errors.New("stuntgres: COPY query has no row result")
 		}
 		defer func() {
-			closeErr := result.Rows.Close()
+			closeErr := rows.Close()
 			if err == nil {
 				err = closeErr
 			}
 		}()
-		if err = options.bindForces(nil, nil, result.Rows.Schema()); err != nil {
+		if err = options.bindForces(nil, nil, rows.Schema()); err != nil {
 			return 0, err
 		}
 		if err = s.reserveCopy(); err != nil {
 			return 0, err
 		}
-		return s.copyOutput(result.Rows, options, destination)
+		if err = s.startProtocolCopy(hooks, false, options, len(rows.Schema())); err != nil {
+			return 0, err
+		}
+		return s.copyOutput(rows, options, destination)
 	}
 	e := s.op.session.Engine()
 	s.input.LockedDomainInput = s
@@ -130,6 +145,9 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 		if err = s.reserveCopy(); err != nil {
 			return 0, err
 		}
+		if err = s.startProtocolCopy(hooks, false, options, len(rows.Schema())); err != nil {
+			return 0, err
+		}
 		return s.copyOutput(rows, options, destination)
 	}
 	e.mu.Lock()
@@ -145,7 +163,24 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	for _, target := range b.targets {
 		selected[target] = true
 	}
-	for i, expression := range b.defaults {
+	binaryInput := options.format == copyFormatBinary && (s.protocolCommand || s.protocolSimple)
+	inputColumns := len(b.defaults)
+	if binaryInput {
+		inputColumns = len(b.relation.columns)
+	}
+	for i := range inputColumns {
+		if binaryInput {
+			// The live descriptor excludes dropped attributes, but includes
+			// omitted COPY targets. Resolve each receive provider before that
+			// attribute's default planning and before CopyInResponse.
+			if err = b.relation.columns[i].Usage.Type.CheckBinaryInputDeclaration(); err != nil {
+				return 0, err
+			}
+		}
+		if i >= len(b.defaults) {
+			continue
+		}
+		expression := b.defaults[i]
 		if expression == nil {
 			continue
 		}
@@ -208,6 +243,9 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	if err = s.reserveCopy(); err != nil {
 		return
 	}
+	if err = s.startProtocolCopy(hooks, true, options, len(b.targets)); err != nil {
+		return 0, err
+	}
 	var cursor interface {
 		RowCursor
 		rowDefaults() []bool
@@ -218,9 +256,28 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	} else {
 		cursor = newCopyCursor(s, b, options, source)
 	}
-	rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0 || unique.checked, nil, nil)
+	rows, err := func() (indexWriteBatch, error) {
+		if s.protocolCommand || s.protocolSimple {
+			s.op.copyInput.active.Store(true)
+			defer s.op.stopCopyInput()
+		}
+		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0 || unique.checked, nil, nil)
+		if err == nil {
+			err = s.op.pendingCopyInputError()
+		}
+		if err != nil {
+			err = cursor.diagnostic(err)
+		}
+		return rows, err
+	}()
 	if err != nil {
-		return 0, cursor.diagnostic(err)
+		return 0, err
+	}
+	if hooks.FinishInput != nil {
+		_, err = s.copyIO(func() (int, error) { return 0, hooks.FinishInput() })
+		if err != nil {
+			return 0, cursor.diagnostic(err)
+		}
 	}
 	n, err := s.applyInsertValidated(b.ref, rows)
 	if err != nil {

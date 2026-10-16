@@ -48,7 +48,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 }
 
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ObjectAddress) *logicalIndexRoot {
-	if stage.authSession != nil && stage.authSession.transactions.retainedMessage {
+	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		if changes := stage.authSession.transactions.catalog; changes != nil {
 			if root := changes.uniqueRoots[address]; root != nil {
 				return root

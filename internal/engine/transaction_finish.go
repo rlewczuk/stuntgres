@@ -41,7 +41,7 @@ func (s *StatementScope) Finish(err error) error {
 			s.op.session.Engine().replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		if cleanupErr := s.owner.drainCursorCleanup(s.op.Context()); err == nil {
+		if cleanupErr := s.owner.drainCursorCleanup(s.op.Context(), s); err == nil {
 			err = cleanupErr
 		}
 		s.owner.mu.Lock()
@@ -68,19 +68,19 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	// Implicit HOLD declaration installation is not its external completion:
 	// unfetched targets must settle before publication and ON COMMIT actions.
-	if err == nil && s.worked && t.state == TxImplicit && !t.retainedMessage {
+	if err == nil && s.worked && t.state == TxImplicit && !t.retainsTransaction() {
 		t.mu.Unlock()
 		err = s.materializeHeldCursors()
 		t.mu.Lock()
 	}
 	if err == nil && s.worked {
 		t.mu.Unlock()
-		err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainedMessage, nil)
+		err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainsTransaction(), nil)
 		if err == nil {
 			err = s.settleForeignActions()
 		}
 		if err == nil && s.foreignActionExclusionAdded {
-			err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainedMessage, nil)
+			err = s.checkExclusionEvents(t.state == TxImplicit && !t.retainsTransaction(), nil)
 		}
 		if err == nil {
 			err = s.checkForeignKeys()
@@ -97,7 +97,7 @@ func (s *StatementScope) Finish(err error) error {
 		if s.catalog != nil {
 			catalog = s.catalog
 		}
-		if t.state == TxImplicit && !t.retainedMessage {
+		if t.state == TxImplicit && !t.retainsTransaction() {
 			if !s.completed {
 				t.mu.Unlock()
 				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority, s)
@@ -171,7 +171,7 @@ func (s *StatementScope) Finish(err error) error {
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *relationTicket
-	if t.state == TxImplicit && (!t.retainedMessage || err != nil) {
+	if t.state == TxImplicit && (!t.retainsTransaction() || err != nil) {
 		t.session.settings.finishTransaction(err == nil)
 		e.endSerializable(t.ref, err == nil)
 		endedTicket = t.ticket
@@ -251,7 +251,7 @@ func (s *StatementScope) Finish(err error) error {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	if cleanupErr := t.drainCursorCleanup(s.op.Context()); err == nil {
+	if cleanupErr := t.drainCursorCleanup(s.op.Context(), s); err == nil {
 		err = cleanupErr
 	}
 	s.result = err

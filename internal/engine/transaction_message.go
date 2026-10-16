@@ -65,6 +65,7 @@ func (s *StatementScope) NextStatement() (*StatementScope, error) {
 	}
 	next := s.op.session.Engine().newStatementScope(s.op, s.owner, s.statementStart)
 	next.message = true
+	next.protocolSimple = s.protocolSimple
 	return next, nil
 }
 func (s *StatementScope) FinishMessage(err error) error {
@@ -123,7 +124,7 @@ func (s *StatementScope) ownsMessageScope() bool {
 
 // Caller holds the transaction mutex where required by existing gates.
 func (t *transactionOwner) inBlock() bool {
-	return t.state == TxActive || t.state == TxImplicit && t.retainedMessage
+	return t.state == TxActive || t.state == TxImplicit && t.retainsTransaction()
 }
 
 func (op *Operation) refreshStatementBudget() error {

@@ -2,133 +2,232 @@ package main
 
 import (
 	"context"
-	"strconv"
-
+	"errors"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
-// completedStatement owns its finalized rows until the writer closes them.
-// Notices and settings are detached transport records, not execution authority.
-type completedStatement struct {
-	result   engine.Result
-	notices  []sqlstate.Error
-	settings []parameterValue
-}
-
-type messageOutput struct {
-	statements []completedStatement
-	notices    []sqlstate.Error
-	settings   []parameterValue
-	err        error
-	empty      bool
-}
-
-// executeQuery completes all SQL boundaries and releases the operation before
-// returning. No socket or logging I/O may run while message admission is held.
-func (c *client) executeQuery(ctx context.Context, source string) (out messageOutput) {
+// Simple batches retain the existing engine message clock/transaction owner.
+// Only detached output or canonical unlocked callbacks may touch the socket.
+func (c *client) executeSimple(ctx context.Context, source string) (transportErr error) {
 	op, options, err := c.session.AcquireCommand(ctx)
 	if err != nil {
-		out.err = err
-		out.settings = c.settingsSnapshot()
-		return
+		if e := c.writeSQLError(ctx, source, err); e != nil {
+			return e
+		}
+		return c.readyBoundary()
 	}
 	defer op.Done()
-
 	scope, err := c.session.Engine().StartStatement(op)
 	if err != nil {
-		out.err = op.CommandError(err)
-		out.notices = op.DetachNotices()
-		out.settings = c.settingsSnapshot()
-		return
+		if e := c.writeSQLError(ctx, source, op.CommandError(err)); e != nil {
+			return e
+		}
+		return c.readyBoundary()
 	}
-
 	batch, finished := false, false
 	defer func() {
-		// Parsing failures also pass through Finish, so the existing scope
-		// authority aborts an explicit transaction just like execution errors.
-		if batch {
-			out.err = scope.FinishMessage(out.err)
-		} else if !finished {
-			out.err = scope.Finish(out.err)
-		}
-		out.err = op.CommandError(out.err)
-		out.notices = op.DetachNotices()
-		out.settings = c.settingsSnapshot()
-		if out.err != nil {
-			out.empty = false
+		if !finished {
+			if batch {
+				_ = scope.FinishMessage(errors.New("frontend output interrupted"))
+			} else {
+				_ = scope.Finish(errors.New("frontend output interrupted"))
+			}
 		}
 	}()
-
-	statements, err := parser.ParseWithOptions(source, options)
-	if err != nil {
-		out.err = err
-		return
+	err = scope.InvalidateUnnamedProtocolStatement()
+	var statements []parser.Statement
+	if err == nil {
+		statements, err = parser.ParseWithOptions(source, options)
 	}
-	if len(statements) == 0 {
-		out.empty = true
-		return
+	if err == nil {
+		scope.ProtocolSimpleQuery(len(statements))
 	}
-	if len(statements) > 1 {
-		if err := scope.RetainMessage(); err != nil {
-			out.err = err
-			return
-		}
-		batch = true
+	if err == nil && len(statements) > 1 {
+		err = scope.RetainMessage()
+		batch = err == nil
 	}
-
-	out.statements = make([]completedStatement, 0, len(statements))
+	var buffer []byte
+	var values []sqltype.Value
+	stream := &c.copyStream
+	stream.ctx = op.Context()
+	defer stream.closeCommand()
 	for i, statement := range statements {
+		if err != nil {
+			break
+		}
 		if i != 0 {
-			next, err := scope.NextStatement()
+			var next *engine.StatementScope
+			next, err = scope.NextStatement()
 			if err != nil {
-				out.err = err
-				return
+				break
 			}
 			scope = next
-			finished = false
-		}
-		var notificationPosition int
-		switch statement := statement.(type) {
-		case *parser.Listen:
-			notificationPosition = statement.Pos.Character
-		case *parser.Notify:
-			notificationPosition = statement.Pos.Character
-		case *parser.Unlisten:
-			notificationPosition = statement.Pos.Character
 		}
 		var result engine.Result
-		if notificationPosition != 0 {
-			// Describe admits the ordinary failed-command scope without staging
-			// notification effects. Its owner/aborted gates precede diagnostics.
-			_, err = scope.Describe(statement)
-			if err == nil {
-				// Native receivers exist, but this transport cannot deliver events.
-				err = &sqlstate.Error{
-					Severity: "ERROR", SeverityUnlocalized: "ERROR",
-					Code: "0A000", Message: "statement is unsupported",
-					Position: strconv.Itoa(notificationPosition),
+		described := false
+		describe := func(columns []engine.ColumnDescriptor) error {
+			if e := op.Context().Err(); e != nil {
+				return e
+			}
+			for _, notice := range op.DetachNotices() {
+				if e := c.wire.notice(notice); e != nil {
+					transportErr = e
+					return e
 				}
 			}
-		} else {
-			result, err = scope.Execute(statement, 0, nil)
+			e := c.writeDescription(columns, nil)
+			if e != nil {
+				var logical *sqlstate.Error
+				if !errors.As(e, &logical) {
+					transportErr = e
+				}
+			}
+			if e == nil {
+				described = true
+			}
+			return e
 		}
+		row := func(fields []engine.ProtocolField) error {
+			if e := op.Context().Err(); e != nil {
+				return e
+			}
+			logicalErr, socketErr := c.writeFields(fields, &buffer)
+			if socketErr != nil {
+				transportErr = socketErr
+			}
+			if logicalErr != nil {
+				return logicalErr
+			}
+			return socketErr
+		}
+		result, err = scope.ExecuteProtocolSimple(statement, describe, row, stream, stream, c.copyHooks)
+		stream.release()
+		err = op.CommandError(scope.Finish(err))
+		if !batch {
+			finished = true
+		}
+		if stream.transportErr != nil {
+			if result.Rows != nil {
+				_ = result.Rows.Close()
+			}
+			return stream.transportErr
+		}
+		if transportErr != nil {
+			if result.Rows != nil {
+				_ = result.Rows.Close()
+			}
+			return transportErr
+		}
+		if c.ctx.Err() != nil {
+			if result.Rows != nil {
+				_ = result.Rows.Close()
+			}
+			return nil
+		}
+		notices := op.DetachNotices()
+		outputFailed := false
+		output := func() error {
+			defer func() {
+				if result.Rows != nil {
+					err = errors.Join(err, result.Rows.Close())
+					result.Rows = nil
+				}
+			}()
+			for _, notice := range notices {
+				if e := c.wire.notice(notice); e != nil {
+					return e
+				}
+			}
+			if err != nil {
+				return nil
+			}
+			if result.Rows != nil {
+				if !described {
+					if e := c.writeDescription(result.Rows.Schema(), nil); e != nil {
+						var logical *sqlstate.Error
+						if errors.As(e, &logical) {
+							err = e
+							outputFailed = true
+							return nil
+						}
+						return e
+					}
+				}
+				logical, socketErr := c.writeRows(op.Context(), result.Rows, &buffer, &values)
+				closeErr := result.Rows.Close()
+				result.Rows = nil
+				if socketErr != nil {
+					return errors.Join(socketErr, closeErr)
+				}
+				if logical != nil || closeErr != nil {
+					err = errors.Join(logical, closeErr)
+					outputFailed = true
+					return nil
+				}
+			}
+			if e := op.Context().Err(); e != nil {
+				err = e
+				outputFailed = true
+				return nil
+			}
+			if e := stream.complete(); e != nil {
+				return e
+			}
+			return c.wire.send('C', appendString(buffer[:0], result.CommandTag))
+		}
+		if batch {
+			var callbackErr error
+			hookErr := scope.ProtocolOutput(func() error { callbackErr = output(); return callbackErr })
+			if result.Rows != nil {
+				err = errors.Join(err, result.Rows.Close())
+				result.Rows = nil
+			}
+			if callbackErr != nil {
+				return callbackErr
+			}
+			if hookErr != nil {
+				err = errors.Join(err, hookErr)
+			}
+		} else {
+			if e := output(); e != nil {
+				return e
+			}
+			if outputFailed {
+				err = c.rejectCommand(err)
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	if batch {
+		err = scope.FinishMessage(err)
+		finished = true
+	} else if !finished {
 		err = scope.Finish(err)
 		finished = true
-		err = op.CommandError(err)
-		if err != nil {
-			if result.Rows != nil {
-				result.Rows.Close()
-			}
-			out.err = err
-			return
-		}
-		out.statements = append(out.statements, completedStatement{
-			result:   result,
-			notices:  op.DetachNotices(),
-			settings: c.settingsSnapshot(),
-		})
 	}
-	return
+	err = op.CommandError(err)
+	c.protocolState = protocolNormal
+	for _, notice := range op.DetachNotices() {
+		if e := c.wire.notice(notice); e != nil {
+			return e
+		}
+	}
+	if c.ctx.Err() != nil {
+		return nil
+	}
+	if err != nil {
+		if e := c.writeSQLError(ctx, source, err); e != nil {
+			return e
+		}
+	} else if len(statements) == 0 {
+		if e := c.wire.send('I', nil); e != nil {
+			return e
+		}
+	}
+	return c.readyBoundary()
 }

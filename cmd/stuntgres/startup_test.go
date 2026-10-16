@@ -22,11 +22,24 @@ func TestServerStartupParameters(t *testing.T) {
 			t.Fatalf("unsupported options: %#v", unsupported)
 		}
 	})
+	t.Run("RepeatedPairsLastWins", func(t *testing.T) {
+		body := []byte("user\x00Alice\x00user\x00Bob\x00datestyle\x00ISO\x00DateStyle\x00SQL\x00_pq_.one\x00x\x00_pq_.one\x00y\x00\x00")
+		pairs, unsupported, err := parseStartupParameters(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]string{"user": "Bob", "DateStyle": "SQL", "_pq_.one": "y"}
+		if !reflect.DeepEqual(pairs, want) {
+			t.Fatalf("pairs: %#v want %#v", pairs, want)
+		}
+		if !reflect.DeepEqual(unsupported, []string{"_pq_.one", "_pq_.one"}) {
+			t.Fatalf("protocol option order: %#v", unsupported)
+		}
+	})
 	t.Run("MalformedPairs", func(t *testing.T) {
 		for _, body := range []string{
 			"", "user", "user\x00", "user\x00Alice", "user\x00Alice\x00",
-			"user\x00Alice\x00\x00extra", "user\x00Alice\x00user\x00Bob\x00\x00",
-			"datestyle\x00ISO\x00DateStyle\x00SQL\x00\x00", "user\x00\xff\x00\x00",
+			"user\x00Alice\x00\x00extra", "user\x00\xff\x00\x00",
 		} {
 			_, _, err := parseStartupParameters([]byte(body))
 			var diagnostic *sqlstate.Error

@@ -46,7 +46,7 @@ func (op *Operation) CommandError(err error) error {
 	if errors.As(err, &source) {
 		return source.error
 	}
-	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(op.ctx), statementTimeoutCause) {
+	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(op.Context()), statementTimeoutCause) {
 		return sqlError("57014", "canceling statement due to statement timeout")
 	}
 	return op.fatalError(err)

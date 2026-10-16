@@ -246,6 +246,10 @@ make check RUN='^TestReferenceSettings(ShowAllPlaceholdersAndLifecycle|ShowAllCu
 make check RUN='^TestReferenceTimezoneBuiltinRegistryDescriptions$'
 make check RUN='^TestReferenceFormatEncodingSettings$'
 ```
+Settings registry coverage is owned by
+[session_state](../session_state/README.md#testing); the selectors above remain
+valid across package relocation.
+
 
 Supplemental private ownership units are selected by
 `make check RUN='^TestStringVariadic(ArrayBorrowing|RetainedGeneration|BoundedCancellationAndSizes)$'`.

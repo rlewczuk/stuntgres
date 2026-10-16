@@ -192,7 +192,7 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 	case Void:
 		n = 0
 	default:
-		return v, 0, fmt.Errorf("missing binary input provider for %s", d.name)
+		return v, 0, d.missingBinaryProvider(false)
 	}
 	return
 }
@@ -286,5 +286,77 @@ func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte
 	case Void:
 		return dst, nil
 	}
-	return dst, fmt.Errorf("missing binary output provider for %s", d.name)
+	return dst, d.missingBinaryProvider(true)
+}
+
+// CheckBinaryInputDeclaration initializes only the declared receive function.
+// Every domain has the generic domain receiver; its base provider is resolved
+// when that receiver is actually invoked, including invocation on SQL NULL.
+func (d *Descriptor) CheckBinaryInputDeclaration() error {
+	if d == nil {
+		return fmt.Errorf("invalid binary input type")
+	}
+	if d.IsDomain() {
+		return nil
+	}
+	return d.unavailableBinaryProvider(false)
+}
+
+// CheckBinaryInput prepares receiver invocation, including domain base lookup,
+// without converting a fabricated datum. NULL input must do this before domain
+// checks, but must not execute nonnull record/node-tree or member conversion.
+func (d *Descriptor) CheckBinaryInput() error {
+	return d.checkBinaryProvider(false)
+}
+
+// CheckBinaryOutput initializes the declared send provider for result metadata
+// already admitted by the planner. It does not admit values or grant codecs to
+// lookup-only descriptors. Generic containers defer member providers to demand.
+func (d *Descriptor) CheckBinaryOutput() error {
+	return d.checkBinaryProvider(true)
+}
+
+func (d *Descriptor) checkBinaryProvider(output bool) error {
+	if d == nil {
+		direction := "input"
+		if output {
+			direction = "output"
+		}
+		return fmt.Errorf("invalid binary %s type", direction)
+	}
+	if d.IsDomain() {
+		return d.Usage().BaseUsage().Type.checkBinaryProvider(output)
+	}
+	return d.unavailableBinaryProvider(output)
+}
+
+func (d *Descriptor) unavailableBinaryProvider(output bool) error {
+	direction := "input"
+	if output {
+		direction = "output"
+	}
+	// The same actual codec boundary serves metadata initialization and the
+	// binary receive/send dispatchers, not a second supported-type inventory.
+	if d.id == ACLItem || d.IsQueryInt() {
+		return failure("42883", fmt.Sprintf("no binary %s function available for type %s", direction, d.name))
+	}
+	if d.id == Tid {
+		return d.unsupportedBinaryProvider(output)
+	}
+	return nil
+}
+
+func (d *Descriptor) unsupportedBinaryProvider(output bool) error {
+	direction := "input"
+	if output {
+		direction = "output"
+	}
+	return failure("0A000", fmt.Sprintf("binary %s is not supported for type %s", direction, d.name))
+}
+
+func (d *Descriptor) missingBinaryProvider(output bool) error {
+	if err := d.unavailableBinaryProvider(output); err != nil {
+		return err
+	}
+	return d.unsupportedBinaryProvider(output)
 }

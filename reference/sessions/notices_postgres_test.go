@@ -55,7 +55,7 @@ func TestReferenceNoticesSeverity(t *testing.T) {
 			if deliver {
 				want = []fixture.Diagnostic{witness}
 			}
-			got := referenceNoticeWitnesses(t, true, notices, witness)
+			got := fixture.NoticeWitnesses(t, true, notices, witness)
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("%s %s: %#v want %#v", threshold, level.name, got, want)
 			}

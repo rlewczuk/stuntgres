@@ -87,7 +87,7 @@ func TestReferenceSQLPreparedPhysicalLifetime(t *testing.T) {
 		sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE p AS SELECT 11", 0))
 		b.DB.SetMaxOpenConns(2)
 		b.DB.SetMaxIdleConns(1)
-		identity := settingsPhysical(t, c)
+		identity := fixture.SettingsPhysical(t, c)
 		if err := c.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -95,7 +95,7 @@ func TestReferenceSQLPreparedPhysicalLifetime(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if settingsPhysical(t, reused) != identity {
+		if fixture.SettingsPhysical(t, reused) != identity {
 			t.Fatal("borrower return replaced physical session")
 		}
 		sqlPreparedStep(t, p, b, reused, sqlPreparedScalar("EXECUTE p", "?column?", "INT4", int64(11)))
@@ -108,7 +108,7 @@ func TestReferenceSQLPreparedPhysicalLifetime(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer fresh.Close()
-		if settingsPhysical(t, fresh) == identity {
+		if fixture.SettingsPhysical(t, fresh) == identity {
 			t.Fatal("invalid physical session reused")
 		}
 		sqlPreparedStep(t, p, b, fresh, fixture.ErrorDiagnostic("EXECUTE p", sqlPreparedMissing("p")))

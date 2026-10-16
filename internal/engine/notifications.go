@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"stuntgres/internal/parser"
@@ -105,15 +106,42 @@ func (s *Session) WaitForNotification(op *Operation) (Notification, error) {
 	if op == nil || op.self != op || op.session != s {
 		return Notification{}, errors.New("stuntgres: foreign notification operation")
 	}
+	for {
+		event, available, wake, err := s.pollNotification(op.Context().Err)
+		if err != nil || available {
+			return event, err
+		}
+		select {
+		case <-op.Context().Done():
+		case <-wake:
+		}
+	}
+}
+
+// PollProtocolNotification observes the queue and registers its wake atomically.
+// It owns no operation/activity lease: idle timeout and retirement stay live.
+// The serialized wire dispatcher supplies its separate TxIdle delivery gate.
+func (s *Session) PollProtocolNotification() (Notification, bool, <-chan struct{}, error) {
+	return s.pollNotification(func() error { return s.Check(context.Background()) })
+}
+
+func (s *Session) pollNotification(check func() error) (Notification, bool, <-chan struct{}, error) {
 	e, n := s.Engine(), &s.notifications
 	for {
-		if err := op.Context().Err(); err != nil {
-			return Notification{}, err
+		if check != nil {
+			if err := check(); err != nil {
+				return Notification{}, false, nil, err
+			}
 		}
 		e.mu.Lock()
 		if n.ended {
 			e.mu.Unlock()
-			return Notification{}, errors.New("stuntgres: notification session ended")
+			if check != nil {
+				if err := check(); err != nil {
+					return Notification{}, false, nil, err
+				}
+			}
+			return Notification{}, false, nil, errors.New("stuntgres: notification session ended")
 		}
 		original := n.state
 		var queue notificationFIFO
@@ -136,13 +164,15 @@ func (s *Session) WaitForNotification(op *Operation) (Notification, error) {
 				e.mu.Unlock()
 				continue
 			}
-			if err := op.Context().Err(); err != nil {
-				e.mu.Unlock()
-				return Notification{}, err
+			if check != nil {
+				if err := check(); err != nil {
+					e.mu.Unlock()
+					return Notification{}, false, nil, err
+				}
 			}
 			n.state = &next
 			e.mu.Unlock()
-			return event, nil
+			return event, true, nil, nil
 		}
 		wake := n.wake
 		if wake == nil {
@@ -159,10 +189,7 @@ func (s *Session) WaitForNotification(op *Operation) (Notification, error) {
 			wake = n.wake
 		}
 		e.mu.Unlock()
-		select {
-		case <-op.Context().Done():
-		case <-wake:
-		}
+		return Notification{}, false, wake, nil
 	}
 }
 
@@ -213,7 +240,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 // effects but must still release committed peer events. CHAIN and intermediate
 // COMMIT segments deliberately leave busy true and do not scan.
 func (t *transactionOwner) finishNotificationBoundary() {
-	if t.state != TxIdle || t.retainedMessage {
+	if t.state != TxIdle || t.retainsTransaction() {
 		return
 	}
 	e, n := t.session.Engine(), &t.session.notifications

@@ -87,7 +87,7 @@ func TestServerLogging(t *testing.T) {
 		}
 		query := "bad statement;\n-- full source ☃"
 		for _, code := range []string{"42601", "0A000", "23505"} {
-			if err := logs.sqlError(ctx, query, &sqlstate.Error{Code: code, Message: "primary"}, "connection_id", 7); err != nil {
+			if err := logs.sqlError(ctx, query, &sqlstate.Error{Code: code, Message: "primary"}, nil, "connection_id", 7); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -152,7 +152,7 @@ func TestServerLogging(t *testing.T) {
 		if err := logs.operational(context.Background(), slog.LevelDebug, "debug"); err != nil {
 			t.Fatal(err)
 		}
-		if err := logs.sqlError(context.Background(), "source", errors.New("unexpected")); err != nil {
+		if err := logs.sqlError(context.Background(), "source", errors.New("unexpected"), nil); err != nil {
 			t.Fatal(err)
 		}
 		if err := logs.Close(); err != nil {
@@ -187,7 +187,7 @@ func TestServerLogging(t *testing.T) {
 			t.Fatalf("lost write errors or mirror: %v %q", err, mirror.String())
 		}
 		logs.sql = logHandler(loggingFailedWriter{second}, false)
-		if err := logs.sqlError(context.Background(), "source", errors.New("sql")); !errors.Is(err, second) {
+		if err := logs.sqlError(context.Background(), "source", errors.New("sql"), nil); !errors.Is(err, second) {
 			t.Fatalf("SQL sink failure lost: %v", err)
 		}
 		if _, err := (logMirrors{loggingShortWriter{}}).Write([]byte("record")); !errors.Is(err, io.ErrShortWrite) {
@@ -216,7 +216,7 @@ func TestServerLogging(t *testing.T) {
 				if err := logs.operational(context.Background(), slog.LevelInfo, "connection", "connection_id", id); err != nil {
 					t.Error(err)
 				}
-				if err := logs.sqlError(context.Background(), "source", errors.New("error"), "connection_id", id); err != nil {
+				if err := logs.sqlError(context.Background(), "source", errors.New("error"), nil, "connection_id", id); err != nil {
 					t.Error(err)
 				}
 			}(i)

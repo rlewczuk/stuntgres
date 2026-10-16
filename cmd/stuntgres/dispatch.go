@@ -1,23 +1,21 @@
 package main
 
 import (
-	"encoding/binary"
 	"errors"
 	"log/slog"
 	"net"
-
 	"stuntgres/internal/engine"
-	"stuntgres/internal/sqlstate"
 )
 
-const extendedUnsupported = "extended query protocol is not supported by stuntgres Phase 1"
+type protocolState uint8
 
-func protocolError(message string) error {
-	return &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "08P01", Message: message}
-}
-func unsupported(message string) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: message}
-}
+const (
+	protocolNormal protocolState = iota
+	protocolExtended
+	protocolCopyIn
+	protocolCopyOut
+	protocolRecovery
+)
 
 func (s *server) serve() error {
 	for {
@@ -56,177 +54,160 @@ func (c *client) run() {
 		reason = engine.CleanClose
 		return
 	}
-	c.stopPeerWatch, err = watchPeerShutdown(c.socket, func() {
-		c.cancel()
-		_ = c.socket.Close()
-	}, func(watchErr error) {
-		c.server.log(slog.LevelError, "peer shutdown monitor failed", "connection_id", c.id, "error", watchErr.Error())
+	c.cycle = c.session.NewProtocolCycle()
+	c.stopPeerWatch, err = watchPeerShutdown(c.socket, func() { c.cancel(); _ = c.socket.Close() }, func(e error) {
+		c.server.log(slog.LevelError, "peer shutdown monitor failed", "connection_id", c.id, "error", e.Error())
 	})
 	if err != nil {
 		if !errors.Is(err, errPeerWatchUnsupported) {
 			c.fatal(err)
 			return
 		}
-		// Ordinary portable networking still has its real EOF reader; do not
-		// advertise a passive queued-data close watcher on unsupported systems.
 		c.server.log(slog.LevelWarn, "passive peer shutdown monitor unavailable", "error", err.Error())
 	}
-	draining := false
-	messages, sessionEnded := c.startReader(), c.watchSessionEnd()
-readMessages:
+	c.messages, c.sessionEnded = c.startReader(), c.watchSessionEnd()
 	for {
-		var message frontendMessage
-		select {
-		case terminalErr := <-sessionEnded:
-			reason = engine.Terminated
-			_ = c.writeSQLError(c.ctx, "", terminalErr)
-			return
-		case current, open := <-messages:
-			if !open {
-				break readMessages
+		wake, err := c.drainNotifications()
+		if err != nil {
+			if !c.fatalSent {
+				_ = c.writeSQLError(c.ctx, "", err)
 			}
-			message = current
+			return
 		}
-		if c.ctx.Err() != nil {
-			c.releaseMessage(message)
-			continue
-		}
-		if message.tag == 'X' {
-			if len(message.body) != 0 {
-				c.fatal(protocolError("invalid Terminate message"))
+		var m frontendMessage
+		select {
+		case terminal := <-c.sessionEnded:
+			reason = engine.Terminated
+			if !c.fatalSent {
+				_ = c.writeSQLError(c.ctx, "", terminal)
+			}
+			return
+		case <-wake:
+			if err = c.wire.flush(); err != nil {
 				return
 			}
+			continue
+		case current, open := <-c.messages:
+			if !open {
+				if c.readFailure != nil {
+					c.fatal(c.readFailure)
+				}
+				return
+			}
+			m = current
+		}
+		if c.ctx.Err() != nil {
+			c.releaseMessage(m)
+			continue
+		}
+		if m.tag == 'X' {
+			c.releaseMessage(m)
 			reason = engine.CleanClose
 			return
 		}
-		if draining {
-			switch message.tag {
-			case 'S':
-				if len(message.body) != 0 {
-					c.fatal(protocolError("invalid Sync message"))
-					return
-				}
-				draining = false
-				err = c.sendSettings(c.settingsSnapshot())
-				if err == nil {
-					err = c.sendReady()
-				}
-				if err == nil {
-					err = c.wire.flush()
-				}
-			case 'H':
-				if len(message.body) != 0 {
-					c.fatal(protocolError("invalid Flush message"))
-					return
-				}
-				err = c.wire.flush()
-			default:
-				// Extended-query recovery discards all ordinary frontend work through Sync.
-				if !knownFrontendTag(message.tag) {
-					c.fatal(protocolError("unknown frontend message"))
-					return
-				}
-			}
-			c.releaseMessage(message)
-			if err != nil {
-				return
-			}
+		if c.protocolState == protocolRecovery && m.tag != 'S' {
+			c.releaseMessage(m)
 			continue
 		}
-		switch message.tag {
+		ctx, done := c.beginCommand()
+		switch m.tag {
 		case 'Q':
-			body := message.body
-			var source string
-			source, err = consumeString(&body)
-			if err != nil || len(body) != 0 {
-				c.fatal(protocolError("invalid Query message"))
-				return
+			input := protocolInput{body: m.body}
+			source, e := input.String()
+			if e == nil {
+				e = input.End()
 			}
-			ctx, done := c.beginCommand()
-			out := c.executeQuery(ctx, source)
-			err = c.writeQuery(ctx, source, out)
-			done()
+			c.releaseMessage(m)
+			if e != nil {
+				e = c.rejectCommand(e)
+				err = c.writeSQLError(ctx, source, e)
+				if err == nil {
+					err = c.readyBoundary()
+				}
+			} else {
+				err = c.executeSimple(ctx, source)
+			}
 		case 'P', 'B', 'D', 'E', 'C':
-			source, valid := validateExtended(message)
-			if !valid {
-				c.fatal(protocolError("invalid extended query message"))
-				return
-			}
-			err = c.rejectCommand(unsupported(extendedUnsupported))
-			err = c.writeSQLError(c.ctx, source, err)
-			if err == nil {
-				err = c.wire.flush()
-			}
-			draining = true
+			c.protocolState = protocolExtended
+			err = c.extendedCommand(ctx, m)
 		case 'S':
-			if len(message.body) != 0 {
-				c.fatal(protocolError("invalid Sync message"))
-				return
+			c.protocolState = protocolNormal
+			input := protocolInput{body: m.body}
+			e := input.End()
+			op, _, admitErr := c.session.AcquireCommand(ctx)
+			if admitErr != nil {
+				e = admitErr
+			} else {
+				if e != nil {
+					scope, se := c.session.Engine().StartProtocolCommand(op, c.cycle)
+					if se == nil {
+						e = scope.Finish(e)
+					} else {
+						e = se
+					}
+				}
+				syncErr := c.session.Engine().SyncProtocolCycle(op, c.cycle)
+				e = op.CommandError(errors.Join(e, syncErr))
+				op.Done()
 			}
-			err = c.sendSettings(c.settingsSnapshot())
-			if err == nil {
-				err = c.sendReady()
+			c.releaseMessage(m)
+			if e != nil {
+				err = c.writeSQLError(ctx, "", e)
 			}
 			if err == nil {
-				err = c.wire.flush()
+				err = c.readyBoundary()
 			}
 		case 'H':
-			if len(message.body) != 0 {
-				c.fatal(protocolError("invalid Flush message"))
-				return
-			}
-			err = c.wire.flush()
-		case 'F':
-			if !validateFunctionCall(message.body) {
-				c.fatal(protocolError("invalid FunctionCall message"))
-				return
-			}
-			err = c.rejectCommand(unsupported("function-call protocol is not supported by stuntgres Phase 1"))
-			err = c.writeSQLError(c.ctx, "", err)
-			if err == nil {
-				err = c.sendSettings(c.settingsSnapshot())
-			}
-			if err == nil {
-				err = c.sendReady()
+			input := protocolInput{body: m.body}
+			e := input.End()
+			c.releaseMessage(m)
+			if e != nil {
+				e = c.rejectProtocolCommand(ctx, e)
+				err = c.writeSQLError(ctx, "", e)
+				c.protocolState = protocolRecovery
 			}
 			if err == nil {
 				err = c.wire.flush()
 			}
+		case 'F':
+			err = c.functionCommand(ctx, &protocolInput{body: m.body})
+			c.releaseMessage(m)
 		case 'd', 'c', 'f':
-			c.fatal(protocolError("COPY stream message outside COPY mode"))
-			return
+			c.releaseMessage(m)
 		default:
-			c.fatal(protocolError("unknown frontend message"))
+			c.releaseMessage(m)
+			c.fatal(framingError("08P01", "invalid frontend message type"))
+			done()
 			return
 		}
-		c.releaseMessage(message)
+		done()
 		if err != nil {
 			if diagnostic(err).Severity == "FATAL" {
+				reason = engine.Terminated
 				if !c.fatalSent {
 					_ = c.writeSQLError(c.ctx, "", err)
 				}
-				reason = engine.Terminated
 			}
 			return
 		}
 	}
-	if c.readFailure != nil {
-		c.fatal(c.readFailure)
+}
+func (c *client) fatal(err error) {
+	if !c.fatalSent {
+		_ = c.wire.errorResponse(err, true)
+		_ = c.wire.flush()
+		c.fatalSent = true
 	}
 }
-func (c *client) fatal(err error) { _ = c.wire.errorResponse(err, true); _ = c.wire.flush() }
-
-// Wire capability errors still use the engine's failed-command authority. In
-// particular, an explicit transaction becomes aborted without synthetic SQL.
 func (c *client) rejectCommand(err error) error {
-	op, _, admissionErr := c.session.AcquireCommand(c.ctx)
-	if admissionErr != nil {
-		return admissionErr
+	op, _, e := c.session.AcquireCommand(c.ctx)
+	if e != nil {
+		return e
 	}
 	defer op.Done()
-	scope, admissionErr := c.session.Engine().StartStatement(op)
-	if admissionErr != nil {
-		return op.CommandError(admissionErr)
+	scope, e := c.session.Engine().StartStatement(op)
+	if e != nil {
+		return op.CommandError(e)
 	}
 	return op.CommandError(scope.Finish(err))
 }
@@ -237,106 +218,41 @@ func knownFrontendTag(tag byte) bool {
 	}
 	return false
 }
-
-func take16(body *[]byte) (uint16, bool) {
-	if len(*body) < 2 {
-		return 0, false
+func (c *client) readyBoundary() error {
+	if c.ctx.Err() != nil {
+		return nil
 	}
-	v := binary.BigEndian.Uint16(*body)
-	*body = (*body)[2:]
-	return v, true
+	if err := c.sendSettings(c.settingsSnapshot()); err != nil {
+		return err
+	}
+	if _, err := c.drainNotifications(); err != nil {
+		return err
+	}
+	if err := c.sendReady(); err != nil {
+		return err
+	}
+	return c.wire.flush()
 }
-func take32(body *[]byte) (uint32, bool) {
-	if len(*body) < 4 {
-		return 0, false
+func (c *client) drainNotifications() (<-chan struct{}, error) {
+	if c.ctx.Err() != nil || c.session.TransactionState() != engine.TxIdle {
+		return nil, nil
 	}
-	v := binary.BigEndian.Uint32(*body)
-	*body = (*body)[4:]
-	return v, true
-}
-func takeFormats(body *[]byte) bool {
-	n, ok := take16(body)
-	if !ok || int(n) > len(*body)/2 {
-		return false
-	}
-	for range n {
-		v, _ := take16(body)
-		if v > 1 {
-			return false
-		}
-	}
-	return true
-}
-func takeParameters(body *[]byte) bool {
-	n, ok := take16(body)
-	if !ok {
-		return false
-	}
-	for range n {
-		size, ok := take32(body)
-		if !ok {
-			return false
-		}
-		if size == mathNullLength {
-			continue
-		}
-		if size > uint32(len(*body)) {
-			return false
-		}
-		*body = (*body)[int(size):]
-	}
-	return true
-}
-
-const mathNullLength = ^uint32(0)
-
-func validateExtended(message frontendMessage) (source string, valid bool) {
-	body := message.body
-	switch message.tag {
-	case 'P':
-		if _, err := consumeString(&body); err != nil {
-			return "", false
-		}
-		var err error
-		source, err = consumeString(&body)
+	for {
+		event, available, wake, err := c.session.PollProtocolNotification()
 		if err != nil {
-			return "", false
+			return nil, err
 		}
-		n, ok := take16(&body)
-		if !ok || len(body) != int(n)*4 {
-			return "", false
+		if !available {
+			return wake, nil
 		}
-		return source, true
-	case 'B':
-		for range 2 {
-			if _, err := consumeString(&body); err != nil {
-				return "", false
-			}
+		body := appendInt32(nil, uint32(event.PID))
+		body = appendString(body, event.Channel)
+		body = appendString(body, event.Payload)
+		if err := c.wire.send('A', body); err != nil {
+			return nil, err
 		}
-		return "", takeFormats(&body) && takeParameters(&body) && takeFormats(&body) && len(body) == 0
-	case 'D', 'C':
-		if len(body) == 0 || (body[0] != 'S' && body[0] != 'P') {
-			return "", false
+		if err := c.wire.flush(); err != nil {
+			return nil, err
 		}
-		body = body[1:]
-		_, err := consumeString(&body)
-		return "", err == nil && len(body) == 0
-	case 'E':
-		if _, err := consumeString(&body); err != nil {
-			return "", false
-		}
-		count, ok := take32(&body)
-		return "", ok && count <= 0x7fffffff && len(body) == 0
 	}
-	return "", false
-}
-func validateFunctionCall(body []byte) bool {
-	if _, ok := take32(&body); !ok {
-		return false
-	}
-	if !takeFormats(&body) || !takeParameters(&body) {
-		return false
-	}
-	format, ok := take16(&body)
-	return ok && format <= 1 && len(body) == 0
 }

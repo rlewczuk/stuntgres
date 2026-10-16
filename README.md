@@ -7,9 +7,10 @@ uses only the Go standard library. Requires **Go 1.26 or later**.
 
 It implements a deliberately bounded SQL subset, not a complete PostgreSQL server.
 The embedded driver remains process-local. The optional `cmd/stuntgres` executable
-exposes the same engine through PostgreSQL simple-query protocol, with password
-authentication and isolated in-memory databases. Native SQL dumps provide explicit
-save/restore, not WAL or crash durability. Use real PostgreSQL for features outside
+exposes the same engine through PostgreSQL simple and extended queries, prepared
+statements, portals and streaming COPY, with password authentication and isolated
+in-memory databases. Native SQL dumps provide explicit save/restore, not WAL or
+crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
@@ -66,8 +67,9 @@ transactional, same-engine local notifications. Receive on a pinned native
 `*sql.Conn` with `stuntgres.WaitForNotification(ctx, connection)`: committed events
 carry the full logical sender PID, channel and payload. Rollback drops outgoing
 events; subscription changes apply at commit and physical retirement clears the
-recipient. Notices are not repurposed. The server transport still rejects these
-commands explicitly; no wire notifications are added.
+recipient. Notices are not repurposed. Network sessions receive committed
+notifications through the same queue, including delivery while idle without an
+extra query; wire delivery waits until the listener is outside a transaction.
 See the [native boundary](docs/DIALECT.md#session-notifications),
 [receiver lifetime](docs/DRIVER.md#local-session-notifications), and
 [selected proof and standalone smoke](reference/sessions/README.md#session-messages).
@@ -180,8 +182,8 @@ DEFAULT restrictions. Other upstream uuid-ossp generators/constants are not inst
 Its installed identity also participates in current-invoker EXECUTE grants:
 held calls, views and demanded DEFAULT writes deny after revocation, without
 borrowing a table/view owner's function authority or publishing partial writes.
-Canonical text remains distinct from the existing 16-byte binary COPY encoding;
-this does not add binary UUID binds. See the
+Canonical text remains distinct from the16-byte binary COPY/wire UUID encoding;
+the extension adds no separate embedded binary-bind API. See the
 [contract and feature smoke](reference/catalogs/README.md#installed-uuid-ossp-version-4).
 
 ## Language catalog — change note
@@ -954,6 +956,7 @@ Healthy pool reuse preserves it. See [driver cursor contracts](docs/DRIVER.md#sq
 and [native limits](docs/DIALECT.md#sql-cursor-metadata).
 Feature smoke: `make check RUN='^TestReferencePGCursorsFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGCursorsFeatureSmoke$'`.
+See [cursor selected proof and smoke](reference/cursors/README.md#testing).
 
 ## Integer target series — change note
 
@@ -1057,7 +1060,7 @@ lateral derived queries remain outside this cutover. See
 [selected proof and feature smoke](reference/numeric/README.md#from-srf-selected-proof).
 
 
-## Phase 1 server — change note
+## Phase 2 server — change note
 
 Build and create an account with explicit database grants:
 
@@ -1115,11 +1118,36 @@ pg_dump archive import or complete PostgreSQL backup compatibility.
 
 Operational `server.log` and SQL `error.log` are JSONL, mirrored to stdout.
 Without `-L`, both streams go only to stdout. SQL records include exact query,
-SQLSTATE, primary message, empty Phase1 parameter list, and `SYNTAX`,
-`UNSUPPORTED` or `SQL` classification. Required log failures are visible errors.
+SQLSTATE, primary message and `SYNTAX`, `UNSUPPORTED` or `SQL` classification.
+Prepared errors retain the original source and associated Bind parameters:
+ordinal, resolved OID/type where available, text/binary format, NULL and canonical
+text or explicitly base64-encoded undecoded bytes. Simple-query records retain
+`params:[]`. Authentication passwords and cancellation keys are not parameters.
+Operational and SQL events retain separate file sinks; required log failures
+are visible errors.
 
-Protocol3.0 supports whole-input simple-query batches, typed text rows, command
-tags, notices, settings status, transactions, cancellation and session cleanup.
+The server accepts PostgreSQL protocol3.0,3.1 and3.2; newer3.x minors negotiate
+3.2. Protocol3.0/3.1 cancellation keys are4 bytes and3.2 keys are32 opaque bytes.
+Simple batches and extended Parse/Bind/Describe/Execute/Close/Flush/Sync share
+engine transaction and prepared-statement authority. Text and binary parameters
+and results use existing type codecs, including NULL/empty and zero-row metadata.
+Result RowDescription exposes domain base OIDs and typmods; parameter descriptions
+retain the actual formal domain identity.
+Finite Execute suspends and resumes a portal without replaying its effects;
+Sync ends implicit extended work but preserves explicit transactions.
+Wire prepared names interoperate with SQL PREPARE/EXECUTE/DEALLOCATE. Portals
+have their own execution position and lifetime, not SQL cursor motion semantics.
+COPY FROM STDIN and table/query COPY TO STDOUT stream text, CSV and binary through
+the real engine, including actual lib/pq CopyIn and psql clients. Failed input
+does not publish a valid prefix. SQL EXECUTE of a wire-prepared COPY retains the
+same streaming exchange, including extended EXECUTE wrappers. Query output can
+retain a real data prefix before an error, but never reports successful completion
+for failed work. FunctionCall dispatches genuinely executable
+routine OIDs with normal permissions and shared codecs; lookup-only routines,
+including absent large-object storage, do not become callable.
+LISTEN/NOTIFY delivers channel, payload and notifier PID while the listener is
+idle, with commit/rollback, ordering and listener-transaction delay preserved.
+Notices, settings, errors, rows and notifications use one serialized writer.
 Engine-owned transaction/idle-session timeouts deliver FATAL and close the socket,
 without a ReadyForQuery, including expiry while no frontend query is arriving.
 Passive peer-shutdown monitoring keeps disconnect cleanup live even when the
@@ -1128,13 +1156,17 @@ FD_CLOSE plus TCP_INFO (Windows10 1703/Server2016 or a compatible provider).
 Other platforms/providers log an explicit warning and retain ordinary EOF-based
 networking without claiming that passive queued-data monitor. Linux runtime paths
 are exercised; non-Linux runtime/ACL proof requires those platform runners.
-Wire parameters/prepared statements/portals, FunctionCall, COPY streams and TLS
-are explicit capability errors, not fake successes. Engine-supported SQL
-`PREPARE`/`EXECUTE` and ordinary SQL cursors remain distinct supported SQL features.
-`server_version=18.0` is negotiation metadata, not a full PostgreSQL18 claim.
+TLS, GSS encryption and additional authentication methods remain unavailable;
+SSL/GSS negotiation is refused explicitly. Only cleartext password authentication
+is implemented. Wire transport does not add absent SQL/type/routine providers,
+server-file/PROGRAM I/O, WAL, replication or physical durability.
+`server_version=18.0` is negotiation metadata, not a full PostgreSQL18 claim or
+a promise that every client, catalog or extension feature is supported.
 Dual-mode `TestReferenceServer*` definitions use real subprocesses, actual psql
-and sqlmw-wrapped pq alongside pinned PostgreSQL18.0; see
-[server verification](reference/sessions/README.md#phase-1-server-selected-proof).
+and lib/pq alongside pinned PostgreSQL18.0. The standalone smoke separately
+exercises parameterized/held statements, COPY formats, idle notification,
+cancellation/recovery, JSONL records and dump/stop; see
+[server verification](reference/sessions/README.md#phase-2-server-selected-proof).
 
 Change note: the selected §9.19 array functions `array_position`,
 `array_positions`, `array_remove`, `array_replace` and membership operators
@@ -2960,7 +2992,7 @@ Graph CHECK/NOT NULL ALTER remains an explicit boundary; admitted local
 UNIQUE/PRIMARY KEY/EXCLUDE graph definitions retain their existing allowance.
 Domain DEFAULT/NOT NULL/ALTER, FK/constraint triggers and PostgreSQL physical storage,
 WAL and external pg_dump mechanisms are not implemented; network access uses the
-bounded [Phase 1 server](#phase-1-server--change-note).
+bounded [Phase 2 server](#phase-2-server--change-note).
 Selected proof: `make check RUN='^TestReferenceConstraintRename'`;
 repeat with `REFERENCE=1` for the pinned oracle.
 See [the rename design](docs/design/PG18-DDL-ALTER-CONSTRAINT-RENAME.md).

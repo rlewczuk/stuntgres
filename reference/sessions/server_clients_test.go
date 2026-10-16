@@ -3,7 +3,9 @@
 package reference_test
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"net/url"
 	"strings"
 	"testing"
@@ -54,40 +56,40 @@ func TestReferenceServerClients(t *testing.T) {
 			}
 			fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"})
 			err = c.QueryRowContext(f.Ctx, "SELECT $1::int4 + 1", 41).Scan(&value)
-			if b.PG {
-				if err != nil || value != 42 {
-					t.Fatalf("PostgreSQL bound parameter value=%d: %v", value, err)
-				}
-			} else {
-				if err == nil {
-					t.Fatal("native wire parameter unexpectedly executed")
-				}
-				if got := fixture.ExtractDiagnostic(t, err); got.Code != "0A000" || got.Message != "extended query protocol is not supported by stuntgres Phase 1" {
-					t.Fatalf("native bound boundary %+v", got)
-				}
+			if err != nil || value != 42 {
+				t.Fatalf("bound parameter value=%d: %v", value, err)
 			}
 			if err := c.QueryRowContext(f.Ctx, "SELECT 42").Scan(&value); err != nil || value != 42 {
 				t.Fatalf("same connection after parameters value=%d: %v", value, err)
 			}
 			prepared, err := c.PrepareContext(f.Ctx, "SELECT 40 + 2")
-			if b.PG {
-				if err != nil {
-					t.Fatal(err)
-				}
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
 				if err := prepared.QueryRowContext(f.Ctx).Scan(&value); err != nil || value != 42 {
-					t.Fatalf("PostgreSQL Go Prepare value=%d: %v", value, err)
+					t.Fatalf("held Prepare value=%d: %v", value, err)
 				}
-				if err := prepared.Close(); err != nil {
-					t.Fatal(err)
-				}
-			} else {
-				if err == nil {
-					prepared.Close()
-					t.Fatal("native wire Prepare unexpectedly accepted")
-				}
-				if got := fixture.ExtractDiagnostic(t, err); got.Code != "0A000" || got.Message != "extended query protocol is not supported by stuntgres Phase 1" {
-					t.Fatalf("native Go Prepare boundary %+v", got)
-				}
+			}
+			if err := prepared.Close(); err != nil {
+				t.Fatal(err)
+			}
+			binaryURL, err := url.Parse(f.DSNFor(b))
+			if err != nil {
+				t.Fatal(err)
+			}
+			binaryOptions := binaryURL.Query()
+			binaryOptions.Set("binary_parameters", "yes")
+			binaryURL.RawQuery = binaryOptions.Encode()
+			binaryConnector, err := pq.NewConnector(binaryURL.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			binaryDB := sql.OpenDB(binaryConnector)
+			defer binaryDB.Close()
+			var binaryValue []byte
+			if err := binaryDB.QueryRowContext(f.Ctx, "SELECT $1::bytea", []byte{0, 255}).Scan(&binaryValue); err != nil || !bytes.Equal(binaryValue, []byte{0, 255}) {
+				t.Fatalf("actual pq binary parameter %x: %v", binaryValue, err)
 			}
 			if err := c.QueryRowContext(f.Ctx, "SELECT 42").Scan(&value); err != nil || value != 42 {
 				t.Fatalf("same connection after Prepare value=%d: %v", value, err)

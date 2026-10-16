@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 	"net"
@@ -157,7 +158,9 @@ func TestServerFraming(t *testing.T) {
 				} else {
 					_, err = w.readMessage(nil)
 				}
-				assertFramingState(t, err, tc.code)
+				if !errors.Is(err, errInvalidFrame) {
+					t.Fatalf("framing error = %v", err)
+				}
 			})
 		}
 	})
@@ -166,7 +169,7 @@ func TestServerFraming(t *testing.T) {
 		for _, tc := range []struct {
 			tag byte
 			max int
-		}{{0, maxStartupLength}, {'Q', maxMessageLength}} {
+		}{{0, maxStartupLength}, {'H', maxSmallMessageLength}} {
 			body := bytes.Repeat([]byte{'a'}, tc.max-4)
 			conn := framingInput(framingPacket(tc.tag, uint32(tc.max), body))
 			conn.readLimit = 113
@@ -223,13 +226,17 @@ func TestServerFraming(t *testing.T) {
 			t.Fatalf("empty string = %q, %v, remainder %v", value, err, body)
 		}
 		_, err = consumeString(&body)
-		assertFramingState(t, err, "08P01")
+		if d := diagnostic(err); d.Code != "08P01" || d.Severity == "FATAL" {
+			t.Fatalf("logical string error = %v", err)
+		}
 		if !bytes.Equal(body, []byte{'z'}) {
 			t.Fatal("failed consume changed the input")
 		}
 		body = nil
 		_, err = consumeString(&body)
-		assertFramingState(t, err, "08P01")
+		if d := diagnostic(err); d.Code != "08P01" || d.Severity == "FATAL" {
+			t.Fatalf("logical string error = %v", err)
+		}
 	})
 
 	t.Run("buffered backend frames and integer encoding", func(t *testing.T) {
@@ -252,11 +259,6 @@ func TestServerFraming(t *testing.T) {
 		}
 		if want := framingPacket('Z', uint32(len(body)+4), body); !bytes.Equal(conn.output.Bytes(), want) {
 			t.Fatalf("response = %v, want %v", conn.output.Bytes(), want)
-		}
-		before := conn.output.Len()
-		assertFramingState(t, w.send('D', make([]byte, maxMessageLength-3)), "54000")
-		if err := w.flush(); err != nil || conn.output.Len() != before {
-			t.Fatalf("oversized response emitted bytes: %v", err)
 		}
 	})
 
@@ -318,12 +320,14 @@ func TestServerFraming(t *testing.T) {
 		if err := w.flush(); err != nil {
 			t.Fatal(err)
 		}
-		r := newWire(framingInput(conn.output.Bytes()))
+		encoded := conn.output.Bytes()
 		for i, tag := range []byte{'N', 'E', 'E'} {
-			message, err := r.readMessage(nil)
-			if err != nil || message.tag != tag {
-				t.Fatalf("diagnostic frame = %#v, %v", message, err)
+			if len(encoded) < 5 || encoded[0] != tag {
+				t.Fatalf("diagnostic frame = %v", encoded)
 			}
+			size := int(binary.BigEndian.Uint32(encoded[1:5])) - 4
+			message := frontendMessage{tag: encoded[0], body: encoded[5 : 5+size]}
+			encoded = encoded[5+size:]
 			if i == 2 {
 				want['S'], want['V'] = "FATAL", "FATAL"
 			}

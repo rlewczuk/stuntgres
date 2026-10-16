@@ -27,7 +27,8 @@ type serverFrame struct {
 }
 type serverWire struct {
 	net.Conn
-	pid, key uint32
+	pid      uint32
+	key      []byte
 	protocol uint32
 	statuses map[string]string
 }
@@ -218,7 +219,7 @@ func (w *serverWire) authenticate(t *testing.T, user, password string) []serverF
 				t.Fatal("backend key length")
 			}
 			w.pid = binary.BigEndian.Uint32(f.body)
-			w.key = binary.BigEndian.Uint32(f.body[4:])
+			w.key = bytes.Clone(f.body[4:])
 		case 'E':
 			return frames
 		case 'Z':
@@ -312,7 +313,7 @@ func serverScalar(t *testing.T, w *serverWire, q, want string) {
 		t.Fatalf("%s: values %v want %q", q, v, want)
 	}
 }
-func serverCancel(t *testing.T, dsn string, pid, key uint32) {
+func serverCancel(t *testing.T, dsn string, pid uint32, key []byte) {
 	t.Helper()
 	addr, _, _, _ := serverEndpoint(t, dsn)
 	c, e := net.DialTimeout("tcp", addr, 5*time.Second)
@@ -320,10 +321,10 @@ func serverCancel(t *testing.T, dsn string, pid, key uint32) {
 		t.Fatal(e)
 	}
 	defer c.Close()
-	b := serverPut32(nil, 16)
+	b := serverPut32(nil, uint32(12+len(key)))
 	b = serverPut32(b, 80877102)
 	b = serverPut32(b, pid)
-	b = serverPut32(b, key)
+	b = append(b, key...)
 	if _, e = c.Write(b); e != nil {
 		t.Fatal(e)
 	}

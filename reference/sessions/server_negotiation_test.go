@@ -15,10 +15,7 @@ func TestReferenceServerNegotiation(t *testing.T) {
 			w := serverDial(t, f.DSNFor(b))
 			frames := w.login(t, f.DSNFor(b), 196611)
 			serverWantCode(t, frames, "")
-			want := uint32(196608)
-			if b.PG {
-				want = 196610
-			}
+			want := uint32(196610)
 			if len(frames) == 0 || frames[0].tag != 'v' || len(frames[0].body) != 8 || binary.BigEndian.Uint32(frames[0].body) != want || binary.BigEndian.Uint32(frames[0].body[4:]) != 0 {
 				t.Fatalf("negotiated version must encode major and minor: %s", serverFrameSummary(frames))
 			}

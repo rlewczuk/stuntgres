@@ -91,6 +91,7 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
 	t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
+	t.retireProtocolPortalsAfter(mark.cursors)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
 	t.session.settings.restoreSavepoint(settings, mark.identity)
@@ -211,6 +212,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.savepoints = append(stack, mark)
 		case parser.RollbackSavepoint:
 			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
+			t.retireProtocolPortalsAfter(mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
 			targetIdentity := mark.identity

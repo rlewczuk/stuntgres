@@ -14,8 +14,8 @@ import (
 )
 
 // This cancels a real row stream, not execution waiting for a relation lock.
-// In particular, native execution has already finalized its rowset when the
-// first DataRow is visible: cancellation must still fail the SQL transaction.
+// The first observed DataRow comes from the active protocol SELECT producer;
+// cancellation must still fail the SQL transaction after output has begun.
 func TestReferenceServerOutputCancellation(t *testing.T) {
 	f := fixture.NewServerFixture(t)
 	for _, b := range f.Backends() {

@@ -1138,11 +1138,14 @@ including lookup-only builtins, do not authorize storage or adjacent features.
 
 ## Binary stream providers
 
-Pinned stream helpers use descriptor-owned receive/send independently of ordinary
-`database/sql` representations. Structured receive owns decoded storage, validates
-member OIDs/generation/typmods and grows only after successfully received or NULL
-members, never from an announced cardinality. User wire OIDs do not grant catalog
-identity or constructor authority. Domains use physical base receive with logical
+Pinned native streams and server Bind/results/FunctionCall use the same
+descriptor-owned text and binary codecs, independently of ordinary
+`database/sql` representations. The engine supplies captured settings, catalog,
+role-output readers and domain-check authority; the wire adapter has no separate
+conversion registry. Structured receive owns decoded storage, validates member
+OIDs/generation/typmods and grows only after successfully received or NULL members,
+never from an announced cardinality. User wire OIDs do not grant catalog identity
+or constructor authority. Domains use physical base receive with logical
 ownership. Numeric binary I/O remains exact.
 
 Array/record members require exact input consumption; range bounds permit their
@@ -1159,9 +1162,25 @@ PostgreSQL heap-Datum serialization, and rejects arbitrary receive.
 
 Stream codecs do not add public table admission for raw internal CHAR, identifier
 companion arrays, enum arrays or the lookup-only MONEY array. XID/CID binary fields
-are unsigned four-byte network-order values; XID8 is eight bytes. Private descriptor
-tests are independent of public table admission. These helpers are not protocol
-serving or disk/WAL persistence.
+are unsigned four-byte network-order values; XID8 is eight bytes. Private codec
+tests are independent of public table admission. Value codecs supply neither
+socket framing nor disk/WAL persistence; `cmd/stuntgres` owns the actual protocol
+adapter.
+
+Wire OID hints use real admitted descriptors, not an implicit SQL CAST or a new
+storage provider. Lookup-only MONEY, operator-alias, text-search-alias, network
+and identifier companion arrays remain unavailable. Existing raw internal CHAR
+codecs do not enable CHAR columns. Native TID binary input/output reports a
+type-specific `0A000`; ACLITEM and installed query_int report `42883` for their
+missing binary functions. No fallback converts those requests to text while
+claiming binary format. Anonymous RECORD preserves its occurrence-owned input
+authority rather than borrowing the lookup-only catalog identity: NULL transport
+is distinct from the existing `0A000` nonnull text-input restriction.
+
+Owning codec mechanism selectors are documented in
+[`internal/sqltype`](../internal/sqltype/README.md#testing); the shared public
+wire provider matrix and actual client smoke belong to
+[`reference/sessions`](../reference/sessions/README.md).
 
 ## Logical persistence and testing
 

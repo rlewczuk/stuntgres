@@ -163,3 +163,218 @@ uses its actual copied generation owner/attribute; missing-owner rejection stays
 make check RUN='^TestPartitionRoutineOriginalAuthority$'
 make check RUN='^TestPartitionRoutineOriginalAuthority$' RACE=1
 ```
+
+### Server protocol ownership
+
+The wire adapter uses the existing session, transaction, prepared-analysis and
+typed-frame authorities. `ProtocolCycle` retains implicit transaction work, not
+an operation or admission lock; each message acquires its own command context.
+Sync closes implicit work without closing an explicit transaction. Simple-query
+plain SELECT output uses the initialized live producer before statement Finish;
+store-backed output uses a finished retained scope. Both release admission and
+the replacement read fence through reserved I/O and validate the exact current
+owner on resume. Non-retained transaction controls borrow the existing owner
+identity for pre-execution disposal without starting a transaction.
+
+Prepared SQL and wire statements share names. Wire portals share collision and
+Close visibility with SQL cursors but own separate execution position/lifetime.
+Plain SELECT binds its snapshot before target demand; finite execution performs
+no extra-row lookahead. Retained producers and once-executed row stores do not
+replay volatile projections or writes on resume. Closing a statement does not
+discard an already bound portal.
+
+Retained typed execution state is not retained wire presentation. Each Execute
+serializes through its fresh scope settings and per-row borrowed catalog readers,
+recycling spelling maps so repeated OIDs follow the current effective path and
+quoting policy. Live producers keep their captured catalog interpretation; stored
+destinations select the current canonical catalog once on their first tuple.
+Catalog-derived operator groups are reused within that destination, not rebuilt
+per row. Stored typed rows and their embedded immutable output environment are
+never rewritten, rebound or replayed to refresh wire presentation.
+
+`ExecuteProtocolSimple` uses the canonical execution core, including shared
+prepared-name resolution and parameter import. Direct wire SELECT plans closed
+immutable expressions before executor startup, preserving imported-parameter,
+row, domain and volatile demand barriers. This protocol policy uses the same
+canonical preflight helpers without changing embedded ordinary arithmetic's
+existing row-owned phase boundary. The prepared graph feeds the live producer:
+actual schema precedes row demand, and an execution error cannot retract emitted
+rows. Planning errors emit neither schema nor rows. RETURNING, modifying-CTE and
+utility-row strategies retain their store-before-destination boundary; failure
+while filling that store does not fabricate a RowDescription. Embedded Execute
+keeps its immutable, eagerly finalized Rows contract.
+SQL EXECUTE retains its outer utility strategy: simple portal creation precedes
+the existing prepared-name lookup, actual arguments and inner planning. Its
+resolved SELECT fills a row store before destination startup, so an inner
+execution error emits no RowDescription or partial DataRow prefix. Named sibling
+portals remain intact; the resolved body is not promoted to a direct live SELECT.
+
+Published EXECUTE utilities resolve iteratively through that same authority,
+preserving the outer utility/store strategy at every supported nesting level.
+Each invocation imports its own nonzero formal frame once before the next
+lookup; wire EXECUTE retains explicit unused hints. These values do not create a
+lexical `$n` namespace inside another EXECUTE utility. Zero-formal utilities keep
+their existing ignored-actual policy. Intermediate frame scratch is cleared and
+reused, obsolete importer captures are released, and successive consumed actual
+graphs coalesce through the existing exact reference/consumer/actor union without
+dropping lifetime checks or changing readmission order. The incoming Expected
+signature is restored on exit; leaf query signatures and COPY's zero/nil inner
+query parameters retain their normal ownership. Every hop checks the original
+operation's cancellation/session state. No synthetic cycle/depth limit or
+PostgreSQL host-stack diagnostic is introduced or claimed equivalent.
+
+Eligible EXISTS preparation follows the existing presence-only plan: unused
+outer targets are not evaluated, while demanded child predicates and existing
+presence/sort policy still receive canonical preflight.
+
+Simple Query removes only the unnamed portal, at actual planned-command execution
+or untransformed utility entry. Empty Query and failures in required outer
+parsing/analysis/planning do not reach that event; SQL EXECUTE's inner lookup and
+planning follow its utility event. Failed unnamed Parse removes its old statement
+before raw parsing but preserves already bound portals. Named Parse publishes
+only after required analysis and rejects duplicate names without replacing the
+original. Describe looks up its statement/portal first; in an aborted transaction,
+row descriptors (including zero-column results) fail before parameter/result
+metadata, while retained NoData and empty descriptions remain available.
+
+SQL cursors and wire portals use one birth frontier. Both savepoint restoration
+paths retire newer same-transaction wire portals through unlocked terminal
+cleanup; older producer positions are not rewound.
+
+Executor completion and name retirement are distinct. Exhausted SELECT and
+row-store portals remain fetchable with current-fetch count zero; completed
+non-row DML, controls and COPY reject another Execute with 55000. Empty-query
+portals retain their separate EmptyQueryResponse behavior. An execution failure
+disposes executor/frame/output resources but retains a failed name and descriptor
+when its birth survives savepoint restoration. That name rejects execution with
+55000 and duplicate Bind with 42P03 until Close or actual lifetime retirement.
+Terminal disposal uses a logical reservation even after cancellation, never
+resumes an executor and never replaces the primary execution error.
+
+Query-creation utilities cross simple portal creation after canonical analysis
+and before destination skip notices/schema effects, including WITH NO DATA and
+existing IF NOT EXISTS destinations. These fast paths do not demand the SELECT
+producer. Pending catalog publication uses the exact active operation/scope and
+canonical retained incarnation, whether retention comes from a SQL message or
+a protocol cycle; no synthetic message or transaction expands embedded DDL.
+
+COPY uses the same text/CSV/binary executor as native streams. Its real preflight
+supplies response metadata; callbacks run outside engine/publication locks and
+admission. The terminal input hook can veto rows before application/publication,
+including CopyFail after a text end marker. File/PROGRAM endpoints remain
+unsupported. Notification polling shares the committed native queue/wake owner,
+holds no idle activity lease and leaves wire transaction-idle gating to the
+serialized adapter. FunctionCall uses actual declared executable OIDs, current
+ACL authority and the shared codecs, not lookup-only routine identities.
+
+Binary NULL arguments resolve the declared receive provider before typed NULL
+construction and domain checks, without invoking nonnull conversion or container
+members. Ordinary row destinations initialize binary send providers once on
+their first actual tuple, before NULL attributes are encoded; Bind, Describe and
+empty ordinary results do not initialize them. Resumed execution has its own
+destination startup. COPY retains its separate stream-initialization boundary.
+FunctionCall's strict NULL result still bypasses result-format/provider use.
+Its receiver shares typed import with Bind but retains arity-before-format-count
+ordering and its own format-count and signed invalid-argument-size diagnostics.
+
+Protocol callers pass COPY stream capability lexically through that same core.
+Actual COPY, including a wire-prepared body reached by SQL EXECUTE or an extended
+EXECUTE wrapper, uses the real CopyProtocol hooks; no socket callback is saved by
+the portal after execution. Embedded Execute passes no capability and retains
+CopyBoundary. Nonzero utility formals use the existing SQL actual importer once
+before CopyStart, after its arity check; zero-formal behavior adds no new checks.
+Unused utility formals are not parameters of the inner COPY query. That inner
+query temporarily suspends/restores the outer NoData signature and still uses
+the existing fixed-zero-parameter analyzer/executor, without a second binder.
+
+Protocol COPY of a plain SELECT transfers the canonical initialized cursor
+directly to the shared exporter, without a registered portal, rebind or replay.
+Planning, metadata and current authority precede CopyStart; projection demand
+starts only after the real CopyOutResponse. Successfully emitted records survive
+a later query error. Intrinsically blocking operators retain their own demand
+policy; modifying-CTE/store strategies and embedded COPY retain their existing
+execution boundary. Per-record output readers reuse bounded scratch rather than
+retaining the query's output history. Disposal runs unlocked while borrowing,
+not replacing or prematurely completing, COPY's existing scope reservation.
+
+Protocol binary COPY FROM initializes declared receive functions before
+CopyInResponse, visiting all live physical attributes in order, including omitted
+COPY targets but excluding dropped history. Each attribute's provider setup
+precedes its existing default preflight; earlier defaults retain precedence over
+later provider failures. Empty/NULL streams cannot bypass an absent receiver.
+A domain has the generic domain receiver, so an empty stream can complete even
+when its base receiver is absent. Actual domain input, including NULL, resolves
+the base at row invocation after the response and before domain constraints,
+preserving genuine COPY row/column error context. Embedded stream and ordinary
+Go-context policies remain unchanged.
+
+Binary COPY TO initializes the actual declared send providers after CopyOutResponse
+but before its binary signature or any row demand, including empty/NULL results.
+A missing provider therefore emits the response and its genuine diagnostic, not
+binary data or successful completion. Domains delegate to their base provider;
+generic array send does not eagerly initialize its members' providers.
+
+Already-pending typed wire user cancellation is deferred only through genuine
+COPY decoding/conversion. The operation selects an actual standard input context
+without replacing its original/source context. Only after that cancellation is
+pending does the lazy view detach its cancellation key and re-project the exact
+captured absolute deadline; no budget is restarted. Required codec conversion
+errors keep their genuine row/column context and take precedence. Successful
+conversion observes pending cancellation before returning a row to assembly.
+The hold is cleared before constraints/application and restored on every exit;
+ordinary Go caller cancellation and native input policy remain unchanged.
+
+`Session.EndRequested` lazily observes canonical ending before lease cleanup,
+without acquiring a lease or changing `WaitEnd`. Session ending directly cancels
+any held input view. The adapter's existing watcher requests ending on physical
+shutdown/disconnect and observes this wake for later FATAL delivery, so an earlier
+user-cancel cause cannot hide physical or session termination.
+
+Private mechanisms supplement the real socket tests:
+
+- `TestProtocolPreparedRegistry`: exact-session retirement and independently
+  retained portal recipes.
+- `TestProtocolValueCodecs`: borrowed field-buffer growth, NULL/empty identity,
+  role-reader recapture under changing presentation and occurrence-owned deferred
+  RECORD input.
+- `TestProtocolCycleRetention` and `TestProtocolPortalProducer`: fresh operation
+  admission, exact demand/position, savepoint birth-frontier ownership and
+  idempotent producer cleanup.
+- `TestProtocolSimpleDisposalFence`: unlocked pre-control disposal with exact
+  owner/replacement-fence preservation and reusable output reservations.
+- `TestProtocolSimplePlanningBounds`: planning-owned immutable errors, no early
+  volatile target demand, actual finite row demand and parameter barriers.
+- `TestProtocolFailedExecutorOwnership`: canceled-operation cleanup outside locks,
+  retained failed identity, birth-frontier retirement and exactly-once disposal.
+- `TestProtocolCopyCancellationContext`: immutable typed SQL cancellation enriched
+  from actual cursor context, primary-error precedence and embedded Go-cancel
+  identity preservation.
+- `TestProtocolCopyInputContext`: real codec conversion precedence, standard
+  context cancellation/value/deadline contracts, decoder-only scope, original
+  source identity, ordinary caller/timeout behavior and ending before lease drain.
+- `TestProtocolEndRequestedWake`: early/late request observation, repeated
+  requests and completion waiting for the actual operation lease.
+- `TestProtocolCopyHooks`: unlocked metadata callbacks and terminal veto before
+  row application.
+- `TestProtocolCopyQuerySignatureScope`: outer utility signature restoration
+  across inner-analysis/output failure and unlocked actual output.
+- `TestProtocolFunctionInvocation`: aborted-transaction rejection before OID
+  consumption.
+- `TestProtocolNotificationPoll`: FIFO dequeue, atomic wake registration, no
+  activity lease and retirement wake.
+- `TestPreparedSQLActualProgramOwnership`: bounded repeated actual-call graphs,
+  original consumed-call identity and foreign-authority rejection.
+
+```sh
+make check RUN='^TestProtocol(PreparedRegistry|ValueCodecs|CycleRetention|PortalProducer|SimpleDisposalFence|SimplePlanningBounds|FailedExecutorOwnership|CopyCancellationContext|CopyInputContext|EndRequestedWake|CopyHooks|CopyQuerySignatureScope|FunctionInvocation|NotificationPoll)$'
+make check RACE=1 RUN='^TestProtocol(CycleRetention|PortalProducer|SimpleDisposalFence|SimplePlanningBounds|FailedExecutorOwnership|CopyCancellationContext|CopyInputContext|EndRequestedWake|CopyHooks|CopyQuerySignatureScope|NotificationPoll)$'
+make check RUN='^TestPreparedSQLActual(NoSnapshotDemand|ProgramOwnership)$'
+```
+
+Public answers, metadata, ACL timing, cancellation and actual pq/psql behavior
+belong to [`reference/sessions`](../../reference/sessions/README.md), using real
+server subprocesses and the pinned PostgreSQL fixture. Run affected shared
+definitions with `make check RUN='...'` and the same selection with `REFERENCE=1`;
+the private mechanisms are not a substitute for that proof. The owning sessions
+README contains the separate built-server smoke and complete selector inventory.
+

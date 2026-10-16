@@ -26,6 +26,12 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
+	if (scope.protocolCommand || scope.protocolSimple) && protocolPlainSelect(stmt) {
+		// Plan closed immutable recipes before executor startup, retaining
+		// imported-parameter, row, domain and volatile demand barriers. The
+		// private folded graph is also the graph retained by live portals.
+		evaluation.planStaticOperators = true
+	}
 	routineAuth := auth
 	if scope.ruleActionAuth != nil {
 		routineAuth.state.CurrentUser = scope.routineAuth.state.CurrentUser
@@ -386,6 +392,13 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	var err error
 	b, auth, evaluation := execution.binding, execution.auth, execution.evaluation
 	queryRoot, expressions := execution.queryRoot, execution.expressions
+	if scope.protocolSimple && !scope.protocolSimpleCreated {
+		e.mu.Unlock()
+		if err := scope.beginProtocolSimplePortal(); err != nil {
+			return Result{}, err
+		}
+		e.mu.Lock()
+	}
 	switch s := stmt.(type) {
 	case *parser.Merge:
 		err := e.captureCheckCommentSnapshotLocked(scope, b.relation)
@@ -701,6 +714,9 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		if b.ruleTemplate {
 			source = freezeViewWriteSources(scope, source, b.querySources)
+		}
+		if scope.protocolBind != nil {
+			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
 		rows, count, queryErr := finalizeSelectQuery(ctx, queryRoot, source, canonical, op.parallelWorkers)
 		if queryErr != nil {

@@ -94,6 +94,10 @@ func (c *copyBinaryCursor) headerInput() error {
 	return nil
 }
 func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
+	wireInput := c.scope.op.copyInput.active.Load()
+	if wireInput {
+		ctx = c.scope.op.Context()
+	}
 	if err := ctx.Err(); err != nil {
 		return false, c.diagnostic(err)
 	}
@@ -143,8 +147,16 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 			return false, c.diagnostic(err)
 		}
 		length := int32(binary.BigEndian.Uint32(p))
-		dst[i] = sqltype.Null(column.Usage.Type)
 		if length == -1 {
+			if wireInput {
+				ctx = c.scope.op.Context()
+				if column.Usage.Type.IsDomain() {
+					if err := column.Usage.Type.CheckBinaryInput(); err != nil {
+						return false, c.diagnostic(err)
+					}
+				}
+			}
+			dst[i] = sqltype.Null(column.Usage.Type)
 			if err := column.Usage.Type.CheckDomainInput(ctx, dst[i], c.scope.input); err != nil {
 				return false, c.diagnostic(err)
 			}
@@ -171,11 +183,17 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 			c.payload = append(c.payload, p...)
 			remaining -= n
 		}
+		if wireInput {
+			ctx = c.scope.op.Context()
+		}
 		dst[i], err = column.Usage.Type.BinaryInputWithEnvironment(ctx, c.payload, column.Usage.Typmod, c.scope.input)
 		if err != nil {
 			return false, c.diagnostic(err)
 		}
 		c.column = ""
+	}
+	if err := c.scope.op.pendingCopyInputError(); err != nil {
+		return false, c.diagnostic(err)
 	}
 	return true, nil
 }
@@ -183,7 +201,7 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 	if err == nil {
 		return nil
 	}
-	err = c.scope.op.CommandError(err)
+	err = c.scope.copyCommandError(err)
 	var record *sqlstate.Error
 	if !errors.As(err, &record) || c.number == 0 {
 		return err
@@ -206,6 +224,15 @@ func (s *StatementScope) copyBinaryOutput(rows RowResult, w io.Writer) (int64, e
 	schema := rows.Schema()
 	if len(schema) > math.MaxInt16 {
 		return 0, sqlError("54000", "too many binary COPY columns")
+	}
+	if s.protocolCommand || s.protocolSimple {
+		// CopyOutResponse has already been sent. Resolve the declared send
+		// providers before the binary signature or any row demand.
+		for _, column := range schema {
+			if err := column.Usage.Type.CheckBinaryOutput(); err != nil {
+				return 0, err
+			}
+		}
 	}
 	values := make([]sqltype.Value, len(schema))
 	buffer := make([]byte, 0, 4096)
@@ -234,6 +261,7 @@ func (s *StatementScope) copyBinaryOutput(rows RowResult, w io.Writer) (int64, e
 		}
 		buffer = buffer[:0]
 		buffer = binary.BigEndian.AppendUint16(buffer, uint16(len(values)))
+		output := rows.OutputEnvironment()
 		for _, v := range values {
 			if v.IsNull() {
 				buffer = binary.BigEndian.AppendUint32(buffer, math.MaxUint32)
@@ -241,7 +269,7 @@ func (s *StatementScope) copyBinaryOutput(rows RowResult, w io.Writer) (int64, e
 			}
 			start := len(buffer)
 			buffer = binary.BigEndian.AppendUint32(buffer, 0)
-			buffer, err = v.Type().AppendBinaryWithEnvironment(s.op.Context(), buffer, v, rows.OutputEnvironment())
+			buffer, err = v.Type().AppendBinaryWithEnvironment(s.op.Context(), buffer, v, output)
 			if err != nil {
 				return 0, err
 			}

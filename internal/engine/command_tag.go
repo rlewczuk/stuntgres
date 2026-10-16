@@ -19,7 +19,7 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 	case *parser.Show:
 		base = "SHOW"
 	case *parser.Copy:
-		// Execution still rejects COPY through the existing CopyBoundary.
+		// Protocol stream execution shares this count; embedded Execute retains CopyBoundary.
 		return "COPY", true, false, true
 	case *parser.CreateQueryTable:
 		switch s.Form {

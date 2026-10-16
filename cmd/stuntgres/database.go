@@ -4,22 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
-	"sync/atomic"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-// Each managed database owns an independent catalog, role set and session ID
-// sequence. The immutable userfile gate is checked before reaching this owner.
+// Each managed database owns an independent catalog and role set.
+// Network identities are allocated by the physical server, bootstrap uses 1.
 type database struct {
-	engine      *engine.Engine
-	nextSession atomic.Uint64
-	settings    map[string]struct{} // Immutable definition names, never effective values.
+	engine   *engine.Engine
+	settings map[string]struct{} // Immutable definition names, never effective values.
 }
 
 type startupDefaults map[string]string
@@ -72,27 +69,12 @@ func allowed(a account, name string) bool {
 	}
 	return false
 }
-func (d *database) sessionID() (engine.SessionID, error) {
-	for {
-		old := d.nextSession.Load()
-		if old == math.MaxUint64 {
-			return 0, errors.New("session identity exhausted")
-		}
-		if d.nextSession.CompareAndSwap(old, old+1) {
-			return engine.SessionID(old + 1), nil
-		}
-	}
-}
 func (d *database) provision(ctx context.Context, name string, users accounts, restoring bool) (err error) {
 	postgres, err := d.engine.ResolveLogin("postgres")
 	if err != nil {
 		return err
 	}
-	id, err := d.sessionID()
-	if err != nil {
-		return err
-	}
-	boot, err := d.engine.StartSession(ctx, engine.SessionStart{ID: id, Authenticated: postgres, Defaults: settingNames(d.settings)})
+	boot, err := d.engine.StartSession(ctx, engine.SessionStart{ID: 1, Authenticated: postgres, Defaults: settingNames(d.settings)})
 	if err != nil {
 		return err
 	}
@@ -145,7 +127,7 @@ func bootstrapExecute(ctx context.Context, session *engine.Session, source strin
 	}
 	return err
 }
-func (d *database) startSession(ctx context.Context, user string, defaults startupDefaults) (*engine.Session, error) {
+func (d *database) startSession(ctx context.Context, id uint32, user string, defaults startupDefaults) (*engine.Session, error) {
 	for name := range defaults {
 		if _, ok := d.settings[name]; !ok {
 			return nil, &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "42704", Message: fmt.Sprintf(`unrecognized configuration parameter "%s"`, name)}
@@ -155,11 +137,7 @@ func (d *database) startSession(ctx context.Context, user string, defaults start
 	if err != nil {
 		return nil, err
 	}
-	id, err := d.sessionID()
-	if err != nil {
-		return nil, err
-	}
-	return d.engine.StartSession(ctx, engine.SessionStart{ID: id, Authenticated: principal, Defaults: defaults})
+	return d.engine.StartSession(ctx, engine.SessionStart{ID: engine.SessionID(id), Authenticated: principal, Defaults: defaults})
 }
 func databaseNames(databases map[string]*database) []string {
 	names := make([]string, 0, len(databases))

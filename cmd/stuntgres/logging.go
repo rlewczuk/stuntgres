@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"log/slog"
@@ -9,7 +10,9 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	"unicode/utf8"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -119,7 +122,7 @@ func (logs *serverLogs) operational(ctx context.Context, level slog.Level, messa
 	return logs.handle(ctx, logs.ops, level, message, args...)
 }
 
-func (logs *serverLogs) sqlError(ctx context.Context, query string, err error, args ...any) error {
+func (logs *serverLogs) sqlError(ctx context.Context, query string, err error, parameters []loggedParameter, args ...any) error {
 	d := diagnostic(err)
 	if d == nil {
 		return errors.New("cannot log a nil SQL error")
@@ -131,7 +134,10 @@ func (logs *serverLogs) sqlError(ctx context.Context, query string, err error, a
 	case "0A000":
 		kind = "UNSUPPORTED"
 	}
-	args = append(args, "kind", kind, "query", query, "params", []any{}, "error", d.Code, "errmsg", d.Message)
+	if parameters == nil {
+		parameters = []loggedParameter{}
+	}
+	args = append(args, "kind", kind, "query", query, "params", parameters, "error", d.Code, "errmsg", d.Message)
 	return logs.handle(ctx, logs.sql, slog.LevelError, d.Message, args...)
 }
 
@@ -170,4 +176,34 @@ func diagnostic(err error) *sqlstate.Error {
 		code = "57014"
 	}
 	return &sqlstate.Error{Code: code, Message: message}
+}
+
+type loggedParameter struct {
+	Index    int     `json:"index"`
+	OID      uint32  `json:"oid,omitempty"`
+	Type     string  `json:"type,omitempty"`
+	Format   string  `json:"format"`
+	Null     bool    `json:"null"`
+	Encoding string  `json:"encoding"`
+	Value    *string `json:"value"`
+}
+
+func logParameters(parameters []engine.ProtocolLogParameter) []loggedParameter {
+	out := make([]loggedParameter, len(parameters))
+	for i, p := range parameters {
+		entry := loggedParameter{Index: i + 1, OID: p.OID, Type: p.Type, Format: "text", Null: p.Null, Encoding: "text"}
+		if p.Format != 0 {
+			entry.Format = "binary"
+		}
+		if !p.Null {
+			value := string(p.Bytes)
+			if !p.Decoded && (p.Format != 0 || !utf8.Valid(p.Bytes)) {
+				entry.Encoding = "base64"
+				value = base64.StdEncoding.EncodeToString(p.Bytes)
+			}
+			entry.Value = &value
+		}
+		out[i] = entry
+	}
+	return out
 }

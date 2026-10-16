@@ -1053,7 +1053,7 @@ func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token Publication
 	return e.publishCatalog(nil, nil, p, token)
 }
 func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
-	if op != nil && op.session.transactions.retainedMessage {
+	if op != nil && op.session.transactions.retainsTransaction() {
 		return e.stageMessageCatalog(op, p, token)
 	}
 	if scope != nil && scope.owner.state == TxActive {

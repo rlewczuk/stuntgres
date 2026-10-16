@@ -125,7 +125,9 @@ func TestReferenceServerCancellation(t *testing.T) {
 				closed.send(t, serverPacket('X', nil))
 				closed.Close()
 				peer := serverAuthenticated(t, dsn)
-				serverCancel(t, dsn, peer.pid, peer.key^1)
+				wrong := append([]byte(nil), peer.key...)
+				wrong[len(wrong)-1] ^= 1
+				serverCancel(t, dsn, peer.pid, wrong)
 				serverCancel(t, dsn, pid, key)
 				serverScalar(t, peer, "SELECT 42", "42")
 				serverWantCode(t, peer.query(t, "BEGIN; LOCK TABLE server_cancel IN ACCESS EXCLUSIVE MODE; ROLLBACK"), "")
@@ -228,7 +230,7 @@ func TestReferenceServerCancellation(t *testing.T) {
 						t.Fatal("pq context cancellation did not join", deadline.Err())
 					default:
 						if !b.PG {
-							serverCancel(t, dsn, key[0], key[1])
+							serverCancel(t, dsn, key[0], serverPut32(nil, key[1]))
 						}
 						runtime.Gosched()
 					}

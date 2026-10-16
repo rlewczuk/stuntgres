@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"encoding/binary"
+	"crypto/subtle"
 	"errors"
 	"io"
 	"log/slog"
@@ -12,9 +12,12 @@ import (
 	"sync"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/sqlstate"
 )
 
-var errUserCancel = errors.New("canceling statement due to user request")
+// Shared cancellation identity is immutable. Statement-specific diagnostic
+// context belongs on an owned copy, never on this cross-session cause.
+var errUserCancel = &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 var errPeerWatchUnsupported = errors.New("passive peer shutdown monitoring unavailable on this platform")
 
 type server struct {
@@ -43,7 +46,16 @@ type client struct {
 	session        *engine.Session
 	db             *database
 	database, user string
-	id, key        uint32
+	id             uint32
+	key            [32]byte
+	keyLength      int
+	cycle          *engine.ProtocolCycle
+	messages       <-chan frontendMessage
+	sessionEnded   <-chan error
+	protocolState  protocolState
+	copyStream     protocolCopy             // Serial dispatcher only; never retained by engine.
+	copyHooks      engine.CopyProtocolHooks // Bound methods cached once per physical connection.
+	copyDrain      [8192]byte
 	lastSettings   map[string]string
 	commandCancel  context.CancelCauseFunc // server.mu
 	readDone       chan struct{}
@@ -56,7 +68,7 @@ type client struct {
 
 func newServer(ctx context.Context, users accounts, databases map[string]*database, logs *serverLogs) (*server, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	s := &server{users: users, databases: databases, logs: logs, ctx: ctx, cancel: cancel, clients: make(map[*client]struct{}), backends: make(map[uint32]*client)}
+	s := &server{users: users, databases: databases, logs: logs, ctx: ctx, cancel: cancel, nextID: 1, clients: make(map[*client]struct{}), backends: make(map[uint32]*client)}
 	s.dummy = account{salt: make([]byte, 16), key: make([]byte, 32)}
 	if _, err := rand.Read(s.dummy.salt); err != nil {
 		cancel()
@@ -69,7 +81,7 @@ func newServer(ctx context.Context, users accounts, databases map[string]*databa
 	return s, nil
 }
 func (s *server) newClient(socket net.Conn) (*client, error) {
-	var secret [4]byte
+	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {
 		return nil, err
 	}
@@ -83,7 +95,9 @@ func (s *server) newClient(socket net.Conn) (*client, error) {
 	}
 	s.nextID++
 	ctx, cancel := context.WithCancel(s.ctx)
-	c := &client{server: s, socket: socket, wire: newWire(socket), ctx: ctx, cancel: cancel, id: s.nextID, key: binary.BigEndian.Uint32(secret[:]), lastSettings: make(map[string]string)}
+	c := &client{server: s, socket: socket, wire: newWire(socket), ctx: ctx, cancel: cancel, id: s.nextID, key: secret, keyLength: 4, lastSettings: make(map[string]string)}
+	c.copyStream.client = c
+	c.copyHooks = engine.CopyProtocolHooks{Start: c.copyStream.start, FinishInput: c.copyStream.finishInput}
 	s.clients[c] = struct{}{}
 	s.workers.Add(1)
 	return c, nil
@@ -97,10 +111,10 @@ func (s *server) register(c *client) error {
 	s.backends[c.id] = c
 	return nil
 }
-func (s *server) cancelCommand(id, key uint32) {
+func (s *server) cancelCommand(id uint32, key []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if c := s.backends[id]; c != nil && c.key == key && c.commandCancel != nil {
+	if c := s.backends[id]; c != nil && len(key) == c.keyLength && subtle.ConstantTimeCompare(c.key[:c.keyLength], key) == 1 && c.commandCancel != nil {
 		// context cancellation has no engine callback or external I/O. Holding mu
 		// fences this exact registration against a later command replacing it.
 		c.commandCancel(errUserCancel)
@@ -135,13 +149,12 @@ func (c *client) startReader() <-chan frontendMessage {
 			}
 			message, err := c.wire.readMessage(buffer)
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, errInvalidFrame) {
 					c.cancel()
-					c.socket.Close()
+					_ = c.socket.Close()
 					return
 				}
-				// Malformed framing cancels any blocked SQL, but keeps the write half
-				// available until the dispatcher emits its FATAL diagnostic.
+				// Only a recognizable unknown tag has a writable FATAL reply.
 				c.readFailure = err
 				c.cancel()
 				return
@@ -162,19 +175,27 @@ func (c *client) releaseMessage(message frontendMessage) {
 	}
 }
 
-// Native session expiry owns its timers and teardown. This waiter adds no timer
-// or settings authority; it delivers the canonical terminal diagnostic through
-// the serial writer, including expiry while the frontend is idle.
+// Native session expiry owns its timers and teardown. Observe the end request,
+// not cleanup completion: an active COPY lease must be interruptible before
+// WaitEnd can finish. The serial writer still owns the canonical FATAL reply.
 func (c *client) watchSessionEnd() <-chan error {
 	events := make(chan error, 1)
 	c.sessionDone = make(chan struct{})
 	go func() {
 		defer close(c.sessionDone)
-		cleanupErr := c.session.WaitEnd(c.ctx)
+		select {
+		case <-c.session.EndRequested():
+		case <-c.ctx.Done():
+			// A held COPY codec may already have the user-cancel cause.
+			// Publish physical retirement through the independent session
+			// authority now, before waiting for its operation lease to drain.
+			c.session.RequestEnd(engine.InvalidConnection)
+			return
+		}
 		if c.ctx.Err() != nil {
 			return
 		}
-		fatal := *diagnostic(errors.Join(c.session.Check(c.ctx), cleanupErr))
+		fatal := *diagnostic(c.session.Check(c.ctx))
 		fatal.Severity, fatal.SeverityUnlocalized = "FATAL", "FATAL"
 		c.server.mu.Lock()
 		if c.commandCancel != nil {
@@ -189,6 +210,11 @@ func (c *client) watchSessionEnd() <-chan error {
 	return events
 }
 func (c *client) finish(reason engine.EndReason) {
+	if c.session != nil {
+		// Preserve the chosen clean/fatal/init reason before canceling the
+		// physical context observed by the existing end-request watcher.
+		c.session.RequestEnd(reason)
+	}
 	c.cancel()
 	_ = c.socket.Close()
 	if c.stopPeerWatch != nil {
@@ -206,7 +232,6 @@ func (c *client) finish(reason engine.EndReason) {
 	c.commandCancel = nil
 	c.server.mu.Unlock()
 	if c.session != nil {
-		c.session.RequestEnd(reason)
 		if err := c.session.WaitEnd(context.Background()); err != nil {
 			c.server.log(slog.LevelError, "session cleanup failed", "connection_id", c.id, "database", c.database, "user", c.user, "error", err.Error())
 		}

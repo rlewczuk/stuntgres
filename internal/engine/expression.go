@@ -76,8 +76,8 @@ type EvalContext struct {
 	pgRegex              sqltype.PGRegexExecution
 	quoteCaptures        *quoteCaptureCandidate
 	quoteOrigin          quoteOrigin
-	// Rule programs plan all commands before effects. This preparation-only
-	// mode admits static scalar operators without widening ordinary row demand.
+	// Preparation admits closed immutable scalar operators for plain SELECTs
+	// and rule programs, without widening parameter or row-dependent demand.
 	planStaticOperators bool
 	// Separate rule-program permission: actual supplied Param leaves may become
 	// typed constants during preparation. Ordinary imported-param barriers stay.
@@ -512,12 +512,25 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		if !c.planStaticOperators || e.cteDefinition || e.queryPlan == nil {
 			return e, false, nil
 		}
-		root, err := preflightQuery(c, e.queryPlan.Root)
+		input := e.queryPlan.Root
+		var presence *projectNode
+		if e.presenceOnly {
+			// Eligible EXISTS uses nextOccurrence, never its outer targets.
+			// Keep actual child predicate and presence/sort preparation.
+			presence = input.(*projectNode)
+			input = presence.child
+		}
+		root, err := preflightQuery(c, input)
 		if err != nil {
 			return nil, false, err
 		}
-		if root == e.queryPlan.Root {
+		if root == input {
 			return e, false, nil
+		}
+		if presence != nil {
+			copy := *presence
+			copy.child = root
+			root = &copy
 		}
 		query := *e.queryPlan
 		query.Root = root
@@ -2748,9 +2761,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				current, _ := catalog.LookupType(u.Type.ID())
-				if u.Type.ID() == 2249 && u.Type.IsComposite() {
-					// Anonymous shapes are formal occurrence authorities. Reuse the
-					// seeded memoized remap, never catalog's lookup-only RECORD.
+				if u.Type.IsDeferredRecord() || u.Type.ID() == 2249 && u.Type.IsComposite() {
+					// Anonymous shapes and deferred RECORD are formal occurrence
+					// authorities, never catalog's lookup-only RECORD identity.
 					current = b.parameters[r.Number].Type
 				}
 				if current == nil && statementCatalogType(u.Type) {

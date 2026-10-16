@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"io"
 	"reflect"
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -44,10 +43,7 @@ func TestReferenceServerProtocol(t *testing.T) {
 				// no GSS credentials, so close rather than send plaintext startup.
 				gss.Close()
 				frames := w.login(t, dsn, 196609, "_pq_.server_contract", "unsupported")
-				wantVersion := uint32(196608)
-				if b.PG {
-					wantVersion = 196609
-				}
+				wantVersion := uint32(196609)
 				if frames[0].tag != 'v' || len(frames[0].body) < 8 || binary.BigEndian.Uint32(frames[0].body) != wantVersion || binary.BigEndian.Uint32(frames[0].body[4:]) != 1 || string(frames[0].body[8:]) != "_pq_.server_contract\x00" {
 					t.Fatalf("version negotiation %v", frames)
 				}
@@ -91,22 +87,12 @@ func TestReferenceServerProtocol(t *testing.T) {
 					w.send(t, packet)
 				}
 				frames := w.ready(t)
-				if b.PG {
-					serverWantCode(t, frames, "")
-					if !reflect.DeepEqual(serverValues(t, frames), [][]string{{"42"}}) {
-						t.Fatal(frames)
-					}
-					if !strings.HasPrefix(serverTags(frames), "12TDC") {
-						t.Fatal(serverTags(frames))
-					}
-				} else {
-					serverWantCode(t, frames, "0A000")
-					if serverTags(frames) != "EZ" {
-						t.Fatal(serverTags(frames))
-					}
-					if serverFields(frames[0].body)['M'] != "extended query protocol is not supported by stuntgres Phase 1" {
-						t.Fatal(serverFields(frames[0].body))
-					}
+				serverWantCode(t, frames, "")
+				if !reflect.DeepEqual(serverValues(t, frames), [][]string{{"42"}}) {
+					t.Fatal(frames)
+				}
+				if serverTags(frames) != "12TDCZ" {
+					t.Fatal(serverTags(frames))
 				}
 				serverScalar(t, w, "SELECT 7", "7")
 			})
@@ -121,11 +107,11 @@ func TestReferenceServerProtocol(t *testing.T) {
 					t.Run(c.name, func(t *testing.T) {
 						w := serverAuthenticated(t, dsn)
 						w.send(t, c.packet)
-						if b.PG && c.name == "copy_data" {
+						if c.name == "copy_data" {
 							serverScalar(t, w, "SELECT 42", "42")
 							return
 						}
-						if b.PG && c.name == "trailing_bytes" {
+						if c.name == "trailing_bytes" || c.name == "missing_nul" {
 							frames := w.ready(t)
 							serverWantCode(t, frames, "08P01")
 							if serverTags(frames) != "EZ" || serverFields(frames[0].body)['S'] != "ERROR" || string(frames[1].body) != "I" {
@@ -134,9 +120,8 @@ func TestReferenceServerProtocol(t *testing.T) {
 							serverScalar(t, w, "SELECT 42", "42")
 							return
 						}
-						if b.PG && c.name == "short_length" {
-							// PostgreSQL closes an invalid short frame without a
-							// tagged diagnostic; native still requires FATAL 08P01.
+						if c.name == "short_length" {
+							// Invalid outer framing closes without a tagged diagnostic.
 							if frame, e := w.readFrame(); e != io.EOF {
 								t.Fatalf("short frame reply: %v, %v; want EOF", frame, e)
 							}
@@ -144,7 +129,7 @@ func TestReferenceServerProtocol(t *testing.T) {
 						}
 						frame := w.frame(t)
 						serverWantCode(t, []serverFrame{frame}, "08P01")
-						if !b.PG || c.name != "missing_nul" {
+						if c.name == "unknown_tag" {
 							if serverFields(frame.body)['S'] != "FATAL" {
 								t.Fatal(serverFields(frame.body))
 							}
@@ -158,7 +143,7 @@ func TestReferenceServerProtocol(t *testing.T) {
 			t.Run("copy_sql", func(t *testing.T) {
 				w := serverAuthenticated(t, dsn)
 				q := "COPY (SELECT 42) TO STDOUT"
-				if b.PG {
+				{
 					w.send(t, serverPacket('Q', append([]byte(q), 0)))
 					frames := w.ready(t)
 					if serverTags(frames) != "HdcCZ" {
@@ -173,28 +158,16 @@ func TestReferenceServerProtocol(t *testing.T) {
 					if string(data) != "42\n" {
 						t.Fatalf("COPY data %q", data)
 					}
-				} else {
-					serverWantCode(t, w.query(t, q), "0A000")
 				}
 				serverScalar(t, w, "SELECT 42", "42")
 			})
 			t.Run("bounds_and_truncation", func(t *testing.T) {
-				if b.PG { // Oracle protocol has a different size limit; assert genuine partial-frame cleanup.
+				for _, tag := range []byte{'Q', 'P', 'B'} {
 					w := serverAuthenticated(t, dsn)
-					w.send(t, []byte{'Q', 0, 0, 0, 20, 'S'})
-					w.Close()
-					serverScalar(t, serverAuthenticated(t, dsn), "SELECT 42", "42")
-					return
-				}
-				for _, startup := range []bool{false, true} {
-					w := serverDial(t, dsn)
-					if !startup {
-						serverWantCode(t, w.login(t, dsn, 196608), "")
-						w.send(t, append([]byte{'Q'}, serverPut32(nil, (16<<20)+1)...))
-					} else {
-						w.send(t, serverPut32(nil, (64<<10)+1))
+					w.send(t, append([]byte{tag}, serverPut32(nil, 0x40000000)...))
+					if frame, err := w.readFrame(); err != io.EOF {
+						t.Fatalf("oversized frame: %v %v", frame, err)
 					}
-					serverWantCode(t, []serverFrame{w.frame(t)}, "54000")
 				}
 				w := serverAuthenticated(t, dsn)
 				w.send(t, []byte{'Q', 0, 0, 0, 20, 'S'})

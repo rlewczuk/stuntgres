@@ -50,12 +50,8 @@ func serverStartupContracts(t *testing.T, f *fixture.ServerFixture, b fixture.Ba
 		_, user, password, db := serverEndpoint(t, dsn)
 		w.send(t, serverStartup(196608, "user", user, "database", db, "user", user))
 		frames := w.authenticate(t, user, password)
-		if b.PG {
-			serverWantCode(t, frames, "")
-			serverScalar(t, w, "SELECT 42", "42")
-		} else {
-			serverWantCode(t, frames, "08P01")
-		}
+		serverWantCode(t, frames, "")
+		serverScalar(t, w, "SELECT 42", "42")
 	})
 	t.Run("malformed_startup", func(t *testing.T) {
 		w := serverDial(t, dsn)
@@ -76,11 +72,7 @@ func serverStartupContracts(t *testing.T, f *fixture.ServerFixture, b fixture.Ba
 		body = append(body, 0, 0, 0, 0, 0, 0)
 		w.send(t, serverPacket('F', body))
 		frames := w.ready(t)
-		want := "0A000"
-		if b.PG {
-			want = "42883"
-		}
-		serverWantCode(t, frames, want)
+		serverWantCode(t, frames, "42883")
 		serverScalar(t, w, "SELECT 42", "42")
 	})
 	t.Run("truncated_startup", func(t *testing.T) {

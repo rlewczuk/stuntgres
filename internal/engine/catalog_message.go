@@ -12,13 +12,13 @@ type catalogNamespaceFence struct {
 }
 
 func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalogState {
-	if s.authSession != nil && s.authSession.transactions.retainedMessage {
+	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
 		return e.privateCatalogLocked(s.authSession.transactions.catalog).state
 	}
 	return e.state
 }
 func (e *Engine) stageStorageLocked(s *CatalogStage, a ObjectAddress) *relationStorage {
-	if s.authSession != nil && s.authSession.transactions.retainedMessage {
+	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
 		return e.privateStorageLocked(s.authSession.transactions.catalog, a)
 	}
 	return e.storage[a]
@@ -295,7 +295,7 @@ func (e *Engine) stageMessageCatalog(op *Operation, p *PreparedCatalogPublicatio
 	op.session.mu.Lock()
 	scope := op.timeoutScope
 	op.session.mu.Unlock()
-	if scope == nil || scope.op != op || !scope.message {
+	if scope == nil || scope.op != op || scope.owner != op.session.transactions || !scope.ownsMessageScope() || !scope.owner.retainsTransaction() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: missing message scope")
 	}
 	if token.Epoch != p.epoch {

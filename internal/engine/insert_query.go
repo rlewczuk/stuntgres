@@ -460,11 +460,20 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, Input: input, Output: output, statementScope: scope, query: query}
+	copyInput := scope != nil && scope.op.copyInput.active.Load()
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
-		if err := ctx.Err(); err != nil {
+		if copyInput {
+			scope.op.copyInput.decoding.Store(true)
+			ctx = scope.op.Context()
+		} else if err := ctx.Err(); err != nil {
 			return indexWriteBatch{}, err
 		}
 		present, err := cursor.Next(ctx, scratch)
+		if copyInput {
+			scope.op.copyInput.decoding.Store(false)
+			ctx = scope.op.Context()
+			evaluation.Context = ctx
+		}
 		if err != nil {
 			return indexWriteBatch{}, err
 		}

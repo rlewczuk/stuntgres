@@ -22,7 +22,7 @@ func (e *Engine) sessionRolesLocked(session *Session) *roleCatalog {
 // The operation/session publication preflight has passed before this call.
 func (e *Engine) installOperationRolesLocked(op *Operation, next *roleCatalog) {
 	t := op.session.transactions
-	if !t.retainedMessage {
+	if !t.retainsTransaction() {
 		e.roles = next
 		return
 	}
@@ -37,7 +37,7 @@ func (e *Engine) installOperationRolesLocked(op *Operation, next *roleCatalog) {
 // Session.mu is held, and all revision checks have reserved rollback capacity.
 func (e *Engine) touchOperationIdentityLocked(op *Operation) {
 	t := op.session.transactions
-	if (t.retainedMessage || t.state == TxActive) && !t.identityCaptured {
+	if (t.retainsTransaction() || t.state == TxActive) && !t.identityCaptured {
 		t.identityEntry = op.session.authorization.state
 		t.identityCaptured = true
 	}

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 
@@ -12,8 +13,9 @@ import (
 )
 
 const (
-	maxStartupLength = 64 * 1024
-	maxMessageLength = 16 * 1024 * 1024
+	maxStartupLength      = 10000 + 4 // Released limit excludes the startup length word.
+	maxMessageLength      = (1 << 30) - 2
+	maxSmallMessageLength = 10000
 )
 
 type frontendMessage struct {
@@ -24,9 +26,11 @@ type frontendMessage struct {
 // wireCodec has one reader and one serial writer. It never owns engine leases;
 // callers must release them before writing results to the socket.
 type wireCodec struct {
-	reader  *bufio.Reader
-	writer  *bufio.Writer
-	startup []byte
+	reader        *bufio.Reader
+	writer        *bufio.Writer
+	startup       []byte
+	authenticated bool
+	readScratch   [8192]byte // Sole reader's fulfilled-byte growth scratch.
 }
 
 func newWire(conn net.Conn) *wireCodec {
@@ -37,19 +41,40 @@ func framingError(code, message string) error {
 	return &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: code, Message: message}
 }
 
+// Lost outer framing is a silent connection retirement, not a SQL diagnostic.
+var errInvalidFrame = errors.New("invalid frontend message length")
+
 func frameLength(header []byte, minimum, maximum uint32) (int, error) {
 	length := binary.BigEndian.Uint32(header)
-	if length < minimum {
-		return 0, framingError("08P01", "invalid message length")
-	}
-	if length > maximum {
-		return 0, framingError("54000", "message exceeds maximum allowed length")
+	if length < minimum || length > maximum {
+		return 0, errInvalidFrame
 	}
 	return int(length) - 4, nil
 }
 
-// readStartup returns the protocol code and payload, excluding the length word.
-// Startup negotiations reuse the allocation but cannot exceed 64 KiB on wire.
+// readBody grows only after bytes arrive, never from an untrusted announcement.
+func (w *wireCodec) readBody(buffer []byte, length int) ([]byte, error) {
+	buffer = buffer[:0]
+	for len(buffer) < length {
+		n := min(length-len(buffer), len(w.readScratch))
+		if cap(buffer)-len(buffer) >= n {
+			start := len(buffer)
+			buffer = buffer[:start+n]
+			got, err := io.ReadFull(w.reader, buffer[start:])
+			if err != nil {
+				return buffer[:start+got], err
+			}
+		} else {
+			got, err := io.ReadFull(w.reader, w.readScratch[:n])
+			buffer = append(buffer, w.readScratch[:got]...)
+			if err != nil {
+				return buffer, err
+			}
+		}
+	}
+	return buffer, nil
+}
+
 func (w *wireCodec) readStartup() ([]byte, error) {
 	var header [4]byte
 	if _, err := io.ReadFull(w.reader, header[:]); err != nil {
@@ -59,37 +84,36 @@ func (w *wireCodec) readStartup() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cap(w.startup) < length {
-		w.startup = make([]byte, length)
-	} else {
-		w.startup = w.startup[:length]
-	}
-	if _, err := io.ReadFull(w.reader, w.startup); err != nil {
-		return nil, err
-	}
-	return w.startup, nil
+	w.startup, err = w.readBody(w.startup, length)
+	return w.startup, err
 }
 
-// readMessage borrows buffer until the next read. A new allocation occurs only
-// when its capacity is too small; callers retain the returned body for reuse.
 func (w *wireCodec) readMessage(buffer []byte) (frontendMessage, error) {
-	var header [5]byte
-	if _, err := io.ReadFull(w.reader, header[:]); err != nil {
-		return frontendMessage{}, err
-	}
-	length, err := frameLength(header[1:], 4, maxMessageLength)
+	tag, err := w.reader.ReadByte()
 	if err != nil {
 		return frontendMessage{}, err
 	}
-	if cap(buffer) < length {
-		buffer = make([]byte, length)
-	} else {
-		buffer = buffer[:length]
+	if !knownFrontendTag(tag) && tag != 'X' && !(tag == 'p' && !w.authenticated) {
+		return frontendMessage{}, framingError("08P01", fmt.Sprintf("invalid frontend message type %d", tag))
 	}
-	if _, err := io.ReadFull(w.reader, buffer); err != nil {
+	maximum := uint32(maxSmallMessageLength)
+	switch tag {
+	case 'P', 'B', 'Q', 'F', 'd':
+		maximum = maxMessageLength
+	}
+	var header [4]byte
+	if _, err := io.ReadFull(w.reader, header[:]); err != nil {
 		return frontendMessage{}, err
 	}
-	return frontendMessage{tag: header[0], body: buffer}, nil
+	length, err := frameLength(header[:], 4, maximum)
+	if err != nil {
+		return frontendMessage{}, err
+	}
+	buffer, err = w.readBody(buffer, length)
+	if err != nil {
+		return frontendMessage{}, err
+	}
+	return frontendMessage{tag: tag, body: buffer}, nil
 }
 
 func (w *wireCodec) send(tag byte, body []byte) error {
@@ -176,7 +200,7 @@ func appendString(body []byte, value string) []byte {
 func consumeString(body *[]byte) (string, error) {
 	end := bytes.IndexByte(*body, 0)
 	if end < 0 {
-		return "", framingError("08P01", "unterminated message string")
+		return "", protocolError("invalid string in message")
 	}
 	value := string((*body)[:end])
 	*body = (*body)[end+1:]

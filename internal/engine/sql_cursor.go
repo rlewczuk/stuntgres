@@ -353,7 +353,7 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	}
 	r := s.op.session.cursors
 	c := r.entries[close.Name.Text]
-	if !close.All && c == nil {
+	if !close.All && c == nil && !protocolPortalExists(s.op.session, close.Name.Text) {
 		return Result{}, missingSQLCursor(close.Name.Text)
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
@@ -366,9 +366,18 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	var cleanupErr error
 	if close.All {
 		cleanupErr = disposeSQLCursors(s.op.Context(), r.clear())
+		for name := range s.op.session.preparedSQL.portals {
+			if err := s.CloseProtocolPortal(name); cleanupErr == nil {
+				cleanupErr = err
+			}
+		}
 	} else {
 		delete(r.entries, close.Name.Text)
-		cleanupErr = c.dispose(s.op.Context())
+		if c != nil {
+			cleanupErr = c.dispose(s.op.Context())
+		} else {
+			cleanupErr = s.CloseProtocolPortal(close.Name.Text)
+		}
 	}
 	if cleanupErr != nil {
 		return Result{}, cleanupErr

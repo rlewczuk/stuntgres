@@ -82,6 +82,7 @@ type Session struct {
 	countedAuthenticated   authorization.PrincipalRef
 	state                  sessionState
 	completed              chan struct{}
+	endRequested           chan struct{} // Lazy wake projection of ending, not a lease or completion.
 	leases                 int
 	operations             map[*Operation]struct{}
 	detaching              bool
@@ -115,6 +116,7 @@ type Operation struct {
 	self                       *Operation
 	session                    *Session
 	ctx                        context.Context
+	copyInput                  protocolCopyInputContext
 	commandContext             context.Context // Session-cancelable parent of per-statement budgets.
 	cancel                     context.CancelCauseFunc
 	done                       bool
@@ -340,7 +342,15 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	}
 	return op, nil
 }
-func (op *Operation) Context() context.Context { return op.ctx }
+func (op *Operation) Context() context.Context {
+	if op.copyInput.held() {
+		op.session.mu.Lock()
+		ctx := op.copyInput.effectiveLocked(op)
+		op.session.mu.Unlock()
+		return ctx
+	}
+	return op.ctx
+}
 func (op *Operation) Done() {
 	if op == nil || op.self != op || op.session == nil {
 		return
@@ -381,6 +391,9 @@ func (e *Engine) validateOperation(op *Operation) error {
 			return &copy
 		}
 		return errors.New("stuntgres: inactive operation")
+	}
+	if op.copyInput.held() {
+		return op.fatalErrorLocked(op.copyInput.effectiveLocked(op).Err())
 	}
 	return op.fatalErrorLocked(op.ctx.Err())
 }
@@ -458,11 +471,28 @@ func (s *Session) RequestEnd(reason EndReason) {
 	s.requestEndLocked(reason)
 }
 
+// EndRequested wakes observers as soon as ending is requested, before leases
+// drain. Check reports the authoritative reason; WaitEnd still joins cleanup.
+func (s *Session) EndRequested() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.endRequested == nil {
+		s.endRequested = make(chan struct{})
+		if s.state == ending || s.state == ended {
+			close(s.endRequested)
+		}
+	}
+	return s.endRequested
+}
+
 func (s *Session) requestEndLocked(reason EndReason) {
 	if s.state == ending || s.state == ended {
 		return
 	}
 	s.state = ending
+	if s.endRequested != nil {
+		close(s.endRequested)
+	}
 	s.reason = reason
 	s.timeouts.transaction.stop()
 	s.timeouts.idle.stop()
@@ -472,6 +502,9 @@ func (s *Session) requestEndLocked(reason EndReason) {
 	}
 	for op := range s.operations {
 		op.cancel(cause)
+		if op.copyInput.cancel != nil {
+			op.copyInput.cancel(cause)
+		}
 	}
 	go s.end()
 }

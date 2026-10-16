@@ -103,7 +103,7 @@ func TestReferenceSQLPreparedCanceledWrite(t *testing.T) {
 			// Observe a genuinely running prepared write before admin cancellation;
 			// pg_sleep is only a pinned-oracle admission witness, not native scope.
 			sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE slow AS INSERT INTO prep_cancel SELECT v FROM (VALUES(8),(9)) s(v) WHERE pg_sleep(600) IS NULL RETURNING v", 0))
-			sqlCursorCancelDemand(t, p, c, "EXECUTE slow")
+			fixture.SQLCursorCancelDemand(t, p, c, "EXECUTE slow")
 		} else {
 			// pg_sleep has no native provider; retain the genuine precanceled route.
 			sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE slow(int) AS INSERT INTO prep_cancel VALUES($1),($1+1) RETURNING v", 0))

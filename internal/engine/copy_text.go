@@ -270,8 +270,12 @@ func (c *copyCursor) header() error {
 	return nil
 }
 func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
+	wireInput := c.scope.op.copyInput.active.Load()
+	if wireInput {
+		ctx = c.scope.op.Context()
+	}
 	if err := ctx.Err(); err != nil {
-		return false, err
+		return false, c.diagnostic(err)
 	}
 	if !c.headerDone {
 		c.headerDone = true
@@ -284,6 +288,9 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 	present, err := c.readLine()
 	if err != nil || !present {
 		return false, c.diagnostic(err)
+	}
+	if wireInput {
+		ctx = c.scope.op.Context()
 	}
 	if err = c.split(true); err != nil {
 		return false, c.diagnostic(err)
@@ -328,6 +335,9 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		}
 		c.column = ""
 	}
+	if err := c.scope.op.pendingCopyInputError(); err != nil {
+		return false, c.diagnostic(err)
+	}
 	return true, nil
 }
 func copyContextValue(text string) string {
@@ -347,7 +357,7 @@ func (c *copyCursor) diagnostic(err error) error {
 	// Map only this operation's SQL-owned cancellation before attaching the
 	// active COPY input context; ordinary caller context and I/O errors retain
 	// their identity, and relation-opening errors never enter this cursor.
-	err = c.scope.op.CommandError(err)
+	err = c.scope.copyCommandError(err)
 	var record *sqlstate.Error
 	if !errors.As(err, &record) || record.Context != "" {
 		return err
@@ -364,6 +374,30 @@ func (c *copyCursor) diagnostic(err error) error {
 		result.Context += fmt.Sprintf(": \"%s\"", copyContextValue(string(c.line)))
 	}
 	return &result
+}
+
+// Wire cancellation carries an immutable SQL diagnostic through the operation's
+// context. Ordinary embedded Go cancellation retains its existing identity.
+func (s *StatementScope) copyCommandError(err error) error {
+	var primary *sqlstate.Error
+	if errors.As(err, &primary) {
+		return err
+	}
+	err = s.op.CommandError(err)
+	if errors.As(err, &primary) || !(s.protocolCommand || s.protocolSimple) {
+		return err
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		cancellation := context.Cause(s.op.Context())
+		if cancellation == nil {
+			cancellation = context.Cause(s.op.ctx)
+		}
+		var cause *sqlstate.Error
+		if errors.As(cancellation, &cause) && cause != nil && (cause.Code == "57014" || cause.Severity == "FATAL") {
+			return cause
+		}
+	}
+	return err
 }
 func appendCopyText(dst []byte, text string, delimiter byte) []byte {
 	for i := range len(text) {
@@ -432,6 +466,7 @@ func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) 
 			break
 		}
 		buffer = buffer[:0]
+		output := rows.OutputEnvironment()
 		for i, value := range values {
 			if i != 0 {
 				buffer = append(buffer, o.delimiter)
@@ -440,7 +475,7 @@ func (s *StatementScope) copyOutput(rows RowResult, o copyOptions, w io.Writer) 
 				buffer = append(buffer, o.null...)
 				continue
 			}
-			text, outputErr := value.Type().OutputWithEnvironment(s.op.Context(), value, rows.OutputEnvironment())
+			text, outputErr := value.Type().OutputWithEnvironment(s.op.Context(), value, output)
 			if outputErr != nil {
 				return 0, outputErr
 			}

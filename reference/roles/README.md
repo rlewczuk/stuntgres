@@ -265,7 +265,7 @@ Run `go run "$SESSION_TMP/role-switch-smoke.go"` from the checkout with an exter
 900-second deadline. It independently checks utility affected0, NAME metadata,
 stable login identity, owner sentinel7, SESSION/LOCAL/savepoint/commit, NONE/reset,
 outside-block warning25P01 and denied42501. Parameterless direct multi-command
-execution follows [the direct-message contract](../sessions/README.md#direct-message-selected-proof);
+execution follows [the direct-message contract](../session_state/README.md#direct-message-selected-proof);
 prepared/parameterized multiple commands reject with42601, while unsupported
 utilities retain their specific capability diagnostics. Malformed scripts still
 parse completely before effects.

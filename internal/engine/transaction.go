@@ -101,7 +101,8 @@ type transactionOwner struct {
 	savepoints          []savepointMark
 	accessedTemporary   bool
 	exclusionModes      exclusionModes
-	retainedMessage     bool // Admission spans a direct multi-command message.
+	retainedMessage     bool           // Admission spans a direct multi-command message.
+	protocolCycle       *ProtocolCycle // Retention only; never owns admission.
 	identityEntry       authorization.RoleState
 	identityCaptured    bool
 	messageBorn         bool
@@ -113,6 +114,16 @@ type transactionOwner struct {
 func (t *transactionOwner) clear() {
 	if t.session.cursors != nil {
 		t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
+	}
+	if t.session.preparedSQL != nil {
+		for _, p := range t.session.preparedSQL.portals {
+			if p.tx == t.ref {
+				p.retired = true
+			}
+		}
+	}
+	if t.protocolCycle != nil {
+		t.protocolCycle.executed = false
 	}
 	t.state = TxIdle
 	t.ref = TxRef{}
@@ -151,7 +162,7 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 	t.ticket = nil
 	t.mu.Unlock()
 	t.session.Engine().locks.end(ticket)
-	cleanupErr := t.drainCursorCleanup(context.Background())
+	cleanupErr := t.drainCursorCleanup(context.Background(), nil)
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
 	if err := t.session.Engine().endTemporarySession(t.session); cleanupErr == nil {
@@ -256,7 +267,7 @@ func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
 	}
 	defer t.admission.Unlock()
 	result, err := e.endAdmitted(op, t, ref, false, false, false, time.Time{}, nil)
-	if cleanupErr := t.drainCursorCleanup(op.Context()); err == nil {
+	if cleanupErr := t.drainCursorCleanup(op.Context(), nil); err == nil {
 		err = cleanupErr
 	}
 	return result, err
@@ -273,7 +284,7 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 	}
 	defer t.admission.Unlock()
 	result, err := e.endAdmitted(op, t, ref, true, false, false, time.Time{}, nil)
-	if cleanupErr := t.drainCursorCleanup(op.Context()); err == nil {
+	if cleanupErr := t.drainCursorCleanup(op.Context(), nil); err == nil {
 		err = cleanupErr
 	}
 	return result, err
@@ -364,6 +375,13 @@ type StatementScope struct {
 	timeoutRef                     TxRef // admission projection for preparse ERROR timer retirement
 	output                         sqltype.OutputEnvironment
 	initialParameters              []sqltype.Usage
+	protocolBind                   *protocolPortal
+	protocolResume                 bool
+	protocolSimple                 bool
+	protocolSimpleCreated          bool
+	protocolSimpleStreaming        bool
+	protocolSimplePortal           *protocolPortal
+	protocolCommand                bool // Explicit wire preparation/execution policy, not session state.
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
 	pgRegex                     sqltype.PGRegexExecution
@@ -785,6 +803,11 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 }
 
 func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
+	return s.execute(stmt, count, importFrame, nil)
+}
+
+// One canonical resolver/importer/executor serves embedded and protocol callers.
+func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame FrameImporter, stream *protocolCopyExecution) (result Result, err error) {
 	var before TxState
 	if s != nil && s.owner != nil {
 		s.owner.mu.Lock()
@@ -792,12 +815,47 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 		s.owner.mu.Unlock()
 	}
 	// Adapter argument normalization precedes scope admission.
-	if execute, ok := stmt.(*parser.ExecuteSQL); ok {
+	execute, wrapped := stmt.(*parser.ExecuteSQL)
+	preparedInvocation := false
+	if wrapped && s != nil {
+		expected := s.Expected
+		defer func() { s.Expected = expected }()
+		preparedInvocation = s.protocolCommand && expected != nil && importFrame != nil && expected.Parameters.Count == count
+	}
+	var utilityFrame []sqltype.Value
+	for execute != nil {
 		if err := s.active(); err != nil {
 			return Result{}, err
 		}
-		if count != 0 {
+		if count != 0 && !preparedInvocation {
 			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		}
+		if count != 0 || stream != nil && s.protocolSimple {
+			// SQL EXECUTE is an outer utility: its portal exists before the
+			// prepared-name lookup, actual arguments and inner planning.
+			if err := s.gate(stmt); err != nil {
+				return Result{}, err
+			}
+			if stream != nil && s.protocolSimple {
+				if err := s.beginProtocolSimplePortal(); err != nil {
+					return Result{}, err
+				}
+			}
+		}
+		if count != 0 {
+			// This invocation owns its utility formals. Evaluate/import them
+			// once before the next lookup; nested utility $n remains unbound.
+			formal := s.Expected.Parameters
+			if cap(utilityFrame) < formal.Count {
+				utilityFrame = make([]sqltype.Value, formal.Count)
+			} else {
+				utilityFrame = utilityFrame[:formal.Count]
+			}
+			importErr := importFrame(s.op.Context(), formal, utilityFrame, s.input)
+			clear(utilityFrame)
+			if importErr != nil {
+				return Result{}, importErr
+			}
 		}
 		entry := s.op.session.preparedSQL.entries[execute.Name.Text]
 		if entry == nil {
@@ -810,7 +868,11 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 		stmt = entry.body
 		s.Expected = &entry.description
 		count = entry.description.Parameters.Count
-		importFrame = s.sqlExecuteImporter(execute)
+		_, copyBody := stmt.(*parser.Copy)
+		nextExecute, executeBody := stmt.(*parser.ExecuteSQL)
+		importFrame = s.sqlExecuteImporter(execute, executeBody || stream != nil && copyBody)
+		preparedInvocation = true
+		execute = nextExecute
 	}
 	base, counted, insert, ok := classifyCommandTag(stmt, before)
 	if !ok {
@@ -831,8 +893,31 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
 	}
+	if s.protocolSimpleStreaming && !wrapped && protocolPlainSelect(stmt) {
+		p := &protocolPortal{entry: sqlPreparedStatement{body: stmt}, tx: s.txRef}
+		s.protocolSimplePortal, s.protocolBind = p, p
+		if count == 0 && importFrame == nil {
+			importFrame = func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error { return nil }
+		}
+	}
+	if !protocolPlannedStatement(stmt) {
+		if err := s.beginProtocolSimplePortal(); err != nil {
+			return Result{}, err
+		}
+	}
 	if copy, ok := stmt.(*parser.Copy); ok {
-		return Result{}, CopyBoundary(copy)
+		if stream == nil {
+			return Result{}, CopyBoundary(copy)
+		}
+		if wrapped && count != 0 {
+			formal := s.Expected.Parameters
+			frame := make([]sqltype.Value, formal.Count)
+			if err := importFrame(s.op.Context(), formal, frame, s.input); err != nil {
+				return Result{}, err
+			}
+		}
+		copied, copyErr := s.CopyProtocol(copy, stream.source, stream.destination, stream.hooks)
+		return Result{Count: copied}, copyErr
 	}
 	if control, ok := stmt.(*parser.SavepointControl); ok {
 		return s.executeSavepoint(control, count)
@@ -974,10 +1059,34 @@ func prepareOwnWrites(previous, staged map[ObjectAddress][]rowVersion, replacing
 	return next
 }
 
-func (t *transactionOwner) drainCursorCleanup(ctx context.Context) error {
+func (t *transactionOwner) drainCursorCleanup(ctx context.Context, scope *StatementScope) error {
 	t.mu.Lock()
 	cursors := t.cursorCleanup
 	t.cursorCleanup = nil
 	t.mu.Unlock()
-	return disposeSQLCursors(ctx, cursors)
+	wire := scope != nil && (scope.protocolCommand || scope.protocolSimple)
+	var err error
+	if wire && len(cursors) != 0 {
+		err = scope.protocolTerminalIO(func() error { return disposeSQLCursors(ctx, cursors) })
+	} else {
+		err = disposeSQLCursors(ctx, cursors)
+	}
+	if t.session.preparedSQL == nil {
+		return err
+	}
+	for name, p := range t.session.preparedSQL.portals {
+		if p.retired {
+			delete(t.session.preparedSQL.portals, name)
+			var failure error
+			if wire {
+				failure = scope.protocolTerminalIO(func() error { return p.close(ctx) })
+			} else {
+				failure = p.close(ctx)
+			}
+			if err == nil {
+				err = failure
+			}
+		}
+	}
+	return err
 }

@@ -14,11 +14,13 @@ import (
 type sqlPreparedRegistry struct {
 	token   SessionToken
 	entries map[string]*sqlPreparedStatement
+	portals map[string]*protocolPortal
 }
 type sqlPreparedStatement struct {
-	body        parser.Statement
-	source      string
-	description StatementDescription
+	body          parser.Statement
+	source        string
+	description   StatementDescription
+	parameterOIDs []uint32 // Empty protocol statements preserve unvalidated hints.
 }
 
 func (r *sqlPreparedRegistry) EndSession(token SessionToken, _ EndReason) error {
@@ -26,9 +28,22 @@ func (r *sqlPreparedRegistry) EndSession(token SessionToken, _ EndReason) error 
 		return fmt.Errorf("stuntgres: foreign SQL prepared attachment")
 	}
 	clear(r.entries)
+	var failure error
+	for name, portal := range r.portals {
+		delete(r.portals, name)
+		if err := portal.close(context.Background()); failure == nil {
+			failure = err
+		}
+	}
+	if failure != nil {
+		return failure
+	}
 	return nil
 }
 func missingSQLPrepared(name string) error {
+	if name == "" {
+		return sqlError("26000", "unnamed prepared statement does not exist")
+	}
 	return sqlError("26000", fmt.Sprintf("prepared statement \"%s\" does not exist", name))
 }
 
@@ -100,12 +115,18 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 // The existing executor imports directly into its one canonical frame, unlocked.
 // This importer owns only the actual-expression binding/capture lock; evaluation
 // runs unlocked within the same scope/clock and revalidates without replay.
-func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporter {
+func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput bool) FrameImporter {
 	return func(ctx context.Context, formal ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 		if len(raw.Arguments) != formal.Count {
 			d := sqlError("42601", fmt.Sprintf("wrong number of parameters for prepared statement \"%s\"", raw.Name.Text)).(*sqlstate.Error)
 			d.Detail = fmt.Sprintf("Expected %d parameters but got %d.", formal.Count, len(raw.Arguments))
 			return d
+		}
+		if utilityInput {
+			if err := s.prepareProtocolUtilityInput(formal.Types); err != nil {
+				return err
+			}
+			input = s.input
 		}
 		e := s.op.session.Engine()
 		e.mu.Lock()
@@ -180,9 +201,20 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 			frame[i] = value
 		}
 		if len(actualProgram.calls) != 0 {
-			// Move the consumed graph to the existing statement owner before
-			// this local context ends. No pointer into a growing slice escapes.
-			s.routinePrograms = append(s.routinePrograms, commandRoutineProgram{admission: actualProgram})
+			// Preserve the original consumed calls without retaining a graph
+			// per nested utility hop. Merge only successive anonymous graphs,
+			// preserving readmission order across other original-call owners.
+			retained := false
+			if n := len(s.routinePrograms); n != 0 {
+				program := &s.routinePrograms[n-1]
+				if program.outer == nil && program.consumer == nil && !program.ri {
+					program.admission.include(&actualProgram)
+					retained = true
+				}
+			}
+			if !retained {
+				s.routinePrograms = append(s.routinePrograms, commandRoutineProgram{admission: actualProgram})
+			}
 		}
 		e.mu.Lock()
 		locked = true

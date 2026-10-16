@@ -22,7 +22,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 	}
 	var private *catalogChanges
-	if stage.authSession != nil && stage.authSession.transactions.retainedMessage {
+	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		private = stage.authSession.transactions.catalog
 	}
 	snapshot, err := captureIndexSnapshotParents(stage.domainAlter, stage.base, sources, sourceRoots, e.commitSeq, stores, private)

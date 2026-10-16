@@ -51,7 +51,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
 			}
 			name := declaration.Name.Text
-			if op.session.cursors.entries[name] != nil {
+			if op.session.cursors.entries[name] != nil || protocolPortalExists(op.session, name) {
 				return Result{}, sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
 			}
 		}
@@ -335,56 +335,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		scope.input.TypeDiagnosticName = b.typeDiagnosticName
 	}
 	scope.input.EnumMemberSafe = b.enumMemberSafe
-	for _, usage := range b.parameters.Types {
-		if usage.Type.ContainsRegclass() && scope.input.Regclass == nil {
-			scope.input.Regclass, err = e.captureRegclassInput(auth)
-			if err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-		}
-		if (usage.Type.ContainsRegtype() || usage.Type.ContainsRegproc()) && scope.input.Regtype == nil {
-			scope.input.Regtype, err = e.captureRegtypeInput(auth, op)
-			if err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-		}
-		if usage.Type.ContainsRegrole() && scope.input.Regrole == nil {
-			scope.input.Regrole = capturedRegroleInput{roles: auth.roles}
-		}
-		if usage.Type.ContainsOperatorAlias() && scope.input.Operator == nil {
-			scope.input.Operator, err = e.captureOperatorInput(auth, op)
-			if err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-		}
-		if usage.Type.ContainsRegproc() && scope.input.Regproc == nil {
-			scope.input.Regproc, err = e.captureRoutineInput(auth, scope.input.Regtype.(capturedRegtypeInput))
-			if err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-		}
-		if usage.Type.ContainsRegObject() && (scope.input.Regcollation == nil || scope.input.Regnamespace == nil) {
-			input, er := e.captureRegObjectInput(auth)
-			if er != nil {
-				e.mu.Unlock()
-				return Result{}, er
-			}
-			scope.input.Regcollation, scope.input.Regnamespace = input, input
-		}
-		if usage.Type.ContainsRegTS() && scope.input.RegTS == nil {
-			scope.input.RegTS, err = e.captureRegTSInput(auth)
-			if err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-		}
-		if usage.Type.ContainsACLItem() && scope.input.ACLItem == nil {
-			scope.input.ACLItem = e.captureACLItemInput(auth, op)
-		}
+	if err := scope.captureFormalInputLocked(auth, b.parameters.Types); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
 	if err := scope.validateQuerySources(b.querySources); err != nil {
 		e.mu.Unlock()
@@ -467,7 +420,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			break
 		}
 	}
-	if count != 0 {
+	if count != 0 || scope.protocolBind != nil {
 		if importFrame == nil {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
@@ -503,6 +456,19 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
+	if p := scope.protocolBind; p != nil {
+		p.values = canonical
+		if b.returning != nil {
+			p.columns = b.returning.schema
+		}
+		if b.query != nil && !b.commandQuery {
+			p.columns = b.query.Root.Schema()
+		}
+		if !protocolPlainSelect(stmt) {
+			e.mu.Unlock()
+			return Result{}, nil
+		}
+	}
 	if b.conflict != nil && b.conflict.update != nil {
 		if boundary := partitionWriteExtensionBoundary(stmt, b.physicalBinding().relation); boundary != nil {
 			// Hierarchies have no conflict-update executor. Complete analysis
@@ -532,6 +498,15 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	var creationStage *CatalogStage
 	var creationDescriptor *relationDescriptor
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
+		// CTAS is a utility after canonical analysis/import. NoData and an
+		// existing destination skip the internal SELECT planner entirely.
+		if scope.protocolSimple && !scope.protocolSimpleCreated {
+			e.mu.Unlock()
+			if err := scope.beginProtocolSimplePortal(); err != nil {
+				return Result{}, err
+			}
+			e.mu.Lock()
+		}
 		var skipped bool
 		creationStage, creationDescriptor, skipped, err = e.prepareQueryTableLocked(op, auth, creation, b)
 		if err != nil || skipped {

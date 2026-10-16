@@ -8,7 +8,7 @@ import (
 
 func discardReborrow(t *testing.T, p *fixture.Pair, b fixture.Backend, a *sql.Conn) *sql.Conn {
 	t.Helper()
-	identity := settingsPhysical(t, a)
+	identity := fixture.SettingsPhysical(t, a)
 	if err := a.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -17,7 +17,7 @@ func discardReborrow(t *testing.T, p *fixture.Pair, b fixture.Backend, a *sql.Co
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { reused.Close() })
-	if settingsPhysical(t, reused) != identity {
+	if fixture.SettingsPhysical(t, reused) != identity {
 		t.Fatal("physical replacement is not evidence of DISCARD or healthy reuse")
 	}
 	return reused

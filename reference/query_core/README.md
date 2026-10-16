@@ -36,6 +36,9 @@ Complete native registry consumers independently include the new default2 and
 released description, retaining exact cardinality, ordering and completeness
 checks. Genuine PostgreSQL pg_settings projections include the same definition;
 host-registration lifecycle phases remain explicitly native-only.
+The settings registry definitions are owned by
+[session_state](../session_state/README.md#testing); their name-based selectors
+above are unchanged.
 
 
 Initial oracle discovery follows the shared testing guide's temporary PG-only

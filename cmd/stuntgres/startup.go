@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	protocolVersion3  = 196608
-	cancelRequestCode = 80877102
-	sslRequestCode    = 80877103
-	gssRequestCode    = 80877104
+	protocolVersion3      = 196608
+	protocolVersionLatest = 196610
+	cancelRequestCode     = 80877102
+	sslRequestCode        = 80877103
+	gssRequestCode        = 80877104
 )
 
 type parameterValue struct{ name, value string }
@@ -39,6 +40,9 @@ func (c *client) startup() (bool, error) {
 		var err error
 		packet, err = c.wire.readStartup()
 		if err != nil {
+			if errors.Is(err, errInvalidFrame) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				return false, nil
+			}
 			return false, err
 		}
 		if len(packet) < 4 {
@@ -67,33 +71,37 @@ func (c *client) startup() (bool, error) {
 			}
 			continue
 		case cancelRequestCode:
-			if len(packet) != 12 {
-				return false, startupError("08P01", "invalid cancel request")
+			if len(packet) < 9 || len(packet) > 264 {
+				return false, nil
 			}
-			c.server.cancelCommand(binary.BigEndian.Uint32(packet[4:8]), binary.BigEndian.Uint32(packet[8:12]))
+			c.server.cancelCommand(binary.BigEndian.Uint32(packet[4:8]), packet[8:])
 			return false, nil
 		}
 		if code>>16 != 3 {
-			return false, startupError("0A000", "unsupported frontend protocol version")
+			return false, startupError("0A000", fmt.Sprintf("unsupported frontend protocol %d.%d: server supports 3.0 to 3.2", code>>16, code&65535))
 		}
 		break
 	}
 
 	version := binary.BigEndian.Uint32(packet)
+	negotiated := min(version, uint32(protocolVersionLatest))
+	if negotiated >= protocolVersionLatest {
+		c.keyLength = 32
+	}
 	pairs, unsupported, err := parseStartupParameters(packet[4:])
 	if err != nil {
 		return false, err
 	}
 	c.user = pairs["user"]
 	if c.user == "" {
-		return false, startupError("08P01", "no PostgreSQL user name specified in startup packet")
+		return false, startupError("28000", "no PostgreSQL user name specified in startup packet")
 	}
 	c.database = pairs["database"]
 	if c.database == "" {
 		c.database = c.user
 	}
-	if version != protocolVersion3 || len(unsupported) != 0 {
-		body := appendInt32(nil, protocolVersion3)
+	if version > protocolVersionLatest || len(unsupported) != 0 {
+		body := appendInt32(nil, negotiated)
 		body = appendInt32(body, uint32(len(unsupported)))
 		for _, name := range unsupported {
 			body = appendString(body, name)
@@ -103,7 +111,7 @@ func (c *client) startup() (bool, error) {
 		}
 	}
 	if replication, ok := pairs["replication"]; ok && replication != "false" {
-		return false, startupError("0A000", "replication connections are not supported by stuntgres Phase 1")
+		return false, startupError("0A000", "replication connections are not supported")
 	}
 	if err := c.wire.send('R', appendInt32(nil, 3)); err != nil {
 		return false, err
@@ -162,7 +170,7 @@ func (c *client) startup() (bool, error) {
 		defaults[startupSettingName(name)] = value
 	}
 	c.db = db
-	c.session, err = db.startSession(c.ctx, c.user, defaults)
+	c.session, err = db.startSession(c.ctx, c.id, c.user, defaults)
 	if err != nil {
 		return false, err
 	}
@@ -176,7 +184,7 @@ func (c *client) startup() (bool, error) {
 		return false, err
 	}
 	body := appendInt32(nil, c.id)
-	body = appendInt32(body, c.key)
+	body = append(body, c.key[:c.keyLength]...)
 	if err := c.wire.send('K', body); err != nil {
 		return false, err
 	}
@@ -189,6 +197,7 @@ func (c *client) startup() (bool, error) {
 	if err := c.socket.SetDeadline(time.Time{}); err != nil {
 		return false, err
 	}
+	c.wire.authenticated = true
 	return true, nil
 }
 
@@ -196,31 +205,37 @@ func (c *client) startup() (bool, error) {
 // order for unsupported protocol options; never retain sensitive packet bodies.
 func parseStartupParameters(body []byte) (map[string]string, []string, error) {
 	pairs := make(map[string]string)
-	seen := make(map[string]bool)
+	latest := make(map[string]string)
 	var unsupported []string
 	for {
 		name, err := consumeString(&body)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, startupError("08P01", "invalid startup packet layout: expected terminator as last byte")
 		}
 		if name == "" {
 			if len(body) != 0 {
-				return nil, nil, startupError("08P01", "trailing bytes in startup packet")
+				return nil, nil, startupError("08P01", "invalid startup packet layout: expected terminator as last byte")
 			}
 			return pairs, unsupported, nil
 		}
 		value, err := consumeString(&body)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, startupError("08P01", "invalid startup packet layout: expected terminator as last byte")
 		}
 		if !utf8.ValidString(name) || !utf8.ValidString(value) {
 			return nil, nil, startupError("08P01", "invalid UTF-8 in startup packet")
 		}
-		canonical := startupSettingName(name)
-		if seen[canonical] {
-			return nil, nil, startupError("08P01", "duplicate startup parameter")
+		// PostgreSQL accepts repeated startup fields. Reserved fields are exact
+		// names; ordinary GUC names are case-insensitive and the last wins.
+		canonical := "setting:" + startupSettingName(name)
+		switch name {
+		case "user", "database", "options", "replication":
+			canonical = name
 		}
-		seen[canonical] = true
+		if prior, ok := latest[canonical]; ok {
+			delete(pairs, prior)
+		}
+		latest[canonical] = name
 		pairs[name] = value
 		if strings.HasPrefix(name, "_pq_.") {
 			unsupported = append(unsupported, name)
@@ -309,7 +324,7 @@ func startupOptions(options string) (startupDefaults, error) {
 
 func (c *client) settingsSnapshot() []parameterValue {
 	values := []parameterValue{{"server_version", "18.0"}, {"integer_datetimes", "on"}}
-	for _, name := range []string{"application_name", "client_encoding", "server_encoding", "DateStyle", "IntervalStyle", "TimeZone", "standard_conforming_strings"} {
+	for _, name := range []string{"application_name", "client_encoding", "server_encoding", "DateStyle", "IntervalStyle", "TimeZone", "standard_conforming_strings", "search_path"} {
 		if value, ok := c.session.Setting(name); ok {
 			values = append(values, parameterValue{name, value})
 		}
@@ -317,6 +332,9 @@ func (c *client) settingsSnapshot() []parameterValue {
 	return values
 }
 
+// Startup and readyBoundary are the only report boundaries. Final current
+// values coalesce intra-message changes and reflect rollback before reporting;
+// Flush and individual extended commands must not publish transient settings.
 func (c *client) sendSettings(values []parameterValue) error {
 	if c.lastSettings == nil {
 		c.lastSettings = make(map[string]string, len(values))
@@ -345,7 +363,7 @@ func (c *client) sendReady() error {
 	switch c.session.TransactionState() {
 	case engine.TxIdle:
 		state = 'I'
-	case engine.TxActive:
+	case engine.TxActive, engine.TxImplicit:
 		state = 'T'
 	case engine.TxAborted:
 		state = 'E'

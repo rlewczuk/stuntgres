@@ -128,15 +128,71 @@ and [replacement semantics](FIXTURES.md#commit-timestamp-history).
 
 ## Server transport
 
-`cmd/stuntgres` uses the same engine through PostgreSQL protocol 3.0 simple
-queries. Wire parameters, prepared statements, portals, FunctionCall, streaming
-COPY and TLS are unavailable and fail explicitly. This restriction is separate
-from engine-owned SQL prepared names and cursors. Only UTF8/UNICODE client
-encoding is admitted; there is no wire transcoder. Each allowed network account
-is a local administrator of its independently owned in-memory databases.
+`cmd/stuntgres` exposes the existing engine through PostgreSQL simple and extended
+query protocols3.0/3.1/3.2, with release negotiation for newer3.x minors and
+version-dependent opaque cancellation keys. Parse, Bind, Describe, Execute,
+Close, Flush and Sync use engine-owned prepared names, typed values, portals
+and transaction boundaries. Wire names share SQL PREPARE/EXECUTE/DEALLOCATE
+authority; portals retain their own snapshot, execution position and lifetime.
+Finite Execute resumes without repeating effects. Flush does not commit work;
+errors skip ordinary extended messages through the next Sync.
+Retained typed rows do not freeze wire presentation: resumed destinations use
+current formatting settings and catalog-valued spelling without query replay.
+ParameterStatus is emitted at startup and the ready boundary, not each statement
+or Flush; intermediate changes coalesce and rollback reports restored values.
 
-See [commands and security](../README.md#phase-1-server--change-note) and
-[selected server proof](../reference/sessions/README.md#phase-1-server-selected-proof).
+Exhausted row/store portals remain fetchable with zero-count completion; completed
+non-row commands cannot execute again. A pre-savepoint failed portal retains its
+name after rollback-to, not its executor, until Close or actual lifetime retirement.
+Simple-query creation also replaces the unnamed portal on CTAS no-data/skip paths.
+Pending wire cancellation preserves real COPY conversion errors and consumed-row
+context before application; it does not change ordinary embedded Go cancellation.
+
+Wire SELECT preparation uses the existing static-operator planning phase before
+starting its real output destination. Planning failures therefore precede row
+metadata; runtime failures can follow metadata or already-streamed rows, without
+replaying effects. This protocol execution policy does not change ordinary
+embedded arithmetic's documented row-owned empty-scan boundary. Undemanded EXISTS
+targets and statically unreachable branches remain outside evaluation; actual
+predicates and imported-parameter, domain and volatile demand barriers retain
+their authority.
+
+Simple SQL EXECUTE is an outer utility: its portal creation precedes underlying
+lookup/planning, and SELECT rows use the canonical store-backed utility strategy,
+not the direct plain-SELECT streaming strategy. A wire-prepared COPY instead
+retains its actual protocol stream through SQL EXECUTE and extended wrappers.
+Wire-published EXECUTE wrappers can themselves be invoked through SQL EXECUTE;
+canonical invocation preserves each utility's own formals and once-only actual
+evaluation through the underlying command. An unused formal does not introduce
+a nested utility parameter namespace: its unbound `$1` still raises42P02.
+
+Text/binary parameters and results use shared codecs and actual ordered metadata,
+not a second transport conversion registry. Available codecs do not make
+lookup-only descriptors, unsupported casts/storage, anonymous-record text input or
+missing binary providers available. FunctionCall invokes supported routines by
+OID with normal namespace/routine permissions; catalog lookup alone does not
+make a routine callable or add large-object storage. COPY uses the streaming
+executor described [below](#copy-streams). Committed notifications are delivered
+to idle network listeners without an extra query.
+
+Wire result RowDescription uses the physical domain base type and base typmod;
+logical domain identity/checks and ParameterDescription remain intact. Binary
+NULL arguments still require a declared receive provider. Ordinary binary rows
+initialize send providers on their first delivered tuple, including all-NULL
+tuples, but empty rowsets do not initialize them. This is distinct from COPY's
+destination stage and FunctionCall's strict NULL-result shortcut.
+
+Only UTF8/UNICODE client encoding and cleartext password authentication are
+implemented. TLS, GSS encryption and additional authentication mechanisms remain
+unavailable; SSL/GSS requests are refused. Each allowed network account is a
+local administrator of its independently owned in-memory databases, subject to
+the unchanged userfile cross-database gate. Native SQL dumps remain logical
+save/restore, not WAL, replication, crash durability or arbitrary pg_dump import.
+Transport support is not a promise of every PostgreSQL SQL/catalog/extension
+feature or every client.
+
+See [commands and security](../README.md#phase-2-server--change-note) and
+[selected server proof](../reference/sessions/README.md#phase-2-server-selected-proof).
 
 ## Session notifications
 
@@ -162,12 +218,15 @@ payload validation deferred to execution; SQL PREPARE still only accepts DML.
 These utilities are allowed READ ONLY. Pending notification actions/events forbid
 PREPARE TRANSACTION; see [transactions](TRANSACTIONS.md#prepared-transactions).
 
-The server transport rejects LISTEN/NOTIFY/UNLISTEN with `0A000`,
-`statement is unsupported`, at the command token. Rejection uses normal statement
-failure: implicit batches roll back, explicit blocks abort, and already committed
-prefixes remain committed. No wire NotificationResponse transport, rule-action
-execution, `pg_notify`, `pg_listening_channels`, or `pg_notification_queue_usage`
-is introduced.
+Network sessions consume the same committed per-database queue through actual
+NotificationResponse frames containing notifier wire PID, channel and payload.
+Delivery is serialized with notices/settings/errors/rows and occurs only outside
+an active or aborted listener transaction, including while idle without a query.
+Already-ready local events are preserved rather than dequeued through a new
+transaction; native `WaitForNotification` retains its separate pinned-connection
+receiver contract. Sender retirement does not erase queued PID provenance.
+Rule-action execution, `pg_notify`, `pg_listening_channels`, and
+`pg_notification_queue_usage` are not introduced by wire delivery.
 See [selected proof and executable smoke](../reference/sessions/README.md#session-messages)
 and PostgreSQL's [LISTEN](https://www.postgresql.org/docs/18/sql-listen.html),
 [NOTIFY](https://www.postgresql.org/docs/18/sql-notify.html), and
@@ -185,6 +244,7 @@ position. It is physical-session-local, not a role-global cursor inventory.
 Healthy driver ResetSession is a health check, not metadata cleanup; use explicit
 DISCARD ALL or physical connection teardown. Native Reset/Restore are catalog
 replacement/fencing controls, not session reset.
+See [selected cursor contracts and smoke](../reference/cursors/README.md#testing).
 
 ## Live lock state
 
@@ -644,7 +704,7 @@ blanket-banned.
 
 Native rule DDL is autocommit-only, including prepared execution; this differs
 from PostgreSQL transactional DDL. MERGE events/actions, procedural triggers
-and rule-action NOTIFY/wire notification transport remain unavailable. Persistent rules participate
+and rule-action NOTIFY remain unavailable. Persistent rules participate
 in dependency cleanup and post-data logical Dump/Restore.
 DO UPDATE actions implicitly capture dependencies on every target column present
 in their initial EXCLUDED targetlist, independently of actual column ACL reads.
@@ -808,13 +868,32 @@ readonly-catalog boundaries.
 
 ## COPY streams
 
-COPY requires the [pinned native stream helpers](DRIVER.md#pinned-copy-text-streams--change-note),
-not ordinary database/sql execution or prepared COPY. File and program endpoints
-never perform external I/O. Encoding overrides, freezing, row filtering and
-error-skipping/logging options remain excluded. Legacy CSV option spellings are
-outside the modern CSV implementation. Physical export of a virtual partition
-root is unavailable. Binary providers do not add storage, cast, DDL or catalog
-mutation capabilities; `pg_node_tree` binary input is excluded.
+Embedded callers use the [pinned native stream helpers](DRIVER.md#pinned-copy-text-streams--change-note),
+not ordinary embedded database/sql execution or prepared COPY. Network clients
+can use simple or extended COPY FROM STDIN and table/query COPY TO STDOUT,
+including lib/pq CopyIn and psql. Text, CSV and binary share real codecs,
+constraints and atomic staging; packet boundaries are not row boundaries.
+Text end markers still wait for protocol CopyDone, and CopyFail can veto success;
+binary trailers reject trailing data. Late conversion failure, cancellation or
+disconnect does not publish a valid input prefix. Output can have an irreversible
+prefix on failure, but receives no successful completion for failed work.
+Plain SELECT query COPY initializes its real plan/metadata/authority before CopyOutResponse,
+then demands rows through the canonical producer. Binary output resolves its
+actual send provider after that response but before binary signature/data,
+including empty results: missing providers can therefore produce H then E
+without any data or successful completion. No provider is invented by transport.
+Binary input initializes declared receivers for every live physical attribute,
+including omitted COPY columns, before CopyInResponse. A domain's generic
+receiver is available at that stage: an empty stream can finish without invoking
+its base receiver; a NULL record resolves the base on invocation, after the
+response, and preserves actual COPY row/column error context.
+
+File and PROGRAM endpoints fail explicitly and never perform external I/O.
+Encoding overrides, freezing, row filtering and error-skipping/logging options
+remain excluded. Legacy CSV option spellings are outside the modern CSV
+implementation. Physical export of a virtual partition root is unavailable.
+Binary providers do not add storage, cast, DDL or catalog mutation capabilities;
+`pg_node_tree` binary input is excluded.
 
 ## pg_namespace namespace metadata
 
@@ -1163,8 +1242,9 @@ this is not an always-visible builtin alias.
 The strict, parallel-safe, VOLATILE zero-argument overload uses standard-library
 `crypto/rand` entropy, preserving122 random bits with version4 and RFC variant
 bits set. Each demanded result is non-NULL UUID, canonical lowercase text through
-database/sql and16 raw bytes through existing binary COPY. Computed metadata
-does not acquire a special nonnull proof, and no binary-bind API is added.
+database/sql and16 raw bytes through existing binary COPY and wire codecs.
+Computed metadata does not acquire a special nonnull proof, and the extension
+adds no separate embedded binary-bind API.
 There is no NULL input to a zero-argument overload: `uuid_generate_v4(NULL)`
 fails ordinary overload resolution rather than returning NULL.
 

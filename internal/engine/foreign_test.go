@@ -452,7 +452,7 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	if premature != 0 {
 		t.Fatal("locked registry detach ran application cleanup")
 	}
-	if err := txn.drainCursorCleanup(context.Background()); !errors.Is(err, failure) {
+	if err := txn.drainCursorCleanup(context.Background(), nil); !errors.Is(err, failure) {
 		t.Fatal("cleanup outcome was swallowed", err)
 	}
 	if len(blocked) != 0 || scan.ends != 1 || len(s.cursors.entries) != 0 || len(txn.cursorCleanup) != 0 || !source.lifetimeClosed || cursor.foreignOwner != nil {

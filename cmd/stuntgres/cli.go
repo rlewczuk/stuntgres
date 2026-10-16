@@ -37,8 +37,8 @@ passwd prompts twice; existing grants are preserved unless --databases is given.
 All long aliases: --listen, --dumpdir, --logdir, --userfile, --pidfile,
 --restore, --verbose, --background. Filesystem paths resolve before daemonizing.
 
-Phase 1: simple PostgreSQL protocol 3.0 queries, in-memory databases, native
-SQL dump/restore. No wire parameters, prepared statements, portals, COPY or TLS.
+PostgreSQL protocol 3.0/3.2 simple and extended queries, prepared statements,
+portals and streaming COPY over the bounded in-memory SQL engine; native dumps.
 WARNING: cleartext password authentication without TLS. Use loopback or a
 trusted protected network; non-loopback listening exposes passwords and data.
 `

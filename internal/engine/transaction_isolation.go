@@ -186,6 +186,12 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	default:
 		return nil
 	}
+	return s.snapshotDataPhase()
+}
+
+// Fastpath has no SQL AST but obtains the same transaction snapshot before
+// reading its function identity or invoking argument/result codecs.
+func (s *StatementScope) snapshotDataPhase() error {
 	t, e := s.owner, s.op.session.Engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()

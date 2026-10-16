@@ -439,7 +439,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if op.session.transactions.retainedMessage {
+	if op.session.transactions.retainsTransaction() {
 		changes := cloneCatalogChanges(op.session.transactions.catalog)
 		// Completed grant utilities retain their consulted DB predecessor in
 		// the candidate, not a scope authority with a pre-advance role revision.

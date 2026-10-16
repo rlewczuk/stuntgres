@@ -44,7 +44,7 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 			}
 			formal := ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, tc.formal)}}
 			frame := make([]sqltype.Value, 1)
-			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}})(op.ctx, formal, frame, scope.input)
+			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.ctx, formal, frame, scope.input)
 			if !e.mu.TryLock() {
 				t.Fatal("SQL actual importer retained engine mutex")
 			}
@@ -66,5 +66,64 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestPreparedSQLActualProgramOwnership(t *testing.T) {
+	e := New()
+	session := sessionStart(t, e, nil)
+	op := transactionOperation(t, session)
+	defer op.Done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var commandErr error
+	defer func() { _ = scope.Finish(commandErr) }()
+	if commandErr = scope.gate(&parser.Select{}); commandErr != nil {
+		t.Fatal(commandErr)
+	}
+	actual := parser.FunctionExpr{
+		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "length"}}},
+		Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "owned"}}},
+	}
+	importer := scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{actual}}, true)
+	formal := ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}
+	frame := make([]sqltype.Value, 1)
+	var original []routineAdmission
+	for i := range 32 {
+		if commandErr = importer(op.Context(), formal, frame, scope.input); commandErr != nil {
+			t.Fatal(commandErr)
+		}
+		clear(frame)
+		if len(scope.routinePrograms) != 1 || len(scope.routinePrograms[0].admission.calls) == 0 {
+			t.Fatal("actual invocations did not retain one consumed authority graph")
+		}
+		calls := scope.routinePrograms[0].admission.calls
+		if i == 0 {
+			original = append([]routineAdmission(nil), calls...)
+		}
+		if len(calls) != len(original) {
+			t.Fatal("repeated actuals retained a hop-sized history")
+		}
+		for j, call := range calls {
+			old := original[j]
+			if call.reference != old.reference || call.routine != old.routine || call.consumer != old.consumer || call.actor != old.actor {
+				t.Fatal("coalescing replaced original consumed-call ownership")
+			}
+		}
+	}
+	foreign := New()
+	foreignSession := sessionStart(t, foreign, nil)
+	foreignOp := transactionOperation(t, foreignSession)
+	defer foreignOp.Done()
+	foreign.mu.Lock()
+	auth, authErr := foreign.authorizationLocked(foreignOp)
+	foreign.mu.Unlock()
+	if authErr != nil {
+		t.Fatal(authErr)
+	}
+	if err := scope.routinePrograms[0].admission.readmit(auth); err == nil {
+		t.Fatal("coalesced consumed calls accepted a foreign authority")
 	}
 }
