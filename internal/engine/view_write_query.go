@@ -92,7 +92,7 @@ func (w *viewWrite) graftQuery(b *binding, view CatalogRead, root LogicalNode, r
 		return column, changed, nil
 	}
 	return rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
-		next, translated, err := mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, translate)
+		next, translated, err := mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
 		if err != nil {
 			return nil, false, err
 		}

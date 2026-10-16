@@ -18,6 +18,7 @@ type statementMutation struct {
 	lockedIdentityOnly    bool
 	inheritedTargets      []queryLeaf
 	viewWrite             *viewWrite
+	routineDependencies   []expressionDependency // Borrowed immutable manifest follows command activation.
 	uniqueBinding         *uniqueWriteBinding
 	indexBindings         map[ObjectAddress]*uniqueWriteBinding
 	insertConflict        *boundInsertConflict

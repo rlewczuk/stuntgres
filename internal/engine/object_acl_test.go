@@ -180,7 +180,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	if err != nil || remapped.(objectACLExpression).validateStored() != nil {
 		t.Fatal("stored remap", err)
 	}
-	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, func(child BoundExpr) (BoundExpr, bool, error) {
+	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child BoundExpr) (BoundExpr, bool, error) {
 		if literal, ok := child.(literalExpression); ok && literal.value.Type().ID() == sqltype.Oid {
 			literal.value, _ = sqltype.OIDValue(oid, 42)
 			return literal, true, nil

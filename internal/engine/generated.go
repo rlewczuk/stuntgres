@@ -130,7 +130,8 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 			return columnGeneration{}, err
 		}
 	}
-	node, _, err = simplifyConditional(&EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: b.input, catalog: auth.catalog}, node, true)
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: b.input, catalog: auth.catalog, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
+	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return columnGeneration{}, err
 	}
@@ -345,6 +346,70 @@ func generationImmutable(node BoundExpr) bool {
 	}
 }
 
+func generationRecipeExpression(definition columnGeneration) BoundExpr {
+	if definition.expression != nil {
+		return definition.expression
+	}
+	// Standalone internal provider fixtures may supply only an executable.
+	// Published SQL generation descriptors require the declaration expression.
+	return definition.planned
+}
+
+// One execution owner uses one fixed generation program for this descriptor.
+// ALTER borrows its existing selected-slot vector; ordinary writes demand all
+// stored slots. Neither path admits unused recipes or checks rights per row.
+func prepareGenerationProgram(c *EvalContext, d *relationDescriptor, selected []int, consumer *relationDescriptor) ([]BoundExpr, error) {
+	program, prepared := c.preparedGenerations[d]
+	if prepared {
+		return program, nil
+	}
+	stored := false
+	count := len(d.attributes)
+	if selected != nil {
+		count = len(selected)
+	}
+	for i := range count {
+		slot := i
+		if selected != nil {
+			slot = selected[i]
+		}
+		definition, exists := d.generations[d.attributes[slot]]
+		if !exists || definition.kind != generationStored {
+			continue
+		}
+		stored = true
+		recipe := *c
+		recipe.routineRecipe, recipe.routineGraft = true, false
+		recipe.routineChecks = nil
+		recipe.routineReferences = definition.dependencies
+		recipe.routineConsumer = consumer
+		node, changed, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
+		c.preparedDomainChecks = recipe.preparedDomainChecks
+		if err != nil {
+			return nil, err
+		}
+		if err := validateExpressionJoinExecution(&recipe, node, recipe.catalog); err != nil {
+			return nil, err
+		}
+		if changed {
+			if program == nil {
+				program = make([]BoundExpr, len(d.columns))
+				for i, attribute := range d.attributes {
+					program[i] = generationRecipeExpression(d.generations[attribute])
+				}
+			}
+			program[slot] = node
+		}
+	}
+	if stored {
+		if c.preparedGenerations == nil {
+			c.preparedGenerations = make(map[*relationDescriptor][]BoundExpr)
+		}
+		c.preparedGenerations[d] = program
+	}
+	return program, nil
+}
+
 func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqltype.Value, c *EvalContext) error {
 	if len(d.generations) == 0 {
 		return ctx.Err()
@@ -353,6 +418,10 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 	c.Scope = 1
 	c.Frame = 1
 	c.Row = row
+	program, err := prepareGenerationProgram(c, d, nil, d)
+	if err != nil {
+		return err
+	}
 	for slot, attribute := range d.attributes {
 		definition, ok := d.generations[attribute]
 		if !ok {
@@ -362,7 +431,11 @@ func evaluateGenerations(ctx context.Context, d *relationDescriptor, row []sqlty
 			row[slot] = sqltype.Null(d.columns[slot].Usage.Type)
 			continue
 		}
-		value, err := definition.planned.Eval(c)
+		expression := generationRecipeExpression(definition)
+		if program != nil {
+			expression = program[slot]
+		}
+		value, err := expression.Eval(c)
 		if err != nil {
 			return err
 		}

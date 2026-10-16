@@ -336,13 +336,9 @@ func TestReferencePGOperatorReferences(t *testing.T) {
 		s = fixture.Select(q+" ORDER BY oid", []string{"oid", "commutator", "negator"}, []string{"OID", "TEXT", "TEXT"}, targets)
 		fixture.PgDescriptionRows(t, p, b, s)
 		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
-		// Lookup-only implementation identity does not synthesize a pg_proc row.
+		// The existing native operator retains its released implementation row.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT 'int4pl'::regproc::oid AS implementation FROM pg_operator WHERE oid=551", []string{"implementation"}, []string{"OID"}, [][]any{{int64(177)}}))
-		var routines [][]any
-		if b.PG {
-			routines = [][]any{{int64(177)}}
-		}
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_proc WHERE oid=177", []string{"oid"}, []string{"OID"}, routines))
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_proc WHERE oid=177", []string{"oid"}, []string{"OID"}, [][]any{{int64(177)}}))
 	})
 }
 

@@ -212,6 +212,12 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.RegisterCatalogProvider(operatorProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(parameterProvider{}); err != nil {
+		return nil, err
+	}
+	if err := e.RegisterCatalogProvider(tablespaceProvider{}); err != nil {
+		return nil, err
+	}
 	comment := "text search dictionary that removes accents"
 	if err := e.registerExtension("unaccent", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUnaccent}); err != nil {
 		return nil, err
@@ -257,7 +263,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray()}
+		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
 			d.revision = 1
 		}
@@ -275,6 +281,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		e.state.names[descriptorNameKey(d)] = d.Address()
 	}
 	e.initializeConversionRoutines()
+	e.initializeBuiltinRoutines()
+	e.initializeTablespaces()
 	for i := range builtinConversions {
 		d := new(conversionDescriptor)
 		*d = builtinConversions[i]
@@ -292,8 +300,11 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	view := CatalogRead{owner: e, state: e.state}
 	for _, d := range e.state.descriptors {
 		p := e.providers[d.Address().ClassID]
-		if p == nil || p.Validate(view, d) != nil {
-			return nil, fmt.Errorf("stuntgres: invalid built-in catalog descriptor")
+		if p == nil {
+			return nil, fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
+		}
+		if err := p.Validate(view, d); err != nil {
+			return nil, fmt.Errorf("stuntgres: invalid built-in catalog descriptor %q (class %d): %w", d.Name(), d.Address().ClassID, err)
 		}
 	}
 	return e, nil
@@ -427,11 +438,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		info, _, err := e.describeSettingCall(op.ctx, s, &scope.input, op)
+		binding, err := e.describeSettingCall(op.ctx, s, &scope.input, op)
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
-		return StatementDescription{Parameters: info, Results: columns}, err
+		return StatementDescription{Parameters: binding.parameters, Results: columns}, err
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -857,6 +868,9 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 		mutation := definition.mutation
 		mutation.querySources = b.querySources
 		mutation.parameters = b.parameters
+		// Auxiliary commands share this binder; borrow its completed original
+		// manifest, including bindings discovered after the auxiliary body.
+		mutation.dependencies = b.dependencies
 		if mutation.relation.virtualView {
 			switch definition.statement.(type) {
 			case *parser.Insert:

@@ -77,7 +77,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	}
 	for _, attribute := range []int32{1, 2, 3} {
 		original := old.defaults[attribute].expression
-		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, retag)
+		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), original, retag)
 		if err != nil || !changed || rebound.ResultUsage().Type == original.ResultUsage().Type {
 			t.Fatal(rebound, changed, err)
 		}
@@ -114,7 +114,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 	ctx := &EvalContext{Context: context.Background()}
 	for _, attribute := range []int32{1, 2} {
 		original := table.defaults[attribute].expression
-		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, retag)
+		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), original, retag)
 		if err != nil || !changed {
 			t.Fatal(rebound, changed, err)
 		}

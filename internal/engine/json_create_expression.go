@@ -125,5 +125,30 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 	if kind.Builder() && raw.Variadic && !functions.JSONCreateVariadicArgumentValid(args[0].ResultUsage()) {
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[0].SourcePosition())
 	}
-	return functions.NewJSONCreate[BoundExpr, *EvalContext](functionInfo(b.info(b.typ(functions.JSONCreateResult(kind)).Usage(), raw.Pos, properties)), kind, args, raw.Variadic, unknown)
+	info := b.info(b.typ(functions.JSONCreateResult(kind)).Usage(), raw.Pos, properties)
+	node, err := functions.NewJSONCreate[BoundExpr, *EvalContext](functionInfo(info), kind, args, raw.Variadic, unknown)
+	if err != nil {
+		return nil, err
+	}
+	var formal [2]sqltype.ID
+	count := len(args)
+	switch name {
+	case "to_json", "to_jsonb":
+		formal[0] = sqltype.ID(2283)
+	case "array_to_json":
+		formal = [2]sqltype.ID{sqltype.ID(2277), sqltype.Bool}
+	case "row_to_json":
+		formal = [2]sqltype.ID{sqltype.ID(2249), sqltype.Bool}
+	default:
+		count = 0
+		if raw.Variadic || len(args) != 0 {
+			formal[0], count = sqltype.ID(2276), 1
+		}
+	}
+	info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }

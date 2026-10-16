@@ -221,7 +221,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 			vol = Volatile
 			strict = false
 		}
-		proc := &procedureDescriptor{address: ext.members[i], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: name, signature: signature, owner: owner, result: result, volatility: vol, strict: strict, provider: p}
+		proc := &procedureDescriptor{address: ext.members[i], namespace: ext.targetNamespace, extension: ext.address, revision: rev, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: vol, strict: strict, provider: p}
 		if i < 2 {
 			proc.dictionary = ext.members[5]
 		}

@@ -257,6 +257,10 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 		return d.owner, authorization.ACLValue{}, nil
 	case *procedureDescriptor:
 		return d.owner, d.acl, nil
+	case *parameterDescriptor:
+		return d.owner, d.acl, nil
+	case *tablespaceDescriptor:
+		return d.owner, d.acl, nil
 	case *tsDictionaryDescriptor:
 		return d.owner, authorization.ACLValue{}, nil
 	case *namespaceDescriptor:
@@ -280,10 +284,16 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 		return 0
 	}
 	if d.Kind() == DatabaseObject {
-		return authorization.CreatePrivilege
+		return databasePrivileges
 	}
 	if d.Kind() == ProcedureObject {
 		return authorization.ExecutePrivilege
+	}
+	if d.Kind() == ParameterObject {
+		return authorization.SetPrivilege | authorization.AlterSystemPrivilege
+	}
+	if d.Kind() == TablespaceObject {
+		return authorization.CreatePrivilege
 	}
 	if d.Kind() == CollationObject || d.Kind() == ConversionObject {
 		return 0
@@ -346,7 +356,7 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authoriz
 	// current role. Keep this ordinary namespace authority separate from object
 	// ACLs, namespace ownership and delegation, and from private maintenance.
 	if ns, ok := d.(*namespaceDescriptor); ok && !grantOptions && ownTemporaryNamespace(v, ns) {
-		return mask, nil
+		return v.ownTemporaryPrivileges()
 	}
 	principals := []authorization.PrincipalRef{v.state.CurrentUser}
 	if actorExists {
@@ -363,8 +373,14 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (authoriz
 		}
 	}
 	rights := authorization.ACLRights(acl, owner, principals, mask, grantOptions)
+	if d.Kind() == DatabaseObject && !acl.Explicit && !grantOptions {
+		rights |= databasePublicPrivileges
+	}
 	if d.Kind() == ProcedureObject && !acl.Explicit && !grantOptions {
 		rights |= authorization.ExecutePrivilege
+	}
+	if d.Kind() == TypeObject && !acl.Explicit && !grantOptions {
+		rights |= authorization.UsagePrivilege
 	}
 	if ref.Address.SubID > 0 {
 		rights |= authorization.ACLRights(columns[ref.Address.SubID], authorization.PrincipalRef{}, principals, mask, grantOptions)
@@ -462,6 +478,9 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	}
 	kind := "table"
 	if t, ok := d.(*typeDescriptor); ok {
+		if t.Namespace().ObjectID == PGCatalogNamespaceOID && !t.typ.IsUserDefined() {
+			return sqlError("42501", "permission denied for type "+t.typ.DiagnosticName())
+		}
 		path, _ := v.engine.referencePath(v)
 		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.catalog, t, path))
 	}
@@ -510,10 +529,6 @@ func validateACL(r authorization.Read, d Descriptor) error {
 		}
 	case *tsTemplateDescriptor, *operatorDescriptor:
 		return nil
-	case *typeDescriptor:
-		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
-			return nil
-		}
 	}
 	owner, acl, cols := descriptorACL(d)
 	if _, err := r.Descriptor(owner); err != nil {
@@ -557,10 +572,6 @@ func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 		}
 	case *tsTemplateDescriptor, *operatorDescriptor:
 		return nil
-	case *typeDescriptor:
-		if t.owningRelation == (ObjectAddress{}) && !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsUserDefined()) {
-			return nil
-		}
 	}
 	owner, acl, cols := descriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
@@ -709,7 +720,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	return nil
 }
 func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
-	if b.relation.relationKind == sequenceRelation {
+	if b.relation.relationKind == sequenceRelation && mask != authorization.SelectPrivilege {
 		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
 	}
 	whole, err := v.Effective(b.ref, false)
@@ -783,6 +794,13 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl authorizat
 	acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
 	var next Descriptor
 	switch d := d.(type) {
+	case *databaseDescriptor:
+		if ref.Address.SubID != 0 {
+			return fmt.Errorf("stuntgres: database subobject")
+		}
+		n := *d
+		n.acl = acl
+		next = &n
 	case *namespaceDescriptor:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: namespace subobject")
@@ -790,9 +808,31 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl authorizat
 		n := *d
 		n.acl = acl
 		next = &n
+	case *typeDescriptor:
+		if ref.Address.SubID != 0 || d.typ.IsArray() {
+			return fmt.Errorf("stuntgres: invalid type ACL target")
+		}
+		n := *d
+		n.acl = acl
+		n.aclSyntheticDefault = false
+		next = &n
 	case *procedureDescriptor:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: procedure subobject")
+		}
+		n := *d
+		n.acl = acl
+		next = &n
+	case *parameterDescriptor:
+		if ref.Address.SubID != 0 {
+			return fmt.Errorf("stuntgres: parameter subobject")
+		}
+		n := *d
+		n.acl = acl
+		next = &n
+	case *tablespaceDescriptor:
+		if ref.Address.SubID != 0 {
+			return fmt.Errorf("stuntgres: tablespace subobject")
 		}
 		n := *d
 		n.acl = acl
@@ -826,7 +866,11 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl authorizat
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	state := cloneCatalog(e.state)
-	state.descriptors[addr] = next
+	if parameter, ok := next.(*parameterDescriptor); ok {
+		installParameterGrant(state, parameter)
+	} else {
+		state.descriptors[addr] = next
+	}
 	roles := advanceRoleRevision(e.roles)
 	if err := ctx.Err(); err != nil {
 		return err

@@ -123,8 +123,27 @@ func validateExpressionJoinExecution(c *EvalContext, expression BoundExpr, catal
 	if expression == nil {
 		return nil
 	}
+	recipe, err := expressionRecipeDescriptor(expression)
+	if err != nil {
+		return err
+	}
+	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
+		local := *c
+		if err := local.selectExpressionRecipe(recipe); err != nil {
+			return err
+		}
+		c = &local
+	}
 	if err := c.Context.Err(); err != nil {
 		return err
+	}
+	if err := admitRoutineCall(c, expression, true, false); err != nil {
+		return err
+	}
+	if column, ok := expression.(columnExpression); ok && column.virtual != nil {
+		// A virtual column is a recipe boundary, not a lexical child in the
+		// enclosing query's frame or routine dependency manifest.
+		return column.admitVirtualGeneration(c, catalog)
 	}
 	if subquery, ok := expression.(subqueryExpression); ok {
 		project := subquery.queryPlan.Root.(*projectNode)
@@ -171,20 +190,113 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 	// Eligible EXISTS retains their graph, but does not plan ignored output.
 	if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
 		var failure error
-		queryExpressions(node, func(expression BoundExpr) {
+		validate := func(expression BoundExpr) {
 			if failure == nil {
 				failure = validateExpressionJoinExecution(c, expression, catalog)
 			}
-		})
+		}
+		if source, ok := node.(*functionFromNode); ok {
+			// Preflight preserves the analyzed call and schema. A proven dead
+			// FROM path, like a scalar-NULL invocation, has no runtime call or
+			// argument demand. Enclosing target expressions remain planned.
+			if !emptyInput {
+				for i, call := range source.calls {
+					if source.scalarNull == nil || !source.scalarNull[i] {
+						validate(call)
+					}
+				}
+			}
+		} else {
+			queryExpressions(node, validate)
+		}
 		if failure != nil {
 			return failure
 		}
 	}
 	switch n := node.(type) {
+	case *aggregateNode:
+		if !n.presenceOnly {
+			if err := admitQueryGroupings(c, n.grouping, n.keys); err != nil {
+				return err
+			}
+			for _, call := range n.calls {
+				if err := admitRoutineReference(c, call.routine, "aggregate"); err != nil {
+					return err
+				}
+				if len(call.distinct) > 1 {
+					keys := [2]BoundExpr{call.argument, call.separator}
+					if err := admitQueryGroupings(c, call.distinct, keys[:len(call.distinct)]); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	case *windowNode:
+		for _, call := range n.calls {
+			if call.analysisOnly {
+				continue
+			}
+			if err := admitRoutineReference(c, call.routine, "function"); err != nil {
+				return err
+			}
+		}
+		for i, spec := range n.specs {
+			if !n.specActive(i) {
+				continue
+			}
+			if err := admitQueryGroupings(c, spec.grouping, spec.partition); err != nil {
+				return err
+			}
+			for _, key := range spec.order {
+				if privateTreeGrouping(key.expression.ResultUsage().Type) {
+					continue
+				}
+				if err := admitRoutineReference(c, key.equalityRoutine, "function"); err != nil {
+					return err
+				}
+			}
+		}
+	case *functionFromNode:
+		if !emptyInput {
+			for i, call := range n.calls {
+				if n.scalarNull != nil && n.scalarNull[i] {
+					continue
+				}
+				if err := admitRoutineCall(c, call, false, false); err != nil {
+					return err
+				}
+			}
+		}
+	case *setProjectNode:
+		// Target calls initialize even when the child's FROM input is dead.
+		for _, call := range n.calls {
+			if err := admitRoutineCall(c, call, false, false); err != nil {
+				return err
+			}
+		}
 	case *setNode, *recursiveUnionNode:
 		// Inline inherited sets were rejected at analysis. A stored set
 		// source is opaque to an outer row mark, but all arms still plan.
 		set := querySetNode(node)
+		if len(set.grouping) != 0 {
+			groups := set.grouping
+			var cycleMark BoundExpr
+			if recursive, ok := node.(*recursiveUnionNode); ok && recursive.cycle != nil {
+				// Seed expressions retain only user columns. CYCLE appends
+				// its mark grouping separately; ancestry uses its own executor.
+				cycleMark = recursive.cycle.mark
+				groups = groups[:len(groups)-1]
+			}
+			if err := admitQueryGroupings(c, groups, set.leftExpressions); err != nil {
+				return err
+			}
+			if cycleMark != nil {
+				keys := [1]BoundExpr{cycleMark}
+				if err := admitQueryGroupings(c, set.grouping[len(groups):], keys[:]); err != nil {
+					return err
+				}
+			}
+		}
 		if err := validateMarkedQueryJoin(c, set.left, catalog, nil, queryRowMark{}, emptyInput, nil, reads); err != nil {
 			return err
 		}
@@ -203,6 +315,8 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 			}
 			child := *c
 			child.quoteOrigin = quoteOrigin{owner: n.ref, definition: d.view.rule, revision: d.view.quoteRevision}
+			child.routineChecks, child.routineReferences, child.routineConsumer = d.view.dependencies, nil, d
+			child.routineRecipe, child.routineGraft = true, false
 			root, storedReads, err := prepareStoredExecutionRoot(&child, d.view, outputUses)
 			if err != nil {
 				return err
@@ -275,9 +389,23 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 			}
 			emptyInput = rejects
 		}
-	case *distinctNode, *distinctOnNode:
+	case *distinctNode:
 		if inherited.mode != 0 {
 			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
+		}
+		if !n.presenceOnly {
+			if err := admitQueryGroupings(c, n.grouping, n.expressions); err != nil {
+				return err
+			}
+		}
+	case *distinctOnNode:
+		if inherited.mode != 0 {
+			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
+		}
+		if !n.presenceOnly {
+			if err := admitQueryGroupings(c, n.grouping, n.expressions); err != nil {
+				return err
+			}
 		}
 	}
 	left, right := queryInputs(node)

@@ -65,12 +65,13 @@ func partialWantMembership(t *testing.T, root *logicalIndexRoot, want map[RowID]
 func TestPartialIndexPredicateTruth(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
+	var preparation, absent indexExecutionPreparation
 	for i, row := range f.store.versions {
-		got, err := indexPredicateMatches(&evaluation, f.index.sqlIndex.predicate, row.values)
+		got, err := preparation.predicateMatches(&evaluation, f.parent, f.index.sqlIndex, row.values, nil, nil)
 		if err != nil || got != (i == 0 || i == 3 || i == 4) {
 			t.Fatal(i, got, err)
 		}
-		got, err = indexPredicateMatches(&evaluation, nil, row.values)
+		got, err = absent.predicateMatches(&evaluation, f.parent, &indexDefinition{}, row.values, nil, nil)
 		if err != nil || !got {
 			t.Fatal("absent predicate", got, err)
 		}
@@ -79,7 +80,8 @@ func TestPartialIndexPredicateTruth(t *testing.T) {
 	for _, value := range []sqltype.Value{sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false), sqltype.Null(boolean)} {
 		node := literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: value}
 		p := &indexPredicate{definition: node, execution: node}
-		got, err := indexPredicateMatches(&evaluation, p, nil)
+		preparation := indexExecutionPreparation{}
+		got, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{predicate: p}, nil, nil, nil)
 		truth, _ := TruthOf(value)
 		if err != nil || got != (truth == True) {
 			t.Fatal(value, got, err)
@@ -226,7 +228,8 @@ func TestPartialIndexPredicateCancellation(t *testing.T) {
 	cancel()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
 	for _, p := range []*indexPredicate{nil, f.index.sqlIndex.predicate} {
-		if _, err := indexPredicateMatches(&evaluation, p, nil); !errors.Is(err, context.Canceled) {
+		preparation := indexExecutionPreparation{}
+		if _, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{predicate: p}, nil, nil, nil); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
 	}

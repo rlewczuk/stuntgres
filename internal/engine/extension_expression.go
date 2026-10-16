@@ -148,7 +148,8 @@ func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (Bound
 		return nil, err
 	}
 	ref := ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: proc.address}
-	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
+	b.dependency(ref, proc.revision)
+	info.routineReference = proc
 	node := installedFunctionExpression{expressionInfo: info, arg: arg, procedure: proc, dictionary: dict, template: tmpl, ref: ref}
 	if !node.validProvider() {
 		return nil, fmt.Errorf("stuntgres: invalid installed function binding")

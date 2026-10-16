@@ -147,7 +147,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				}
 			}
 			if shape == "dead_case" {
-				expression, _, err = rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), func(node BoundExpr) (BoundExpr, bool, error) {
+				expression, _, err = rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
 					if parameter, ok := node.(parameterExpression); ok {
 						info := parameter.expressionInfo
 						info.properties = ExprProperties{RowDependent: true}
@@ -283,7 +283,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		schema := querySchema{{Name: "n", Usage: bad.ResultUsage()}}
 		child := &projectNode{querySchema: schema, child: &singletonNode{}, expressions: []BoundExpr{bad}, frame: 2}
 		source := &derivedNode{querySchema: schema, query: &BoundQuery{Root: child}, scanFrame: 1}
-		predicate, _, err := rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), func(node BoundExpr) (BoundExpr, bool, error) {
+		predicate, _, err := rewriteViewExpression(CatalogRead{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node BoundExpr) (BoundExpr, bool, error) {
 			if parameter, ok := node.(parameterExpression); ok {
 				info := parameter.expressionInfo
 				info.properties = ExprProperties{RowDependent: true}

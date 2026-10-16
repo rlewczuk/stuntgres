@@ -82,6 +82,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		}
 	}
 	e.mu.Unlock()
+	scope.routineAuth = auth
 	original := scope.ruleScratch()
 	originalMutation := scope.activeMutation
 	originalWrites, originalDeletes := scope.ownWrites, scope.ownDeletes

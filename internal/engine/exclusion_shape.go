@@ -21,12 +21,13 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 		if err != nil {
 			return err
 		}
+		var preparation indexExecutionPreparation
 		for _, row := range writes {
 			if uniqueRowDeleted(row.row, deletes) {
 				continue
 			}
 			var keys []sqltype.Value
-			if index.sqlIndex.hasRuntimeDomainConversion() {
+			if index.sqlIndex.requiresInsertionOutput() {
 				output, ok := row.indexOutputs[index.address]
 				if !ok || !output.matches(index) {
 					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")
@@ -43,12 +44,15 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 					keys = output.keys
 				}
 			} else {
-				matches, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row.values)
+				matches, err := preparation.predicateMatches(&evaluation, parent, index.sqlIndex, row.values, &ordering, nil)
 				if err != nil {
 					return err
 				}
 				if !matches {
 					continue
+				}
+				if err := preparation.prepareKeys(&evaluation, parent, index.sqlIndex, &ordering, nil); err != nil {
+					return err
 				}
 				keys = make([]sqltype.Value, len(index.sqlIndex.keys))
 				if err := ordering.fillKeys(row.values, keys, &evaluation); err != nil {

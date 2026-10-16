@@ -26,11 +26,24 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
+	routineAuth := auth
+	if scope.ruleActionAuth != nil {
+		routineAuth.state.CurrentUser = scope.routineAuth.state.CurrentUser
+		if err := routineAuth.roles.ValidatePrincipal(routineAuth.state.CurrentUser); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
+	scope.routineAuth = routineAuth
+	scope.routineDependencies = b.dependencies
 	if inserting || b.merge != nil || b.update != nil || b.query != nil || (deleting && (b.deleteUsing != nil || b.predicate != nil || b.returning != nil)) || len(b.defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
 		e.mu.Unlock()
+		if err := scope.readmitPreparedPrograms(routineAuth); err != nil {
+			return Result{}, err
+		}
 		if evaluation.planStaticOperators && deleting {
 			b, err = ruleMutationProducerDemand(b)
 			if err != nil {
@@ -128,7 +141,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if err == nil && b.returning != nil {
 			b.returning, err = preflightReturning(&evaluation, b.returning)
 		}
-		if err == nil && b.subqueryDemand && (inserting || b.update != nil || deleting || b.merge != nil) {
+		if err == nil && (inserting || b.update != nil || deleting || b.merge != nil) {
 			err = validateMutationJoinExecution(&evaluation, &b, expressions, auth.catalog)
 		}
 		if err != nil {
@@ -173,9 +186,16 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			physical := b.physicalBinding()
 			attribute := physical.relation.attributes[i]
 			defaultEvaluation.quoteOrigin = quoteOrigin{owner: physical.ref, attribute: attribute, definition: physical.relation.defaults[attribute].OID}
+			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
+			defaultEvaluation.routineChecks = nil
+			defaultEvaluation.routineReferences = physical.relation.defaults[attribute].dependencies
+			defaultEvaluation.routineConsumer = physical.relation
 			folded, changed, foldErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
+			}
+			if err := validateExpressionJoinExecution(&defaultEvaluation, folded, auth.catalog); err != nil {
+				return Result{}, err
 			}
 			if changed {
 				if privateDefaults == nil {
@@ -199,6 +219,14 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// Do not authorize source capture with the pre-unlock authority view.
 		// Keep the original binding's actual-column manifest and exact ref.
 		auth, err = e.statementAuthorizationLocked(op, stmt)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		scope.routineAuth = auth
+		e.mu.Unlock()
+		err = scope.readmitPreparedPrograms(scope.routineAuth)
+		e.mu.Lock()
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err

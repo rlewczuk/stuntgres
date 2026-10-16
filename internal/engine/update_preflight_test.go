@@ -39,7 +39,6 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	}()
 	cast := original.assignments[0].(coercionExpression)
 	column := original.assignments[1]
-	predicate := original.predicate.(comparisonExpression)
 	source := cast.child.ResultUsage().Type
 	for _, input := range []string{"7", "oops", "", "17", "oops", "42"} {
 		value := sqltype.Null(source)
@@ -92,13 +91,6 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 			if !reflect.DeepEqual(private.assignments[1], column) {
 				t.Fatal("unchanged row-dependent branch replaced")
 			}
-			folded := private.predicate.(comparisonExpression)
-			if folded.expressionInfo != predicate.expressionInfo {
-				t.Fatal("predicate metadata changed")
-			}
-			if _, ok := folded.right.(literalExpression); !ok {
-				t.Fatal("WHERE root not traversed")
-			}
 			if &private.assignments[0] == &original.assignments[0] {
 				t.Fatal("assignment backing storage shared after fold")
 			}
@@ -109,6 +101,19 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 		if _, ok := original.predicate.(comparisonExpression).right.(coercionExpression); !ok {
 			t.Fatal("analyzed predicate replaced")
 		}
+	}
+	// A harmless assignment cannot mask a missing WHERE preflight traversal.
+	whereOnly := *original
+	whereOnly.assignments = []BoundExpr{column}
+	bad, err := source.Input(context.Background(), "oops", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	whereEvaluation := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{bad}}
+	failed, err := preflightUpdate(&whereEvaluation, &whereOnly)
+	state(t, err, "22P02")
+	if failed != nil {
+		t.Fatal("failed WHERE preflight returned a partially prepared update")
 	}
 	unchanged := &boundUpdate{assignments: []BoundExpr{column}}
 	evaluation := EvalContext{Context: context.Background()}

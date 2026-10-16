@@ -223,7 +223,15 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		if equality.SessionDependent() && p.Volatility < Stable {
 			p.Volatility = Stable
 		}
-		return distinctExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), left, right, equality, raw.Kind == parser.IsNotDistinct}, nil
+		declaration, _, err := b.comparisonRoutineDeclaration("=", left.ResultUsage().Type, right.ResultUsage().Type)
+		if err != nil {
+			return nil, err
+		}
+		info, err := b.selectedBuiltinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), declaration)
+		if err != nil {
+			return nil, err
+		}
+		return distinctExpression{info, left, right, equality, raw.Kind == parser.IsNotDistinct}, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid predicate kind")
 	}

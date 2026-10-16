@@ -136,6 +136,12 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	}
 	defer scope.Finish(context.Canceled)
 	e.mu.Lock()
+	auth, err := e.authorizationLocked(op)
+	if err != nil {
+		e.mu.Unlock()
+		t.Fatal(err)
+	}
+	scope.routineAuth = auth
 	e.captureCheckCommentSnapshotLocked(scope, relation)
 	catalog, roles := scope.commentCatalog, scope.commentRoles
 	e.mu.Unlock()
@@ -151,7 +157,15 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	if scope.commentCatalog != catalog || scope.commentRoles != roles {
 		t.Fatal("query opening replaced the statement comment snapshot")
 	}
-	value, err := inquiry.Eval(&EvalContext{Context: ctx, statementScope: scope})
+	query := queryState{source: source, input: scope.input, output: scope.output}
+	evaluation := query.evaluation(ctx)
+	evaluation.routineRecipe = true
+	evaluation.routineChecks = relation.checkConstraints[0].dependencies
+	evaluation.routineConsumer = relation
+	if err := admitRoutineCall(&evaluation, inquiry, true, false); err != nil {
+		t.Fatal(err)
+	}
+	value, err := inquiry.Eval(&evaluation)
 	if err != nil {
 		t.Fatal(err)
 	}

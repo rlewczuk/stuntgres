@@ -43,15 +43,70 @@ func TestObjectGrantMasksAndDefaults(t *testing.T) {
 		t.Fatal("inherited implicit options", source, options, sourceErr)
 	}
 	for _, item := range []parser.GrantPrivilege{{Name: "delete", Columns: []parser.Identifier{{Text: "a"}}}, {Name: "maintain", Columns: []parser.Identifier{{Text: "a"}}}, {Name: "trigger", Columns: []parser.Identifier{{Text: "a"}}}, {Name: "truncate", Columns: []parser.Identifier{{Text: "a"}}}} {
-		_, err := ObjectPrivilege(item)
+		_, err := ObjectPrivilege(item, "")
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0LP01" {
 			t.Fatal(item, err)
 		}
 	}
-	mask, err := ObjectPrivilege(parser.GrantPrivilege{All: true, Columns: []parser.Identifier{{Text: "a"}}})
+	mask, err := ObjectPrivilege(parser.GrantPrivilege{All: true, Columns: []parser.Identifier{{Text: "a"}}}, "")
 	if err != nil || mask != ColumnGrantPrivileges {
 		t.Fatal(mask, err)
+	}
+}
+
+func TestObjectGrantSequenceMasks(t *testing.T) {
+	for _, tc := range []struct {
+		item parser.GrantPrivilege
+		want Privileges
+	}{
+		{parser.GrantPrivilege{Name: "select"}, SelectPrivilege},
+		{parser.GrantPrivilege{Name: "update"}, UpdatePrivilege},
+		{parser.GrantPrivilege{Name: "usage"}, UsagePrivilege},
+		{parser.GrantPrivilege{All: true}, SelectPrivilege | UpdatePrivilege | UsagePrivilege},
+	} {
+		got, err := ObjectPrivilege(tc.item, "sequence")
+		if err != nil || got != tc.want {
+			t.Fatal(tc.item, got, err)
+		}
+	}
+	for _, name := range []string{"insert", "delete", "truncate", "references", "trigger", "maintain", "create", "execute", "connect", "temporary", "set", "alter system"} {
+		_, err := ObjectPrivilege(parser.GrantPrivilege{Name: name}, "sequence")
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0LP01" {
+			t.Fatal(name, err)
+		}
+	}
+	_, err := ObjectPrivilege(parser.GrantPrivilege{Name: "usage", Columns: []parser.Identifier{{Text: "last_value"}}}, "sequence")
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0LP01" || diagnostic.Message != "column privileges are only valid for relations" {
+		t.Fatal(err)
+	}
+}
+
+func TestObjectGrantSchemaTypeMasks(t *testing.T) {
+	for _, kind := range []string{"schema", "type", "domain"} {
+		want := UsagePrivilege
+		if kind == "schema" {
+			want |= CreatePrivilege
+		}
+		got, err := ObjectPrivilege(parser.GrantPrivilege{All: true}, kind)
+		if err != nil || got != want {
+			t.Fatal(kind, got, err)
+		}
+		_, err = ObjectPrivilege(parser.GrantPrivilege{Name: "select"}, kind)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0LP01" || diagnostic.Message != "invalid privilege type SELECT for "+kind {
+			t.Fatal(kind, err)
+		}
+		_, err = ObjectPrivilege(parser.GrantPrivilege{All: true, Columns: []parser.Identifier{{Text: "x"}}}, kind)
+		if !errors.As(err, &diagnostic) || diagnostic.Message != "column privileges are only valid for relations" {
+			t.Fatal(kind, err)
+		}
+	}
+	got, err := ObjectPrivilege(parser.GrantPrivilege{Name: "usage"}, "relation")
+	if err != nil || got != UsagePrivilege {
+		t.Fatal("implicit sequence USAGE", got, err)
 	}
 }
 

@@ -1,0 +1,155 @@
+package engine
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/sqltype"
+)
+
+func TestQueryWindowSurvivingOccurrences(t *testing.T) {
+	for _, tc := range []struct {
+		name, sql string
+		inactive  []bool
+	}{
+		{"dead-lag", "SELECT CASE WHEN FALSE THEN lag(v) OVER(ORDER BY id) ELSE 7 END FROM t ORDER BY id", []bool{true}},
+		{"dead-lead-two", "SELECT CASE WHEN FALSE THEN lead(v,1) OVER(ORDER BY id) ELSE 7 END FROM t ORDER BY id", []bool{true}},
+		{"dead-lag-three", "SELECT CASE WHEN FALSE THEN lag(v,1,-1) OVER(ORDER BY id) ELSE 7 END FROM t ORDER BY id", []bool{true}},
+		{"dead-lead", "SELECT CASE WHEN FALSE THEN lead(v) OVER(ORDER BY id) ELSE 7 END FROM t ORDER BY id", []bool{true}},
+		{"dead-lag-two", "SELECT CASE WHEN FALSE THEN lag(v,1) OVER(ORDER BY id) ELSE 7 END FROM t ORDER BY id", []bool{true}},
+		{"dead-lead-three", "SELECT CASE WHEN FALSE THEN lead(v,1,-1) OVER(ORDER BY id) ELSE 7 END FROM t ORDER BY id", []bool{true}},
+		{"unknown-condition", "SELECT CASE WHEN f THEN lag(v) OVER(ORDER BY id) ELSE 7 END FROM t ORDER BY id", []bool{false}},
+		{"bounded-lowered", "SELECT CASE WHEN FALSE THEN lag(v) OVER(ORDER BY id) ELSE 7 END FROM t LIMIT 2", []bool{true}},
+		{"empty-surviving", "SELECT lag(v) OVER(ORDER BY id) FROM t WHERE FALSE", []bool{false}},
+		{"mixed", "SELECT CASE WHEN FALSE THEN lag(v) OVER(ORDER BY id) ELSE 7 END,lead(v) OVER(ORDER BY id) FROM t", []bool{true, false}},
+		{"same-slot-survives", "SELECT CASE WHEN FALSE THEN row_number() OVER() ELSE 7 END,row_number() OVER() FROM t", []bool{false}},
+		{"order-only", "SELECT id FROM t ORDER BY lag(v) OVER(ORDER BY id)", []bool{false}},
+		{"aggregate-retained", "SELECT CASE WHEN FALSE THEN lag(sum(v)) OVER() ELSE 7 END FROM t", []bool{true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, query, source := queryCoreFixture(t, tc.sql)
+			defer source.close()
+			original := pruningTestWindow(t, query.Root)
+			calls := append([]windowCall(nil), original.calls...)
+			for range 2 {
+				prepared, err := preflightQuery(&EvalContext{Context: context.Background(), Scope: 1, Frame: query.Root.(*projectNode).frame, catalog: e.CatalogRead()}, query.Root)
+				if err != nil {
+					t.Fatal(err)
+				}
+				window := pruningTestWindow(t, prepared)
+				if len(window.calls) != len(tc.inactive) {
+					t.Fatalf("call count %d, want %d", len(window.calls), len(tc.inactive))
+				}
+				for i, call := range window.calls {
+					if call.analysisOnly != tc.inactive[i] {
+						t.Fatalf("call %d inactive=%v, want %v", i, call.analysisOnly, tc.inactive[i])
+					}
+					if call.expression != calls[i].expression || call.routine != calls[i].routine {
+						t.Fatal("pruning changed original slot or routine identity")
+					}
+				}
+				if !reflect.DeepEqual(original.calls, calls) {
+					t.Fatal("execution mutated analyzed calls")
+				}
+			}
+		})
+	}
+}
+
+func TestQueryWindowPrunedSharedSort(t *testing.T) {
+	_, query, source := queryCoreFixture(t, "SELECT CASE WHEN FALSE THEN lag(v) OVER(ORDER BY id) ELSE 7 END,lead(v) OVER(ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) FROM t ORDER BY id")
+	original := pruningTestWindow(t, query.Root)
+	if len(original.specs) != 2 || original.sortIndices[1] != 0 {
+		t.Fatal("fixture does not have distinct frames sharing the first sort")
+	}
+	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	if err != nil || rows == nil || count != 4 {
+		t.Fatal("surviving window lost its pruned sibling's shared sort", count, err)
+	}
+	defer rows.Close()
+	var values [2]sqltype.Value
+	for _, want := range [][]any{{int64(7), nil}, {int64(7), int64(2)}, {int64(7), int64(1)}, {int64(7), nil}} {
+		present, err := rows.Next(context.Background(), values[:])
+		got := []any{testExport(values[0]), testExport(values[1])}
+		if !present || err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("shared-sort row=%v, present=%v, err=%v; want %v", got, present, err, want)
+		}
+	}
+	if present, err := rows.Next(context.Background(), values[:]); present || err != nil {
+		t.Fatalf("shared-sort end present=%v, err=%v", present, err)
+	}
+	if original.calls[0].analysisOnly || original.calls[1].analysisOnly {
+		t.Fatal("execution mutated the analyzed shared-sort definition")
+	}
+}
+
+func TestQueryWindowGraftedDemand(t *testing.T) {
+	for _, tc := range []struct {
+		name, sql string
+		inactive  bool
+	}{
+		{"surviving", "SELECT row_number() OVER() FROM t", false},
+		{"unknown", "SELECT CASE WHEN f THEN row_number() OVER() ELSE 7 END FROM t", false},
+		{"dead", "SELECT CASE WHEN FALSE THEN row_number() OVER() ELSE 7 END FROM t", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, query, source := queryCoreFixture(t, tc.sql)
+			defer source.close()
+			original := pruningTestWindow(t, query.Root)
+			originalCall := original.calls[0]
+			project := query.Root.(*projectNode)
+			frame := project.frame + 7
+			// Exercise the same physical-layout graft as writable rules while
+			// leaving original window call metadata untouched.
+			schema := append([]ColumnDescriptor(nil), original.child.Schema()...)
+			schema = append(schema, schema[0])
+			input := &evaluationNode{querySchema: querySchema(schema), child: original.child}
+			slots := make(map[int]int)
+			grafted, err := ruleGraftSchemas(query.Root, original.child, input, slots)
+			if err != nil {
+				t.Fatal(err)
+			}
+			grafted, err = rewriteQueryExpressions(grafted, func(expr BoundExpr) (BoundExpr, bool, error) {
+				return rewriteViewExpression(e.CatalogRead(), expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+					if occurrence, ok := expr.(*windowExpression); ok && occurrence.frame == project.frame {
+						copy := *occurrence
+						copy.slot = slots[occurrence.slot]
+						copy.frame = frame
+						return &copy, true, nil
+					}
+					return expr, false, nil
+				})
+			}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			copy := *grafted.(*projectNode)
+			copy.frame = frame
+			pruned, err := pruneProjectWindows(&copy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			call := pruningTestWindow(t, pruned).calls[0]
+			if call.analysisOnly != tc.inactive {
+				t.Fatalf("grafted window inactive=%v, want %v", call.analysisOnly, tc.inactive)
+			}
+			if call.expression != originalCall.expression || call.routine != originalCall.routine ||
+				!reflect.DeepEqual(original.calls[0], originalCall) {
+				t.Fatal("grafted demand changed original window identity")
+			}
+		})
+	}
+}
+
+func pruningTestWindow(t *testing.T, root LogicalNode) *windowNode {
+	t.Helper()
+	for root != nil {
+		if window, ok := root.(*windowNode); ok {
+			return window
+		}
+		root, _ = queryInputs(root)
+	}
+	t.Fatal("missing window stage")
+	return nil
+}

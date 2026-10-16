@@ -50,7 +50,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 		}
 		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, owner: owner, result: member.result, volatility: Immutable, strict: true, fuzzy: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: Immutable, strict: true, fuzzy: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
@@ -63,14 +63,13 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 
 func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid fuzzystrmatch manifest") }
-	if p != stockFuzzystrmatch || ext.name != "fuzzystrmatch" || ext.version != p.version || len(ext.members) != len(fuzzystrmatchMembers) {
+	if v.owner == nil || p != stockFuzzystrmatch || ext.name != "fuzzystrmatch" || ext.version != p.version || len(ext.members) != len(fuzzystrmatchMembers) {
 		return invalid()
 	}
 	var seen [len(fuzzystrmatchMembers)]bool
-	var owner authorization.PrincipalRef
-	for i, address := range ext.members {
+	for _, address := range ext.members {
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
-		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
+		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		found := false
@@ -86,10 +85,9 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 		if !found {
 			return invalid()
 		}
-		if i == 0 {
-			owner = proc.owner
-		}
-		if owner == (authorization.PrincipalRef{}) || proc.owner != owner {
+		// Membership fixes the exact provider, not separately transferable
+		// function ownership. Every member retains real typed provenance.
+		if proc.owner.ID() == 0 || proc.owner != v.owner.authorizationDomain.Principal(proc.owner.ID()) {
 			return invalid()
 		}
 	}

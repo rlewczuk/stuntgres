@@ -19,12 +19,12 @@ type analyzedGroupItem struct {
 	pos   parser.Position
 }
 
-func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []BoundExpr, names []string) ([]BoundExpr, []sqltype.Grouping, [][]int, error) {
+func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []BoundExpr, names []string) ([]BoundExpr, []queryGrouping, [][]int, error) {
 	if raw == nil {
 		return nil, nil, nil, nil
 	}
 	var keys []BoundExpr
-	var families []sqltype.Grouping
+	var families []queryGrouping
 	leaf := 0
 	var bind func(parser.GroupItem) (analyzedGroupItem, error)
 	bind = func(item parser.GroupItem) (analyzedGroupItem, error) {

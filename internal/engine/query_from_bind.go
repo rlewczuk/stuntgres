@@ -881,7 +881,7 @@ func rebaseFunctionCorrelation(view CatalogRead, root LogicalNode, frame uint32,
 			}
 			return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query LogicalNode) (LogicalNode, error) {
 				return rewriteQueryExpressions(query, rewrite)
-			}, func(node BoundExpr) (BoundExpr, bool, error) {
+			}, nil, func(node BoundExpr) (BoundExpr, bool, error) {
 				column, ok := node.(columnExpression)
 				if !ok {
 					return node, false, nil

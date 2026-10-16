@@ -330,12 +330,13 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 		return nil, fmt.Errorf("stuntgres: index parent storage is missing")
 	}
 	entries := make([]logicalIndexEntry, 0, len(store.versions))
+	var preparation indexExecutionPreparation
 	for position, row := range store.versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
-			matches, err := indexPredicateMatches(evaluation, d.predicate, row.values)
+			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, &o, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -344,6 +345,9 @@ func buildIndexEntries(evaluation *EvalContext, parent *relationDescriptor, d *i
 			}
 			if !matches {
 				continue
+			}
+			if err := preparation.prepareKeys(evaluation, parent, d, &o, nil); err != nil {
+				return nil, err
 			}
 			entry, err := o.entry(row, evaluation)
 			if err != nil {
@@ -375,6 +379,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 	}
 	ended := make(map[RowID]VersionID, endedCount)
 	added := make([]logicalIndexEntry, 0, len(p.writes))
+	var preparation indexExecutionPreparation
 	for i, row := range p.writes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -402,12 +407,15 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *relationDescriptor, 
 			if d.hasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced index row")
 			}
-			matches, err := indexPredicateMatches(evaluation, d.predicate, row.values)
+			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, &o, nil)
 			if err != nil {
 				return nil, err
 			}
 			if !matches {
 				continue
+			}
+			if err := preparation.prepareKeys(evaluation, parent, d, &o, nil); err != nil {
+				return nil, err
 			}
 			entry, err = o.entry(row, evaluation)
 			if err != nil {

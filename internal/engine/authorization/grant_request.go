@@ -6,22 +6,57 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ObjectPrivilege(item parser.GrantPrivilege) (Privileges, error) {
+func ObjectPrivilege(item parser.GrantPrivilege, kind string) (Privileges, error) {
+	classMask := TableGrantPrivileges
+	switch kind {
+	case "sequence":
+		classMask = DefaultMask(DefaultSequences)
+	case "schema":
+		classMask = DefaultMask(DefaultSchemas)
+	case "type", "domain":
+		classMask = DefaultMask(DefaultTypes)
+	case "function", "procedure", "routine":
+		classMask = DefaultMask(DefaultRoutines)
+	case "database":
+		classMask = CreatePrivilege | TemporaryPrivilege | ConnectPrivilege
+	case "parameter":
+		classMask = DefaultMask(DefaultParameters)
+	case "tablespace":
+		classMask = DefaultMask(DefaultTablespaces)
+	case "language", "foreign-data wrapper", "foreign server":
+		classMask = UsagePrivilege
+	case "large object":
+		classMask = SelectPrivilege | UpdatePrivilege
+	case "relation":
+		// An implicit/TABLE target can resolve to a sequence.
+		classMask |= DefaultMask(DefaultSequences)
+	}
+	if kind != "" && kind != "relation" && item.Columns != nil {
+		return 0, sqlError("0LP01", "column privileges are only valid for relations")
+	}
 	if item.All {
 		if item.Columns != nil {
 			return ColumnGrantPrivileges, nil
 		}
-		return TableGrantPrivileges, nil
+		return classMask, nil
 	}
 	mask, err := grantPrivilegeMask(item.Name)
 	if err != nil {
 		return 0, err
 	}
-	if mask == 0 || mask & ^TableGrantPrivileges != 0 {
-		return 0, sqlError("0LP01", "invalid privilege type "+strings.ToUpper(item.Name)+" for relation")
+	privilegeName := strings.ToUpper(item.Name)
+	if mask == TemporaryPrivilege {
+		privilegeName = "TEMP"
+	}
+	if mask == 0 || mask&^classMask != 0 {
+		noun := "relation"
+		if kind != "" {
+			noun = kind
+		}
+		return 0, sqlError("0LP01", "invalid privilege type "+privilegeName+" for "+noun)
 	}
 	if item.Columns != nil && mask&^ColumnGrantPrivileges != 0 {
-		return 0, sqlError("0LP01", "invalid privilege type "+strings.ToUpper(item.Name)+" for column")
+		return 0, sqlError("0LP01", "invalid privilege type "+privilegeName+" for column")
 	}
 	return mask, nil
 }
@@ -73,8 +108,14 @@ func grantPrivilegeMask(name string) (Privileges, error) {
 		return CreatePrivilege, nil
 	case "execute":
 		return ExecutePrivilege, nil
-	case "connect", "temporary", "temp", "set", "alter system":
-		return 0, nil // Recognized privileges without a table/SQL-MED ACL bit.
+	case "connect":
+		return ConnectPrivilege, nil
+	case "temporary", "temp":
+		return TemporaryPrivilege, nil
+	case "set":
+		return SetPrivilege, nil
+	case "alter system":
+		return AlterSystemPrivilege, nil
 	default:
 		return 0, sqlError("42601", fmt.Sprintf(`unrecognized privilege type "%s"`, name))
 	}

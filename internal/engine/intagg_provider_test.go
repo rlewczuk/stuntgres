@@ -43,6 +43,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			func(p *procedureDescriptor) { p.name = "int_agg_state" }, func(p *procedureDescriptor) { p.signature = "25" },
 			func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.strict = !p.strict },
 			func(p *procedureDescriptor) { p.volatility = Stable }, func(p *procedureDescriptor) { p.revision = 0 },
+			func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
 			func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },
 			func(p *procedureDescriptor) { p.namespace = ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ObjectAddress{} },
 			func(p *procedureDescriptor) { p.fuzzy = stockFuzzystrmatch }, func(p *procedureDescriptor) { p.crypto = stockPgcrypto },

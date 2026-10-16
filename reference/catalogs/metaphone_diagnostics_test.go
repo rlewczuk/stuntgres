@@ -114,11 +114,7 @@ func TestReferenceMetaphoneDiagnostics(t *testing.T) {
 				run(s)
 			}
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-			if b.PG {
-				run(fixture.Exec("GRANT USAGE ON SCHEMA phon_addon TO phon_reader", 0))
-			} else {
-				run(fixture.Exec("ALTER SCHEMA phon_addon OWNER TO phon_reader", 0))
-			}
+			run(fixture.Exec("GRANT USAGE ON SCHEMA phon_addon TO phon_reader", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION phon_reader", 0))
 			run(fixture.Select("SELECT phon_addon.metaphone('gumbo',4),phon_addon.dmetaphone('Smith'),phon_addon.dmetaphone_alt('Smith')", []string{"metaphone", "dmetaphone", "dmetaphone_alt"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"KM", "SM0", "XMT"}}))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

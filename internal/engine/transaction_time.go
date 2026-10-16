@@ -78,6 +78,10 @@ func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundEx
 		return nil, expressionError("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
 	}
 	info := b.info(b.typ(kind.Type()).Usage(), raw.Pos, functionIntrinsicProperties(kind.IntrinsicRule()))
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name)
+	if err != nil {
+		return nil, err
+	}
 	return functions.TransactionTime[*EvalContext, ExprProperties]{Info: functionInfo(info), Kind: kind}, nil
 }
 

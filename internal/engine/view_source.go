@@ -171,14 +171,14 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 
 // Called before unlocked preflight and immediately before source capture. Each
 // leaf checks current ACLs; an ordinary outer owner never replaces the invoker.
-func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
+func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) (AuthorizationView, error) {
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
-		return err
+		return AuthorizationView{}, err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
-	return authorizeViewSourceSnapshot(auth, ref, definition, invoker, mark)
+	return auth, authorizeViewSourceSnapshot(auth, ref, definition, invoker, mark)
 }
 
 // The source collector and execution fences use the same captured owner/invoker

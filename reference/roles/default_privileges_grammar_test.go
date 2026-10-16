@@ -51,7 +51,7 @@ func TestReferenceRoleDefaultPrivilegesGrammar(t *testing.T) {
 			{"ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO dp_reader; SELECT )", ")"},
 			{"ALTER DEFAULT PRIVILEGES GRANT SELECT ON \"TABLES\" TO dp_reader", "\"TABLES\""},
 		} {
-			dpSyntax(run, tc.q, tc.token, prepared)
+			fixture.RoleGrantSyntax(run, tc.q, tc.token, prepared)
 		}
 	})
 }
@@ -95,7 +95,7 @@ func TestReferenceRoleDefaultPrivilegesDiagnostics(t *testing.T) {
 			cases = append(cases, struct{ q, code, message string }{"ALTER DEFAULT PRIVILEGES IN SCHEMA " + schemas + " GRANT SELECT ON TABLES TO PUBLIC WITH GRANT OPTION", code, message})
 		}
 		for _, tc := range cases {
-			dpError(run, tc.q, tc.code, tc.message)
+			fixture.RoleGrantError(run, tc.q, tc.code, tc.message)
 		}
 		for _, clause := range []string{"FOR ROLE dp_owner FOR USER dp_owner", "IN SCHEMA dp_s IN SCHEMA dp_s"} {
 			q := "ALTER DEFAULT PRIVILEGES " + clause + " GRANT SELECT ON TABLES TO dp_reader"
@@ -107,14 +107,14 @@ func TestReferenceRoleDefaultPrivilegesDiagnostics(t *testing.T) {
 			s.ErrorStage = "execute"
 			run(s)
 		}
-		dpActor(run, "dp_reader", func() {
-			dpError(run, "ALTER DEFAULT PRIVILEGES FOR ROLE dp_owner GRANT SELECT ON TABLES TO dp_reader", "42501", "permission denied to change default privileges")
+		fixture.RoleGrantActor(run, "dp_reader", func() {
+			fixture.RoleGrantError(run, "ALTER DEFAULT PRIVILEGES FOR ROLE dp_owner GRANT SELECT ON TABLES TO dp_reader", "42501", "permission denied to change default privileges")
 		})
 		// Quoted operands preserve case. Lowercase remains a recognized
 		// privilege; uppercase/mixed spellings must not publish policy.
 		run(fixture.Exec(`ALTER DEFAULT PRIVILEGES GRANT "select" ON TABLES TO dp_reader`, 0))
 		dpTable(run, "dp_quote_lower", 7)
-		dpActor(run, "dp_reader", func() { dpRead(run, "dp_quote_lower", 7) })
+		fixture.RoleGrantActor(run, "dp_reader", func() { dpRead(run, "dp_quote_lower", 7) })
 		run(fixture.Exec(`ALTER DEFAULT PRIVILEGES REVOKE "select" ON TABLES FROM dp_reader`, 0))
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES REVOKE USAGE ON TYPES FROM PUBLIC", 0))
 		for _, tc := range []struct{ privilege, class, table string }{
@@ -125,20 +125,20 @@ func TestReferenceRoleDefaultPrivilegesDiagnostics(t *testing.T) {
 			{"TEMPORARY", "TABLES", "dp_quote_temporary_upper"},
 		} {
 			q := `ALTER DEFAULT PRIVILEGES GRANT "` + tc.privilege + `" ON ` + tc.class + " TO dp_reader"
-			dpError(run, q, "42601", `unrecognized privilege type "`+tc.privilege+`"`)
+			fixture.RoleGrantError(run, q, "42601", `unrecognized privilege type "`+tc.privilege+`"`)
 			dpTable(run, tc.table, 9)
-			dpActor(run, "dp_reader", func() { dpDenied(run, "SELECT x FROM "+tc.table, "table", tc.table) })
+			fixture.RoleGrantActor(run, "dp_reader", func() { fixture.RoleGrantPermissionDenied(run, "SELECT x FROM "+tc.table, "table", tc.table) })
 			if tc.class == "TYPES" {
 				run(fixture.Exec("CREATE TYPE dp_quote_usage_type AS ENUM('a')", 0))
-				dpActor(run, "dp_reader", func() {
+				fixture.RoleGrantActor(run, "dp_reader", func() {
 					fixture.WithPublicSchemaOwner(t, p, b, "dp_reader", func() {
-						dpDenied(run, "CREATE TABLE dp_quote_usage_consumer(x dp_quote_usage_type)", "type", "dp_quote_usage_type")
+						fixture.RoleGrantPermissionDenied(run, "CREATE TABLE dp_quote_usage_consumer(x dp_quote_usage_type)", "type", "dp_quote_usage_type")
 					})
 				})
 			}
 		}
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES GRANT USAGE ON TYPES TO PUBLIC", 0))
-		dpActor(run, "dp_reader", func() { dpRead(run, "dp_quote_lower", 7) })
+		fixture.RoleGrantActor(run, "dp_reader", func() { dpRead(run, "dp_quote_lower", 7) })
 	})
 }
 

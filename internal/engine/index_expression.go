@@ -41,6 +41,8 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 		return nil, "", err
 	}
 	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.catalog}
+	evaluation.routineAuthority, evaluation.routineChecks = &auth, binder.dependencies
+	evaluation.routineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, "", err
@@ -115,6 +117,33 @@ func (d *indexDefinition) hasRuntimeDomainConversion() bool {
 		return true
 	}
 	return d.hasRuntimeDomainKeyConversion()
+}
+
+// Callable index recipes must run on the produced tuple before RETURNING.
+// Reuse the tracked insertion output so publication does not call them twice.
+// Plain-column indexes retain their allocation-free insertion path.
+func (d *indexDefinition) requiresInsertionOutput() bool {
+	if d.hasRuntimeDomainConversion() {
+		return true
+	}
+	if d.predicate != nil {
+		for _, ref := range d.predicate.dependencies {
+			if ref.Address.ClassID == ProcedureClassID {
+				return true
+			}
+		}
+	}
+	for _, key := range d.keys {
+		if key.derived == nil {
+			continue
+		}
+		for _, ref := range key.derived.dependencies {
+			if ref.Address.ClassID == ProcedureClassID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (d *indexDefinition) hasRuntimeDomainKeyConversion() bool {

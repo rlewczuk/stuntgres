@@ -200,7 +200,11 @@ func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (B
 		}
 		properties = mergeExpressionProperties(properties, args[i].Properties())
 	}
-	return deparseExpression{b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), signature, args}, nil
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), catalogRoutineProvider, name, deparseSignatures[signature].args...)
+	if err != nil {
+		return nil, err
+	}
+	return deparseExpression{info, signature, args}, nil
 }
 
 func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {

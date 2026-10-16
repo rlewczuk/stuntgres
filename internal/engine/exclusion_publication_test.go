@@ -3,9 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
-	"maps"
 	"reflect"
-	"slices"
 	"testing"
 
 	"stuntgres/internal/sqlstate"
@@ -17,11 +15,9 @@ func TestExclusionPublication(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"((n+0) WITH =))")
+			sessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"((n+1) WITH =))")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 			parent := e.state.descriptors[roleTableRef(t, e, "public.t").Address].(*relationDescriptor)
-			constraint := parent.exclusionConstraints[0]
-			index := e.state.descriptors[constraint.Index].(*relationDescriptor)
 			store := e.storage[parent.address]
 			value, err := parent.columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
@@ -48,42 +44,50 @@ func TestExclusionPublication(t *testing.T) {
 					t.Fatal("failed package preparation changed immutable inputs")
 				}
 			}
+			// Use a supported original recipe and a real INT4 input: the
+			// derived addition must fail before any publication is installed.
+			overflow, err := parent.columns[0].Usage.Type.Input(context.Background(), "2147483647", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
 			for _, cancelled := range []bool{false, true} {
-				ctx, cancel := context.WithCancel(context.Background())
-				fault := errors.New("exclusion derived provider fault")
-				next := *e.state
-				next.descriptors = maps.Clone(e.state.descriptors)
-				indexCopy, definition := *index, *index.sqlIndex
-				definition.keys = slices.Clone(definition.keys)
-				derived := *definition.keys[0].derived
+				// Reuse the existing context checkpoint seam to observe
+				// outside-lock preparation and exercise cancellation without
+				// injecting a node unsupported by stored-recipe rebinding.
 				called := false
-				derived.execution = queryProbe(derived.execution.ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
-					called = true
-					if !e.mu.TryLock() {
-						t.Error("exclusion publication invoked runtime provider under engine lock")
-						return sqltype.Value{}, fault
-					}
-					e.mu.Unlock()
-					if cancelled {
-						cancel()
-						return value, ctx.Err()
-					}
-					return sqltype.Value{}, fault
-				})
-				definition.keys[0].derived = &derived
-				indexCopy.sqlIndex = &definition
-				next.descriptors[index.address] = &indexCopy
-				before := indexMaintenanceCapture(e)
-				roots, err := e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, e.state, &next, captureIndexStores(e.storage, &next), e.indexRoots, map[ObjectAddress]bool{parent.address: true}, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
-				cancel()
-				want := fault
-				if cancelled {
-					want = context.Canceled
+				ctx := &castPreflightContext{
+					Context: context.Background(), e: e, t: t, armed: true,
+					visit: func() { called = true },
 				}
-				if !called || roots != nil || !errors.Is(err, want) {
-					t.Fatal("derived failure did not veto complete root preparation", called, roots, err)
+				if cancelled {
+					ctx.cancelAt = "preflight"
+				}
+				before := indexMaintenanceCapture(e)
+				storeBefore := uniquePublicationStore(store)
+				row, version := e.nextRow, e.nextVersion
+				writes := []rowVersion{{row: RowID(row + 1), version: VersionID(version + 1), values: []sqltype.Value{overflow}}}
+				publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
+				if err := e.prepareRowPublication(&publication, TxRef{owner: e, epoch: e.state.epoch}, true); err != nil {
+					t.Fatal(err)
+				}
+				roots, err := e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+				if !called || roots != nil {
+					t.Fatal("derived failure did not veto outside-lock root preparation", called, roots, err)
+				}
+				if cancelled {
+					if !errors.Is(err, context.Canceled) {
+						t.Fatal("cancellation did not veto root preparation", err)
+					}
+				} else {
+					var diagnostic *sqlstate.Error
+					if !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "integer out of range" {
+						t.Fatal("derived arithmetic failure did not veto root preparation", err)
+					}
 				}
 				indexMaintenanceUnchanged(t, e, before)
+				if e.nextRow != row || e.nextVersion != version || !reflect.DeepEqual(*store, storeBefore) {
+					t.Fatal("derived veto changed immutable publication inputs")
+				}
 			}
 		})
 		t.Run(method+"/full_diagnostic", func(t *testing.T) {

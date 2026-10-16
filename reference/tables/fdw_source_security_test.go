@@ -11,11 +11,7 @@ func TestReferenceFDWSourceSecurity(t *testing.T) {
 	fdwScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, run func(fixture.Step)) {
 		fdwLive(t, p, b, r, run)
 		run(fixture.Exec("CREATE ROLE fdw_reader", 0))
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fdw_reader", 0))
-		} else {
-			run(fixture.Exec("ALTER SCHEMA public OWNER TO fdw_reader", 0))
-		}
+		run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fdw_reader", 0))
 		options := "user 'postgres'"
 		if b.PG {
 			options = "user 'stuntgres',password 'stuntgres',password_required 'false'"

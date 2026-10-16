@@ -79,13 +79,14 @@ const (
 
 type aggregateCall struct {
 	provider     aggregateProvider
+	routine      ObjectRef // Selected owning declaration; fresh caller ACL at admission.
 	argument     BoundExpr
 	separator    BoundExpr
 	direct       []BoundExpr
 	order        []sortKey
 	filter       BoundExpr
-	distinct     []sqltype.Grouping
-	stageWidth   int // Value, separator, then unique local targets; keys address cache slots.
+	distinct     []queryGrouping // Multi-key tuple equality is caller checked; single-key support is not.
+	stageWidth   int             // Value, separator, then unique local targets; keys address cache slots.
 	operation    aggregateOperation
 	includeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
 	procedure    *procedureDescriptor

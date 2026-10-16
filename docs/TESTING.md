@@ -430,6 +430,7 @@ These are last-resort implementation references, not prerequisites for each test
 - [indexes](../reference/indexes/README.md#testing)
 - [locking_transactions](../reference/locking_transactions/README.md#testing)
 - [numeric](../reference/numeric/README.md#testing)
+- [object_grants](../reference/object_grants/README.md#testing)
 - [parser](../internal/parser/README.md#testing)
 - [patterns_encoding](../reference/patterns_encoding/README.md#testing)
 - [query_core](../reference/query_core/README.md#testing)

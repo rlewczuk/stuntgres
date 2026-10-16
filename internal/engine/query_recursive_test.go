@@ -52,7 +52,7 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		if err != nil {
 			t.Fatal(err)
 		}
-		n.grouping = []sqltype.Grouping{grouping}
+		n.grouping = []queryGrouping{{Grouping: grouping}}
 	}
 	project := &projectNode{querySchema: schema, child: n, expressions: []BoundExpr{column(4)}, frame: 4}
 	d.query = &BoundQuery{Root: project}

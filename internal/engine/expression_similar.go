@@ -40,7 +40,16 @@ func (b *expressionBinder) bindSimilar(raw parser.OperatorExpr) (BoundExpr, erro
 	op := raw.Name.Parts[0].Text
 	result := b.typ(sqltype.Bool).Usage()
 	info := b.info(result, raw.Pos, likeProperties(l, r))
-	return functions.NewSimilar[BoundExpr, *EvalContext](functionInfo(info), l, r, op, collation.usage.Collation, collation.collationConflict)
+	node, err := functions.NewSimilar[BoundExpr, *EvalContext](functionInfo(info), l, r, op, collation.usage.Collation, collation.collationConflict)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinOperatorRoutineInfo(info, op, l.ResultUsage().Type.BaseType().ID(), sqltype.Text)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }
 func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr, error) {
 	valid, omitted := functions.SimilarEscapeShape(raw)
@@ -84,6 +93,14 @@ func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr
 	if err != nil {
 		return nil, err
 	}
+	formal, count := [2]sqltype.ID{sqltype.Text, sqltype.Text}, 2
+	if omitted {
+		count = 1
+	}
+	info, err = b.builtinRoutineInfo(info, stringRoutineProvider, "similar_to_escape", formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
 	return functions.NewSimilarEscape[BoundExpr, *EvalContext](functionInfo(info), pattern, escape, omitted)
 }
 func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
@@ -104,6 +121,10 @@ func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operand
 	}
 	wrapper := raw.Syntax == parser.OrdinaryFunctionSyntax || functions.SimilarSubstringWrapper(raw.Args, b.defaultConsumer)
 	info, err := b.collatedInfo(b.info(text, raw.Pos, props), args[:]...)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinRoutineInfo(info, stringRoutineProvider, raw.Name.Parts[len(raw.Name.Parts)-1].Text, sqltype.Text, sqltype.Text, sqltype.Text)
 	if err != nil {
 		return nil, err
 	}

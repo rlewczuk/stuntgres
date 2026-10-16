@@ -61,11 +61,17 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	e.Info = functionInfo(b.info(b.typ(selected).Usage(), raw.Pos, properties))
+	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
+	e.Info = functionInfo(info)
 	plan, err := sqltype.BindDatetimeBin(b.typ(sqltype.Interval), b.typ(selected), e.Usage.Type)
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, "date_bin", sqltype.Interval, selected, selected)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	return e, nil
 }

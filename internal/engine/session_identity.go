@@ -159,7 +159,15 @@ func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (Bound
 	if kind == identitySystemUser {
 		id = sqltype.Text
 	}
-	return identityExpression{expressionInfo: b.info(b.typ(id).Usage(), pos, ExprProperties{Volatility: Stable}), kind: kind}, nil
+	info := b.info(b.typ(id).Usage(), pos, ExprProperties{Volatility: Stable})
+	if kind == identitySystemUser {
+		var err error
+		info, err = b.builtinRoutineInfo(info, catalogRoutineProvider, "system_user")
+		if err != nil {
+			return nil, err
+		}
+	}
+	return identityExpression{expressionInfo: info, kind: kind}, nil
 }
 
 func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundExpr, error) {
@@ -188,5 +196,11 @@ func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundE
 	}
 	identity := node.(identityExpression)
 	identity.ordinaryCall = true
+	if identity.routineReference == nil {
+		identity.expressionInfo, err = b.builtinRoutineInfo(identity.expressionInfo, catalogRoutineProvider, name)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return identity, nil
 }

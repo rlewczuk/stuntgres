@@ -90,7 +90,15 @@ func (b *expressionBinder) bindUUIDGeneration(raw parser.FunctionExpr, visible b
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, properties))
+	var formal [1]sqltype.ID
+	if len(args) != 0 {
+		formal[0] = sqltype.Interval
+	}
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, properties), uuidRoutineProvider, name, formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
 	return node, nil
 }
 

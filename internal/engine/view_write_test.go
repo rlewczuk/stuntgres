@@ -214,7 +214,7 @@ func TestViewWriteDemand(t *testing.T) {
 		expressionInfo: expressionInfo{usage: f.integer.Usage(), properties: ExprProperties{ParameterDependent: true}},
 		number:         1,
 	}
-	rewritten, changed, err := rewriteViewExpression(f.e.CatalogRead(), parameter, func(node BoundExpr) (BoundExpr, bool, error) {
+	rewritten, changed, err := rewriteViewExpression(f.e.CatalogRead(), parameter, nil, func(node BoundExpr) (BoundExpr, bool, error) {
 		return node, false, nil
 	})
 	if err != nil || changed {

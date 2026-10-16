@@ -55,13 +55,7 @@ func TestReferenceFDWMappingSelection(t *testing.T) {
 		run(fixture.Exec("CREATE USER MAPPING FOR PUBLIC SERVER fdw_live OPTIONS("+publicOptions+")", 0))
 		run(fixture.Exec("CREATE FOREIGN TABLE fdw_identity(id integer) SERVER fdw_live OPTIONS(schema_name 'public',table_name 'fdw_identity_source')", 0))
 		run(fixture.Exec("GRANT SELECT ON fdw_identity TO fdw_reader", 0))
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fdw_reader", 0))
-		} else {
-			// Native schema SQL GRANT is unavailable. Transfer only the schema;
-			// foreign relation ownership and explicit SELECT ACL stay unchanged.
-			run(fixture.Exec("ALTER SCHEMA public OWNER TO fdw_reader", 0))
-		}
+		run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fdw_reader", 0))
 		run(fixture.Exec("SET ROLE fdw_reader", 0))
 		run(fixture.Select("SELECT id FROM fdw_identity", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 		run(fixture.Exec("RESET ROLE", 0))

@@ -94,6 +94,10 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 		}
 		usage = shape.Usage()
 	}
+	info, err := b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), jsonRoutineProvider, name, definition.Input)
+	if err != nil {
+		return nil, err
+	}
 	if definition.Keys || definition.Each || definition.Elements {
 		if err := b.stringSetAllowed(raw.Pos); err != nil {
 			return nil, err
@@ -103,16 +107,17 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
+		info.properties = properties
 		if definition.Elements {
 			if definition.Input == sqltype.JSONB {
-				return functions.NewJSONBElements[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
+				return functions.NewJSONBElements[BoundExpr, *EvalContext](functionInfo(info), name, arg)
 			}
-			return functions.NewJSONElements[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
+			return functions.NewJSONElements[BoundExpr, *EvalContext](functionInfo(info), name, arg)
 		}
 		if definition.Each {
-			return functions.NewJSONEach[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
+			return functions.NewJSONEach[BoundExpr, *EvalContext](functionInfo(info), name, arg)
 		}
-		return functions.NewJSONKeys[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, arg)
+		return functions.NewJSONKeys[BoundExpr, *EvalContext](functionInfo(info), name, arg)
 	}
-	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)
+	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, []BoundExpr{arg}, parser.OrdinaryFunctionSyntax)
 }

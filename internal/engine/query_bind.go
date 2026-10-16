@@ -289,7 +289,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		return nil, err
 	}
 	var on []sortKey
-	var onFamilies []sqltype.Grouping
+	var onFamilies []queryGrouping
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
 		on, onFamilies, err = b.resolveDistinctOn(s, order, projection, targetNames)
 		if err != nil {
@@ -439,12 +439,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		results[i] = result
 	}
-	var distinctFamilies []sqltype.Grouping
+	var distinctFamilies []queryGrouping
 	if plainDistinct {
 		if width == 0 {
 			return nil, sqlError("42601", "SELECT DISTINCT must have at least one column")
 		}
-		distinctFamilies = make([]sqltype.Grouping, width)
+		distinctFamilies = make([]queryGrouping, width)
 		for i, expression := range projection {
 			distinctFamilies[i], err = b.bindDistinctGrouping(expression)
 			if err != nil {

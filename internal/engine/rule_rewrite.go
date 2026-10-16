@@ -133,7 +133,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 			condition = b.predicate
 		}
 		mapper := func(expr BoundExpr) (BoundExpr, bool, error) {
-			return rewriteViewExpression(catalog, expr, func(expr BoundExpr) (BoundExpr, bool, error) {
+			return rewriteViewExpression(catalog, expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 				column, ok := expr.(columnExpression)
 				if !ok {
 					return expr, false, nil
@@ -182,6 +182,86 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 		}
 	}
 	return p, nil
+}
+
+// A NEW substitution may move a stored DEFAULT into the action's query tree.
+// Loan only original callable dependencies, after its actual containing recipe
+// certifies lifetime (including the existing retained-TEMP epoch bridge).
+func loanRuleDefaultDependencies(view CatalogRead, parent *relationDescriptor, slot int, dependencies *[]expressionDependency, private *bool) error {
+	definition, ok := parent.defaults[parent.attributes[slot]]
+	if !ok || definition.OID == 0 || definition.expression == nil || definition.expression.ResultUsage() != parent.columns[slot].Usage {
+		return fmt.Errorf("stuntgres: invalid rule DEFAULT source")
+	}
+	if err := validateColumnDefaultProviders(view, parent, definition); err != nil {
+		return err
+	}
+	roles := view.owner.roleRead(view, view.owner.roles)
+	var failure error
+	record := func(captured *procedureDescriptor) {
+		if failure != nil || captured == nil {
+			return
+		}
+		current, err := validateRoutineDescriptor(view, roles, captured)
+		if err != nil {
+			failure = err
+			return
+		}
+		if current.revision != captured.revision {
+			failure = CatalogConflict{}
+			return
+		}
+		for _, original := range definition.dependencies {
+			if original.Address != captured.address {
+				continue
+			}
+			if !storedReferenceEpochValid(view, parent, original) {
+				failure = ErrCatalogReplaced
+				return
+			}
+			ref := original
+			ref.Epoch = view.Epoch() // Project only the certified source recipe.
+			for _, existing := range *dependencies {
+				if existing.ref == ref && existing.revision == captured.revision {
+					return
+				}
+			}
+			if !*private {
+				*dependencies = slices.Clone(*dependencies)
+				*private = true
+			}
+			*dependencies = append(*dependencies, expressionDependency{ref: ref, revision: captured.revision})
+			return
+		}
+		failure = fmt.Errorf("stuntgres: missing rule DEFAULT routine manifest")
+	}
+	walkBoundExpression(definition.expression, func(node BoundExpr) {
+		if failure != nil {
+			return
+		}
+		if expression, ok := node.(caseExpression); ok {
+			for _, arm := range expression.arms {
+				record(arm.routine)
+			}
+		}
+		captured, err := expressionRoutineDescriptor(node)
+		if err != nil {
+			failure = err
+			return
+		}
+		record(captured)
+		if captured != nil {
+			failure = walkRoutineBody(captured, node, func(body *procedureDescriptor) error {
+				current, ok := view.state.descriptors[body.address].(*procedureDescriptor)
+				if !ok || !sameRoutineDeclaration(current, body) {
+					return fmt.Errorf("stuntgres: stale rule DEFAULT SQL body declaration")
+				}
+				// record still requires the original validated source DEFAULT ref.
+				record(current)
+				return failure
+			})
+		}
+	})
+	return failure
 }
 
 func ruleJoin(left, right LogicalNode) LogicalNode {
@@ -275,6 +355,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	caller := auth.state.CurrentUser
 	auth.state.CurrentUser = original.relation.owner
 	b := action.binding
+	dependenciesPrivate := false
 	b.conflict = b.conflict.instantiate()
 	b, err = refreshRuleActionCTEs(auth, b)
 	if err != nil {
@@ -393,10 +474,15 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			if slot < 0 || slot >= len(recipes) {
 				return nil, false, ErrCatalogReplaced
 			}
+			if column.frame == 2 && len(original.defaults) > slot && original.defaults[slot] != nil {
+				if err := loanRuleDefaultDependencies(catalog, original.relation, slot, &b.dependencies, &dependenciesPrivate); err != nil {
+					return nil, false, err
+				}
+			}
 			recipe := recipes[slot]
 			if targetOffset != 0 {
 				var err error
-				recipe, _, err = rewriteViewExpression(catalog, recipe, func(expr BoundExpr) (BoundExpr, bool, error) {
+				recipe, _, err = rewriteViewExpression(catalog, recipe, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 					c, ok := expr.(columnExpression)
 					if ok && c.scope == 1 && c.frame == actionFrame {
 						c.slot += targetOffset
@@ -900,7 +986,7 @@ func ruleReturningProjection(catalog CatalogRead, original, provider *boundRetur
 	copy.expressions = slices.Clone(original.expressions)
 	for i, expr := range copy.expressions {
 		var err error
-		copy.expressions[i], _, err = rewriteViewExpression(catalog, expr, func(expr BoundExpr) (BoundExpr, bool, error) {
+		copy.expressions[i], _, err = rewriteViewExpression(catalog, expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 			column, ok := expr.(returningColumnExpression)
 			if !ok {
 				return expr, false, nil
@@ -989,11 +1075,11 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 		return column, true, nil
 	}
 	mapExpr := func(expr BoundExpr) (BoundExpr, error) {
-		next, _, err := rewriteViewExpression(catalog, expr, leaf)
+		next, _, err := rewriteViewExpression(catalog, expr, nil, leaf)
 		return next, err
 	}
 	mapTargets := func(targets []*arrayAssignmentTarget) ([]*arrayAssignmentTarget, error) {
-		return mapRuleAssignmentTargets(targets, func(expr BoundExpr) (BoundExpr, bool, error) { return rewriteViewExpression(catalog, expr, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
+		return mapRuleAssignmentTargets(targets, func(expr BoundExpr) (BoundExpr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	b.arrayTargets, err = mapTargets(b.arrayTargets)
 	if err != nil {
@@ -1001,7 +1087,7 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 	}
 	if b.query != nil {
 		next := *b.query
-		next.Root, err = rewriteQueryExpressions(next.Root, func(expr BoundExpr) (BoundExpr, bool, error) { return rewriteViewExpression(catalog, expr, leaf) })
+		next.Root, err = rewriteQueryExpressions(next.Root, func(expr BoundExpr) (BoundExpr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) })
 		if err != nil {
 			return b, err
 		}
@@ -1026,18 +1112,18 @@ func refreshRuleBinding(catalog CatalogRead, b binding, current *relationDescrip
 			return b, err
 		}
 		for i, expr := range u.assignments {
-			u.assignments[i], _, err = rewriteViewExpression(catalog, expr, leaf)
+			u.assignments[i], _, err = rewriteViewExpression(catalog, expr, nil, leaf)
 			if err != nil {
 				return b, err
 			}
 		}
-		u.predicate, _, err = rewriteViewExpression(catalog, u.predicate, leaf)
+		u.predicate, _, err = rewriteViewExpression(catalog, u.predicate, nil, leaf)
 		if err != nil {
 			return b, err
 		}
 		b.update = &u
 	}
-	b.predicate, _, err = rewriteViewExpression(catalog, b.predicate, leaf)
+	b.predicate, _, err = rewriteViewExpression(catalog, b.predicate, nil, leaf)
 	if err != nil {
 		return b, err
 	}

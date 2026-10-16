@@ -103,7 +103,24 @@ func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos pars
 	if id == sqltype.Text {
 		info = inputInfo
 	}
-	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args, syntax)
+	node, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args, syntax)
+	if err != nil {
+		return nil, err
+	}
+	var formal [4]sqltype.ID
+	for i := range args {
+		formal[i] = functions.BinaryArgumentID(name, i, family)
+	}
+	if name == "||" {
+		info, err = b.builtinOperatorRoutineInfo(info, name, formal[0], formal[1])
+	} else {
+		info, err = b.builtinRoutineInfo(info, binaryRoutineProvider, name, formal[:len(args)]...)
+	}
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }
 
 func (b *expressionBinder) supplyBinaryTypes(demand functions.BinaryDemand, types *functions.BinaryTypes) {

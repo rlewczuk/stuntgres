@@ -48,5 +48,9 @@ func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible 
 	if err != nil {
 		return nil, err
 	}
-	return functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(target.Usage(), raw.Pos, arg.Properties())), Plan: plan, Arg: arg}, nil
+	info, err := b.builtinRoutineInfo(b.info(target.Usage(), raw.Pos, arg.Properties()), datetimeRoutineProvider, raw.Name.Parts[len(raw.Name.Parts)-1].Text, sqltype.Interval)
+	if err != nil {
+		return nil, err
+	}
+	return functions.DatetimeJustify[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Arg: arg}, nil
 }

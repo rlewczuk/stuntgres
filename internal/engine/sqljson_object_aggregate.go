@@ -23,6 +23,22 @@ func (b *expressionBinder) bindSQLJSONObjectAggregate(raw parser.AggregateExpr, 
 	}
 	provider := jsonObjectAggregateProvider{usage: usage, strict: raw.JSON.Absent, unique: raw.JSON.Unique}
 	call := aggregateCall{provider: provider, argument: args[0], separator: args[1], operation: operation, includeNulls: true}
+	// SQL/JSON syntax lowers to the genuine aggregate selected by its output
+	// format and NULL/unique options, not to a json_objectagg pg_proc entry.
+	routineName := "json_object_agg"
+	if usage.Type.ID() == sqltype.JSONB {
+		routineName = "jsonb_object_agg"
+	}
+	if raw.JSON.Unique {
+		routineName += "_unique"
+	}
+	if raw.JSON.Absent {
+		routineName += "_strict"
+	}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, routineName, sqltype.ID(2276), sqltype.ID(2276))
+	if err != nil {
+		return nil, err
+	}
 	node, err := b.finishAggregate(raw, call, filter, b.info(usage, raw.Pos, ExprProperties{StageDependent: true}))
 	if err != nil {
 		return nil, err

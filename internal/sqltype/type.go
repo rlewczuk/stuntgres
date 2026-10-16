@@ -2300,6 +2300,8 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		if a.boolean && !b.boolean {
 			return 1, nil
 		}
+	default:
+		return 0, failure("0A000", "scalar comparison provider is unsupported in embedded mode")
 	}
 	return 0, nil
 }

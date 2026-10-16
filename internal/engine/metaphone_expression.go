@@ -93,7 +93,9 @@ func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (Boun
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	call, err := functions.NewMetaphone[BoundExpr, *EvalContext](functionInfo(b.info(text, raw.Pos, properties)), canonical, args)
+	info := b.info(text, raw.Pos, properties)
+	info.routineReference = proc
+	call, err := functions.NewMetaphone[BoundExpr, *EvalContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,7 +21,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	d := infoTimeStampCatalogType(t, view)
 	base, ok := view.LookupType(sqltype.Timestamptz)
-	if !ok || d.typ.DomainBase().Type != base || d.typ.DomainBase().Typmod != 2 || d.typ.ID() == base.ID() || d.revision != 1 || d.owner != (authorization.PrincipalRef{}) || !d.typ.IsBuiltin() || d.typ.IsUserDefined() {
+	if !ok || d.typ.DomainBase().Type != base || d.typ.DomainBase().Typmod != 2 || d.typ.ID() == base.ID() || d.revision != 1 || !d.typ.IsBuiltin() || d.typ.IsUserDefined() {
 		t.Fatal("builtin catalog authority", d)
 	}
 	array, ok := view.LookupType(d.array)
@@ -34,6 +33,9 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	}
 	if err := (typeProvider{}).Validate(view, view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(array.ID())}]); err != nil {
 		t.Fatal(err)
+	}
+	if err := validateACL(e.Roles(), d); err != nil {
+		t.Fatal("builtin type principal authority", err)
 	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -66,7 +68,9 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	d := infoTimeStampCatalogType(t, original)
 	next := cloneCatalog(original.state)
 	baseAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Timestamptz)}
-	next.descriptors[baseAddress] = target.CatalogRead().state.descriptors[baseAddress]
+	reboundBase := *next.descriptors[baseAddress].(*typeDescriptor)
+	reboundBase.typ = target.CatalogRead().state.descriptors[baseAddress].(*typeDescriptor).typ
+	next.descriptors[baseAddress] = &reboundBase
 	// Rendering must use the current captured namespace, not inventory spelling.
 	namespace := *next.descriptors[d.Namespace()].(*namespaceDescriptor)
 	delete(next.names, NameKey{ClassID: NamespaceClassID, Name: namespace.name})
@@ -80,7 +84,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	view := CatalogRead{owner: source, state: next}
 	rebound := infoTimeStampCatalogType(t, view)
 	base, _ := view.LookupType(sqltype.Timestamptz)
-	if rebound.typ == d.typ || rebound.typ.DomainBase().Type != base || base == d.typ.DomainBase().Type || rebound.typ.DomainBase().Typmod != 2 || !rebound.typ.IsBuiltin() || rebound.typ.IsUserDefined() || rebound.owner != (authorization.PrincipalRef{}) || rebound.revision != 1 || rebound.typ.AssociatedArray() != d.array || rebound.typ.NamespaceName() != "information_schema" {
+	if rebound.typ == d.typ || rebound.typ.DomainBase().Type != base || base == d.typ.DomainBase().Type || rebound.typ.DomainBase().Typmod != 2 || !rebound.typ.IsBuiltin() || rebound.typ.IsUserDefined() || rebound.revision != 1 || rebound.typ.AssociatedArray() != d.array || rebound.typ.NamespaceName() != "information_schema" {
 		t.Fatal("reowned builtin provenance", rebound)
 	}
 	declaration, err := catalogTypeDeclaration(view, rebound.typ.Usage())
@@ -102,8 +106,11 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := remapped.descriptors[d.Address()].(*typeDescriptor)
-	if retained.owner != (authorization.PrincipalRef{}) || !retained.typ.IsBuiltin() || retained.typ.IsUserDefined() {
-		t.Fatal("principal remap lost builtin exemption")
+	if !retained.typ.IsBuiltin() || retained.typ.IsUserDefined() {
+		t.Fatal("principal remap lost builtin type provenance")
+	}
+	if err := validateACL(target.Roles(), retained); err != nil {
+		t.Fatal("principal remap left invalid builtin authority", err)
 	}
 	invalid := cloneCatalog(original.state)
 	if _, err := reownDomainTypes(invalid, map[ObjectAddress]ObjectAddress{d.Address(): {ClassID: TypeClassID, ObjectID: 60000}}, false); err == nil {

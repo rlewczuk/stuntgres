@@ -76,13 +76,11 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		if usage.Type.IsUserDefined() || usage.Type.IsArray() && usage.Type.Element().IsDomain() {
-			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())}}
-			if err := auth.CanUse(ref); err != nil {
-				return err
-			}
-			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())}}
+		if err := auth.CanUse(ref); err != nil {
+			return err
 		}
+		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		columns[i] = ColumnDescriptor{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
 	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.state.CurrentUser, columns, index)

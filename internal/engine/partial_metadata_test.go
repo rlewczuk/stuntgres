@@ -141,6 +141,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	if !reflect.DeepEqual(attributes, []ObjectRef{wantRef}) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)
 	}
+	var preparation indexExecutionPreparation
 	for _, row := range f.store.versions {
 		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: row.values}
 		value, err := metadata.Predicate.Eval(&evaluation)
@@ -151,7 +152,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		if err != nil || truth != False {
 			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.row, truth, err)
 		}
-		matched, err := indexPredicateMatches(&evaluation, predicate, row.values)
+		matched, err := preparation.predicateMatches(&evaluation, f.parent, &indexDefinition{predicate: predicate}, row.values, nil, nil)
 		if err != nil || matched {
 			t.Fatalf("row %d: simplified execution admitted a member: %v %v", row.row, matched, err)
 		}

@@ -48,20 +48,10 @@ func TestReferenceObjectACLAddresses(t *testing.T) {
 		}
 		run(fixture.Exec("CREATE SEQUENCE acl_obj_address_seq", 0))
 		run(objectACLSelect("SELECT pg_get_acl(1259,'acl_obj_address_seq'::regclass,0) AS acl", nil))
-		const grantSequence = "GRANT USAGE ON SEQUENCE acl_obj_address_seq TO PUBLIC"
-		if b.PG {
-			run(fixture.Exec(grantSequence, 0))
-			s := fixture.Select("SELECT unnest(pg_get_acl(1259,'acl_obj_address_seq'::regclass,0)) AS acl", []string{"acl"}, []string{"ACLITEM"}, [][]any{{objectACLOwner(b) + "=rwU/" + objectACLOwner(b)}, {"=U/" + objectACLOwner(b)}})
-			s.Bag = true
-			run(s)
-		} else {
-			// Sequence GRANT is an existing unavailable native producer, not
-			// permission to add adjacent SQL support to this inquiry.
-			s := fixture.ImplicitError(grantSequence, fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"})
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
-			run(objectACLSelect("SELECT pg_get_acl(1259,'acl_obj_address_seq'::regclass,0) AS acl", nil))
-		}
+		run(fixture.Exec("GRANT USAGE ON SEQUENCE acl_obj_address_seq TO PUBLIC", 0))
+		s := fixture.Select("SELECT unnest(pg_get_acl(1259,'acl_obj_address_seq'::regclass,0)) AS acl", []string{"acl"}, []string{"ACLITEM"}, [][]any{{objectACLOwner(b) + "=rwU/" + objectACLOwner(b)}, {"=U/" + objectACLOwner(b)}})
+		s.Bag = true
+		run(s)
 		run(objectACLSelect("SELECT pg_get_acl(1255,'pg_catalog.pg_get_acl(oid,oid,integer)'::regprocedure,0) AS acl", nil))
 		run(objectACLSelect("SELECT pg_get_acl(1213,1663,0) AS acl", nil))
 	})
@@ -69,14 +59,10 @@ func TestReferenceObjectACLAddresses(t *testing.T) {
 
 func TestReferenceObjectACLDatabase(t *testing.T) {
 	objectACLScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		var want any = "{postgres=C*/postgres}"
-		if b.PG {
-			want = nil
-		}
 		for _, subid := range []string{"0", "1", "-1"} {
-			objectACLRun(t, p, b, c, objectACLSelect("SELECT pg_get_acl(1262,(SELECT oid FROM pg_database WHERE datname=current_database()),"+subid+") AS acl", want))
+			objectACLRun(t, p, b, c, objectACLSelect("SELECT pg_get_acl(1262,(SELECT oid FROM pg_database WHERE datname=current_database()),"+subid+") AS acl", nil))
 		}
-		objectACLRun(t, p, b, c, objectACLSelect("SELECT datacl AS acl FROM pg_database WHERE datname=current_database()", want))
+		objectACLRun(t, p, b, c, objectACLSelect("SELECT datacl AS acl FROM pg_database WHERE datname=current_database()", nil))
 		// Consistency supplements, never replaces, the independent expectations.
 		objectACLRun(t, p, b, c, fixture.Select("SELECT pg_get_acl(1262,oid,0) IS NOT DISTINCT FROM datacl AS same FROM pg_database WHERE datname=current_database()", []string{"same"}, []string{"BOOL"}, [][]any{{true}}))
 	})

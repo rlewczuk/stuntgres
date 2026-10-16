@@ -52,6 +52,11 @@ SQL HANDLER/VALIDATOR clauses resolve these installed procedure identities:
 handler `() -> fdw_handler`, validator `(text[],oid) -> void`. They do not load a
 Go symbol, PostgreSQL C function, transport, URL or DSN. SQL options remain
 provider-owned configuration, not engine-interpreted connection instructions.
+Installed handlers and validators are genuine function ACL targets, with strict,
+VOLATILE, parallel-unsafe metadata and ordinary PUBLIC EXECUTE defaults.
+GRANT/REVOKE changes their routine ACLs, not their registered callback identity.
+Internal SQL/MED calls do not require ordinary EXECUTE, and registration does
+not create a standalone SQL-callable Go function.
 See PostgreSQL's [SQL/MED commands](https://www.postgresql.org/docs/18/sql-createforeigndatawrapper.html)
 for syntax, and the [real independent SQL reader](../reference/tables/fdw_reader_test.go)
 for a concrete in-process provider, not a canned-row implementation.
@@ -371,6 +376,15 @@ visibility, or SET ROLE NONE recovers the original session role after rollback.
 
 The DSN is an **exact opaque string**, not a libpq connection string or network address. Identical strings (including the empty string) within the same Driver share an engine; different strings or Driver instances are isolated. The registered `stuntgres` driver uses one default Driver. Engines live as long as their Driver, even after every connection or pool closes. Use `NewDriver().OpenConnector(name)` with `sql.OpenDB` for independently owned fixtures. Nothing is shared between processes or persisted across process exit.
 
+Authenticated physical admission also checks current database CONNECT after the
+existing role/login/resource checks. Database ACL changes do not disconnect an
+already admitted session, and SET ROLE does not re-admit it. A rejected startup
+publishes no physical session or TEMP resources. Own-TEMP USAGE remains available
+after allocation; CREATE follows current-role database TEMP. Revocation before
+first allocation names the database, while revocation after allocation names the
+actual physical TEMP schema. Native Reset/Restore preserves destination database
+identity/authority rather than importing a source database ACL.
+
 Random functions share one generator per physical connection. Pin a `sql.Conn`
 when calling `setseed` and reading a repeatable series: interchangeable pool
 queries need not use the same session. Returning a borrower to the pool preserves
@@ -562,6 +576,30 @@ definition stamps and the resolved namespace environment, not descriptors, data
 roots, parameter frames or authorization grants. Each use acquires those identities
 before lock waits and analyzes against current descriptors, ACLs and data.
 
+Selected genuine routines carry exact formal identity and original lifetime
+references through that analysis. Each execution checks current caller EXECUTE
+before actual constant-provider computation and surviving scalar/aggregate/window
+initialization, including stored view/default/generated/CHECK/index consumers.
+Strict literal NULL, eliminated branches and pruned FROM producers retain their
+actual demand contracts; there is no per-row privilege lookup or cached grant.
+An independently observed PostgreSQL old inlined quote_literal(anyelement) plan
+can survive EXECUTE revocation. Native held analysis checks fresh rights instead;
+fresh queries/prepared executions deny on both backends. This precise difference
+does not imply generic PostgreSQL plan-cache emulation.
+The same boundary covers the finite genuine SQL-body closure and VALUE-dependent
+domain CHECK programmes. Parameter/literal domain input captures the actual caller
+before unlocked providers; RI-local owner authority cannot overwrite or borrow
+the invoker's initialization. Actual phase transitions and waits readmit original
+consumed graphs, not CHECK truth or old granted rights. Lazy description inquiries
+initialize only on first non-NULL body entry under the existing session admission
+owner; a new FETCH cannot inherit an earlier command's domain initialization.
+Callable index constant keys plan before predicate truth on the first real tuple;
+false predicates still prune nonconstant keys, and empty INSERT sources do not
+initialize index recipes. Constant RETURNING planning stays earlier than index
+demand, while row-dependent RETURNING stays later. Native fresh-X behavior also
+differs from the independently observed warm PostgreSQL constant-key index cache;
+the warm predicate case continues to require authority on PostgreSQL.
+
 Referenced definition changes, effective search_path changes, namespace callbacks
 and DISCARD PLANS cause original-source reanalysis. Raw path changes that resolve
 to the same namespaces need not invalidate; namespace creation/rename/drop can
@@ -632,13 +670,15 @@ FETCH/EXECUTE utility handles keep their separate live-schema behavior.
 `pg_prepared_statements`, planner statistics and unavailable routine/operator
 invalidation categories are not implemented by this change.
 
-SQL schema GRANT/REVOKE remains outside native capabilities. Pinned reference
-tests exercise real PostgreSQL schema-USAGE grant/revoke/regrant; native public
-tests explicitly transfer schema ownership to the reader for path visibility,
-without transferring bootstrap-owned tables. Both share the supported table-ACL
-deny/regrant phases. Ordinary private schemas do not grant reader USAGE by default.
-Private native units exercise actual namespace ACL invalidation through the
-existing SetObjectACL authority seam.
+SQL schema GRANT/REVOKE uses real native USAGE/CREATE ACL authority. Direct and
+held consumers lose namespace access after revoke and recover after regrant,
+without schema-owner transfer or changes to bootstrap-owned tables. Ordinary
+private schemas do not grant reader USAGE by default. Namespace generation and
+original resolved identities control invalidation; same-name recreation does not
+rescue old lifetime authority. Prepare is effect-free for valid object utilities,
+including explicit transactions. Database and foreign-wrapper/server grants retain
+their explicit-transaction exceptions; other object grants remain autocommit-only.
+Execution read-only rejection precedes object lookup.
 
 
 

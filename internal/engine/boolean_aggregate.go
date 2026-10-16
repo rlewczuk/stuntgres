@@ -34,6 +34,10 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 		operation = aggregateOr
 	}
 	call := aggregateCall{provider: functions.NewBooleanAggregateProvider(typ.Usage(), operation == aggregateAnd), argument: arg, operation: operation}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, sqltype.Bool)
+	if err != nil {
+		return nil, err
+	}
 	return b.finishAggregate(raw, call, filter, b.info(typ.Usage(), raw.Pos, ExprProperties{}))
 }
 

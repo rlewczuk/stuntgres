@@ -137,7 +137,7 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 	properties := arg.Properties()
 	properties.StageDependent = true
 	info := b.info(array.Usage(), raw.Pos, properties)
-	call := aggregateCall{provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), argument: arg, operation: aggregateArrayScalar, includeNulls: true, procedure: proc, ref: ref}
+	call := aggregateCall{provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), argument: arg, operation: aggregateArrayScalar, includeNulls: true, procedure: proc, ref: ref, routine: ref}
 	return b.finishAggregate(raw, call, filter, info)
 }
 
@@ -170,7 +170,9 @@ func (b *expressionBinder) bindIntaggFunction(raw parser.FunctionExpr) (BoundExp
 		b.queryHasTargetSet = true
 	}
 	properties := mergeExpressionProperties(ExprProperties{Volatility: Immutable, StageDependent: true}, arg.Properties())
-	return unnestExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), args: []BoundExpr{arg}, procedure: proc, ref: ref}, nil
+	info := b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties)
+	info.routineReference = proc
+	return unnestExpression{expressionInfo: info, args: []BoundExpr{arg}, procedure: proc, ref: ref}, nil
 }
 
 func sameIntaggIdentity(a *procedureDescriptor, ar ObjectRef, b *procedureDescriptor, br ObjectRef) bool {

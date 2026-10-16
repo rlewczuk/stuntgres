@@ -13,11 +13,13 @@ import (
 // Added defaults are execution-private. Only captured nonvolatile values enter
 // transaction shape projections; persistent definitions retain their bound tree.
 type addedColumn struct {
-	attribute   int32
-	column      *parser.Column
-	declaration createColumnDeclaration
-	expression  BoundExpr
-	value       sqltype.Value
+	attribute    int32
+	column       *parser.Column
+	declaration  createColumnDeclaration
+	expression   BoundExpr
+	dependencies []ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
+	consumer     *relationDescriptor
+	value        sqltype.Value
 }
 
 func alterCookingError(err error) error {
@@ -31,6 +33,7 @@ func alterCookingError(err error) error {
 }
 
 func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *relationDescriptor, action parser.AlterTableAction, captured *sqltype.Usage) (*relationDescriptor, addedColumn, error) {
+	scope.routineAuth = auth
 	fail := func(err error) (*relationDescriptor, addedColumn, error) { return nil, addedColumn{}, err }
 	column := action.Definition
 	if column == nil {
@@ -130,6 +133,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			}
 			next.defaults[attribute] = persisted
 			added.expression = node
+			added.dependencies, added.consumer = persisted.dependencies, old
 		}
 	}
 	if err := refreshGenerationChecks(&next, auth.catalog); err != nil {
@@ -141,12 +145,18 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32]sqltype.Value, bool, error) {
 	var fills map[int32]sqltype.Value
 	perRow := false
-	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
+	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.catalog}
 	for i := range additions {
 		added := &additions[i]
 		if added.expression != nil {
-			planned, _, err := preflightCoercionsWithPolicy(&evaluation, added.expression, true)
+			recipe := evaluation
+			recipe.routineRecipe, recipe.routineGraft = true, false
+			recipe.routineReferences, recipe.routineConsumer = added.dependencies, added.consumer
+			planned, _, err := preflightCoercionsWithPolicy(&recipe, added.expression, true)
 			if err != nil {
+				return nil, false, alterCookingError(err)
+			}
+			if err := validateExpressionJoinExecution(&recipe, planned, recipe.catalog); err != nil {
 				return nil, false, alterCookingError(err)
 			}
 			added.expression = planned

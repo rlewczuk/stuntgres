@@ -24,9 +24,6 @@ func TestReferenceRoleGrantTransactions(t *testing.T) {
 			} else {
 				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
 				s.ErrorStage = "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
 				run(s)
 				// The unsupported utility fails the ordinary native transaction.
 				s = fixture.ImplicitError("SELECT a FROM t", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
@@ -43,8 +40,8 @@ func TestReferenceRoleGrantTransactions(t *testing.T) {
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		}
 		for _, command := range []string{"GRANT SELECT ON missing TO missing_role", "REVOKE SELECT ON missing FROM missing_role"} {
-			// Execute read-only precedence is separate from the native Prepare
-			// explicit-utility boundary. Direct execution always reaches 25006.
+			// Preparing a GRANT/REVOKE remains effect-free even in a transaction;
+			// execution reaches read-only precedence before target resolution.
 			var held *sql.Stmt
 			if prepared {
 				var err error

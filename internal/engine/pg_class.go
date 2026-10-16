@@ -156,6 +156,8 @@ func pgClassACLMask(privileges authorization.Privileges) (uint32, error) {
 		{authorization.TruncatePrivilege, 1 << 4}, {authorization.ReferencesPrivilege, 1 << 5},
 		{authorization.TriggerPrivilege, 1 << 6}, {authorization.ExecutePrivilege, 1 << 7},
 		{authorization.UsagePrivilege, 1 << 8}, {authorization.CreatePrivilege, 1 << 9},
+		{authorization.TemporaryPrivilege, 1 << 10}, {authorization.ConnectPrivilege, 1 << 11},
+		{authorization.SetPrivilege, 1 << 12}, {authorization.AlterSystemPrivilege, 1 << 13},
 		{authorization.MaintainPrivilege, 1 << 14},
 	} {
 		if privileges&pair.from != 0 {

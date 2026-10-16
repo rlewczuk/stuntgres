@@ -30,5 +30,15 @@ func (b *expressionBinder) bindJSONBContainment(raw parser.OperatorExpr, operand
 		args[i] = arg
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
-	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)), name, args, parser.OrdinaryFunctionSyntax)
+	info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+	node, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinOperatorRoutineInfo(info, name, sqltype.JSONB, sqltype.JSONB)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }

@@ -116,7 +116,14 @@ func (b *expressionBinder) bindArrayInspect(raw parser.FunctionExpr) (BoundExpr,
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	e := functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(b.typ(kind.Result()).Usage(), raw.Pos, properties)), Kind: kind, Args: args, Namespace: namespace}
+	info := b.info(b.typ(kind.Result()).Usage(), raw.Pos, properties)
+	var formal [2]sqltype.ID
+	formal[0], formal[1] = 2277, sqltype.Int4
+	info, err = b.builtinRoutineInfo(info, arrayRoutineProvider, kind.Name(), formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	e := functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args, Namespace: namespace}
 	return e, e.Validate()
 }
 

@@ -40,6 +40,37 @@ func objectGrantUnitRequest() *parser.ObjectGrant {
 	return &parser.ObjectGrant{Privileges: []parser.GrantPrivilege{{Name: "select", Columns: []parser.Identifier{{Text: "b"}}}}, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "grant_unit"}}}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "grant_reader"}}}}
 }
 
+func TestObjectGrantSequencePublication(t *testing.T) {
+	e, op, reader, address := objectGrantUnitFixture(t)
+	original := e.state.descriptors[address].(*relationDescriptor)
+	original.relationKind = sequenceRelation
+	original.sequencePlanStamp = 1
+	generator := &sequenceGenerator{last: 11}
+	e.sequences[address] = generator
+	request := objectGrantUnitRequest()
+	request.Kind = "sequence"
+	request.Privileges = []parser.GrantPrivilege{{All: true}}
+	if err := applyObjectGrantUnit(e, op, request); err != nil {
+		t.Fatal(err)
+	}
+	next := e.state.descriptors[address].(*relationDescriptor)
+	mask := authorization.DefaultMask(authorization.DefaultSequences)
+	if next == original || !next.acl.Explicit || len(next.acl.Entries) != 2 || next.acl.Entries[0].Privileges != mask || next.acl.Entries[0].GrantOptions != 0 {
+		t.Fatal("wrong sequence baseline", next.acl)
+	}
+	if authorization.ACLRights(next.acl, next.owner, []authorization.PrincipalRef{reader}, mask, false) != mask {
+		t.Fatal("sequence ALL omitted rights", next.acl)
+	}
+	if next.sequencePlanStamp == original.sequencePlanStamp || e.sequences[address] != generator || generator.last != 11 || original.acl.Explicit {
+		t.Fatal("ACL publication changed generator or retained descriptor")
+	}
+	before, roles := e.state, e.roles
+	request.Relations = append(request.Relations, parser.ObjectName{Parts: []parser.Identifier{{Text: "missing"}}})
+	if err := applyObjectGrantUnit(e, op, request); err == nil || e.state != before || e.roles != roles {
+		t.Fatal("late target error published sequence ACL", err)
+	}
+}
+
 func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 	e, op, reader, address := objectGrantUnitFixture(t)
 	before := e.state

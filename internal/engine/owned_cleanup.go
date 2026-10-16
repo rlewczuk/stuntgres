@@ -123,6 +123,26 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			next.aclSyntheticDefault = false
 			next.revision = revision
 			err = stage.Replace(&next)
+		case *procedureDescriptor:
+			next := *old
+			next.acl, next.revision = nextACL, revision
+			err = stage.Replace(&next)
+		case *foreignDescriptor:
+			next := *old
+			next.acl, next.revision = nextACL, revision
+			err = stage.Replace(&next)
+		case *parameterDescriptor:
+			next := *old
+			next.acl, next.revision = nextACL, revision
+			if !next.acl.Explicit || authorization.MatchesDefaultBaseline(next.acl, next.owner, authorization.DefaultParameters, false) {
+				err = stage.Remove(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: address})
+			} else {
+				err = stage.Replace(&next)
+			}
+		case *tablespaceDescriptor:
+			next := *old
+			next.acl, next.revision = nextACL, revision
+			err = stage.Replace(&next)
 		case *relationDescriptor:
 			next := *old
 			next.acl = nextACL

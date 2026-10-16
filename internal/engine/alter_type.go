@@ -9,14 +9,16 @@ import (
 )
 
 type columnTransformation struct {
-	attribute  int32
-	expression BoundExpr
-	rewrite    bool
+	attribute    int32
+	expression   BoundExpr
+	dependencies []expressionDependency // Original USING binder manifest; borrowed by serial execution preparation.
+	rewrite      bool
 }
 
 type alterTypePreparation struct {
 	usage              sqltype.Usage
 	expression         BoundExpr
+	dependencies       []expressionDependency
 	declaredDimensions int16
 }
 
@@ -60,12 +62,12 @@ func (e *Engine) prepareAlterIdentityTypes(scope *StatementScope, op *Operation,
 		if action.Using != nil && namespace == nil {
 			namespace = alterTypeNamespace(auth, original, ref)
 		}
-		node, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, action, usage, namespace)
+		node, dependencies, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, action, usage, namespace)
 		if err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		prepared = append(prepared, alterTypePreparation{usage: usage, expression: node, declaredDimensions: int16(len(action.TypeName.ArrayBounds))})
+		prepared = append(prepared, alterTypePreparation{usage: usage, expression: node, dependencies: dependencies, declaredDimensions: int16(len(action.TypeName.ArrayBounds))})
 	}
 	e.mu.Unlock()
 	var stage *CatalogStage
@@ -101,10 +103,10 @@ func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, re
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.columns}
 }
 
-func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (BoundExpr, error) {
+func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *relationDescriptor, ref ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (BoundExpr, []expressionDependency, error) {
 	if action.Using == nil {
 		source := original.index[action.Column.Text]
-		return columnExpression{expressionInfo: expressionInfo{usage: original.columns[source].Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil
+		return columnExpression{expressionInfo: expressionInfo{usage: original.columns[source].Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: source}.withGeneration(original, source, 0), nil, nil
 	}
 	if namespace == nil {
 		namespace = alterTypeNamespace(auth, original, ref)
@@ -114,10 +116,10 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 	binder.queryNamespace = namespace
 	binder.querySources = []queryLeaf{{ref: ref, relation: original}}
 	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
-	if err == nil && binder.regclassConcat {
+	if err == nil && (binder.regclassConcat || binder.catalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
 	}
-	return node, err
+	return node, binder.dependencies, err
 }
 
 // Binding retains the statement-original row namespace, even after DROP passes.
@@ -231,10 +233,12 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	var transformation columnTransformation
 	if original.relationKind != foreignRelation {
 		var node BoundExpr
+		var dependencies []expressionDependency
 		if prepared != nil {
 			node = prepared.expression
+			dependencies = prepared.dependencies
 		} else {
-			node, err = e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil)
+			node, dependencies, err = e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil)
 			if err != nil {
 				return fail(err)
 			}
@@ -276,9 +280,9 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-		transformation = columnTransformation{attribute, node, a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod}
+		transformation = columnTransformation{attribute: attribute, expression: node, dependencies: dependencies, rewrite: a.Using != nil || oldUsage.Type != usage.Type || oldUsage.Typmod != usage.Typmod}
 	} else if a.Using != nil {
-		if _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil); err != nil {
+		if _, _, err := e.bindAlterTypeUsingLocked(scope, auth, original, ref, a, usage, nil); err != nil {
 			return fail(err)
 		}
 		return fail(sqlError("42809", fmt.Sprintf(`"%s" is not a table`, original.name)))
@@ -392,7 +396,10 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 			replaced[row.row] = true
 		}
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.catalog}
+	preparedTransforms := false
+	var generationProgram []BoundExpr
+	preparedGeneration := false
 	convert := func(input []rowVersion, committed bool) ([]rowVersion, error) {
 		result := make([]rowVersion, 0, len(input))
 		for _, row := range input {
@@ -403,6 +410,32 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 				continue
 			}
 			evaluation.Row = row.values
+			if !preparedTransforms {
+				var private []columnTransformation
+				for i, transform := range transforms {
+					recipe := evaluation
+					recipe.routineRecipe, recipe.routineGraft = true, false
+					recipe.routineChecks = transform.dependencies
+					node, changed, err := preflightCoercionsWithPolicy(&recipe, transform.expression, true)
+					evaluation.preparedDomainChecks = recipe.preparedDomainChecks
+					if err != nil {
+						return nil, err
+					}
+					if err := validateExpressionJoinExecution(&recipe, node, recipe.catalog); err != nil {
+						return nil, err
+					}
+					if changed {
+						if private == nil {
+							private = append([]columnTransformation(nil), transforms...)
+						}
+						private[i].expression = node
+					}
+				}
+				if private != nil {
+					transforms = private
+				}
+				preparedTransforms = true
+			}
 			values := make([]sqltype.Value, len(slots))
 			for i, slot := range slots {
 				if slot >= 0 {
@@ -410,7 +443,13 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 				}
 			}
 			for i, transform := range transforms {
-				v, err := transform.expression.Eval(&evaluation)
+				// Lazy SQL bodies still need this transformation's original
+				// manifest after preparation has returned.
+				recipe := evaluation
+				recipe.routineRecipe, recipe.routineGraft = true, false
+				recipe.routineChecks = transform.dependencies
+				v, err := transform.expression.Eval(&recipe)
+				evaluation.preparedDomainChecks = recipe.preparedDomainChecks
 				if err != nil {
 					return nil, err
 				}
@@ -428,8 +467,20 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 				values[addedSlots[i].index] = value
 			}
 			evaluation.Row = values
+			if !preparedGeneration && len(generations) != 0 {
+				var err error
+				generationProgram, err = prepareGenerationProgram(&evaluation, next, generatedSlots, old)
+				if err != nil {
+					return nil, err
+				}
+				preparedGeneration = true
+			}
 			for i, attribute := range generations {
-				value, err := next.generations[attribute].planned.Eval(&evaluation)
+				expression := generationRecipeExpression(next.generations[attribute])
+				if generationProgram != nil {
+					expression = generationProgram[generatedSlots[i]]
+				}
+				value, err := expression.Eval(&evaluation)
 				if err != nil {
 					return nil, err
 				}

@@ -138,7 +138,11 @@ func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExp
 	if kind == collationVersionInquiry {
 		result = b.typ(sqltype.Text).Usage()
 	}
-	return visibilityInquiryExpression{b.info(result, raw.Pos, properties), kind, arg}, nil
+	info, err := b.builtinRoutineInfo(b.info(result, raw.Pos, properties), catalogRoutineProvider, kind.name(), sqltype.Oid)
+	if err != nil {
+		return visibilityInquiryExpression{}, err
+	}
+	return visibilityInquiryExpression{info, kind, arg}, nil
 }
 func namedObjectVisible(view CatalogRead, path []ObjectAddress, d Descriptor) bool {
 	return namedObjectVisibleAt(view, nil, path, d)

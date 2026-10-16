@@ -131,6 +131,11 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	if err != nil {
 		return nil, err
 	}
+	info, err := b.builtinRoutineInfo(b.info(e.Usage, raw.Pos, properties), jsonRoutineProvider, name, ids[:count]...)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	e.Plan = plan
 	return e, nil
 }

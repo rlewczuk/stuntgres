@@ -89,6 +89,14 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	if err != nil {
 		return nil, err
 	}
+	formal, count := [2]sqltype.ID{sqltype.Text, sqltype.ID(2276)}, 1
+	if raw.Variadic || len(args) > 1 {
+		count = 2
+	}
+	info, err = b.builtinRoutineInfo(info, variadicRoutineProvider, "format", formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
 	int4 := b.typ(sqltype.Int4)
 	b.info(int4.Usage(), raw.Pos, ExprProperties{})
 	return functions.Format[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil

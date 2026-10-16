@@ -154,7 +154,12 @@ func (b *expressionBinder) bindCommitTimestamp(raw parser.FunctionExpr) (BoundEx
 		}
 		usage = shape.Usage()
 	}
-	return commitTimestampExpression{b.info(usage, raw.Pos, properties), kind, arg}, nil
+	formal := [1]sqltype.ID{sqltype.Xid}
+	info, err := b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), catalogRoutineProvider, name, formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
+	return commitTimestampExpression{info, kind, arg}, nil
 }
 
 func (n commitTimestampExpression) Eval(c *EvalContext) (sqltype.Value, error) {

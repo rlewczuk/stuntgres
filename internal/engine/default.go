@@ -177,6 +177,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	if !validExpressionUsageAt(view, r.definition, u) {
 		return "", fmt.Errorf("stuntgres: foreign default type")
 	}
+	if err := r.recordStoredRoutine(view, node); err != nil {
+		return "", err
+	}
 	r.recordStoredType(view, ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
 	case domainValueExpression:
@@ -767,6 +770,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		normalizer, ok := n.Right.(functions.SimilarEscape[BoundExpr, *EvalContext, ExprProperties])
 		if !ok {
 			return "", fmt.Errorf("stuntgres: invalid stored SIMILAR normalizer")
+		}
+		// SQL syntax renders the normalizer's inputs rather than a separate
+		// call, but the retained executable recipe still owns that call.
+		if err := r.recordStoredRoutine(view, normalizer); err != nil {
+			return "", err
 		}
 		pattern, err := r.sql(ctx, view, normalizer.Pattern)
 		if err != nil {

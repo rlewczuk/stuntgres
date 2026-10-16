@@ -38,6 +38,10 @@ func (b *expressionBinder) bindAnyValue(raw parser.AggregateExpr, name parser.Ob
 	usage := arg.ResultUsage()
 	usage.Typmod = -1
 	call := aggregateCall{provider: functions.NewAnyValue(usage), argument: arg, operation: aggregateAnyValue}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, "any_value", sqltype.ID(2283))
+	if err != nil {
+		return nil, err
+	}
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
 	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()

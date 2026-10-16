@@ -60,5 +60,9 @@ func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bo
 	properties := mergeExpressionProperties(functionIntrinsicProperties(functions.DatetimeSleepIntrinsicRule()), arg.Properties())
 	clockUsage := b.typ(sqltype.Timestamptz).Usage()
 	info := b.info(b.typ(sqltype.Void).Usage(), raw.Pos, properties)
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, id)
+	if err != nil {
+		return nil, err
+	}
 	return functions.NewDatetimeSleep[BoundExpr, *EvalContext](functionInfo(info), kind, arg, clockUsage)
 }

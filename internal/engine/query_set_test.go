@@ -29,10 +29,10 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	}
 	n := &setNode{querySchema: schema, left: &copy, right: &copy, operation: operation, all: all, leftExpressions: append([]BoundExpr(nil), copy.expressions...), rightExpressions: append([]BoundExpr(nil), copy.expressions...)}
 	if operation != "union" || !all {
-		n.grouping = make([]sqltype.Grouping, len(schema))
+		n.grouping = make([]queryGrouping, len(schema))
 		for i := range schema {
 			var err error
-			n.grouping[i], err = sqltype.BindGrouping(schema[i].Usage)
+			n.grouping[i].Grouping, err = sqltype.BindGrouping(schema[i].Usage)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -298,7 +298,7 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 	usage := text.Usage()
 	n.querySchema[0].Usage = usage
 	var err error
-	n.grouping[0], err = sqltype.BindGrouping(usage)
+	n.grouping[0].Grouping, err = sqltype.BindGrouping(usage)
 	if err != nil {
 		t.Fatal(err)
 	}

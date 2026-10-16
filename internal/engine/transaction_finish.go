@@ -14,9 +14,22 @@ func (s *StatementScope) Finish(err error) error {
 	if s.finished {
 		return s.result
 	}
-	if s.authority != nil {
-		s.authority.scope = nil
-	}
+	// Finishing still consumes held cursors, foreign-action recipes and index
+	// expressions. Their borrowed admission context ends only after those users.
+	defer func() {
+		s.routineAuth = AuthorizationView{}
+		s.routineDependencies = nil
+		s.routinePrograms = nil
+		s.domainPreparedChecks = nil
+		s.partitionPrograms = nil
+		s.domainEvaluation = nil
+		for i := range s.mutations {
+			s.mutations[i].routineDependencies = nil
+		}
+		if s.authority != nil {
+			s.authority.scope = nil
+		}
+	}()
 	// ERROR recovery stops the budget before rollback/root cleanup. Restoring
 	// a positive setting below is not an explicit assignment and cannot rearm it.
 	if err != nil {

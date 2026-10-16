@@ -70,5 +70,14 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (Boun
 		resultType = b.typ(id)
 	}
 	info := b.info(resultType.Usage(), raw.Pos, arg.Properties())
-	return functions.NewSize[BoundExpr, *EvalContext](functionInfo(info), name, arg, target.Usage())
+	node, err := functions.NewSize[BoundExpr, *EvalContext](functionInfo(info), name, arg, target.Usage())
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinRoutineInfo(info, binaryRoutineProvider, name, target.ID())
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }

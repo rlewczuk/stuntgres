@@ -48,6 +48,14 @@ func (b *expressionBinder) bindArrayAggregate(raw parser.AggregateExpr, name par
 		operation:    operation,
 		includeNulls: true,
 	}
+	formal := sqltype.ID(2776)
+	if arrays {
+		formal = sqltype.ID(2277)
+	}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, "array_agg", formal)
+	if err != nil {
+		return nil, err
+	}
 	return b.finishAggregate(raw, call, filter, info)
 }
 

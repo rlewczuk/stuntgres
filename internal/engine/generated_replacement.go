@@ -79,6 +79,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		auth, err = stage.authorizationLocked(op)
 		if err == nil {
 			err = scope.captureIdentityLocked(auth)
+			scope.routineAuth = auth
 		}
 		if err == nil {
 			scope.input.TypeDiagnosticName, err = stage.captureTypeDiagnosticName(auth)

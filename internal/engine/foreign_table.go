@@ -86,7 +86,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, err
 	}
 	if err = auth.CheckCreate(ns); err != nil {
-		return nil, nil, err
+		return nil, nil, creationError(err, s.Name)
 	}
 	key := NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	if stage.lookupName(key) != (ObjectAddress{}) {

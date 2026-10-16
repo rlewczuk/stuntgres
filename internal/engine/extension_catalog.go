@@ -48,6 +48,9 @@ type procedureDescriptor struct {
 	revision                      DefinitionRevision
 	name                          string
 	signature                     procedureSignature
+	routineKind                   routineKind
+	builtin                       *builtinRoutineDeclaration
+	body                          []routineBodyEdge
 	owner                         authorization.PrincipalRef
 	result                        OID
 	volatility                    Volatility
@@ -149,7 +152,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
-		if d.uuidOssp != nil && (d.intagg != nil || d.aggregate != nil || d.foreign != nil) {
+		if d.uuidOssp != nil && (d.intagg != nil || d.aggregate != nil || d.foreign != nil || d.builtin != nil) {
 			return invalid()
 		}
 		if d.aggregate != nil && d.intagg != stockIntagg {
@@ -157,7 +160,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.foreign != nil {
 			p := d.foreign
-			if p.name.Name != d.name || d.extension != (ObjectAddress{}) || d.provider != nil || d.queryCodec != nil || d.fuzzy != nil || d.crypto != nil || d.intagg != nil || d.conversion.Name() != "" {
+			if p.name.Name != d.name || d.extension != (ObjectAddress{}) || d.provider != nil || d.queryCodec != nil || d.fuzzy != nil || d.crypto != nil || d.intagg != nil || d.conversion.Name() != "" || d.builtin != nil {
 				return invalid()
 			}
 			if p.wrapper != nil {
@@ -169,12 +172,22 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			}
 			break
 		}
+		if d.builtin != nil {
+			declared := d.builtin
+			if builtinRoutineByOID[d.address.ObjectID] != declared || d.namespace != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) || d.name != declared.identity.name || d.signature != declared.identity.signature || d.routineKind != declared.kind || d.result != declared.result || d.strict != declared.strict || d.volatility != declared.volatility || d.provider != nil || d.queryCodec != nil || d.crypto != nil || d.fuzzy != nil || d.intagg != nil || d.conversion.Name() != "" || d.extension != (ObjectAddress{}) || d.dictionary != (ObjectAddress{}) || d.foreign != nil {
+				return invalid()
+			}
+			break
+		}
 		if d.intagg != nil {
 			if err := d.intagg.validateProcedure(v, d); err != nil {
 				return err
 			}
 			ext = d.extension
 			break
+		}
+		if d.routineKind != functionRoutine {
+			return invalid()
 		}
 		if d.crypto != nil && d.fuzzy != nil {
 			return invalid()

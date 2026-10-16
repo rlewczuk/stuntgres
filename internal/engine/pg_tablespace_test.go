@@ -96,7 +96,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	state, oid, revision := e.state, e.nextOID, e.nextRevision
-	if got, err := capturePGTablespace(ctx, source.ref, d); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := e.capturePGTablespace(ctx, e.CatalogRead(), e.Roles(), source.ref, d); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	if e.state != state || e.nextOID != oid || e.nextRevision != revision {

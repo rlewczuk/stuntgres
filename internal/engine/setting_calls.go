@@ -16,10 +16,17 @@ func settingColumns(typ *sqltype.Descriptor, names ...string) []ColumnDescriptor
 }
 
 // describeSettingCall uses the same inference and literal binding as relations.
+type settingCallBinding struct {
+	parameters   ParameterInfo
+	arguments    []BoundExpr
+	routine      ObjectRef
+	dependencies []expressionDependency
+}
+
 // The caller holds e.mu over descriptor lookup and binding.
-func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input *sqltype.InputEnvironment, op *Operation) (ParameterInfo, []BoundExpr, error) {
+func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input *sqltype.InputEnvironment, op *Operation) (settingCallBinding, error) {
 	if !(s.Name == "current_setting" && len(s.Args) == 1 || s.Name == "set_config" && len(s.Args) == 3) {
-		return ParameterInfo{}, nil, sqlError("0A000", "unsupported setting function signature")
+		return settingCallBinding{}, sqlError("0A000", "unsupported setting function signature")
 	}
 	binder := newExpressionBinder(ctx, e, *input, op, nil)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: s.Name, Pos: s.Pos}}}
@@ -28,10 +35,10 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	}
 	visible, err := binder.builtinVisible(name, functionLookup)
 	if err != nil {
-		return ParameterInfo{}, nil, err
+		return settingCallBinding{}, err
 	}
 	if !visible {
-		return ParameterInfo{}, nil, binder.functionSignatureError(parser.FunctionExpr{Name: name, Args: s.Args, Pos: name.Parts[0].Pos})
+		return settingCallBinding{}, binder.functionSignatureError(parser.FunctionExpr{Name: name, Args: s.Args, Pos: name.Parts[0].Pos})
 	}
 	bound := make([]BoundExpr, len(s.Args))
 	view := CatalogRead{owner: e, state: e.state}
@@ -42,28 +49,38 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 		}
 		typ, ok := view.LookupType(id)
 		if !ok {
-			return ParameterInfo{}, nil, fmt.Errorf("stuntgres: missing setting argument type")
+			return settingCallBinding{}, fmt.Errorf("stuntgres: missing setting argument type")
 		}
 		var err error
 		bound[i], err = binder.bind(v, expressionPolicy{context: assignmentContext, expected: typ.Usage(), mode: sqltype.Implicit})
 		if err != nil {
-			return ParameterInfo{}, nil, err
+			return settingCallBinding{}, err
 		}
+	}
+	formals := [3]sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Bool}
+	routine, err := binder.builtinRoutineReference(settingRoutineProvider, s.Name, formals[:len(bound)]...)
+	if err != nil {
+		return settingCallBinding{}, err
 	}
 	info, err := binder.finish()
 	input.EnumMemberSafe = binder.input.EnumMemberSafe
 	input.TypeDiagnosticName = binder.input.TypeDiagnosticName
-	return info, bound, err
+	return settingCallBinding{parameters: info, arguments: bound, routine: routine, dependencies: binder.dependencies}, err
 }
 func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()
-	info, bound, err := e.describeSettingCall(op.ctx, s, &input, op)
+	binding, err := e.describeSettingCall(op.ctx, s, &input, op)
 	typ, typeOK := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 	catalog := CatalogRead{owner: e, state: e.state}
+	auth, authErr := e.authorizationLocked(op)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
+	if authErr != nil {
+		return Result{}, authErr
+	}
+	info, bound := binding.parameters, binding.arguments
 	if !typeOK {
 		return Result{}, fmt.Errorf("stuntgres: missing setting result type")
 	}
@@ -72,7 +89,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: catalog}
+	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: catalog, routineAuthority: &auth, routineChecks: binding.dependencies, routineRecipe: true}
 	if scope != nil {
 		scope.domainInputCatalog = catalog
 	}
@@ -95,6 +112,24 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 			}
 		}
 	}
+	for _, expression := range bound {
+		if err := validateExpressionJoinExecution(&evaluation, expression, catalog); err != nil {
+			return Result{}, err
+		}
+	}
+	invoke := true
+	if s.Name == "current_setting" {
+		knownNull, err := executionKnownNullArgument(&evaluation, bound[0])
+		if err != nil {
+			return Result{}, err
+		}
+		invoke = !knownNull
+	}
+	if invoke {
+		if err := admitRoutineReference(&evaluation, binding.routine, "function"); err != nil {
+			return Result{}, err
+		}
+	}
 	var inputs [3]sqltype.Value
 	for i, v := range bound {
 		inputs[i], err = v.Eval(&evaluation)
@@ -111,6 +146,13 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	if current.catalog.owner != catalog.owner || current.catalog.Epoch() != catalog.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
+	}
+	evaluation.routineAuthority = &current
+	if invoke {
+		if err := admitRoutineReference(&evaluation, binding.routine, "function"); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 	}
 	validInputs := true
 	for _, expression := range bound {

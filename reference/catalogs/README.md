@@ -290,12 +290,26 @@ admit staged/row-dependent expressions as DEFAULTs or relax UUID provider/type
 identity and volatile-kernel validation; separate random draws are never equal
 goldens.
 
+`TestReferenceObjectGrantUUIDOsspAuthority` checks the installed member's default
+PUBLIC EXECUTE and explicit deny/grant/revoke lifecycle through direct, fresh
+prepared and the same held statements. View/table ownership does not license a
+different invoker; demanded DEFAULT calls require its current EXECUTE, and a
+denied late DEFAULT publishes no earlier row. Positive calls check actual UUID
+type/transport and version4/RFC bits, not random goldens. Core UUID routines have
+independent ACLs. Native raw default ACL and original carrier/manifest/remap
+provenance are private descriptor tests; native pg_proc does not project proacl.
+An actual public-API smoke additionally exercised held read/write transitions,
+separate view-owner authority and complete mixed-row write atomicity.
+
 Selected proof (900-second external deadline each):
 
 ```sh
 make check RUN='^TestReference(UUIDOssp(Generation|Identity|Diagnostics|Consumers|Controls|GroupedControls|CopyBinary|FeatureSmoke)|AvailableExtensionsFiltering)$'
 make check REFERENCE=1 RUN='^TestReference(UUIDOssp(Generation|Identity|Diagnostics|Consumers|Controls|GroupedControls|CopyBinary|FeatureSmoke)|AvailableExtensionsFiltering)$'
 make check RUN='^(TestUUIDOssp(ProviderIdentity|ProviderCollision|ZeroArity|ExpressionIdentity|GroupedExpressionIdentity|Controls|KernelDemand)|TestUUIDGenerationPacking|TestIntaggProviderManifest|TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataValues|Capture|StatementFrontier))$'
+make check RUN='^(TestReferenceObjectGrantUUIDOsspAuthority|TestReferenceUUIDOsspIdentity)$'
+make check REFERENCE=1 RUN='^(TestReferenceObjectGrantUUIDOsspAuthority|TestReferenceUUIDOsspIdentity)$'
+make check RACE=1 RUN='^TestUUIDOssp(RoutineOriginalAuthority|RoutineDefaultACL|ExpressionIdentity|GroupedExpressionIdentity|ProviderIdentity|ProviderCollision)$'
 ```
 
 Actual feature smoke is `make check RUN='^TestReferenceUUIDOsspFeatureSmoke$'`.
@@ -476,14 +490,13 @@ Selected tests:
   revokes, table/column separation, unrelated ACL preservation and explicit empty.
 - `TestReferenceObjectACLAddresses`: missing/ACL-less classes, dropped/system
   attributes, signed AttrNumber wrapping, nonrelation subids and sequence ACLs.
-  PostgreSQL exercises real sequence GRANT expansion; native asserts its existing
-  exact 0A000 rejection and unchanged NULL, supplemented by private explicit ACL
-  lookup through the existing native ACL publication seam.
+  Both backends exercise real sequence GRANT USAGE and independently specified
+  owner `rwU` and PUBLIC `U` ACLITEM rows through direct/prepared getter reads.
 - `TestReferenceObjectACLTypes`: fresh domain/enum/composite/row/array raw NULLs,
   custom type creation defaults and subsequent baseline restoration.
-- `TestReferenceObjectACLDatabase`: independently asserted existing native
-  `{postgres=C*/postgres}` versus pinned PostgreSQL NULL; catalog consistency
-  is supplementary, not the source of expected values.
+- `TestReferenceObjectACLDatabase`: independently asserted raw NULL for the
+  default database ACL in both modes; catalog consistency supplements, never
+  supplies, that expectation. Effective owner/PUBLIC rights remain separate.
 - `TestReferenceObjectACLDiagnostics`: complete error fields, direct/prepare/
   execute stages, nil outputs, named labels, scalar decorations, input ranges,
   unknown classes and a multibyte diagnostic position.
@@ -495,9 +508,9 @@ Selected tests:
 - `TestReferenceObjectACLHeldExecution`: SAME prepared calls across grants,
   revokes, role/column rename and dropped-column gaps, raw inquiry without table
   SELECT, and retained rows/metadata across mutation.
-  The observer receives real schema USAGE on PostgreSQL and temporary public
-  schema ownership natively; the bootstrap-owned table is not transferred and
-  the observer still receives exact 42501 for its ordinary table SELECT.
+  The observer receives real schema USAGE on both backends without transferring
+  either schema or table ownership, and still receives exact 42501 for ordinary
+  table SELECT.
   Role RENAME is a PostgreSQL-positive/native-exact-0A000 producer boundary:
   native retains the same reader identity/spelling and both modes preserve
   preexisting Rows, fresh held grant/revoke and column identity transitions.
@@ -933,9 +946,11 @@ these surfaces on both backends with the fixture's recorders.
 
 `TestReferencePGDatabase` independently specifies the PostgreSQL 18 eighteen-column
 schema, raw driver metadata, current identity and cluster inventory, accessible
-UTF8/C facts, owner and stored CREATE ACL publication, ordinary-role visibility,
+UTF8/C facts, owner and stored database ACL publication, ordinary-role visibility,
 search-path shadowing, complete diagnostics and native-only attachment/control
-lifetime boundaries. Unavailable native template/admission/limit/horizon/placement
+lifetime boundaries. The initial NULL ACL means owner CREATE/TEMPORARY/CONNECT
+and PUBLIC TEMPORARY/CONNECT; explicit empty and existing explicit policies remain
+distinct. Unavailable native template/admission metadata/limit/horizon/placement
 properties are typed NULL, not copied PostgreSQL physical values. Physical oracle
 XIDs and generated database OIDs are checked by carrier and identity relationships,
 not allocator goldens.
@@ -949,6 +964,10 @@ the shared SQL definitions run on every available backend.
 The provider reads one immutable database descriptor with paired catalog/role
 authority, projects actual stored ACLs through the existing ACLITEM codec, and
 never scans other engines or manufactures physical horizons/placement.
+Native Reset/Restore retain the destination database owner and exact ACL policy,
+including NULL. Dumps do not transport source database policy. Physical CONNECT
+and TEMP use enforcement is covered by `TestReferenceObjectGrantDatabaseAdmission`
+in `reference/object_grants`; existing sessions survive CONNECT revocation.
 `TestPGDatabaseShapeAndOwnership`, `Capture` and `Publication` supplement public
 SQL with exact descriptor ownership/origins, concrete typed NULLs, cancellation,
 foreign/stale authority rejection, transaction-private candidate isolation and
@@ -1076,7 +1095,7 @@ Reserved builtin names are not mislabeled as duplicates.
 
 Both backends expose `oid,spcname,spcowner,spcacl,spcoptions`, with types
 OID/NAME/OID/ACLITEM[]/TEXT[] and exact builtin rows
-`(1663,pg_default,10,NULL,NULL)` and `(1664,pg_global,10,NULL,NULL)`.
+`(1663,pg_default,10,NULL,NULL)` and `(1664,pg_global,10,NULL,NULL)` before grants.
 The two array NULLs retain distinct types; they are not empty arrays or an
 invented owner ACL. Ordinary roles see both complete rows, including through
 explicit qualification without pg_catalog in the explicit search_path.
@@ -1086,6 +1105,12 @@ Direct, actual prepared, stored-view, empty and NULL-filtered reads retain the
 five-column shape. Held name/OID binds cover builtin, absent, NULL and reuse.
 Native Reset/Dump/Restore and retained-row witnesses are explicit control phases,
 not fictitious PostgreSQL controls.
+
+Tablespace CREATE grants project the owning descriptors' explicit `spcacl`
+through the same captured immutable catalog root. An absent ACL remains raw NULL,
+distinct from an explicit default-equivalent ACL; grant options and role cleanup
+retain their ordinary authorization semantics. ACL metadata does not enable
+physical tablespace creation or table placement.
 
 Catalog read errors assert complete diagnostics and actual preparation/execution
 stages. Invalid held OID binds use the shared Context
@@ -1265,8 +1290,8 @@ committed-only Dump and deterministic redump. Native ownership comments are not
 claimed as PostgreSQL SQL owner-restoration commands.
 
 The disclosed PostgreSQL-only OracleSetup uses real loose FUNCTION/template/
-dictionary and schema-GRANT setup unavailable natively; genuine package units
-stage corresponding member descriptors and actual ACL consumers. Concurrent
+dictionary creation unavailable natively. Schema ACL grants themselves are
+supported; genuine package units stage corresponding member descriptors and actual ACL consumers. Concurrent
 oracle synchronization uses pg_stat_activity solely to observe the genuine
 unique-index wait; native private transactions exercise the same complete-or-none
 publication outcome at commit. No sleep or worker-order assumption identifies
@@ -2353,9 +2378,9 @@ generation after the primary code fills, yielding `PKLK` / `PKKS`.
 Installation checks three real procedure identities, TEXT metadata,
 immutable/strict/parallel-safe flags, extension/namespace links, superuser and
 trusted bootstrap ownership. Native total membership is8; the oracle's extra
-functions are not asserted absent. Private-schema visibility recovery uses real
-PostgreSQL USAGE and the supported native schema-ownership transfer, not a new
-native schema GRANT capability.
+functions are not asserted absent. Private-schema visibility recovery uses the
+same genuine `GRANT USAGE ON SCHEMA` on both backends, without transferring schema
+ownership.
 
 StoredExpressions checks relocated defaults, generated codes, CHECK, views,
 WHERE, CASE/nesting, grouping, joins and atomic late write failure. A shared

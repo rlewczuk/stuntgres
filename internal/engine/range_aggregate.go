@@ -46,6 +46,15 @@ func (b *expressionBinder) bindRangeAggregate(raw parser.AggregateExpr, name par
 	usage := bound.ResultUsage()
 	provider := functions.NewRangeAggregateProvider(input.Usage(), usage, operation, bound)
 	call := aggregateCall{provider: provider, argument: arg, operation: identity}
+	formal := sqltype.ID(3831)
+	switch input.ID() {
+	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
+		formal = sqltype.ID(4537)
+	}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, formal)
+	if err != nil {
+		return nil, err
+	}
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
 	return b.finishAggregate(raw, call, filter, info)

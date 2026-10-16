@@ -151,7 +151,11 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 		input = binder.input
 		e.mu.Unlock()
 		locked = false
-		evaluation := EvalContext{Context: ctx, statementScope: s, catalog: auth.catalog, Input: input, Output: s.output}
+		// Actuals are their own executable recipe, not the prepared body's
+		// parameter-only binding. Borrow the original actual manifest without
+		// replacing the statement's main-query authority or dependencies.
+		var actualProgram routineAdmissionProgram
+		evaluation := EvalContext{Context: ctx, statementScope: s, catalog: auth.catalog, Input: input, Output: s.output, routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies, routineProgram: &actualProgram}
 		for _, node := range nodes {
 			if sqltype.ContainsDomainChecks(node.ResultUsage().Type) {
 				evaluation.Input.DomainChecks = &evaluation
@@ -159,11 +163,26 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 			}
 		}
 		for i, node := range nodes {
+			prepared, _, err := preflightCoercionsWithPolicy(&evaluation, node, true)
+			if err != nil {
+				return err
+			}
+			if err := validateExpressionJoinExecution(&evaluation, prepared, auth.catalog); err != nil {
+				return err
+			}
+			nodes[i] = prepared
+		}
+		for i, node := range nodes {
 			value, err := node.Eval(&evaluation)
 			if err != nil {
 				return err
 			}
 			frame[i] = value
+		}
+		if len(actualProgram.calls) != 0 {
+			// Move the consumed graph to the existing statement owner before
+			// this local context ends. No pointer into a growing slice escapes.
+			s.routinePrograms = append(s.routinePrograms, commandRoutineProgram{admission: actualProgram})
 		}
 		e.mu.Lock()
 		locked = true
@@ -177,6 +196,8 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL) FrameImporte
 		if err := validateCapturedInputBinding(auth.catalog, current.catalog, binder.dependencies); err != nil {
 			return err
 		}
-		return nil
+		e.mu.Unlock()
+		locked = false
+		return s.readmitPreparedPrograms(current)
 	}
 }

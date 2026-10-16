@@ -76,7 +76,8 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	e.Info = functionInfo(b.info(b.typ(selected).Usage(), raw.Pos, properties))
+	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
+	e.Info = functionInfo(info)
 	var zone *sqltype.Descriptor
 	if e.Count == 3 {
 		zone = b.typ(sqltype.Text)
@@ -86,5 +87,11 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		return nil, err
 	}
 	e.Plan = plan
+	formal := [3]sqltype.ID{sqltype.Text, selected, sqltype.Text}
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, "date_trunc", formal[:e.Count]...)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	return e, nil
 }

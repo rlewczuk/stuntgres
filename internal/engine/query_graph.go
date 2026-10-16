@@ -88,11 +88,17 @@ func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
 		args(n.outputs)
 	case *windowNode:
 		for _, call := range n.calls {
+			if call.analysisOnly {
+				continue
+			}
 			visit(call.argument)
 			visit(call.ordinal)
 			visit(call.defaultValue)
 		}
-		for _, spec := range n.specs {
+		for i, spec := range n.specs {
+			if !n.specActive(i) {
+				continue
+			}
 			args(spec.partition)
 			for _, key := range spec.order {
 				visit(key.expression)
@@ -180,6 +186,32 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 	}
 	left, right := queryInputs(node)
 	return queryDescriptorsChanged(left, typ) || queryDescriptorsChanged(right, typ)
+}
+
+// A type-only fast path must not retain an old routine identity carrier after
+// catalog reownership. Pointer comparison here requests metadata reconstruction;
+// it is never an ACL or lifetime admission decision.
+func queryRoutineCarriersChanged(view CatalogRead, node LogicalNode) bool {
+	if node == nil || view.state == nil {
+		return false
+	}
+	changed := false
+	queryExpressions(node, func(expression BoundExpr) {
+		walkBoundExpression(expression, func(expression BoundExpr) {
+			captured, err := expressionRoutineDescriptor(expression)
+			if err != nil || captured != nil && view.state.descriptors[captured.address] != captured {
+				changed = true
+			}
+			if subquery, ok := expression.(subqueryExpression); ok && queryRoutineCarriersChanged(view, subquery.queryPlan.Root) {
+				changed = true
+			}
+		})
+	})
+	if changed {
+		return true
+	}
+	left, right := queryInputs(node)
+	return queryRoutineCarriersChanged(view, left) || queryRoutineCarriersChanged(view, right)
 }
 
 func queryIgnoresOwnExpressions(node LogicalNode) bool {

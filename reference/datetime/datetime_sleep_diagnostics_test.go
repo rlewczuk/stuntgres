@@ -130,7 +130,37 @@ func TestReferenceDatetimeSleepCancellation(t *testing.T) {
 		d := datetimeSleepError("57014", "canceling statement due to statement timeout")
 		for _, expr := range []string{"pg_sleep(10)", "pg_sleep('Infinity'::float8)", "pg_sleep('1e300'::float8)", "pg_sleep_for(interval '10 seconds')", "pg_sleep_for(interval 'infinity')", "pg_sleep_for(interval '1 day')", "pg_sleep_until(clock_timestamp()+interval '10 seconds')", "pg_sleep_until(timestamptz 'infinity')"} {
 			for _, prepared := range []bool{false, true} {
-				t.Run(fmt.Sprintf("%s/prepared=%t", expr, prepared), func(t *testing.T) { datetimeSleepFailure(t, p, b, c, "SELECT "+expr, d, prepared, false) })
+				t.Run(fmt.Sprintf("%s/prepared=%t", expr, prepared), func(t *testing.T) {
+					if !prepared {
+						datetimeSleepFailure(t, p, b, c, "SELECT "+expr, d, false, false)
+						return
+					}
+					// This witnesses execution cancellation, not a deadline
+					// racing analysis under whole-suite load. Prepare must be
+					// effect-free before arming the unchanged execution budget.
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET statement_timeout=0", 0))
+					q := "SELECT " + expr
+					stmt, err := c.PrepareContext(p.Ctx, q)
+					if err != nil {
+						if stmt != nil {
+							stmt.Close()
+						}
+						t.Fatal("effect-free sleep Prepare", err)
+					}
+					defer func() {
+						if err := stmt.Close(); err != nil {
+							t.Error("held sleep close", err)
+						}
+					}()
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET statement_timeout='100ms'", 0))
+					step := fixture.ErrorDiagnostic(q, d)
+					step.SelectRows, step.ErrorStage = true, "execute"
+					start := time.Now()
+					fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}, b.Recorder, step)
+					if elapsed := time.Since(start); elapsed >= 5*time.Second {
+						t.Fatal("held sleep exceeded cancellation completion bound", elapsed)
+					}
+				})
 			}
 		}
 		// Keep fixture setup outside the short timeout used by sleep witnesses.

@@ -2057,9 +2057,22 @@ type GrantGrantee struct {
 	Role   RoleSpec
 	Public bool
 }
+type GrantRoutineArgument struct {
+	Mode string
+	Name Identifier
+	Type TypeName
+	Pos  Position
+}
+type GrantRoutineTarget struct {
+	Name               ObjectName
+	Arguments          []GrantRoutineArgument
+	SignatureSpecified bool
+}
+
 type ObjectGrant struct {
 	Privileges  []GrantPrivilege
 	Relations   []ObjectName
+	Routines    []GrantRoutineTarget
 	Schemas     []Identifier
 	Kind        string
 	Grantees    []GrantGrantee

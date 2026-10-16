@@ -89,7 +89,20 @@ func coercionInfo(view CatalogRead, info expressionInfo, child BoundExpr) (expre
 }
 
 func (b *expressionBinder) coercionInfo(info expressionInfo, child BoundExpr) (expressionInfo, error) {
-	return coercionInfo(b.bindingCatalog(), info, child)
+	info, err := coercionInfo(b.bindingCatalog(), info, child)
+	if err != nil {
+		return expressionInfo{}, err
+	}
+	return b.coercionRoutineInfo(info, child)
+}
+
+// Some successful coercion seams deliberately retain their own collation
+// handling. They still select the same actual function-method identity.
+func (b *expressionBinder) coercionRoutineInfo(info expressionInfo, child BoundExpr) (expressionInfo, error) {
+	if id := embeddedCastOID(child.ResultUsage().Type, info.usage.Type); id != 0 {
+		return b.selectedBuiltinRoutineInfo(info, builtinRoutineByOID[id])
+	}
+	return info, nil
 }
 
 func comparisonInfo(view CatalogRead, left, right BoundExpr) (expressionInfo, error) {
@@ -241,7 +254,11 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	return likeExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, likeProperties(l, r)), l, r, provider, operator, namespace}, nil
+	info, err := b.builtinOperatorRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, likeProperties(l, r)), operator, lhs.ID(), rhs.ID())
+	if err != nil {
+		return nil, err
+	}
+	return likeExpression{info, l, r, provider, operator, namespace}, nil
 }
 
 func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
@@ -274,6 +291,10 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	}
 	u := target.Usage()
 	info, err := b.collatedInfo(b.info(u, raw.Pos, likeProperties(pattern, escape)), pattern, escape)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinRoutineInfo(info, stringRoutineProvider, "like_escape", targetID, targetID)
 	if err != nil {
 		return nil, err
 	}

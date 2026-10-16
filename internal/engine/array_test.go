@@ -212,7 +212,11 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	next := cloneCatalog(e.state)
 	fresh := New()
 	regclassAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(sqltype.Regclass)}
-	next.descriptors[regclassAddress] = fresh.state.descriptors[regclassAddress]
+	// Replace only the builtin scalar generation, retaining this catalog's
+	// principal authority; a foreign descriptor would invalidate its array owner.
+	reboundRegclass := *next.descriptors[regclassAddress].(*typeDescriptor)
+	reboundRegclass.typ = fresh.state.descriptors[regclassAddress].(*typeDescriptor).typ
+	next.descriptors[regclassAddress] = &reboundRegclass
 	mapping := map[ObjectAddress]ObjectAddress{referent.address: {ClassID: RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.typ, rcArray, whole.typ, wholeArray, nested.typ, nestedArray} {
 		mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}] = ObjectAddress{ClassID: TypeClassID, ObjectID: OID(60001 + i)}
@@ -416,8 +420,16 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	for address, source := range importedTypes {
 		actual := current.state.descriptors[address].(*typeDescriptor)
-		if actual.Namespace() != source.Namespace() || actual.owner != source.owner || actual.comment != source.comment || !reflect.DeepEqual(actual.acl, source.acl) {
+		if actual.Namespace() != source.Namespace() || actual.comment != source.comment || !reflect.DeepEqual(actual.acl, source.acl) {
 			t.Fatal("imported type catalog ownership changed", address)
+		}
+		sourceOwner, sourceErr := replacement.Roles().Descriptor(source.owner)
+		targetOwner, targetErr := e.Roles().Descriptor(actual.owner)
+		if sourceErr != nil || targetErr != nil || sourceOwner.Name != targetOwner.Name {
+			t.Fatal("imported type principal ownership did not remap", address, sourceErr, targetErr)
+		}
+		if err := validateACL(e.Roles(), actual); err != nil {
+			t.Fatal("imported type principal closure", address, err)
 		}
 		if source.typ.IsDomain() {
 			base, ok := current.LookupType(source.typ.DomainBase().Type.ID())

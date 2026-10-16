@@ -128,6 +128,28 @@ func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExp
 	if err != nil {
 		return nil, err
 	}
+	var formal [2]sqltype.ID
+	count := 1
+	switch name {
+	case "pg_client_encoding":
+		count = 0
+	case "concat":
+		formal[0] = sqltype.ID(2276)
+	case "concat_ws":
+		formal, count = [2]sqltype.ID{sqltype.Text, sqltype.ID(2276)}, 2
+	default:
+		formal[0] = sqltype.Text
+		if node.AnyElement {
+			formal[0] = sqltype.ID(2283)
+		}
+	}
+	info, err = b.builtinRoutineInfo(info, variadicRoutineProvider, name, formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
 	node.Info = functionInfo(info)
+	if err := b.capturePolymorphicBody(node); err != nil {
+		return nil, err
+	}
 	return node, nil
 }

@@ -81,6 +81,7 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	properties := ExprProperties{Volatility: Stable}
+	var formal [3]sqltype.ID
 	for i := range n.count {
 		id := sqltype.Text
 		if n.rowSecurity || i < n.count-1 {
@@ -96,6 +97,7 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 				}
 			}
 		}
+		formal[i] = id
 		target := b.typ(id).Usage()
 		arg, err := b.finalizeOperand(operands[i], target.Type)
 		if err != nil {
@@ -122,7 +124,11 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 	case raw.Filter != nil:
 		return nil, expressionError("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	}
-	n.expressionInfo = b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), catalogRoutineProvider, name, formal[:n.count]...)
+	if err != nil {
+		return nil, err
+	}
+	n.expressionInfo = info
 	return n, nil
 }
 

@@ -334,7 +334,11 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		}
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
 	}
-	return functions.NullCount[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties)), Kind: kind, Args: args}, nil
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), variadicRoutineProvider, name, sqltype.ID(2276))
+	if err != nil {
+		return nil, err
+	}
+	return functions.NullCount[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args}, nil
 }
 
 type currentSchemasExpression struct {
@@ -519,7 +523,11 @@ func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExp
 	if p.Volatility < Stable {
 		p.Volatility = Stable
 	}
-	return currentSchemasExpression{b.info(typ.Usage(), raw.Pos, p), arg}, nil
+	info, err := b.builtinRoutineInfo(b.info(typ.Usage(), raw.Pos, p), catalogRoutineProvider, "current_schemas", sqltype.Bool)
+	if err != nil {
+		return nil, err
+	}
+	return currentSchemasExpression{info, arg}, nil
 }
 
 // unknownNullSyntax recognizes provenance carriers, not a concrete UNKNOWN type.

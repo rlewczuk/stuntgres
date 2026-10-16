@@ -73,6 +73,9 @@ func (s *StatementScope) waitCompletion(owner *relationTicket, purpose completio
 		}
 		err = request.wait()
 	}
+	if err == nil && request != nil {
+		return s.readmitProgramsAfterWait()
+	}
 	return err
 }
 

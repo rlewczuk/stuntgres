@@ -79,11 +79,18 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	result := functions.DatetimeAgeFiniteResult(name)
-	e.Info = functionInfo(b.info(b.typ(result).Usage(), raw.Pos, properties))
+	info := b.info(b.typ(result).Usage(), raw.Pos, properties)
+	e.Info = functionInfo(info)
 	plan, err := sqltype.BindDatetimeAgeFinite(name, target, e.Usage.Type, b.typ(sqltype.Date), e.Count)
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
+	formal := [2]sqltype.ID{selected, selected}
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, formal[:e.Count]...)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	return e, nil
 }

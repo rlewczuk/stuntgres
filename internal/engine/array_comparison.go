@@ -227,6 +227,10 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
+	declaration, _, err := b.comparisonRoutineDeclaration(name, lt, rt)
+	if err != nil {
+		return nil, err
+	}
 	lt, rt = b.comparisonCoercionTypes(lt, rt)
 	l, err := b.coerceConditional(left, lt.Usage(), name)
 	if err != nil {
@@ -265,7 +269,14 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	return scalarArrayComparisonExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), left: l, array: r, predicate: predicate, operator: name, namespace: namespace, all: raw.All}, nil
+	info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+	if declaration != nil {
+		info, err = b.selectedBuiltinRoutineInfo(info, declaration)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return scalarArrayComparisonExpression{expressionInfo: info, left: l, array: r, predicate: predicate, operator: name, namespace: namespace, all: raw.All}, nil
 }
 
 func (b *expressionBinder) inListHasVar(node BoundExpr) bool {
@@ -363,6 +374,10 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			if err != nil {
 				return nil, err
 			}
+			declaration, _, err := b.comparisonRoutineDeclaration(name, leftTarget, common.Type)
+			if err != nil {
+				return nil, err
+			}
 			leftTarget, _ = b.comparisonCoercionTypes(leftTarget, common.Type.BaseType())
 			l, err := b.coerceConditional(left, leftTarget.Usage(), name)
 			if err != nil {
@@ -384,7 +399,14 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 			if predicate.SessionDependent() && properties.Volatility < Stable {
 				properties.Volatility = Stable
 			}
-			result = scalarArrayComparisonExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), left: l, items: children, predicate: predicate, operator: name, all: raw.Negate}
+			info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+			if declaration != nil {
+				info, err = b.selectedBuiltinRoutineInfo(info, declaration)
+				if err != nil {
+					return nil, err
+				}
+			}
+			result = scalarArrayComparisonExpression{expressionInfo: info, left: l, items: children, predicate: predicate, operator: name, all: raw.Negate}
 			// PostgreSQL coerces an unknown Param occurrence in place, unlike
 			// an unknown Const. Only the original batch lhs is updated before
 			// Var pairs copy it; other transformed occurrences stay independent.

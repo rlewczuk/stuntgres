@@ -227,7 +227,7 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 			return d
 		}
 		return fresh
-	}, nil, nil)
+	}, nil, nil, nil)
 	if err != nil || mapped.(aclValueExpression).validateStored() != nil {
 		t.Fatal("typed recipe retag", err)
 	}

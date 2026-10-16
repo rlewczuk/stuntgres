@@ -60,6 +60,10 @@ func (b *expressionBinder) bindSum(raw parser.AggregateExpr, name parser.ObjectN
 		return nil, err
 	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, "sum", arg.ResultUsage().Type.ID())
+	if err != nil {
+		return nil, err
+	}
 	return b.finishAggregate(raw, call, filter, b.info(provider.ResultUsage(), raw.Pos, ExprProperties{}))
 }
 

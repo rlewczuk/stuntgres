@@ -77,7 +77,18 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref Objec
 			}
 			text(6, vol)
 			boolean(7, d.strict)
-			text(8, "s")
+			parallel := "s"
+			if d.foreign != nil {
+				parallel = "u"
+			} else if d.builtin != nil {
+				switch d.builtin.parallel {
+				case 'r':
+					parallel = "r"
+				case 'u':
+					parallel = "u"
+				}
+			}
+			text(8, parallel)
 		case *tsTemplateDescriptor:
 			integer(0, int64(d.address.ObjectID))
 			text(1, d.name)

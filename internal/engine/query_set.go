@@ -15,7 +15,7 @@ type setNode struct {
 	operation                         string
 	all                               bool
 	leftExpressions, rightExpressions []BoundExpr
-	grouping                          []sqltype.Grouping
+	grouping                          []queryGrouping
 }
 
 func setMultiplicity(operation string, all bool, left, right int) int {

@@ -527,8 +527,14 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	procedureCopy := *e.state.descriptors[procedureRef.Address].(*procedureDescriptor)
 	substituted := cloneCatalog(e.state)
 	substituted.descriptors[procedureRef.Address] = &procedureCopy
+	if !storedViewReferenceValid(CatalogRead{owner: e, state: substituted}, retainedView, procedureRef) {
+		t.Fatal("compatible COW procedure metadata lost captured view lifetime")
+	}
+	invalidProcedure := procedureCopy
+	invalidProcedure.strict = !invalidProcedure.strict
+	substituted.descriptors[procedureRef.Address] = &invalidProcedure
 	if storedViewReferenceValid(CatalogRead{owner: e, state: substituted}, retainedView, procedureRef) {
-		t.Fatal("same-address procedure clone substituted captured view authority")
+		t.Fatal("changed procedure semantics substituted captured view lifetime")
 	}
 	foreignNamespace := *e.state.descriptors[ext.targetNamespace].(*namespaceDescriptor)
 	foreignNamespace.temporary = installer.session.token

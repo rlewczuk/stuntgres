@@ -183,14 +183,7 @@ func mergeInsertColumnGrants(t *testing.T) {
 			run("RESET SESSION AUTHORIZATION")
 		}
 		run("GRANT INSERT(v),SELECT(id) ON t TO " + role)
-		if b.PG {
-			run("GRANT USAGE ON SEQUENCE merge_defaults TO " + role)
-		} else {
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.ImplicitError(
-				"GRANT USAGE ON SEQUENCE merge_defaults TO "+role,
-				fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"},
-			))
-		}
+		run("GRANT USAGE ON SEQUENCE merge_defaults TO " + role)
 		for _, prepared := range []bool{false, true} {
 			run("SET SESSION AUTHORIZATION " + role)
 			for _, q := range queries {

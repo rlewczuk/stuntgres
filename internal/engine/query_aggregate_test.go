@@ -250,7 +250,7 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 		}
 	}
 	hashContext := &aggregateCancelContext{Context: context.Background(), at: 4}
-	node.grouping[0], _ = sqltype.BindGrouping(descriptor.Usage())
+	node.grouping[0].Grouping, _ = sqltype.BindGrouping(descriptor.Usage())
 	node.keys[0] = queryProbe(descriptor.Usage(), func(*EvalContext) (sqltype.Value, error) {
 		hashContext.armed = true
 		return sqltype.String(descriptor, strings.Repeat("x", 2048)), nil

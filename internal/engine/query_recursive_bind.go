@@ -97,7 +97,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 		}
 		set.querySchema = d.schema
 		if !set.all {
-			markGrouping, err := sqltype.BindGrouping(c.mark.ResultUsage())
+			markGrouping, err := b.bindDistinctGrouping(c.mark)
 			if err != nil {
 				return nil, err
 			}

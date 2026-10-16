@@ -239,6 +239,9 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		input := child(n.child)
 		var calls []windowCall
 		for i, call := range n.calls {
+			if call.analysisOnly {
+				continue
+			}
 			for j, expression := range [3]BoundExpr{call.argument, call.ordinal, call.defaultValue} {
 				if expression == nil || err != nil {
 					continue
@@ -262,6 +265,9 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		}
 		var specs []boundWindowSpec
 		for i, spec := range n.specs {
+			if !n.specActive(i) {
+				continue
+			}
 			partition := args(spec.partition)
 			specChanged := len(partition) > 0 && &partition[0] != &spec.partition[0]
 			var order []sortKey

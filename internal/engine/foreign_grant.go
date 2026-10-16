@@ -88,11 +88,16 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if available == 0 {
 			continue
 		}
-		acl, changed, er := authorization.ChangeObjectACL(op.Context(), auth.roles, d.acl, d.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+		baseline := d.acl
+		if !baseline.Explicit {
+			// Materialize only ordinary owner USAGE; owner grant options remain implicit.
+			baseline = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.owner, Grantee: authorization.ACLGrantee{Role: d.owner}, Privileges: authorization.UsagePrivilege}}}
+		}
+		acl, changed, er := authorization.ChangeObjectACL(op.Context(), auth.roles, baseline, d.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 		if er != nil {
 			return Result{}, er
 		}
-		if !changed {
+		if !changed && d.acl.Explicit {
 			continue
 		}
 		next := *d

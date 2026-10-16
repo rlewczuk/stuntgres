@@ -260,6 +260,84 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	}
 }
 
+func TestFDWProcedureACLCOW(t *testing.T) {
+	e := New()
+	w := &fdwUnitWrapper{}
+	handler, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Name: "handler"}, Wrapper: w})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validator, err := ValidateForeignValidator(ForeignValidatorDefinition{Name: ForeignFunctionName{Name: "validator"}, Validate: func(context.Context, ForeignObjectKind, []ForeignOption) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{handler}, []ForeignValidatorDefinition{validator}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, name := range []string{"handler", "validator"} {
+		t.Run(name, func(t *testing.T) {
+			base := e.CatalogRead()
+			selected, count := selectRoutine(base, namespaceSelection{qualified: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}, name, nil)
+			if count != 1 {
+				t.Fatal("registered procedure identity not unique", count)
+			}
+			ref := ObjectRef{owner: e.owner, Epoch: base.Epoch(), Address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: selected.id}}
+			original := base.state.descriptors[ref.Address].(*procedureDescriptor)
+			retained := catalogAuthorization(e, base)
+			retained.state.CurrentUser = retained.roles.LookupRef("pg_read_all_data")
+			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
+				t.Fatal("initial authority unavailable", rights, err)
+			}
+			request := &parser.ObjectGrant{
+				Kind:       "routine",
+				Privileges: []parser.GrantPrivilege{{Name: "execute"}},
+				Routines:   []parser.GrantRoutineTarget{{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}},
+				Grantees:   []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "postgres"}}},
+			}
+			if err := applyObjectGrantUnit(e, op, request); err != nil {
+				t.Fatal(err)
+			}
+			materializedCatalog := e.CatalogRead()
+			materialized := materializedCatalog.state.descriptors[ref.Address].(*procedureDescriptor)
+			if materialized == original || !materialized.acl.Explicit || original.acl.Explicit {
+				t.Fatal("default-equivalent edit did not privately materialize ACL")
+			}
+			request.Revoke = true
+			request.Grantees = []parser.GrantGrantee{{Public: true}}
+			if err := applyObjectGrantUnit(e, op, request); err != nil {
+				t.Fatal(err)
+			}
+			current := e.CatalogRead()
+			next := current.state.descriptors[ref.Address].(*procedureDescriptor)
+			if next == materialized || next.foreign != original.foreign || next.revision != original.revision || next.owner != original.owner || next.namespace != original.namespace || next.signature != original.signature {
+				t.Fatal("ACL publication replaced foreign capability or definition identity")
+			}
+			if err := e.providers[ProcedureClassID].Validate(current, next); err != nil {
+				t.Fatal("ACL copy lost native payload eligibility", err)
+			}
+			fresh := catalogAuthorization(e, current)
+			fresh.state.CurrentUser = retained.state.CurrentUser
+			if rights, err := fresh.Effective(ref, false); err != nil || rights != 0 {
+				t.Fatal("original reference ignored current ACL", rights, err)
+			}
+			materializedAuthority := catalogAuthorization(e, materializedCatalog)
+			materializedAuthority.state.CurrentUser = retained.state.CurrentUser
+			if rights, err := materializedAuthority.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
+				t.Fatal("revoke mutated materialized authority snapshot", rights, err)
+			}
+			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
+				t.Fatal("publication mutated retained authority", rights, err)
+			}
+			stable, roles := e.state, e.roles
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.state != stable || e.roles != roles {
+				t.Fatal("explicit no-op republished foreign procedure", err)
+			}
+		})
+	}
+}
+
 func TestFDWPlanningSelection(t *testing.T) {
 	request := ForeignRequest{Columns: []ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{3}}
 	w := &fdwUnitWrapper{paths: []ForeignPath{{TotalCost: 10, Attributes: []int32{1, 3}, Private: "expensive"}, {TotalCost: 2, Attributes: []int32{3}, Private: "first-cheapest"}, {TotalCost: 2, Attributes: []int32{3}, Private: "tie"}}}

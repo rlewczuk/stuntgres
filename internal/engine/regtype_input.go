@@ -94,10 +94,19 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 	return r.resolveParsedTypeName(ctx, raw, op)
 }
 
-// Object-address lists parse every type syntax before resolving catalog names.
-// Keeping resolution here preserves the same authority, typmods and diagnostics
-// without reparsing or maintaining a second type resolver.
+// Object-address lists and SQL routine declarations already have positioned
+// type syntax. Reuse captured identity lookup without reparsing text or
+// admitting a use provider.
 func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *Operation) (uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if !raw.Quoted && raw.Schema == nil {
+		canonical := canonicalDeclarationTypeName(raw.Name)
+		if canonical != raw.Name {
+			raw.Name, raw.System, raw.Parts = canonical, true, nil
+		}
+	}
 	parts := raw.Parts
 	if len(parts) == 0 {
 		if raw.Schema != nil {

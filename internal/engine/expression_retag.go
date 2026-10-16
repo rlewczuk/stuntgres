@@ -13,7 +13,7 @@ import (
 func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (BoundExpr, bool, error) {
 	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
-		if (view.state == nil || view.state.aclItemImport == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) {
+		if (view.state == nil || view.state.aclItemImport == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
 			return root, nil
 		}
 		return remapViewQueryMapped(view, root, func(ref ObjectRef) ObjectRef { return ref }, retainedType, collations...)
@@ -21,15 +21,15 @@ func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltyp
 }
 
 func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (BoundExpr, bool, error) {
-	return mapBoundExpression(view, node, retainedType, queryMapper, nil, collations...)
+	return mapBoundExpression(view, node, retainedType, queryMapper, nil, nil, collations...)
 }
 
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
-func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
-	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, leaf, collations...)
+func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, leaf, collations...)
 }
-func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -58,7 +58,50 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	}
 	changed := typ != info.usage.Type
 	info.usage.Type = typ
+	if _, failure := expressionRecipeDescriptor(node); failure != nil {
+		return nil, false, failure
+	}
+	if recipe != nil && info.routineRecipe != recipe {
+		info.routineRecipe = recipe
+		changed = true
+	}
 	var err error
+	if info.routineReference != nil {
+		captured, failure := expressionRoutineDescriptor(node)
+		if failure != nil {
+			return nil, false, failure
+		}
+		if view.state != nil {
+			address := captured.address
+			switch installed := node.(type) {
+			case installedFunctionExpression:
+				address = installed.ref.Address
+			case installedCryptoFunctionExpression:
+				address = installed.ref.Address
+			case installedUUIDOsspFunctionExpression:
+				address = installed.ref.Address
+			case installedMetaphoneFunctionExpression:
+				address = installed.ref.Address
+			case installedLevenshteinFunctionExpression:
+				address = installed.ref.Address
+			case installedSoundexFunctionExpression:
+				address = installed.ref.Address
+			case unnestExpression:
+				if installed.procedure != nil {
+					address = installed.ref.Address
+				}
+			}
+			descriptor, _ := definitionDescriptorAt(view, reader, address)
+			current, ok := descriptor.(*procedureDescriptor)
+			if !ok || current.name != captured.name || current.signature != captured.signature || current.routineKind != captured.routineKind || current.builtin != captured.builtin {
+				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
+			}
+			changed = changed || current != captured
+			info.routineReference = current
+		}
+		// A catalog-free structural rewrite preserves this already-owned
+		// identity. It neither relocates the callable nor admits its execution.
+	}
 	if len(collations) != 0 && collations[0] != nil {
 		info.usage.Collation, err = collations[0](info.usage.Collation)
 		if err != nil {
@@ -86,7 +129,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		return next
 	}
 	mapChild := func(old BoundExpr) (BoundExpr, bool, error) {
-		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, leaf, collations...)
+		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, recipe, leaf, collations...)
 		changed = changed || replaced
 		if next != nil && (leaf != nil || replaced) {
 			info.properties = mergeExpressionProperties(info.properties, next.Properties())
@@ -1046,6 +1089,14 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		for i, old := range n.arms {
 			arm := old
 			arm.condition, arm.result = child(arm.condition), child(arm.result)
+			if arm.routine != nil && view.state != nil {
+				current, ok := view.state.descriptors[arm.routine.address].(*procedureDescriptor)
+				if !ok || !sameRoutineDeclaration(current, arm.routine) {
+					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
+				}
+				changed = changed || arm.routine != current
+				arm.routine = current
+			}
 			ref, conflict := arm.equality.InputCollation()
 			ref = comparisonCollation(ref)
 			if n.test != nil && err == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 )
 
@@ -64,6 +65,14 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	auth.session.transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ObjectAddress{}) {
 		return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}, nil
+	}
+	rights, err := databaseRights(context.Background(), auth.catalog, auth.roles, auth.state.CurrentUser)
+	if err != nil {
+		return ObjectRef{}, err
+	}
+	if rights&authorization.TemporaryPrivilege == 0 {
+		db := auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+		return ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.name))
 	}
 	oid, err := e.allocateOIDLocked()
 	if err != nil {

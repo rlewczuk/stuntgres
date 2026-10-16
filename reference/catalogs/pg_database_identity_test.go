@@ -109,7 +109,7 @@ func TestReferencePGDatabaseVisibility(t *testing.T) {
 		pgClassExec(t, p, b, owner, "SET ROLE pgdb18_reader", "SET search_path TO pg_catalog")
 		pgDatabaseCheck(t, p, b, owner, s)
 		pgDatabaseCheck(t, p, b, held, s)
-		pgDatabaseCheck(t, p, b, owner, fixture.Select("SELECT datacl IS NULL AS default_acl FROM pg_database WHERE datname=current_database()", []string{"default_acl"}, []string{"BOOL"}, [][]any{{b.PG}}))
+		pgDatabaseCheck(t, p, b, owner, fixture.Select("SELECT datacl IS NULL AS default_acl FROM pg_database WHERE datname=current_database()", []string{"default_acl"}, []string{"BOOL"}, [][]any{{true}}))
 		pgClassExec(t, p, b, owner, "RESET ROLE", "SET SESSION AUTHORIZATION pgdb18_reader")
 		pgDatabaseCheck(t, p, b, owner, s)
 		pgClassExec(t, p, b, owner, "RESET SESSION AUTHORIZATION", "SET search_path TO public")

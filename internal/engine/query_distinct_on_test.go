@@ -94,7 +94,7 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 					}
 				}
 				usage := text.Usage()
-				node.grouping[0], _ = sqltype.BindGrouping(usage)
+				node.grouping[0].Grouping, _ = sqltype.BindGrouping(usage)
 				armed := &aggregateCancelContext{Context: ctx, at: 4}
 				execution = armed
 				node.expressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {

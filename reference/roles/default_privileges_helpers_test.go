@@ -3,7 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -104,11 +103,6 @@ func dpScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backe
 	}
 }
 
-func dpActor(run func(fixture.Step), role string, body func()) {
-	run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))
-	body()
-	run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-}
 func dpSchema(run func(fixture.Step), name, owner string) {
 	run(fixture.Exec("ALTER DEFAULT PRIVILEGES FOR ROLE "+owner+" GRANT USAGE ON SCHEMAS TO dp_reader", 0))
 	run(fixture.Exec("CREATE SCHEMA "+name+" AUTHORIZATION "+owner, 0))
@@ -124,35 +118,7 @@ func dpRead(run func(fixture.Step), name string, values ...int64) {
 	}
 	run(fixture.Select("SELECT x FROM "+name+" ORDER BY x", []string{"x"}, []string{"INT4"}, rows))
 }
-func dpDenied(run func(fixture.Step), q, kind, name string, prepared ...bool) {
-	d := fixture.Diagnostic{Code: "42501", Message: "permission denied for " + kind + " " + name}
-	stage := "execute"
-	if kind == "schema" && strings.HasPrefix(q, "SELECT") {
-		d.Position = fixture.Position(strings.Index(q, name+".") + 1)
-		if len(prepared) > 0 && prepared[0] {
-			stage = "prepare"
-		}
-	}
-	if kind == "schema" && strings.HasPrefix(q, "CREATE TABLE") {
-		d.Position = fixture.Position(strings.Index(q, name+".") + 1)
-	}
-	s := fixture.ImplicitError(q, d)
-	s.ErrorStage = stage
-	run(s)
-}
-func dpError(run func(fixture.Step), q, code, message string) {
-	s := fixture.ImplicitError(q, fixture.Diagnostic{Code: code, Message: message})
-	s.ErrorStage = "execute"
-	run(s)
-}
-func dpSyntax(run func(fixture.Step), q, token string, prepared bool) {
-	s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "` + token + `"`, Position: fixture.Position(strings.LastIndex(q, token) + 1)})
-	s.ErrorStage = "execute"
-	if prepared {
-		s.ErrorStage = "prepare"
-	}
-	run(s)
-}
+
 func dpDependency(run func(fixture.Step), role, class, owner, schema string, creator bool) {
 	description := "default privileges on new " + class + " belonging to role " + owner
 	if schema != "" {

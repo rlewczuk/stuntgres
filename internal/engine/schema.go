@@ -86,15 +86,13 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	input.EnumMemberSafe = b.enumMemberSafe
 	for _, column := range b.createColumns {
-		if typ := column.Usage.Type; typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
-			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}}
-			if b.createOfType == nil {
-				if err := auth.CanUse(ref); err != nil {
-					return err
-				}
+		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}}
+		if b.createOfType == nil {
+			if err := auth.CanUse(ref); err != nil {
+				return err
 			}
-			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		}
+		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 	}
 	d, err := e.newTableDescriptorLocked(ns, name, owner, b.createColumns, b.createColumnIndex)
 	if err != nil {
@@ -351,8 +349,18 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	databaseGate := func() error {
-		if !actor.Superuser {
-			return sqlError("42501", "permission denied for database stuntgres")
+		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: currentDatabaseAddress}
+		rights, err := auth.Effective(ref, false)
+		if err != nil {
+			return err
+		}
+		if rights&authorization.CreatePrivilege == 0 {
+			database := auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+			name := database.name
+			if name == "" {
+				name = "stuntgres" // The unnamed native Engine's existing database display.
+			}
+			return sqlError("42501", "permission denied for database "+name)
 		}
 		return nil
 	}

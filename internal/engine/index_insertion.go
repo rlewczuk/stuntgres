@@ -5,10 +5,12 @@ import "maps"
 // Only a target with checked nonunique indexes needs a mixed insertion lane.
 // Unique/exclusion bindings retain their existing ordered fast path otherwise.
 type indexInsertionBinding struct {
-	index    *relationDescriptor
-	unique   *uniqueBoundKey
-	ordering indexOrdering
-	hash     hashIndexBinding
+	index       *relationDescriptor
+	parent      *relationDescriptor
+	preparation indexExecutionPreparation
+	unique      *uniqueBoundKey
+	ordering    indexOrdering
+	hash        hashIndexBinding
 }
 
 func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *EvalContext) error {
@@ -18,7 +20,7 @@ func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding,
 		}
 		return nil
 	}
-	output, err := materializeIndexOutput(evaluation, bound.index, bound.ordering, bound.hash, r.values)
+	output, err := materializeIndexOutput(evaluation, &bound.preparation, bound.parent, bound.index, &bound.ordering, &bound.hash, r.values)
 	if err != nil {
 		return err
 	}
@@ -58,6 +60,31 @@ func (s *StatementScope) revalidateIndexRows(ref ObjectRef, old []rowVersion, ba
 			return ErrCatalogReplaced
 		}
 	}
+	if prior != nil {
+		e := s.op.session.Engine()
+		e.mu.Lock()
+		auth, captureErr := s.writeAuthorizationLocked(e)
+		if captureErr == nil && s.foreignActionAuth == nil {
+			auth = s.routineAuth // Rule relation ownership is not routine authority.
+		}
+		if captureErr == nil {
+			auth.recaptureCatalog(CatalogRead{owner: e, state: binding.catalog})
+		}
+		e.mu.Unlock()
+		if captureErr != nil {
+			return captureErr
+		}
+		// Reconciliation checks actual surviving and folded calls, even when
+		// a false predicate never initialized the executable key graph.
+		if err := s.readmitPreparedPrograms(auth); err != nil {
+			return err
+		}
+		if s.indexBindings[prior.ref.Address] != prior {
+			if err := prior.readmitPrograms(auth); err != nil {
+				return err
+			}
+		}
+	}
 	for i := range batch.values {
 		candidate := batch.candidate(i)
 		var excluded []rowVersion
@@ -88,4 +115,49 @@ func (s *StatementScope) retainExistingIndexOutput(index *relationDescriptor, ro
 		s.existingIndexOutputs[index.address] = outputs
 	}
 	outputs[indexRowIdentity{row: row.row, version: row.version}] = output
+}
+
+// Existing command-private insertion records own the consumed graph. Reuse it
+// before discarding/rebinding a catalog-drifted binding; cooked values alone
+// cannot certify the original call after a wait.
+func (b *uniqueWriteBinding) readmitPrograms(auth AuthorizationView) error {
+	for i := range b.keys {
+		if err := b.keys[i].preparation.admission.readmit(auth); err != nil {
+			return err
+		}
+	}
+	for i := range b.insertion {
+		if b.insertion[i].unique != nil {
+			continue
+		}
+		if err := b.insertion[i].preparation.admission.readmit(auth); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Only actual blocking-grant continuations call this, never a row Eval or an
+// uncontended key probe. TxRef/CommandID are phase coordinates, not a substitute
+// for this fresh coherent authority capture. All checks after unlock are pure
+// graph admission: no provider, CHECK truth, codec or output replay.
+func (s *StatementScope) readmitProgramsAfterWait() error {
+	if len(s.domainPreparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.indexBindings) == 0 {
+		return nil
+	}
+	e := s.op.session.Engine()
+	e.mu.Lock()
+	err := s.validateLockedRelation(e)
+	var auth AuthorizationView
+	if err == nil {
+		auth, err = s.writeAuthorizationLocked(e)
+		if err == nil {
+			auth.recaptureCatalog(e.privateCatalogLocked(s.owner.catalog))
+		}
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return s.readmitPreparedPrograms(auth)
 }

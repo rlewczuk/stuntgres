@@ -77,17 +77,11 @@ func TestReferenceUUIDOsspIdentity(t *testing.T) {
 		fixture.AssertDiagnostic(t, err, &d)
 		run(fixture.Exec("SET search_path TO uuid_ossp_part,public", 0))
 		uuidOsspRead(t, p, fixture.HeldStatement{Executor: c, Statement: s, SQL: q}, r, pg, q, 1, 1)
-		if pg {
-			run(fixture.Exec("REVOKE USAGE ON SCHEMA uuid_ossp_part FROM PUBLIC", 0))
-		}
+		run(fixture.Exec("REVOKE USAGE ON SCHEMA uuid_ossp_part FROM PUBLIC", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION uuid_ossp_owner", 0))
 		uuidOsspFailure(t, p, c, "SELECT uuid_ossp_part.uuid_generate_v4()", fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for schema uuid_ossp_part", Position: "8"})
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-		if pg {
-			run(fixture.Exec("GRANT USAGE ON SCHEMA uuid_ossp_part TO uuid_ossp_owner", 0))
-		} else {
-			run(fixture.Exec("ALTER SCHEMA uuid_ossp_part OWNER TO uuid_ossp_owner", 0))
-		}
+		run(fixture.Exec("GRANT USAGE ON SCHEMA uuid_ossp_part TO uuid_ossp_owner", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION uuid_ossp_owner", 0))
 		uuidOsspRead(t, p, c, r, pg, "SELECT uuid_ossp_part.uuid_generate_v4() AS u", 1, 1)
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

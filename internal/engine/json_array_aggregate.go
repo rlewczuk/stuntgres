@@ -74,6 +74,19 @@ func (b *expressionBinder) bindJSONArrayAggregate(raw parser.AggregateExpr, name
 	}
 	provider := functions.NewJSONArrayAggregateProvider(arg.ResultUsage(), usage, absent, arrayPlan)
 	call := aggregateCall{provider: provider, argument: arg, operation: operation, includeNulls: true}
+	routineName := "json_agg"
+	switch {
+	case usage.Type.ID() == sqltype.JSONB && absent:
+		routineName = "jsonb_agg_strict"
+	case usage.Type.ID() == sqltype.JSONB:
+		routineName = "jsonb_agg"
+	case absent:
+		routineName = "json_agg_strict"
+	}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, routineName, sqltype.ID(2283))
+	if err != nil {
+		return nil, err
+	}
 	node, err := b.finishAggregate(raw, call, filter, b.info(usage, raw.Pos, ExprProperties{StageDependent: true}))
 	if err != nil {
 		return nil, err

@@ -205,6 +205,10 @@ is unavailable. SQL cannot reach a native nonreserved duplicate because native
 creation never succeeds; internal validation and genuine PostgreSQL creation
 cover 42710. Builtin names fail reserved-prefix validation before duplicate.
 Reset/Restore retain builtin identity metadata; Dump never emits physical creation.
+Ordinary `CREATE TABLE (...) TABLESPACE ...` is outside the existing native
+declaration grammar and rejects 42601 at TABLESPACE. CREATE TABLE AS and CREATE
+INDEX retain their existing explicit 0A000 placement guards. Object CREATE grants
+on builtin tablespaces do not change any of these physical-provider boundaries.
 
 Dump excludes temporary objects, session settings, prepared names, cursors,
 role creation, passwords and membership. Arbitrary explicit authorization ACLs
@@ -250,6 +254,105 @@ callables, and foreign replay is explicitly rejected atomically. See
 [embedding](DRIVER.md#foreign-provider-registration) and
 [catalog contracts](TABLES.md#foreign-metadata-and-dependencies).
 
+## Object privilege grants
+
+Direct GRANT/REVOKE supports sequence SELECT/UPDATE/USAGE, schema USAGE/CREATE,
+type/domain USAGE, genuine routine EXECUTE, database CTc, parameter sA and builtin
+tablespace CREATE. NULL/default ACLs are not interchangeable with explicit empty
+or explicit default-equivalent state. ALL IN SCHEMA selects current objects of
+its named class; it is neither a future-object default nor capability promotion.
+Type GRANT materializes raw explicit ACL provenance even when its effective
+USAGE payload matches the synthetic creation baseline; subsequent revocation or
+regrant never silently converts that explicit state back to raw NULL.
+Function expansion includes actual aggregates and windows, while procedures
+remain their distinct class. Foreign-data wrapper/server grants use the genuine
+USAGE/ALL paths described above. Wrapper/server defaults retain owner USAGE when
+first materialized; owner
+self-GRANT makes raw NULL explicit even when effective rights are unchanged.
+Registered foreign handlers and validators are genuine FUNCTION/ROUTINE grant
+and schema-expansion targets, with strict, VOLATILE, parallel-unsafe metadata.
+Their callback tokens do not provide standalone SQL execution. Internal FDW
+dispatch remains independent of ordinary EXECUTE ACLs. Generic
+has_function_privilege SQL execution remains unavailable; raw ACL inquiries and
+the existing authorization hooks expose actual stored authority.
+Valid LANGUAGE and LARGE OBJECT targets retain class-specific unavailable native mechanisms:
+`0A000 LANGUAGE privileges are unsupported in embedded mode`, and the analogous
+upper-case LARGE OBJECT family prefix. Invalid privilege masks, malformed syntax
+and actual role/grantor diagnostics remain separate.
+
+Native prepared analysis retains identities, not executable permission decisions.
+Genuine selected providers check fresh EXECUTE before actual folding or surviving
+execution admission, including stored consumers. Known released lookup-only
+routine signatures reject `0A000 routine privileges are unsupported for
+unimplemented routines in embedded mode`; genuine conversion/codec ownership
+still supports metadata ACLs without a direct-call provider. No routine creator,
+security-definer execution frame, implicit arbitrary codec permission gate or
+missing provider is introduced.
+
+Existing SQL invoker wrappers retain their finite released body associations,
+including real function-method casts, not only quote TEXT delegation. This adds
+no SQL interpreter, standalone cast/escape provider, or arbitrary C-helper gate.
+Description bodies initialize on first actual non-NULL entry; sleep's exercised
+empty-source case initializes eagerly. OVERLAPS outer denial precedes partial
+constant addition overflow. Strict NULL/dead arms retain actual pruning.
+
+Fresh native execution checks current authority even for held statements.
+Independently observed PostgreSQL old inlined quote plans and warm constant index
+keys can retain earlier results, while warm constant index predicates deny after
+revocation. Native callable index planning uses original recipes on first real
+tuple demand: constant keys plan before predicate truth, nonconstant keys remain
+predicate-dependent, and zero-source INSERT does not initialize index recipes.
+Consumed original calls survive folding for graph-only post-wait admission,
+without replay or PostgreSQL executable-cache emulation.
+The same distinction applies to independently observed warmed PostgreSQL
+partition-key relation-cache programs during populated DEFAULT validation:
+an inlined SQL wrapper can disappear there while its child still needs EXECUTE.
+Native retains fresh original-wrapper and child authority instead of emulating
+that executable normalization cache.
+This fresh-statement rule is distinct from an already initialized SQL cursor:
+ordinary FETCH and HOLD materialization retain DECLARE's routine authority.
+New declarations still check current EXECUTE; original identity/revision,
+source and publication fences remain active.
+
+The one-input `current_setting` adapter supports fresh bound-NULL strict
+elimination after import; `set_config` remains nonstrict. Explicit cast nodes in
+these special setting-call argument lists retain `0A000 unsupported setting
+function signature`, as does the unavailable two-input `current_setting`.
+
+BIT &,|,#,~,<<,>> use the six existing genuine bit-string providers and released
+BIT/INTEGER signatures; VARBIT inputs do not create invented VARBIT routines.
+
+Existing array random/unnest, JSON/JSONB extraction and set-returning providers,
+and existing window rankings retain their released full polymorphic, variadic or
+zero-argument signatures. JSONB insertion uses its one four-formal declaration
+with the released false default, not a separate three-input overload.
+Expanded JSON path elements form one non-NULL TEXT[] formal even when an element
+is NULL; an explicit VARIADIC NULL array is instead a strict NULL argument.
+This distinction does not add multirange casts, missing overloads or providers.
+Installed Metaphone and Levenshtein calls likewise retain their genuine extension
+member descriptors for central current-EXECUTE admission, stored consumers and
+catalog remapping; this does not install absent fuzzystrmatch routines.
+
+The genuine address/BIT access, numeric-series, JSON-record, intagg and bounded
+pgcrypto members also retain current selected EXECUTE authority. Addressed objects
+and reused C algorithms add no extra SQL-call permission edge. Numeric short
+series keeps its own two-IN identity; populate record grants use their released
+three-IN `(anyelement,json,boolean)` identity with the false default, without
+adding explicit third-argument native calls. Strict SRFs and RECORD initialization
+are not scalar NULL exemptions. A proven-empty FROM can remove actual invocation
+demand without removing original dependency/schema/lifetime/lock traversal.
+An independently imported NULL may discard a sibling SQL domain coercion, but
+actual typed DOMAIN input validation and per-argument barriers still apply.
+
+Database and foreign-data wrapper/server grants retain their existing
+explicit-transaction exceptions. Other object grants reject
+`0A000 statement is unsupported in an explicit transaction`.
+Effect-free Prepare still succeeds for valid utility syntax;
+execution read-only 25006 precedes target lookup. Native Dump refuses
+unrepresentable explicit/altered ACLs before writer callbacks; Restore does not
+replay GRANT/REVOKE or silently discard their authority.
+
+
 ## Authentication and authorization
 
 Native connector role admission is a trusted host assertion, not password/SCRAM
@@ -262,7 +365,10 @@ enforcement. Applicable policy expressions fail explicitly instead of being
 ignored. Operating-system file/program access, PostgreSQL PID signaling and
 reserved connection slots are unavailable. Predefined role identities do not
 create these missing capabilities. Table/column grants do not imply sequence or
-other-object grants; schema and type/domain grants remain unavailable.
+other-object grants. Sequence grants support SELECT/UPDATE/USAGE,
+ALL and grant options, including implicit/TABLE and ALL SEQUENCES IN SCHEMA targets.
+Schema grants support USAGE/CREATE; type/domain grants support USAGE for new
+persistent dependencies, including builtins. Existing values and casts remain usable.
 
 All six `pg_has_role` NAME/OID signatures and both
 `row_security_active(text|oid)` signatures are executable strict STABLE BOOL
@@ -298,9 +404,9 @@ rights and grant options.
 
 Type effective USAGE baselines retain creation-time raw-ACL provenance: a
 synthetic default is raw NULL, while a real explicit ACL, even baseline-equal,
-is not. This does not change type authorization or add SQL type GRANT support.
-Existing [database catalog policy](#pg_database-current-attachment-metadata) is unchanged: native initial
-`{postgres=C*/postgres}` differs intentionally from PostgreSQL's default NULL.
+is not. SQL TYPE/DOMAIN USAGE grants mutate that real ACL authority separately
+from this read-only inquiry. Initial database raw ACLs are NULL on both backends;
+effective defaults do not become stored ACL entries until a legal ACL edit.
 
 The inquiry creates no authorization state. Stored inquiry recipes and returned
 ACLITEM[] **data** use existing native Dump/Restore, including role-name remapping;
@@ -609,8 +715,9 @@ schemas remain visible in inventory; metadata visibility is not schema USAGE.
 Initialized builtin identities/ACLs and supported schema DDL/default-privilege
 effects are exact. Real TEMP table/toast metadata is retained after physical
 close while objects retire. The toast descriptor does not enable TOAST storage
-or own-table authority. Catalog mutation and virtual-relation row locks remain
-unsupported; this feature adds no schema GRANT/REVOKE SQL or ACL serialization.
+or own-table authority. Direct catalog mutation and virtual-relation row locks
+remain unsupported. Schema GRANT/REVOKE uses the owning immutable ACL authority;
+general ACL serialization remains unavailable.
 Registered rowtype ownership does not add a `pg_type` SQL source. Native role
 rename SQL remains excluded; actual namespace ownership/ACL merge is supported
 through its existing producer. TEMP absence observations use real catalog
@@ -627,12 +734,14 @@ established UTF8-validated NAME display, clipped to a complete prefix of at most
 URL-looking strings are not parsed, and colliding NAME displays do not merge keys.
 
 `oid` is the existing engine-local database identity16383; `datdba` and `datacl`
-reflect the captured database owner and actual stored ACL, including supported
-transactional CREATE grants/options and owner replacement. Initial native ACL is
-`{postgres=C*/postgres}`, not PostgreSQL's default NULL. No CONNECT/TEMP privileges
-or database creation are added. Ordinary roles can read metadata independently of
-database CREATE rights; search-path resolution uses ordinary catalog precedence
-and shadowing.
+reflect the captured owner and actual stored ACL, including transactional CTc
+grants/options and owner replacement. Initial datacl is NULL, with owner CTc and
+PUBLIC Tc defaults. Explicit empty ACLs do not regain those defaults. CONNECT
+controls fresh authenticated physical admission, not retroactive disconnection;
+TEMP controls current-role namespace allocation/CREATE, including the actual
+schema diagnostic after an allocated namespace loses CREATE. No database creation
+or physical cluster storage is added. Metadata visibility remains independent of
+database CREATE rights and uses ordinary catalog precedence/shadowing.
 
 `encoding=6`, `datlocprovider='c'`, `datcollate='C'` and `datctype='C'` declare
 bounded native UTF8/C semantics, not host libc/ICU infrastructure. Native
@@ -1367,7 +1476,14 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   named/default calls preserve written syntax and ordinary child demand.
   Explicit final VARIADIC selects the same scalar formal, not array expansion.
   Native immutable parameter calls retain the existing optimizer boundary:
-  parameters remain runtime-owned, not PostgreSQL custom-plan constant folding.
+  parameters remain runtime-owned, not general PostgreSQL custom-plan constant
+  folding. The shared strict-scalar NULL rule can eliminate an invocation from an
+  already imported typed NULL, after required child planning; it preserves original
+  parameter/type captures and does not apply to row NULLs, domain barriers or
+  SRF/window initialization.
+  A selected strict comparison does not make its NULL-aware conditional,
+  DISTINCT predicate or scalar-array reduction strict as a whole; those native
+  expressions retain their own NULL and empty-input semantics.
   Native Dump/Restore keeps symbolic calls and descriptor ownership, and
   cancellation/failure does not publish partial JSONB or persistent state.
   `jsonb_insert(jsonb_in jsonb,path text[],replacement jsonb,
@@ -1537,6 +1653,15 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
 - General array operators/functions remain bounded. Aggregate DISTINCT/order
   on arrays and private `pg_node_tree`, and
   NAME-array/private-tree extrema, retain native capability exclusions.
+  Native PG_NODE_TREE query grouping uses structural semantic-tree equality and
+  hashing, including private recursive array carriers, outside released callable
+  routine ACLs. This does not provide a SQL pg_node_tree array type or constructor:
+  native ARRAY[adbin] rejects0A000 `unsupported array element type`.
+  PostgreSQL plain pg_node_tree DISTINCT is independently supported through its
+  textual equality and can require texteq EXECUTE; PostgreSQL ARRAY[pg_node_tree]
+  rejects42704 because the array type is absent. Native does not fabricate
+  texteq/array_eq authority for its private structural path, nor exempt ordinary
+  admitted PostgreSQL arrays from their actual equality requirements.
 - Enum-array results cannot be persisted by query-created tables or materialized
   views. Other admitted enum/domain-array carriers do not remove this exclusion.
 - Ordered-set `percentile_cont`, `percentile_disc`, and `mode` support WITHIN
@@ -1663,16 +1788,20 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   an empty configured version is not NULL. Catalog readability does not supply
   ICU/arbitrary-libc execution or import the host's collation inventory.
 - `pg_tablespace` is a PUBLIC readonly builtin-only projection per Engine:
-  `(1663,pg_default,10,NULL,NULL)` and `(1664,pg_global,10,NULL,NULL)` for named
-  columns `oid,spcname,spcowner,spcacl,spcoptions`
+  `(1663,pg_default,10,NULL,NULL)` and `(1664,pg_global,10,NULL,NULL)` initially,
+  for named columns `oid,spcname,spcowner,spcacl,spcoptions`
   (OID/NAME/OID/ACLITEM[]/TEXT[]). Owner 10 is the canonical Engine principal,
   independent of bootstrap role renaming or the current reader. Ordinary roles
-  see both complete rows. Both arrays are typed SQL NULL, not empty arrays:
-  NULL `spcacl` denotes default tablespace privileges, not PUBLIC CREATE.
+  see both complete rows. Both arrays are initially typed SQL NULL, not empty
+  arrays: NULL `spcacl` denotes default tablespace privileges, not PUBLIC CREATE.
+  CREATE grants materialize genuine descriptor ACLs in `spcacl` without physical
+  placement; an explicit default-equivalent ACL remains distinct from raw NULL.
   The catalog relation's explicit PUBLIC SELECT ACL is separate.
-  Supported wire origins retain relation 1213 and attributes 1,2,3,4,5;
-  both arrays are nullable. Native catalog mutation remains unsupported, not
-  a claim that PostgreSQL universally forbids catalog writes.
+  Supported wire origins retain relation 1213 and canonical attributes 1,2,3,4,5;
+  `spcacl` precedes `spcoptions`, not an appended shim. Both arrays are nullable.
+  NAME and TEXT[] metadata use catalog C collation950; ACLITEM[] is uncollated.
+  Native catalog mutation remains unsupported, not a claim that PostgreSQL
+  universally forbids catalog writes.
   `pg_tables` presents this shared catalog in `pg_global`; that logical metadata
   is not physical storage or cross-Engine aggregation. No user tablespaces,
   placement, filesystem inquiries or options validation are provided.
@@ -2030,9 +2159,8 @@ numeric identities, symbolic output and ordinary storage through the existing
 type owners. Their complete source-fixed identity inventory is lookup-only:
 it neither expands pg_proc SQL rows nor admits execution, CREATE FUNCTION or
 CREATE PROCEDURE. Runtime-allocated information_schema/plpgsql routines are an
-unavailable native catalog capability, not fabricated fixed OIDs. Schema GRANT/
-REVOKE remains unavailable SQL; tests explicitly use native schema ownership
-transfer versus PostgreSQL schema USAGE to establish authority. Native ABI,
+unavailable native catalog capability, not fabricated fixed OIDs. Schema USAGE
+grants are supported independently of schema ownership. Native ABI,
 external procedural runtimes and PostgreSQL physical persistence are not supplied
 by routine alias lookup. See [the evidence note](design/regproc-pg18-oracle.md).
 REGOPER/REGOPERATOR provide the complete released builtin operator identity
@@ -2056,8 +2184,7 @@ reports `0A000: text search configuration name lookup is not supported`, rather
 than claiming a PostgreSQL object is missing. Numeric and `-` config input bypass
 that provider boundary. General text-search DDL, full-text execution,
 to_regconfig/to_regdictionary and two-argument unaccent remain excluded. Custom
-dictionary DDL and schema-USAGE grants in reference scenarios are genuine
-PostgreSQL-only mechanisms; native tests use existing ownership/private ACL seams.
+dictionary DDL remains PostgreSQL-only; schema-USAGE grants are supported natively.
 Conversion utilities retain the native explicit-transaction DDL exclusion at
 Execute, not Prepare. Read-only execution reports `25006` before that exclusion
 or object resolution. DROP retires the actual conversion provider atomically;

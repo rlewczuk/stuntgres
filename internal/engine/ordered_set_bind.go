@@ -153,6 +153,24 @@ func (b *expressionBinder) bindOrderedSet(raw parser.AggregateExpr, name parser.
 	}
 	key := raw.Order[0]
 	call := aggregateCall{provider: provider, argument: arg, direct: direct, operation: operation, stageWidth: 2, order: []sortKey{{expression: arg, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, slot: 0, cache: 0}}}
+	var formal [2]sqltype.ID
+	formalCount := 2
+	if operation == aggregateMode {
+		formal[0], formalCount = sqltype.ID(2283), 1
+	} else {
+		formal[0] = sqltype.Float8
+		if array {
+			formal[0] = sqltype.ID(1022)
+		}
+		formal[1] = sqltype.ID(2283)
+		if operation == aggregatePercentileCont {
+			formal[1] = inputType.ID()
+		}
+	}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, formal[:formalCount]...)
+	if err != nil {
+		return nil, err
+	}
 	info := b.info(usage, raw.Pos, ExprProperties{})
 	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
 	return b.finishAggregate(raw, call, filter, info)

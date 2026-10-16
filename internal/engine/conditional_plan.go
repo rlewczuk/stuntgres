@@ -85,14 +85,37 @@ func walkDemandedBoundExpression(node BoundExpr, visit func(BoundExpr)) {
 	}
 }
 
-// simplifyConditional folds only immutable SQL constants, never runtime domain
-// truth. Imported parameters remain runtime-owned even without row dependence.
+// Conditional planning folds immutable SQL constants; the common post-child
+// strict-NULL rule can additionally eliminate a call using an execution-known
+// parameter. It neither substitutes parameters generally nor runs domain truth.
 func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
+	node, changed, err := simplifyConditionalNode(c, expression, decisiveDefaults)
+	if err != nil {
+		return nil, false, err
+	}
+	node, folded, err := foldStrictParameterNull(c, node)
+	return node, changed || folded, err
+}
+
+func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
 	if expression == nil {
 		return nil, false, nil
 	}
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
+	}
+	recipe, recipeErr := expressionRecipeDescriptor(expression)
+	if recipeErr != nil {
+		return nil, false, recipeErr
+	}
+	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
+		parent := c
+		local := *c
+		if err := local.selectExpressionRecipe(recipe); err != nil {
+			return nil, false, err
+		}
+		c = &local
+		defer func() { parent.preparedDomainChecks = c.preparedDomainChecks }()
 	}
 	changed := false
 	child := func(old BoundExpr) (BoundExpr, error) {
@@ -178,6 +201,9 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 					var view sqltype.Value
 					view, err = arm.testPlan.Apply(c.Context, test.value, c.Input, c.Output)
 					if err == nil && !view.IsNull() && !condition.value.IsNull() {
+						if err := admitCaseEquality(c, arm); err != nil {
+							return nil, false, err
+						}
 						match, err = arm.equality.EqualValues(c.Context, view, condition.value, c.Input)
 					}
 				}
@@ -273,7 +299,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		expression = e
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
 		if randomLiteralNull(e.Value) || !e.Local && randomLiteralNull(e.Zone) {
-			return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		if !e.Local {
 			e.Zone, err = child(e.Zone)
@@ -522,7 +548,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
@@ -535,7 +561,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.Arg, changed = node, true
 		}
 		if randomLiteralNull(e.Arg) {
-			return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
 	case functions.DatetimeExtract[BoundExpr, *EvalContext, ExprProperties]:
@@ -577,7 +603,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
@@ -593,14 +619,14 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
 	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		for i, old := range e.Arguments() {
@@ -625,7 +651,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
@@ -675,7 +701,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
@@ -692,7 +718,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		for _, arg := range e.Args {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
@@ -729,7 +755,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if e.Plan.Strict() {
 			for _, arg := range e.Args {
 				if randomLiteralNull(arg) {
-					return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 				}
 			}
 		}
@@ -859,7 +885,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if !selectedLogPowerName(e.Plan.Name()) {
 			for _, arg := range e.Args {
 				if randomLiteralNull(arg) {
-					return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 				}
 			}
 		}
@@ -877,7 +903,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			if randomLiteralNull(node) {
 				// Strictness eliminates demand even for a volatile provider.
 				// Preserve analyzed metadata; the surviving literal is immutable.
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		expression = e
@@ -971,7 +997,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if e.op == describeObject {
 			for _, arg := range e.args {
 				if randomLiteralNull(arg) {
-					return literalExpression{boundExpressionInfo(e), sqltype.Null(e.usage.Type)}, true, nil
+					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.usage.Type)}, true, nil
 				}
 			}
 		}
@@ -1304,11 +1330,11 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 	}
 	p := expression.Properties()
 	if _, literal := expression.(literalExpression); !literal && p.Volatility == Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
-		value, err := expression.Eval(c)
+		value, err := evaluatePlanningExpression(c, expression)
 		if err != nil {
 			return nil, false, err
 		}
-		return literalExpression{boundExpressionInfo(expression), value}, true, nil
+		return literalExpression{foldedExpressionInfo(expression), value}, true, nil
 	}
 	return expression, changed, nil
 }

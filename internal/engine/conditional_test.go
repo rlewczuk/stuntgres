@@ -395,7 +395,7 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 		}
 		return old
 	}
-	retagged, changed, err := retagBoundTypes(New().CatalogRead(), node, retained)
+	retagged, changed, err := retagBoundTypes(target.CatalogRead(), node, retained)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -414,7 +414,7 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	if _, err := defaultSQL(context.Background(), target.CatalogRead(), retagged); err != nil {
 		t.Fatal("retagged serialization provider ownership", err)
 	}
-	_, changed, err = retagBoundTypes(New().CatalogRead(), retagged, retained)
+	_, changed, err = retagBoundTypes(target.CatalogRead(), retagged, retained)
 	if err != nil || changed {
 		t.Fatal("unchanged tree copied", changed, err)
 	}

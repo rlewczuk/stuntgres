@@ -36,7 +36,7 @@ func pgDependPinned(catalog CatalogRead, address ObjectAddress) bool {
 	case *conversionDescriptor:
 		return d.seeded()
 	case *procedureDescriptor:
-		return d.conversion.Name() != ""
+		return d.seeded()
 	case *operatorDescriptor:
 		return d.seeded()
 	case *relationDescriptor:

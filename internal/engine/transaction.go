@@ -279,14 +279,18 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	statementMutation
-	mutations                      []statementMutation
-	activeMutation                 int
-	cteInvocation                  *cteInvocation
-	self                           *StatementScope
-	owner                          *transactionOwner
-	op                             *Operation
-	ruleActionAuth                 *AuthorizationView
-	authority                      *queryAuthority
+	mutations      []statementMutation
+	activeMutation int
+	cteInvocation  *cteInvocation
+	self           *StatementScope
+	owner          *transactionOwner
+	op             *Operation
+	ruleActionAuth *AuthorizationView
+	authority      *queryAuthority
+	// Borrowed only during this statement's admission/execution. Admission
+	// refreshes this coherent snapshot serially before publishing parallel reads;
+	// it is neither prepared-plan state nor a cached permission decision.
+	routineAuth                    AuthorizationView
 	stage                          WriteStage
 	view                           *VisibilityView
 	partitionValidationView        *VisibilityView // Latest DDL scan, same owner; never the retained query snapshot.
@@ -341,7 +345,9 @@ type StatementScope struct {
 	implicit                       bool
 	input                          sqltype.InputEnvironment
 	domainEvaluation               *EvalContext
-	domainPreparedChecks           map[*typeDescriptor][]BoundExpr
+	domainPreparedChecks           map[*typeDescriptor]domainCheckProgram
+	partitionPrograms              map[partitionRoutineIdentity][]BoundExpr
+	routinePrograms                []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
 	domainInputCatalog             CatalogRead
 	statementStart                 time.Time
 	transactionStart               time.Time
@@ -723,6 +729,10 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	case *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		// Conversion utilities have no result signature. Admission, read-only
 		// precedence and the explicit-transaction boundary belong to Execute.
+		return s.op.session.Engine().describeOperation(s, stmt)
+	case *parser.ObjectGrant:
+		// Analysis is effect-free even inside an explicit transaction. Execute
+		// retains read-only-first rejection and the non-database utility boundary.
 		return s.op.session.Engine().describeOperation(s, stmt)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)

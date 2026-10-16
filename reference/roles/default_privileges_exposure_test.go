@@ -14,23 +14,11 @@ var dpPrivilegeTypes = []string{"NAME", "NAME", "NAME", "NAME", "NAME", "VARCHAR
 const dpPrivilegeFields = "grantor,grantee,table_catalog,table_schema,table_name,privilege_type,is_grantable,with_hierarchy"
 const dpPrivilegeOrder = " ORDER BY table_schema,table_name,grantor,grantee,privilege_type"
 
-func dpEnvironment(t *testing.T, p *fixture.Pair, c *sql.Conn) (string, string) {
-	t.Helper()
-	var owner, database string
-	if err := c.QueryRowContext(p.Ctx, "SELECT current_user,current_database()").Scan(&owner, &database); err != nil {
-		t.Fatal(err)
-	}
-	if owner == "" || database == "" {
-		t.Fatal("empty environment identity", owner, database)
-	}
-	return owner, database
-}
-
 // Golden inputs omit only the environment-dependent catalog. Capture it from
 // current_database(), not from the projection whose correctness is being tested.
 func dpProjection(t *testing.T, p *fixture.Pair, c *sql.Conn, run func(fixture.Step), where string, want [][]any) {
 	t.Helper()
-	_, database := dpEnvironment(t, p, c)
+	_, database := fixture.RoleGrantEnvironment(t, p, c)
 	rows := make([][]any, 0, len(want))
 	for _, r := range want {
 		if len(r) != 7 {
@@ -46,7 +34,7 @@ func dpProjection(t *testing.T, p *fixture.Pair, c *sql.Conn, run func(fixture.S
 
 func TestReferenceRoleDefaultPrivilegesExposure(t *testing.T) {
 	dpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
-		owner, _ := dpEnvironment(t, p, c)
+		owner, _ := fixture.RoleGrantEnvironment(t, p, c)
 		dpTable(run, "dp_absent", 7)
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES GRANT SELECT,INSERT,MAINTAIN ON TABLES TO dp_reader WITH GRANT OPTION", 0))
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC", 0))
@@ -63,9 +51,9 @@ func TestReferenceRoleDefaultPrivilegesExposure(t *testing.T) {
 		})
 		dpProjection(t, p, c, run, "table_schema='public' AND (table_name='dp_exposed_mv' OR table_name='dp_exposed_seq' OR table_name='dp_exposed_composite' OR table_name='dp_exposed_idx')", nil)
 		dpProjection(t, p, c, run, "table_schema='public' AND table_name='dp_exposed_view' AND grantee='dp_reader'", [][]any{{owner, "dp_reader", "public", "dp_exposed_view", "INSERT", "YES", "NO"}, {owner, "dp_reader", "public", "dp_exposed_view", "SELECT", "YES", "YES"}})
-		dpActor(run, "dp_reader", func() { run(fixture.Exec("GRANT SELECT ON dp_exposed TO dp_other", 0)) })
+		fixture.RoleGrantActor(run, "dp_reader", func() { run(fixture.Exec("GRANT SELECT ON dp_exposed TO dp_other", 0)) })
 		dpProjection(t, p, c, run, "table_schema='public' AND table_name='dp_exposed' AND grantee='dp_other'", [][]any{{"dp_reader", "dp_other", "public", "dp_exposed", "SELECT", "NO", "YES"}})
-		dpActor(run, "dp_other", func() { dpRead(run, "dp_exposed", 9) })
+		fixture.RoleGrantActor(run, "dp_other", func() { dpRead(run, "dp_exposed", 9) })
 		run(fixture.Exec("REVOKE GRANT OPTION FOR SELECT ON dp_exposed FROM dp_reader CASCADE", 0))
 		dpProjection(t, p, c, run, "table_schema='public' AND table_name='dp_exposed' AND grantee='dp_other'", nil)
 		dpProjection(t, p, c, run, "table_schema='public' AND table_name='dp_exposed' AND grantee='dp_reader' AND privilege_type='SELECT'", [][]any{{owner, "dp_reader", "public", "dp_exposed", "SELECT", "NO", "YES"}})
@@ -109,13 +97,13 @@ func TestReferenceRoleDefaultPrivilegesExposure(t *testing.T) {
 		dpSchema(run, "dp_owner_ns", "dp_owner")
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES FOR ROLE dp_owner REVOKE ALL ON TABLES FROM dp_owner", 0))
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES FOR ROLE dp_owner IN SCHEMA dp_owner_ns GRANT SELECT ON TABLES TO dp_reader", 0))
-		dpActor(run, "dp_owner", func() {
+		fixture.RoleGrantActor(run, "dp_owner", func() {
 			run(fixture.Exec("CREATE TABLE dp_owner_ns.dp_empty_scoped(x INT)", 0))
-			dpDenied(run, "INSERT INTO dp_owner_ns.dp_empty_scoped VALUES(7)", "table", "dp_empty_scoped")
-			dpDenied(run, "SELECT x FROM dp_owner_ns.dp_empty_scoped", "table", "dp_empty_scoped")
+			fixture.RoleGrantPermissionDenied(run, "INSERT INTO dp_owner_ns.dp_empty_scoped VALUES(7)", "table", "dp_empty_scoped")
+			fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_owner_ns.dp_empty_scoped", "table", "dp_empty_scoped")
 		})
 		run(fixture.Exec("INSERT INTO dp_owner_ns.dp_empty_scoped VALUES(9)", 1))
-		dpActor(run, "dp_reader", func() { dpRead(run, "dp_owner_ns.dp_empty_scoped", 9) })
+		fixture.RoleGrantActor(run, "dp_reader", func() { dpRead(run, "dp_owner_ns.dp_empty_scoped", 9) })
 		dpProjection(t, p, c, run, "table_schema='dp_owner_ns' AND table_name='dp_empty_scoped'", [][]any{{"dp_owner", "dp_reader", "dp_owner_ns", "dp_empty_scoped", "SELECT", "NO", "YES"}})
 		// Stored directives changed, but neither absent nor materialized old ACL is recomputed.
 		dpProjection(t, p, c, run, "table_schema='public' AND table_name='dp_absent'", ownerRows)
@@ -130,37 +118,37 @@ func TestReferenceRoleDefaultPrivilegesExposureVisibility(t *testing.T) {
 		run(fixture.Exec("CREATE SCHEMA dp_owner_ns AUTHORIZATION dp_owner", 0))
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES FOR ROLE dp_owner GRANT SELECT ON TABLES TO dp_reader", 0))
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES FOR ROLE dp_owner GRANT INSERT ON TABLES TO PUBLIC", 0))
-		dpActor(run, "dp_owner", func() { dpTable(run, "dp_owner_ns.dp_visible", 9) })
+		fixture.RoleGrantActor(run, "dp_owner", func() { dpTable(run, "dp_owner_ns.dp_visible", 9) })
 		publicRow := [][]any{{"dp_owner", "PUBLIC", "dp_owner_ns", "dp_visible", "INSERT", "NO", "NO"}}
 		both := [][]any{{"dp_owner", "PUBLIC", "dp_owner_ns", "dp_visible", "INSERT", "NO", "NO"}, {"dp_owner", "dp_reader", "dp_owner_ns", "dp_visible", "SELECT", "NO", "YES"}}
 		where := "table_schema='dp_owner_ns' AND table_name='dp_visible' AND grantee <> 'dp_owner'"
 		for _, actor := range []string{"dp_reader", "dp_member"} {
-			dpActor(run, actor, func() {
+			fixture.RoleGrantActor(run, actor, func() {
 				// No USAGE on dp_owner_ns: exposure has no extra namespace/access filter.
-				dpDenied(run, "SELECT x FROM dp_owner_ns.dp_visible", "schema", "dp_owner_ns", prepared)
+				fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_owner_ns.dp_visible", "schema", "dp_owner_ns", prepared)
 				dpProjection(t, p, c, run, where, both)
 			})
 		}
 		for _, actor := range []string{"dp_other", "dp_set"} {
-			dpActor(run, actor, func() { dpProjection(t, p, c, run, where, publicRow) })
+			fixture.RoleGrantActor(run, actor, func() { dpProjection(t, p, c, run, where, publicRow) })
 		}
-		dpActor(run, "dp_set", func() {
+		fixture.RoleGrantActor(run, "dp_set", func() {
 			run(fixture.Exec("SET ROLE dp_reader", 0))
 			dpProjection(t, p, c, run, where, both)
 			run(fixture.Exec("RESET ROLE", 0))
 		})
 		run(fixture.Exec("GRANT dp_owner TO dp_other WITH INHERIT TRUE", 0))
-		dpActor(run, "dp_other", func() { dpProjection(t, p, c, run, where, both) })
+		fixture.RoleGrantActor(run, "dp_other", func() { dpProjection(t, p, c, run, where, both) })
 		// A grantee inheriting the owner has implicit grantability without stored option bits.
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES FOR ROLE dp_owner GRANT SELECT ON TABLES TO dp_other", 0))
-		dpActor(run, "dp_owner", func() { dpTable(run, "dp_owner_ns.dp_implicit", 11) })
+		fixture.RoleGrantActor(run, "dp_owner", func() { dpTable(run, "dp_owner_ns.dp_implicit", 11) })
 		dpProjection(t, p, c, run, "table_schema='dp_owner_ns' AND table_name='dp_implicit' AND grantee='dp_other'", [][]any{{"dp_owner", "dp_other", "dp_owner_ns", "dp_implicit", "SELECT", "YES", "YES"}})
 	})
 }
 
 func TestReferenceRoleDefaultPrivilegesMetadata(t *testing.T) {
 	dpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
-		owner, database := dpEnvironment(t, p, c)
+		owner, database := fixture.RoleGrantEnvironment(t, p, c)
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO dp_reader", 0))
 		dpTable(run, "dp_metadata", 9)
 		q := "SELECT * FROM information_schema.table_privileges WHERE table_schema='public' AND table_name='dp_metadata' AND grantee='dp_reader'" + dpPrivilegeOrder

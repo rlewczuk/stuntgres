@@ -37,11 +37,11 @@ func TestReferenceRoleDefaultPrivilegesTransactions(t *testing.T) {
 			}
 			name := []string{"dp_rollback", "dp_commit"}[i]
 			dpTable(run, name, 9)
-			dpActor(run, "dp_reader", func() {
+			fixture.RoleGrantActor(run, "dp_reader", func() {
 				if b.PG && end == "COMMIT" {
 					dpRead(run, name, 9)
 				} else {
-					dpDenied(run, "SELECT x FROM "+name, "table", name)
+					fixture.RoleGrantPermissionDenied(run, "SELECT x FROM "+name, "table", name)
 				}
 			})
 		}
@@ -66,7 +66,9 @@ func TestReferenceRoleDefaultPrivilegesTransactions(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, source, b.Recorder, s)
 		run(fixture.Exec("ROLLBACK", 0))
 		dpTable(run, "dp_readonly_after", 11)
-		dpActor(run, "dp_reader", func() { dpDenied(run, "SELECT x FROM dp_readonly_after", "table", "dp_readonly_after") })
+		fixture.RoleGrantActor(run, "dp_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_readonly_after", "table", "dp_readonly_after")
+		})
 	})
 }
 
@@ -90,12 +92,12 @@ func TestReferenceRoleDefaultPrivilegesControls(t *testing.T) {
 			err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE dp_replacement(x INT); ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO dp_other"))
 			fixture.State(t, err, "0A000")
 		}
-		dpActor(run, "dp_reader", func() {
-			dpDenied(run, "SELECT x FROM dp_control_old", "table", "dp_control_old")
+		fixture.RoleGrantActor(run, "dp_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_control_old", "table", "dp_control_old")
 			dpRead(run, "dp_control_new", 9)
 		})
 		dpTable(run, "dp_control_after_restore", 11)
-		dpActor(run, "dp_reader", func() { dpRead(run, "dp_control_after_restore", 11) })
+		fixture.RoleGrantActor(run, "dp_reader", func() { dpRead(run, "dp_control_after_restore", 11) })
 		run(fixture.Exec("GRANT dp_other TO dp_reader WITH INHERIT TRUE", 0))
 		if !b.PG {
 			run(fixture.Exec("ALTER DEFAULT PRIVILEGES REVOKE SELECT ON TABLES FROM dp_reader", 0))
@@ -113,9 +115,9 @@ func TestReferenceRoleDefaultPrivilegesControls(t *testing.T) {
 			run(fixture.Select("SELECT current_user,session_user", []string{"current_user", "session_user"}, []string{"NAME", "NAME"}, [][]any{{"dp_reader", "dp_reader"}}))
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			dpTable(run, "dp_reset_new", 13)
-			dpActor(run, "dp_reader", func() { dpDenied(run, "SELECT x FROM dp_reset_new", "table", "dp_reset_new") })
+			fixture.RoleGrantActor(run, "dp_reader", func() { fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_reset_new", "table", "dp_reset_new") })
 			run(fixture.Exec("GRANT SELECT ON dp_reset_new TO dp_other", 0))
-			dpActor(run, "dp_reader", func() { dpRead(run, "dp_reset_new", 13) })
+			fixture.RoleGrantActor(run, "dp_reader", func() { dpRead(run, "dp_reset_new", 13) })
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 				t.Fatal(err)
 			}
@@ -134,13 +136,13 @@ func TestReferenceRoleDefaultPrivilegesControls(t *testing.T) {
 				t.Fatal("pristine baseline Restore", err)
 			}
 			dpRead(run, "dp_clean", 17)
-			dpActor(run, "dp_reader", func() { dpDenied(run, "SELECT x FROM dp_clean", "table", "dp_clean") })
+			fixture.RoleGrantActor(run, "dp_reader", func() { fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_clean", "table", "dp_clean") })
 		} else {
 			// The oracle has no native replacement API. Its shared preceding SQL proves
 			// directive/materialized separation; real transactional state is covered above.
 			run(fixture.Exec("ALTER DEFAULT PRIVILEGES REVOKE SELECT ON TABLES FROM dp_reader", 0))
 			dpTable(run, "dp_reset_new", 13)
-			dpActor(run, "dp_reader", func() { dpDenied(run, "SELECT x FROM dp_reset_new", "table", "dp_reset_new") })
+			fixture.RoleGrantActor(run, "dp_reader", func() { fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_reset_new", "table", "dp_reset_new") })
 		}
 	})
 }

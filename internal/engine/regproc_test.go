@@ -35,8 +35,8 @@ func TestRoutineReleaseInventory(t *testing.T) {
 		}
 		if p, exists := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: fact.id}]; exists {
 			procedure, ok := p.(*procedureDescriptor)
-			if !ok || procedure.conversion.Name() == "" || procedure.signature != fact.signature || procedure.name != fact.name {
-				t.Fatal("identity inventory expanded execution", p, fact)
+			if !ok || procedure.signature != fact.signature || procedure.name != fact.name || (extensionCatalogProvider{ProcedureClassID}).Validate(view, procedure) != nil {
+				t.Fatal("invalid genuine catalog declaration", p, fact)
 			}
 		}
 	}
@@ -65,7 +65,7 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	view := e.CatalogRead()
 	public := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-	first := &procedureDescriptor{address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
+	first := &procedureDescriptor{address: ObjectAddress{ClassID: ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace, second.signature = 90001, catalog, unaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
@@ -135,8 +135,8 @@ func TestRoutineRecursiveRemapAndDump(t *testing.T) {
 		t.Fatal("overload-safe recursive dump", text, err)
 	}
 	var refs []ObjectAddress
-	if err := walkRoutineReferences(view, original, func(address ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || len(refs) != 0 {
-		t.Fatal("builtin/unknown acquired provider dependency", refs, err)
+	if err := walkRoutineReferences(view, original, func(address ObjectAddress) error { refs = append(refs, address); return nil }); err != nil || !reflect.DeepEqual(refs, []ObjectAddress{{ClassID: ProcedureClassID, ObjectID: 1397}}) {
+		t.Fatal("genuine builtin dependency or lookup-only isolation lost", refs, err)
 	}
 }
 

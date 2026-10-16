@@ -254,7 +254,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 	root := &setProjectNode{querySchema: querySchema{{Usage: d.Usage()}}, child: &singletonNode{}, calls: []BoundExpr{original}}
 	rewritten, err := rewriteQueryExpressions(root, func(n BoundExpr) (BoundExpr, bool, error) {
-		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, func(n BoundExpr) (BoundExpr, bool, error) {
+		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n BoundExpr) (BoundExpr, bool, error) {
 			if n == original.args[0] {
 				return seriesUnit(t, d, 2, 3).args[0], true, nil
 			}

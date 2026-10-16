@@ -93,13 +93,13 @@ func TestQueryCycleEquality(t *testing.T) {
 	if equal, err := c.equalPath(ctx, a[3], b[3]); err != nil || equal {
 		t.Fatal("ordered keys collapsed", equal, err)
 	}
-	grouping := make([]sqltype.Grouping, 3)
+	grouping := make([]queryGrouping, 3)
 	for i := range 2 {
-		grouping[i], _ = sqltype.BindGrouping(integer.Usage())
+		grouping[i].Grouping, _ = sqltype.BindGrouping(integer.Usage())
 	}
 	// Keep the mark values and grouping bound to one descriptor generation.
 	boolean := c.mark.ResultUsage().Type
-	grouping[2], _ = sqltype.BindGrouping(boolean.Usage())
+	grouping[2].Grouping, _ = sqltype.BindGrouping(boolean.Usage())
 	// Force a hash bucket whose first tuple has the same user fields and mark
 	// but different ancestry. Only full path equality may reject that tuple.
 	a = cycleUnitAugment(t, c, a[3], two, one)

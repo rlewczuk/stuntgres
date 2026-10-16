@@ -123,7 +123,8 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	typ := d.columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: one}
-	left := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, origin: origin, scope: 1, frame: 4, slot: 1, virtual: literal, rowWidth: 2, queryOccurrence: 1}
+	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: literal, planned: literal}}
+	left := columnExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, origin: origin, scope: 1, frame: 4, slot: 1, queryOccurrence: 1}.withGeneration(d, 1, 0)
 	right := left
 	right.slot, right.rowStart, right.queryOccurrence = 3, 2, 2
 	provider, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, typ, typ, typ)

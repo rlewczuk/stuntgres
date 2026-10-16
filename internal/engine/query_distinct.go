@@ -13,7 +13,7 @@ type distinctNode struct {
 	querySchema
 	child        LogicalNode
 	expressions  []BoundExpr
-	grouping     []sqltype.Grouping
+	grouping     []queryGrouping
 	presenceOnly bool // Retain analyzed targets while discarding eligible EXISTS demand.
 }
 
@@ -92,7 +92,9 @@ func openDistinctNode(ctx context.Context, state *queryState, n *distinctNode) (
 }
 
 // Hash collisions are candidate lists, never evidence of tuple equality.
-func findDistinctTuple(ctx context.Context, grouping []sqltype.Grouping, tuple, flat []sqltype.Value, candidates []int) (int, error) {
+func findDistinctTuple[G interface {
+	Equal(context.Context, sqltype.Value, sqltype.Value) (bool, error)
+}](ctx context.Context, grouping []G, tuple, flat []sqltype.Value, candidates []int) (int, error) {
 	for _, index := range candidates {
 		if err := ctx.Err(); err != nil {
 			return -1, err

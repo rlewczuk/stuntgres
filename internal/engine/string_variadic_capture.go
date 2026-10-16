@@ -34,6 +34,9 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, *E
 	if e.IntrinsicStable() || p.Volatility != Immutable || !conditionalConstantInputs(e) {
 		return e, false, nil
 	}
+	if err := admitRoutineCall(c, e, true, true); err != nil {
+		return nil, false, err
+	}
 	retained := c.quoteCaptures != nil && !p.RowDependent && !p.ParameterDependent && !p.StageDependent
 	var entry quoteConstant
 	index := -1
@@ -49,7 +52,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, *E
 			}
 			index = i
 			if saved.source == entry.source && saved.result == entry.result {
-				return literalExpression{boundExpressionInfo(e), saved.value}, true, nil
+				return literalExpression{foldedExpressionInfo(e), saved.value}, true, nil
 			}
 			break
 		}
@@ -71,7 +74,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, *E
 			group.entries = append(group.entries, entry)
 		}
 	}
-	return literalExpression{boundExpressionInfo(e), value}, true, nil
+	return literalExpression{foldedExpressionInfo(e), value}, true, nil
 }
 
 // Definition tokens, not unrelated catalog revisions, retire stored origins.

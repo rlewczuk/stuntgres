@@ -142,3 +142,107 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("accepted synthetic provenance for a nonbaseline ACL")
 	}
 }
+
+// SetObjectACL is a private publication seam, distinct from SQL GRANT. The SQL
+// definitions below only construct real descriptors for that seam.
+func TestObjectACLTypeSetterProvenance(t *testing.T) {
+	for _, kind := range []struct {
+		name       string
+		definition string
+	}{
+		{"domain", "CREATE DOMAIN public.acl_setter_type AS integer"},
+		{"enum", "CREATE TYPE public.acl_setter_type AS ENUM ('one')"},
+		{"composite", "CREATE TYPE public.acl_setter_type AS (a integer)"},
+	} {
+		t.Run(kind.name, func(t *testing.T) {
+			for _, replacement := range []string{"baseline", "empty", "owner_only"} {
+				t.Run(replacement, func(t *testing.T) {
+					e := New()
+					op, done := roleOperation(t, e, "postgres")
+					defer done()
+					domainUnitPublish(t, e, domainUnitStage(t, e, op, kind.definition))
+					oldView := e.CatalogRead()
+					old := domainUnitType(t, oldView, "acl_setter_type")
+					oldACL := authorization.ACLValue{
+						Explicit: old.acl.Explicit,
+						Entries:  append([]authorization.ACLEntry(nil), old.acl.Entries...),
+					}
+					if !old.aclSyntheticDefault || !defaultDomainACL(old) {
+						t.Fatal("fixture lacks constructor-synthetic baseline", old)
+					}
+					if acl, err := rawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
+						t.Fatal("fixture raw ACL is not absent", acl, err)
+					}
+					if err := (typeProvider{}).Validate(oldView, old); err != nil {
+						t.Fatal("invalid constructor descriptor", err)
+					}
+
+					// Specify the payload independently of the constructor's ACL.
+					want := authorization.ACLValue{Explicit: true}
+					if replacement != "empty" {
+						want.Entries = []authorization.ACLEntry{
+							objectACLUnitEntry(old.owner, old.owner, authorization.UsagePrivilege, 0),
+						}
+					}
+					if replacement == "baseline" {
+						want.Entries = append(want.Entries, authorization.ACLEntry{
+							Grantor: old.owner, Grantee: authorization.ACLGrantee{Public: true},
+							Privileges: authorization.UsagePrivilege,
+						})
+					}
+					ref := ObjectRef{owner: e.owner, Epoch: oldView.Epoch(), Address: old.Address()}
+					if err := e.SetObjectACL(context.Background(), ref, want); err != nil {
+						t.Fatal("SetObjectACL", err)
+					}
+					currentView := e.CatalogRead()
+					current := domainUnitType(t, currentView, "acl_setter_type")
+					if current == old || currentView.state == oldView.state {
+						t.Error("setter did not publish a new immutable catalog descriptor")
+					}
+					if !reflect.DeepEqual(current.acl, want) {
+						t.Error("setter published the wrong ACL", current.acl, want)
+					}
+					if current.aclSyntheticDefault {
+						t.Error("genuine replacement retained constructor provenance")
+					}
+					if acl, err := rawObjectACL(currentView, current.Address()); err != nil || !reflect.DeepEqual(acl, want) {
+						t.Error("genuine explicit ACL is not raw-visible", acl, want, err)
+					}
+					if err := (typeProvider{}).Validate(currentView, current); err != nil {
+						t.Error("setter published an invalid type descriptor", err)
+					}
+					if defaultDomainACL(current) {
+						t.Error("genuine explicit ACL is considered regenerable")
+					}
+
+					// Both callback routes must remain untouched, including an
+					// io.StringWriter fast path. The gate is released so a broken
+					// guard reports callbacks rather than blocking the test.
+					sink := new(concurrentUnitSink)
+					if err := e.Dump(context.Background(), sink); err == nil || sink.calls != 0 || sink.bytes != 0 {
+						t.Error("Dump did not reject before Write", err, sink)
+					}
+					release := make(chan struct{})
+					close(release)
+					writer := &commentGateWriter{entered: make(chan struct{}), release: release}
+					if err := e.Dump(context.Background(), writer); err == nil || writer.first || writer.Len() != 0 {
+						t.Error("Dump did not reject before writer callbacks", err, writer.first, writer.String())
+					}
+
+					// Retained readers must still see the original constructor
+					// state after both publication and attempted serialization.
+					retained := domainUnitType(t, oldView, "acl_setter_type")
+					if retained != old || !retained.aclSyntheticDefault || !reflect.DeepEqual(retained.acl, oldACL) || !defaultDomainACL(retained) {
+						t.Error("setter or Dump mutated the old catalog descriptor", retained)
+					}
+					if acl, err := rawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
+						t.Error("old snapshot lost raw absence", acl, err)
+					}
+					if err := (typeProvider{}).Validate(oldView, retained); err != nil {
+						t.Error("old catalog descriptor became invalid", err)
+					}
+				})
+			}
+		})
+	}
+}

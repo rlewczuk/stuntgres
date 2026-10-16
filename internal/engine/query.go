@@ -60,9 +60,10 @@ type filterNode struct {
 type sortKey struct {
 	expression       BoundExpr
 	comparison       sqltype.Comparison
-	position         int // Original ORDER reference character position, not reused output syntax.
-	outputOrdinal    int // One-based resolved output occurrence; zero is a SQL expression.
-	targetIdentity   int // Resolved ON/ORDER target, independent of physical cache sharing.
+	equalityRoutine  ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
+	position         int       // Original ORDER reference character position, not reused output syntax.
+	outputOrdinal    int       // One-based resolved output occurrence; zero is a SQL expression.
+	targetIdentity   int       // Resolved ON/ORDER target, independent of physical cache sharing.
 	slot, cache      int
 	desc, nullsFirst bool
 	output           bool // This cache slot supplies a visible projection.
@@ -434,16 +435,21 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				expressions[i] = folded
 			}
 		}
+		if expressions != nil {
+			copy := *n
+			copy.expressions = expressions
+			n, node = &copy, &copy
+			expressions = nil
+		}
+		pruned, err := pruneProjectWindows(n)
+		if err != nil {
+			return nil, err
+		}
+		n, node = pruned, pruned
 		if c.planStaticOperators {
 			// Use surviving scalar recipes, not dead conditional branches, to
 			// choose child payload demand. Scalar preparation keeps its usual
 			// precedence over opening/preparing the source.
-			if expressions != nil {
-				copy := *n
-				copy.expressions = expressions
-				n, node = &copy, &copy
-				expressions = nil
-			}
 			demanded, err := ruleQueryProducerDemand(n, nil, 0)
 			if err != nil {
 				return nil, err
@@ -500,7 +506,11 @@ type querySource struct {
 	hashIndexes      []capturedHashIndex
 	scope            *StatementScope
 	authority        *queryAuthority
-	sources          []*querySource
+	// Borrowed only by an opaque stored-source execution root after original
+	// view lifetime/provider validation. This immutable definition supplies its
+	// original manifest, never current rights or relation-owner substitution.
+	routineRecipe *relationDescriptor
+	sources       []*querySource
 	// Both inheritance and partition trees use named-layout physical prefixes.
 	inheritance          []inheritanceQuerySegment
 	inheritanceEnds      []int
@@ -722,6 +732,7 @@ func (s *querySource) close() {
 	s.partialMask = nil
 	s.anonymous = nil
 	s.visible = nil
+	s.routineRecipe = nil
 }
 
 // Indexed stages retain occurrences, not copied input tuples. All scalar work

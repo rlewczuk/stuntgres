@@ -118,6 +118,9 @@ Schema visibility and real installed procedure identities survive native
 Dump/Reset/Restore, including grouped views projecting UUID calls beside
 aggregates. Legitimate group-stage metadata is retained without relaxing closed
 DEFAULT restrictions. Other upstream uuid-ossp generators/constants are not installed.
+Its installed identity also participates in current-invoker EXECUTE grants:
+held calls, views and demanded DEFAULT writes deny after revocation, without
+borrowing a table/view owner's function authority or publishing partial writes.
 Canonical text remains distinct from the existing 16-byte binary COPY encoding;
 this does not add binary UUID binds. See the
 [contract and feature smoke](reference/catalogs/README.md#installed-uuid-ossp-version-4).
@@ -307,8 +310,8 @@ class IDs error. NULL ACLs remain distinct from explicit empty arrays.
 
 Held calls read current metadata, without requiring SELECT on the queried table.
 Native type authorization's synthetic USAGE baseline does not become a raw type
-ACL. The existing database boundary remains: native `{postgres=C*/postgres}`,
-versus fresh PostgreSQL NULL. Returned ACLITEM[] data and stored inquiry recipes
+ACL. Initial database raw ACLs are NULL on both backends; effective owner CTc and
+PUBLIC Tc defaults remain separate from stored ACL data. Returned ACLITEM[] data and stored inquiry recipes
 use existing native lifecycle support; arbitrary explicit authorization ACLs
 still reject Dump/Restore rather than being silently discarded.
 
@@ -666,6 +669,73 @@ and the owning [rule](reference/views/README.md#rewrite-rules) and
 [CTE](reference/dml/README.md#data-modifying-cte-contracts) testing inventories.
 Feature smoke: `make check RUN='^TestReferenceRuleFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceRuleFeatureSmoke$'`.
+
+## Sequence object privileges — change note
+
+Sequence `GRANT` and `REVOKE` support SELECT, UPDATE, USAGE,
+class-specific ALL and grant-option delegation/cascade. Explicit, implicit/TABLE
+and ALL SEQUENCES IN SCHEMA targets use the same sequence authority.
+Sequence rights remain independent of table INSERT; identity-generated insertion retains its separate
+implicit authority. ACL changes preserve generator state and physical-session
+currval memory, while held consumers recheck current permissions.
+See [authorization](docs/AUTHORIZATION.md#sequence-object-acls) and
+[selected proof](reference/object_grants/README.md#sequence-object-grants).
+
+Schema grants independently control USAGE and CREATE. Type/domain grants control
+USAGE when creating persistent dependencies, including builtin types; existing
+values and ordinary casts remain usable after revocation. Ordinary schemas have
+no PUBLIC rights, whereas ordinary types default to PUBLIC USAGE. See
+[schema/type authority](docs/AUTHORIZATION.md#schema-and-type-object-acls).
+
+## Routine, database and metadata object privileges — change note
+
+Genuine scalar, aggregate, window, SRF and integrated extension providers retain
+exact released formal identities and fresh caller EXECUTE admission. Held
+statements and actual stored DEFAULT/generated/CHECK/index/view consumers do not
+cache grants; pruned/strict-NULL demand and the documented PostgreSQL old-inlined
+quote-wrapper boundary remain explicit. ALL schema expansion covers current
+genuine objects, not later installations or lookup-only names.
+The finite genuine SQL invoker-body closure documented in
+[authorization](docs/AUTHORIZATION.md) and four existing embedded function-method
+casts retain original dependency authority, including nonconstant
+domain CHECKs and original constant index recipes. Constant keys plan before
+predicate truth; actual consumed calls survive folding for fresh post-wait
+admission without provider replay. Description bodies remain non-NULL-demanded,
+and invoker versus RI-owner domain phases remain distinct. The six integrated BIT
+bitwise/shift providers also carry their exact released routine associations;
+this adds no runtime, standalone cast function, or SQL-body interpreter.
+The seven implemented INET bitwise/arithmetic operators likewise retain exact
+routine identities, including commuted addition's real SQL-body call. Fresh
+network constants preserve typed-NULL demand before EXECUTE admission. ALTER
+TYPE USING keeps each transformation's original manifest and demanded catalog
+snapshot through lazy body evaluation; failed rewrites publish no shape/data prefix.
+The six existing TID comparisons and equality-derived consumers retain their
+released routine identities too; ordinary ordering support remains independent
+of scalar EXECUTE grants. No physical ctid or type-codec capability is added.
+Existing ACL value constructors, expansion and ACL array/item containment retain
+their four released routine identities. Scalar strict NULL can remove a call;
+surviving RECORD/SETOF expansion still requires EXECUTE at initialization.
+Reading stored ACL values does not replay constructors or require their grants.
+Existing HASH/RANGE expression partition keys initialize their original routine
+recipes on the first actual tuple, including direct-leaf membership and populated
+DEFAULT validation. Stored reads and zero-input writes do not replay key calls;
+the current caller needs EXECUTE on surviving outer and SQL-body routines.
+
+The attached database supports CREATE/TEMPORARY/CONNECT (CTc), including fresh
+authenticated CONNECT and current-role TEMP allocation/CREATE. Parameter SET/ALTER
+SYSTEM metadata (sA) and builtin tablespace CREATE use actual descriptor ACLs and
+delegation/cleanup; they do not add missing settings, ALTER SYSTEM execution,
+parameter inquiry catalogs or physical tablespaces. Native unsupported external
+grant families have explicit class boundaries, and unrepresentable ACLs fail Dump
+before output.
+
+See [authorization](docs/AUTHORIZATION.md#routine-identity-and-execution-admission),
+[native boundaries](docs/DIALECT.md#object-privilege-grants) and the
+[owning proof inventory](reference/object_grants/README.md#genuine-routine-grants-and-admission).
+Feature smoke: `make check RUN='^TestReferenceObjectGrantFeatureSmoke$'`;
+pinned counterpart:
+`make check RUN='^TestReferenceObjectGrantFeatureSmoke$' REFERENCE=1`.
+
 
 ## Namespace catalog metadata — change note
 
@@ -1215,7 +1285,9 @@ reserved name in PostgreSQL 18 order. Physical creation always fails explicitly
 with 0A000; no directory probes, data placement or user catalog row are performed.
 Read-only `pg_tablespace` exposes builtin identities and canonical owner OID 10
 through `oid,spcname,spcowner,spcacl,spcoptions` (OID/NAME/OID/ACLITEM[]/TEXT[]).
-Both arrays are typed SQL NULL; ordinary roles see both complete builtin rows.
+Both arrays are initially typed SQL NULL; CREATE grants materialize genuine
+descriptor ACLs in `spcacl` without enabling physical placement. Ordinary roles
+see both complete builtin rows.
 WITH is recognized but cannot apply or validate options without physical creation.
 See [storage and catalog limits](docs/DIALECT.md#storage-and-native-controls).
 Feature smoke: `make check RUN='^TestReferenceTablespaceFeatureSmoke$'`;
@@ -1233,10 +1305,11 @@ renaming. Catalog namespaces remain protected. Bulk sources reject the canonical
 initial principal and predefined roles before effects; a familiar role name or
 ordinary superuser attribute is not initial-principal protection.
 Sequence OWNER retains its existing transaction support; new ownership utilities
-are autocommit-only. DROP OWNED preserves the database but cleans its CREATE ACL.
+are autocommit-only. DROP OWNED preserves shared database/tablespace objects
+while cleaning actual ACL provenance, including database CTc.
 REASSIGN preserves creator-keyed default privileges; DROP OWNED removes selected
 creators' actual policies and selectively cleans selected recipients in others'
-policies. Tablespace providers remain absent.
+policies. Tablespace ACL ownership does not add physical creation or placement.
 Complete default creator/recipient unions remain atomic natively; the documented
 pinned18.0 stale-default-address defect is not imitated.
 See [ownership and cleanup](docs/AUTHORIZATION.md#ownership-and-bulk-cleanup).
@@ -1970,8 +2043,8 @@ or authorizing execution. Installed unaccent identities remain actual provider
 objects. Direct/held parameters, casts, columns, domains, arrays, defaults and view
 constants use existing value/storage/analysis owners. Dump preserves overloaded
 identities through qualified signatures and Restore remaps real extension identities.
-The schema-authority fixture deliberately uses PostgreSQL USAGE grants and native
-schema ownership transfer; native schema GRANT/REVOKE SQL remains outside this part.
+Schema USAGE and CREATE can be granted independently of ownership. Routine alias
+lookup remains distinct from execution and does not supply a routine runtime.
 CREATE FUNCTION/PROCEDURE, runtime-allocated information_schema/plpgsql routines and
 external procedural/native-ABI providers remain unavailable native capabilities.
 Smoke commands: `make check RUN='^TestReferenceRegProcFeatureSmoke$'` and
@@ -3056,8 +3129,9 @@ GRANTED BY/current-user and per-ACL dependency semantics are documented in
 Merged column requests follow stable attribute order, including duplicate and
 reversed lists. Enumerating all four column privileges has the same partial-option
 warning suppression as column ALL; zero-option requests still warn.
-Sequence/other-object direct grants and native explicit-transaction
-object utilities remain excluded; explicit ACL Dump fails before output.
+Sequence, schema and type/domain direct grants are supported. These native object
+utilities remain excluded in explicit transactions; nonserializable ACL changes
+make Dump fail before output.
 Feature smoke (900 seconds each):
 `make check RUN='^TestReferenceRoleGrantFeatureSmoke$'`;
 `make check REFERENCE=1 RUN='^TestReferenceRoleGrantFeatureSmoke$'`.

@@ -453,6 +453,9 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 	demanded := make([]uint8, len(n.specs))
 	ntileCount := 0
 	for i, call := range n.calls {
+		if call.analysisOnly {
+			continue
+		}
 		if call.operation == windowNtile {
 			ntileCount++
 		}
@@ -470,12 +473,28 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		return indexedStage{}, err
 	}
 	orders := make([]windowOrderState, len(n.specs))
-	for i, spec := range n.specs {
-		if len(n.sortIndices) == 0 || n.sortIndices[i] == i {
-			orders[i], err = prepareWindowOrder(ctx, state, &child, spec)
-			if err != nil {
-				return indexedStage{}, err
+	for i := range n.specs {
+		if len(n.sortIndices) != 0 && n.sortIndices[i] != i {
+			continue
+		}
+		// A pruned specification can still own the shared sort slot of a
+		// surviving specification. Prepare that surviving, preflighted recipe.
+		owner := i
+		if !n.specActive(owner) {
+			owner = -1
+			for j := i + 1; j < len(n.specs); j++ {
+				if len(n.sortIndices) != 0 && n.sortIndices[j] == i && n.specActive(j) {
+					owner = j
+					break
+				}
 			}
+		}
+		if owner < 0 {
+			continue
+		}
+		orders[i], err = prepareWindowOrder(ctx, state, &child, n.specs[owner])
+		if err != nil {
+			return indexedStage{}, err
 		}
 	}
 	for i, spec := range n.specs {
@@ -516,6 +535,9 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 	// actual value/ntile calls, rather than allocating them per member/output.
 	var valueEvaluation *EvalContext
 	for _, call := range n.calls {
+		if call.analysisOnly {
+			continue
+		}
 		if call.operation.evaluatesArgument() {
 			evaluation := state.evaluation(ctx)
 			valueEvaluation = &evaluation
@@ -523,6 +545,9 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		}
 	}
 	for specIndex, spec := range n.specs {
+		if !n.specActive(specIndex) {
+			continue
+		}
 		sortIndex := specIndex
 		if len(n.sortIndices) > 0 {
 			sortIndex = n.sortIndices[specIndex]
@@ -530,13 +555,13 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 		ordered := &orders[sortIndex]
 		sumCount := 0
 		for callIndex, call := range n.calls {
-			if n.specIndices[callIndex] == specIndex && call.operation == windowSum {
+			if !call.analysisOnly && n.specIndices[callIndex] == specIndex && call.operation == windowSum {
 				sumCount++
 			}
 		}
 		sums := windowSums{states: make([]windowSumState, 0, sumCount)}
 		for callIndex, call := range n.calls {
-			if n.specIndices[callIndex] == specIndex && call.operation == windowSum {
+			if !call.analysisOnly && n.specIndices[callIndex] == specIndex && call.operation == windowSum {
 				sums.states = append(sums.states, windowSumState{callIndex: callIndex})
 			}
 		}
@@ -608,7 +633,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (inde
 				}
 				ntileIndex := 0
 				for callIndex, call := range n.calls {
-					if n.specIndices[callIndex] != specIndex {
+					if call.analysisOnly || n.specIndices[callIndex] != specIndex {
 						continue
 					}
 					if call.operation == windowSum {

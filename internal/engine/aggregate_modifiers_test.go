@@ -18,7 +18,7 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	grouping := []sqltype.Grouping{family, family}
+	grouping := []queryGrouping{{Grouping: family}, {Grouping: family}}
 	a, comma, slash := sqltype.String(typ, "a"), sqltype.String(typ, ","), sqltype.String(typ, "/")
 	null := sqltype.Null(typ)
 	var state aggregateDistinctState
@@ -167,7 +167,7 @@ func TestAggregateModifiersFamilyCancellation(t *testing.T) {
 	for _, phase := range []string{".Grouping.PrepareKey", ".Grouping.Hash", ".Grouping.Equal"} {
 		t.Run(phase, func(t *testing.T) {
 			var state aggregateDistinctState
-			grouping := []sqltype.Grouping{family}
+			grouping := []queryGrouping{{Grouping: family}}
 			value := sqltype.String(typ, strings.Repeat("x", 8192))
 			if _, err := state.admit(context.Background(), grouping, []sqltype.Value{value}); err != nil {
 				t.Fatal(err)

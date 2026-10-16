@@ -45,7 +45,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	address := ext.members[0]
 	proc := view.state.descriptors[address].(*procedureDescriptor)
-	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
+	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
 		t.Fatal(proc)
 	}
 	if err := e.providers[ProcedureClassID].Validate(view, proc); err != nil {
@@ -69,6 +69,8 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*procedureDescriptor){
 		func(p *procedureDescriptor) { p.uuidOssp = &uuidOsspProvider{version: "1.1"} },
+		func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
+		func(p *procedureDescriptor) { p.builtin = builtinRoutineByOID[3432] },
 		func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
 		func(p *procedureDescriptor) { p.fuzzy = stockFuzzystrmatch },
 		func(p *procedureDescriptor) { p.provider = stockUnaccent },
@@ -132,6 +134,12 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
 		}
+	}
+	builtin := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+	mixed := *builtin
+	mixed.uuidOssp = stockUUIDOssp
+	if err := e.providers[ProcedureClassID].Validate(view, &mixed); err == nil {
+		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}
 }
 

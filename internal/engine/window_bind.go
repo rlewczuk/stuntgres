@@ -29,7 +29,7 @@ func (e *windowExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 
 type boundWindowSpec struct {
 	partition  []BoundExpr
-	grouping   []sqltype.Grouping
+	grouping   []queryGrouping
 	order      []sortKey
 	orderMap   []int // Raw-to-effective mapping, for literal capture only.
 	frame      boundWindowFrame
@@ -70,12 +70,13 @@ type windowCall struct {
 	expression   *windowExpression
 	spec         boundWindowSpec
 	operation    windowOperation
+	routine      ObjectRef // Selected callable, independently of peer/partition equality.
 	argument     BoundExpr
 	ordinal      BoundExpr
 	defaultValue BoundExpr
 	provider     aggregateProvider
 	raw          *parser.WindowSpec
-	analysisOnly bool // Matched ORDER target: retain binding ownership, not execution.
+	analysisOnly bool // Retained binding/slot ownership without executable demand.
 }
 
 type boundWindowBound struct {
@@ -286,6 +287,31 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		if err != nil {
 			return nil, err
 		}
+	}
+	var formal [3]sqltype.ID
+	formalCount := 0
+	if raw.Name == "sum" {
+		formal[0], formalCount = argument.ResultUsage().Type.ID(), 1
+	} else if raw.Name == "ntile" {
+		formal[0], formalCount = sqltype.Int4, 1
+	} else if windowOffsetName(raw.Name) {
+		formal[0], formalCount = 2283, 1 // Released ANYELEMENT for arity one/two.
+		if len(raw.Args) >= 2 {
+			formal[1], formalCount = sqltype.Int4, 2
+		}
+		if len(raw.Args) == 3 {
+			formal[0], formal[2], formalCount = 5077, 5077, 3 // ANYCOMPATIBLE value/default.
+		}
+	} else if windowValueName(raw.Name) {
+		formal[0], formalCount = 2283, 1 // Released ANYELEMENT, not the physical selected value type.
+		if raw.Name == "nth_value" {
+			formal[1], formalCount = sqltype.Int4, 2
+		}
+	}
+	var err error
+	call.routine, err = b.builtinRoutineReference(windowRoutineProvider, raw.Name, formal[:formalCount]...)
+	if err != nil {
+		return nil, err
 	}
 	info := b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true})
 	if raw.Name == "ntile" {
@@ -640,7 +666,7 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 	old := b.aggregateClause
 	b.aggregateClause = "window definitions"
 	defer func() { b.aggregateClause = old }()
-	spec := boundWindowSpec{order: make([]sortKey, 0, len(raw.Order)), orderMap: make([]int, len(raw.Order)), partition: make([]BoundExpr, len(raw.Partition)), grouping: make([]sqltype.Grouping, len(raw.Partition)), explicit: raw.Frame != nil}
+	spec := boundWindowSpec{order: make([]sortKey, 0, len(raw.Order)), orderMap: make([]int, len(raw.Order)), partition: make([]BoundExpr, len(raw.Partition)), grouping: make([]queryGrouping, len(raw.Partition)), explicit: raw.Frame != nil}
 	spec.frame.start.kind, spec.frame.end.kind = parser.FrameUnboundedPreceding, parser.FrameCurrentRow
 	for i, key := range raw.Order {
 		expr, err := b.bind(key.Expr, expressionPolicy{context: projectionContext})
@@ -672,8 +698,12 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 			}
 		}
 		if index < 0 {
+			routine, _, err := b.groupingRoutineReference(expr.ResultUsage())
+			if err != nil {
+				return spec, err
+			}
 			index = len(spec.order)
-			spec.order = append(spec.order, sortKey{expression: expr, comparison: comparison, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
+			spec.order = append(spec.order, sortKey{expression: expr, comparison: comparison, equalityRoutine: routine, position: key.Pos.Character, desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc})
 		}
 		spec.orderMap[i] = index
 	}

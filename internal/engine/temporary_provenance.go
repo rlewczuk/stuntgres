@@ -53,6 +53,11 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		if ref.Address.ClassID != ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.owner != view.owner || view.state.descriptors[consumer.Address()] != consumer {
 			return false
 		}
+		if target.builtin != nil {
+			// Only the genuine immutable release declaration can bridge a
+			// retained TEMP recipe; ACL authority is recaptured separately.
+			return pgDependPinned(view, ref.Address) && (extensionCatalogProvider{ProcedureClassID}).Validate(view, target) == nil
+		}
 		ns, ok := view.state.descriptors[target.namespace].(*namespaceDescriptor)
 		return ok && ns.temporary == namespace.temporary && (extensionCatalogProvider{ProcedureClassID}).Validate(view, target) == nil
 	}
@@ -107,7 +112,16 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 		after, afterErr := actual.usage()
 		return beforeErr == nil && afterErr == nil && before == after
 	case *procedureDescriptor:
-		return target == captured
+		old, ok := captured.(*procedureDescriptor)
+		// An old-epoch intagg occurrence bridges replacement only through the
+		// exact descriptor captured by this retained TEMP consumer. Ordinary
+		// current-epoch COW declarations take the path above, not this bridge.
+		if ok && (old.intagg != nil || actual.intagg != nil) && actual != old {
+			return false
+		}
+		return ok && old.address == address && old.revision != 0 &&
+			old.owner.ID() != 0 && old.owner == catalog.owner.authorizationDomain.Principal(old.owner.ID()) &&
+			sameRoutineDeclaration(actual, old)
 	}
 	return false
 }

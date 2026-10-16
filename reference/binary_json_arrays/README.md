@@ -216,6 +216,10 @@ same-held success/empty/error/recovery. Persistent views retain full member
 types after source-column and owning-table rowtype renames/move. Held rename
 checks retain the same rowtype OID; standalone composite ADD ATTRIBUTE remains
 an independent shared phase. No standalone type-name rename/move DDL is added.
+The five existing providers also retain their exact released routine identities
+and current invoker EXECUTE through retained/stored consumers; see
+[object-grant authority tests](../object_grants/README.md#testing). JSONB populate
+uses two IN formals, unlike legacy JSON's defaulted BOOLEAN third formal.
 The retained native phase uses actual Dump bytes, same/fresh Restore,
 deterministic redump, old cursor metadata and actual emitted SQL replay on
 PostgreSQL. Cancellation uses

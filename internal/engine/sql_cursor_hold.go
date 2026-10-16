@@ -37,7 +37,15 @@ func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start tim
 	owner.mu.Lock()
 	scope.attachTransactionLocked()
 	owner.mu.Unlock()
-	defer func() { scope.finished = true }()
+	defer func() {
+		scope.routineAuth = AuthorizationView{}
+		scope.routineDependencies = nil
+		scope.routinePrograms = nil
+		scope.domainPreparedChecks = nil
+		scope.partitionPrograms = nil
+		scope.domainEvaluation = nil
+		scope.finished = true
+	}()
 	return scope.materializeHeldCursors()
 }
 
@@ -74,9 +82,10 @@ func (s *StatementScope) materializeHeldCursors() error {
 }
 
 func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
+	// A live portal continues its initialized executor. Current catalog identity
+	// and original lifetimes still fence it; ACL edits do not reinitialize it.
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(s.op)
 	if err == nil {
 		err = s.validateLockedRelation(e)
@@ -87,7 +96,41 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	if err == nil {
 		err = s.captureIdentityLocked(auth)
 	}
-	return err
+	if err == nil {
+		for _, dependency := range c.routineDependencies {
+			switch dependency.ref.Address.ClassID {
+			case ProcedureClassID, TypeClassID:
+				// These are the original callable and typed binding lifetimes.
+			case RelationClassID:
+				original, _ := c.routineAuth.catalog.state.descriptors[dependency.ref.Address].(*relationDescriptor)
+				if original == nil || original.view == nil {
+					// Base source shape/storage is fenced by the existing query
+					// source guards, not unrelated metadata revision equality.
+					continue
+				}
+			default:
+				continue
+			}
+			var descriptor Descriptor
+			descriptor, err = auth.object(dependency.ref)
+			if err != nil {
+				break
+			}
+			if descriptor.Revision() != dependency.revision {
+				err = CatalogConflict{}
+				break
+			}
+		}
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := s.readmitPreparedPrograms(auth); err != nil {
+		return err
+	}
+	evaluation := c.state.evaluation(s.op.Context())
+	return validateQueryJoinExecution(&evaluation, c.root, auth.catalog, 0)
 }
 
 func (c *sqlCursor) openProducer(s *StatementScope) error {
@@ -111,6 +154,8 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	c.admit(s)
 	authority := c.authority
 	defer func() {
+		s.routineAuth = AuthorizationView{}
+		s.routineDependencies = nil
 		authority.scope = nil
 		if err != nil {
 			c.position = cursorFailed

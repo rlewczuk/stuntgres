@@ -75,7 +75,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	rows := pgDatabaseUnitCapture(t, e, catalog)
 	row := rows.anonymous[0]
 	for i, value := range row {
-		wantNull := i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14 && i <= 16
+		wantNull := i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14 && i <= 17
 		if value.Type() != d.columns[i].Usage.Type || value.IsNull() != wantNull {
 			t.Fatal("concrete carrier/knownness", i, value)
 		}
@@ -97,12 +97,8 @@ func TestPGDatabaseCapture(t *testing.T) {
 	if got, err := row[7].Boolean(); err != nil || got {
 		t.Fatal("login events", got, err)
 	}
-	if row[17].ArrayLen() != 1 {
-		t.Fatal("stored ACL", row[17])
-	}
-	authority, grantee, grantor, mask, options, err := row[17].ArrayElement(0).ACLItem()
-	if err != nil || authority != &e.aclAuthority || grantee != 10 || grantor != 10 || mask != 512 || options != 512 {
-		t.Fatal("stored owner CREATE ACL", grantee, grantor, mask, options, err)
+	if !row[17].IsNull() || database.acl.Explicit || len(database.acl.Entries) != 0 {
+		t.Fatal("absent database ACL baseline", row[17], database.acl)
 	}
 	unchanged := func() {
 		if e.state != state || e.nextOID != oid || e.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
@@ -191,12 +187,14 @@ func TestPGDatabasePublication(t *testing.T) {
 		if id, err := row[2].OID(); err != nil || id != owner {
 			t.Fatal("captured owner", id, owner, err)
 		}
-		_, grantee, grantor, mask, options, err := row[17].ArrayElement(0).ACLItem()
-		wantGrantee, wantOptions := owner, uint32(512)
-		if public {
-			wantGrantee, wantOptions = 0, 0
+		if !public {
+			if !row[17].IsNull() {
+				t.Fatal("retained baseline ACL is not NULL", row[17])
+			}
+			return
 		}
-		if err != nil || grantee != wantGrantee || grantor != owner || mask != 512 || options != wantOptions {
+		_, grantee, grantor, mask, options, err := row[17].ArrayElement(0).ACLItem()
+		if err != nil || grantee != 0 || grantor != owner || mask != 512 || options != 0 {
 			t.Fatal("captured ACL", grantee, grantor, mask, options, err)
 		}
 	}

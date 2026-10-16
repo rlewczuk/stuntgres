@@ -10,7 +10,7 @@ type aggregateNode struct {
 	querySchema
 	child          LogicalNode
 	keys           []BoundExpr
-	grouping       []sqltype.Grouping
+	grouping       []queryGrouping
 	calls          []aggregateCall
 	sets           [][]int // Canonical key IDs; each occurrence has isolated state.
 	groupingActive bool
@@ -39,7 +39,7 @@ type aggregateDistinctState struct {
 	tuples  []sqltype.Value
 }
 
-func (s *aggregateDistinctState) admit(ctx context.Context, grouping []sqltype.Grouping, tuple []sqltype.Value) (bool, error) {
+func (s *aggregateDistinctState) admit(ctx context.Context, grouping []queryGrouping, tuple []sqltype.Value) (bool, error) {
 	hash := uint64(14695981039346656037)
 	for i, family := range grouping {
 		value, err := family.PrepareKey(ctx, tuple[i])
@@ -385,7 +385,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	return indexedStage{source: source, schema: n.Schema()}, nil
 }
 
-func findQueryGroup(ctx context.Context, grouping []sqltype.Grouping, keys []sqltype.Value, active []int, groups []queryGroup, candidates []int) (int, error) {
+func findQueryGroup(ctx context.Context, grouping []queryGrouping, keys []sqltype.Value, active []int, groups []queryGroup, candidates []int) (int, error) {
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return -1, err

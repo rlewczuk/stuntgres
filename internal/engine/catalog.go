@@ -53,6 +53,8 @@ const (
 	CollationClassID      OID = 3456
 	ConversionClassID     OID = 2607
 	PolicyClassID         OID = 3256
+	ParameterClassID      OID = 6243
+	TablespaceClassID     OID = 1213
 	PGCatalogNamespaceOID OID = 11
 	PGToastNamespaceOID   OID = 99
 	PublicNamespaceOID    OID = 2200
@@ -75,6 +77,8 @@ const (
 	ForeignWrapperObject
 	ForeignServerObject
 	ForeignMappingObject
+	ParameterObject
+	TablespaceObject
 )
 
 type Descriptor interface {
@@ -859,7 +863,7 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 			return err
 		}
 	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
-		if procedure, ok := d.(*procedureDescriptor); ok && procedure.conversion.Name() != "" {
+		if procedure, ok := d.(*procedureDescriptor); ok && procedure.seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 		objectProvider := provider.owner.providers[ref.Address.ClassID]
@@ -869,6 +873,12 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 		if err := objectProvider.Validate(provider.base, d); err != nil {
 			return err
 		}
+	case *parameterDescriptor:
+		if err := (parameterProvider{}).Validate(provider.base, d); err != nil {
+			return err
+		}
+	case *tablespaceDescriptor:
+		return sqlError("2BP01", "cannot drop tablespace "+dependencyIdentifier(d.Name())+" because it is required by the database system")
 	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")
 	}

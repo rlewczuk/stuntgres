@@ -132,5 +132,10 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
 		b.queryHasTargetSet = true
 	}
-	return subscriptsExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), args: args}, nil
+	formal := [3]sqltype.ID{sqltype.ID(2277), sqltype.Int4, sqltype.Bool}
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), subscriptRoutineProvider, "generate_subscripts", formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	return subscriptsExpression{expressionInfo: info, args: args}, nil
 }

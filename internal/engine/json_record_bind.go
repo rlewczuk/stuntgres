@@ -132,7 +132,21 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 	}
 	properties.DomainDependent = properties.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
 	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || sqltype.ContainsDomainChecks(usage.Type)
-	return functions.NewJSONRecord[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, baseIndex, args)
+	info := b.info(usage, raw.Pos, properties)
+	record, err := functions.NewJSONRecord[BoundExpr, *EvalContext](functionInfo(info), name, baseIndex, args)
+	if err != nil {
+		return nil, err
+	}
+	if populate {
+		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, 2283, sqltype.JSON, sqltype.Bool)
+	} else {
+		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, sqltype.JSON)
+	}
+	if err != nil {
+		return nil, err
+	}
+	record.Info = functionInfo(info)
+	return record, nil
 }
 
 // Completion follows ordinary call/signature/SRF analysis, but precedes source

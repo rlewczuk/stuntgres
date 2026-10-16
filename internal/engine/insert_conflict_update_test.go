@@ -95,7 +95,11 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if err != nil {
 			return binding{}, err
 		}
-		return e.describe(op.Context(), statements[0], auth, b.ref, scope.input, op, nil, nil)
+		bound, err := e.describe(op.Context(), statements[0], auth, b.ref, scope.input, op, nil, nil)
+		if err == nil {
+			scope.routineAuth, scope.routineDependencies = auth, bound.dependencies
+		}
+		return bound, err
 	}
 	parameters, err := analyze("INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=$1 WHERE $2")
 	if err != nil || parameters.parameters.Count != 2 || parameters.parameters.Types[0].Type.ID() != sqltype.Int4 || parameters.parameters.Types[1].Type.ID() != sqltype.Bool {

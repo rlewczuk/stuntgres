@@ -53,6 +53,8 @@ type sqlCursor struct {
 	locks                                       *queryLockContext
 	catalog                                     CatalogRead
 	roles                                       authorization.Read
+	routineDependencies                         []expressionDependency // Original immutable binding lifetimes, not permissions.
+	routineAuth                                 AuthorizationView      // DECLARE's initialized executor, not cached permission results.
 	deparseAuth                                 AuthorizationView
 	deparsePath                                 []ObjectAddress
 	collationPath                               []ObjectAddress
@@ -97,6 +99,8 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.deparsePath, c.visibilityRelationPath, c.visibilityOtherPath = nil, nil, nil
 	c.collationPath = nil
 	c.visibilityCatalog = CatalogRead{}
+	c.routineDependencies = nil
+	c.routineAuth = AuthorizationView{}
 	if c.authority != nil {
 		c.authority.scope = nil
 		c.authority.expression = nil
@@ -168,6 +172,8 @@ func forwardSQLCursorError() error {
 func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root LogicalNode, source *querySource, parameters []sqltype.Value) (Result, error) {
 	keep := false
 	defer func() {
+		s.routineAuth = AuthorizationView{}
+		s.routineDependencies = nil
 		s.authority.scope = nil
 		if !keep {
 			source.close()
@@ -191,6 +197,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	}
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.epoch, hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
+		routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, collationPath: s.collationPath, visibilityCatalog: s.visibilityCatalog,
 		visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
 	c.statement, c.created = declaration.Source, created
@@ -236,11 +243,13 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	return Result{}, nil
 }
 
-// Only data is restored. The operation, ticket, owner, command and write roots
-// always belong to the freshly admitted FETCH.
+// The operation, ticket, owner, command and write roots belong to the freshly
+// admitted FETCH; the initialized producer retains DECLARE's routine authority.
 func (c *sqlCursor) admit(s *StatementScope) {
 	s.querySources, s.queryLocks = c.leaves, c.locks
 	s.commentCatalog, s.commentRoles = c.catalog, c.roles
+	s.routineDependencies = c.routineDependencies
+	s.routineAuth = c.routineAuth
 	s.deparseAuth, s.deparsePath = c.deparseAuth, c.deparsePath
 	s.collationPath = c.collationPath
 	s.deparseAuth.session, s.deparseAuth.settings = s.op.session, s.op.session.settings
@@ -299,6 +308,8 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	// Live movement restrictions use the effective direction in the shared owner.
 	c.admit(s)
 	defer func() {
+		s.routineAuth = AuthorizationView{}
+		s.routineDependencies = nil
 		if err != nil {
 			c.position = cursorFailed
 			_ = c.dispose(s.op.Context())

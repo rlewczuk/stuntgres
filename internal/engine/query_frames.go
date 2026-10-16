@@ -109,6 +109,11 @@ func (s *queryState) evaluation(ctx context.Context) EvalContext {
 	if s.source != nil && s.source.view != nil {
 		evaluation.catalog = s.source.view.Catalog()
 	}
+	if s.source != nil && s.source.routineRecipe != nil {
+		recipe := s.source.routineRecipe
+		evaluation.routineRecipe = true
+		evaluation.routineChecks, evaluation.routineConsumer = recipe.view.dependencies, recipe
+	}
 	evaluation.setContext(ctx)
 	return evaluation
 }

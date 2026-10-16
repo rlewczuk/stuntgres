@@ -1,6 +1,10 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"fmt"
+
+	"stuntgres/internal/sqltype"
+)
 
 func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress, typesOnly bool) error {
 	view := CatalogRead{owner: e, state: next}
@@ -156,6 +160,13 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ObjectA
 				c.dependencies = append([]expressionDependency(nil), c.dependencies...)
 				for j := range c.dependencies {
 					c.dependencies[j].ref = ref(c.dependencies[j].ref)
+					if c.dependencies[j].ref.Address.ClassID == ProcedureClassID {
+						provider, exists := view.Descriptor(c.dependencies[j].ref.Address)
+						if !exists {
+							return fmt.Errorf("stuntgres: missing reconstructed CHECK routine")
+						}
+						c.dependencies[j].revision = provider.Revision()
+					}
 				}
 			}
 			if err := refreshGenerationChecks(&copy, view); err != nil {

@@ -106,6 +106,12 @@ func (b *expressionBinder) bindRegexpCall(raw parser.FunctionExpr, visible bool)
 	if err == nil && call.Plan.ReturnsSet() {
 		err = b.regexpPlacement(call)
 	}
+	if err == nil {
+		info, err = b.builtinRoutineInfo(info, regexpRoutineProvider, name, types[:len(operands)]...)
+		if err == nil {
+			call.Info = functionInfo(info)
+		}
+	}
 	return call, err
 }
 func regexpSQL(call functions.RegexpCall[BoundExpr, *EvalContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {

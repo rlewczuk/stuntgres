@@ -41,7 +41,16 @@ func (b *expressionBinder) bindPosix(raw parser.OperatorExpr) (BoundExpr, error)
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	return functions.NewPosix[BoundExpr, *EvalContext](functionInfo(info), l, r, op, namespace, collation.usage.Collation, collation.collationConflict)
+	node, err := functions.NewPosix[BoundExpr, *EvalContext](functionInfo(info), l, r, op, namespace, collation.usage.Collation, collation.collationConflict)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinOperatorRoutineInfo(info, op, l.ResultUsage().Type.BaseType().ID(), sqltype.Text)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }
 
 func (b *expressionBinder) bindPosixSubstring(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
@@ -51,6 +60,10 @@ func (b *expressionBinder) bindPosixSubstring(raw parser.FunctionExpr, operands 
 		return nil, err
 	}
 	info, err := b.collatedInfo(b.info(text, raw.Pos, likeProperties(args[0], args[1])), args[:]...)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinRoutineInfo(info, stringRoutineProvider, raw.Name.Parts[len(raw.Name.Parts)-1].Text, sqltype.Text, sqltype.Text)
 	if err != nil {
 		return nil, err
 	}

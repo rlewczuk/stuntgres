@@ -111,8 +111,9 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 					}
 				}
 			}
+			var preparation indexExecutionPreparation
 			for i, row := range stores[f.parent.address].versions {
-				matched, err := indexPredicateMatches(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, p, row.values)
+				matched, err := preparation.predicateMatches(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.sqlIndex, row.values, nil, nil)
 				if err != nil || matched != (i == 0 || i == 3 || i == 4) {
 					t.Error("reowned predicate changed TRUE/FALSE/NULL membership", i, matched, err)
 				}

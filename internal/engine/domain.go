@@ -60,12 +60,10 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if base.Type.IsUserDefined() || base.Type.IsArray() && base.Type.Element().IsDomain() {
-		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}}
-		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
-		if err = auth.CanUse(ref); err != nil {
-			return err
-		}
+	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}}
+	stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+	if err = auth.CanUse(ref); err != nil {
+		return err
 	}
 	oid, err := e.allocateOIDLocked()
 	if err != nil {

@@ -135,6 +135,11 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 		// Stored defaults do not enter call-site prepared literal reanalysis.
 		b.sequenceConstants = nil
 	}
+	formal := [3]sqltype.ID{sqltype.Regclass, sqltype.Int8, sqltype.Bool}
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int8).Usage(), r.SourcePosition(), properties), sequenceRoutineProvider, name, formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
 	for _, arg := range args {
 		if literal, ok := arg.(literalExpression); ok && literal.value.IsNull() {
 			// PostgreSQL simplifies these four strict builtins with a known NULL
@@ -144,7 +149,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 			return literalExpression{b.info(typ.Usage(), r.SourcePosition(), ExprProperties{}), sqltype.Null(typ)}, nil
 		}
 	}
-	return sequenceCallExpression{expressionInfo: b.info(b.typ(sqltype.Int8).Usage(), r.SourcePosition(), properties), name: name, args: args, ref: ref, temporary: temporary}, nil
+	return sequenceCallExpression{expressionInfo: info, name: name, args: args, ref: ref, temporary: temporary}, nil
 }
 func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, error) {
 	if err := qualifiedCastChild(raw); err != nil {

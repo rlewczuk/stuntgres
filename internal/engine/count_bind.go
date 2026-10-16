@@ -49,6 +49,15 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	if len(args) == 1 {
 		call.argument = args[0]
 	}
+	var formal [1]sqltype.ID
+	count := 0
+	if !raw.Star {
+		formal[0], count = sqltype.ID(2276), 1
+	}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, "count", formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
 	result, err := b.finishAggregate(raw, call, filter, b.info(call.provider.ResultUsage(), raw.Pos, ExprProperties{}))
 	if err != nil {
 		return nil, err

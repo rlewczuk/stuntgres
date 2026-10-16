@@ -143,8 +143,13 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 }
 
 func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
-	if c.preparedDomainChecks == nil && c.liveScope() != nil {
-		c.preparedDomainChecks = c.liveScope().domainPreparedChecks
+	scope := c.liveScope()
+	if scope != nil {
+		// The live scope is the sole programme owner. Always borrow its map:
+		// a retained evaluator may outlive FETCH, and held-cursor precommit
+		// can use a different scope with the same transaction/command pair.
+		c.preparedDomainChecks = scope.domainPreparedChecks
+		c.domainPhase = domainCheckIdentity{transaction: scope.txRef, command: scope.command}
 	}
 	if base := d.typ.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
 		parent, ok := c.domainCatalog().state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.ID())}].(*typeDescriptor)
@@ -158,32 +163,64 @@ func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
 	if len(d.domainChecks) == 0 {
 		return nil
 	}
-	if _, exists := c.preparedDomainChecks[d]; exists {
-		return nil
+	var auth AuthorizationView
+	if c.routineAuthority != nil {
+		auth = *c.routineAuthority
+	} else if scope != nil {
+		auth = scope.routineAuth
 	}
-	var expressions []BoundExpr
-	for i, check := range d.domainChecks {
-		node, changed, err := preflightCoercionsWithPolicy(c, check.expression, true)
-		if err != nil {
+	// Only the existing trusted RI phase establishes owner provenance. A
+	// borrowed local capture for input/view admission is still an invoker phase.
+	ri := scope != nil && scope.foreignActionAuth != nil &&
+		scope.foreignActionAuth.state.CurrentUser == auth.state.CurrentUser
+	programme, exists := c.preparedDomainChecks[d]
+	for _, phase := range programme.phases {
+		if phase.number == c.domainPhase && phase.actor == auth.state.CurrentUser && phase.ri == ri {
+			return nil // Same initialized programme phase; never a per-row ACL lookup.
+		}
+	}
+	phase := domainCheckPhase{number: c.domainPhase, actor: auth.state.CurrentUser, ri: ri}
+	if exists {
+		if err := phase.admission.initializePhase(&programme.phases[0].admission, auth); err != nil {
 			return err
 		}
-		if changed {
-			if expressions == nil {
-				expressions = make([]BoundExpr, len(d.domainChecks))
-				for j := range d.domainChecks {
-					expressions[j] = d.domainChecks[j].expression
-				}
+	} else {
+		for i, check := range d.domainChecks {
+			checkEvaluation := *c
+			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
+			checkEvaluation.routineChecks = check.dependencies
+			checkEvaluation.routineReferences, checkEvaluation.routineConsumer = nil, nil
+			checkEvaluation.routineProgram = &phase.admission
+			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, check.expression, true)
+			c.preparedDomainChecks = checkEvaluation.preparedDomainChecks
+			if err != nil {
+				return err
 			}
-			expressions[i] = node
+			if err := validateExpressionJoinExecution(&checkEvaluation, node, checkEvaluation.domainCatalog()); err != nil {
+				return err
+			}
+			if changed {
+				if programme.expressions == nil {
+					programme.expressions = make([]BoundExpr, len(d.domainChecks))
+					for j := range d.domainChecks {
+						programme.expressions[j] = d.domainChecks[j].expression
+					}
+				}
+				programme.expressions[i] = node
+			}
 		}
 	}
+	if c.routineProgram != nil && scope == nil {
+		c.routineProgram.include(&phase.admission)
+	}
+	programme.phases = append(programme.phases, phase)
 	if c.preparedDomainChecks == nil {
-		c.preparedDomainChecks = make(map[*typeDescriptor][]BoundExpr)
-		if scope := c.liveScope(); scope != nil {
-			scope.domainPreparedChecks = c.preparedDomainChecks
-		}
+		c.preparedDomainChecks = make(map[*typeDescriptor]domainCheckProgram)
 	}
-	c.preparedDomainChecks[d] = expressions
+	c.preparedDomainChecks[d] = programme
+	if scope != nil {
+		scope.domainPreparedChecks = c.preparedDomainChecks
+	}
 	return nil
 }
 
@@ -216,8 +253,18 @@ func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDesc
 		return err
 	}
 	c.domainValue, c.domainFrameUsage, c.domainValueActive = value, base, true
-	expressions := c.preparedDomainChecks[d]
+	expressions := c.preparedDomainChecks[d].expressions
+	oldRecipe, oldGraft := c.routineRecipe, c.routineGraft
+	oldChecks, oldReferences, oldConsumer := c.routineChecks, c.routineReferences, c.routineConsumer
+	defer func() {
+		c.routineRecipe, c.routineGraft = oldRecipe, oldGraft
+		c.routineChecks, c.routineReferences, c.routineConsumer = oldChecks, oldReferences, oldConsumer
+	}()
 	for i, check := range d.domainChecks {
+		// Preserve the original CHECK recipe for lazily demanded bodies,
+		// without changing the phase's actual invoker/RI authority.
+		c.routineRecipe, c.routineGraft = true, false
+		c.routineChecks, c.routineReferences, c.routineConsumer = check.dependencies, nil, nil
 		node := check.expression
 		if expressions != nil {
 			node = expressions[i]

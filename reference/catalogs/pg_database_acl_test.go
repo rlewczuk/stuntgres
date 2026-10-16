@@ -67,24 +67,15 @@ func TestReferencePGDatabaseACL(t *testing.T) {
 		ownerQuery := "SELECT datdba=(SELECT oid FROM pg_roles WHERE rolname='pgdb18_acl_owner') AS successor,datname=current_database() AS same_database FROM pg_database WHERE datname=current_database()"
 		ownerHeld := fixture.ViewHold(t, p, b, ownerQuery)
 		pgDatabaseCheck(t, p, b, ownerHeld, fixture.Select(ownerQuery, []string{"successor", "same_database"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}))
-		base := any("{postgres=C*/postgres}")
-		if b.PG {
-			base = nil
-		}
+		var base any
 		check := func(db fixture.Executor, acl any) {
 			pgDatabaseCheck(t, p, b, db, fixture.Select(q, []string{"datacl"}, []string{"_ACLITEM"}, [][]any{{acl}}))
 		}
 		check(owner, base)
 		check(held, base)
 		who := pgTableViewsOwner(b)
-		ownerEntry := who + "=C*/" + who
-		if b.PG {
-			ownerEntry = who + "=CTc/" + who
-		}
-		prefix := "{" + ownerEntry
-		if b.PG {
-			prefix = "{=Tc/" + who + "," + ownerEntry
-		}
+		ownerEntry := who + "=CTc/" + who
+		prefix := "{=Tc/" + who + "," + ownerEntry
 		granted := prefix + ",pgdb18_acl_reader=C/" + who + "}"
 		option := prefix + ",pgdb18_acl_reader=C*/" + who + "}"
 		materialized := prefix + "}"
@@ -99,10 +90,7 @@ func TestReferencePGDatabaseACL(t *testing.T) {
 		pgClassExec(t, p, b, owner, revoke)
 		check(held, materialized)
 		pgClassExec(t, p, b, owner, "GRANT CREATE ON DATABASE "+database+" TO PUBLIC")
-		publicACL := "{" + ownerEntry + ",=C/" + who + "}"
-		if b.PG {
-			publicACL = "{=CTc/" + who + "," + ownerEntry + "}"
-		}
+		publicACL := "{=CTc/" + who + "," + ownerEntry + "}"
 		check(held, publicACL)
 		pgClassExec(t, p, b, owner, "REVOKE CREATE ON DATABASE "+database+" FROM PUBLIC")
 		check(held, materialized)

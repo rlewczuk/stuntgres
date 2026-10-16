@@ -81,7 +81,18 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
 	result := sqltype.RangeInspectResult(operation, selected).Usage()
-	return functions.NewRangeInspect[BoundExpr, *EvalContext](functionInfo(b.info(result, raw.Pos, properties)), operation, args)
+	formalType := sqltype.ID(3831) // Released ANYRANGE formal.
+	switch selected.ID() {
+	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
+		formalType = 4537 // Released ANYMULTIRANGE formal.
+	}
+	var formal [2]sqltype.ID
+	formal[0], formal[1] = formalType, formalType
+	info, err := b.builtinRoutineInfo(b.info(result, raw.Pos, properties), rangeRoutineProvider, name, formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	return functions.NewRangeInspect[BoundExpr, *EvalContext](functionInfo(info), operation, args)
 }
 
 // The selected text/range overloads share diagnostic ordering, not coercion

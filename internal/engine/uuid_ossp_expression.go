@@ -77,12 +77,14 @@ func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (Bound
 	case raw.Window != nil:
 		return nil, expressionError("42809", "OVER specified, but "+objectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
 	}
-	call, err := functions.NewUUIDGeneration[BoundExpr, *EvalContext](functionInfo(b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, ExprProperties{Volatility: Volatile})), "uuidv4", nil, nil)
+	info := b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, ExprProperties{Volatility: Volatile})
+	info.routineReference = proc
+	call, err := functions.NewUUIDGeneration[BoundExpr, *EvalContext](functionInfo(info), "uuidv4", nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	ref := ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: proc.address}
-	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
+	b.dependency(ref, proc.revision)
 	return installedUUIDOsspFunctionExpression{UUIDGeneration: call, procedure: proc, ref: ref}, nil
 }
 
@@ -91,7 +93,7 @@ func (n installedUUIDOsspFunctionExpression) validShape() bool {
 	// Group rewriting adds execution-stage dependence to a valid leaf.
 	// DEFAULT closure separately rejects that dependence before shape checks.
 	properties.StageDependent = false
-	return n.procedure != nil && n.procedure.uuidOssp == stockUUIDOssp && n.ref.Address == n.procedure.address && n.ref.Epoch != 0 && n.Name == "uuidv4" && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (ExprProperties{Volatility: Volatile})
+	return n.procedure != nil && n.RoutineReference == n.procedure && n.procedure.uuidOssp == stockUUIDOssp && n.ref.Address == n.procedure.address && n.ref.Epoch != 0 && n.Name == "uuidv4" && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (ExprProperties{Volatility: Volatile})
 }
 
 func (n installedUUIDOsspFunctionExpression) validate(v CatalogRead) error {

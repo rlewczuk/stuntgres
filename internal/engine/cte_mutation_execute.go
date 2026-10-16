@@ -43,6 +43,9 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 // Prepare the complete auxiliary/primary tree without executing any command.
 // Enter held; all outcomes release Engine.mu.
 func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation EvalContext, creationStage *CatalogStage, creationDescriptor *relationDescriptor, prepared *preparedCTEProgram) (Result, error) {
+	if scope.ruleActionAuth == nil {
+		scope.routineAuth = auth
+	}
 	if len(b.ctes) == 0 {
 		if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared.main); err != nil {
 			return Result{}, err

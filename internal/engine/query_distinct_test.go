@@ -85,7 +85,7 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 				}
 				usage := text.Usage()
 				node.querySchema[0].Usage = usage
-				node.grouping[0], _ = sqltype.BindGrouping(usage)
+				node.grouping[0].Grouping, _ = sqltype.BindGrouping(usage)
 				armed := &aggregateCancelContext{Context: ctx, at: 4}
 				evaluationContext = armed
 				node.expressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {

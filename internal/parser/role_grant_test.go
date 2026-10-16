@@ -27,6 +27,66 @@ func TestObjectGrantGrammar(t *testing.T) {
 	}
 }
 
+func TestObjectGrantRoutineSignatureGrammar(t *testing.T) {
+	for _, test := range []struct {
+		input, mode, name, typ string
+		bounds                 []int32
+		quoted                 bool
+	}{
+		{input: "INTEGER", typ: "integer"},
+		{input: "DOUBLE PRECISION", typ: "double precision"},
+		{input: "CHARACTER VARYING(5)", typ: "character varying"},
+		{input: "CHAR VARYING(5)", typ: "character varying"},
+		{input: "BIT VARYING(5)", typ: "bit varying"},
+		{input: "IN value INTEGER", mode: "in", name: "value", typ: "integer"},
+		{input: "value IN DOUBLE PRECISION", mode: "in", name: "value", typ: "double precision"},
+		{input: "OUT value TEXT", mode: "out", name: "value", typ: "text"},
+		{input: "INOUT value INTEGER[]", mode: "inout", name: "value", typ: "integer", bounds: []int32{0}},
+		{input: "IN OUT value INTEGER ARRAY[4][]", mode: "inout", name: "value", typ: "integer", bounds: []int32{4, 0}},
+		{input: `VARIADIC "out" INTEGER[]`, mode: "variadic", name: "out", typ: "integer", bounds: []int32{0}},
+		{input: `"Arg" "Mixed"[]`, name: "Arg", typ: "Mixed", bounds: []int32{0}, quoted: true},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			statements, err := Parse(`GRANT EXECUTE ON FUNCTION pg_catalog.f(` + test.input + `) TO reader`)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(statements, err)
+			}
+			target := statements[0].(*ObjectGrant).Routines[0]
+			if !target.SignatureSpecified || len(target.Arguments) != 1 {
+				t.Fatal(target)
+			}
+			arg := target.Arguments[0]
+			if arg.Mode != test.mode || arg.Name.Text != test.name || arg.Type.Name != test.typ || arg.Type.Quoted != test.quoted || len(arg.Type.ArrayBounds) != len(test.bounds) {
+				t.Fatal(arg)
+			}
+			for i, bound := range test.bounds {
+				if arg.Type.ArrayBounds[i] != bound {
+					t.Fatal(arg)
+				}
+			}
+		})
+	}
+	statements, err := Parse(`GRANT EXECUTE ON ROUTINE f,g(),s.h(IN x s."Mixed"[]) TO reader`)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	targets := statements[0].(*ObjectGrant).Routines
+	if len(targets) != 3 || targets[0].SignatureSpecified || !targets[1].SignatureSpecified || len(targets[1].Arguments) != 0 || targets[2].Arguments[0].Type.Schema.Text != "s" || targets[2].Arguments[0].Type.Name != "Mixed" || !targets[2].Arguments[0].Type.Quoted {
+		t.Fatal(targets)
+	}
+	for _, query := range []string{
+		`GRANT EXECUTE ON FUNCTION f(IN) TO reader`,
+		`GRANT EXECUTE ON FUNCTION f(OUT OUT INTEGER) TO reader`,
+		`GRANT EXECUTE ON FUNCTION f(IN x INTEGER,) TO reader`,
+		`GRANT EXECUTE ON FUNCTION f(foo WITH) TO reader`,
+		`GRANT EXECUTE ON FUNCTION f(IN x INTEGER) TO reader; SELECT )`,
+	} {
+		if statements, err := Parse(query); err == nil || statements != nil {
+			t.Fatal("accepted malformed whole signature input", query, statements, err)
+		}
+	}
+}
+
 func TestObjectGrantContextualNamesAndBoundaries(t *testing.T) {
 	for _, query := range []string{
 		`GRANT trigger,truncate,maintain TO options`,

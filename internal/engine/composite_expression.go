@@ -749,7 +749,7 @@ func (b *expressionBinder) bindCompositeBase(raw parser.Expr) (BoundExpr, error)
 	return node, err
 }
 func (b *expressionBinder) demandWholePresence(node BoundExpr) (BoundExpr, error) {
-	next, _, err := mapBoundExpressionReader(b.bindingCatalog(), b.definitionReader(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) { return root, nil }, func(child BoundExpr) (BoundExpr, bool, error) {
+	next, _, err := mapBoundExpressionReader(b.bindingCatalog(), b.definitionReader(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, func(child BoundExpr) (BoundExpr, bool, error) {
 		row, ok := child.(rowExpression)
 		if !ok || row.wholeNames == nil || row.presenceSlot != 0 {
 			return child, false, nil

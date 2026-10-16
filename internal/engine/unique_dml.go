@@ -26,6 +26,8 @@ func (s *StatementScope) uniqueParent(ref ObjectRef) (*relationDescriptor, Catal
 
 type uniqueBoundKey struct {
 	index        *relationDescriptor
+	parent       *relationDescriptor
+	preparation  indexExecutionPreparation
 	ordering     indexOrdering
 	grouping     []sqltype.Grouping
 	key, scratch []sqltype.Value
@@ -65,7 +67,7 @@ retry:
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !index.sqlIndex.live {
 			continue
 		}
-		if index.sqlIndex.ready && index.sqlIndex.hasRuntimeDomainConversion() {
+		if index.sqlIndex.ready && index.sqlIndex.requiresInsertionOutput() {
 			b.checked = true
 			if !index.sqlIndex.unique && !index.sqlIndex.isExclusion() {
 				checkedNonunique = append(checkedNonunique, index)
@@ -116,6 +118,7 @@ retry:
 	for i, index := range indexes {
 		bound := &b.keys[i]
 		bound.index = index
+		bound.parent = parent
 		if index.sqlIndex.isExclusion() {
 			bound.ordering, err = bindExclusionOrdering(parent, index.sqlIndex)
 		} else {
@@ -150,7 +153,7 @@ retry:
 			b.insertion = append(b.insertion, indexInsertionBinding{index: key.index, unique: key})
 		}
 		for _, index := range checkedNonunique {
-			bound := indexInsertionBinding{index: index}
+			bound := indexInsertionBinding{index: index, parent: parent}
 			if index.sqlIndex.method == hashMethod {
 				bound.hash, err = bindHashIndex(parent, index.sqlIndex)
 			} else {
@@ -171,6 +174,9 @@ retry:
 			return 0
 		})
 	}
+	if err := b.inheritConsumedPrograms(s.indexBindings[ref.Address]); err != nil {
+		return nil, err
+	}
 	if b.checked {
 		e := s.op.session.Engine()
 		e.mu.Lock()
@@ -188,6 +194,9 @@ retry:
 		if captureErr != nil {
 			return nil, captureErr
 		}
+		if err := s.readmitPreparedPrograms(auth); err != nil {
+			return nil, err
+		}
 	}
 	s.uniqueBinding = b
 	if b.checked {
@@ -200,16 +209,23 @@ retry:
 }
 
 func (b *uniqueBoundKey) load(row []sqltype.Value, evaluation *EvalContext) ([]sqltype.Value, error) {
-	err := b.ordering.fillKeys(row, b.key, evaluation)
+	err := b.fillKeys(row, b.key, evaluation)
 	return b.key, err
 }
 
+func (b *uniqueBoundKey) fillKeys(row, keys []sqltype.Value, evaluation *EvalContext) error {
+	if err := b.preparation.prepareKeys(evaluation, b.parent, b.index.sqlIndex, &b.ordering, nil); err != nil {
+		return err
+	}
+	return b.ordering.fillKeys(row, keys, evaluation)
+}
+
 func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.Value) (bool, error) {
-	member, err := indexPredicateMatches(evaluation, b.index.sqlIndex.predicate, values)
+	member, err := b.preparation.predicateMatches(evaluation, b.parent, b.index.sqlIndex, values, &b.ordering, nil)
 	if err != nil || !member {
 		return false, err
 	}
-	if err := b.ordering.fillKeys(values, b.scratch, evaluation); err != nil {
+	if err := b.fillKeys(values, b.scratch, evaluation); err != nil {
 		return false, err
 	}
 	cmp, err := b.ordering.compareKeys(evaluation.Context, logicalIndexEntry{keys: key}, logicalIndexEntry{keys: b.scratch})
@@ -492,7 +508,7 @@ retry:
 						return uniqueConflict{}, err
 					}
 					if purpose != indexProbeRevalidation && index.sqlIndex.hasRuntimeDomainKeyConversion() {
-						if err := bound.ordering.fillKeys(head.values, bound.scratch, &evaluation); err != nil {
+						if err := bound.fillKeys(head.values, bound.scratch, &evaluation); err != nil {
 							return uniqueConflict{}, err
 						}
 					}
@@ -510,7 +526,7 @@ retry:
 			}
 			if found {
 				if purpose != indexProbeRevalidation && action != nil && index.sqlIndex.hasRuntimeDomainKeyConversion() {
-					if err := bound.ordering.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
+					if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
 						return uniqueConflict{}, err
 					}
 				}
@@ -534,7 +550,7 @@ retry:
 					}
 					if equal {
 						if purpose != indexProbeRevalidation && action != nil && index.sqlIndex.hasRuntimeDomainKeyConversion() {
-							if err := bound.ordering.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
+							if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
 								return uniqueConflict{}, err
 							}
 						}

@@ -119,7 +119,16 @@ func (b *expressionBinder) bindArrayRandom(raw parser.FunctionExpr) (BoundExpr, 
 		}
 	}
 	e := functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args, Namespace: namespace}
-	return e, e.Validate()
+	if err := e.Validate(); err != nil {
+		return nil, err
+	}
+	formal := [2]sqltype.ID{2277, sqltype.Int4}
+	info, err = b.builtinRoutineInfo(info, arrayRoutineProvider, name, formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
+	return e, nil
 }
 
 func mapArrayRandomChildren(e functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties], bool, error) {

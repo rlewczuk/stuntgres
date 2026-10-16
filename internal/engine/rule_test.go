@@ -215,7 +215,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("rewrite erased runtime domain authority")
 		}
 		properties.ParameterDependent = true
-		mapped, _, err := mapBoundExpression(auth.catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+		mapped, _, err := mapBoundExpression(auth.catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 			copy := expr.(domainValueExpression)
 			copy.properties = properties
 			return copy, true, nil
@@ -250,7 +250,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		identityType := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
 		for _, parent := range []BoundExpr{absolute, format} {
-			mapped, _, err := mapBoundExpression(auth.catalog, parent, identityType, nil, replaceFormal)
+			mapped, _, err := mapBoundExpression(auth.catalog, parent, identityType, nil, nil, replaceFormal)
 			if err != nil || mapped.Properties().Volatility != Volatile || mapped.Properties().RowDependent {
 				t.Fatalf("generic parent lost fresh child demand: %v %v", mapped, err)
 			}
@@ -258,7 +258,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 				t.Fatal("mutated original formal-dependent function")
 			}
 			if _, formatting := mapped.(functions.Format[BoundExpr, *EvalContext, ExprProperties]); formatting {
-				stable, _, err := mapBoundExpression(auth.catalog, mapped, identityType, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+				stable, _, err := mapBoundExpression(auth.catalog, mapped, identityType, nil, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 					if _, random := expr.(functions.Random[BoundExpr, *EvalContext, ExprProperties]); random {
 						return ruleUnitInt(src, 11), true, nil
 					}

@@ -96,6 +96,10 @@ func (b *expressionBinder) bindJSONObjectAggregate(raw parser.AggregateExpr, nam
 	}
 	provider := jsonObjectAggregateProvider{usage: usage, strict: strict, unique: unique}
 	call := aggregateCall{provider: provider, argument: args[0], separator: args[1], operation: operation, includeNulls: true}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, sqltype.ID(2276), sqltype.ID(2276))
+	if err != nil {
+		return nil, err
+	}
 	return b.finishAggregate(raw, call, filter, b.info(usage, raw.Pos, ExprProperties{StageDependent: true}))
 }
 

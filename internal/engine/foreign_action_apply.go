@@ -53,7 +53,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		}
 		plan.input.TypeDiagnosticName = name
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: auth.catalog, Input: plan.input, Output: s.output}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: auth.catalog, Input: plan.input, Output: s.output, routineAuthority: &auth}
 	if plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
@@ -84,8 +84,15 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			if expression == nil {
 				continue
 			}
-			folded, _, err := preflightCoercionsWithPolicy(&evaluation, expression, true)
+			defaultEvaluation := evaluation
+			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
+			defaultEvaluation.routineReferences = job.child.defaults[job.child.attributes[plan.targets[i]]].dependencies
+			defaultEvaluation.routineConsumer = job.child
+			folded, _, err := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
+				return nil, err
+			}
+			if err := validateExpressionJoinExecution(&defaultEvaluation, folded, auth.catalog); err != nil {
 				return nil, err
 			}
 			plan.defaults[i] = folded
@@ -224,7 +231,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if plan != nil {
 		input = plan.input
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: ownerAuth.catalog, Input: input, Output: s.output}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: ownerAuth.catalog, Input: input, Output: s.output, routineAuthority: &ownerAuth}
 	if plan != nil && plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}

@@ -54,6 +54,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	var view *VisibilityView
 	if err == nil {
 		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+		scope.routineAuth, scope.routineDependencies = auth, b.dependencies
 	}
 	if err == nil {
 		err = e.initializeQueryLocksLocked(scope, nil, b.querySources)

@@ -31,6 +31,10 @@ package parser
  jsonOptions JSONAggregateOptions
  sqljson SQLJSONExpr
  types []TypeName
+ grantRoutine GrantRoutineTarget
+ grantRoutines []GrantRoutineTarget
+ grantRoutineArgument GrantRoutineArgument
+ grantRoutineArguments []GrantRoutineArgument
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
@@ -186,6 +190,9 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN TYPE
+%token <tok> FUNCTION PROCEDURE ROUTINE OUT_ARG INOUT_ARG
+%token <tok> PARAMETER
+%token <tok> LANGUAGE LARGE OBJECT DATA WRAPPER
 %token <tok> COPY
 %token <tok> TRUNCATE CONTINUE
 %token <tok> ARRAY
@@ -210,6 +217,7 @@ package parser
 %token <tok> RETURNING
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
+%token <tok> DOUBLE_TYPE PRECISION_TYPE CHARACTER_TYPE BIT_TYPE VARYING_TYPE
 %token <tok> GROUPING SETS ROLLUP CUBE
 %token <tok> MERGE_ACTION
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
@@ -504,6 +512,7 @@ package parser
 %type <tok> operator_symbol
 %type <dropMode> drop_mode
 %type <typ> type temporal_type generic_precision generic_modifier_atom generic_modifiers type_modifier_head date_literal_precision
+%type <typ> declared_type declared_type_base declaration_type_base declaration_invalid_type declared_array_bounds
 %type <tok> bit_modifier_operator bit_modifier_symbol
 %type <typ> interval_type interval_fields interval_second_fields interval_type_qualifier
 %type <constraints> nullability column_constraints domain_constraints domain_column_constraints
@@ -669,6 +678,15 @@ package parser
 %type <objectGrant> grant_targets
 %type <desc> grant_option
 %type <objectNames> grant_relations
+%type <objectNames> grant_simple_names grant_parameter_names
+%type <objectNames> grant_large_objects
+%type <tok> grant_object_number
+%type <grantRoutines> grant_routines
+%type <grantRoutine> grant_routine
+%type <grantRoutineArgument> grant_routine_argument
+%type <grantRoutineArguments> grant_routine_arguments grant_routine_argument_list
+%type <tok> grant_routine_kind grant_routine_mode grant_parameter_name routine_name_word
+%type <tok> grant_external_name_word
 %type <typ> standalone_type
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
 %type <types> prepare_types prepare_type_list
@@ -1168,7 +1186,7 @@ query_table_body: query_select {$$=$1}
  | EXECUTE name '(' call_args ')' {sqllex.(*lexer).deferUnsupported($1,"CREATE TABLE AS EXECUTE is unsupported");$$=nil} ;
 query_table_data: /* empty */ {$$=false} | WITH data_word {$$=false} | WITH NO data_word {$$=true} ;
 refresh_materialized_view: REFRESH MATERIALIZED VIEW maintenance_concurrent relation_name query_table_data {$$=&RefreshMaterializedView{Name:$5,NoData:$6,Concurrent:$4.pos,Pos:$1.pos}} ;
-data_word: name {if $1.text!="data" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+data_word: DATA {$$=$1} ;
 query_table_options: /* empty */
  | query_table_options USING name {sqllex.(*lexer).deferUnsupported($2,"table access methods are unsupported")}
  | query_table_options WITH '(' view_option_list ')' {sqllex.(*lexer).deferUnsupported($2,"table storage parameters are unsupported")}
@@ -1587,7 +1605,7 @@ alter_constraint: ADD table_not_null {$$=&AlterTableAction{Column:$2.Column,Cons
  | alter_constraint NOT nn_modifier {if !sqllex.(*lexer).alterConstraintValidity($1,$2,$3){return 1};$$=$1}
  | alter_constraint NO nn_inherit {if !sqllex.(*lexer).alterConstraintNoInherit($1,$2){return 1};$$=$1} ;
 alter_type_keyword: TYPE { $$=$1 }
- | SET KW_U TYPE { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
+ | SET DATA TYPE { $$=$1 } ;
 column_collation: /* empty */ {$$=nil}
  | COLLATE relation_name {name:=$2;name.Parts[0].Pos=$1.pos;$$=&name} ;
 alter_using: /* empty */ {$$=nil} | USING scalar_projection {$$=$2} ;
@@ -1611,23 +1629,39 @@ drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
  * rather than competing with an unqualified relation literally named if. */
 alter_action: generic_word_without_exists | SET ;
 column: name type column_collation nullability { $$ = &Column{Name:$1.text, TypeName:$2, Collation:$3, Constraints:$4, Pos:$1.pos} } ;
-type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT %prec TYPE_NAME { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
+/* Signatures reuse valid declaration builders, never the broad two-word
+ * column diagnostic guard. Parameter names and generic type names reduce
+ * through the same type_name category, avoiding duplicate name derivations. */
+type: declaration_type_base declared_array_bounds {$$=$1;$$.ArrayBounds=$2.ArrayBounds} ;
+declaration_type_base: declared_type_base {$$=$1}
+ | declaration_invalid_type {$$=$1} ;
+declared_type: declared_type_base declared_array_bounds {$$=$1;$$.ArrayBounds=$2.ArrayBounds} ;
+declared_type_base: INTEGER { $$=TypeName{Name:"integer",Pos:$1.pos} }
+ | BIGINT { $$=TypeName{Name:"bigint",Pos:$1.pos} }
+ | TEXT %prec TYPE_NAME { $$=TypeName{Name:"text",Pos:$1.pos} }
+ | BOOLEAN { $$=TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=inputColumnType(sqllex,$1) }
  | temporal_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode }
  | interval_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode }
  | type_modifier_head generic_modifiers ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Modifiers=$2.Modifiers };sqllex.(*lexer).characterPrecision=false;sqllex.(*lexer).characterGeneric=false;sqllex.(*lexer).bitModifier=false }
- | type_name type_name %prec TYPE_NAME { if $1.keyword!=nil && $2.keyword!=nil && ($1.text=="double" && $2.text=="precision" || ($1.text=="character" || $1.text=="bit") && $2.text=="varying") { $$=TypeName{Name:$1.text+" "+$2.text,Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
- | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
- | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos,Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}} }
- | type '[' ']' { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
- | type '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$3.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) }
- | type ARRAY { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
- | type ARRAY '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$4.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) } ;
+ | DOUBLE_TYPE PRECISION_TYPE {$$=TypeName{Name:"double precision",Pos:$1.pos}}
+ | CHARACTER_TYPE VARYING_TYPE {$$=TypeName{Name:"character varying",Pos:$1.pos}}
+ | BIT_TYPE VARYING_TYPE {$$=TypeName{Name:"bit varying",Pos:$1.pos}}
+ | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos,Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}} } ;
+declaration_invalid_type: type_name type_name %prec TYPE_NAME { if excludedTypeTail($1,$2) {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset)} else {sqllex.(*lexer).syntax($2)};return 1 }
+ | type_name WITH { if excludedTypeTail($1,$2) {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset)} else {sqllex.(*lexer).syntax($2)};return 1 }
+ | type_name type_name '(' {sqllex.(*lexer).syntax($2);return 1} ;
+declared_array_bounds: /* empty */ {$$=TypeName{}}
+ | declared_array_bounds '[' ']' {$$=$1;$$.ArrayBounds=append($$.ArrayBounds,0)}
+ | declared_array_bounds '[' NUMBER ']' {n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$3.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n))}
+ | declared_array_bounds ARRAY {$$=$1;$$.ArrayBounds=append($$.ArrayBounds,0)}
+ | declared_array_bounds ARRAY '[' NUMBER ']' {n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$4.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n))} ;
 /* Descriptor modifiers share raw constant syntax; FLOAT and temporal types retain
  * their distinct unsigned/single precision contracts. */
 type_modifier_head: type_name '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
  | TEXT '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
- | type_name type_name '(' {if $1.keyword==nil || $2.keyword==nil || ($1.text!="character" && $1.text!="bit") || $2.text!="varying" {sqllex.(*lexer).syntax($2);return 1};tok:=$1;tok.text=$1.text+" varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
+ | CHARACTER_TYPE VARYING_TYPE '(' {tok:=$1;tok.text="character varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
+ | BIT_TYPE VARYING_TYPE '(' {tok:=$1;tok.text="bit varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
  | type_name '.' col_label '(' {tok:=$3;tok.raw="\""+$3.text+"\"";tok.keyword=nil;var ok bool;$$,ok=typeModifierHead(sqllex,tok,$4,true);if !ok{return 1};$$.Name=$3.text;$$.Quoted=columnType($3).Quoted;$$.Schema=&Identifier{Text:$1.text,Pos:$1.pos};$$.Pos=$1.pos} ;
 generic_modifiers: generic_precision { $$=$1 }
  | generic_modifiers ',' {if !sqllex.(*lexer).multipleModifiers {sqllex.(*lexer).syntax($2);return 1}} generic_precision {$$=$1;$$.Modifiers=append($$.Modifiers,$4.Modifiers...) } ;
@@ -2497,6 +2531,9 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | collation_name_word
  | OF | NOWAIT | SKIP | LOCKED
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
+ | routine_name_word
+ | grant_external_name_word
+ | OUT_ARG | INOUT_ARG | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | BIT_TYPE | VARYING_TYPE
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE | FILTER | WITHIN
  | membership_keyword
@@ -2529,6 +2566,9 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | SQLJSON_PARSE
  | CONVERSION
  | RECURSIVE
+ | routine_name_word
+ | grant_external_name_word
+ | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | BIT_TYPE | VARYING_TYPE
  | string_word
  | TRUNCATE | CONTINUE
  | COPY
@@ -2557,6 +2597,9 @@ generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH 
  | CONVERSION
  | RECURSIVE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
+ | routine_name_word
+ | grant_external_name_word
+ | OUT_ARG | INOUT_ARG | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | BIT_TYPE | VARYING_TYPE
  | COPY
  | ORDINALITY | LATERAL
  | EXCLUDE
@@ -2684,6 +2727,7 @@ grant_privileges: grant_privilege { $$=[]GrantPrivilege{$1} }
  | grant_privileges ',' grant_privilege { $$=append($1,$3) } ;
 grant_privilege: name grant_columns { $$=GrantPrivilege{Name:$1.text,Pos:$1.pos,Columns:$2,RoleName:true} }
  | grant_privilege_word grant_columns { $$=GrantPrivilege{Name:$1.text,Pos:$1.pos,Columns:$2} }
+ | ALTER SYSTEM grant_columns {$$=GrantPrivilege{Name:"alter system",Pos:$1.pos,Columns:$3}}
  | ALL grant_columns { $$=GrantPrivilege{All:true,Pos:$1.pos,Columns:$2} }
  | ALL name grant_columns { if $2.text!="privileges" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=GrantPrivilege{All:true,Pos:$1.pos,Columns:$3} } ;
 grant_privilege_word: SELECT | CREATE | KW_R | KW_T | REFERENCES ;
@@ -2693,13 +2737,48 @@ grant_column_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | grant_column_list ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 grant_relations: relation_name { $$=[]ObjectName{$1} }
  | grant_relations ',' relation_name { $$=append($1,$3) } ;
+grant_simple_names: name {$$=[]ObjectName{{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}}
+ | grant_simple_names ',' name {$$=append($1,ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}})} ;
+grant_parameter_names: setting_name {$$=[]ObjectName{{Parts:[]Identifier{$1.identifier()}}}}
+ | grant_parameter_names ',' setting_name {$$=append($1,ObjectName{Parts:[]Identifier{$3.identifier()}})} ;
+grant_object_number: NUMBER { $$=$1 }
+ | '+' NUMBER { $$=$2;$$.text="+"+$2.text;$$.pos=$1.pos }
+ | '-' NUMBER { $$=$2;$$.text="-"+$2.text;$$.pos=$1.pos } ;
+grant_large_objects: grant_object_number { $$=[]ObjectName{{Parts:[]Identifier{{$1.text,$1.pos}}}} }
+ | grant_large_objects ',' grant_object_number { $$=append($1,ObjectName{Parts:[]Identifier{{$3.text,$3.pos}}}) } ;
 grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | TABLE grant_relations { $$=&ObjectGrant{Relations:$2} }
  | SEQUENCE grant_relations { $$=&ObjectGrant{Kind:"sequence",Relations:$2} }
- | DATABASE grant_relations { $$=&ObjectGrant{Kind:"database",Relations:$2} }
+ | DATABASE grant_simple_names { $$=&ObjectGrant{Kind:"database",Relations:$2} }
  | FOREIGN FDW_SERVER grant_relations { $$=&ObjectGrant{Kind:"foreign server",Relations:$3} }
  | FOREIGN data_word wrapper_word grant_relations { $$=&ObjectGrant{Kind:"foreign-data wrapper",Relations:$4} }
- | ALL name IN SCHEMA grant_schema_list { if $2.text!="tables" || $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Schemas:$5} } ;
+ | grant_routine_kind grant_routines { $$=&ObjectGrant{Kind:$1.text,Routines:$2} }
+ | SCHEMA grant_relations { $$=&ObjectGrant{Kind:"schema",Relations:$2} }
+ | TYPE grant_relations { $$=&ObjectGrant{Kind:"type",Relations:$2} }
+ | DOMAIN grant_relations { $$=&ObjectGrant{Kind:"domain",Relations:$2} }
+ | TABLESPACE grant_simple_names {$$=&ObjectGrant{Kind:"tablespace",Relations:$2}}
+ | PARAMETER grant_parameter_names {$$=&ObjectGrant{Kind:"parameter",Relations:$2}}
+ | LANGUAGE grant_simple_names { $$=&ObjectGrant{Kind:"language",Relations:$2} }
+ | LARGE OBJECT grant_large_objects { $$=&ObjectGrant{Kind:"large object",Relations:$3} }
+ | ALL name IN SCHEMA grant_schema_list { if $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};kind:="";switch $2.text {case "tables":case "sequences":kind="sequence";case "functions":kind="function";case "procedures":kind="procedure";case "routines":kind="routine";default:sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Kind:kind,Schemas:$5} } ;
+grant_routine_kind: FUNCTION | PROCEDURE | ROUTINE ;
+routine_name_word: FUNCTION | PROCEDURE | ROUTINE | PARAMETER ;
+grant_external_name_word: LANGUAGE | LARGE | OBJECT | DATA | WRAPPER ;
+grant_routines: grant_routine { $$=[]GrantRoutineTarget{$1} }
+ | grant_routines ',' grant_routine { $$=append($1,$3) } ;
+grant_routine: relation_name { $$=GrantRoutineTarget{Name:$1} }
+ | relation_name '(' grant_routine_arguments ')' { $$=GrantRoutineTarget{Name:$1,Arguments:$3,SignatureSpecified:true} } ;
+grant_routine_arguments: /* empty */ { $$=nil }
+ | grant_routine_argument_list { $$=$1 } ;
+grant_routine_argument_list: grant_routine_argument { $$=[]GrantRoutineArgument{$1} }
+ | grant_routine_argument_list ',' grant_routine_argument { $$=append($1,$3) } ;
+grant_routine_mode: IN | OUT_ARG | INOUT_ARG | VARIADIC | IN OUT_ARG { $$=lexeme{text:"inout",pos:$1.pos} } ;
+grant_parameter_name: type_name {if $1.keyword!=nil && !$1.keyword.typeFunctionName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+grant_routine_argument: declared_type { $$=GrantRoutineArgument{Type:$1,Pos:$1.Pos} }
+ | grant_parameter_name declared_type { $$=GrantRoutineArgument{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Pos:$1.pos} }
+ | grant_routine_mode declared_type { $$=GrantRoutineArgument{Mode:$1.text,Type:$2,Pos:$1.pos} }
+ | grant_routine_mode grant_parameter_name declared_type { $$=GrantRoutineArgument{Mode:$1.text,Name:Identifier{Text:$2.text,Pos:$2.pos},Type:$3,Pos:$1.pos} }
+ | grant_parameter_name grant_routine_mode declared_type { $$=GrantRoutineArgument{Mode:$2.text,Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$3,Pos:$1.pos} } ;
 grant_schema_list: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | grant_schema_list ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 grant_grantee: grant_role_spec { $$=$1 } | GROUP grant_role_spec { $$=$2 } ;
@@ -2815,7 +2894,7 @@ reassign_owned: REASSIGN OWNED BY membership_role_specs TO membership_role_spec 
 drop_owned: DROP OWNED BY membership_role_specs drop_mode { $$=&DropOwned{Sources:$4,Mode:$5,Pos:$1.pos} } ;
 
 /* SQL/MED utilities share the positioned relation, type, role and action ASTs. */
-wrapper_word: KW_U {if $1.text!="wrapper" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+wrapper_word: WRAPPER {$$=$1} ;
 foreign_names: name {$$=[]ObjectName{{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}}
  | foreign_names ',' name {$$=append($1,ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}})} ;
 foreign_options: /* empty */ {$$=nil}

@@ -51,5 +51,15 @@ func (b *expressionBinder) bindJSONBPathDelete(raw parser.OperatorExpr) (BoundEx
 		}
 		properties = mergeExpressionProperties(properties, args[i].Properties())
 	}
-	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(targets[0], raw.Pos, properties)), "#-", args, parser.OrdinaryFunctionSyntax)
+	info := b.info(targets[0], raw.Pos, properties)
+	node, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), "#-", args, parser.OrdinaryFunctionSyntax)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinOperatorRoutineInfo(info, "#-", targets[0].Type.ID(), targets[1].Type.ID())
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }

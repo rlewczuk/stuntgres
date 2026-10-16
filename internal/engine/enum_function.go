@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
@@ -58,5 +59,16 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		}
 		result = array.Usage()
 	}
-	return functions.NewEnum[BoundExpr, *EvalContext](functionInfo(b.info(result, raw.Pos, properties)), name, args, b.diagnosticTypeName(selected))
+	info := b.info(result, raw.Pos, properties)
+	node, err := functions.NewEnum[BoundExpr, *EvalContext](functionInfo(info), name, args, b.diagnosticTypeName(selected))
+	if err != nil {
+		return nil, err
+	}
+	formal := [2]sqltype.ID{sqltype.ID(3500), sqltype.ID(3500)}
+	info, err = b.builtinRoutineInfo(info, enumRoutineProvider, name, formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }

@@ -138,6 +138,9 @@ func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps[BoundExp
 			if e.Folded[pair].Type() != nil {
 				continue
 			}
+			if err := admitOverlapsPair(c, e, pair); err != nil {
+				return e, false, err
+			}
 			end, err := e.Plan.DurationEnd(c.Context, pair, start.value, interval.value, c.Input)
 			if err != nil {
 				return e, false, functions.OverlapsErrorContext(err, `SQL function "overlaps" during inlining`)

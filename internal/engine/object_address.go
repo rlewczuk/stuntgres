@@ -169,7 +169,10 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 		}
 		usage = shape.Usage()
 	}
-	n.expressionInfo = b.info(usage, raw.Pos, properties)
+	n.expressionInfo, err = b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), catalogRoutineProvider, op.name(), ids[:]...)
+	if err != nil {
+		return nil, err
+	}
 	return n, nil
 }
 func (n objectAddressExpression) validateStored() error {

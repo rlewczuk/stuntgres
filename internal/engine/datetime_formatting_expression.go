@@ -95,6 +95,10 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		return nil, err
 	}
 	plan = plan.WithCollationConflict(collated.collationConflict)
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, selection.Source, sqltype.Text)
+	if err != nil {
+		return nil, err
+	}
 	return functions.DatetimeFormatting[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: args}, nil
 }
 func datetimeFormattingTypeName(d *sqltype.Descriptor) string {

@@ -8,7 +8,7 @@ import (
 )
 
 // Identities are analysis targets, not structural expression cache identities.
-func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, projection []BoundExpr, names []string) ([]sortKey, []sqltype.Grouping, error) {
+func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, projection []BoundExpr, names []string) ([]sortKey, []queryGrouping, error) {
 	for i := range order {
 		if err := bindOnOrdering(&order[i]); err != nil {
 			return nil, nil, err
@@ -76,7 +76,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 			}
 		}
 	}
-	families := make([]sqltype.Grouping, len(on))
+	families := make([]queryGrouping, len(on))
 	for i, k := range on {
 		families[i], err = b.bindDistinctGrouping(k.expression)
 		if err != nil {
@@ -107,7 +107,7 @@ func bindOnOrdering(key *sortKey) error {
 	return err
 }
 
-func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKey, families []sqltype.Grouping, projection []BoundExpr) (LogicalNode, error) {
+func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKey, families []queryGrouping, projection []BoundExpr) (LogicalNode, error) {
 	// Deduplicate only resolved ORDER targets. Keep raw entries for capture.
 	effective := make([]sortKey, 0, len(order))
 	seen := make(map[int]bool)
@@ -214,7 +214,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		}
 	}
 	expressions := make([]BoundExpr, 0, len(on))
-	grouping := make([]sqltype.Grouping, 0, len(on))
+	grouping := make([]queryGrouping, 0, len(on))
 	clear(seen)
 	for i, k := range required[len(effective):] {
 		if seen[k.targetIdentity] {

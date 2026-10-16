@@ -140,7 +140,7 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	if err != nil {
 		return 0, err
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s}
+	evaluation := EvalContext{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s, catalog: auth.catalog}
 	selected := make([]bool, len(b.relation.columns))
 	for _, target := range b.targets {
 		selected[target] = true
@@ -153,8 +153,15 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 			b.defaults[i] = nil
 			continue
 		}
-		folded, _, planErr := preflightCoercionsWithPolicy(&evaluation, expression, true)
+		defaultEvaluation := evaluation
+		defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
+		defaultEvaluation.routineReferences = b.relation.defaults[b.relation.attributes[i]].dependencies
+		defaultEvaluation.routineConsumer = b.relation
+		folded, _, planErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
+			return 0, planErr
+		}
+		if planErr = validateExpressionJoinExecution(&defaultEvaluation, folded, auth.catalog); planErr != nil {
 			return 0, planErr
 		}
 		b.defaults[i] = folded
@@ -184,11 +191,15 @@ func (s *StatementScope) Copy(syntax *parser.Copy, source io.Reader, destination
 	schema := ""
 	if err == nil {
 		schema = auth.catalog.state.descriptors[b.relation.namespace].Name()
+		s.routineAuth = auth
 		e.markTemporaryAccessLocked(s, b.ref)
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return
+	}
+	if err = s.readmitPreparedPrograms(auth); err != nil {
+		return 0, err
 	}
 	unique, err := s.bindUniqueWrite(b.ref)
 	if err != nil {
@@ -226,6 +237,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 	if err != nil {
 		return
 	}
+	s.routineAuth = auth
 	b.ref = s.lockedRef
 	b.relation, _ = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
 	if b.relation == nil {

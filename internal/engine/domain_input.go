@@ -30,6 +30,20 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	// Preserve the actual trusted caller captured before input, including a
+	// local RI actor; later session capture cannot substitute another principal.
+	if eval.routineAuthority != nil {
+		current.state.CurrentUser = eval.routineAuthority.state.CurrentUser
+		if err := current.roles.ValidatePrincipal(current.state.CurrentUser); err != nil {
+			return sqltype.Value{}, err
+		}
+	}
+	e.mu.Unlock()
+	err = s.readmitPreparedPrograms(current)
+	e.mu.Lock()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
 	if current.catalog.owner != eval.catalog.owner || current.catalog.Epoch() != eval.catalog.Epoch() {
 		return sqltype.Value{}, ErrCatalogReplaced
 	}
@@ -112,7 +126,25 @@ func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descript
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing locked domain literal input boundary")
 	}
-	eval := EvalContext{Context: b.ctx, statementScope: owner, catalog: b.bindingCatalog(), Input: input, Output: owner.output}
+	var auth AuthorizationView
+	if b.queryAuth != nil {
+		auth = *b.queryAuth
+	} else {
+		var err error
+		auth, err = b.engine.authorizationLocked(b.op)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+	}
+	if owner.routineAuth.engine != nil && owner.foreignActionAuth == nil {
+		auth.state.CurrentUser = owner.routineAuth.state.CurrentUser
+		if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+			return sqltype.Value{}, err
+		}
+	} else if owner.routineAuth.engine == nil {
+		owner.routineAuth = auth
+	}
+	eval := EvalContext{Context: b.ctx, statementScope: owner, catalog: b.bindingCatalog(), Input: input, Output: owner.output, routineAuthority: &auth}
 	input.DomainChecks = &eval
 	return owner.DecodeLockedDomainInput(b.ctx, typ, text, typmod, input)
 }

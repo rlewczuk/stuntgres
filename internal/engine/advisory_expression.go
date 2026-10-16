@@ -220,7 +220,12 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 	}
 	// Constant-NULL folding belongs after demanded child simplification, not
 	// here: a constant bad cast must still report its own error first.
-	return advisoryExpression{expressionInfo: b.info(b.typ(id).Usage(), raw.Pos, properties), name: name, args: args, mode: mode, action: action}, nil
+	formal := [2]sqltype.ID{argumentID, argumentID}
+	info, err := b.builtinRoutineInfo(b.info(b.typ(id).Usage(), raw.Pos, properties), advisoryRoutineProvider, name, formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	return advisoryExpression{expressionInfo: info, name: name, args: args, mode: mode, action: action}, nil
 }
 
 func foldAdvisoryNull(x advisoryExpression) (BoundExpr, bool) {

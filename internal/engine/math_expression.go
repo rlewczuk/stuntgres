@@ -69,10 +69,16 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
 	usage := b.typ(signature.Result).Usage()
-	node, err := functions.NewMath[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, args)
+	info := b.info(usage, raw.Pos, properties)
+	node, err := functions.NewMath[BoundExpr, *EvalContext](functionInfo(info), name, args)
 	if err != nil {
 		return nil, err
 	}
+	info, err = b.builtinRoutineInfo(info, mathRoutineProvider, name, signature.Args[:signature.Arity]...)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
 	node.WrapperContext = mathWrapperContext(name, args)
 	return node, nil
 }
@@ -186,5 +192,9 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 	if plan.SessionDependent() {
 		properties.Volatility = max(properties.Volatility, Stable)
 	}
-	return functions.Math[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(result, raw.Pos, properties)), Plan: plan, Args: args}, nil
+	info, err := b.builtinRoutineInfo(b.info(result, raw.Pos, properties), mathRoutineProvider, "width_bucket", 5077, 5078)
+	if err != nil {
+		return nil, err
+	}
+	return functions.Math[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: args}, nil
 }

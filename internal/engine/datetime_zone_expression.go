@@ -55,6 +55,11 @@ func (b *expressionBinder) bindDatetimeZone(raw parser.FunctionExpr, visible boo
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
 	info := b.info(b.typ(signature.Result).Usage(), raw.Pos, properties)
+	var err error
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, signature.Args[:signature.Count]...)
+	if err != nil {
+		return nil, err
+	}
 	if name == "timezone" {
 		e := functions.Timezone[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Function: true, Local: signature.Count == 1}
 		if e.Local {

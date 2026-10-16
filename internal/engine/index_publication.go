@@ -351,6 +351,11 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		disclosure.recaptureCatalog(disclosure.catalog)
 		auth = &disclosure
 	}
+	if auth.engine != nil {
+		local := *evaluation
+		local.routineAuthority = auth
+		evaluation = &local
+	}
 	for a, descriptor := range next.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
@@ -584,12 +589,26 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 	}
 	view := e.privateCatalogLocked(catalog)
 	input := s.input
+	var programmeAuth AuthorizationView
+	if len(s.domainPreparedChecks) != 0 || len(s.routinePrograms) != 0 || len(s.indexBindings) != 0 {
+		var err error
+		programmeAuth, err = s.writeAuthorizationLocked(e)
+		if err != nil {
+			e.mu.Unlock()
+			return err
+		}
+		programmeAuth.recaptureCatalog(view)
+	}
 	for _, descriptor := range view.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live || !index.sqlIndex.hasRuntimeDomainConversion() || len(s.stage.rows[index.sqlIndex.parent]) == 0 {
 			continue
 		}
-		auth, err := s.writeAuthorizationLocked(e)
+		auth := programmeAuth
+		var err error
+		if auth.engine == nil {
+			auth, err = s.writeAuthorizationLocked(e)
+		}
 		if err == nil {
 			auth.catalog = view
 			auth.recaptureCatalog(view)
@@ -602,6 +621,11 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 		break
 	}
 	e.mu.Unlock()
+	if programmeAuth.engine != nil {
+		if err := s.readmitPreparedPrograms(programmeAuth); err != nil {
+			return err
+		}
+	}
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: input, Output: s.output, catalog: view}
 	for _, descriptor := range view.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
@@ -624,11 +648,12 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 		pending := index.sqlIndex.hasRuntimeDomainConversion()
 		var ordering indexOrdering
 		var hash hashIndexBinding
+		var preparation indexExecutionPreparation
+		parent, ok := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		if !ok {
+			return ErrCatalogReplaced
+		}
 		if pending {
-			parent, ok := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-			if !ok {
-				return ErrCatalogReplaced
-			}
 			var err error
 			if index.sqlIndex.method == hashMethod {
 				hash, err = bindHashIndex(parent, index.sqlIndex)
@@ -653,7 +678,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 				continue
 			}
 			if pending {
-				output, err := materializeIndexOutput(&evaluation, index, ordering, hash, row.values)
+				output, err := materializeIndexOutput(&evaluation, &preparation, parent, index, &ordering, &hash, row.values)
 				if err != nil {
 					return err
 				}
@@ -669,19 +694,22 @@ func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges
 				rows[i].indexOutputs = outputs
 				continue
 			}
-			matches, err := indexPredicateMatches(&evaluation, index.sqlIndex.predicate, row.values)
+			matches, err := preparation.predicateMatches(&evaluation, parent, index.sqlIndex, row.values, nil, nil)
 			if err != nil {
 				return err
 			}
 			if !matches {
 				continue
 			}
+			if err := preparation.prepareOrdinaryKeys(&evaluation, parent, index.sqlIndex); err != nil {
+				return err
+			}
 			evaluation.Row = row.values
-			for _, key := range index.sqlIndex.keys {
+			for keyIndex, key := range index.sqlIndex.keys {
 				if key.derived == nil {
 					continue
 				}
-				if _, err := key.derived.execution.Eval(&evaluation); err != nil {
+				if _, err := preparation.ordinary[keyIndex].Eval(&evaluation); err != nil {
 					return err
 				}
 			}

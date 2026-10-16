@@ -15,6 +15,7 @@ type caseBranch struct {
 	testPlan  sqltype.CoercionPlan
 	equality  sqltype.Comparison
 	testUsage sqltype.Usage
+	routine   *procedureDescriptor // Selected equality declaration, never captured permission.
 }
 type caseExpression struct {
 	expressionInfo
@@ -287,25 +288,33 @@ func equalityError(err error, left, right *sqltype.Descriptor, pos parser.Positi
 	copy.Hint = hint
 	return copy
 }
-func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (BoundExpr, BoundExpr, sqltype.Comparison, error) {
+func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (BoundExpr, BoundExpr, sqltype.Comparison, *procedureDescriptor, error) {
 	s, err := sqltype.ResolveEquality(left.descriptor(), right.descriptor())
 	if err != nil {
-		return nil, nil, sqltype.Comparison{}, equalityError(err, left.descriptor(), right.descriptor(), pos)
+		return nil, nil, sqltype.Comparison{}, nil, equalityError(err, left.descriptor(), right.descriptor(), pos)
 	}
 	l, err := b.coerceConditional(left, b.typ(s.Left).Usage(), "=")
 	if err != nil {
-		return nil, nil, sqltype.Comparison{}, err
+		return nil, nil, sqltype.Comparison{}, nil, err
 	}
 	r, err := b.coerceConditional(right, b.typ(s.Right).Usage(), "=")
 	if err != nil {
-		return nil, nil, sqltype.Comparison{}, err
+		return nil, nil, sqltype.Comparison{}, nil, err
 	}
 	input, err := b.comparisonInfo(l, r)
 	if err != nil {
-		return nil, nil, sqltype.Comparison{}, err
+		return nil, nil, sqltype.Comparison{}, nil, err
 	}
 	comparison, err := sqltype.BindComparison(l.ResultUsage().Type, r.ResultUsage().Type, input.usage.Collation, input.collationConflict)
-	return l, r, comparison, err
+	if err != nil {
+		return nil, nil, sqltype.Comparison{}, nil, err
+	}
+	declaration, _, err := b.comparisonRoutineDeclaration("=", l.ResultUsage().Type, r.ResultUsage().Type)
+	if err != nil {
+		return nil, nil, sqltype.Comparison{}, nil, err
+	}
+	routine, _, err := b.captureBuiltinRoutineDeclaration(declaration)
+	return l, r, comparison, routine, err
 }
 
 // Extrema retain ordering authority separately from scalar equality. Identifier
@@ -349,10 +358,11 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 	args := make([]BoundExpr, len(operands))
 	var usage sqltype.Usage
 	var comparison sqltype.Comparison
+	var routine *procedureDescriptor
 	missingOrdering := false
 	var err error
 	if raw.Kind == parser.NullIf {
-		args[0], args[1], comparison, err = b.conditionalEquality(operands[0], operands[1], raw.Pos)
+		args[0], args[1], comparison, routine, err = b.conditionalEquality(operands[0], operands[1], raw.Pos)
 		if err != nil {
 			return nil, err
 		}
@@ -379,6 +389,9 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 	info, err := b.collatedInfo(b.info(usage, raw.Pos, properties), args...)
 	if err != nil {
 		return nil, err
+	}
+	if routine != nil {
+		info.routineReference = routine
 	}
 	if raw.Kind == parser.Greatest || raw.Kind == parser.Least {
 		comparison, missingOrdering, err = bindExtremaComparison(info.usage, info.collationConflict)
@@ -426,7 +439,7 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 				return nil, e
 			}
 			var view BoundExpr
-			view, arms[i].condition, arms[i].equality, err = b.conditionalEquality(comparisonOperand{node: implicitComparisonOperand{test}, raw: raw.Test}, o, arm.Pos)
+			view, arms[i].condition, arms[i].equality, arms[i].routine, err = b.conditionalEquality(comparisonOperand{node: implicitComparisonOperand{test}, raw: raw.Test}, o, arm.Pos)
 			if err == nil {
 				arms[i].testUsage = view.ResultUsage()
 				arms[i].testPlan, err = sqltype.PlanCoercion(test.ResultUsage(), view.ResultUsage(), sqltype.Implicit)

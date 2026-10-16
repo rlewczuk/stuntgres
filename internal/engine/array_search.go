@@ -173,6 +173,10 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 			n.namespace = raw.Name.Parts[0].Text
 		}
 		n.expressionInfo = b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+		n.expressionInfo, err = b.builtinOperatorRoutineInfo(n.expressionInfo, "@>", sqltype.ACLItemArray, sqltype.ACLItem)
+		if err != nil {
+			return nil, err
+		}
 		return n, nil
 	}
 	var selected *sqltype.Descriptor
@@ -224,6 +228,28 @@ func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName
 		if err != nil {
 			return nil, err
 		}
+	}
+	routineName, provider := name, arrayRoutineProvider
+	formal := [3]sqltype.ID{sqltype.ID(5078), sqltype.ID(5077)}
+	if name == "array_position" && len(args) == 3 {
+		formal[2] = sqltype.Int4
+	} else if name == "array_replace" {
+		formal[2] = sqltype.ID(5077)
+	} else if plan.Membership() {
+		provider = operatorRoutineProvider
+		formal[0], formal[1] = sqltype.ID(2277), sqltype.ID(2277)
+		switch name {
+		case "&&":
+			routineName = "arrayoverlap"
+		case "@>":
+			routineName = "arraycontains"
+		case "<@":
+			routineName = "arraycontained"
+		}
+	}
+	info, err = b.builtinRoutineInfo(info, provider, routineName, formal[:len(args)]...)
+	if err != nil {
+		return nil, err
 	}
 	namespace := ""
 	if len(rawName.Parts) == 2 {

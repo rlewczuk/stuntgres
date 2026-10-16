@@ -100,6 +100,15 @@ func (b *expressionBinder) bindStatisticalAggregate(raw parser.AggregateExpr, na
 		provider = functions.NewStatisticalAggregate(args[0].ResultUsage().Type, usage, sample, stddev)
 	}
 	call := aggregateCall{provider: provider, argument: args[0], separator: args[1], operation: operation}
+	formals := [2]sqltype.ID{args[0].ResultUsage().Type.ID()}
+	arity := 1
+	if regressionAggregateName(raw.Name) {
+		formals[1], arity = sqltype.Float8, 2
+	}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, formals[:arity]...)
+	if err != nil {
+		return nil, err
+	}
 	return b.finishAggregate(raw, call, filter, b.info(usage, raw.Pos, ExprProperties{}))
 }
 

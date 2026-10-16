@@ -92,7 +92,7 @@ func (r indexRowOutput) matches(index *relationDescriptor) bool {
 func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *EvalContext, precheck bool, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
 	if purpose == indexProbeRuntime && !index.sqlIndex.hasRuntimeDomainConversion() {
-		member, err := indexPredicateMatches(evaluation, index.sqlIndex.predicate, r.values)
+		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.sqlIndex, r.values, &bound.ordering, nil)
 		if err != nil || !member {
 			return member, nil, err
 		}
@@ -118,20 +118,20 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	if purpose == indexProbeRevalidation {
 		return false, nil, ErrCatalogReplaced
 	}
-	member, err := indexPredicateMatches(evaluation, index.sqlIndex.predicate, r.values)
+	member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.sqlIndex, r.values, &bound.ordering, nil)
 	if err != nil {
 		return false, nil, err
 	}
 	output := indexRowOutput{index: index, member: member}
 	if member {
 		if index.sqlIndex.method == hashMethod {
-			if err := bound.ordering.fillKeys(r.values, bound.scratch, evaluation); err != nil {
+			if err := bound.fillKeys(r.values, bound.scratch, evaluation); err != nil {
 				return false, nil, err
 			}
 			output.key = bound.scratch[0]
 		} else {
 			output.keys = make([]sqltype.Value, len(bound.ordering.keys))
-			if err := bound.ordering.fillKeys(r.values, output.keys, evaluation); err != nil {
+			if err := bound.fillKeys(r.values, output.keys, evaluation); err != nil {
 				return false, nil, err
 			}
 		}
@@ -198,10 +198,21 @@ func (s *StatementScope) validateIndexCandidates(ref ObjectRef, batch *indexWrit
 	return nil
 }
 
-func materializeIndexOutput(evaluation *EvalContext, index *relationDescriptor, ordering indexOrdering, hash hashIndexBinding, values []sqltype.Value) (indexRowOutput, error) {
-	member, err := indexPredicateMatches(evaluation, index.sqlIndex.predicate, values)
+func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecutionPreparation, parent, index *relationDescriptor, ordering *indexOrdering, hash *hashIndexBinding, values []sqltype.Value) (indexRowOutput, error) {
+	if index.sqlIndex.method != hashMethod {
+		hash = nil
+	}
+	member, err := preparation.predicateMatches(evaluation, parent, index.sqlIndex, values, ordering, hash)
 	output := indexRowOutput{index: index, member: member}
 	if err != nil || !member {
+		return output, err
+	}
+	if index.sqlIndex.method == hashMethod {
+		err = preparation.prepareKeys(evaluation, parent, index.sqlIndex, nil, hash)
+	} else {
+		err = preparation.prepareKeys(evaluation, parent, index.sqlIndex, ordering, nil)
+	}
+	if err != nil {
 		return output, err
 	}
 	if index.sqlIndex.method == hashMethod {
@@ -233,7 +244,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		return read(output)
 	}
 	if !index.sqlIndex.hasRuntimeDomainConversion() && purpose != indexProbeRevalidation {
-		member, err := indexPredicateMatches(evaluation, index.sqlIndex.predicate, row.values)
+		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.sqlIndex, row.values, &bound.ordering, nil)
 		if err != nil {
 			return false, nil, err
 		}
@@ -243,19 +254,19 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 			}
 			// The active proposal owns bound.key throughout this probe.
 			// Existing-row bucket population must not overwrite that key.
-			err := bound.ordering.fillKeys(row.values, bound.scratch, evaluation)
+			err := bound.fillKeys(row.values, bound.scratch, evaluation)
 			return true, bound.scratch, err
 		}
 		output := indexRowOutput{index: index, member: member}
 		if member {
 			if index.sqlIndex.method == hashMethod {
-				if err := bound.ordering.fillKeys(row.values, bound.scratch, evaluation); err != nil {
+				if err := bound.fillKeys(row.values, bound.scratch, evaluation); err != nil {
 					return false, nil, err
 				}
 				output.key = bound.scratch[0]
 			} else {
 				output.keys = make([]sqltype.Value, len(bound.ordering.keys))
-				if err := bound.ordering.fillKeys(row.values, output.keys, evaluation); err != nil {
+				if err := bound.fillKeys(row.values, output.keys, evaluation); err != nil {
 					return false, nil, err
 				}
 			}

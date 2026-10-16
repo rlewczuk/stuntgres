@@ -97,12 +97,18 @@ func (b *expressionBinder) bindDatetimeMake(raw parser.FunctionExpr, visible boo
 			e.Args[i] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), value}
 		}
 	}
-	e.Info = functionInfo(b.info(b.typ(result).Usage(), raw.Pos, properties))
+	info := b.info(b.typ(result).Usage(), raw.Pos, properties)
+	e.Info = functionInfo(info)
 	plan, err := sqltype.BindDatetimeMake(name, e.Usage.Type, e.Count)
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, types[:e.Count]...)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	return e, nil
 }
 

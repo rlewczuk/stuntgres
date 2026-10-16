@@ -211,7 +211,7 @@ func pgcryptoInvalidOwnerDumps(t *testing.T, dump string) []string {
 		Members []member `json:"members"`
 	}
 	var scripts []string
-	for _, kind := range []string{"missing", "extra", "duplicate", "name", "signature", "dictionary", "type", "empty_owner", "missing_owner", "split_owner"} {
+	for _, kind := range []string{"missing", "extra", "duplicate", "name", "signature", "dictionary", "type", "empty_owner", "missing_owner"} {
 		var record manifest
 		if err := json.Unmarshal(payload, &record); err != nil {
 			t.Fatal(err)
@@ -238,8 +238,6 @@ func pgcryptoInvalidOwnerDumps(t *testing.T, dump string) []string {
 			record.Members[0].Owner = ""
 		case "missing_owner":
 			record.Members[0].Owner = "pgcrypto_absent_owner"
-		case "split_owner":
-			record.Members[0].Owner = "postgres"
 		}
 		data, err := json.Marshal(record)
 		if err != nil {

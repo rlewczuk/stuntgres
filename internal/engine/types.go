@@ -312,31 +312,36 @@ func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *Operation,
 	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true, false, false)
 }
 
+func canonicalDeclarationTypeName(name string) string {
+	switch name {
+	case "smallint":
+		name = "int2"
+	case "integer":
+		name = "int4"
+	case "bigint":
+		name = "int8"
+	case "boolean":
+		name = "bool"
+	case "real":
+		name = "float4"
+	case "float", "double precision":
+		name = "float8"
+	case "decimal", "dec":
+		name = "numeric"
+	case "char", "character":
+		name = "bpchar"
+	case "character varying":
+		name = "varchar"
+	case "bit varying":
+		name = "varbit"
+	}
+	return name
+}
+
 func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
-		switch name {
-		case "smallint":
-			name = "int2"
-		case "integer":
-			name = "int4"
-		case "bigint":
-			name = "int8"
-		case "boolean":
-			name = "bool"
-		case "real":
-			name = "float4"
-		case "float", "double precision":
-			name = "float8"
-		case "decimal", "dec":
-			name = "numeric"
-		case "char", "character":
-			name = "bpchar"
-		case "character varying":
-			name = "varchar"
-		case "bit varying":
-			name = "varbit"
-		}
+		name = canonicalDeclarationTypeName(name)
 	}
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

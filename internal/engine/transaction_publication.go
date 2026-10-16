@@ -216,6 +216,14 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref TxRef, writes map[Object
 		if err != nil {
 			return err
 		}
+		if scope != nil {
+			// This publication attempt captured a new coherent authority.
+			// Preserve each actually consumed original actor/recipe, including
+			// folded calls and RI-local domain calls whose EvalContext ended.
+			if err := scope.readmitPreparedPrograms(disclosure); err != nil {
+				return err
+			}
+		}
 		if c != nil {
 			for a, shape := range c.storage {
 				if materialize {

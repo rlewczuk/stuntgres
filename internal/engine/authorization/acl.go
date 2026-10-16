@@ -14,6 +14,10 @@ const (
 	ReferencesPrivilege
 	TriggerPrivilege
 	ExecutePrivilege
+	ConnectPrivilege
+	TemporaryPrivilege
+	SetPrivilege
+	AlterSystemPrivilege
 )
 
 type ACLGrantee struct {

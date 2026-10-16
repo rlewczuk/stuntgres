@@ -4,7 +4,7 @@ package engine
 // not evaluate operators, functions, domains or producers, and never mutates the
 // analyzed recipe. The ordinary mapper rederives only changed child ancestry.
 func specializeRuleParameterExpression(c *EvalContext, expression BoundExpr) (BoundExpr, bool, error) {
-	return rewriteViewExpression(c.catalog, expression, func(node BoundExpr) (BoundExpr, bool, error) {
+	return rewriteViewExpression(c.catalog, expression, nil, func(node BoundExpr) (BoundExpr, bool, error) {
 		parameter, ok := node.(parameterExpression)
 		if !ok {
 			return node, false, nil

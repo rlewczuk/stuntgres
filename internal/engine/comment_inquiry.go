@@ -92,7 +92,12 @@ func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, 
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
-	return commentInquiryExpression{b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), kind, args}, nil
+	formal := [2]sqltype.ID{sqltype.Oid, second}
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), catalogRoutineProvider, name, formal[:arity]...)
+	if err != nil {
+		return commentInquiryExpression{}, err
+	}
+	return commentInquiryExpression{info, kind, args}, nil
 }
 
 func descriptorComment(d Descriptor, sub int32) string {
@@ -130,6 +135,9 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	if null {
 		return sqltype.Null(e.usage.Type), nil
+	}
+	if err := admitInquiryBody(c, e); err != nil {
+		return sqltype.Value{}, err
 	}
 	if c.liveScope() == nil || c.liveScope().commentCatalog.state == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")

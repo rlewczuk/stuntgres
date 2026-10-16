@@ -800,13 +800,15 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if definition != nil && definition.cycle != nil {
 				width--
 			}
-			copy.grouping = make([]sqltype.Grouping, width)
+			copy.grouping = make([]queryGrouping, width)
 			for i, column := range schema {
 				if definition != nil && definition.cycle != nil && i == len(schema)-1 {
 					break
 				}
+				copy.grouping[i] = set.grouping[i]
+				copy.grouping[i].routine = ref(set.grouping[i].routine)
 				if err == nil {
-					copy.grouping[i], err = sqltype.BindGrouping(column.Usage)
+					copy.grouping[i].Grouping, err = sqltype.BindGrouping(column.Usage)
 				}
 			}
 		}
@@ -824,10 +826,12 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.querySchema = schema
 		copy.child = child(n.child)
 		copy.expressions = expressions(n.expressions)
-		copy.grouping = make([]sqltype.Grouping, len(copy.expressions))
+		copy.grouping = make([]queryGrouping, len(copy.expressions))
 		for i, expression := range copy.expressions {
+			copy.grouping[i] = n.grouping[i]
+			copy.grouping[i].routine = ref(n.grouping[i].routine)
 			if err == nil {
-				copy.grouping[i], err = sqltype.BindGrouping(expression.ResultUsage())
+				copy.grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
 			}
 		}
 		next = &copy
@@ -836,10 +840,12 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.querySchema = schema
 		copy.child = child(n.child)
 		copy.expressions = expressions(n.expressions)
-		copy.grouping = make([]sqltype.Grouping, len(copy.expressions))
+		copy.grouping = make([]queryGrouping, len(copy.expressions))
 		for i, expression := range copy.expressions {
+			copy.grouping[i] = n.grouping[i]
+			copy.grouping[i].routine = ref(n.grouping[i].routine)
 			if err == nil {
-				copy.grouping[i], err = sqltype.BindGrouping(expression.ResultUsage())
+				copy.grouping[i].Grouping, err = sqltype.BindGrouping(expression.ResultUsage())
 			}
 		}
 		next = &copy
@@ -865,15 +871,18 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.specs = append([]boundWindowSpec(nil), n.specs...)
 		for i, spec := range copy.specs {
 			spec.partition = expressions(spec.partition)
-			spec.grouping = make([]sqltype.Grouping, len(spec.partition))
+			spec.grouping = make([]queryGrouping, len(spec.partition))
 			for j, key := range spec.partition {
+				spec.grouping[j] = n.specs[i].grouping[j]
+				spec.grouping[j].routine = ref(n.specs[i].grouping[j].routine)
 				if err == nil {
-					spec.grouping[j], err = sqltype.BindGrouping(key.ResultUsage())
+					spec.grouping[j].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 				}
 			}
 			spec.order = append([]sortKey(nil), spec.order...)
 			for j, key := range spec.order {
 				spec.order[j].expression = expression(key.expression)
+				spec.order[j].equalityRoutine = ref(key.equalityRoutine)
 				if err == nil {
 					spec.order[j].comparison, err = sqltype.BindOrdering(spec.order[j].expression.ResultUsage())
 				}
@@ -888,6 +897,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		copy.calls = append([]windowCall(nil), n.calls...)
 		for i, call := range copy.calls {
+			copy.calls[i].routine = ref(call.routine)
 			copy.calls[i].expression = expression(call.expression).(*windowExpression)
 			copy.calls[i].argument = expression(call.argument)
 			copy.calls[i].ordinal = expression(call.ordinal)
@@ -907,10 +917,12 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.querySchema = schema
 		copy.child = child(n.child)
 		copy.keys = expressions(n.keys)
-		copy.grouping = make([]sqltype.Grouping, len(copy.keys))
+		copy.grouping = make([]queryGrouping, len(copy.keys))
 		for i, key := range copy.keys {
+			copy.grouping[i] = n.grouping[i]
+			copy.grouping[i].routine = ref(n.grouping[i].routine)
 			if err == nil {
-				copy.grouping[i], err = sqltype.BindGrouping(key.ResultUsage())
+				copy.grouping[i].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 			}
 		}
 		copy.calls = make([]aggregateCall, len(n.calls))
@@ -929,6 +941,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					}
 				}
 			}
+			copy.calls[i].routine = ref(call.routine)
 			switch p := call.provider.(type) {
 			case *hypotheticalSetProvider:
 				copy.calls[i].provider = &hypotheticalSetProvider{usage: usage(p.usage), operation: p.operation}
@@ -1051,14 +1064,16 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if call.filter != nil {
 				copy.calls[i].filter = expression(call.filter)
 			}
-			copy.calls[i].distinct = make([]sqltype.Grouping, len(call.distinct))
+			copy.calls[i].distinct = make([]queryGrouping, len(call.distinct))
 			for k := range call.distinct {
+				copy.calls[i].distinct[k] = call.distinct[k]
+				copy.calls[i].distinct[k].routine = ref(call.distinct[k].routine)
 				arg := copy.calls[i].argument
 				if k == 1 {
 					arg = copy.calls[i].separator
 				}
 				if err == nil {
-					copy.calls[i].distinct[k], err = sqltype.BindGrouping(arg.ResultUsage())
+					copy.calls[i].distinct[k].Grouping, err = sqltype.BindGrouping(arg.ResultUsage())
 				}
 				if err == nil {
 					_, err = aggregateOrdering(arg.ResultUsage(), arg.SourcePosition(), true)

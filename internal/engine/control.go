@@ -260,6 +260,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			switch t := d.(type) {
 			case *databaseDescriptor:
 				continue // Destination attachment authority is never serialized.
+			case *parameterDescriptor:
+				e.mu.Unlock()
+				return fmt.Errorf("stuntgres: dump cannot serialize parameter ACL")
+			case *tablespaceDescriptor:
+				if err := (tablespaceProvider{}).Validate(catalog, t); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				if t.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.acl.Explicit {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: dump cannot serialize altered tablespace authority")
+				}
+				continue
 			case *operatorDescriptor:
 				if !pgDependPinned(catalog, t.address) {
 					e.mu.Unlock()
@@ -278,6 +291,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 					continue
 				}
+				if t.builtin != nil {
+					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
+						e.mu.Unlock()
+						return err
+					}
+					if t.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.acl.Explicit {
+						e.mu.Unlock()
+						return fmt.Errorf("stuntgres: dump cannot serialize altered builtin routine authority")
+					}
+					continue
+				}
 				if t.conversion.Name() != "" {
 					if err := (extensionCatalogProvider{ProcedureClassID}).Validate(catalog, t); err != nil {
 						e.mu.Unlock()
@@ -288,6 +312,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						return fmt.Errorf("stuntgres: dump cannot serialize altered builtin conversion routine authority")
 					}
 					continue
+				}
+				if t.acl.Explicit {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 				}
 				if extensionMembership(t) == (ObjectAddress{}) {
 					e.mu.Unlock()

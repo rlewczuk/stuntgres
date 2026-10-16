@@ -126,7 +126,11 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (BoundExpr, er
 	case raw.Filter != nil:
 		return nil, expressionError("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	}
-	n.expressionInfo = b.info(b.typ(sqltype.ACLItemArray).Usage(), raw.Pos, properties)
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.ACLItemArray).Usage(), raw.Pos, properties), catalogRoutineProvider, "pg_get_acl", objectACLTypes[:]...)
+	if err != nil {
+		return nil, err
+	}
+	n.expressionInfo = info
 	return n, nil
 }
 

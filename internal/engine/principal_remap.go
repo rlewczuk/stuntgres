@@ -13,6 +13,9 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	e.retainDatabaseLocked(state)
 	remap := e.replacementPrincipalMapper(source, targetSnapshot, expected)
 	acl := func(a authorization.ACLValue) (authorization.ACLValue, error) {
+		if len(a.Entries) == 0 {
+			return a, nil
+		}
 		n := authorization.ACLValue{Explicit: a.Explicit, Entries: make([]authorization.ACLEntry, len(a.Entries))}
 		for i, x := range a.Entries {
 			var err error
@@ -86,7 +89,31 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		case *procedureDescriptor:
 			n := *d
 			var err error
-			n.owner, err = seedOwner(d.owner, d.conversion.Name() != "" || d.foreign != nil)
+			n.owner, err = seedOwner(d.owner, d.seeded() || d.foreign != nil)
+			if err != nil {
+				return nil, err
+			}
+			n.acl, err = acl(d.acl)
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
+		case *parameterDescriptor:
+			n := *d
+			var err error
+			n.owner, err = seedOwner(d.owner, true)
+			if err != nil {
+				return nil, err
+			}
+			n.acl, err = acl(d.acl)
+			if err != nil {
+				return nil, err
+			}
+			installParameterGrant(state, &n)
+		case *tablespaceDescriptor:
+			n := *d
+			var err error
+			n.owner, err = seedOwner(d.owner, true)
 			if err != nil {
 				return nil, err
 			}
@@ -104,12 +131,10 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			}
 			state.descriptors[addr] = &n
 		case *typeDescriptor:
-			if d.owningRelation == (ObjectAddress{}) && !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsUserDefined()) {
-				continue
-			}
 			n := *d
 			var err error
-			n.owner, err = remap(d.owner)
+			seeded := d.owningRelation == (ObjectAddress{}) && !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsUserDefined())
+			n.owner, err = seedOwner(d.owner, seeded)
 			if err != nil {
 				return nil, err
 			}

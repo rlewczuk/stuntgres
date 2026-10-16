@@ -219,7 +219,7 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if n.args[0].ResultUsage().Type != name {
 		t.Fatal("mutated original children")
 	}
-	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, func(child BoundExpr) (BoundExpr, bool, error) {
+	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child BoundExpr) (BoundExpr, bool, error) {
 		if literal, ok := child.(literalExpression); ok && literal.value.Type().ID() == sqltype.Name {
 			literal.value = sqltype.String(name, "replacement")
 			return literal, true, nil

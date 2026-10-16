@@ -78,16 +78,7 @@ func TestReferenceObjectACLHeldExecution(t *testing.T) {
 		// A raw numeric address is readable without table SELECT privileges.
 		// Fixture resets leave public private to its owner. Give the observer
 		// schema visibility without granting SELECT or changing the table owner.
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO acl_obj_held_observer", 0))
-		} else {
-			run(fixture.Exec("ALTER SCHEMA public OWNER TO acl_obj_held_observer", 0))
-			defer func() {
-				if _, err := c.ExecContext(p.Ctx, "ALTER SCHEMA public OWNER TO postgres"); err != nil {
-					t.Error("restore native public owner", err)
-				}
-			}()
-		}
+		run(fixture.Exec("GRANT USAGE ON SCHEMA public TO acl_obj_held_observer", 0))
 		run(fixture.Exec("SET ROLE acl_obj_held_observer", 0))
 		defer c.ExecContext(p.Ctx, "RESET ROLE")
 		denied := fixture.ImplicitError("SELECT a FROM acl_obj_held", fixture.Diagnostic{Code: "42501", Message: "permission denied for table acl_obj_held"})

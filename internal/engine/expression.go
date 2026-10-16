@@ -68,7 +68,8 @@ type EvalContext struct {
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks       map[*relationDescriptor][]BoundExpr
-	preparedDomainChecks map[*typeDescriptor][]BoundExpr
+	preparedDomainChecks map[*typeDescriptor]domainCheckProgram
+	preparedGenerations  map[*relationDescriptor][]BoundExpr // First actual tuple prepares executable recipes, not permission results.
 	domainValue          sqltype.Value
 	domainFrameUsage     sqltype.Usage
 	domainValueActive    bool
@@ -81,6 +82,17 @@ type EvalContext struct {
 	// Separate rule-program permission: actual supplied Param leaves may become
 	// typed constants during preparation. Ordinary imported-param barriers stay.
 	specializeRuleParameters bool
+	// Recipe-owned manifests are borrowed only by a local admission copy.
+	// They never replace the live scope's authority or another recipe's owner.
+	routineAuthority   *AuthorizationView // Borrowed local serial DDL admission only; never retained.
+	routineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
+	routineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.
+	routineChecks      []expressionDependency
+	routineReferences  []ObjectRef
+	routineConsumer    *relationDescriptor
+	routineProgram     *routineAdmissionProgram // Borrowed serial preparation footprint, never row-owned.
+	routineBodyContext routineBodyContext
+	domainPhase        domainCheckIdentity // Existing transaction/command identity, not a permission result.
 }
 type expressionInfo struct {
 	usage       sqltype.Usage
@@ -93,6 +105,8 @@ type expressionInfo struct {
 	collationExplicit             parser.Position
 	collationLeft, collationRight sqltype.CollationRef
 	collationConflictPos          parser.Position
+	routineReference              functions.RoutineReference
+	routineRecipe                 *relationDescriptor // Borrowed immutable defining recipe of a grafted stored node.
 }
 
 func (e expressionInfo) ResultUsage() sqltype.Usage         { return e.usage }
@@ -104,10 +118,39 @@ func (e expressionInfo) ImplicitCollationConflict() (sqltype.CollationRef, sqlty
 	return e.collationLeft, e.collationRight, e.collationConflictPos
 }
 
+func (e expressionInfo) CallRoutineReference() functions.RoutineReference {
+	return e.routineReference
+}
+
+func (e expressionInfo) CallRoutineRecipeReference() functions.RoutineRecipeReference {
+	if e.routineRecipe == nil {
+		return nil
+	}
+	return e.routineRecipe
+}
+
 // Preserve diagnostic provenance when an existing wrapper copies metadata.
 func boundExpressionInfo(node BoundExpr) expressionInfo {
 	left, right, position := node.ImplicitCollationConflict()
 	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation(), collationLeft: left, collationRight: right, collationConflictPos: position}
+	if call, ok := node.(interface {
+		CallRoutineReference() functions.RoutineReference
+	}); ok {
+		info.routineReference = call.CallRoutineReference()
+	}
+	if call, ok := node.(interface {
+		CallRoutineRecipeReference() functions.RoutineRecipeReference
+	}); ok {
+		info.routineRecipe, _ = call.CallRoutineRecipeReference().(*relationDescriptor)
+	}
+	return info
+}
+
+// A folded value retains conservative type/dependence metadata and the original
+// binding retains its lifetime manifest, but the value is not a callable node.
+func foldedExpressionInfo(node BoundExpr) expressionInfo {
+	info := boundExpressionInfo(node)
+	info.routineReference = nil
 	return info
 }
 
@@ -116,7 +159,9 @@ func functionInfo(info expressionInfo) functions.Info[ExprProperties] {
 		Usage: info.usage, Pos: info.pos, Property: info.properties,
 		CollationConflict: info.collationConflict, CollationExplicit: info.collationExplicit,
 		CollationLeft: info.collationLeft, CollationRight: info.collationRight,
-		CollationConflictPos: info.collationConflictPos,
+		CollationConflictPos:   info.collationConflictPos,
+		RoutineReference:       info.routineReference,
+		RoutineRecipeReference: info.CallRoutineRecipeReference(),
 	}
 }
 func (c *EvalContext) FunctionContext() context.Context {
@@ -236,6 +281,8 @@ type columnExpression struct {
 	scope, frame       uint32
 	slot               int
 	virtual            BoundExpr
+	virtualOwner       *relationDescriptor
+	virtualAttribute   int32
 	rowStart, rowWidth int
 	// Zero denotes an owner-row read; SQL occurrence IDs are encoded plus one.
 	queryOccurrence int
@@ -287,6 +334,11 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	local.Scope, local.Frame = 1, 1
 	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
 	recipe := e.virtual
+	if e.virtualOwner != nil {
+		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.generations[e.virtualAttribute])
+	} else if e.origin != (ObjectRef{}) {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual generation owner")
+	}
 	if e.queryOccurrence != 0 {
 		source, index, err := row.queryOperandSource(e.queryOccurrence - 1)
 		if err != nil {
@@ -301,7 +353,7 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				}
 				current = row.queryCurrentRows[source.occurrence]
 			}
-			recipe, local.Row, err = e.capturedGeneration(source, index, current)
+			recipe, local.Row, err = e.capturedGeneration(source, index, current, &local)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -420,8 +472,30 @@ func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, 
 // constant planning. Ordinary source, DELETE and supplied-value preflight
 // retain their existing traversal demand.
 func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
+	node, changed, err := preflightCoercionNode(c, expression, decisiveDefaults)
+	if err != nil {
+		return nil, false, err
+	}
+	node, folded, err := foldStrictParameterNull(c, node)
+	return node, changed || folded, err
+}
+
+func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
+	}
+	recipe, err := expressionRecipeDescriptor(expression)
+	if err != nil {
+		return nil, false, err
+	}
+	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
+		parent := c
+		local := *c
+		if err := local.selectExpressionRecipe(recipe); err != nil {
+			return nil, false, err
+		}
+		c = &local
+		defer func() { parent.preparedDomainChecks = c.preparedDomainChecks }()
 	}
 	if c.specializeRuleParameters && expression != nil && expression.Properties().ParameterDependent {
 		specialized, changed, err := specializeRuleParameterExpression(c, expression)
@@ -707,7 +781,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return next, changed || args != nil, err
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
 		if randomLiteralNull(e.Value) || !e.Local && randomLiteralNull(e.Zone) {
-			return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+			return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		changed := false
 		if !e.Local {
@@ -760,7 +834,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		return e, elements != nil, nil
@@ -789,7 +863,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		if changed {
@@ -807,7 +881,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.Pattern, e.Escape = pattern, escape
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, pc || ec, nil
@@ -827,7 +901,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, boundExpressionInfo(e), sqltype.Null(e.Usage.Type), nil)
 		}
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, pc || ec, nil
@@ -847,7 +921,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, lc || rc, nil
@@ -866,7 +940,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, lc || rc, nil
@@ -888,7 +962,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
@@ -909,7 +983,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
@@ -921,7 +995,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		e.RegexpCall = call
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, boundExpressionInfo(e), value, err)
 		}
 		return e, changed, nil
@@ -1002,24 +1076,29 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := e.Eval(c)
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		return e, lc || rc, nil
 	case rowComparisonExpression:
 		var pairs []comparisonExpression
 		for i, pair := range e.comparisons {
-			next, changed, err := preflightCoercionsWithPolicy(c, pair, false)
+			left, leftChanged, err := preflightCoercionsWithPolicy(c, pair.left, false)
 			if err != nil {
 				return nil, false, err
 			}
-			// Pair folding must not erase the row's lexicographic frontier.
-			bound := next.(comparisonExpression)
-			if changed {
+			right, rightChanged, err := preflightCoercionsWithPolicy(c, pair.right, false)
+			if err != nil {
+				return nil, false, err
+			}
+			// The pair belongs to the row's NULL-aware/lexicographic frontier,
+			// not an independently foldable scalar comparison.
+			if leftChanged || rightChanged {
 				if pairs == nil {
 					pairs = append([]comparisonExpression(nil), e.comparisons...)
 				}
-				pairs[i] = bound
+				pair.left, pair.right = left, right
+				pairs[i] = pair
 			}
 		}
 		if pairs != nil {
@@ -1035,7 +1114,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return nil, false, err
 		}
 		if decisiveDefaults && conditionalConstantInputs(next) {
-			value, err := next.Eval(c)
+			value, err := evaluatePlanningExpression(c, next)
 			return preflightValue(c, next.expressionInfo, value, err)
 		}
 		if changed {
@@ -1055,7 +1134,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			_, rightConstant := right.(literalExpression)
 			if leftConstant && rightConstant {
 				e.left, e.right = left, right
-				value, err := e.Eval(c)
+				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
@@ -1083,7 +1162,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		// Network operators follow the release's custom-plan Execute frontier:
 		// imported parameters are available now, but retain their provenance.
 		if e.usage.Type.ID() == sqltype.Inet && networkOperatorExecutionConstant(e, c) {
-			value, err := e.Eval(c)
+			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
+				return folded, changed, err
+			}
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		if decisiveDefaults || e.usage.Type.ID() == sqltype.Bit {
@@ -1091,7 +1173,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			_, r := right.(literalExpression)
 			p := e.Properties()
 			if l && (right == nil || r) && p == (ExprProperties{}) {
-				v, err := e.Eval(c)
+				v, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.expressionInfo, v, err)
 			}
 		}
@@ -1116,7 +1198,10 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
 		if (e.left.ResultUsage().Type.ID() == sqltype.Inet || e.right != nil && e.right.ResultUsage().Type.ID() == sqltype.Inet) && networkOperatorExecutionConstant(e, c) {
-			value, err := e.Eval(c)
+			if folded, changed, err := foldStrictParameterNull(c, e); err != nil || changed {
+				return folded, changed, err
+			}
+			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		if decisiveDefaults || c.planStaticOperators {
@@ -1124,7 +1209,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			// cast may now be a literal without making its parameter static.
 			p := expression.Properties()
 			if p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && conditionalConstantInputs(e) {
-				value, err := e.Eval(c)
+				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
@@ -1140,7 +1225,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		if decisiveDefaults {
 			if _, constant := child.(literalExpression); constant {
 				e.child = child
-				value, err := e.Eval(c)
+				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
@@ -1156,7 +1241,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		if decisiveDefaults {
 			if _, constant := child.(literalExpression); constant {
 				e.child = child
-				value, err := e.Eval(c)
+				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
@@ -1178,7 +1263,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			_, rightConstant := right.(literalExpression)
 			if leftConstant && rightConstant {
 				e.left, e.right = left, right
-				value, err := e.Eval(c)
+				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
@@ -1215,7 +1300,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			_, rightConstant := right.(literalExpression)
 			if e.op == parser.LogicalNot || rightConstant {
 				e.left, e.right = left, right
-				value, err := e.Eval(c)
+				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
@@ -1323,7 +1408,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 	case functions.DatetimeZoneCalendar[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Arguments() {
 			if randomLiteralNull(arg) {
-				return literalExpression{boundExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
+				return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
 			}
 		}
 		anyChanged := false
@@ -1816,6 +1901,7 @@ func preflightValue(c *EvalContext, info expressionInfo, value sqltype.Value, er
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
 	}
+	info.routineReference = nil
 	return literalExpression{expressionInfo: info, value: value}, true, nil
 }
 
@@ -3707,6 +3793,9 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument[BoundExpr]
 	case request.Intent == functions.TextFormalArgument && request.Target.Type.ID() == sqltype.Text:
 		info, err = b.coercionInfo(info, node)
 	}
+	if err == nil && info.routineReference == nil {
+		info, err = b.coercionRoutineInfo(info, node)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -3828,11 +3917,16 @@ func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, opera
 	if err != nil {
 		return nil, err
 	}
-	l, err := b.coerceConditional(left, lt.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	declaration, formal, err := b.comparisonRoutineDeclaration(name, lt, rt)
 	if err != nil {
 		return nil, err
 	}
-	r, err := b.coerceConditional(right, rt.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	l, err := b.comparisonOperandWithFormalInput(left, lt, formal.Left, name)
+	if err != nil {
+		return nil, err
+	}
+	r, err := b.comparisonOperandWithFormalInput(right, rt, formal.Right, name)
 	if err != nil {
 		return nil, err
 	}
@@ -3864,7 +3958,14 @@ func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, opera
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate, raw.Name.Parts[len(raw.Name.Parts)-1].Text, namespace}, nil
+	info := b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p)
+	if declaration != nil {
+		info, err = b.selectedBuiltinRoutineInfo(info, declaration)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return comparisonExpression{info, l, r, predicate, name, namespace}, nil
 }
 
 type arithmeticExpression struct {
@@ -4008,7 +4109,11 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{b.info(target.Usage(), n.SourcePosition(), coercionProperties(n, plan)), n, plan, sqltype.Implicit, false}
+			info, err := b.coercionRoutineInfo(b.info(target.Usage(), n.SourcePosition(), coercionProperties(n, plan)), n)
+			if err != nil {
+				return nil, err
+			}
+			n = coercionExpression{info, n, plan, sqltype.Implicit, false}
 		}
 		return n, nil
 	}
@@ -4051,5 +4156,13 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	return arithmeticExpression{b.info(typ.Usage(), pos, p), l, r, provider, operator, namespace}, nil
+	formalLeft, formalRight := signature.Left, signature.Right
+	if len(raw.Args) == 1 {
+		formalLeft, formalRight = 0, signature.Left
+	}
+	info, err := b.builtinOperatorRoutineInfo(b.info(typ.Usage(), pos, p), name, formalLeft, formalRight)
+	if err != nil {
+		return nil, err
+	}
+	return arithmeticExpression{info, l, r, provider, operator, namespace}, nil
 }

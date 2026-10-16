@@ -94,11 +94,17 @@ func (b *expressionBinder) bindDatetimeExtract(raw parser.FunctionExpr, visible 
 	// that distinction applies to both arguments, not only the DATE source.
 	e.DateWrapperContext = functions.DatetimeExtractWrapperContext(name, selected, properties.Volatility == Immutable && !properties.RowDependent && !properties.StageDependent)
 	result := functions.DatetimeExtractResult(name)
-	e.Info = functionInfo(b.info(b.typ(result).Usage(), raw.Pos, properties))
+	info := b.info(b.typ(result).Usage(), raw.Pos, properties)
+	e.Info = functionInfo(info)
 	plan, err := sqltype.BindDatetimeExtract(name, b.typ(sqltype.Text), b.typ(selected), e.Usage.Type, b.typ(sqltype.Timestamp))
 	if err != nil {
 		return nil, err
 	}
 	e.Plan = plan
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, sqltype.Text, selected)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	return e, nil
 }

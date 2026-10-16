@@ -51,7 +51,7 @@ func finalizeRuleQuery(view CatalogRead, root LogicalNode, alreadyFinalized ...m
 	var query func(LogicalNode) (LogicalNode, error)
 	var expression func(BoundExpr) (BoundExpr, bool, error)
 	expression = func(expr BoundExpr) (BoundExpr, bool, error) {
-		return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, nil)
+		return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, nil, nil)
 	}
 	query = func(root LogicalNode) (LogicalNode, error) {
 		if providers[root] || finalized[root] {
@@ -127,7 +127,7 @@ func finalizeRuleQuery(view CatalogRead, root LogicalNode, alreadyFinalized ...m
 				return nil, fmt.Errorf("stuntgres: invalid retained rule query cache")
 			}
 			recover := func(expr BoundExpr) (BoundExpr, bool, error) {
-				return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, func(expr BoundExpr) (BoundExpr, bool, error) {
+				return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 					if cached, ok := expr.(cachedOrderExpression); ok {
 						next, err := recipe(cached.slot)
 						return next, true, err

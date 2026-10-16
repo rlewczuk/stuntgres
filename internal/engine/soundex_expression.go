@@ -12,7 +12,7 @@ import (
 type installedSoundexFunctionExpression struct {
 	functions.Soundex[BoundExpr, *EvalContext, ExprProperties]
 	procedure *procedureDescriptor
-	ref ObjectRef
+	ref       ObjectRef
 }
 
 func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundExpr, error) {
@@ -98,7 +98,9 @@ func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundE
 	if canonical == "difference" {
 		result = b.typ(sqltype.Int4).Usage()
 	}
-	call, err := functions.NewSoundex[BoundExpr, *EvalContext](functionInfo(b.info(result, raw.Pos, properties)), canonical, args)
+	info := b.info(result, raw.Pos, properties)
+	info.routineReference = proc
+	call, err := functions.NewSoundex[BoundExpr, *EvalContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}

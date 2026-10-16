@@ -172,6 +172,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						next, _, err := mapBoundExpression(binder.bindingCatalog(), expression,
 							func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ },
 							func(query LogicalNode) (LogicalNode, error) { return query, nil },
+							nil,
 							func(expression BoundExpr) (BoundExpr, bool, error) {
 								literal, ok := expression.(literalExpression)
 								if !ok || literal.value.IsNull() {

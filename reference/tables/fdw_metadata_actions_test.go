@@ -116,14 +116,7 @@ func TestReferenceFDWWrapperAlterBoundaries(t *testing.T) {
 		run(fixture.Exec("GRANT fdw_owner TO fdw_reader WITH INHERIT TRUE,SET FALSE", 0))
 		run(fixture.Exec("CREATE TABLE fdw_alter_before AS SELECT oid AS object_oid,fdwowner AS owner_oid,fdwhandler AS handler_oid,fdwvalidator AS validator_oid,fdwacl::text AS acl FROM pg_foreign_data_wrapper WHERE fdwname='fdw_meta'", 1))
 		run(fixture.Exec("GRANT SELECT ON fdw_alter_before TO fdw_reader", 0))
-		if b.PG {
-			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fdw_reader", 0))
-		} else {
-			// Native schema SQL GRANT is unavailable. Ownership grants only
-			// namespace access; the captured table retains bootstrap ownership
-			// and its independently explicit SELECT grant.
-			run(fixture.Exec("ALTER SCHEMA public OWNER TO fdw_reader", 0))
-		}
+		run(fixture.Exec("GRANT USAGE ON SCHEMA public TO fdw_reader", 0))
 		run(fixture.Exec("SET ROLE fdw_reader", 0))
 		unchanged := func(t *testing.T) {
 			t.Helper()

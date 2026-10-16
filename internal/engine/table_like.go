@@ -177,8 +177,20 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 					definition := columnDefault{expression: node}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: destination, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, provenance: in.source, capturedManifest: old.dependencies, dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot, catalogAliasReferences: &definition.catalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
+					}
+					// Validate the original published recipe first. Old callable
+					// identities may be copied unchanged only into its same physical
+					// TEMP lifetime, not certified through an unpublished destination.
+					for _, dependency := range old.dependencies {
+						if dependency.Address.ClassID != ProcedureClassID || dependency.Epoch == auth.catalog.Epoch() {
+							continue
+						}
+						sourceNamespace := auth.catalog.state.descriptors[in.source.namespace].(*namespaceDescriptor)
+						if temporary == (SessionToken{}) || temporary != sourceNamespace.temporary || temporary.owner != e {
+							return fmt.Errorf("stuntgres: stale stored routine reference")
+						}
 					}
 					if destination.defaults == nil {
 						destination.defaults = make(map[int32]columnDefault)

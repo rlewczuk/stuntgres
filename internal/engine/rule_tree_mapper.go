@@ -78,7 +78,7 @@ func newRuleTreeMapper(view CatalogRead, frame func(uint32) uint32, offset int, 
 		return &copy, nil
 	}
 	mapper.expression = func(expr BoundExpr) (BoundExpr, bool, error) {
-		return rewriteViewExpression(view, expr, func(expr BoundExpr) (BoundExpr, bool, error) {
+		return rewriteViewExpression(view, expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 			if mapping.leaf != nil {
 				next, changed, err := mapping.leaf(expr)
 				if changed || err != nil {

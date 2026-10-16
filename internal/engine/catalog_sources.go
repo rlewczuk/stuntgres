@@ -373,7 +373,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		return e.capturePGDatabase(ctx, catalog, roles, ref, source)
 	}
 	if source.address.ObjectID == 1213 {
-		return capturePGTablespace(ctx, ref, source)
+		return e.capturePGTablespace(ctx, catalog, roles, ref, source)
 	}
 	if source.address.ObjectID == 3079 || source.address.ObjectID == 1255 || source.address.ObjectID == 3764 || source.address.ObjectID == 3600 {
 		return captureExtensionCatalog(ctx, catalog, ref, source)

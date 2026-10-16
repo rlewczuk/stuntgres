@@ -94,17 +94,97 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	if len(old.columns) != 2 || previous.view.data.Load().catalog.state.descriptors[ref.Address] != old || !reflect.DeepEqual(frozen.virtual, old.generations[2].planned) {
 		t.Fatal("frozen source recipe changed")
 	}
+	recipeContext := EvalContext{}
 	if allocations := testing.AllocsPerRun(10, func() {
-		recipe, row, err := frozen.capturedGeneration(current, 0, nil)
+		recipe, row, err := frozen.capturedGeneration(current, 0, nil, &recipeContext)
 		if err != nil || recipe == nil || len(row) != 3 {
 			t.Fatal(recipe, row, err)
 		}
 	}); allocations != 0 {
 		t.Fatal("captured recipe resolution allocated", allocations)
 	}
+	capturedOwner := current.view.data.Load().catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	if recipeContext.routineConsumer != capturedOwner || !recipeContext.routineRecipe || recipeContext.routineGraft ||
+		!reflect.DeepEqual(recipeContext.routineReferences, capturedOwner.generations[2].dependencies) {
+		t.Fatal("captured generation borrowed frozen or enclosing provenance")
+	}
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	evaluate(previous, 3, nil)
 	evaluate(bridge, 7, nil)
+}
+
+func TestVirtualGenerationOriginalAdmission(t *testing.T) {
+	e := New()
+	op, cleanup := roleOperation(t, e, "postgres")
+	defer cleanup()
+	roleExecute(t, e, op, "CREATE TABLE strict_null_rows(v integer,j json,h integer GENERATED ALWAYS AS (json_array_length(j)) VIRTUAL)")
+	roleExecute(t, e, op, "CREATE ROLE virtual_admission_reader LOGIN")
+	roleExecute(t, e, op, "REVOKE EXECUTE ON FUNCTION pg_catalog.json_array_length(json) FROM PUBLIC")
+	reader, done := roleOperation(t, e, "virtual_admission_reader")
+	defer done()
+	e.mu.Lock()
+	readerAuthority, err := e.authorizationLocked(reader)
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Complete all setup before taking the statement's admission ownership.
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Finish(nil)
+	result, err := scope.Execute(statement(t, "SELECT 1"), 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Rows != nil {
+		result.Rows.Close()
+	}
+	node, _, evaluation := strictNullUnitBind(t, e, op, scope, "h")
+	column, ok := node.(columnExpression)
+	if !ok || column.virtualOwner == nil {
+		t.Fatal("bound virtual column lost owning generation", node)
+	}
+	authority := evaluation.routineAuthority
+	if err := validateExpressionJoinExecution(&evaluation, column, evaluation.catalog); err != nil {
+		t.Fatal("original generation admission", err)
+	}
+	if evaluation.routineAuthority != authority {
+		t.Fatal("generation admission changed current invoker")
+	}
+	owner := *column.virtualOwner
+	definition := owner.generations[column.virtualAttribute]
+	owner.generations = map[int32]columnGeneration{column.virtualAttribute: definition}
+	missing := column
+	missing.virtualOwner = &owner
+	definition.dependencies = nil
+	owner.generations[column.virtualAttribute] = definition
+	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.catalog); err == nil {
+		t.Fatal("generation recovered a missing original manifest from enclosing query or current OID")
+	}
+	missing.virtualOwner = nil
+	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.catalog); err == nil {
+		t.Fatal("SQL virtual column admitted without its original owner")
+	}
+	// Context selection is evaluator-local and cannot borrow a definer view's
+	// references or replace the original current-invoker authority.
+	local := evaluation
+	local.routineGraft = true
+	local.routineChecks = []expressionDependency{{}}
+	selectVirtualGenerationRecipe(&local, column.virtualOwner, column.virtualOwner.generations[column.virtualAttribute])
+	if local.routineAuthority != authority || local.routineConsumer != column.virtualOwner ||
+		local.routineGraft || !local.routineRecipe || local.routineChecks != nil ||
+		!reflect.DeepEqual(local.routineReferences, column.virtualOwner.generations[column.virtualAttribute].dependencies) {
+		t.Fatal("virtual generation retained enclosing recipe authority")
+	}
+	invoker := evaluation
+	invoker.routineAuthority = &readerAuthority
+	err = validateExpressionJoinExecution(&invoker, column, readerAuthority.catalog)
+	var denied interface{ SQLState() string }
+	if !errors.As(err, &denied) || denied.SQLState() != "42501" {
+		t.Fatal("generation did not enforce current invoker", err)
+	}
 }

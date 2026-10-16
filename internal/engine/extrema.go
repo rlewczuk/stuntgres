@@ -47,6 +47,10 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 	}
 	provider := functions.NewExtremaProvider(usage, comparison, operation == aggregateMax)
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, selected.ID())
+	if err != nil {
+		return nil, err
+	}
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
 	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()

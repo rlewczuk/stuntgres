@@ -1,0 +1,242 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"testing"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+)
+
+func parameterSpaceRequest(kind string, names ...string) *parser.ObjectGrant {
+	r := &parser.ObjectGrant{Kind: kind, Privileges: []parser.GrantPrivilege{{All: true}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "grant_reader"}}}, GrantOption: true}
+	for _, name := range names {
+		r.Relations = append(r.Relations, parser.ObjectName{Parts: []parser.Identifier{{Text: name}}})
+	}
+	return r
+}
+
+func TestObjectGrantParameterCanonicalTargets(t *testing.T) {
+	e := New()
+	for _, name := range []string{"lc_messages", "LC_MESSAGES", "application_name", "server_encoding", "OG_CUSTOM.Value"} {
+		got, err := e.canonicalGrantParameter(name)
+		if err != nil || got != settingFold(name) {
+			t.Fatalf("canonical target %q: %q, %v", name, got, err)
+		}
+	}
+	for _, name := range []string{"sort_mem", "work_mem", "missing", "bad..name", ".bad", "bad.1name"} {
+		_, err := e.canonicalGrantParameter(name)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || diagnostic.Message != `unrecognized configuration parameter "`+name+`"` {
+			t.Fatalf("unsupported target %q: %v", name, err)
+		}
+	}
+}
+
+func TestObjectGrantParameterPublication(t *testing.T) {
+	for _, name := range []string{"lc_messages", "og_custom.value"} {
+		t.Run(name, func(t *testing.T) {
+			e, op, reader, _ := objectGrantUnitFixture(t)
+			before, roles := e.state, e.roles
+			request := parameterSpaceRequest("parameter", name)
+			if err := applyObjectGrantUnit(e, op, request); err != nil {
+				t.Fatal(err)
+			}
+			address := e.state.names[NameKey{ClassID: ParameterClassID, Name: name}]
+			d, ok := e.state.descriptors[address].(*parameterDescriptor)
+			mask := authorization.SetPrivilege | authorization.AlterSystemPrivilege
+			if !ok || d == nil || address.ClassID != ParameterClassID || d.revision == 0 || d.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
+				t.Fatal("parameter did not acquire real catalog authority")
+			}
+			if before.names[descriptorNameKey(d)] != (ObjectAddress{}) || e.roles.revision != roles.revision+1 || !d.acl.Explicit || len(d.acl.Entries) != 2 {
+				t.Fatal("wrong sparse immutable parameter publication", d.acl)
+			}
+			if authorization.ACLRights(d.acl, d.owner, []authorization.PrincipalRef{reader}, mask, true) != mask || !slices.Contains(descriptorReferences(d), reader) {
+				t.Fatal("parameter ALL/options/dependencies omit sA", d.acl)
+			}
+			if err := (parameterProvider{}).Validate(CatalogRead{e, e.state}, d); err != nil {
+				t.Fatal(err)
+			}
+			copy := *d
+			if err := (parameterProvider{}).Validate(CatalogRead{e, e.state}, &copy); err == nil {
+				t.Fatal("copied parameter descriptor accepted as authority")
+			}
+			copy.owner = authorization.PrincipalRef{}
+			if err := validateACL(e.roleRead(CatalogRead{e, e.state}, e.roles), &copy); err == nil {
+				t.Fatal("parameter zero owner accepted")
+			}
+			stable, stableRoles := e.state, e.roles
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.state != stable || e.roles != stableRoles {
+				t.Fatal("repeated parameter grant was not a no-op", err)
+			}
+			late := parameterSpaceRequest("parameter", name, "work_mem")
+			if err := applyObjectGrantUnit(e, op, late); err == nil || e.state != stable || e.roles != stableRoles {
+				t.Fatal("late unsupported parameter published prefix", err)
+			}
+			request.Revoke, request.GrantOption = true, false
+			if err := applyObjectGrantUnit(e, op, request); err != nil {
+				t.Fatal(err)
+			}
+			if _, exists := e.state.descriptors[address]; exists || e.state.names[descriptorNameKey(d)] != (ObjectAddress{}) || len(d.acl.Entries) != 2 {
+				t.Fatal("baseline-equivalent parameter row/name not deleted or old ACL mutated")
+			}
+			stable, stableRoles = e.state, e.roles
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.state != stable || e.roles != stableRoles {
+				t.Fatal("fresh baseline revoke published a parameter row", err)
+			}
+		})
+	}
+}
+
+func TestObjectGrantParameterExplicitEmpty(t *testing.T) {
+	e := New()
+	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+	d := &parameterDescriptor{address: ObjectAddress{ClassID: ParameterClassID, ObjectID: 900003}, revision: 2, name: "lc_messages", owner: owner, acl: authorization.ACLValue{Explicit: true}}
+	candidate := cloneCatalog(e.state)
+	installParameterGrant(candidate, d)
+	if candidate.descriptors[d.address] != d || candidate.names[descriptorNameKey(d)] != d.address {
+		t.Fatal("explicit empty parameter ACL collapsed to absent")
+	}
+	n := *d
+	n.acl = authorization.DefaultBaseline(owner, authorization.DefaultParameters, false)
+	installParameterGrant(candidate, &n)
+	if _, exists := candidate.descriptors[d.address]; exists || candidate.names[descriptorNameKey(d)] != (ObjectAddress{}) || !d.acl.Explicit || len(d.acl.Entries) != 0 {
+		t.Fatal("baseline deletion mutated empty ACL or retained row")
+	}
+}
+
+func TestObjectGrantTablespacePublication(t *testing.T) {
+	for _, builtin := range builtinTablespaces {
+		t.Run(builtin.name, func(t *testing.T) {
+			e, op, reader, _ := objectGrantUnitFixture(t)
+			address := ObjectAddress{ClassID: TablespaceClassID, ObjectID: builtin.oid}
+			original, ok := e.state.descriptors[address].(*tablespaceDescriptor)
+			if !ok || original == nil || original.acl.Explicit || original.name != builtin.name || original.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
+				t.Fatal("missing real builtin tablespace baseline")
+			}
+			request := parameterSpaceRequest("tablespace", builtin.name)
+			if err := applyObjectGrantUnit(e, op, request); err != nil {
+				t.Fatal(err)
+			}
+			d := e.state.descriptors[address].(*tablespaceDescriptor)
+			if d == original || original.acl.Explicit || !d.acl.Explicit || len(d.acl.Entries) != 2 || authorization.ACLRights(d.acl, d.owner, []authorization.PrincipalRef{reader}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege || !slices.Contains(descriptorReferences(d), reader) {
+				t.Fatal("wrong immutable tablespace ALL/options/dependencies", d.acl)
+			}
+			if err := (tablespaceProvider{}).Validate(CatalogRead{e, e.state}, d); err != nil {
+				t.Fatal(err)
+			}
+			copy := *d
+			if err := (tablespaceProvider{}).Validate(CatalogRead{e, e.state}, &copy); err == nil {
+				t.Fatal("copied tablespace descriptor accepted as authority")
+			}
+			copy.owner = authorization.PrincipalRef{}
+			if err := validateACL(e.roleRead(CatalogRead{e, e.state}, e.roles), &copy); err == nil {
+				t.Fatal("tablespace zero owner accepted")
+			}
+			stable, roles := e.state, e.roles
+			if err := applyObjectGrantUnit(e, op, parameterSpaceRequest("tablespace", builtin.name, "missing")); err == nil || e.state != stable || e.roles != roles {
+				t.Fatal("late missing tablespace published prefix", err)
+			}
+			request.Revoke, request.GrantOption = true, false
+			if err := applyObjectGrantUnit(e, op, request); err != nil {
+				t.Fatal(err)
+			}
+			next := e.state.descriptors[address].(*tablespaceDescriptor)
+			if !next.acl.Explicit || !authorization.MatchesDefaultBaseline(next.acl, next.owner, authorization.DefaultTablespaces, false) || len(d.acl.Entries) != 2 {
+				t.Fatal("tablespace baseline/revoke snapshot mismatch", next.acl)
+			}
+		})
+	}
+}
+
+func TestObjectGrantParameterACLTransport(t *testing.T) {
+	for _, tc := range []struct {
+		mask authorization.Privileges
+		want uint32
+	}{{authorization.SetPrivilege, 1 << 12}, {authorization.AlterSystemPrivilege, 1 << 13}, {authorization.SetPrivilege | authorization.AlterSystemPrivilege, 1<<12 | 1<<13}} {
+		got, err := pgClassACLMask(tc.mask)
+		if err != nil || got != tc.want {
+			t.Fatalf("parameter ACLITEM transport: %x, %v; want %x", got, err, tc.want)
+		}
+	}
+}
+
+func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
+	e, op, _, _ := objectGrantUnitFixture(t)
+	capture := func(catalog CatalogRead) *querySource {
+		t.Helper()
+		address := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: "pg_tablespace"}]
+		source := catalog.state.descriptors[address].(*relationDescriptor)
+		if len(source.columns) != 5 {
+			t.Fatal("wrong pg_tablespace column count", len(source.columns))
+		}
+		for i, name := range []string{"oid", "spcname", "spcowner", "spcacl", "spcoptions"} {
+			if source.columns[i].Name != name {
+				t.Fatal("noncanonical pg_tablespace column order", i, source.columns[i].Name)
+			}
+		}
+		ref := ObjectRef{owner: e.owner, Epoch: catalog.Epoch(), Address: address}
+		e.mu.Lock()
+		rows, err := e.capturePGTablespace(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, source)
+		e.mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rows
+	}
+	before := CatalogRead{e, e.state}
+	old := capture(before)
+	if len(old.anonymous) != 2 || len(old.anonymous[0]) != 5 || !old.anonymous[0][3].IsNull() || !old.anonymous[1][3].IsNull() || !old.anonymous[0][4].IsNull() || !old.anonymous[1][4].IsNull() {
+		t.Fatal("tablespace absent ACL baseline not NULL")
+	}
+	if err := applyObjectGrantUnit(e, op, parameterSpaceRequest("tablespace", "pg_default")); err != nil {
+		t.Fatal(err)
+	}
+	current := capture(CatalogRead{e, e.state})
+	if current.anonymous[0][3].IsNull() || current.anonymous[0][3].ArrayLen() != 2 || !current.anonymous[1][3].IsNull() || !old.anonymous[0][3].IsNull() || !capture(before).anonymous[0][3].IsNull() || !current.anonymous[0][4].IsNull() || !current.anonymous[1][4].IsNull() {
+		t.Fatal("captured tablespace ACL root mutated or grant not projected")
+	}
+}
+
+func TestObjectGrantParameterSettingAccess(t *testing.T) {
+	e, ownerOp, _, _ := objectGrantUnitFixture(t)
+	readerOp, done := roleOperation(t, e, "grant_reader")
+	defer done()
+	d := e.settingsDefinitions["lc_messages"]
+	if err := settingAccess(d, readerOp); err == nil {
+		t.Fatal("unprivileged lc_messages setter admitted")
+	}
+	request := parameterSpaceRequest("parameter", "lc_messages")
+	request.Privileges = []parser.GrantPrivilege{{Name: "alter system"}}
+	if err := applyObjectGrantUnit(e, ownerOp, request); err != nil {
+		t.Fatal(err)
+	}
+	if err := settingAccess(d, readerOp); err == nil {
+		t.Fatal("ALTER SYSTEM metadata conferred SET")
+	}
+	request.Privileges = []parser.GrantPrivilege{{Name: "set"}}
+	if err := applyObjectGrantUnit(e, ownerOp, request); err != nil {
+		t.Fatal(err)
+	}
+	if err := settingAccess(d, readerOp); err != nil {
+		t.Fatal("actual lc_messages setter ignored SET ACL", err)
+	}
+	if err := settingAccess(e.settingsDefinitions["application_name"], readerOp); err != nil {
+		t.Fatal("USERSET unexpectedly depends on ACL", err)
+	}
+	for _, definition := range []SettingDefinition{e.settingsDefinitions["server_encoding"], {Name: "private.protected", Access: SettingPrivileged}} {
+		if err := settingAccess(definition, readerOp); err == nil {
+			t.Fatal("read-only or deny-only custom setter admitted")
+		}
+	}
+	request.Revoke, request.GrantOption = true, false
+	if err := applyObjectGrantUnit(e, ownerOp, request); err != nil {
+		t.Fatal(err)
+	}
+	if err := settingAccess(d, readerOp); err == nil {
+		t.Fatal("held operation cached old parameter permission")
+	}
+}

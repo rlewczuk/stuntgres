@@ -467,8 +467,17 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 		// ExecRelCheck. Keep descriptors/dependencies untouched and copy the
 		// executable expression slice only when a branch actually changes.
 		for i := range d.checkConstraints {
-			node, changed, err := preflightCoercionsWithPolicy(eval, d.checkConstraints[i].expression, true)
+			checkEvaluation := *eval
+			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
+			checkEvaluation.routineChecks = d.checkConstraints[i].dependencies
+			checkEvaluation.routineReferences = nil
+			checkEvaluation.routineConsumer = d
+			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, d.checkConstraints[i].expression, true)
+			eval.preparedDomainChecks = checkEvaluation.preparedDomainChecks
 			if err != nil {
+				return nil, err
+			}
+			if err := validateExpressionJoinExecution(&checkEvaluation, node, checkEvaluation.catalog); err != nil {
 				return nil, err
 			}
 			if changed {
@@ -486,8 +495,19 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 		}
 		eval.preparedChecks[d] = expressions
 	}
+	// Lazy SQL-body demand happens during truth, after preflight's stack
+	// context has ended. Keep this actual CHECK's original recipe for Eval;
+	// the shared statement manifest cannot stand in for a stored constraint.
+	oldRecipe, oldGraft := eval.routineRecipe, eval.routineGraft
+	oldChecks, oldReferences, oldConsumer := eval.routineChecks, eval.routineReferences, eval.routineConsumer
+	defer func() {
+		eval.routineRecipe, eval.routineGraft = oldRecipe, oldGraft
+		eval.routineChecks, eval.routineReferences, eval.routineConsumer = oldChecks, oldReferences, oldConsumer
+	}()
 	for i := range d.checkConstraints {
 		c := &d.checkConstraints[i]
+		eval.routineRecipe, eval.routineGraft = true, false
+		eval.routineChecks, eval.routineReferences, eval.routineConsumer = c.dependencies, nil, d
 		expression := c.expression
 		if expressions != nil {
 			expression = expressions[i]

@@ -51,6 +51,30 @@ cannot mutate; privileged custom definitions and logging statistics remain
 deny-only. Monitoring-role membership does not grant protected locale/logging
 mutation authority, statistics providers or data-directory metadata.
 
+## Parameter ACLs
+
+`GRANT SET` / `GRANT ALTER SYSTEM ON PARAMETER` uses genuine sparse class-6243
+catalog authority with SET/ALTER SYSTEM (`sA`) bits, role inheritance, grant
+options and origin-aware CASCADE. Canonical registered aliases and dotted custom
+names resolve atomically; a late missing/invalid target publishes no prefix.
+Default-equivalent sparse entries can disappear; explicit-empty authority stays
+distinct. Owner/grantor/grantee references participate in DROP OWNED, DROP ROLE,
+native remap validation and pre-output Dump rejection.
+
+For actual registered protected settings such as lc_messages, SET, RESET and
+set_config check SET authority; ALTER SYSTEM alone does not permit those calls.
+USERSET application_name stays ordinarily mutable. ACL metadata does not
+implement absent settings, privileged deny-only custom/statistics providers or
+readonly mutation. Unrepresented work_mem/sort_mem grant targets remain42704,
+not invented native knobs.
+
+There is no new native pg_parameter_acl or has_parameter_privilege SQL provider.
+Pinned PostgreSQL catalog/inquiry observations supplement actual SET behaviour
+and private authority units; they do not become native execution shims. Native
+ALTER SYSTEM remains42601 at SYSTEM (Position7); storing its ACL bit does not
+add filesystem/configuration-file execution.
+
+
 ## Custom setting Go API
 
 Register definitions before the first connector/engine is constructed:

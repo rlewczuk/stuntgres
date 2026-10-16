@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,6 +25,9 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(installedUUIDOsspFunctionExpression)
+	if carrier, err := expressionRoutineDescriptor(n); err != nil || carrier != n.procedure {
+		t.Fatal("missing common original routine carrier", carrier, err)
+	}
 	if n.ref.Address != ext.members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != Volatile || !n.validShape() || !closedUUIDDefault(n) || generationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
@@ -76,6 +80,10 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
 		func(x *installedUUIDOsspFunctionExpression) { x.Name = "gen_random_uuid" },
+		func(x *installedUUIDOsspFunctionExpression) { x.RoutineReference = nil },
+		func(x *installedUUIDOsspFunctionExpression) {
+			x.RoutineReference = view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
+		},
 		func(x *installedUUIDOsspFunctionExpression) { x.ref.Epoch = 0 },
 		func(x *installedUUIDOsspFunctionExpression) { copy := *x.procedure; x.procedure = &copy },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = Immutable },
@@ -180,5 +188,242 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	got := rebound.(installedUUIDOsspFunctionExpression)
 	if got.ref != n.ref || got.procedure != n.procedure || !got.Properties().StageDependent || plannedVolatility(got) != Volatile || closedUUIDDefault(got) {
 		t.Fatal("grouped remap lost identity/stage or relaxed DEFAULT", got)
+	}
+}
+
+func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
+	e, ext := uuidOsspUnitInstalled(t)
+	other, _ := uuidOsspUnitInstalled(t)
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	roleExecute(t, e, op, "CREATE TABLE strict_null_rows(v integer)")
+	roleExecute(t, e, op, "CREATE VIEW uuid_authority_recipe AS SELECT uuid_generate_v4()")
+	recipe := e.CatalogRead().state.descriptors[roleTableRef(t, e, "uuid_authority_recipe").Address].(*relationDescriptor)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { scope.Finish(nil) })
+	result, err := scope.Execute(statement(t, "SELECT 1"), 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Rows != nil {
+		result.Rows.Close()
+	}
+	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
+	n := node.(installedUUIDOsspFunctionExpression)
+	captured, err := expressionRoutineDescriptor(node)
+	if err != nil || captured != n.procedure || captured.address != ext.members[0] || captured.routineKind != functionRoutine || captured.result != 2950 || captured.signature != "" || !captured.strict || captured.volatility != Volatile || len(captured.body) != 0 || n.ref.owner != e.owner {
+		t.Fatal("genuine zero-arity original declaration", captured, err)
+	}
+	original := slices.Clone(binder.dependencies)
+	routines := 0
+	for _, dep := range original {
+		if dep.ref.Address.ClassID == ProcedureClassID {
+			routines++
+			if dep.ref != n.ref || dep.revision != captured.revision {
+				t.Fatal("invented helper edge or incorrect original manifest", dep)
+			}
+		}
+	}
+	if routines != 1 {
+		t.Fatal("zero-arity call lost its own manifest", original)
+	}
+	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+		t.Fatal("original scalar admission", err)
+	}
+	for _, mode := range []string{"nil", "empty", "missing", "epoch", "revision", "foreign_ref"} {
+		t.Run(mode, func(t *testing.T) {
+			probe := evaluation
+			deps := slices.Clone(original)
+			switch mode {
+			case "nil":
+				deps = nil
+			case "empty":
+				deps = []expressionDependency{}
+			case "missing":
+				deps = slices.DeleteFunc(deps, func(d expressionDependency) bool { return d.ref.Address == n.ref.Address })
+			default:
+				for i := range deps {
+					if deps[i].ref.Address != n.ref.Address {
+						continue
+					}
+					switch mode {
+					case "epoch":
+						deps[i].ref.Epoch++
+					case "revision":
+						deps[i].revision++
+					case "foreign_ref":
+						deps[i].ref.owner = other.owner
+					}
+				}
+			}
+			probe.routineChecks = deps
+			if err := admitRoutineCall(&probe, node, true, false); err == nil {
+				t.Fatal("absent/stale original authority repaired")
+			}
+		})
+	}
+	for _, mutate := range []func(*procedureDescriptor){
+		func(d *procedureDescriptor) { d.uuidOssp = nil },
+		func(d *procedureDescriptor) { d.uuidOssp = &uuidOsspProvider{version: "1.1"} },
+		func(d *procedureDescriptor) { d.routineKind = procedureRoutine },
+	} {
+		auth := *evaluation.routineAuthority
+		auth.catalog.state = cloneCatalog(auth.catalog.state)
+		bad := *captured
+		mutate(&bad)
+		auth.catalog.state.descriptors[n.ref.Address] = &bad
+		probe := evaluation
+		probe.routineAuthority = &auth
+		if sameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
+			t.Fatal("incompatible current provider/kind admitted")
+		}
+	}
+	grafted, _, err := mapBoundExpression(evaluation.catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
+	if err != nil {
+		t.Fatal("graft genuine recipe", err)
+	}
+	probe := evaluation
+	probe.routineChecks = nil
+	if err := admitRoutineCall(&probe, grafted, true, false); err != nil {
+		t.Fatal("graft lost actual owning manifest", err)
+	}
+	if boundExpressionInfo(grafted).routineRecipe != recipe || boundExpressionInfo(node).routineRecipe != nil {
+		t.Fatal("graft lost ancestry or mutated original")
+	}
+	mapping := map[ObjectAddress]ObjectAddress{
+		ext.address:   {ClassID: ExtensionClassID, ObjectID: 900000},
+		n.ref.Address: {ClassID: ProcedureClassID, ObjectID: 900001},
+	}
+	state := cloneCatalog(evaluation.catalog.state)
+	for address := range mapping {
+		delete(state.names, descriptorNameKey(state.descriptors[address]))
+		delete(state.descriptors, address)
+	}
+	for address, dest := range mapping {
+		d := remapExtensionDescriptor(evaluation.catalog.state.descriptors[address], mapping)
+		state.descriptors[dest] = d
+		state.names[descriptorNameKey(d)] = dest
+	}
+	state.epoch++
+	view := CatalogRead{owner: e, state: state}
+	remap := func(ref ObjectRef) ObjectRef {
+		ref.Epoch = state.epoch
+		if dest, ok := mapping[ref.Address]; ok {
+			ref.Address = dest
+		}
+		return ref
+	}
+	relocated, err := remapBoundExpression(node, remap, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relocated, _, err = retagBoundTypes(view, relocated, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+	if err != nil {
+		t.Fatal("retag must resolve selected remapped address", err)
+	}
+	current, err := expressionRoutineDescriptor(relocated)
+	if err != nil || current != state.descriptors[mapping[n.ref.Address]] || !relocated.(installedUUIDOsspFunctionExpression).validShape() {
+		t.Fatal("remapped common and installed carriers diverged", err)
+	}
+	auth := catalogAuthorization(e, view)
+	probe = evaluation
+	probe.catalog, probe.routineAuthority = view, &auth
+	if err := admitRoutineCall(&probe, relocated, true, false); err == nil {
+		t.Fatal("retag manufactured original authority")
+	}
+	probe.routineChecks = slices.Clone(original)
+	for i := range probe.routineChecks {
+		probe.routineChecks[i].ref = remap(probe.routineChecks[i].ref)
+	}
+	if err := admitRoutineCall(&probe, relocated, true, false); err != nil {
+		t.Fatal("transferred original authority rejected", err)
+	}
+	foreignView := other.CatalogRead()
+	foreignNode, err := remapBoundExpression(node, func(ref ObjectRef) ObjectRef {
+		ref.owner, ref.Epoch = other.owner, foreignView.Epoch()
+		return ref
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignNode, _, err = retagBoundTypes(foreignView, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		if d == nil {
+			return nil
+		}
+		typ, _ := foreignView.LookupType(d.ID())
+		return typ
+	})
+	if err != nil {
+		t.Fatal("foreign structural retag", err)
+	}
+	foreignAuth := catalogAuthorization(other, foreignView)
+	probe = evaluation
+	probe.routineAuthority = &foreignAuth
+	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
+		t.Fatal("foreign same-OID retag acquired original authority")
+	}
+	if !reflect.DeepEqual(binder.dependencies, original) || boundExpressionInfo(node).routineReference != captured || n.procedure != captured || n.ref.Address != ext.members[0] {
+		t.Fatal("authority probes mutated original")
+	}
+	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+		t.Fatal("source authority lost", err)
+	}
+}
+
+func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
+	e, ext := uuidOsspUnitInstalled(t)
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	roleExecute(t, e, op, "CREATE ROLE uuid_acl_reader LOGIN")
+	reader, readerDone := roleOperation(t, e, "uuid_acl_reader")
+	t.Cleanup(readerDone)
+	address := ext.members[0]
+	original := e.CatalogRead().state.descriptors[address].(*procedureDescriptor)
+	if original.acl.Explicit || original.acl.Entries != nil {
+		t.Fatal("installed raw ACL must be NULL/default", original.acl)
+	}
+	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	node, err := binder.bindInstalledUUIDOssp(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		sql      string
+		explicit bool
+		execute  bool
+	}{
+		{"", false, true},
+		{"REVOKE EXECUTE ON FUNCTION uuid_generate_v4() FROM PUBLIC", true, false},
+		{"GRANT EXECUTE ON FUNCTION uuid_generate_v4() TO uuid_acl_reader", true, true},
+		{"REVOKE EXECUTE ON FUNCTION uuid_generate_v4() FROM uuid_acl_reader", true, false},
+	} {
+		if tc.sql != "" {
+			roleExecute(t, e, op, tc.sql)
+		}
+		auth, err := reader.Authorization()
+		if err != nil {
+			t.Fatal(err)
+		}
+		current := auth.catalog.state.descriptors[address].(*procedureDescriptor)
+		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: address}
+		rights, err := auth.Effective(ref, false)
+		if err != nil || current.acl.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {
+			t.Fatal("default/explicit current EXECUTE", tc.sql, current.acl, rights, err)
+		}
+		evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
+		err = admitRoutineCall(&evaluation, node, true, false)
+		if tc.execute {
+			if err != nil {
+				t.Fatal("original carrier lost current grant", err)
+			}
+		} else if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42501" {
+			t.Fatal("original carrier bypassed current revoke", err)
+		}
+		if original.acl.Explicit || original.acl.Entries != nil {
+			t.Fatal("COW changed original raw NULL ACL")
+		}
 	}
 }

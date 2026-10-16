@@ -88,7 +88,11 @@ func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (BoundEx
 	}
 	properties := arg.Properties()
 	properties.Volatility = Volatile
-	return blockingInquiryExpression{b.info(b.typ(target.Type.AssociatedArray()).Usage(), raw.Pos, properties), kind, arg}, nil
+	info, err := b.builtinRoutineInfo(b.info(b.typ(target.Type.AssociatedArray()).Usage(), raw.Pos, properties), catalogRoutineProvider, kind.name(), sqltype.Int4)
+	if err != nil {
+		return nil, err
+	}
+	return blockingInquiryExpression{info, kind, arg}, nil
 }
 
 func (n blockingInquiryExpression) arguments() []BoundExpr { return []BoundExpr{n.arg} }

@@ -18,27 +18,54 @@ func (w *ownershipWriter) Write(p []byte) (int, error) { w.calls++; return len(p
 
 func TestReferenceRoleOwnershipControls(t *testing.T) {
 	ownershipCases(t, func(s *membershipScenario) {
-		// ACL-free: controls intentionally do not expand ACL serialization.
-		s.exec("CREATE SCHEMA own_control AUTHORIZATION own_source")
-		// Namespace ACL SQL is a real PostgreSQL supplemental provider, not
-		// native admission. Its native serializer guard is a descriptor witness.
-		const namespaceGrant = "GRANT USAGE ON SCHEMA own_control TO own_reader"
-		if s.backend.PG {
-			ownershipBool(s, "SELECT has_schema_privilege('own_reader','own_control','USAGE')", false)
-			s.exec(namespaceGrant)
-			ownershipBool(s, "SELECT has_schema_privilege('own_reader','own_control','USAGE')", true)
-			s.exec("REVOKE USAGE ON SCHEMA own_control FROM own_reader")
-			ownershipBool(s, "SELECT has_schema_privilege('own_reader','own_control','USAGE')", false)
-		} else {
-			var before, after bytes.Buffer
+		// Exercise genuine schema grants in a bounded setup schema, then remove
+		// it before the ACL-free ownership snapshot below.
+		var before bytes.Buffer
+		if !s.backend.PG {
 			if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &before); err != nil {
 				s.t.Fatal(err)
 			}
-			predefinedFailure(s, namespaceGrant, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "own_control"`, Position: "23"}, false, "prepare")
-			if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &after); err != nil || !bytes.Equal(before.Bytes(), after.Bytes()) {
-				s.t.Fatal("rejected schema GRANT changed snapshot", err)
+		}
+		s.exec("CREATE SCHEMA own_schema AUTHORIZATION own_source")
+		s.actor("own_source")
+		s.exec("CREATE TYPE own_schema.e AS ENUM('a')")
+		s.actor("")
+		if s.backend.PG {
+			ownershipBool(s, "SELECT has_schema_privilege('own_reader','own_schema','USAGE')", false)
+		}
+		s.exec("GRANT USAGE ON SCHEMA own_schema TO own_reader")
+		if s.backend.PG {
+			ownershipBool(s, "SELECT has_schema_privilege('own_reader','own_schema','USAGE')", true)
+		} else {
+			var writer ownershipWriter
+			if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &writer); err == nil || writer.calls != 0 {
+				s.t.Fatal("explicit schema ACL must reject before writer callbacks", err, writer.calls)
 			}
 		}
+		s.actor("own_reader")
+		ownershipSelect(s, "SELECT 'a'::own_schema.e::TEXT AS x", []string{"x"}, []string{"TEXT"}, [][]any{{"a"}})
+		s.actor("")
+		s.exec("REVOKE USAGE ON SCHEMA own_schema FROM own_reader")
+		if s.backend.PG {
+			ownershipBool(s, "SELECT has_schema_privilege('own_reader','own_schema','USAGE')", false)
+		}
+		s.actor("own_reader")
+		denied := fixture.ImplicitError("SELECT 'a'::own_schema.e::TEXT AS x", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema own_schema", Position: "13"})
+		denied.ErrorStage = "execute"
+		if s.prepared {
+			denied.ErrorStage = "prepare"
+		}
+		s.run(denied)
+		s.actor("")
+		s.exec("DROP SCHEMA own_schema CASCADE")
+		if !s.backend.PG {
+			var after bytes.Buffer
+			if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &after); err != nil || !bytes.Equal(before.Bytes(), after.Bytes()) {
+				s.t.Fatal("bounded schema grant setup changed logical snapshot", err)
+			}
+		}
+		// ACL-free: controls intentionally do not expand ACL serialization.
+		s.exec("CREATE SCHEMA own_control AUTHORIZATION own_source")
 		s.actor("own_source")
 		for _, q := range []string{
 			"CREATE TABLE own_control.t(id SERIAL,payload INT DEFAULT 9)",

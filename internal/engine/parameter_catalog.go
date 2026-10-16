@@ -1,0 +1,91 @@
+package engine
+
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/authorization"
+)
+
+// A parameter descriptor represents an ACL, not a setting value or provider.
+// Baseline-equivalent ACLs have no catalog row.
+type parameterDescriptor struct {
+	address  ObjectAddress
+	revision DefinitionRevision
+	name     string
+	owner    authorization.PrincipalRef
+	acl      authorization.ACLValue
+}
+
+func (d *parameterDescriptor) Address() ObjectAddress       { return d.address }
+func (d *parameterDescriptor) Revision() DefinitionRevision { return d.revision }
+func (*parameterDescriptor) Namespace() ObjectAddress       { return ObjectAddress{} }
+func (d *parameterDescriptor) Name() string                 { return d.name }
+func (*parameterDescriptor) Kind() ObjectKind               { return ParameterObject }
+
+type parameterProvider struct{}
+
+func (parameterProvider) ClassID() OID { return ParameterClassID }
+func (parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
+	d, ok := descriptor.(*parameterDescriptor)
+	if !ok || d == nil || v.owner == nil || v.state == nil || v.state.descriptors[d.address] != d {
+		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
+	}
+	name, err := v.owner.canonicalGrantParameter(d.name)
+	if err != nil || name != d.name || d.address.ClassID != ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
+		return fmt.Errorf("stuntgres: invalid parameter descriptor")
+	}
+	return nil
+}
+
+// Registered settings and valid custom dotted names are the only native
+// targets. In particular, PostgreSQL aliases for absent providers do not invent
+// settings here. This never calls normalization or default-provider callbacks.
+func (e *Engine) canonicalGrantParameter(name string) (string, error) {
+	key := settingFold(name)
+	if _, ok := e.settingsDefinitions[key]; ok {
+		return key, nil
+	}
+	if customName(key) {
+		return key, nil
+	}
+	return "", sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))
+}
+
+// grantParameterDescriptorLocked returns an existing ACL identity or an
+// unpublished baseline identity for the central grant candidate. The caller
+// owns Engine.mu and publishes only after all targets and ACL changes succeed.
+func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string) (*parameterDescriptor, error) {
+	key, err := e.canonicalGrantParameter(name)
+	if err != nil {
+		return nil, err
+	}
+	if address := v.catalog.state.names[NameKey{ClassID: ParameterClassID, Name: key}]; address != (ObjectAddress{}) {
+		d, ok := v.catalog.state.descriptors[address].(*parameterDescriptor)
+		if !ok || d == nil {
+			return nil, fmt.Errorf("stuntgres: invalid parameter catalog identity")
+		}
+		return d, nil
+	}
+	oid, err := e.allocateOIDLocked()
+	if err != nil {
+		return nil, err
+	}
+	revision, err := e.revisionLocked()
+	if err != nil {
+		return nil, err
+	}
+	return &parameterDescriptor{address: ObjectAddress{ClassID: ParameterClassID, ObjectID: oid}, revision: revision, name: key, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
+}
+
+// installParameterGrant changes only the detached central catalog candidate.
+// Both the descriptor and name entry disappear when the ACL returns to sA for
+// the owner alone. Explicit empty ACLs are not the default baseline.
+func installParameterGrant(candidate *catalogState, d *parameterDescriptor) {
+	if !d.acl.Explicit || authorization.MatchesDefaultBaseline(d.acl, d.owner, authorization.DefaultParameters, false) {
+		delete(candidate.descriptors, d.address)
+		delete(candidate.names, descriptorNameKey(d))
+		return
+	}
+	candidate.descriptors[d.address] = d
+	candidate.names[descriptorNameKey(d)] = d.address
+}

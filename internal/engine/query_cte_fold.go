@@ -6,7 +6,7 @@ import (
 )
 
 func cteMapExpression(view CatalogRead, expr BoundExpr, leaf func(BoundExpr) (BoundExpr, bool, error)) (BoundExpr, error) {
-	next, _, err := mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, leaf)
+	next, _, err := mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, leaf)
 	return next, err
 }
 
@@ -29,7 +29,7 @@ func foldCTERestrictions(view CatalogRead, root LogicalNode) (LogicalNode, error
 		if !hasQuery {
 			return expr, false, nil
 		}
-		return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(child LogicalNode) (LogicalNode, error) { return foldCTERestrictions(view, child) }, nil)
+		return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(child LogicalNode) (LogicalNode, error) { return foldCTERestrictions(view, child) }, nil, nil)
 	}
 	return rewriteQueryExpressions(root, rewrite, func(node LogicalNode) (LogicalNode, error) {
 		if join, ok := node.(*joinNode); ok && join.kind == parser.JoinInner && join.predicate != nil {

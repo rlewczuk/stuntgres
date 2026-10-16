@@ -67,7 +67,11 @@ func (b *expressionBinder) bindDatetimeOverlaps(raw parser.FunctionExpr, visible
 	if plan.SessionDependent() {
 		properties.Volatility = max(properties.Volatility, Stable)
 	}
-	e.Info = functionInfo(b.info(b.typ(functions.DatetimeOverlapsResult()).Usage(), raw.Pos, properties))
+	info, err := b.builtinRoutineInfo(b.info(b.typ(functions.DatetimeOverlapsResult()).Usage(), raw.Pos, properties), datetimeRoutineProvider, "overlaps", signature[:]...)
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	e.WrapperContext = !overlapsInlineSafe(e)
 	return e, nil
 }

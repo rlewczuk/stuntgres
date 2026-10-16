@@ -142,7 +142,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 			t.Fatal("rendered expression", err)
 		}
 	}
-	rewritten, changed, err := mapBoundExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, func(n BoundExpr) (BoundExpr, bool, error) {
+	rewritten, changed, err := mapBoundExpression(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n BoundExpr) (BoundExpr, bool, error) {
 		if n == original.args[0] {
 			return numericSeriesUnit(t, d, "0.20", "0.3", "0.10").args[0], true, nil
 		}

@@ -27,6 +27,8 @@ make check RUN='^TestReferenceFDW(MappingOwnership|CursorLifecycle)$' REFERENCE=
 make check RUN='^TestReferenceFDW(Registration|Validator|Lifecycle|Concurrency|NativeControls)$' REFERENCE=1
 make check RUN='^TestReferenceFDW(LocalConsumers|Conversion|SourceSecurity|ImporterCapability|MetadataActions)$' REFERENCE=1
 make check RUN='^TestReferenceFDW(WrapperAlterBoundaries|GrantDiagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceFDW(ObjectGrants|RoutineGrants)$' REFERENCE=1
+make check RUN='^(TestFDWProcedureACLCOW|TestFDWProcedureIdentity|TestFDWRegistry)$' RACE=1
 make check RUN='^TestReferenceFDWLateDependencies$' REFERENCE=1
 make check RUN='^TestFDWLateDependency(Publication|OwnRewire)$'
 make check RUN='^TestFDW(OptionsTransform|CatalogOverlay|Registry|ProcedureIdentity|PlanningSelection|ScanState)$'
@@ -40,9 +42,9 @@ committed source updates become visible on later scans; correlated keys
 `1,2,1` retain both occurrences of row1 and the NULL row2 label; import creates
 only the selected actual source definitions and a later collision rolls back
 earlier creations.
-The mapping-selection reader receives PostgreSQL schema USAGE explicitly;
-native setup transfers only schema ownership because native schema SQL GRANT
-is unavailable. Table ownership and explicit SELECT ACL remain independent.
+Mapping-selection, source-security and wrapper-boundary readers receive schema
+USAGE explicitly in both modes. Table ownership and explicit SELECT ACL remain
+independent; no schema-owner workaround supplies otherwise absent privileges.
 Privileged PostgreSQL mapping setup sets `password_required 'false'` for the
 trust-authenticated loopback. Both PUBLIC and exact mappings are configured by
 the administrator; the reader still exercises fallback, override and removal.
@@ -54,6 +56,20 @@ handler/validator-plus-RENAME/OWNER rejections, unchanged executable metadata an
 legitimate inherited-owner RENAME. Invalid GRANT/REVOKE regressions distinguish
 wrapper/server privilege names and column privileges, preserve ACLs, and exercise
 the original USAGE grants through actual server/mapping operations afterward.
+Object-grant scenarios pin raw NULL versus explicit owner-USAGE defaults,
+owner self-grants/recovery, actual server/table creation denial, independent
+grant origins and RESTRICT/CASCADE. Registered-routine grants retain same-held
+raw ACL readers across ordinary/options/PUBLIC changes and class-specific schema
+expansion. PostgreSQL additionally exercises its privilege inquiry functions;
+native lookup-only inquiry identities retain explicit unsupported diagnostics.
+Real callback validation and scans remain usable after ordinary PUBLIC EXECUTE
+is revoked, matching SQL/MED's internal-dispatch contract.
+`TestReferenceFDWObjectGrantCleanup` covers both wrapper/server received USAGE
+and grant-option cleanup, dependent versus independently supported origins,
+same-held raw ACL readers, unchanged identities/options, actual creation denial,
+successful role retirement and late-target atomicity. Run
+`make check RUN='^TestReferenceFDWObjectGrantCleanup$'` and the same command with
+`REFERENCE=1`.
 Native API phases distinguish registration/identity from transport, prove
 validators receive full ordered options, and inject failures only around real
 source operations. Resource ownership and stable actual data supplement counters.

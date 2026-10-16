@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -45,7 +44,7 @@ func (e *Engine) initializeDatabase(name string) {
 		e.databaseName, _ = value.Text()
 	}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner, acl: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}}}}
+	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner}
 	e.state.descriptors[db.address] = db
 	e.state.names[descriptorNameKey(db)] = db.address
 }
@@ -71,19 +70,25 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	if s.Kind != "database" || len(s.Relations) != 1 || len(s.Schemas) != 0 {
+	if s.Kind != "database" || len(s.Relations) == 0 || len(s.Schemas) != 0 {
 		return Result{}, sqlError("0A000", "statement is not supported")
 	}
-	name := s.Relations[0]
-	if len(name.Parts) != 1 {
-		return Result{}, sqlError("0A000", "statement is not supported")
-	}
-	if name.Parts[0].Text != e.databaseName {
-		return Result{}, sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, name.Parts[0].Text))
-	}
+	var requested authorization.Privileges
+	all := false
 	for _, item := range s.Privileges {
-		if item.All || len(item.Columns) != 0 || !strings.EqualFold(item.Name, "create") {
-			return Result{}, sqlError("0A000", "only CREATE privilege on the current database is supported")
+		mask, err := authorization.ObjectPrivilege(item, "database")
+		if err != nil {
+			return Result{}, err
+		}
+		requested |= mask
+		all = all || item.All
+	}
+	for _, name := range s.Relations {
+		if len(name.Parts) != 1 {
+			return Result{}, sqlError("0A000", "statement is not supported")
+		}
+		if name.Parts[0].Text != e.databaseName {
+			return Result{}, sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, name.Parts[0].Text))
 		}
 	}
 	if s.Grantor != nil {
@@ -119,19 +124,20 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, err
 	}
 	db := v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
-	source, available, err := authorization.ObjectGrantSource(op.Context(), db.owner, db.acl, authorization.ACLValue{}, principals, actor.Superuser, authorization.CreatePrivilege)
+	baseline := databaseACL(db)
+	source, available, err := authorization.ObjectGrantSource(op.Context(), db.owner, db.acl, authorization.ACLValue{}, principals, actor.Superuser, requested)
 	if err != nil {
 		return Result{}, err
 	}
-	if available == 0 && authorization.ACLRights(db.acl, db.owner, principals, authorization.CreatePrivilege, false) == 0 {
+	if available == 0 && authorization.ACLRights(baseline, db.owner, principals, databasePrivileges, false) == 0 {
 		return Result{}, sqlError("42501", "permission denied for database "+dependencyIdentifier(db.name))
 	}
-	grantWarning(op, db.name, "", authorization.CreatePrivilege, available, false, s.Revoke)
+	grantWarning(op, db.name, "", requested, available, all, s.Revoke)
 	if available == 0 {
 		return Result{}, nil
 	}
-	acl, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, db.acl, db.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
-	if err != nil || !changed {
+	acl, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, baseline, db.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+	if err != nil || !changed && db.acl.Explicit {
 		return Result{}, err
 	}
 	next := *db

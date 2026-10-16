@@ -71,12 +71,25 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 	if usage.Type == nil || usage.Type.ID() != selected.Result {
 		usage = b.typ(selected.Result).Usage()
 	}
+	var formal [2]sqltype.ID
+	count := len(args)
+	if name == "random_normal" {
+		formal, count = [2]sqltype.ID{sqltype.Float8, sqltype.Float8}, 2
+	} else {
+		for i := range args {
+			formal[i] = selected.Target.Type.ID()
+		}
+	}
+	info, err := b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), randomRoutineProvider, name, formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
 	for _, arg := range args {
 		if randomLiteralNull(arg) {
 			return literalExpression{b.info(usage, raw.Pos, ExprProperties{}), sqltype.Null(usage.Type)}, nil
 		}
 	}
-	return functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(usage, raw.Pos, properties)), Name: name, Args: args}, nil
+	return functions.Random[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args}, nil
 }
 
 func randomLiteralNull(arg BoundExpr) bool {

@@ -72,6 +72,10 @@ func (b *expressionBinder) bindBitwiseAggregate(raw parser.AggregateExpr, name p
 		provider = functions.NewIntegralBitwiseAggregateProvider(usage, operator, bound)
 	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, usage.Type.ID())
+	if err != nil {
+		return nil, err
+	}
 	return b.finishAggregate(raw, call, filter, b.info(usage, raw.Pos, ExprProperties{}))
 }
 

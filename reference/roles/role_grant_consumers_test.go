@@ -102,11 +102,11 @@ func TestReferenceRoleGrantSequenceBoundary(t *testing.T) {
 		run(fixture.Select("SELECT last_value,is_called FROM t_id_seq", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(1), false}}))
 		run(fixture.Select("SELECT id FROM ident", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 		for _, q := range []string{"GRANT SELECT ON SEQUENCE t_id_seq TO rg_reader", "GRANT SELECT ON TABLE t_id_seq TO rg_reader", "GRANT SELECT ON t_id_seq TO rg_reader"} {
-			if b.PG {
-				run(fixture.Exec(q, 0))
-			} else {
-				run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is not supported"}))
-			}
+			run(fixture.Exec(q, 0))
 		}
+		run(fixture.Exec("SET SESSION AUTHORIZATION rg_reader", 0))
+		run(fixture.Select("SELECT last_value FROM t_id_seq", []string{"last_value"}, []string{"INT8"}, [][]any{{int64(1)}}))
+		run(fixture.ImplicitError("SELECT nextval('t_id_seq')", fixture.Diagnostic{Code: "42501", Message: "permission denied for sequence t_id_seq"}))
+		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 	})
 }

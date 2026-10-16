@@ -115,7 +115,7 @@ func ruleExpressionSQL(ctx context.Context, view CatalogRead, expr BoundExpr, ac
 		}
 		return text, true, nil
 	}
-	node, _, err := rewriteViewExpression(view, expr, func(expr BoundExpr) (BoundExpr, bool, error) {
+	node, _, err := rewriteViewExpression(view, expr, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 		if c, ok := expr.(returningColumnExpression); ok {
 			return c.columnExpression, true, nil
 		}

@@ -36,7 +36,11 @@ func TestReferenceTablespaceMetadata(t *testing.T) {
 				}
 			}
 		}
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT spcacl FROM pg_tablespace WHERE oid=1663", []string{"spcacl"}, []string{"_ACLITEM"}, [][]any{{nil}}))
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Select("SELECT spcacl FROM pg_tablespace WHERE oid=1663", []string{"spcacl"}, []string{"_ACLITEM"}, [][]any{{nil}})
+			s.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+		}
 		tablespaceHeldReads(t, p, b, c)
 		tablespaceExec(t, p, b, c, "CREATE VIEW ts_contract_catalog_view AS SELECT oid,spcname,spcowner,spcacl,spcoptions FROM pg_catalog.pg_tablespace")
 		for _, prepared := range []bool{false, true} {

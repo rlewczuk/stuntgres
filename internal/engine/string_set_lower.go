@@ -280,7 +280,7 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	}
 	rewrite := func(expr BoundExpr, beforeDepth int) (BoundExpr, error) {
 		next, _, err := mapBoundExpression(c.catalog, expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
-			func(root LogicalNode) (LogicalNode, error) { return root, nil }, func(e BoundExpr) (BoundExpr, bool, error) {
+			func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, func(e BoundExpr) (BoundExpr, bool, error) {
 				for i, original := range template.origins {
 					if sameQuerySetOccurrence(e, original) && querySetDepth(e) < beforeDepth {
 						return column(original, i), true, nil

@@ -143,7 +143,14 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 			null = true
 		}
 	}
-	n.expressionInfo = b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
+	var formal [3]sqltype.ID
+	for i := range raw.Args {
+		formal[i] = kind.argument(i)
+	}
+	n.expressionInfo, err = b.builtinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), catalogRoutineProvider, kind.name(), formal[:kind.count()]...)
+	if err != nil {
+		return nil, err
+	}
 	if foldNull && null {
 		return literalExpression{b.info(n.usage, raw.Pos, ExprProperties{}), sqltype.Null(n.usage.Type)}, nil
 	}

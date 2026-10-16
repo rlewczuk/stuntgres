@@ -6,6 +6,25 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Shared grant scenario helpers
+
+`role_grant_columns.go` owns the common helpers used by both
+[role proofs](../roles/README.md#testing) and
+[non-table object-grant proofs](../object_grants/README.md#testing):
+
+- `RoleGrantActor` retains SET SESSION AUTHORIZATION, the supplied body and RESET.
+- `RoleGrantPermissionDenied` asserts complete permission diagnostics, including
+  schema positions and direct/prepared error stages. The existing
+  `RoleGrantDenied` table-error step constructor remains a separate API.
+- `RoleGrantError` and `RoleGrantSyntax` retain exact diagnostics and error stages.
+- `RoleGrantEnvironment` obtains and validates current user/database identities.
+- `RoleGrantNoticeExec` requires quiet Prepare, closes that description, then
+  executes the requested direct/prepared route and checks ordered full notices.
+
+These are single shared implementations, not compatibility wrappers. Migrated
+callers retain their SQL, held consumers, native controls and independent
+expectations; run every affected definition in both modes before review.
+
 ### Fixture reset isolation coverage
 
 `TestReferenceFixtureResetIsolation` and

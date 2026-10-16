@@ -161,5 +161,8 @@ func (s *StatementScope) acquireUnique(ref ObjectRef, bound *uniqueBoundKey, key
 		e.replacementMu.RLock()
 		s.replacementRead = true
 	}
+	if request != nil {
+		return s.readmitProgramsAfterWait()
+	}
 	return nil
 }

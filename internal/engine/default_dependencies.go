@@ -32,35 +32,42 @@ func defaultDepends(d *relationDescriptor, target ObjectAddress) bool {
 // Full expression/dependency agreement is already checked on the private stage.
 func validateDefaultProviders(view CatalogRead, d *relationDescriptor) error {
 	for _, definition := range d.defaults {
-		for _, ref := range definition.dependencies {
-			address := ref.Address
-			address.SubID = 0
-			provider, ok := view.Descriptor(address)
-			if !ok || !storedReferenceEpochValid(view, d, ref) {
-				return fmt.Errorf("stuntgres: missing default provider dependency")
+		if err := validateColumnDefaultProviders(view, d, definition); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, definition columnDefault) error {
+	for _, ref := range definition.dependencies {
+		address := ref.Address
+		address.SubID = 0
+		provider, ok := view.Descriptor(address)
+		if !ok || !storedReferenceEpochValid(view, d, ref) {
+			return fmt.Errorf("stuntgres: missing default provider dependency")
+		}
+		if relation, ok := provider.(*relationDescriptor); ok {
+			if ref.Address.SubID != 0 {
+				return fmt.Errorf("stuntgres: invalid default relation provider")
 			}
-			if relation, ok := provider.(*relationDescriptor); ok {
-				if ref.Address.SubID != 0 {
-					return fmt.Errorf("stuntgres: invalid default relation provider")
+			namespace := view.state.descriptors[relation.namespace].(*namespaceDescriptor)
+			if namespace.temporary != (SessionToken{}) {
+				owner := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+				if owner.temporary != namespace.temporary {
+					return fmt.Errorf("stuntgres: foreign temporary default provider")
 				}
-				namespace := view.state.descriptors[relation.namespace].(*namespaceDescriptor)
-				if namespace.temporary != (SessionToken{}) {
-					owner := view.state.descriptors[d.namespace].(*namespaceDescriptor)
-					if owner.temporary != namespace.temporary {
-						return fmt.Errorf("stuntgres: foreign temporary default provider")
-					}
-				}
-			} else if provider.Kind() == CollationObject {
-				if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
-					return err
-				}
-			} else if provider.Kind() == NamespaceObject {
-				if ref.Address.SubID != 0 {
-					return fmt.Errorf("stuntgres: invalid default namespace provider")
-				}
-			} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject && provider.Kind() != TSDictionaryObject {
-				return fmt.Errorf("stuntgres: invalid default provider kind")
 			}
+		} else if provider.Kind() == CollationObject {
+			if err := validateStoredCollationDependency(view, ref, definition.expression); err != nil {
+				return err
+			}
+		} else if provider.Kind() == NamespaceObject {
+			if ref.Address.SubID != 0 {
+				return fmt.Errorf("stuntgres: invalid default namespace provider")
+			}
+		} else if provider.Kind() != TypeObject && provider.Kind() != ProcedureObject && provider.Kind() != OperatorObject && provider.Kind() != TSDictionaryObject {
+			return fmt.Errorf("stuntgres: invalid default provider kind")
 		}
 	}
 	return nil

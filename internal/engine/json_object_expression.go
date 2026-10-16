@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Explicit VARIADIC already carries its final array as one argument. These
@@ -54,5 +55,10 @@ func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name 
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
 	usage := b.typ(definition.Result).Usage()
-	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(usage, raw.Pos, properties)), name, args, parser.OrdinaryFunctionSyntax)
+	formal := [2]sqltype.ID{definition.Argument, definition.Argument}
+	info, err := b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), jsonRoutineProvider, name, formal[:len(args)]...)
+	if err != nil {
+		return nil, err
+	}
+	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
 }

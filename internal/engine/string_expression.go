@@ -40,7 +40,44 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if result.Collation.ID != 0 {
 		info = inputInfo
 	}
-	return functions.NewString[BoundExpr, *EvalContext](functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.collationConflict)
+	node, err := functions.NewString[BoundExpr, *EvalContext](functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.collationConflict)
+	if err != nil {
+		return nil, err
+	}
+	var formal [4]sqltype.ID
+	for i := range args {
+		formal[i] = node.Plan.ArgumentUsage(i).Type.ID()
+	}
+	count := len(args)
+	if name == "normalize" || name == "is_normalized" {
+		// The NFC default changes written arity, not the released declaration.
+		formal[1], count = sqltype.Text, 2
+	}
+	if name == "parse_ident" {
+		// Defaults and named actual order do not change the released declaration.
+		formal[0], formal[1], count = sqltype.Text, sqltype.Bool, 2
+	}
+	routineName, provider := name, stringRoutineProvider
+	if name == "||" {
+		provider = operatorRoutineProvider
+		switch {
+		case textual[0] && textual[1]:
+			routineName, formal[0], formal[1] = "textcat", sqltype.Text, sqltype.Text
+		case textual[0]:
+			routineName, formal[0], formal[1] = "textanycat", sqltype.Text, sqltype.ID(2776)
+		default:
+			routineName, formal[0], formal[1] = "anytextcat", sqltype.ID(2776), sqltype.Text
+		}
+	}
+	info, err = b.builtinRoutineInfo(info, provider, routineName, formal[:count]...)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	if err := b.capturePolymorphicBody(node); err != nil {
+		return nil, err
+	}
+	return node, nil
 }
 
 // COLLATE resolves before overload finalization. Contextualize only textual

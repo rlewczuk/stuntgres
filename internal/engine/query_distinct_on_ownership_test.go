@@ -115,7 +115,7 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 			}
 			child = &sortNode{querySchema: schema, child: child, cacheWidth: 1, keys: []sortKey{{cache: 0, slot: -1, comparison: comparison, expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
 		}
-		node := &distinctOnNode{querySchema: schema, child: child, expressions: []BoundExpr{key}, grouping: []sqltype.Grouping{family}}
+		node := &distinctOnNode{querySchema: schema, child: child, expressions: []BoundExpr{key}, grouping: []queryGrouping{{Grouping: family}}}
 		root := &projectNode{querySchema: schema, child: node, expressions: []BoundExpr{columnExpression{expressionInfo: expressionInfo{usage: usage}, scope: 1, frame: 1, slot: 0}}}
 		rows, count, err := finalizeQuery(context.Background(), root, source, nil)
 		want := error(primary)

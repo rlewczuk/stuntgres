@@ -246,6 +246,36 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 			return nil, err
 		}
 	}
+	// Capture the selected released formal family, not the concrete coerced
+	// array/element types or the written order of named sort arguments.
+	var inputs [3]sqltype.ID
+	switch kind {
+	case functions.ArrayAppend:
+		inputs[0], inputs[1] = 5078, 5077
+	case functions.ArrayPrepend:
+		inputs[0], inputs[1] = 5077, 5078
+	case functions.ArrayConcatenate:
+		inputs[0], inputs[1] = 5078, 5078
+	case functions.ArrayFill:
+		inputs[0], inputs[1], inputs[2] = 2283, 1007, 1007
+	case functions.ArrayReverse:
+		inputs[0] = 2277
+	case functions.ArraySort:
+		inputs[0], inputs[1], inputs[2] = 2277, sqltype.Bool, sqltype.Bool
+	case functions.ArrayTrim:
+		inputs[0], inputs[1] = 2277, sqltype.Int4
+	case functions.ArrayToString:
+		inputs[0], inputs[1], inputs[2] = 2277, sqltype.Text, sqltype.Text
+	}
+	var err error
+	if operator {
+		info, err = b.builtinOperatorRoutineInfo(info, "||", inputs[0], inputs[1])
+	} else {
+		info, err = b.builtinRoutineInfo(info, arrayRoutineProvider, name, inputs[:len(args)]...)
+	}
+	if err != nil {
+		return nil, err
+	}
 	namespace := ""
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text

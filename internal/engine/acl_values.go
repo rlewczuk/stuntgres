@@ -153,6 +153,10 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (BoundExpr, err
 		result = shape.Usage()
 	}
 	n.expressionInfo = b.info(result, raw.Pos, p)
+	n.expressionInfo, err = b.builtinRoutineInfo(n.expressionInfo, catalogRoutineProvider, kind.name(), types...)
+	if err != nil {
+		return nil, err
+	}
 	return n, nil
 }
 func (n aclValueExpression) values(c *EvalContext) ([4]sqltype.Value, bool, error) {

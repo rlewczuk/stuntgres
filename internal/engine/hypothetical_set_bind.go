@@ -140,5 +140,11 @@ func (b *expressionBinder) bindHypotheticalSet(raw parser.AggregateExpr, name pa
 	}
 	usage := result.Usage()
 	call.provider = &hypotheticalSetProvider{usage: usage, operation: op}
+	// The released variadic ANY formal owns the whole direct/order list;
+	// neither its expanded arity nor the coerced pair types change identity.
+	call.routine, err = b.builtinRoutineReference(aggregateRoutineProvider, raw.Name, sqltype.ID(2276))
+	if err != nil {
+		return nil, err
+	}
 	return b.finishAggregate(raw, call, filter, b.info(usage, raw.Pos, ExprProperties{}))
 }

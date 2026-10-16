@@ -167,8 +167,22 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 		}
 		properties.StageDependent = true
 	}
-	call := functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(b.info(result, raw.Pos, properties)), Name: name, Args: args, Unresolved: unresolved}
-	return call.Reconstruct(call.Info, args)
+	info := b.info(result, raw.Pos, properties)
+	call := functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args, Unresolved: unresolved}
+	call, err = call.Reconstruct(call.Info, args)
+	if err != nil {
+		return nil, err
+	}
+	if populate {
+		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, 2283, sqltype.JSONB)
+	} else {
+		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, sqltype.JSONB)
+	}
+	if err != nil {
+		return nil, err
+	}
+	call.Info = functionInfo(info)
+	return call, nil
 }
 
 func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumnDefinition) (sqltype.Usage, error) {

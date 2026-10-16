@@ -25,9 +25,6 @@ func TestReferenceRoleRevokeTransactions(t *testing.T) {
 			} else {
 				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
 				s.ErrorStage = "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
 				run(s)
 				s = fixture.ImplicitError("SELECT a FROM t", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
 				s.SelectRows = true

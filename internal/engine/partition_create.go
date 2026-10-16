@@ -166,6 +166,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		if p.unsupportedCombination {
 			return sqlError("0A000", "partitioned table constraint combination is unsupported")
 		}
+		evaluation.catalog, evaluation.routineAuthority = p.auth.catalog, &p.auth
 		for _, ref := range p.defaultLeaves {
 			leaf, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			if !ok {

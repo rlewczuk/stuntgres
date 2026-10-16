@@ -13,7 +13,8 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 	if scope.authority == nil {
 		scope.authority = &queryAuthority{scope: scope}
 	}
-	if err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark); err != nil {
+	auth, err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark)
+	if err != nil {
 		e.mu.Unlock()
 		return nil, nil, err
 	}
@@ -22,6 +23,13 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, catalog: catalog, Input: scope.input, Output: scope.output}
 	evaluation.quoteCaptures = scope.quoteCaptures
 	evaluation.quoteOrigin = quoteOrigin{owner: ref, definition: definition.rule, revision: definition.quoteRevision}
+	consumer, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	if !ok || consumer.view != definition {
+		return nil, nil, ErrCatalogReplaced
+	}
+	evaluation.routineRecipe, evaluation.routineConsumer = true, consumer
+	evaluation.routineChecks = definition.dependencies
+	evaluation.routineAuthority = &auth
 	root, reads, err := prepareStoredExecutionRoot(&evaluation, definition, outputUses)
 	if err == nil {
 		err = validateMarkedQueryJoin(&evaluation, root, catalog, nil, queryRowMark{}, false, nil, reads)
@@ -30,12 +38,12 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 		return nil, nil, err
 	}
 	e.mu.Lock()
-	if err = e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark); err != nil {
+	if auth, err = e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark); err != nil {
 		e.mu.Unlock()
 		return nil, nil, err
 	}
 	catalog = e.privateCatalogLocked(scope.owner.catalog)
-	consumer := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	consumer = catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	relationPrincipal := consumer.owner
 	if definition.invoker {
 		relationPrincipal = invoker
@@ -118,6 +126,9 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ObjectRef, 
 		source.sources = sources
 	}
 	source.borrowAuthority(scope)
+	// Only this opaque stored tree borrows its defining recipe. User/grafted
+	// replacements retain their existing per-node ancestry rules.
+	source.routineRecipe = consumer
 	return root, source, nil
 }
 

@@ -16,9 +16,10 @@ var intaggMembers = [...]struct {
 	signature procedureSignature
 	result    OID
 	strict    bool
+	kind      routineKind
 }{
-	{"int_array_aggregate", "23", 1007, false},
-	{"int_array_enum", "1007", 23, true},
+	{"int_array_aggregate", "23", 1007, false, aggregateRoutine},
+	{"int_array_enum", "1007", 23, true, functionRoutine},
 }
 
 func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
@@ -34,7 +35,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		}
 		address := ObjectAddress{ClassID: ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, owner: owner, result: member.result, volatility: Immutable, strict: member.strict, intagg: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: Immutable, strict: member.strict, intagg: p}
 		if i == 0 {
 			state, err := e.allocateOIDLocked()
 			if err != nil {
@@ -64,12 +65,11 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 
 func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg manifest") }
-	if p != stockIntagg || ext.name != "intagg" || ext.version != p.version || len(ext.members) != len(intaggMembers) {
+	if p != stockIntagg || v.owner == nil || ext.name != "intagg" || ext.version != p.version || len(ext.members) != len(intaggMembers) {
 		return invalid()
 	}
 	var seen [len(intaggMembers)]bool
-	var owner authorization.PrincipalRef
-	for i, address := range ext.members {
+	for _, address := range ext.members {
 		proc, ok := v.state.descriptors[address].(*procedureDescriptor)
 		if !ok || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
@@ -79,7 +79,7 @@ func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error
 		}
 		found := false
 		for j, member := range intaggMembers {
-			if proc.name == member.name && proc.signature == member.signature && proc.result == member.result && proc.strict == member.strict {
+			if proc.name == member.name && proc.signature == member.signature && proc.result == member.result && proc.strict == member.strict && proc.routineKind == member.kind {
 				if seen[j] {
 					return invalid()
 				}
@@ -90,10 +90,7 @@ func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error
 		if !found {
 			return invalid()
 		}
-		if i == 0 {
-			owner = proc.owner
-		}
-		if owner == (authorization.PrincipalRef{}) || owner != proc.owner {
+		if proc.owner.ID() == 0 || proc.owner != v.owner.authorizationDomain.Principal(proc.owner.ID()) {
 			return invalid()
 		}
 	}

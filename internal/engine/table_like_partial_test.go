@@ -73,13 +73,14 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
 		boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
+		var preparation indexExecutionPreparation
 		for _, truth := range []sqltype.Value{sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false), sqltype.Null(boolean)} {
 			id, _ := sqltype.Integer(integer, 11)
 			key, _ := sqltype.Integer(integer, 7)
 			n, _ := sqltype.Integer(integer, 2)
 			row := []sqltype.Value{sqltype.String(text, "prefix"), id, key, truth, n}
 			evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
-			got, err := indexPredicateMatches(&evaluation, predicate, row)
+			got, err := preparation.predicateMatches(&evaluation, destination, &indexDefinition{predicate: predicate}, row, nil, nil)
 			want, _ := TruthOf(truth)
 			if err != nil || got != (want == True) {
 				t.Fatal("execution predicate retains source slot", got, want, err)

@@ -294,7 +294,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 			})
 			child := &valuesNode{querySchema: querySchema{{Usage: p.input.Usage()}, {Usage: p.input.Usage()}}, rows: [][]BoundExpr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
 			call := aggregateCall{provider: &provider, argument: arg, direct: []BoundExpr{direct}, operation: provider.operation, stageWidth: 2, order: []sortKey{{expression: arg, comparison: provider.comparison, slot: 0, cache: 0}}}
-			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.input.Usage()}, {Usage: provider.usage}}, child: child, keys: []BoundExpr{key}, grouping: []sqltype.Grouping{grouping}, calls: []aggregateCall{call}}
+			aggregate := &aggregateNode{querySchema: querySchema{{Usage: p.input.Usage()}, {Usage: provider.usage}}, child: child, keys: []BoundExpr{key}, grouping: []queryGrouping{{Grouping: grouping}}, calls: []aggregateCall{call}}
 			root := &projectNode{querySchema: querySchema{{Usage: provider.usage}}, child: aggregate, expressions: []BoundExpr{groupExpression{expressionInfo: expressionInfo{usage: provider.usage}, slot: 1, frame: 1}}, frame: 1}
 			if phase == "having" {
 				boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)

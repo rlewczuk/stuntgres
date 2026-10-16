@@ -17,6 +17,9 @@ const (
 	DefaultTypes
 	DefaultSchemas
 	DefaultLargeObjects
+	// These masks serve object grants, not ALTER DEFAULT PRIVILEGES targets.
+	DefaultParameters
+	DefaultTablespaces
 )
 
 func DefaultClass(name string) DefaultACLClass {
@@ -50,6 +53,10 @@ func DefaultMask(class DefaultACLClass) Privileges {
 		return UsagePrivilege | CreatePrivilege
 	case DefaultLargeObjects:
 		return SelectPrivilege | UpdatePrivilege
+	case DefaultParameters:
+		return SetPrivilege | AlterSystemPrivilege
+	case DefaultTablespaces:
+		return CreatePrivilege
 	}
 	return 0
 }
@@ -67,6 +74,10 @@ func defaultKind(class DefaultACLClass) string {
 		return "schema"
 	case DefaultLargeObjects:
 		return "large object"
+	case DefaultParameters:
+		return "parameter"
+	case DefaultTablespaces:
+		return "tablespace"
 	}
 	return ""
 }

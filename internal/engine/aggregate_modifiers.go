@@ -164,7 +164,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 				return nil, err
 			}
 		}
-		call.distinct = make([]sqltype.Grouping, len(raw.Args))
+		call.distinct = make([]queryGrouping, len(raw.Args))
 		args := [2]BoundExpr{call.argument, call.separator}
 		for i, arg := range args {
 			if arg == nil {

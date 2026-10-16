@@ -276,8 +276,18 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
+	formalLeft, formalRight := target.ID(), sqltype.ID(0)
+	if op == sqltype.BitwiseNot {
+		formalLeft, formalRight = 0, target.ID()
+	} else {
+		formalRight = rightTarget.ID()
+	}
+	selectedInfo, err := b.builtinOperatorRoutineInfo(b.info(target.Usage(), parser.ExpressionStart(raw), p), name, formalLeft, formalRight)
+	if err != nil {
+		return nil, err
+	}
 	return bitwiseExpression{
-		expressionInfo: b.info(target.Usage(), parser.ExpressionStart(raw), p),
+		expressionInfo: selectedInfo,
 		left:           l, right: r, provider: provider, bits: bits, network: network,
 		operator: op, namespace: namespace,
 	}, nil

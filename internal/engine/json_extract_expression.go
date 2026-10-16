@@ -73,7 +73,17 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 	if name == "->>" || name == "#>>" {
 		result = b.typ(sqltype.Text).Usage()
 	}
-	return functions.NewBinary[BoundExpr, *EvalContext](functionInfo(b.info(result, raw.Pos, properties)), name, args[:], parser.OrdinaryFunctionSyntax)
+	info := b.info(result, raw.Pos, properties)
+	node, err := functions.NewBinary[BoundExpr, *EvalContext](functionInfo(info), name, args[:], parser.OrdinaryFunctionSyntax)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinOperatorRoutineInfo(info, name, document.Type.ID(), rhs.Type.ID())
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }
 func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -184,11 +194,17 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 	if name == "json_extract_path_text" || name == "jsonb_extract_path_text" {
 		result = b.typ(sqltype.Text).Usage()
 	}
-	e.Info = functionInfo(b.info(result, raw.Pos, properties))
+	info := b.info(result, raw.Pos, properties)
 	plan, err := sqltype.BindJSONExtract(name, result, e.Args[0].ResultUsage(), path, raw.Variadic)
 	if err != nil {
 		return nil, err
 	}
+	// The full released path formal is TEXT[], not expanded TEXT children.
+	info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, document.Type.ID(), sqltype.ID(1009))
+	if err != nil {
+		return nil, err
+	}
+	e.Info = functionInfo(info)
 	e.Plan = plan
 	return e, nil
 }

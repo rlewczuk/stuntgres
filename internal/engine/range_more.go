@@ -117,5 +117,13 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 			return nil, err
 		}
 	}
+	provider, formal := rangeRoutineProvider, sqltype.ID(4537)
+	if input.IsArray() {
+		provider, formal = arrayRoutineProvider, sqltype.ID(2277)
+	}
+	info, err = b.builtinRoutineInfo(info, provider, "unnest", formal)
+	if err != nil {
+		return nil, err
+	}
 	return unnestExpression{expressionInfo: info, args: []BoundExpr{arg}}, nil
 }

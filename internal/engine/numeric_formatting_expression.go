@@ -79,5 +79,14 @@ func (b *expressionBinder) numericFormattingOperands(raw parser.FunctionExpr, op
 		}
 		constant = &text
 	}
-	return functions.NewNumericFormatting[BoundExpr, *EvalContext](b.ctx, functionInfo(info), name, args, constant)
+	node, err := functions.NewNumericFormatting[BoundExpr, *EvalContext](b.ctx, functionInfo(info), name, args, constant)
+	if err != nil {
+		return nil, err
+	}
+	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, source.ID(), sqltype.Text)
+	if err != nil {
+		return nil, err
+	}
+	node.Info = functionInfo(info)
+	return node, nil
 }

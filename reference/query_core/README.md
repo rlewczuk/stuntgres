@@ -97,6 +97,12 @@ values, expanded constructors, full diagnostics, BOOL metadata, held parameters,
 and stored recipe/native replay assertions. Run both modes with an external
 900-second deadline per invocation:
 
+Held NULL parameter frames must preserve the row comparison's structural pairs.
+Preflight may replace their operand conversions, but must not independently
+fold an inner strict comparison into a scalar NULL and erase the row's
+NULL-aware or lexicographic frontier. `TestReferenceRowCompareHeld` exercises
+the same prepared handle across those frames and retains its BOOL contract.
+
 ```sh
 make check RUN='^TestReferenceRowCompare(Values|Subquery|Constructors|Diagnostics)$'
 make check REFERENCE=1 RUN='^TestReferenceRowCompare(Values|Subquery|Constructors|Diagnostics)$'

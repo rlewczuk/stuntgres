@@ -72,7 +72,19 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 		{preparedBoundaryInteger(1), preparedBoundaryInteger(10)},
 		{preparedBoundaryInteger(2), preparedBoundaryInteger(20)},
 	}})
-	preparedUnitStatement(t, e, origin, &parser.CreateIndex{Name: parser.Identifier{Text: "prepared_boundary_index"}, Table: name, Method: "btree", Keys: []parser.IndexKey{{Expression: parser.OperatorExpr{Name: preparedBoundaryName("+"), Args: []parser.Expr{parser.ColumnExpr{Name: preparedBoundaryName("v")}, preparedBoundaryInteger(0)}}}}})
+	// Keep a genuine row-dependent derived key without a callable routine:
+	// callable index outputs are already produced before PREPARE and completion
+	// must consume them, not replay their providers merely to reach this barrier.
+	// Searched CASE/null testing instead retains actual completion-time Eval,
+	// with the same integer/null key values as the former v+0 fixture.
+	key := parser.CaseExpr{
+		Arms: []parser.CaseArm{{
+			Condition: parser.PredicateExpr{Kind: parser.IsNotNull, Left: parser.ColumnExpr{Name: preparedBoundaryName("v")}},
+			Result: parser.ColumnExpr{Name: preparedBoundaryName("v")},
+		}},
+		Else: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}},
+	}
+	preparedUnitStatement(t, e, origin, &parser.CreateIndex{Name: parser.Identifier{Text: "prepared_boundary_index"}, Table: name, Method: "btree", Keys: []parser.IndexKey{{Expression: key}}})
 	op := transactionOperation(t, origin)
 	_, err := e.Begin(op, TxOptions{Isolation: Serializable})
 	op.Done()

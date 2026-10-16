@@ -263,11 +263,7 @@ func partitionRowKey(d *relationDescriptor, row []sqltype.Value, evaluation *Eva
 		if key.derived == nil {
 			value = row[slices.Index(d.attributes, key.attribute)]
 		} else {
-			previousRow, previousScope, previousFrame := evaluation.Row, evaluation.Scope, evaluation.Frame
-			evaluation.Row = row
-			evaluation.Scope, evaluation.Frame = 1, 1
-			value, err = key.derived.execution.Eval(evaluation)
-			evaluation.Row, evaluation.Scope, evaluation.Frame = previousRow, previousScope, previousFrame
+			value, err = evaluatePartitionRecipe(evaluation, d, i, row)
 			if err != nil {
 				return partitionEvaluatedKey{}, err
 			}

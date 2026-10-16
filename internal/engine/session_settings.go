@@ -279,12 +279,11 @@ func settingAccess(d SettingDefinition, op *Operation) error {
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
 	case SettingPrivileged:
 		if d.Name == "lc_messages" {
-			view, err := op.Authorization()
+			allowed, err := parameterSetAllowed(op, d.Name)
 			if err != nil {
 				return err
 			}
-			role, exists := view.roles.Find(view.state.CurrentUser)
-			if exists && role.Superuser {
+			if allowed {
 				return nil
 			}
 		}

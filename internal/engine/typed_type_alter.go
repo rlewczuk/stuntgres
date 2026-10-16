@@ -12,6 +12,9 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
+	if err == nil {
+		scope.routineAuth = auth
+	}
 	var typ *typeDescriptor
 	var source *relationDescriptor
 	if err == nil {
@@ -110,13 +113,11 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			continue
 		}
 		usage := sourceMutation.next.columns[slot].Usage
-		if usage.Type.IsUserDefined() || usage.Type.IsArray() && usage.Type.Element().IsDomain() {
-			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())}}
-			if err := auth.CanUse(ref); err != nil {
-				return Result{}, err
-			}
-			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(usage.Type.ID())}}
+		if err := auth.CanUse(ref); err != nil {
+			return Result{}, err
 		}
+		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 	}
 	if err := stage.Replace(sourceMutation.next); err != nil {
 		return Result{}, err

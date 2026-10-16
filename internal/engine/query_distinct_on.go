@@ -12,7 +12,7 @@ type distinctOnNode struct {
 	querySchema
 	child        LogicalNode
 	expressions  []BoundExpr
-	grouping     []sqltype.Grouping
+	grouping     []queryGrouping
 	presenceOnly bool
 }
 

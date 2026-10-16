@@ -148,12 +148,14 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid pgcrypto result")
 	}
-	call, err := functions.NewPgcrypto[BoundExpr, *EvalContext](functionInfo(b.info(result, raw.Pos, properties)), canonical, args)
+	info := b.info(result, raw.Pos, properties)
+	info.routineReference = proc
+	call, err := functions.NewPgcrypto[BoundExpr, *EvalContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err
 	}
 	ref := ObjectRef{owner: b.engine.owner, Epoch: auth.catalog.Epoch(), Address: proc.address}
-	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
+	b.dependency(ref, proc.revision)
 	return installedCryptoFunctionExpression{Pgcrypto: call, procedure: proc, ref: ref}, nil
 }
 

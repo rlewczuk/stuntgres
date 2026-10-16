@@ -49,6 +49,12 @@ independent NAME/OID axes, typed NULLs, owner/FORCE/superuser RLS decisions and
 same-held execution observing DISABLE. It neither executes policy expressions
 nor requires table SELECT permission.
 
+### Non-table object grants
+
+Sequence, schema, type, routine, database, parameter and tablespace grant
+contracts and their unchanged selected proof commands now belong to
+[reference/object_grants](../object_grants/README.md#testing).
+
 ### Session role switching
 
 Session role switching uses the shared direct/prepared scenarios and complete

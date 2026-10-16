@@ -82,7 +82,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 	names := make([]string, width)
 	namespace := queryNamespace{frame: n.querySchema, columns: make([]queryColumn, width)}
 	if !(n.operation == "union" && n.all) {
-		n.grouping = make([]sqltype.Grouping, width)
+		n.grouping = make([]queryGrouping, width)
 	}
 	regclass := false
 	for i := range width {

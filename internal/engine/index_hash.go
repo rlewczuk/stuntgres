@@ -147,6 +147,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *
 	if materialize {
 		root = &hashIndexRoot{buckets: make(map[uint64][]hashIndexEntry), binding: binding, storage: indexStorageIdentity(store), generation: store.generation, prefix: len(store.versions), ends: store.ends}
 	}
+	var preparation indexExecutionPreparation
 	for position, row := range store.versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -154,7 +155,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *
 		if !liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
 			continue
 		}
-		matches, err := indexPredicateMatches(evaluation, d.predicate, row.values)
+		matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, nil, &binding)
 		if err != nil {
 			return nil, err
 		}
@@ -163,6 +164,9 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *relationDescriptor, d *
 		}
 		if !matches {
 			continue
+		}
+		if err := preparation.prepareKeys(evaluation, parent, d, nil, &binding); err != nil {
+			return nil, err
 		}
 		key, err := extractIndexKey(binding.slot, binding.expression, row.values, evaluation)
 		if err != nil {
@@ -208,6 +212,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 		return nil, fmt.Errorf("stuntgres: invalid hash merge definition")
 	}
 	var binding hashIndexBinding
+	var preparation indexExecutionPreparation
 	if old == nil || old.hash == nil {
 		if materialize {
 			return nil, fmt.Errorf("stuntgres: missing hash root")
@@ -302,12 +307,15 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *relationDescript
 			if d.hasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced hash index row")
 			}
-			matches, err := indexPredicateMatches(evaluation, d.predicate, row.values)
+			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, nil, &binding)
 			if err != nil {
 				return nil, err
 			}
 			if !matches {
 				continue
+			}
+			if err := preparation.prepareKeys(evaluation, parent, d, nil, &binding); err != nil {
+				return nil, err
 			}
 			key, err = extractIndexKey(binding.slot, binding.expression, row.values, evaluation)
 			if err != nil {

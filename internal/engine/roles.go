@@ -326,6 +326,11 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	switch d.(type) {
 	case *databaseDescriptor:
 		kind = "database "
+	case *parameterDescriptor:
+		kind = "parameter "
+		name = d.Name()
+	case *tablespaceDescriptor:
+		kind = "tablespace "
 	case *extensionDescriptor:
 		kind = "extension "
 	case *procedureDescriptor:

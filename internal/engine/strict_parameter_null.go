@@ -1,0 +1,96 @@
+package engine
+
+import (
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/sqltype"
+)
+
+// PostgreSQL leaves RECORD calls unreduced so their concrete tuple description
+// survives, even for a strict known-NULL input (evaluate_function, REL_18_0).
+// Scalar calls may disappear in either target or FROM position; SRFs may not.
+func strictScalarRoutine(routine *procedureDescriptor) bool {
+	return routine != nil && routine.strict && routine.routineKind == functionRoutine &&
+		routine.result != 2249 && !routine.returnsSet()
+}
+
+// Child preflight has already preserved ordinary constant errors and parameter
+// input validation. A NULL proof cannot cross a domain conversion in that
+// argument, but a separate known-NULL argument can discard runtime siblings,
+// including domain coercions. No domain truth or provider is sampled here.
+// The analyzed tree and its original dependency manifest remain untouched.
+func foldStrictParameterNull(c *EvalContext, node BoundExpr) (BoundExpr, bool, error) {
+	if node == nil || len(c.Parameters) == 0 || !node.Properties().ParameterDependent {
+		return node, false, nil
+	}
+	switch node.(type) {
+	case literalExpression, distinctExpression, conditionalExpression, scalarArrayComparisonExpression, rowComparisonExpression:
+		// These carriers can name an internal strict comparison without
+		// making the whole NULL-aware or multi-comparison expression strict.
+		return node, false, nil
+	}
+	selected, err := expressionRoutineDescriptor(node)
+	if err != nil {
+		return nil, false, err
+	}
+	if !strictScalarRoutine(selected) {
+		return node, false, nil
+	}
+	null := false
+	var failure error
+	strictRoutineArguments(node, func(argument BoundExpr) {
+		if null || failure != nil {
+			return
+		}
+		null, failure = executionKnownNullArgument(c, argument)
+	})
+	if failure != nil {
+		return nil, false, failure
+	}
+	if !null {
+		return node, false, nil
+	}
+	info := foldedExpressionInfo(node)
+	return literalExpression{expressionInfo: info, value: sqltype.ResultNull(info.usage)}, true, nil
+}
+
+// Expanded variadic path elements form one non-NULL array argument. A NULL
+// element is not a NULL formal; explicit VARIADIC retains the array child.
+func strictRoutineArguments(node BoundExpr, visit func(BoundExpr)) {
+	if expression, ok := node.(functions.JSONExtract[BoundExpr, *EvalContext, ExprProperties]); ok && !expression.Variadic {
+		visit(expression.Args[0])
+		return
+	}
+	boundExpressionChildren(node, visit)
+}
+
+func executionKnownNullArgument(c *EvalContext, node BoundExpr) (bool, error) {
+	if node == nil || node.Properties().RuntimeDomainConversion {
+		return false, nil
+	}
+	switch e := node.(type) {
+	case literalExpression:
+		return e.value.IsNull(), nil
+	case parameterExpression:
+		// Description and partially imported frames do not supply a value.
+		if e.number <= 0 || e.number > len(c.Parameters) || c.Parameters[e.number-1].Type() == nil {
+			return false, nil
+		}
+		value, err := e.Eval(c) // Typed frame access only; no operator/function/domain Eval.
+		return value.IsNull(), err
+	case collationExpression:
+		return executionKnownNullArgument(c, e.child)
+	case coercionExpression:
+		if e.usage.Type == nil || e.usage.Type.IsDomain() {
+			return false, nil
+		}
+		return executionKnownNullArgument(c, e.child)
+	case caseExpression:
+		// Existing conditional planning preserves conservative properties on
+		// this already-decided native CASE carrier, rather than adding a cast
+		// or substituting parameters throughout the analyzed expression.
+		if e.test == nil && len(e.arms) == 0 {
+			return executionKnownNullArgument(c, e.otherwise)
+		}
+	}
+	return false, nil
+}

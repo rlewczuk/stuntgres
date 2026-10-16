@@ -121,8 +121,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	virtualCheck := makeCheck(26002, "virtual_input", 1, sqltype.CompareEqual, 1)
 	virtualExpression := virtualCheck.expression.(comparisonExpression)
 	virtualColumn := virtualExpression.left.(columnExpression)
-	virtualColumn.virtual = sourceColumn
-	virtualColumn.rowWidth = 2
+	virtualColumn = virtualColumn.withGeneration(&virtualLeaf, 1, 0)
 	virtualExpression.left = virtualColumn
 	virtualCheck.expression = virtualExpression
 	virtualLeaf.checkConstraints = []checkConstraint{virtualCheck}

@@ -33,17 +33,49 @@ func grantWarning(op *Operation, relation, column string, requested, available a
 	op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
 }
 
-func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]ObjectAddress, error) {
-	targets := make([]ObjectAddress, 0, len(s.Relations))
+func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]Descriptor, error) {
+	targets := make([]Descriptor, 0, len(s.Relations)+len(s.Routines))
 	for _, name := range s.Relations {
 		if err := op.Context().Err(); err != nil {
 			return nil, err
 		}
-		ref, err := e.resolveRelationReference(v, name, true)
+		if s.Kind == "parameter" {
+			key, err := e.canonicalGrantParameter(objectNameText(name))
+			if err != nil {
+				return nil, err
+			}
+			duplicate := false
+			for _, target := range targets {
+				if target.Name() == key {
+					duplicate = true
+					break
+				}
+			}
+			if duplicate {
+				continue
+			}
+			descriptor, err := e.grantParameterDescriptorLocked(v, key)
+			if err != nil {
+				return nil, err
+			}
+			targets = append(targets, descriptor)
+			continue
+		}
+		ref, err := e.resolveGrantObject(v, name, s.Kind)
 		if err != nil {
 			return nil, err
 		}
-		targets = append(targets, ref.Address)
+		targets = append(targets, v.catalog.state.descriptors[ref.Address])
+	}
+	for _, target := range s.Routines {
+		if err := op.Context().Err(); err != nil {
+			return nil, err
+		}
+		ref, err := e.resolveGrantRoutine(op, v, target, s.Kind)
+		if err != nil {
+			return nil, err
+		}
+		targets = append(targets, v.catalog.state.descriptors[ref.Address])
 	}
 	for _, name := range s.Schemas {
 		if err := op.Context().Err(); err != nil {
@@ -61,17 +93,29 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 			return nil, err
 		}
 		start := len(targets)
-		for address, descriptor := range v.catalog.state.descriptors {
+		for _, descriptor := range v.catalog.state.descriptors {
 			if err := op.Context().Err(); err != nil {
 				return nil, err
 			}
+			if routine, ok := descriptor.(*procedureDescriptor); ok {
+				if routine.namespace == addr && grantRoutineKindMatches(s.Kind, routine.routineKind) {
+					targets = append(targets, descriptor)
+				}
+				continue
+			}
 			relation, ok := descriptor.(*relationDescriptor)
-			if ok && relation.namespace == addr && !relation.virtualView && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == materializedViewRelation || relation.relationKind == foreignRelation) {
-				targets = append(targets, address)
+			matches := ok && (s.Kind == "" || s.Kind == "sequence") && relation.namespace == addr && !relation.virtualView
+			if matches && s.Kind == "sequence" {
+				matches = relation.relationKind == sequenceRelation
+			} else if matches {
+				matches = relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == materializedViewRelation || relation.relationKind == foreignRelation
+			}
+			if matches {
+				targets = append(targets, descriptor)
 			}
 		}
 		// Catalog enumeration must not expose Go map iteration as notice order.
-		sort.Slice(targets[start:], func(i, j int) bool { return targets[start+i].ObjectID < targets[start+j].ObjectID })
+		sort.Slice(targets[start:], func(i, j int) bool { return targets[start+i].Address().ObjectID < targets[start+j].Address().ObjectID })
 	}
 	return targets, nil
 }
@@ -82,7 +126,7 @@ type columnGrantRequest struct {
 	mask authorization.Privileges
 }
 type objectGrantChange struct {
-	relation     *relationDescriptor
+	descriptor   Descriptor
 	columnsOwned bool
 }
 
@@ -96,12 +140,27 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			return Result{}, sqlError("0A000", "grantor must be current user")
 		}
 	}
-	if s.Kind != "" {
+	unavailable := ""
+	switch s.Kind {
+	case "language":
+		unavailable = "LANGUAGE privileges are unsupported in embedded mode"
+	case "foreign data wrapper":
+		unavailable = "FOREIGN DATA WRAPPER privileges are unsupported in embedded mode"
+	case "foreign server":
+		unavailable = "FOREIGN SERVER privileges are unsupported in embedded mode"
+	case "large object":
+		unavailable = "LARGE OBJECT privileges are unsupported in embedded mode"
+	case "", "sequence", "schema", "type", "domain", "function", "procedure", "routine", "parameter", "tablespace":
+	default:
 		return Result{}, sqlError("0A000", "statement is not supported")
 	}
-	targets, err := e.objectGrantTargets(op, v, s)
-	if err != nil {
-		return Result{}, err
+	var targets []Descriptor
+	var err error
+	if unavailable == "" {
+		targets, err = e.objectGrantTargets(op, v, s)
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	grantees := make([]authorization.ACLGrantee, len(s.Grantees))
 	for i, spec := range s.Grantees {
@@ -119,7 +178,11 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	var tableMask authorization.Privileges
 	tableAll := false
 	for i, item := range s.Privileges {
-		masks[i], err = authorization.ObjectPrivilege(item)
+		kind := s.Kind
+		if kind == "" {
+			kind = "relation"
+		}
+		masks[i], err = authorization.ObjectPrivilege(item, kind)
 		if err != nil {
 			return Result{}, err
 		}
@@ -135,6 +198,9 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 		}
 	}
+	if unavailable != "" {
+		return Result{}, sqlError("0A000", unavailable)
+	}
 	actor, err := v.roles.Descriptor(v.state.CurrentUser)
 	if err != nil {
 		return Result{}, err
@@ -145,24 +211,103 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	}
 	var candidate *catalogState
 	changed := make(map[ObjectAddress]objectGrantChange)
-	for _, address := range targets {
+	for _, target := range targets {
+		address := target.Address()
 		if err := op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		relation := v.catalog.state.descriptors[address].(*relationDescriptor)
+		if target.Kind() != RelationObject {
+			d := target
+			if prior := changed[address].descriptor; prior != nil {
+				d = prior
+			}
+			next, err := changeNonRelationGrant(op, v, d, s, grantees, principals, actor.Superuser, tableMask, tableAll)
+			if err != nil {
+				return Result{}, err
+			}
+			if next != nil {
+				changed[address] = objectGrantChange{descriptor: next}
+				if candidate == nil {
+					candidate = cloneCatalog(v.catalog.state)
+				}
+				if parameter, ok := next.(*parameterDescriptor); ok {
+					installParameterGrant(candidate, parameter)
+					if candidate.descriptors[address] == nil {
+						changed[address] = objectGrantChange{}
+					}
+				} else {
+					candidate.descriptors[address] = next
+				}
+			}
+			continue
+		}
+		relation := target.(*relationDescriptor)
 		prior := changed[address]
-		if prior.relation != nil {
-			relation = prior.relation
+		if prior.descriptor != nil {
+			relation = prior.descriptor.(*relationDescriptor)
+		}
+		if s.Kind == "sequence" && relation.relationKind != sequenceRelation {
+			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a sequence`, relation.name))
 		}
 		switch relation.relationKind {
-		case sequenceRelation:
-			return Result{}, sqlError("0A000", "statement is not supported")
 		case indexRelation:
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is an index`, relation.name))
 		case compositeRelation:
 			return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.name))
 		case catalogRelation:
 			return Result{}, sqlError("0A000", "statement is not supported")
+		}
+		classMask := authorization.TableGrantPrivileges
+		noun := "table"
+		if relation.relationKind == sequenceRelation {
+			classMask = authorization.DefaultMask(authorization.DefaultSequences)
+			noun = "sequence"
+		}
+		targetMask := tableMask
+		if tableAll {
+			targetMask = classMask
+		} else if relation.relationKind == sequenceRelation && s.Kind == "" {
+			if targetMask & ^classMask != 0 {
+				op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports USAGE, SELECT, and UPDATE privileges`, relation.name)})
+			}
+			targetMask &= classMask
+		} else if targetMask & ^classMask != 0 {
+			for _, item := range s.Privileges {
+				if _, err := authorization.ObjectPrivilege(item, ""); err != nil {
+					return Result{}, err
+				}
+			}
+		}
+		originalTable := relation.acl
+		nextTable := relation.acl
+		var tableChanged bool
+		if targetMask != 0 {
+			source, available, sourceErr := authorization.ObjectGrantSource(op.Context(), relation.owner, originalTable, authorization.ACLValue{}, principals, actor.Superuser, targetMask)
+			if sourceErr != nil {
+				return Result{}, sourceErr
+			}
+			if available == 0 {
+				hasRelationPrivileges := authorization.ACLRights(originalTable, relation.owner, principals, classMask, false) != 0 || predefinedPrivileges(relation, principals) != 0
+				if !hasRelationPrivileges {
+					return Result{}, sqlError("42501", "permission denied for "+noun+" "+relation.name)
+				}
+			}
+			grantWarning(op, relation.name, "", targetMask, available, tableAll, s.Revoke)
+			if available != 0 {
+				materialized := originalTable
+				if !materialized.Explicit {
+					if relation.relationKind == sequenceRelation {
+						materialized = authorization.DefaultBaseline(relation.owner, authorization.DefaultSequences, false)
+					} else {
+						materialized = authorization.MaterializeRelationACL(originalTable, relation.owner)
+					}
+				}
+				nextTable, tableChanged, err = authorization.ChangeObjectACL(op.Context(), v.roles, materialized, relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+			}
+			if err != nil {
+				return Result{}, err
+			}
+			tableChanged = tableChanged || available != 0 && !relation.acl.Explicit
 		}
 		columns := make([]columnGrantRequest, 0)
 		addColumn := func(sub int32, name string, mask authorization.Privileges) {
@@ -174,54 +319,39 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 			columns = append(columns, columnGrantRequest{sub: sub, name: name, mask: mask})
 		}
-		if s.Revoke && tableMask&authorization.ColumnGrantPrivileges != 0 {
+		if s.Revoke && targetMask&authorization.ColumnGrantPrivileges != 0 {
 			if relation.relationKind != viewRelation {
 				for i, name := range []string{"tableoid", "cmax", "xmax", "cmin", "xmin", "ctid"} {
-					addColumn(int32(-6+i), name, tableMask&authorization.ColumnGrantPrivileges)
+					addColumn(int32(-6+i), name, targetMask&authorization.ColumnGrantPrivileges)
 				}
 			}
 			for i, column := range relation.columns {
-				addColumn(relation.attributes[i], column.Name, tableMask&authorization.ColumnGrantPrivileges)
+				addColumn(relation.attributes[i], column.Name, targetMask&authorization.ColumnGrantPrivileges)
 			}
 		}
 		for i, item := range s.Privileges {
+			mask := masks[i]
+			if len(item.Columns) != 0 && relation.relationKind == sequenceRelation {
+				if mask & ^authorization.SelectPrivilege != 0 {
+					op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports SELECT column privileges`, relation.name)})
+				}
+				mask &= authorization.SelectPrivilege
+			}
 			for _, column := range item.Columns {
 				index, ok := relation.index[column.Text]
 				if !ok {
 					return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column.Text, relation.name))
 				}
-				addColumn(relation.attributes[index], column.Text, masks[i])
+				if mask != 0 {
+					addColumn(relation.attributes[index], column.Text, mask)
+				}
 			}
 		}
 		// Release traversal uses signed stable attributes, after merging all
 		// textual requests (including implicit table-revoke column masks).
 		slices.SortFunc(columns, func(a, b columnGrantRequest) int { return cmp.Compare(a.sub, b.sub) })
-		originalTable := relation.acl
-		nextTable := relation.acl
-		var tableChanged bool
-		var hasRelationPrivileges, relationPrivilegesChecked bool
-		if tableMask != 0 {
-			source, available, sourceErr := authorization.ObjectGrantSource(op.Context(), relation.owner, originalTable, authorization.ACLValue{}, principals, actor.Superuser, tableMask)
-			if sourceErr != nil {
-				return Result{}, sourceErr
-			}
-			if available == 0 {
-				hasRelationPrivileges = authorization.ACLRights(originalTable, relation.owner, principals, authorization.TableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
-				relationPrivilegesChecked = true
-				if !hasRelationPrivileges {
-					return Result{}, sqlError("42501", "permission denied for table "+relation.name)
-				}
-			}
-			grantWarning(op, relation.name, "", tableMask, available, tableAll, s.Revoke)
-			if available != 0 {
-				nextTable, tableChanged, err = authorization.ChangeObjectACL(op.Context(), v.roles, authorization.MaterializeRelationACL(originalTable, relation.owner), relation.owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
-			}
-			if err != nil {
-				return Result{}, err
-			}
-			tableChanged = tableChanged || available != 0 && !relation.acl.Explicit
-		}
 		var nextColumns map[int32]authorization.ACLValue
+		var hasColumnPrivileges, columnPrivilegesChecked bool
 		for _, column := range columns {
 			old := relation.columnACL[column.sub]
 			source, available, sourceErr := authorization.ObjectGrantSource(op.Context(), relation.owner, originalTable, old, principals, actor.Superuser, column.mask)
@@ -229,11 +359,12 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				return Result{}, sourceErr
 			}
 			if available == 0 {
-				if !relationPrivilegesChecked {
-					hasRelationPrivileges = authorization.ACLRights(originalTable, relation.owner, principals, authorization.TableGrantPrivileges, false) != 0 || predefinedPrivileges(relation, principals) != 0
-					relationPrivilegesChecked = true
+				if !columnPrivilegesChecked {
+					hasColumnPrivileges = authorization.ACLRights(originalTable, relation.owner, principals, authorization.ColumnGrantPrivileges, false)&authorization.ColumnGrantPrivileges != 0 ||
+						predefinedPrivileges(relation, principals)&authorization.ColumnGrantPrivileges != 0
+					columnPrivilegesChecked = true
 				}
-				if !hasRelationPrivileges && authorization.ACLRights(old, authorization.PrincipalRef{}, principals, authorization.ColumnGrantPrivileges, false) == 0 {
+				if !hasColumnPrivileges && authorization.ACLRights(old, authorization.PrincipalRef{}, principals, authorization.ColumnGrantPrivileges, false)&authorization.ColumnGrantPrivileges == 0 {
 					return Result{}, sqlError("42501", fmt.Sprintf(`permission denied for column "%s" of relation "%s"`, column.name, relation.name))
 				}
 			}
@@ -265,18 +396,25 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			}
 		}
 		if tableChanged || nextColumns != nil {
-			next := prior.relation
+			next, _ := prior.descriptor.(*relationDescriptor)
 			if next == nil {
 				copy := *relation
 				next = &copy
 			}
-			changed[address] = objectGrantChange{relation: next, columnsOwned: prior.columnsOwned || nextColumns != nil}
+			changed[address] = objectGrantChange{descriptor: next, columnsOwned: prior.columnsOwned || nextColumns != nil}
 			next.acl = nextTable
 			if nextColumns != nil {
 				next.columnACL = nextColumns
 			}
 			if err := validateACL(v.roles, next); err != nil {
 				return Result{}, err
+			}
+			if next.relationKind == sequenceRelation {
+				stamp, err := e.revisionLocked()
+				if err != nil {
+					return Result{}, err
+				}
+				next.sequencePlanStamp = stamp
 			}
 			if candidate == nil {
 				candidate = cloneCatalog(v.catalog.state)
@@ -286,6 +424,11 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	}
 	if candidate == nil {
 		return Result{}, op.Context().Err()
+	}
+	if s.Kind == "schema" {
+		if err := candidate.advanceNamespaceGeneration(); err != nil {
+			return Result{}, err
+		}
 	}
 	if v.roleRecord.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
@@ -304,7 +447,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			return Result{}, err
 		}
 		for address, change := range changed {
-			e.catalogChangeLocked(changes, address, change.relation)
+			e.catalogChangeLocked(changes, address, change.descriptor)
 		}
 		op.session.transactions.catalog = changes
 	} else {

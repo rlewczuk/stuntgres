@@ -144,6 +144,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	scope.routineAuth = auth
 	// Trusted Restore insertion elevates permissions, not session identity.
 	// Defaults and CHECK providers must observe the actual owner directive.
 	identityAuth := auth
@@ -278,6 +279,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
+		scope.routineAuth = auth
 		if err := scope.validateAdmissionNamesLocked(e, auth); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -447,6 +449,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	canonical := make([]sqltype.Value, count)
 	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
 	scope.domainInputCatalog = auth.catalog
+	scope.routineAuth = auth
+	scope.routineDependencies = b.dependencies
 	for _, usage := range b.parameters.Types {
 		if sqltype.ContainsDomainChecks(usage.Type) {
 			evaluation.Input.DomainChecks = &evaluation
@@ -477,6 +481,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
+		scope.routineAuth = auth
 		if err := validateCapturedInputBinding(captured, auth.catalog, b.dependencies); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
