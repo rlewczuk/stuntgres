@@ -172,6 +172,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case installedLevenshteinFunctionExpression:
 		args(e.Args)
+	case installedUUIDOsspFunctionExpression:
+		// No argument children.
 	case installedCryptoFunctionExpression:
 		args(e.Args)
 	case installedFunctionExpression:

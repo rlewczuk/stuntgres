@@ -6,6 +6,32 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Shared cancellation admission — infrastructure change note
+
+The native LIKE/POSIX/SIMILAR/regexp cancellation helper follows the existing
+shared fixture convention: an adaptively sized `runtime.Stack` snapshot must
+contain both the actual provider and the exact helper worker in the same live
+goroutine, excluding creation metadata. After an unsuccessful sample it waits
+one millisecond using a reset timer before sampling again, allowing worker
+progress instead of continuously collecting stop-the-world profiles.
+
+This is bounded test-observation/scheduling infrastructure, not a regexp
+production change or proof that32-PC truncation caused the earlier failure.
+Captured direct/held stacks did not establish that cause. Complete stack
+observation remains scheduler-dependent, not a synthetic provider-entry hook.
+Workloads, five-second context and joins, completed-before-observed failures,
+exact context cancellation, nil outputs, unchanged sentinels and healthy
+same-owner/held recovery assertions remain unchanged. No diagnostic mode remains.
+
+Exact affected definitions require both modes and selected race proof, each
+under an external900-second deadline:
+
+```sh
+make check RUN='^TestReference(LikeHeldEnteredCancellation|LikeHeldUpdateEnteredCancellation|PosixActualCancellation|SimilarActualCancellation|RegexpActualCancellation|RegexpSubstrCancellation)$'
+make check REFERENCE=1 RUN='^TestReference(LikeHeldEnteredCancellation|LikeHeldUpdateEnteredCancellation|PosixActualCancellation|SimilarActualCancellation|RegexpActualCancellation|RegexpSubstrCancellation)$'
+make check RACE=1 RUN='^TestReference(LikeHeldEnteredCancellation|LikeHeldUpdateEnteredCancellation|PosixActualCancellation|SimilarActualCancellation|RegexpActualCancellation|RegexpSubstrCancellation)$'
+```
+
 ### Expression collation selected proof
 
 The shared untagged definitions in `reference/patterns_encoding/expr_collation_*`

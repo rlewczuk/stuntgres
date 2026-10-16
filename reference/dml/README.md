@@ -6,6 +6,23 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Installed uuid-ossp binary COPY
+
+`TestReferenceUUIDOsspCopyBinary` uses the existing public pinned COPY transport
+and handwritten binary frame builders in both native and pinned PostgreSQL18.0
+modes. It installs uuid-ossp, saves one generated UUID once, checks UUID metadata
+and independently decodes its canonical text/version4/RFC variant. COPY must emit
+that same value as one16-byte field with the exact header/row/trailer frame and
+`COPY 1` result. Reimport preserves the saved UUID and emits the same frame.
+No new binary protocol, UUID send function or binary-bind API is introduced.
+
+Selected proof and actual binary feature smoke (900-second external deadline):
+
+```sh
+make check RUN='^TestReferenceUUIDOsspCopyBinary$'
+make check REFERENCE=1 RUN='^TestReferenceUUIDOsspCopyBinary$'
+```
+
 ### Data-modifying CTE contracts
 
 The untagged `cte_dml_{core,execution,diagnostics,metadata,prepared,atomicity,cancellation,controls,nested_invocation,rule_rewrite}_test.go`

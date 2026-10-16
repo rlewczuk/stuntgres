@@ -232,6 +232,10 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.registerExtension("pgcrypto", registeredExtension{version: "1.4", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockPgcrypto}); err != nil {
 		return nil, err
 	}
+	comment = "generate universally unique identifiers (UUIDs)"
+	if err := e.registerExtension("uuid-ossp", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUUIDOssp}); err != nil {
+		return nil, err
+	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
 	for _, ns := range []struct {
 		oid  OID

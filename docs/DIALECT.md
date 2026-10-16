@@ -864,8 +864,9 @@ fold ASCII case and truncate at63 bytes on a UTF8 boundary without trimming or
 notices; unsupported names raise22023. HMAC streams keys larger than the hash
 block before passing a bounded effective key to the standard-library provider.
 Installed immutable consumers and native controls preserve procedure signatures,
-owners and executable expressions. Availability now includes pgcrypto beside
-unaccent, selected-type intarray and selected-function fuzzystrmatch.
+owners and executable expressions. Availability includes pgcrypto and the selected
+uuid-ossp provider beside unaccent, two-wrapper intagg, selected-type intarray and
+selected-function fuzzystrmatch.
 
 Password hashing implements bf only, with a fixed-size stdlib-only Blowfish
 schedule. Only exact `$2a$`/`$2x$` heads select bcrypt, with costs04..31 and
@@ -931,6 +932,29 @@ bounded cancellation polling. Each frame reconstructs its own key and mode.
 Raw AES provides no authentication: wrong keys/IVs are not guaranteed to fail.
 See [PostgreSQL raw encryption](https://www.postgresql.org/docs/18/pgcrypto.html#PGCRYPTO-RAW-ENC-FUNCS).
 
+## Installed uuid-ossp version 4
+
+The uuid-ossp1.1 provider installs exactly one native member:
+`uuid_generate_v4() RETURNS uuid`. Use quoted `CREATE EXTENSION "uuid-ossp"`
+with an optional installation schema. Installation uses the existing trusted
+extension/database-CREATE authority: the installer owns the extension, while
+superuser-required members installed by a nonsuperuser belong to the bootstrap
+administrator. Function resolution enforces actual schema visibility/search_path;
+this is not an always-visible builtin alias.
+
+The strict, parallel-safe, VOLATILE zero-argument overload uses standard-library
+`crypto/rand` entropy, preserving122 random bits with version4 and RFC variant
+bits set. Each demanded result is non-NULL UUID, canonical lowercase text through
+database/sql and16 raw bytes through existing binary COPY. Computed metadata
+does not acquire a special nonnull proof, and no binary-bind API is added.
+There is no NULL input to a zero-argument overload: `uuid_generate_v4(NULL)`
+fails ordinary overload resolution rather than returning NULL.
+
+Closed defaults and views retain fresh demand-time generation and actual
+qualified installed recipes through Dump/Reset/Restore; stored UUID data is
+preserved exactly. Generated columns/expression indexes reject the volatility.
+Other uuid-ossp generators, namespaces/constants, and arbitrary shared-library
+loading remain excluded; PostgreSQL's complete upstream inventory is larger.
 
 ## query_int extension type
 

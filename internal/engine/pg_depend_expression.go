@@ -62,6 +62,8 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		r.add(n.ref.Address)
 	case installedLevenshteinFunctionExpression:
 		r.add(n.ref.Address)
+	case installedUUIDOsspFunctionExpression:
+		r.add(n.ref.Address)
 	case installedCryptoFunctionExpression:
 		r.add(n.ref.Address)
 	case installedFunctionExpression:

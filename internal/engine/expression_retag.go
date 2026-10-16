@@ -274,6 +274,17 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			err = n.validate(view)
 		}
 		rebound = n
+	case installedUUIDOsspFunctionExpression:
+		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		proc, ok := descriptor.(*procedureDescriptor)
+		if !ok || proc.uuidOssp != stockUUIDOssp {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped uuid-ossp function")
+		}
+		changed = changed || n.procedure != proc
+		n.procedure = proc
+		n.Info = functionInfo(info)
+		err = n.validate(view)
+		rebound = n
 	case installedCryptoFunctionExpression:
 		n.Args = children(n.Args)
 		if err != nil {

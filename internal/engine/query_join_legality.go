@@ -717,6 +717,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case installedLevenshteinFunctionExpression:
 		children = e.Args
+	case installedUUIDOsspFunctionExpression:
+		// No argument children.
 	case installedCryptoFunctionExpression:
 		children = e.Args
 	case installedFunctionExpression:

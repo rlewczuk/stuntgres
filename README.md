@@ -107,6 +107,21 @@ does not enable named routines, range indexes or additional range DDL.
 See [native contract](docs/DIALECT.md#pg_range-supported-range-metadata) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_range-selected-proof).
 
+## Installed UUID version 4 — change note
+
+`CREATE EXTENSION "uuid-ossp"` installs the selected zero-argument
+`uuid_generate_v4() RETURNS uuid` overload, version1.1. It uses Go's
+`crypto/rand` source and the shared UUID codec to return non-NULL random
+version4/RFC-variant values. The function is VOLATILE: held calls, row defaults
+and views demand fresh values; generated columns and expression indexes reject it.
+Schema visibility and real installed procedure identities survive native
+Dump/Reset/Restore, including grouped views projecting UUID calls beside
+aggregates. Legitimate group-stage metadata is retained without relaxing closed
+DEFAULT restrictions. Other upstream uuid-ossp generators/constants are not installed.
+Canonical text remains distinct from the existing 16-byte binary COPY encoding;
+this does not add binary UUID binds. See the
+[contract and feature smoke](reference/catalogs/README.md#installed-uuid-ossp-version-4).
+
 ## Language catalog — change note
 
 `pg_catalog.pg_language` exposes the nine PostgreSQL language metadata columns

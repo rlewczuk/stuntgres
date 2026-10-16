@@ -1174,6 +1174,8 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.Levenshtein = next
 		}
 		expression = e
+	case installedUUIDOsspFunctionExpression:
+		expression = e
 	case installedCryptoFunctionExpression:
 		var args []BoundExpr
 		for i, old := range e.Args {
@@ -1570,6 +1572,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
+	case installedUUIDOsspFunctionExpression:
+		return false
 	case installedCryptoFunctionExpression:
 		for _, arg := range e.Args {
 			if !literal(arg) {

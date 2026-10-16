@@ -84,6 +84,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
 					"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
 					"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
+					"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 				}
 				if oid == 12085 {
 					expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, "text search dictionary that removes accents"}
@@ -91,6 +92,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}
 					expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 					expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
+					expected["uuid-ossp"] = []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"}
 				}
 				for _, row := range source.anonymous {
 					name, err := row[0].Text()

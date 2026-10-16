@@ -153,6 +153,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		expectedMembers = len(intaggMembers)
 	case record.Name == "pgcrypto" && record.Version == "1.4":
 		expectedMembers = len(pgcryptoMembers)
+	case record.Name == "uuid-ossp" && record.Version == "1.1":
+		expectedMembers = 1
 	default:
 		return invalid()
 	}
@@ -194,6 +196,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 				}
 			case "pgcrypto":
 				_, valid = pgcryptoLookup(member.Name, procedureSignature(member.Signature))
+			case "uuid-ossp":
+				valid = member.Name == "uuid_generate_v4" && member.Signature == ""
 			}
 			if record.Name == "fuzzystrmatch" {
 				valid = fuzzystrmatchResult(member.Name, procedureSignature(member.Signature)) != 0

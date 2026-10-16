@@ -1166,6 +1166,18 @@ without Docker and with `REFERENCE=1`. See [testing](TESTING.md) for suite polic
 
 ## UUID generation state
 
+Installed `uuid_generate_v4()` is available only after
+`CREATE EXTENSION "uuid-ossp"` (selected version1.1 member). It shares the
+standard-library `crypto/rand` version4 kernel with builtin UUID generation,
+without a clock, counter, seeded SQL random state or cached generated value.
+Version4 and RFC variant masks leave122 random bits. Its non-NULL UUID result
+uses canonical lowercase text and existing binary COPY's16 raw bytes; this does
+not imply16-byte public binds or a known database/sql Length.
+`uuid_generate_v4(NULL)` has no overload and fails resolution. A caller CASE
+may still produce typed NULL independently of the zero-argument generator.
+Its genuine installed procedure/schema/owner identity, volatility and symbolic
+recipes survive native controls rather than turning into a builtin alias.
+
 The version-7 ascending clock belongs to the physical session, not a table,
 statement or transaction. Tie/backward wall time advances its minimum step.
 Unshifted and zero-shift draws on that session are strictly ordered; different

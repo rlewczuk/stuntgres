@@ -291,7 +291,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		functions.ArrayTransform[BoundExpr, *EvalContext, ExprProperties],
 		functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties], functions.ArrayInspect[BoundExpr, *EvalContext, ExprProperties], functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties], functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties], functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties],
 		functions.Enum[BoundExpr, *EvalContext, ExprProperties], functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties], functions.Math[BoundExpr, *EvalContext, ExprProperties], functions.NullCount[BoundExpr, *EvalContext, ExprProperties], functions.Format[BoundExpr, *EvalContext, ExprProperties],
-		installedFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression, functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
+		installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression, functions.StringVariadic[BoundExpr, *EvalContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, *EvalContext, ExprProperties]:
 		return r.scalarFunctionSQL(ctx, view, node, u)
 	case visibilityInquiryExpression:
 		if r.owner == nil {

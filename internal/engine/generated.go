@@ -324,6 +324,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.Args)
 	case installedLevenshteinFunctionExpression:
 		return args(n.Args)
+	case installedUUIDOsspFunctionExpression:
+		return false
 	case installedCryptoFunctionExpression:
 		return n.procedure != nil && n.procedure.volatility == Immutable && args(n.Args)
 	case installedFunctionExpression:
@@ -521,6 +523,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.Args)
 	case installedLevenshteinFunctionExpression:
 		return args(n.Args)
+	case installedUUIDOsspFunctionExpression:
+		return false
 	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:
@@ -934,6 +938,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return args(n.Args)
 	case installedLevenshteinFunctionExpression:
 		return args(n.Args)
+	case installedUUIDOsspFunctionExpression:
+		return n.validate(view)
 	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:

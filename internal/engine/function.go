@@ -36,6 +36,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if strings.EqualFold(name, "digest") || strings.EqualFold(name, "hmac") || strings.EqualFold(name, "crypt") || strings.EqualFold(name, "gen_salt") || strings.EqualFold(name, "encrypt") || strings.EqualFold(name, "decrypt") || strings.EqualFold(name, "encrypt_iv") || strings.EqualFold(name, "decrypt_iv") || strings.EqualFold(name, "gen_random_bytes") || strings.EqualFold(name, "gen_random_uuid") || strings.EqualFold(name, "fips_mode") {
 		return b.bindInstalledCrypto(raw)
 	}
+	if strings.EqualFold(name, "uuid_generate_v4") {
+		return b.bindInstalledUUIDOssp(raw)
+	}
 	if strings.EqualFold(name, "levenshtein") || strings.EqualFold(name, "levenshtein_less_equal") {
 		return b.bindInstalledLevenshtein(raw)
 	}

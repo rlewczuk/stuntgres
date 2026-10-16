@@ -58,6 +58,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				// larger system package installation or bootstrap plpgsql descriptor.
 				wantAvailable := append([][]any{{"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"}, {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"}, {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"}, {"pgcrypto", "1.4", nil, "cryptographic functions"}}, availableExtensionsRow(installedVersion)...)
 				wantVersions := append([][]any{{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}, {"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}, {"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}, {"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}}, availableVersionsRow(installed)...)
+				wantAvailable = append(wantAvailable, []any{"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"})
+				wantVersions = append(wantVersions, []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name", true, wantVersions, pg))
 				for _, name := range []string{"hstore", "file_fdw", "plpgsql"} {

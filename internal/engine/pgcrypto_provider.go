@@ -81,7 +81,7 @@ func (p *pgcryptoProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 			return invalid()
 		}
 		member, admitted := pgcryptoLookup(proc.name, proc.signature)
-		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || proc.strict != member.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
+		if !admitted || address.ClassID != ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.crypto != p || proc.intagg != nil || proc.uuidOssp != nil || proc.fuzzy != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ObjectAddress{}) || proc.result != member.result || proc.volatility != member.volatility || proc.strict != member.strict || seen[member] || v.state.names[descriptorNameKey(proc)] != address {
 			return invalid()
 		}
 		if i == 0 {

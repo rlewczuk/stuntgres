@@ -58,6 +58,7 @@ type procedureDescriptor struct {
 	crypto                        *pgcryptoProvider
 	intagg                        *intaggProvider
 	aggregate                     *ownedAggregate
+	uuidOssp                      *uuidOsspProvider
 	conversion                    sqltype.EncodingConversionHandler
 	acl                           authorization.ACLValue
 	dictionary                    ObjectAddress
@@ -148,6 +149,9 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return err
 		}
 	case *procedureDescriptor:
+		if d.uuidOssp != nil && (d.intagg != nil || d.aggregate != nil || d.foreign != nil) {
+			return invalid()
+		}
 		if d.aggregate != nil && d.intagg != stockIntagg {
 			return invalid()
 		}
@@ -174,6 +178,16 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.crypto != nil && d.fuzzy != nil {
 			return invalid()
+		}
+		if d.uuidOssp != nil {
+			if d.crypto != nil || d.fuzzy != nil || d.provider != nil || d.queryCodec != nil || d.conversion.Name() != "" || d.dictionary != (ObjectAddress{}) {
+				return invalid()
+			}
+			if err := d.uuidOssp.validateProcedure(v, d); err != nil {
+				return err
+			}
+			ext = d.extension
+			break
 		}
 		if d.fuzzy != nil {
 			if err := d.fuzzy.validateProcedure(v, d); err != nil {
@@ -281,6 +295,9 @@ func extensionMembership(d Descriptor) ObjectAddress {
 	return ObjectAddress{}
 }
 func procedureArity(p *procedureDescriptor) int64 {
+	if p.signature == "" {
+		return 0
+	}
 	return int64(strings.Count(string(p.signature), ",") + 1)
 }
 
@@ -341,7 +358,7 @@ func (p *unaccentProvider) validate(v CatalogRead, d *extensionDescriptor) error
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
 		proc, ok := v.state.descriptors[d.members[i]].(*procedureDescriptor)
-		if !ok || proc.signature != signature || proc.provider != p || proc.queryCodec != nil || proc.intagg != nil {
+		if !ok || proc.signature != signature || proc.provider != p || proc.queryCodec != nil || proc.intagg != nil || proc.uuidOssp != nil {
 			return invalid()
 		}
 	}

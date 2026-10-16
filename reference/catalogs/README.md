@@ -263,6 +263,47 @@ make check RUN='^TestReferenceRegProc(PreparedAuthority|Persistence|Materialized
 make check RUN='^TestReferencePGAggregate(Lifecycle|Prepared)$' RACE=1
 ```
 
+### Installed uuid-ossp version 4
+
+`TestReferenceUUIDOsspGeneration`, `Identity`, `Diagnostics`, `Consumers`,
+`Controls`, `GroupedControls` and `FeatureSmoke` share public direct/held
+scenarios across native and pinned PostgreSQL18.0. Native installs only
+uuid_generate_v4(), version1.1;
+upstream's additional generators/constants are not fabricated. Independent
+canonical decoding checks non-NULL values, version4 and RFC variant bits,
+while transport metadata is checked before iteration, including empty results.
+Bounded distinctness is a freshness witness, not proof of cryptographic security.
+Production uses the shared standard-library crypto/rand kernel.
+
+Identity assertions cover pronargs0/result2950, strict/volatile/parallel-safe
+properties, real membership, separate installer/bootstrap-member ownership,
+search_path and actual schema authority. Diagnostics assert complete records
+for wrong overloads (NULL and bound nil included), UTF8 positions and call
+decorations. Defaults/views re-evaluate; immutable-only consumers reject the call.
+Native control phases preserve saved values, retained rows, held statements,
+qualified provider recipes and independent-driver replay, with atomic failed
+and canceled Restore. No PostgreSQL control API is invented.
+GroupedControls independently expects count2 beside each valid UUID draw.
+Grouped view leaves retain legitimate execution-stage dependence through held
+reads, native Restore and independent-driver reconstruction. This does not
+admit staged/row-dependent expressions as DEFAULTs or relax UUID provider/type
+identity and volatile-kernel validation; separate random draws are never equal
+goldens.
+
+Selected proof (900-second external deadline each):
+
+```sh
+make check RUN='^TestReference(UUIDOssp(Generation|Identity|Diagnostics|Consumers|Controls|GroupedControls|CopyBinary|FeatureSmoke)|AvailableExtensionsFiltering)$'
+make check REFERENCE=1 RUN='^TestReference(UUIDOssp(Generation|Identity|Diagnostics|Consumers|Controls|GroupedControls|CopyBinary|FeatureSmoke)|AvailableExtensionsFiltering)$'
+make check RUN='^(TestUUIDOssp(ProviderIdentity|ProviderCollision|ZeroArity|ExpressionIdentity|GroupedExpressionIdentity|Controls|KernelDemand)|TestUUIDGenerationPacking|TestIntaggProviderManifest|TestAvailableExtensions(ShapeAndOwnership|Projection|MetadataValues|Capture|StatementFrontier))$'
+```
+
+Actual feature smoke is `make check RUN='^TestReferenceUUIDOsspFeatureSmoke$'`.
+Its assertions exercise alternate-schema installation, real identity, fresh
+direct/held/default/view generation, UUID metadata, exact NULL-overload failure
+and native control reconstruction. The complementary
+[binary smoke](../dml/README.md#installed-uuid-ossp-binary-copy) exports and
+reimports the same saved generated UUID, not a different random call.
 
 ### pg_language selected proof
 
@@ -1366,8 +1407,8 @@ make check RACE=1 RUN='^(TestAvailableExtensionsStatementFrontier|TestReferenceA
 ### Pgcrypto hashing, passwords, raw AES and random/FIPS selected proof
 
 The native registry contains unaccent1.1, the two-wrapper intagg1.1,
-selected-type intarray1.5, selected-function fuzzystrmatch1.2 and bounded
-pgcrypto1.4. Pgcrypto installs fourteen
+selected-type intarray1.5, selected-function fuzzystrmatch1.2, bounded
+pgcrypto1.4 and selected-function uuid-ossp1.1. Pgcrypto installs fourteen
 genuine parallel-safe overloads: four immutable BYTEA digest/HMAC members,
 immutable crypt(TEXT,TEXT), volatile gen_salt(TEXT[,INT4]) returning TEXT,
 immutable encrypt/decrypt(BYTEA,BYTEA,TEXT) plus

@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"runtime"
@@ -28,7 +29,17 @@ func likeReferenceCancelEntered(t *testing.T, provider string, operation func(co
 			}
 		}
 	}()
-	profiles := make([]runtime.StackRecord, 128)
+	// Follow the shared fixture's complete-live-stack observation convention.
+	// Matching still requires this provider and this worker in one goroutine.
+	stacks := make([]byte, 64<<10)
+	providerSymbol := []byte(provider)
+	workerSymbol := []byte("likeReferenceCancelEntered.func1")
+	var poll *time.Timer
+	defer func() {
+		if poll != nil {
+			poll.Stop()
+		}
+	}()
 	observed := false
 	for !observed && ctx.Err() == nil {
 		select {
@@ -37,29 +48,47 @@ func likeReferenceCancelEntered(t *testing.T, provider string, operation func(co
 			t.Fatal("operation completed before provider observation", err)
 		default:
 		}
-		n, ok := runtime.GoroutineProfile(profiles)
-		if !ok {
-			profiles = make([]runtime.StackRecord, n)
-			continue
+		n := runtime.Stack(stacks, true)
+		for n == len(stacks) {
+			stacks = make([]byte, len(stacks)*2)
+			n = runtime.Stack(stacks, true)
 		}
-		for _, profile := range profiles[:n] {
-			frames := runtime.CallersFrames(profile.Stack())
-			providerFrame, workerFrame := false, false
-			for {
-				frame, more := frames.Next()
-				providerFrame = providerFrame || strings.Contains(frame.Function, provider)
-				workerFrame = workerFrame || strings.Contains(frame.Function, "likeReferenceCancelEntered.func1")
-				if !more {
-					break
-				}
+		remaining := stacks[:n]
+		for len(remaining) != 0 {
+			end := bytes.Index(remaining, []byte("\n\n"))
+			if end < 0 {
+				end = len(remaining)
 			}
-			if providerFrame && workerFrame {
+			frames := remaining[:end]
+			// Creation metadata is not a live frame of this goroutine.
+			if created := bytes.Index(frames, []byte("\ncreated by ")); created >= 0 {
+				frames = frames[:created]
+			}
+			if bytes.Contains(frames, providerSymbol) && bytes.Contains(frames, workerSymbol) {
 				observed = true
 				break
 			}
+			if end == len(remaining) {
+				break
+			}
+			remaining = remaining[end+2:]
 		}
 		if !observed {
-			runtime.Gosched()
+			// Complete snapshots stop the world. Delay after unsuccessful
+			// samples so observation does not monopolize worker progress.
+			// Start a fresh delay rather than accumulating ticker events.
+			if poll == nil {
+				poll = time.NewTimer(time.Millisecond)
+			} else {
+				poll.Reset(time.Millisecond)
+			}
+			select {
+			case <-ctx.Done():
+			case err := <-result:
+				joined = true
+				t.Fatal("operation completed before provider observation", err)
+			case <-poll.C:
+			}
 		}
 	}
 	cancel()

@@ -106,6 +106,8 @@ func closedUUIDDefault(node BoundExpr) bool {
 		return false
 	}
 	switch n := node.(type) {
+	case installedUUIDOsspFunctionExpression:
+		return n.validShape()
 	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range n.Args {
 			if arg.Properties().Volatility > Stable || !closedUUIDDefault(arg) {

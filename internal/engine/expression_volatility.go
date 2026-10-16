@@ -224,6 +224,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.Args...)
 	case installedLevenshteinFunctionExpression:
 		return children(n.Args...)
+	case installedUUIDOsspFunctionExpression:
+		return Volatile
 	case installedCryptoFunctionExpression:
 		return merge(n.procedure.volatility, children(n.Args...))
 	case installedFunctionExpression:

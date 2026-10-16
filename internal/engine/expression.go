@@ -517,6 +517,8 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.Levenshtein = next
 		}
 		return e, args != nil, nil
+	case installedUUIDOsspFunctionExpression:
+		return e, false, nil
 	case installedCryptoFunctionExpression:
 		var args []BoundExpr
 		for i, arg := range e.Args {

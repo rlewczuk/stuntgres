@@ -512,6 +512,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.Levenshtein, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
+	case installedUUIDOsspFunctionExpression:
+		if ref != nil {
+			n.ref = ref(n.ref)
+		}
+		next = n
 	case installedCryptoFunctionExpression:
 		n.Args = args(n.Args)
 		if ref != nil {

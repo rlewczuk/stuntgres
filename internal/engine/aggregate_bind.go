@@ -763,6 +763,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case installedUUIDOsspFunctionExpression:
+		o, ok := other.(installedUUIDOsspFunctionExpression)
+		return ok && e.ref == o.ref && e.procedure == o.procedure && e.Name == o.Name
 	case installedCryptoFunctionExpression:
 		o, ok := other.(installedCryptoFunctionExpression)
 		if !ok || e.ref != o.ref || e.procedure.revision != o.procedure.revision || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
@@ -1501,6 +1504,11 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case installedUUIDOsspFunctionExpression:
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case installedCryptoFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
@@ -1858,6 +1866,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, arg := range e.Args {
 			walk(arg)
 		}
+	case installedUUIDOsspFunctionExpression:
+		// Installed random generation is a zero-child leaf.
 	case installedCryptoFunctionExpression:
 		for _, arg := range e.Args {
 			walk(arg)

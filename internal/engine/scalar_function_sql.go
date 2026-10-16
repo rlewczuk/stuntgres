@@ -79,6 +79,19 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		return jsonPredicateRecipe(text, n.kind, n.unique, n.not), nil
+	case installedUUIDOsspFunctionExpression:
+		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
+			return "", fmt.Errorf("stuntgres: invalid stored uuid-ossp reference")
+		}
+		if err := n.validate(view); err != nil {
+			return "", err
+		}
+		namespace, ok := r.descriptor(view, n.procedure.namespace).(*namespaceDescriptor)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored uuid-ossp namespace")
+		}
+		r.record(n.ref)
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(n.procedure.name), nil)
 	case installedCryptoFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")
