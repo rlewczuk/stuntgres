@@ -646,12 +646,12 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 	for _, fact := range builtinIdentities {
 		d := byID[fact.id]
 		if d == nil {
-			if fact.namespace == "information_schema" && fact.name == "time_stamp" {
+			if fact.namespace == "information_schema" && (fact.name == "time_stamp" || fact.name == "sql_identifier") {
 				// Construct the selected domain before arrays capture element authority.
 				base := byID[fact.base].Usage()
 				base.Typmod = fact.typmod
 				var err error
-				d, err = Domain(fact.id, fact.name, "information_schema.time_stamp", base)
+				d, err = Domain(fact.id, fact.name, fact.namespace+"."+fact.name, base)
 				if err != nil {
 					panic(err) // Fixed inventory and supported base must be coherent.
 				}

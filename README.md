@@ -3313,6 +3313,20 @@ is implied. See [domain contracts](https://www.postgresql.org/docs/18/domains.ht
 Feature smoke: `make check RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`.
 
+Change note: user-declared `information_schema.sql_identifier` columns now use
+the predefined domain over `pg_catalog.name`. Qualified domain identity and
+inherited C collation remain distinct from NAME result metadata. Values retain
+case/spelling; text silently clips at a complete UTF8 boundary within 63 bytes.
+NULL and empty text remain distinct. Full input validation precedes clipping:
+NUL or malformed UTF8 raises 22021, including invalid suffixes beyond byte 63,
+and a failed multirow INSERT publishes no rows. Native Dump/Reset/Restore retains
+the qualified builtin domain and values without recreating the domain.
+This does not enable implicit domain-array storage, other sibling domains,
+binary NAME transport or migration of existing information-schema view carriers.
+See [type contracts](docs/TYPES.md#arrays-composites-enums-and-domains).
+Feature smoke: `make check RUN='^TestReferenceInfoSQLIdentifierFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceInfoSQLIdentifierFeatureSmoke$' REFERENCE=1`.
+
 Change note: `CREATE POLICY`, selective `ALTER POLICY`, policy rename and
 `DROP POLICY [IF EXISTS]` now define immutable, table-attached policy metadata.
 Definitions support PERMISSIVE/RESTRICTIVE, ALL/SELECT/INSERT/UPDATE/DELETE,
@@ -3474,9 +3488,10 @@ descriptors. Stable attribute numbers survive DROP/ADD and renames; typmods and
 arrays do not invent extra descriptors. Owner inheritance, per-column/table ACLs
 and type USAGE govern visibility without an extra schema/search-path filter.
 The five genuine information-schema domains are visible with their seeded
-PUBLIC USAGE. Native result carriers are NAME/NAME/NAME/VARCHAR/NAME, not newly
-implemented information-schema domain codecs. Routine parameter/return
-descriptor arms remain outside native capability. See
+PUBLIC USAGE. Native result carriers remain NAME/NAME/NAME/VARCHAR/NAME rather
+than information-schema domain usages; executable user-declared sql_identifier
+columns do not change those carriers. Routine parameter/return descriptor arms
+remain outside native capability. See
 [descriptor details](docs/DIALECT.md#data-type-privilege-descriptors).
 Smoke: `make check RUN='^TestReferenceDataTypePrivilegesFeatureSmoke$'`
 and the same command with `REFERENCE=1` (external 900-second deadlines).

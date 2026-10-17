@@ -45,6 +45,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Int4Multirange:   {"{}", "{(,)}", "{[1,3),[2,4),[8,9)}"},
 		sqltype.Int8Multirange:   {"{}", "{(,)}", "{[-9223372036854775808,9223372036854775807)}"},
 		sqltype.NumMultirange:    {"{}", "{(4,5)}", "{[1.0,1.00]}", "{[-Infinity,Infinity],[Infinity,NaN]}"},
+		13248:                    {"", "MiXeDé", "O'Brien\\tail\n"},
 		13254:                    {"2004-10-19 10:23:54.126+02", "2004-10-19 23:59:59.999+00", "infinity", "-infinity"},
 		sqltype.Inet:             {"10.255.255.255/8", "::ffff:1.2.3.4", "::1"},
 		sqltype.Cidr:             {"10", "192.168/25", "2001:db8::/113"},

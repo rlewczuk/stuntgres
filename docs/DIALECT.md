@@ -2219,7 +2219,8 @@ Its attribute rows truthfully expose those native usages, not fabricated
 SQL_IDENTIFIER/CHARACTER_DATA/YES_OR_NO domain identities. The shared reference
 case independently checks PostgreSQL's actual domain identities and this named
 native representation boundary; names/ordinals, C collation, false NOT NULL and
-absence of system rows remain exact. No information-schema domain codecs are added.
+absence of system rows remain exact. Executable user-declared
+`information_schema.sql_identifier` columns do not migrate these view carriers.
 All 28 represented `pg_constraint` fields retain their released physical/type
 facts. Its first 20 fields are nonnullable; the seven array fields and `conbin`
 in its variable-width tail are nullable.

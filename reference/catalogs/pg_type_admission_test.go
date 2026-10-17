@@ -26,6 +26,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			expected[r[0].(int64)] = true
 		}
 		expected[13254], expected[13253] = true, true
+		expected[13248], expected[13247] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")

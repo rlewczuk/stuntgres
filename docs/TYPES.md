@@ -933,6 +933,22 @@ rights. Ownership transfer follows canonical root/array/backing associations
 without rebuilding codecs or value signatures; typed-table owners remain
 independent of their attached composite's owner.
 
+The predefined `information_schema.sql_identifier` domain is available for
+user-declared columns through the same domain/catalog authority. Its immediate
+and ultimate base is `pg_catalog.name`, with typmod -1 and inherited C collation.
+The logical column identity remains the qualified domain; database/sql results
+expose NAME metadata and the base string representation, including SQL NULL.
+Text input preserves case, spaces and punctuation, and silently clips to a
+complete UTF8 prefix of at most 63 bytes, not 63 characters. The entire input is
+validated before clipping: NUL or malformed UTF8, even after byte 63, raises
+22021 without inserting any rows from the failed statement. Explicit/bound NULL
+and omitted nullable values remain NULL; empty text remains distinct.
+Native Dump/Reset/Restore preserves the qualified builtin identity and data
+without emitting CREATE DOMAIN for it. Companion catalog visibility does not
+enable domain-array storage or binary NAME transport. Other predefined
+information-schema domains and existing view carriers are not promoted by this
+support. See [information-schema data types](https://www.postgresql.org/docs/18/infoschema-datatypes.html).
+
 ## Catalog-valued and supporting types
 
 REGCLASS and REGTYPE own unsigned catalog identities; symbolic output is captured

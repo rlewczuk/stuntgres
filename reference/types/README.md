@@ -6,6 +6,36 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Information-schema sql_identifier selected proof
+
+The untagged shared `TestReferenceInfoSQLIdentifier` scenarios cover qualified
+user-declared domain columns over NAME: exact spelling/UTF8 byte clipping,
+NULL/empty/omitted values, direct/prepared/held binds, raw NAME metadata and
+cached metadata after EOF/Close, complete encoding diagnostics with execute-stage
+atomicity, catalog/base/companion relationships, and native control round trips.
+Native controls include independent-driver restoration, retained cursor values,
+and failed/canceled staged replacement. The companion remains nonexecutable;
+existing information-schema view carriers are unchanged.
+
+Run each command with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceInfoSQLIdentifier(Values|Metadata|Diagnostics|Identity|NativeControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceInfoSQLIdentifier(Values|Metadata|Diagnostics|Identity|NativeControls|FeatureSmoke)$'
+make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1
+make check RUN='^TestReferencePGTypeAdmission$'
+make check RUN='^Test(InfoSQLIdentifierBuiltinDescriptor|InfoTimeStampBuiltinDescriptor)$'
+```
+
+The public feature smoke is
+`make check RUN='^TestReferenceInfoSQLIdentifierFeatureSmoke$'` and the same
+command with `REFERENCE=1`. It expects three inserted rows containing `MiXeD`,
+a clipped 61-ASCII-plus-é value, and NULL; exact NAME metadata; qualified
+domain/base catalog identity; a late malformed UTF8 parameter raising 22021
+without partial insertion; and native Dump/Reset/Restore with fresh reads.
+The PostgreSQL phase shares the SQL assertions but has no native-control API.
+
+
 ### Selected-call comparison and null-test consumers
 
 `TestReferenceCompareNullFunctionBoundaries` independently asserts selected-call
