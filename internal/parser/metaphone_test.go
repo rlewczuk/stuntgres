@@ -23,7 +23,7 @@ func TestMetaphoneParserAdmission(t *testing.T) {
 					t.Fatal(statements, err)
 				}
 				call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
-				if !ok || call.Syntax != OrdinaryFunctionSyntax || !call.Variadic || call.ProjectionOnly || len(call.Args) != tc.arity || len(call.ArgNames) != 0 || call.Pos.Character != 8 {
+				if !ok || call.Syntax != OrdinaryFunctionSyntax || !call.Variadic || len(call.Args) != tc.arity || len(call.ArgNames) != 0 || call.Pos.Character != 8 {
 					t.Fatal("lost scalar/variadic call shape", call)
 				}
 				parts := call.Name.Parts

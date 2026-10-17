@@ -6,6 +6,46 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Boolean call predicates
+
+The four `TestReferenceBooleanCall*` definitions independently cover all four
+visibility inquiries qualified/unqualified, bare and composed predicates,
+three-valued results and BOOL metadata, direct/fresh/held statements and current
+search_path/effective-role refresh. Identities come from qualified reg-object
+casts and conversion object-address lookup, never the inquiry under test.
+The nonexistent controls are positive identities discovered before dropping a
+dedicated `bcp_pred_gone` schema with CASCADE. This preserves a real created enum
+control without requiring unsupported standalone enum `DROP TYPE`; surviving
+visible, shadowed and offpath objects remain in their own schemas.
+Diagnostics retain complete records and Prepare/Execute phases; unknown names
+explicitly retain the native unsupported-call boundary beside PostgreSQL42883.
+The relation-list witness requires the original SQL unchanged, with both LEFT
+JOINs, exact ordered visible rows and NAME/NAME/TEXT/NAME empty-result metadata.
+The prerequisite simple-CASE internal `"char"` equality defect is resolved
+upstream. Recovery evidence records the unchanged embedded relation-list witness
+passing natively; final selected proof, quickcheck and review remain separate
+gates, not implied by this behavior description.
+
+Run each selector separately in both modes, with external900-second deadlines.
+`REFERENCE=1` uses the approved pinned PostgreSQL18.6 UTF8/C oracle; earlier
+18.0 observations remain historical evidence, not newly observed18.6 results.
+See [oracle provenance](../fixture/README.md#postgresql-oracle-policy-and-provenance).
+
+```sh
+make check RUN='^TestReferenceBooleanCallPredicates$' REFERENCE=1
+make check RUN='^TestReferenceBooleanCallPredicates$'
+make check RUN='^TestReferenceBooleanCallHeldPaths$' REFERENCE=1
+make check RUN='^TestReferenceBooleanCallHeldPaths$'
+make check RUN='^TestReferenceBooleanCallDiagnostics$' REFERENCE=1
+make check RUN='^TestReferenceBooleanCallDiagnostics$'
+make check RUN='^TestReferenceBooleanCallRelationList$' REFERENCE=1
+make check RUN='^TestReferenceBooleanCallRelationList$'
+```
+
+The last selector is the embedded feature smoke. Its rebuilt-server/actual-psql
+counterpart is documented in [sessions Testing](../sessions/README.md#boolean-call-relation-list-smoke).
+
+
 ### pg_am selected proof
 
 The five `pg_am*_test.go` files define nine permanent public scenarios:

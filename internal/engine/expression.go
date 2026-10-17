@@ -3076,6 +3076,17 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
 		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
+	// Logical children already passed this policy independently. Do not walk
+	// every prefix again when binding a long AND/OR chain.
+	if _, logical := node.(logicalExpression); policy.booleanConstruct != "" && !logical {
+		returnsSet := false
+		walkBoundExpression(node, func(child BoundExpr) {
+			returnsSet = returnsSet || isQuerySet(child)
+		})
+		if returnsSet {
+			return nil, expressionError("42804", fmt.Sprintf("argument of %s must not return a set", policy.booleanConstruct), parser.ExpressionStart(raw))
+		}
+	}
 	if !policy.deferAssignment && (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
 		if err := b.captureTypeDiagnosticInput(policy.expected.Type); err != nil {
 			return nil, err

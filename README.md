@@ -4460,13 +4460,24 @@ Inquiry catalog/path capture is demand-driven, including nested views,
 RETURNING and transformed ALTER CHECK validation; unrelated statements do not
 retain a visibility snapshot. Stored inquiry CHECKs support compact/pretty
 pg_get_constraintdef/pg_get_expr output and behavioral replay.
-For bounded predicate syntax, project an inquiry in a view and filter its BOOL
-column; INSERT results are checked by a subsequent SELECT, while UPDATE/DELETE
-support RETURNING. Discover backend-local numeric relation identities by projecting
-`oid,pg_table_is_visible(oid)` from pg_class under each target search_path and
-requiring exactly two distinct positive candidate OIDs, one visible candidate,
-and the same identity bag after reversal. No pg_namespace query source or
-explicit regclass-to-oid cast is needed.
+Selected Boolean-valued calls, including all four visibility inquiries, are
+shared expression leaves: bare WHERE predicates and grouped NOT/AND/OR in WHERE
+or SELECT need no view workaround or `= TRUE`. Nonboolean call results receive
+construct-specific type errors; set-returning calls remain forbidden in Boolean
+contexts. This does not expand scalar arithmetic or the bounded call-argument
+language. The unchanged original psql relation-list query retains both catalog
+LEFT JOINs, CASE/IN/regex and ordinal ordering and is supported through embedded
+direct/prepared execution and the rebuilt simple-query server with actual psql.
+The prerequisite simple-CASE internal `"char"` equality-resolution defect is
+resolved by its owning conditional implementation, not by rewriting the query.
+Wire prepared statements remain excluded. See the owning
+[catalog](reference/catalogs/README.md#boolean-call-predicates) and
+[server](reference/sessions/README.md#boolean-call-relation-list-smoke) Testing
+sections for the required selected native/current-oracle proof.
+Independent identity witnesses use qualified regclass/regtype/regcollation casts
+and pg_get_object_address for conversions, never visibility-under-test or fixed
+allocator values. INSERT results are checked by a subsequent SELECT, while
+UPDATE/DELETE support RETURNING.
 CREATE TYPE forms other than AS ENUM or AS (...), CREATE CONVERSION and foreign
 table creation remain excluded; permanent materialized views have a
 [bounded supported surface](https://www.postgresql.org/docs/18/sql-creatematerializedview.html), without

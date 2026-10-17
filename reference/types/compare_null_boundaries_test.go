@@ -16,19 +16,33 @@ func TestReferenceCompareNullQualifiedReferences(t *testing.T) {
 
 func TestReferenceCompareNullFunctionBoundaries(t *testing.T) {
 	p := fixture.ExpressionReferenceSetup(t)
+	// Calls now share comparison and null-test leaves. Assert their consumer
+	// results independently in both modes, including typed Boolean failures.
+	for _, step := range []fixture.Step{
+		fixture.Select("SELECT num_nulls(v) IS NULL FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {false}, {false}, {false}}),
+		fixture.Select("SELECT (num_nulls(v)) IS NULL FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {false}, {false}, {false}}),
+		fixture.Select("SELECT num_nulls(v)=1 FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {true}, {false}, {false}}),
+		fixture.Select("SELECT 1=num_nulls(v) FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {true}, {false}, {false}}),
+		fixture.Select("SELECT id FROM t WHERE num_nulls(v) IS NULL", []string{"id"}, []string{"INT4"}, nil),
+		fixture.ImplicitError("SELECT num_nulls(v) AND TRUE FROM t", fixture.Diagnostic{Code: "42804", Message: "argument of AND must be type boolean, not type integer", Position: "8"}),
+		fixture.ImplicitError("SELECT TRUE OR num_nulls(v) FROM t", fixture.Diagnostic{Code: "42804", Message: "argument of OR must be type boolean, not type integer", Position: "16"}),
+	} {
+		step.SelectRows = true
+		step.ErrorStage = "execute"
+		step.Bag = true
+		fixture.ScalarStep(t, p, step)
+		if step.Diagnostic != nil {
+			step.ErrorStage = "prepare"
+		}
+		fixture.ScalarStep(t, p, fixture.Prepared(step))
+	}
+	// Predicate-valued call arguments remain outside native admission.
 	for _, tc := range []struct {
 		q    string
 		step fixture.Step
 	}{
-		{"SELECT num_nulls(v) IS NULL FROM t", fixture.Select("SELECT num_nulls(v) IS NULL FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {false}, {false}, {false}})},
 		{"SELECT num_nulls(v IS NULL) FROM t", fixture.Select("SELECT num_nulls(v IS NULL) FROM t", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(0)}, {int64(0)}, {int64(0)}, {int64(0)}})},
-		{"SELECT (num_nulls(v)) IS NULL FROM t", fixture.Select("SELECT (num_nulls(v)) IS NULL FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {false}, {false}, {false}})},
 		{"SELECT num_nulls((v IS NULL)) FROM t", fixture.Select("SELECT num_nulls((v IS NULL)) FROM t", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(0)}, {int64(0)}, {int64(0)}, {int64(0)}})},
-		{"SELECT num_nulls(v)=1 FROM t", fixture.Select("SELECT num_nulls(v)=1 FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {true}, {false}, {false}})},
-		{"SELECT 1=num_nulls(v) FROM t", fixture.Select("SELECT 1=num_nulls(v) FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {true}, {false}, {false}})},
-		{"SELECT num_nulls(v) AND TRUE FROM t", fixture.ImplicitError("SELECT num_nulls(v) AND TRUE FROM t", fixture.Diagnostic{Code: "42804", Message: "argument of AND must be type boolean, not type integer", Position: "8"})},
-		{"SELECT TRUE OR num_nulls(v) FROM t", fixture.ImplicitError("SELECT TRUE OR num_nulls(v) FROM t", fixture.Diagnostic{Code: "42804", Message: "argument of OR must be type boolean, not type integer", Position: "16"})},
-		{"SELECT id FROM t WHERE num_nulls(v) IS NULL", fixture.Select("SELECT id FROM t WHERE num_nulls(v) IS NULL", []string{"id"}, []string{"INT4"}, nil)},
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			rows, err := p.Memory.QueryContext(p.Ctx, tc.q)

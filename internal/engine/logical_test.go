@@ -157,7 +157,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	ast := statement(t, "SELECT FALSE AND a,TRUE OR b,$1 AND a FROM t WHERE NOT id=1")
+	ast := statement(t, "SELECT FALSE AND a,TRUE OR b,$1 AND a,TRUE OR pg_type_is_visible(id) FROM t WHERE NOT id=1")
 	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		e.mu.Unlock()
@@ -174,7 +174,11 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	project := bound.query.Root.(*projectNode)
 	for i, node := range project.expressions {
 		p := node.Properties()
-		if !p.RowDependent || p.ParameterDependent != (i == 2) || p.Volatility != Immutable {
+		volatility := Immutable
+		if i == 3 {
+			volatility = Stable
+		}
+		if !p.RowDependent || p.ParameterDependent != (i == 2) || p.Volatility != volatility {
 			t.Fatal(p)
 		}
 		if node.ResultUsage().Type.ID() != sqltype.Bool || node.ResultUsage().Typmod != -1 {
@@ -211,13 +215,13 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, aclEngine, owner, "SET SESSION AUTHORIZATION reader")
-	for _, q := range []string{"SELECT FALSE AND a FROM secret", "SELECT TRUE OR a FROM secret", "SELECT TRUE FROM secret WHERE FALSE AND a"} {
+	for _, q := range []string{"SELECT FALSE AND a FROM secret", "SELECT TRUE OR a FROM secret", "SELECT TRUE FROM secret WHERE FALSE AND a", "SELECT TRUE OR num_nulls(a)>0 FROM secret"} {
 		r := roleExecute(t, aclEngine, owner, q)
 		if r.Rows != nil {
 			r.Rows.Close()
 		}
 	}
-	for _, q := range []string{"SELECT FALSE AND b FROM secret", "SELECT TRUE OR b FROM secret", "SELECT TRUE FROM secret WHERE TRUE OR b"} {
+	for _, q := range []string{"SELECT FALSE AND b FROM secret", "SELECT TRUE OR b FROM secret", "SELECT TRUE FROM secret WHERE TRUE OR b", "SELECT TRUE OR num_nulls(b)>0 FROM secret"} {
 		roleError(t, aclEngine, owner, q, "42501", "permission denied for table secret", "")
 	}
 }

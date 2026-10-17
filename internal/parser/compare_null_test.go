@@ -102,16 +102,12 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	}
 	keywordDiagnostic(t, "SELECT 1 IS DISTINCT FROM 1 IS TRUE FROM t", "42601", `syntax error at or near "IS"`, "29")
 	for _, q := range []string{
-		"SELECT abs(v) IS NULL FROM t",
 		"SELECT v IS DISTINCT FROM 1 IS NULL FROM t",
 		"INSERT INTO t VALUES(1 IS NULL)", "SELECT set_config('x',TRUE IS NULL,FALSE)",
 		"SELECT v IS OF (integer) FROM t",
 		"SELECT v=1=1 FROM t",
-		"SELECT num_nulls(v) IS NULL FROM t", "SELECT num_nulls(v IS NULL) FROM t",
-		"SELECT (num_nulls(v)) IS NULL FROM t", "SELECT num_nulls((v IS NULL)) FROM t",
-		"SELECT num_nulls(v)=1 FROM t", "SELECT 1=num_nulls(v) FROM t",
-		"SELECT num_nulls(v) AND TRUE FROM t", "SELECT TRUE OR num_nulls(v) FROM t",
-		"SELECT id FROM t WHERE num_nulls(v) IS NULL",
+		"SELECT num_nulls(v IS NULL) FROM t",
+		"SELECT num_nulls((v IS NULL)) FROM t",
 	} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal("admitted excluded syntax", q, statements, err)

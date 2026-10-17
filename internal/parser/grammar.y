@@ -569,6 +569,7 @@ package parser
 %type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument
+%type <expr> create_default_target
 %type <groupedPrimary> grouped_primary
 %type <expr> aggregate_call aggregate_within aggregate_application
 %type <tok> json_arrayagg_head json_objectagg_head
@@ -1744,8 +1745,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
  | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
- | DEFAULT default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
- | CONSTRAINT name DEFAULT default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($4) {return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | DEFAULT create_default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
+ | CONSTRAINT name DEFAULT create_default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($4) {return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
  | column_unique { $$=ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | column_primary {$$=ColumnConstraint{Unique:$1,Pos:$1.Pos}}
@@ -2016,7 +2017,7 @@ case_test: /* empty */ { $$=nil } | target_or { $$=$1 } ;
 case_arms: case_arm { $$=[]CaseArm{$1} } | case_arms case_arm { $$=append($1,$2) } ;
 case_arm: WHEN target_or THEN conditional_value { $$=CaseArm{Condition:$2,Result:$4,Pos:$1.pos} } ;
 case_else: /* empty */ { $$=nil } | ELSE conditional_value { $$=$2 } ;
-conditional_value: target_or { $$=$1 } | function { $$=$1 } ;
+conditional_value: target_or { $$=$1 } ;
 conditional_args: target_or { $$=[]Expr{$1} } | conditional_args ',' target_or { $$=append($1,$3) } ;
 generation_window_spec: /* empty */ {} | ORDER BY order_keys {} | GENERATION_PARTITION BY row_fields {} | GENERATION_PARTITION BY row_fields ORDER BY order_keys {} ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
@@ -2142,62 +2143,66 @@ operand: scalar %prec NAME_LIST { $$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
 qualified_operator: OPERATOR '(' name '.' operator_symbol ')' { $$=ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$1.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 operator_symbol: '+' | '-' | '*' | '/' | '%' | '^' | SYMBOLIC_OPERATOR | comparison_operator ;
-/* CREATE DEFAULT follows restricted b_expr; parenthesized targets retain the
- * ordinary predicate/logical surface without changing SELECT admission. */
-default_target: target_base %prec NAME_LIST { $$=$1 }
+/* Actual CREATE DEFAULT retains its existing direct selected-call boundary.
+ * BETWEEN's lower b_expr is not a DEFAULT consumer. Nested ordinary scalar
+ * providers and grouped expressions keep their existing consumer policies. */
+create_default_target: operand %prec NAME_LIST { $$=$1 }
  | function %prec NAME_LIST { sqllex.(*lexer).failAt("0A000","functions are unsupported",$1.SourcePosition().Offset);return 1 }
- | target_base comparison_operator target_base { if !sqllex.(*lexer).targetGrammarOperands($1,$3) {return 1};$$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
- | default_target IS DISTINCT FROM default_target %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1,$5) {return 1};$$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
- | default_target IS NOT DISTINCT FROM default_target %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1,$6) {return 1};$$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
-/* Grouping preserves the primary; each consumer enforces its grammar owner. */
-target_base: operand %prec NAME_LIST { $$=$1 } ;
+ | operand comparison_operator operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | create_default_target IS DISTINCT FROM create_default_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
+ | create_default_target IS NOT DISTINCT FROM create_default_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
+default_target: target_base %prec NAME_LIST { $$=$1 }
+ | target_base comparison_operator target_base { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | default_target IS DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
+ | default_target IS NOT DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
+/* Selected calls share target leaves, not scalar arithmetic or argument syntax. */
+target_base: operand %prec NAME_LIST { $$=$1 } | function { $$=$1 } ;
 target_between: target_base %prec IS { $$=$1 }
  | target_between_predicate { $$=$1 }
- | target_base like_operator target_base target_escape %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$3,$4) {return 1};$$=likeExpr($1,$3,$4,$2,false,$2.pos) }
- | target_base NOT like_operator target_base target_escape %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$4,$5) {return 1};$$=likeExpr($1,$4,$5,$3,true,$2.pos) }
- | target_base SIMILAR TO target_base target_escape %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$4,$5) {return 1};$$=similarExpr($1,$4,$5,false,$2.pos) }
- | target_base NOT SIMILAR TO target_base target_escape %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$5,$6) {return 1};$$=similarExpr($1,$5,$6,true,$2.pos) } ;
-target_between_predicate: target_base BETWEEN default_target AND target_base %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$3,$5) {return 1};$$=betweenExpr($1,$3,$5,$2.pos,false,false) }
- | target_base NOT BETWEEN default_target AND target_base %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$4,$6) {return 1};$$=betweenExpr($1,$4,$6,$2.pos,true,false) }
- | target_base BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$4,$6) {return 1};$$=betweenExpr($1,$4,$6,$2.pos,false,true) }
- | target_base NOT BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { if !sqllex.(*lexer).targetGrammarOperands($1,$5,$7) {return 1};$$=betweenExpr($1,$5,$7,$2.pos,true,true) } ;
+ | target_base like_operator target_base target_escape %prec BETWEEN { $$=likeExpr($1,$3,$4,$2,false,$2.pos) }
+ | target_base NOT like_operator target_base target_escape %prec BETWEEN { $$=likeExpr($1,$4,$5,$3,true,$2.pos) }
+ | target_base SIMILAR TO target_base target_escape %prec BETWEEN { $$=similarExpr($1,$4,$5,false,$2.pos) }
+ | target_base NOT SIMILAR TO target_base target_escape %prec BETWEEN { $$=similarExpr($1,$5,$6,true,$2.pos) } ;
+target_between_predicate: target_base BETWEEN default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$3,$5,$2.pos,false,false) }
+ | target_base NOT BETWEEN default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,true,false) }
+ | target_base BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,false,true) }
+ | target_base NOT BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$5,$7,$2.pos,true,true) } ;
 /* Comparison operands may be grouped predicates; the nonrecursive layer keeps
  * ungrouped comparison chains nonassociative. Arithmetic remains scalar-only. */
 target_comparison: target_between %prec NAME_LIST { $$=$1 }
- | target_between comparison_operator target_between { if !sqllex.(*lexer).targetGrammarOperands($1,$3) {return 1};$$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
- | target_between IN select_with_parens %prec NAME_LIST { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$3.Query,false,$2.pos) }
- | target_between NOT_IN_LA IN select_with_parens %prec NAME_LIST { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$4.Query,true,$2.pos) }
- | target_between IN '(' row_fields ')' %prec NAME_LIST { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=InListExpr{Left:$1,Items:$4,Pos:$2.pos} }
- | target_between NOT_IN_LA IN '(' row_fields ')' %prec NAME_LIST { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=InListExpr{Left:$1,Items:$5,Negate:true,Pos:$2.pos} }
- | target_between comparison_operator quantifier select_with_parens %prec NAME_LIST {if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},kind,$4.Query,false,$2.pos)}
- | target_between comparison_operator quantifier '(' scalar_projection ')' %prec NAME_LIST { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=ArrayComparisonExpr{Left:$1,Right:$5,Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},All:$3.text=="all",Pos:$2.pos} } ;
+ | target_between comparison_operator target_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | target_between IN select_with_parens %prec NAME_LIST { $$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$3.Query,false,$2.pos) }
+ | target_between NOT_IN_LA IN select_with_parens %prec NAME_LIST { $$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$4.Query,true,$2.pos) }
+ | target_between IN '(' row_fields ')' %prec NAME_LIST { $$=InListExpr{Left:$1,Items:$4,Pos:$2.pos} }
+ | target_between NOT_IN_LA IN '(' row_fields ')' %prec NAME_LIST { $$=InListExpr{Left:$1,Items:$5,Negate:true,Pos:$2.pos} }
+ | target_between comparison_operator quantifier select_with_parens %prec NAME_LIST {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},kind,$4.Query,false,$2.pos)}
+ | target_between comparison_operator quantifier '(' scalar_projection ')' %prec NAME_LIST { $$=ArrayComparisonExpr{Left:$1,Right:$5,Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},All:$3.text=="all",Pos:$2.pos} } ;
 target: target_comparison { $$=$1 }
- | target IS NULL %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
- | target IS NOT NULL %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
- | target IS JSON_PREDICATE json_predicate_kind json_unique %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=JSONPredicateExpr{Child:$1,Kind:$4.text,Unique:$5,Pos:$2.pos} }
- | target IS NOT JSON_PREDICATE json_predicate_kind json_unique %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=JSONPredicateExpr{Child:$1,Kind:$5.text,Unique:$6,Not:true,Pos:$2.pos} }
- | target ISNULL { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
- | target NOTNULL { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
- | target IS truth_kind %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=PredicateExpr{Kind:$3,Left:$1,Pos:$2.pos} }
- | target IS DISTINCT FROM target %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1,$5) {return 1};$$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
- | target IS normalized_form NORMALIZED %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=normalizedExpr($1,$3,$2.pos,false) }
- | target IS NOT normalized_form NORMALIZED %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1) {return 1};$$=normalizedExpr($1,$4,$2.pos,true) }
- | target IS NOT DISTINCT FROM target %prec IS { if !sqllex.(*lexer).targetGrammarOperands($1,$6) {return 1};$$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
+ | target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
+ | target IS NOT NULL %prec IS { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
+ | target IS JSON_PREDICATE json_predicate_kind json_unique %prec IS { $$=JSONPredicateExpr{Child:$1,Kind:$4.text,Unique:$5,Pos:$2.pos} }
+ | target IS NOT JSON_PREDICATE json_predicate_kind json_unique %prec IS { $$=JSONPredicateExpr{Child:$1,Kind:$5.text,Unique:$6,Not:true,Pos:$2.pos} }
+ | target ISNULL { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
+ | target NOTNULL { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
+ | target IS truth_kind %prec IS { $$=PredicateExpr{Kind:$3,Left:$1,Pos:$2.pos} }
+ | target IS DISTINCT FROM target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
+ | target IS normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$3,$2.pos,false) }
+ | target IS NOT normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$4,$2.pos,true) }
+ | target IS NOT DISTINCT FROM target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
 target_not: target { $$=$1 }
- | NOT target_not { if !sqllex.(*lexer).targetGrammarOperands($2) {return 1};$$=LogicalExpr{Op:LogicalNot,Left:$2,Pos:$1.pos} } ;
+ | NOT target_not { $$=LogicalExpr{Op:LogicalNot,Left:$2,Pos:$1.pos} } ;
 target_and: target_not { $$=$1 }
- | target_and AND target_not { if !sqllex.(*lexer).targetGrammarOperands($1,$3) {return 1};$$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
+ | target_and AND target_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
 target_or: target_and { $$=$1 }
- | target_or OR target_and { if !sqllex.(*lexer).targetGrammarOperands($1,$3) {return 1};$$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
-scalar_projection: target_or { $$=$1 } | function { $$=$1 } ;
+ | target_or OR target_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
+scalar_projection: target_or { $$=$1 } ;
 projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
  | '*' { $$=StarExpr{Pos:$1.pos} } ;
-/* Selected calls remain standalone projection roots, not Boolean/comparison
- * leaves. Their arguments remain ordinary operands or nested selected calls. */
+/* Arguments retain their bounded operand or nested-selected-call surface. */
 function_argument: operand { if !scalarGrammarOperand($1) {sqllex.(*lexer).syntax(sqllex.(*lexer).current);return 1};$$=$1 } | function { $$=$1 } ;
-function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,ProjectionOnly:true,Pos:$1.pos} }
- | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,ProjectionOnly:true,Pos:$1.pos} }
- | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,ProjectionOnly:true,Pos:$1.pos} }
+function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
+ | name '.' OVERLAPS '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
  | function WITHIN GROUP '(' ORDER BY order_keys ')' { var ok bool;$$,ok=withinCall(sqllex,$1,$2,$7);if !ok{return 1} }
  | function over_clause { call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
@@ -2218,9 +2223,7 @@ ordinary_named_arguments: name EQUALS_GREATER function_argument { $$=appendFunct
 /* Transition from the existing positional routes at the first named argument.
  * Keep the named tail's labels, including later malformed positional entries. */
 ordinary_mixed_arguments: target_or ',' ordinary_named_arguments {call:=FunctionExpr{Args:[]Expr{$1}};for i,arg:=range $3.Args {call=appendFunctionArgument(call,arg,$3.ArgNames[i])};$$=call}
- | target_or ',' count_values ',' ordinary_named_arguments {call:=FunctionExpr{Args:append([]Expr{$1},$3...)};for i,arg:=range $5.Args {call=appendFunctionArgument(call,arg,$5.ArgNames[i])};$$=call}
- | function ',' ordinary_named_arguments {call:=FunctionExpr{Args:[]Expr{$1}};for i,arg:=range $3.Args {call=appendFunctionArgument(call,arg,$3.ArgNames[i])};$$=call}
- | function ',' count_values ',' ordinary_named_arguments {call:=FunctionExpr{Args:append([]Expr{$1},$3...)};for i,arg:=range $5.Args {call=appendFunctionArgument(call,arg,$5.ArgNames[i])};$$=call} ;
+ | target_or ',' count_values ',' ordinary_named_arguments {call:=FunctionExpr{Args:append([]Expr{$1},$3...)};for i,arg:=range $5.Args {call=appendFunctionArgument(call,arg,$5.ArgNames[i])};$$=call} ;
 function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
 string_function: STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
@@ -2427,10 +2430,6 @@ aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType(
  | qualified_call_head target_or ')' { $$=ordinaryCall(sqllex,$1,[]Expr{$2},lexeme{text:$1.Name,pos:$1.Pos}) }
  | cast_function target_or ',' count_values ')' { $$=ordinaryCall(sqllex,columnType($1),append([]Expr{$2},$4...),$1) }
  | qualified_call_head target_or ',' count_values ')' { $$=ordinaryCall(sqllex,$1,append([]Expr{$2},$4...),lexeme{text:$1.Name,pos:$1.Pos}) }
- | cast_function function ')' { $$=ordinaryCall(sqllex,columnType($1),[]Expr{$2},$1) }
- | qualified_call_head function ')' { $$=ordinaryCall(sqllex,$1,[]Expr{$2},lexeme{text:$1.Name,pos:$1.Pos}) }
- | cast_function function ',' count_values ')' { $$=ordinaryCall(sqllex,columnType($1),append([]Expr{$2},$4...),$1) }
- | qualified_call_head function ',' count_values ')' { $$=ordinaryCall(sqllex,$1,append([]Expr{$2},$4...),lexeme{text:$1.Name,pos:$1.Pos}) }
  | qualified_call_head '*' ')' { $$=modifiedOrdinaryCall($1,nil,true,false,false,false,nil) }
  | cast_function '*' ')' { $$=modifiedOrdinaryCall(columnType($1),nil,true,false,false,false,nil) }
  | cast_function ')' { $$=ordinaryCall(sqllex,columnType($1),nil,$1) }
@@ -2447,10 +2446,6 @@ aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType(
  | qualified_call_head target_or ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,[]Expr{$2},false,false,false,false,$5) }
  | cast_function target_or ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),append([]Expr{$2},$4...),false,false,false,false,$7) }
  | qualified_call_head target_or ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,append([]Expr{$2},$4...),false,false,false,false,$7) }
- | cast_function function ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$2},false,false,false,false,$5) }
- | qualified_call_head function ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,[]Expr{$2},false,false,false,false,$5) }
- | cast_function function ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall(columnType($1),append([]Expr{$2},$4...),false,false,false,false,$7) }
- | qualified_call_head function ',' count_values ORDER BY order_keys ')' { $$=modifiedOrdinaryCall($1,append([]Expr{$2},$4...),false,false,false,false,$7) }
  | cast_function VARIADIC target_or ')' { $$=modifiedOrdinaryCall(columnType($1),[]Expr{$3},false,false,false,true,nil) }
  | json_arrayagg_head target_or json_format aggregate_order json_null_policy json_returning ')' { options:=$6;options.Input=$3;options.Absent=$5.Absent;options.NullPos=$5.NullPos;$$=AggregateExpr{Name:"json_arrayagg",Args:[]Expr{$2},Order:$4,JSON:&options,Pos:$1.pos} }
  | json_objectagg_head json_object_key VALUE target_or json_format json_object_null_policy json_unique_policy json_returning ')' { options:=$8;options.Input=$5;options.Absent=$6.Absent;options.NullPos=$6.NullPos;options.Unique=$7.Unique;options.UniquePos=$7.UniquePos;$$=AggregateExpr{Name:"json_objectagg",Args:[]Expr{$2,$4},JSON:&options,Pos:$1.pos} }

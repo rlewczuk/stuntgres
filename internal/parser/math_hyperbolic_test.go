@@ -44,7 +44,6 @@ func TestMathHyperbolicBoundaries(t *testing.T) {
 	for _, query := range []string{
 		"INSERT INTO t VALUES(sinh(1))",
 		"CREATE TABLE t(d DOUBLE PRECISION DEFAULT cosh(0))",
-		"SELECT d FROM t WHERE tanh(d)",
 		"SELECT asinh(1,)",
 		"SELECT acosh(1) garbage garbage",
 		"INSERT INTO t VALUES(1); SELECT atanh(1,)",

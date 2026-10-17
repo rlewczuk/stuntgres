@@ -29,8 +29,8 @@ func TestCheckSelectedScalarContext(t *testing.T) {
 func TestCheckSelectedScalarContextDoesNotLeak(t *testing.T) {
 	for _, suffix := range []string{
 		"CREATE TABLE u(a INT DEFAULT abs(1))",
-		"SELECT abs(a)=1 FROM t",
-		"SELECT a FROM t WHERE abs(a)=1",
+		"SELECT abs(a)+1 FROM t",
+		"SELECT a FROM t WHERE abs(a)+1=2",
 		"UPDATE t SET a=abs(a)+1",
 		"INSERT INTO t VALUES(abs(1))",
 	} {
@@ -40,6 +40,39 @@ func TestCheckSelectedScalarContextDoesNotLeak(t *testing.T) {
 			statements, err := Parse(query)
 			if err == nil || statements != nil {
 				t.Fatal("CHECK context escaped its closing parenthesis", statements, err)
+			}
+		})
+	}
+	// Selected calls are now shared comparison leaves, independently of CHECK
+	// lexer state. Compare their ASTs with and without a preceding CHECK.
+	for _, suffix := range []string{
+		"SELECT abs(a)=1 FROM t",
+		"SELECT a FROM t WHERE abs(a)=1",
+	} {
+		t.Run(suffix, func(t *testing.T) {
+			t.Parallel()
+			standalone, err := Parse(suffix)
+			if err != nil || len(standalone) != 1 {
+				t.Fatal("selected comparison rejected without CHECK", standalone, err)
+			}
+			statements, err := Parse("CREATE TABLE t(a INT CHECK(abs(a)=1));" + suffix)
+			if err != nil || len(statements) != 2 {
+				t.Fatal("selected comparison rejected after CHECK", statements, err)
+			}
+			for _, stmt := range []Statement{standalone[0], statements[1]} {
+				selectStmt := stmt.(*Select)
+				expr := selectStmt.Targets[0]
+				if selectStmt.Where != nil {
+					expr = selectStmt.Where
+				}
+				comparison, ok := expr.(OperatorExpr)
+				if !ok || comparison.Name.Parts[0].Text != "=" || len(comparison.Args) != 2 {
+					t.Fatal("lost selected comparison AST", expr)
+				}
+				call, ok := comparison.Args[0].(FunctionExpr)
+				if !ok || call.Name.Parts[0].Text != "abs" || len(call.Args) != 1 {
+					t.Fatal("lost selected comparison call", comparison.Args[0])
+				}
 			}
 		})
 	}

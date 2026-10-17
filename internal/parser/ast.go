@@ -1882,7 +1882,6 @@ type FunctionExpr struct {
 	Variadic           bool
 	ResolutionOnly     bool // Absent ordinary call: diagnostics, never provider dispatch.
 	CompositeCandidate bool // Otherwise-unselected call; only typed composite resolution is admitted.
-	ProjectionOnly     bool // Selected-call grammar, not an operand even when grouped.
 	Syntax             FunctionSyntax
 	StringSyntax       StringSyntax
 	Window             *WindowSpec

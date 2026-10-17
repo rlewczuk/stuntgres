@@ -196,7 +196,7 @@ func numberValue(tok lexeme, sign string) Value {
 
 // Grouping preserves the expression's grammar owner. Predicate/comparison
 // roots may feed target consumers and explicit casts, but not scalar operators
-// or the operand-only argument surface of selected projection calls.
+// or the operand-only argument surface of selected calls.
 func scalarGrammarOperand(expr Expr) bool {
 	switch e := expr.(type) {
 	case PredicateExpr, LogicalExpr, JSONPredicateExpr, InListExpr, ArrayComparisonExpr:
@@ -207,18 +207,6 @@ func scalarGrammarOperand(expr Expr) bool {
 			case "=", "<>", "!=", "<", ">", "<=", ">=":
 				return false
 			}
-		}
-	}
-	return true
-}
-
-// Selected projection calls retain their owner through grouping. Explicit
-// scalar postfixes and SQL/JSON keys are separate consumers.
-func (l *lexer) targetGrammarOperands(children ...Expr) bool {
-	for _, child := range children {
-		if call, ok := child.(FunctionExpr); ok && call.ProjectionOnly {
-			l.syntax(l.current)
-			return false
 		}
 	}
 	return true

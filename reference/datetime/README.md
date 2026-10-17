@@ -204,11 +204,14 @@ Supplemental units live in `./internal/sqltype`, `./internal/parser` or
 `make generate` after parser source changes; generated code is not hand-edited.
 The root performs these checks and the single1800-second finalcheck.
 Extraction boundary witnesses distinguish unsupported native constrained-domain
-DDL/current_setting/random predicate admission from actual PostgreSQL behavior;
-they do not skip either backend or introduce adjacent capabilities. Plain-domain
-sources and table CHECK cover selected extraction consumers and later-row
-atomicity. The wrapper Context matrix uses the supported CURRENT_DATE field;
-real bound random-provider units supplement its public native syntax boundary.
+DDL/current_setting admission from actual PostgreSQL behavior; they do not skip
+either backend or introduce adjacent capabilities. Plain-domain sources and
+table CHECK cover selected extraction consumers and later-row atomicity.
+`TestReferenceDatetimeExtractWrapperContext` covers both CURRENT_DATE and an
+admitted random comparison in a CASE field expression. Its direct/prepared
+random case independently expects FLOAT8 year2000 because random() is in [0,1),
+without pinning a random value or evaluation count. Select this definition in
+both native and `REFERENCE=1` modes for focused consumer proof.
 Ordinary and partial B-tree extraction expression indexes are shared successes:
 direct/prepared creation, filtered years, retained row count and stored WHERE.
 The broad pg_index descriptor inquiry remains PostgreSQL-only. Catalog queries use

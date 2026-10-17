@@ -6,6 +6,24 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Selected-call comparison and null-test consumers
+
+`TestReferenceCompareNullFunctionBoundaries` independently asserts selected-call
+comparison/null-test results and typed nonboolean logical failures through
+direct and prepared execution in both modes. Predicate-valued call arguments
+remain an explicit native capability boundary, with independent PostgreSQL
+success expectations; admitting calls as predicate leaves does not widen their
+argument language.
+
+```sh
+make check RUN='^TestReferenceCompareNullFunctionBoundaries$'
+make check RUN='^TestReferenceCompareNullFunctionBoundaries$' REFERENCE=1
+```
+
+Use an external900-second deadline per command. These selectors also provide
+the focused consumer smoke: exact BOOL result bags, empty INT4 filter metadata,
+and construct-specific42804 diagnostics, not an obsolete syntax exclusion.
+
 ### INET bitwise and arithmetic selected proof
 
 The untagged `TestReferenceINETOperator` definitions independently specify

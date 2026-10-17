@@ -39,6 +39,35 @@ Expected passing output is the quiet package summary/exit0, not banner stdout.
 Every changed definition requires both selected modes before review; the internal
 carrier/binding/remap units supplement, rather than replace, public SQL proof.
 
+### Boolean call relation-list smoke
+
+`TestReferenceServerBooleanCallRelationList` rebuilds the real simple-query
+executable and executes the unchanged original psql relation-list SQL through
+actual psql and raw simple-Q. Independent expectations require exact ordered
+visible tables before/after path reversal, zero-row metadata, description types
+19/19/25/19, completion tags and idle recovery. A malformed later statement in
+one raw-Q batch must publish no earlier INSERT. This is not wire prepared support.
+
+The prerequisite simple-CASE internal `"char"` equality defect is resolved
+upstream. Recovery evidence records this unchanged native witness passing,
+including the rebuilt executable, actual psql and raw simple-Q. Fresh selected
+native/current-oracle proof, quickcheck and complete review are still required
+before integration; the recovery smoke alone does not establish those gates.
+`REFERENCE=1` uses the approved pinned PostgreSQL18.6 UTF8/C oracle. Earlier
+18.0 observations remain historical, not newly observed18.6 results; see
+[oracle provenance](../fixture/README.md#postgresql-oracle-policy-and-provenance).
+
+```sh
+make check RUN='^TestReferenceServerBooleanCallRelationList$' REFERENCE=1
+make check RUN='^TestReferenceServerBooleanCallRelationList$'
+```
+
+Use an external900-second deadline per command and the existing real psql
+prerequisite. This selected smoke complements the embedded
+[catalog witnesses](../catalogs/README.md#boolean-call-predicates); Docker-free
+quickcheck/finalcheck do not substitute for actual server/client observations.
+
+
 ### Transaction status with default tracking
 
 `TestReferenceTransactionIdentityStatusDefaultTracking` independently requires

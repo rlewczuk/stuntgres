@@ -38,11 +38,16 @@ func TestReferenceDatetimeExtractWrapperContext(t *testing.T) {
 				datetimeExtractFailure(t, p, b, c, tc.q, d, "execute", tc.args...)
 			})
 		}
-		// Adjacent function/predicate admission is not expanded by extraction.
-		// Keep the original pinned PG outcomes and exact existing native boundary.
+		// random() is in [0,1), so the selected CASE field is always year.
+		// This exercises the admitted predicate inside the extraction consumer
+		// without depending on a particular random value or evaluation count.
+		step := fixture.Select("SELECT date_part(CASE WHEN random()>-1 THEN 'year' ELSE 'month' END,DATE '2000-01-01')", []string{"date_part"}, []string{"FLOAT8"}, [][]any{{float64(2000)}})
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(step))
+		// current_setting remains outside this bounded argument language.
+		// Preserve its independent PostgreSQL result and native boundary.
 		for _, tc := range []struct{ name, q, code, message, position string }{
 			{"current_setting_boundary", "SELECT date_part(current_setting('application_name'),DATE '2000-01-01')", "0A000", "functions are unsupported", "18"},
-			{"random_predicate_boundary", "SELECT date_part(CASE WHEN random()>-1 THEN 'timezone' ELSE 'year' END,DATE '2000-01-01')", "42601", `syntax error at or near ">"`, "36"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				d := datetimeExtractFieldDiagnostic("0A000", "timezone", "timestamp without time zone")

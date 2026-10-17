@@ -1846,11 +1846,13 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   and predicates; unparenthesized postfix casts, collation and arithmetic are
   not VALUE-key syntax. Grouped scalar expressions retain ordinary casts,
   collation, subscripts and field selection.
-  Grouping does not turn predicates into arithmetic operands or selected
-  projection-only calls into predicate operands. Thus `(id<2)+1`,
-  `DELETE FROM t WHERE (v IS NULL)+1=2`, `(num_nulls(v)) IS NULL` and
-  `num_nulls((v IS NULL))` remain outside native admission. Explicit grouped
-  casts and VALUE keys do not widen those separate expression owners.
+  Grouping does not turn predicates into arithmetic operands. Thus `(id<2)+1`,
+  `DELETE FROM t WHERE (v IS NULL)+1=2` and `num_nulls((v IS NULL))` remain
+  outside native admission. Selected calls do share predicate/comparison leaves:
+  `(num_nulls(v)) IS NULL` is admitted, while bare nonboolean calls in
+  WHERE/AND/OR/NOT fail with construct-specific42804 diagnostics. Boolean
+  set-returning results remain forbidden. Explicit grouped casts and VALUE keys
+  do not widen scalar arithmetic or the bounded selected-call argument language.
   Native JSONB serialization intentionally emits valid canonical JSON rather
   than the defective bytes of the pinned PostgreSQL 18.0 two-member witness.
   See the [upstream report](https://www.postgresql.org/message-id/03583FE7-A5EE-407C-907D-67865F3F8BFC%40gmail.com)

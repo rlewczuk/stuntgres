@@ -39,8 +39,6 @@ func TestPolicySelectedScalarContextDoesNotLeak(t *testing.T) {
 		"ALTER POLICY p ON t USING(EXISTS(SELECT 1 WHERE random()>=0));",
 	} {
 		for _, suffix := range []string{
-			"SELECT random()>=0",
-			"SELECT id FROM t WHERE random()>=0",
 			"CREATE TABLE u(id INTEGER DEFAULT abs(1))",
 		} {
 			t.Run(head+suffix, func(t *testing.T) {
