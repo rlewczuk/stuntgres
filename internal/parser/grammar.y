@@ -1071,6 +1071,7 @@ interval_qualifier: /* empty */ { $$=lexeme{} }
  | interval_field TO interval_field { if $1.text!="hour" || $3.text!="minute" {sqllex.(*lexer).failAt("42601","time zone interval must be HOUR or HOUR TO MINUTE",$1.pos.Offset);return 1};$$=$1;$$.text="hour to minute" } ;
 show: SHOW setting_name { $$=&Show{Name:$2.identifier(),Pos:$1.pos} }
  | SHOW TIME ZONE { $$=&Show{Name:Identifier{Text:"timezone",Pos:$2.pos},Pos:$1.pos} }
+ | SHOW TRANSACTION ISOLATION LEVEL { $$=&Show{Name:Identifier{Text:"transaction_isolation",Pos:$2.pos},Pos:$1.pos} }
  | SHOW ALL { $$=&Show{All:true,Pos:$1.pos} } ;
 reset: RESET set_name { $$=&Reset{Name:$2.identifier(),Pos:$1.pos} }
  | RESET TIME ZONE { $$=&Reset{Name:Identifier{Text:"timezone",Pos:$2.pos},Pos:$1.pos} }

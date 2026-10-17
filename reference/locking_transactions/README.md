@@ -62,6 +62,37 @@ the program at the path below, run from this module root and remove it afterward
 timeout 900s go run /tmp/pg18-admin-settings-tx-smoke/main.go
 ```
 
+### SHOW transaction isolation alias
+
+`TestReferenceTransactionIsolationShowAlias` independently asserts one
+`transaction_isolation` TEXT column, one canonical row and SHOW Exec count0 for
+the alias, its mixed-case/comment spelling and ordinary setting-name SHOW.
+Direct and preheld consumers observe RC baseline, inherited RR, unchanged RR
+after a default change to serializable, a legal current change to RU after SHOW,
+fresh serializable after commit, and fresh RC after reset. A setting-function
+control confirms RU; the peer remains RC. No other SHOW alias is implied.
+
+Run both modes with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceTransactionIsolationShowAlias$' REFERENCE=1
+make check RUN='^TestReferenceTransactionIsolationShowAlias$'
+```
+
+For standalone feature smoke, use a temporary public Go consumer outside the
+repository: hold the alias statement on a pinned connection before changing
+defaults, check canonical TEXT metadata and exactly one row through both direct
+and held queries at RC→RR→RU→serializable→RC transitions, and require Exec count0.
+Change the default inside the RR block without changing its current RR, then
+require SET TRANSACTION RU to succeed after SHOW. Commit, verify a fresh
+serializable block, roll back, reset defaults and verify fresh RC. A second
+physical session must stay RC. Materialize the consumer outside the repository,
+run from the module root, and remove the temporary program afterwards:
+
+```sh
+timeout 900s go run /tmp/pg18-admin-settings-tx-alias-smoke/main.go
+```
+
 ### Session-message PREPARE restrictions
 
 `TestReferencePreparedTransactionSessionBoundaries` now executes

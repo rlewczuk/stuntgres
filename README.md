@@ -20,6 +20,9 @@ The six current/default transaction settings share transaction and savepoint
 ownership: LOCAL overrides expire at outer end, masked SESSION candidates survive
 commit, and rollback-to restores the selected candidate. RESET ALL resets eligible
 defaults without changing current modes; current-mode reset routes report `0A000`.
+`SHOW TRANSACTION ISOLATION LEVEL` now aliases `SHOW transaction_isolation`,
+including its canonical TEXT metadata and live current value through held
+prepared handles; it introduces no separate setting state.
 Read-only transactions now permit already-supported MERGE against their own
 temporary tables, including through held prepared handles, while permanent MERGE
 retains its existing error precedence and `25006` rejection.

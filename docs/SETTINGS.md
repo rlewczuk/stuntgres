@@ -139,6 +139,11 @@ deferrable modes at each new transaction boundary. Changing them inside a block
 does not change that block's corresponding `transaction_*` modes. SQL `BEGIN`
 inherits all three effective defaults; another physical session is unaffected.
 `SHOW` reflects the current/default distinction for each dimension.
+`SHOW TRANSACTION ISOLATION LEVEL` reads the same current isolation setting as
+`SHOW transaction_isolation`, with one TEXT column named `transaction_isolation`.
+Direct execution and held prepared statements read the current transaction at
+execution, not a value captured at preparation; SHOW does not establish a query
+snapshot or prevent a subsequent legal SET TRANSACTION.
 
 All three defaults participate in the same SESSION/LOCAL journal. LOCAL changes
 expire at outer commit or rollback; SESSION followed by LOCAL commits the masked
