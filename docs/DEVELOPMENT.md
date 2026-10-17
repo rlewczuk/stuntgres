@@ -61,7 +61,7 @@ profiles must attribute all actual receiver allocation sites. Historical
 fresh-parser profiles and a microbenchmark reduction do not establish a
 whole-suite speedup. See [testing policy](TESTING.md) for required evidence.
 
-Prepared transaction oracle scenarios use the existing pinned PostgreSQL18.0
+Prepared transaction oracle scenarios use the current pinned PostgreSQL18.6
 UTF8/C fixture with startup `max_prepared_transactions=100`, preserving its
 existing fsync option. Startup checks assert100. This is fixture capacity, not
 a native settings API: native two-phase state is always enabled per Engine and
@@ -154,7 +154,7 @@ Use the same small selector with `RACE=1` for locking scenarios; do not substitu
 a broad smoke-family selector for selective proof. All remain part of ordinary
 `make quickcheck` and `make racecheck`.
 
-The explicitly enabled reference suite requires working Docker and image/module access. Each reference test package independently owns one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. Real-mode targets use `-p 1` to serialize package processes and their container lifecycles. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
+The explicitly enabled reference suite requires working Docker and image/module access. Each reference test package independently owns one PostgreSQL 18.6 container pinned to `postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c`, UTF8/C locale, serialized fixtures and public-schema resets. Startup validates actual18.6/180006, encoding, database collation/ctype and C message locale, then records actual runtime and pinned-image provenance on stderr; see [fixture policy](../reference/fixture/README.md#postgresql-oracle-policy-and-provenance). Real-mode targets use `-p 1` to serialize package processes and their container lifecycles. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks. Historical18.0 observations remain evidence from18.0, not relabeled18.6 results, and unchanged behavior has no new alignment prerequisite. Native version reporting is unchanged.
 
 ### Driver, session and catalog whole-root cutover
 
@@ -181,7 +181,7 @@ Domain guides give cohesive family selections, not an exact acceptance inventory
 The catalog living plan records the complete-name shared and companion registries
 separately; do not select PostgreSQL-only legacy companions for a tagged
 Docker-free proof. Default/explicit false shared scenarios use real stuntgres and
-independent constants. Explicit true adds the pinned PostgreSQL18.0 backend to
+independent constants. Explicit true adds the pinned PostgreSQL18.6 backend to
 the same bodies. No flag changes the expected native capability boundaries.
 
 Raw metadata and cells are asserted before normalization, including empty
@@ -852,7 +852,7 @@ This migration's original outer300second aggregate deadline and later task-speci
 900second override are historical evidence. Current external agent deadlines are
 900 seconds for quickcheck and 1800 seconds for finalcheck.
 
-Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/docs/18/sql-commands.html), [SQLSTATE codes](https://www.postgresql.org/docs/18/errcodes-appendix.html), [testcontainers PostgreSQL API](https://golang.testcontainers.org/modules/postgres/), and [pinned sqlmw APIs](https://github.com/ngrok/sqlmw/blob/97c9c04efc79/interceptor.go). Local PostgreSQL source is 20devel and useful for implementation research; the pinned PostgreSQL 18.0 runtime is the compatibility oracle.
+Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/docs/18/sql-commands.html), [SQLSTATE codes](https://www.postgresql.org/docs/18/errcodes-appendix.html), [testcontainers PostgreSQL API](https://golang.testcontainers.org/modules/postgres/), and [pinned sqlmw APIs](https://github.com/ngrok/sqlmw/blob/97c9c04efc79/interceptor.go). Local PostgreSQL source is 20devel and useful for implementation research; the pinned PostgreSQL 18.6 runtime is the current compatibility oracle.
 
 ## Selected regexp function extension
 

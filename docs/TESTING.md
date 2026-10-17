@@ -83,9 +83,11 @@ Do not invent a PostgreSQL control API or duplicate the main SQL test body.
 ## Required implementation order
 
 1. **Write the shared reference scenario and run real PostgreSQL first.** Use
-   the pinned PostgreSQL 18.0 fixture, not a local server or newer release. Start
-   with independently reasoned expectations; use observed PostgreSQL results to
-   resolve unknown values, metadata and diagnostics.
+   the pinned PostgreSQL 18.6 fixture, not a local server or an unpinned release;
+   [fixture policy](../reference/fixture/README.md#postgresql-oracle-policy-and-provenance)
+   owns the verified image/digest and runtime checks. Start with independently
+   reasoned expectations; use observed PostgreSQL results to resolve unknown
+   values, metadata and diagnostics.
 2. **Record reference data from that run.** Put concrete expected rows, column
    names, database type names, affected counts and relevant diagnostics in the
    test. Review them as a contract; never derive expected values from stuntgres
@@ -98,6 +100,10 @@ Do not invent a PostgreSQL control API or duplicate the main SQL test body.
    consistency for every added, changed or migrated scenario. Then run ordinary
    `make quickcheck`; final `make finalcheck` runs after integration under the
    catalog-part workflow. Selected tests do not replace full verification.
+
+Historical18.0 observations remain evidence from that release, not newly observed
+18.6 results. Unchanged behavior does not acquire an oracle-alignment prerequisite.
+The external oracle's minor version does not change native version reporting.
 
 ### Commands and oracle-first discovery
 

@@ -8,6 +8,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"os"
+	"strings"
 	"stuntgres"
 	"testing"
 	"time"
@@ -85,21 +86,22 @@ func referenceInitialize(ctx context.Context) (err error) {
 	if err = Admin.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping: %w", err)
 	}
-	var version, encoding, locale, preparedCapacity, tracking string
-	if err = Admin.QueryRowContext(ctx, "SELECT current_setting('server_version_num'), current_setting('server_encoding'), datcollate, current_setting('max_prepared_transactions'), current_setting('track_commit_timestamp') FROM pg_database WHERE datname = current_database()").Scan(&version, &encoding, &locale, &preparedCapacity, &tracking); err != nil {
+	var version, number, encoding, collate, ctype, messages, preparedCapacity, tracking string
+	if err = Admin.QueryRowContext(ctx, "SELECT current_setting('server_version'), current_setting('server_version_num'), current_setting('server_encoding'), datcollate, datctype, current_setting('lc_messages'), current_setting('max_prepared_transactions'), current_setting('track_commit_timestamp') FROM pg_database WHERE datname = current_database()").Scan(&version, &number, &encoding, &collate, &ctype, &messages, &preparedCapacity, &tracking); err != nil {
 		return fmt.Errorf("configuration: %w", err)
 	}
 	wantTracking := "off"
 	if trackCommitTimestamp {
 		wantTracking = "on"
 	}
-	if version != "180000" || encoding != "UTF8" || locale != "C" || preparedCapacity != "100" || tracking != wantTracking {
-		return fmt.Errorf("configuration mismatch: version=%q encoding=%q locale=%q max_prepared_transactions=%q track_commit_timestamp=%q (want %q)", version, encoding, locale, preparedCapacity, tracking, wantTracking)
+	if (version != "18.6" && !strings.HasPrefix(version, "18.6 ")) || number != "180006" || encoding != "UTF8" || collate != "C" || ctype != "C" || messages != "C" || preparedCapacity != "100" || tracking != wantTracking {
+		return fmt.Errorf("configuration mismatch: version=%q number=%q encoding=%q collate=%q ctype=%q messages=%q max_prepared_transactions=%q track_commit_timestamp=%q (want PostgreSQL 18.6/180006 UTF8/C/C/C max_prepared_transactions=100 track_commit_timestamp=%q)", version, number, encoding, collate, ctype, messages, preparedCapacity, tracking, wantTracking)
 	}
 	// Native dumps name their bootstrap owner postgres, independently of initdb.
 	if _, err = Admin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
 		return fmt.Errorf("native bootstrap owner: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "reference oracle: container=%s image=%s server_version=%q server_version_num=%s server_encoding=%s datcollate=%s datctype=%s lc_messages=%s\n", ContainerID, referenceImage, version, number, encoding, collate, ctype, messages)
 	return nil
 }
 

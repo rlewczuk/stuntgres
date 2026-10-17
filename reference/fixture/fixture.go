@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-const referenceImage = "postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854"
+const referenceImage = "postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c"
 
 var Container *postgres.PostgresContainer
 var Admin *sql.DB

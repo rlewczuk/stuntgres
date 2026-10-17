@@ -6,6 +6,69 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### PostgreSQL oracle policy and provenance
+
+The current external oracle is PostgreSQL18.6, pinned to the verified OCI index:
+
+```text
+postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+```
+
+The index is multi-platform, not a platform-specific manifest. The verified
+linux/amd64 child is
+`sha256:9551dd5bf356409a21b31248f49b33bba9bb1877365f3a7e933aecd9af3cf52d`.
+Acquisition and runtime smoke observed
+`18.6 (Debian 18.6-1.pgdg12+2)`, numeric version180006, UTF8 encoding and
+C database collation/ctype. See the [18.6 release notes](https://www.postgresql.org/docs/release/18.6/),
+[official image definitions](https://github.com/docker-library/official-images/blob/master/library/postgres)
+and [registry tag metadata](https://hub.docker.com/v2/repositories/library/postgres/tags/18.6-bookworm).
+The digest, rather than the mutable tag, determines the image used.
+
+Startup queries the actual server and requires release18.6 (allowing its vendor
+suffix), numeric180006, UTF8, `datcollate=C`, `datctype=C`, `lc_messages=C`,
+prepared capacity100 and the requested commit-timestamp tracking mode. After
+bootstrap-owner setup succeeds, one stderr provenance record includes container
+ID, full pinned image/index digest and all actual version/encoding/locale fields.
+It does not synthesize a server version or require Docker manifest inspection.
+Startup/image/network/configuration failures remain visible errors, never skips.
+
+Each package retains one serialized, bounded-lifecycle container and shared admin
+pool, with fresh scenario pools and wrapped/native controls. Startup is bounded
+by three minutes, scenarios by30 seconds, resets by15 seconds and termination
+by45 seconds. Borrowers, rows and workers must finish before cleanup; resets
+retain standalone ROLLBACK then DISCARD ALL then public-schema reconstruction.
+Native wire/runtime version reporting is unchanged; native is not PostgreSQL18.6.
+Historical PostgreSQL18.0 observations and feature goldens remain18.0 evidence:
+this oracle alignment neither relabels them nor gates unchanged behavior.
+
+`TestReferenceFixtureOracleProvenance` independently asserts direct/prepared
+`SELECT 6*7 AS answer` returns one INT4 column `answer` and one row42 on each
+available backend, plus an unwrapped native control read. Only actual PostgreSQL
+is queried for18.6/180006 and UTF8/C/C/C metadata. Existing
+`TestReferenceRoleGrantDiagnostics` and `TestReferenceRoleGrantAtomicity` retain
+independent SQLSTATE42601 with exact English `unrecognized privilege type "bogus"`
+and `syntax error at or near ")"`, and42501 `permission denied for table t`,
+including their direct/prepared stages and syntax-prefix rollback assertions.
+No backend-parity result substitutes for these expectations.
+
+Feature smoke and selected proof (external900-second deadline per command):
+
+```sh
+make check RUN='^TestReferenceFixtureOracleProvenance$' REFERENCE=1
+make check RUN='^TestReferenceFixtureOracleProvenance$'
+make check RUN='^TestReferenceFixture(NativeIsolation|ResetIsolation|SessionAuthorizationReset)$' REFERENCE=1
+make check RUN='^TestReferenceFixture(NativeIsolation|ResetIsolation|SessionAuthorizationReset)$'
+make check RUN='^TestReference(DirectAndPreparedParameters|RoleGrantDiagnostics|RoleGrantAtomicity)$' REFERENCE=1
+make check RUN='^TestReference(DirectAndPreparedParameters|RoleGrantDiagnostics|RoleGrantAtomicity)$'
+```
+
+Expected: all pass with independent SQL/diagnostic and ownership assertions
+unchanged; real mode validates the pinned runtime, while quick mode needs no
+Docker and makes no PostgreSQL-release claim. Successful-package stderr may be
+suppressed by Go's quiet runner; the real-backend metadata assertions still run.
+These checks do not replace whole-project Docker-free quickcheck or post-merge
+finalcheck.
+
 ### Shared grant scenario helpers
 
 `role_grant_columns.go` owns the common helpers used by both

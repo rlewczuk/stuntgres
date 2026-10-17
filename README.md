@@ -1205,7 +1205,10 @@ server-file/PROGRAM I/O, WAL, replication or physical durability.
 `server_version=18.0` is negotiation metadata, not a full PostgreSQL18 claim or
 a promise that every client, catalog or extension feature is supported.
 Dual-mode `TestReferenceServer*` definitions use real subprocesses, actual psql
-and lib/pq alongside pinned PostgreSQL18.0. The standalone smoke separately
+and lib/pq alongside the current pinned PostgreSQL18.6 external oracle; historical
+18.0 observations remain evidence from18.0, not newly observed18.6 results.
+See [oracle policy](reference/fixture/README.md#postgresql-oracle-policy-and-provenance).
+The standalone smoke separately
 exercises parameterized/held statements, COPY formats, idle notification,
 cancellation/recovery, JSONL records and dump/stop; see
 [server verification](reference/sessions/README.md#phase-2-server-selected-proof).

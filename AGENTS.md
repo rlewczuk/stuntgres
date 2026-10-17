@@ -62,7 +62,7 @@ in reference tests, including independently asserted native capability boundarie
 Never loosen, disable or skip reference tests to make a change pass: only genuine test bugfixes
 and additions are allowed. Record every discovered compatibility bug in reference coverage.
 
-- Use the PostgreSQL 18.0 image digest pinned in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and UTF8/C locale. Local newer PostgreSQL sources are research aids, not the release oracle.
+- Use the PostgreSQL 18.6 image digest pinned in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and UTF8/C locale. Local newer PostgreSQL sources are research aids, not the release oracle.
 - Keep reference tests independent of internal packages and root-private test helpers. Use one bounded-lifecycle container and serialized fixtures; reset public schema before/after cases and close handles/rows first.
 - Preserve sqlmw coverage of direct/prepared execution and owned row buffers; retain native pools for controls. Assert expected results independently, not parity or implementation call counts alone.
 - Docker/image failures in an explicitly enabled reference run must fail visibly, never be skipped or mocked.
