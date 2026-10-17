@@ -134,6 +134,34 @@ rollback and admitted error recovery restore the applicable originals/savepoint
 state. A masked session candidate remains available at commit. Savepoint release
 retains ordinary changes and local lifetime until outer end.
 
+The three `default_transaction_*` parameters select isolation, read-only and
+deferrable modes at each new transaction boundary. Changing them inside a block
+does not change that block's corresponding `transaction_*` modes. SQL `BEGIN`
+inherits all three effective defaults; another physical session is unaffected.
+`SHOW` reflects the current/default distinction for each dimension.
+
+All three defaults participate in the same SESSION/LOCAL journal. LOCAL changes
+expire at outer commit or rollback; SESSION followed by LOCAL commits the masked
+session candidate, while full rollback restores the original. `ROLLBACK TO`
+restores both effective values and candidates, including across duplicate marks
+and repeated rollback; `RELEASE` does not expire local defaults.
+
+`RESET`, `SET TO DEFAULT` and `set_config` with a NULL value restore captured
+reset defaults. A local function reset preserves the session commit candidate.
+Override presence matters, not just displayed text: after a SESSION candidate,
+LOCAL DEFAULT followed by RESET ALL can leave that candidate available at commit,
+whereas explicitly assigning the same baseline value locally before RESET ALL
+can replace it. RESET ALL processes eligible explicit overrides rather than
+creating overrides for absent settings.
+
+The current `transaction_isolation`, `transaction_read_only` and
+`transaction_deferrable` parameters cannot be reset, including by SET DEFAULT or
+NULL `set_config`; these routes report `0A000`. RESET ALL skips all three current
+modes even after a query, while resetting eligible defaults. Current assignments
+use SET TRANSACTION's timing and subtransaction restrictions: illegal late
+changes report `25001`, and subsequent ordinary commands in that failed block
+report `25P02` until recovery.
+
 Placeholder recognition is session-owned: a name first introduced after a mark
 remains recognized with an empty value after rollback if no earlier override
 existed. Reset batches mutate only resettable definitions/explicit overrides,

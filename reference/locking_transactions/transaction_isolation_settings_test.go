@@ -116,26 +116,12 @@ func referenceTestTransactionIsolationDefaults(t *testing.T, postgres bool) {
 	}
 }
 func referenceTestTransactionIsolationResetRules(t *testing.T, postgres bool) {
-	for _, name := range []string{"transaction_isolation", "transaction_read_only"} {
-		for _, query := range []string{"RESET " + name, "SET " + name + " TO DEFAULT", "SELECT set_config('" + name + "',NULL,false)"} {
-			_, a, _ := fixture.IsolationReferenceConnections(t, fixture.NewScenario(t), postgres)
-			ctx := context.Background()
-			fixture.IsolationReferenceAffected(t, ctx, a, "BEGIN", false, 0)
-			referenceIsolationError(t, a, query, "0A000", "parameter \""+name+"\" cannot be reset", false)
-			fixture.IsolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
+	p := fixture.NewScenario(t)
+	for _, b := range p.Backends() {
+		if b.PG == postgres {
+			transactionSettingsResetRules(t, p, b)
 		}
 	}
-	_, a, _ := fixture.IsolationReferenceConnections(t, fixture.NewScenario(t), postgres)
-	ctx := context.Background()
-	fixture.IsolationReferenceAffected(t, ctx, a, "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY", false, 0)
-	fixture.IsolationReferenceAffected(t, ctx, a, "BEGIN", false, 0)
-	fixture.IsolationReferenceAffected(t, ctx, a, "SELECT num_nonnulls(1)", false, 1)
-	fixture.IsolationReferenceAffected(t, ctx, a, "RESET ALL", false, 0)
-	referenceIsolationShow(t, a, "transaction_isolation", "repeatable read")
-	referenceIsolationShow(t, a, "transaction_read_only", "on")
-	referenceIsolationShow(t, a, "default_transaction_isolation", "read committed")
-	fixture.IsolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
-	referenceIsolationShow(t, a, "default_transaction_isolation", "repeatable read")
 }
 func referenceTestTransactionIsolationReadOnly(t *testing.T, postgres bool) {
 	tags := []struct{ query, tag string }{

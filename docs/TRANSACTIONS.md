@@ -150,6 +150,17 @@ sequence, enum and selected table-definition changes share row publication and
 savepoint roots; their existence does not grant every adjacent DDL operation
 transactional eligibility.
 
+Read-only data admission follows the bound target's actual namespace. Supported
+INSERT, UPDATE, DELETE, MERGE and COPY FROM may modify the current physical
+session's own temporary tables; this exemption grants neither general DDL
+eligibility nor access to another session's temporary data. Changes retain normal
+commit, rollback and savepoint behavior. Permanent-target writes fail with
+`25006` and the command's English diagnostic, leaving data unchanged; an admitted
+explicit-block error then requires recovery before ordinary commands.
+MERGE retains analysis/conversion-before-read-only and read-only-before-executor-
+ACL ordering for permanent targets. Held prepared handles recheck the executing
+transaction's mode rather than capturing read-write permission at Prepare.
+
 Query-derived permanent-table utilities remain standalone-only. Their native
 explicit exclusion precedes snapshot acquisition, source lookup and waits.
 Connection-prepared handles passed through `Tx.StmtContext` can fail during
@@ -318,12 +329,15 @@ Unsafe write skew cannot publish both participants. A doomed owner discovers
 Retry the whole transaction, not just the failed statement. Mixed-isolation work
 has no cross-level serializability guarantee.
 
-Deferrable read-only acquisition can wait before first data analysis, including
-Prepare. Unsafe provisional roots are discarded before data/handle/predicate
+SERIALIZABLE READ ONLY DEFERRABLE acquisition uses the existing SSI safe-snapshot
+machinery, not merely a displayed setting. It can wait before first data analysis,
+including Prepare. Unsafe provisional roots are discarded before data/handle/predicate
 exposure; safe snapshots need no SSI predicates. Data Prepare establishes timing
 but no executed predicate. Statement timeout covers the wait; lock timeout does
 not. Child rollback does not erase predicates, doom, dependencies or attempted-write
 history. Actual write attempts cannot later acquire read-only graph exemptions.
+Deferrability in read-write or lower-isolation transactions does not promise this
+safe-snapshot behavior.
 
 Epoch replacement fences old participants and wakes unresolved safe-snapshot
 waiters. Failed replacement leaves them unchanged. Prepared validation orders an

@@ -14,6 +14,20 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Transaction defaults and read-only temporary data — change note
+
+The six current/default transaction settings share transaction and savepoint
+ownership: LOCAL overrides expire at outer end, masked SESSION candidates survive
+commit, and rollback-to restores the selected candidate. RESET ALL resets eligible
+defaults without changing current modes; current-mode reset routes report `0A000`.
+Read-only transactions now permit already-supported MERGE against their own
+temporary tables, including through held prepared handles, while permanent MERGE
+retains its existing error precedence and `25006` rejection.
+SERIALIZABLE READ ONLY DEFERRABLE continues to use actual SSI safe snapshots,
+not a settings-only guarantee. See [settings](docs/SETTINGS.md#transaction-and-identity-journals),
+[read-only admission](docs/TRANSACTIONS.md#admission-and-transactional-utility-limits)
+and [selected proof and smoke](reference/locking_transactions/README.md#transaction-settings-and-read-only-temporary-merge).
+
 ## Collation version inspection — change note
 
 `pg_collation_actual_version(oid)` and

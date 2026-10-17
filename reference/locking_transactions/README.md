@@ -6,6 +6,62 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Transaction settings and read-only temporary MERGE
+
+`TestReferenceTransactionSettingsDefaultsLifecycle` fixes independent expectations
+for all three default/current dimensions, SESSION/LOCAL masking, duplicate marks,
+repeated rollback-to, release, commit/rollback, RESET ALL and NULL function resets.
+SHOW has one canonical TEXT column and count0; setting functions return TEXT/count1.
+The held-prepared routes prepare consumers before BEGIN and reuse those handles
+across state changes. Peer physical sessions retain their own baseline.
+
+`TestReferenceTransactionSettingsResetRules` consolidates the original
+`TestReferenceTransactionIsolationResetRules` assertions and extends them to all
+three current names, direct/held-prepared RESET, SET/SET LOCAL DEFAULT and both
+NULL-function local flags. Reset fails at execution with exact `0A000`, the block
+then reports `25P02`, and rollback restores health. RESET ALL after a query leaves
+current modes unchanged, resets defaults, and obeys outer commit/rollback.
+
+`TestReferenceTransactionSettingsTemporaryMergeReadOnly` proves a held consumer
+does not capture read-write mode: own-TEMP MERGE changes1→2 in READ ONLY, commits2
+and rolls back to1. Native RowsAffected is1. The pinned PostgreSQL lib/pq adapter
+does not decode MERGE command tags and reports0 (the shared `fixture.MergeRun`
+contract); exact INT4 rows independently prove effects. Permanent MERGE still
+reports exact25006, aborts the block and leaves the peer's row1 unchanged.
+`TestReferenceTransactionSettingsSmoke` composes defaults, savepoint restoration,
+fresh current modes, late25001→25P02 recovery and permanent INSERT25006.
+
+Run both selected modes after affected changes, each with an external900-second
+deadline. The selector includes the changed legacy reset entry point:
+
+```sh
+make check RUN='^TestReferenceTransaction(Settings(DefaultsLifecycle|ResetRules|TemporaryMergeReadOnly|Smoke)|IsolationResetRules)$' REFERENCE=1
+make check RUN='^TestReferenceTransaction(Settings(DefaultsLifecycle|ResetRules|TemporaryMergeReadOnly|Smoke)|IsolationResetRules)$'
+make check RUN='^TestReferenceMergeUpdatePreflightOrder$' REFERENCE=1
+make check RUN='^TestReferenceMergeUpdatePreflightOrder$'
+make check RUN='^TestReferenceSerializable(Deferrable|DeferrableTimeout|ReviewGoDefaultSafeWait)$' REFERENCE=1
+make check RUN='^TestReferenceSerializable(Deferrable|DeferrableTimeout|ReviewGoDefaultSafeWait)$'
+```
+
+The SSI witnesses exercise actual safe-snapshot waits/retries and statement
+timeout, including Prepare; SHOW DEFERRABLE alone is not proof of this behavior.
+Whole-project quickcheck follows selected proof; it does not replace either mode.
+
+For standalone runtime smoke, use a temporary public Go program outside the
+repository, importing only the standard library and `stuntgres`. Pin two physical
+connections, set RR/on/on defaults, begin and inspect all current modes, mask the
+defaults locally at a savepoint and roll back to restore them. Execute an actual
+preheld own-TEMP MERGE in a fresh read-only transaction; require count1 and a
+committed value2. Restore RC/off/off defaults, acquire a query snapshot, then
+require late isolation25001 followed by25P02 and rollback. Require a permanent
+INSERT25006 followed by25P02, roll back, perform a healthy write and require peer
+rows[1,3]. A failed assertion must exit nonzero. For example, after materializing
+the program at the path below, run from this module root and remove it afterwards:
+
+```sh
+timeout 900s go run /tmp/pg18-admin-settings-tx-smoke/main.go
+```
+
 ### Session-message PREPARE restrictions
 
 `TestReferencePreparedTransactionSessionBoundaries` now executes

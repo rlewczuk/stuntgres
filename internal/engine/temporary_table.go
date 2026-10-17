@@ -330,7 +330,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 			}
 		}
 		return true
-	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete:
+	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		if b.relation != nil {
 			ns, ok := auth.catalog.state.descriptors[b.relation.namespace].(*namespaceDescriptor)
 			return ok && ownTemporaryNamespace(auth, ns)

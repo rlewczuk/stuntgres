@@ -266,7 +266,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Released MERGE checks read-only after analysis/planning conversions, but
 	// before executor column/source ACLs. Other statements keep their ordering.
-	if b.merge != nil && scope.owner.readOnly {
+	if b.merge != nil && scope.owner.readOnly && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		tag := "MERGE"
 		if prepared != nil && prepared.primaryTag != "" {
