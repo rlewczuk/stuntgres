@@ -69,13 +69,13 @@ func (b *expressionBinder) recursiveTypeName(t *sqltype.Descriptor) string {
 
 func (b *expressionBinder) bindCycleShape(d *cteDefinition) error {
 	c := d.cycle
-	c.width = len(d.schema)
+	c.markSlot = len(d.schema)
 	c.keys = make([]int, len(c.syntax.Keys))
 	c.grouping = make([]sqltype.Grouping, len(c.keys))
 	members := make([]sqltype.CompositeMember, len(c.keys))
 	for i, key := range c.syntax.Keys {
 		slot := -1
-		for j, column := range d.schema {
+		for j, column := range d.schema[:d.userWidth] {
 			if column.Name == key.Text {
 				slot = j
 				break
@@ -115,12 +115,12 @@ func (b *expressionBinder) bindCycleShape(d *cteDefinition) error {
 }
 func cycleNameError(d *cteDefinition) error {
 	c := d.cycle
-	for _, column := range d.schema[:c.width] {
+	for _, column := range d.schema[:d.userWidth] {
 		if column.Name == c.syntax.Mark.Text {
 			return expressionError("42601", fmt.Sprintf(`cycle mark column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
 		}
 	}
-	for _, column := range d.schema[:c.width] {
+	for _, column := range d.schema[:d.userWidth] {
 		if column.Name == c.syntax.Path.Text {
 			return expressionError("42601", fmt.Sprintf(`cycle path column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
 		}

@@ -433,12 +433,12 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		aliasWidth := len(ns.columns)
 		switch scan := root.(type) {
 		case *worktableScanNode:
-			if scan.cte.cycle != nil {
-				aliasWidth = scan.cte.cycle.width
+			if scan.cte.search != nil || scan.cte.cycle != nil {
+				aliasWidth = scan.cte.userWidth
 			}
 		case *derivedNode:
-			if scan.cte != nil && scan.cte.cycle != nil {
-				aliasWidth = scan.cte.cycle.width
+			if scan.cte != nil && (scan.cte.search != nil || scan.cte.cycle != nil) {
+				aliasWidth = scan.cte.userWidth
 			}
 		}
 		if len(n.Columns) > aliasWidth {

@@ -797,7 +797,7 @@ failure sticks, opened stages close once, and successful-path close failure veto
 the single existing statement publication. Views and native Dump/Restore retain
 symbolic definitions plus real persisted rows/dependencies, never worktable state.
 MERGE's own recursive modifier is rejected, independently of a local recursive
-SELECT in its derived source. SEARCH and recursive modifying definitions remain outside
+SELECT in its derived source. Recursive modifying definitions remain outside
 this execution owner. See [recursive design](design/PG18-QUERY-CTE-RECURSIVE.md).
 
 CYCLE appends a typed mark and occurrence-owned record[] path. Each row's keys
@@ -811,6 +811,25 @@ normally to external consumers. Mark values are grammar constants, not parameter
 or arbitrary expressions. Persistent outputs must project ordinary columns,
 marks or path::text rather than record[]. Stored/native replay keeps symbolic
 CYCLE syntax, never transient paths. See [cycle design](design/PG18-QUERY-CTE-RECURSIVE-CYCLE.md).
+
+SEARCH generates a typed sort value, not a traversal schedule. BREADTH FIRST
+produces RECORD containing INT8 depth (starting at zero) and the current BY keys;
+DEPTH FIRST produces _RECORD ancestry including the current key record. Sort by
+the generated column to obtain the declared order. Numeric keys use numeric
+comparison; NULL record fields sort after non-NULL fields. Equal keys remain ties.
+Actual parent carries preserve ancestry through joins, and UNION DISTINCT uses
+the complete augmented tuple even when the outer query omits the sequence.
+SEARCH precedes CYCLE and output order is originals, sequence, mark, path.
+Contained stars omit generated columns; explicit references remain available.
+Record comparison demands reached key providers lazily: JSON can be emitted but
+cannot be compared when its field is reached. This adds no general array/index
+or named-composite ordering capability. Persist original scalars or seq::text,
+not anonymous RECORD/_RECORD outputs. Stored/native replay retains symbolic
+SEARCH, while prepared executions own fresh ancestry and retain stable public
+RECORD/_RECORD result identity across key-field reanalysis. Internal occurrence
+shapes and parameter/catalog fences remain exact.
+See [SEARCH design](design/PG18-QUERY-CTE-RECURSIVE-SEARCH.md).
+
 
 
 Modifying definitions are separate mandatory execution roots, not lazy SELECT

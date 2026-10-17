@@ -12,7 +12,7 @@ import (
 type cycleRecipe struct {
 	syntax         *parser.CycleClause
 	shapeError     error // Deferred until body analysis establishes diagnostic precedence.
-	width          int
+	markSlot       int
 	keys           []int
 	grouping       []sqltype.Grouping
 	record, path   *sqltype.Descriptor
@@ -127,26 +127,26 @@ func (c *cycleRecipe) augment(ctx context.Context, row []sqltype.Value, parent s
 	if err != nil {
 		return nil, err
 	}
-	return append(row[:c.width], value, path), ctx.Err()
+	return append(row[:c.markSlot], value, path), ctx.Err()
 }
 
 // Hidden parent projections use the actual joined worktable occurrence, never
 // generation order. The legality walker guarantees exactly one top-level self.
-func cycleParentSlot(node LogicalNode, d *cteDefinition, offset int) (*worktableScanNode, int) {
+func recursiveParentSlot(node LogicalNode, d *cteDefinition, offset int) (*worktableScanNode, int) {
 	switch n := node.(type) {
 	case *worktableScanNode:
 		if n.cte == d {
 			return n, offset
 		}
 	case *joinNode:
-		if scan, slot := cycleParentSlot(n.left, d, offset); scan != nil {
+		if scan, slot := recursiveParentSlot(n.left, d, offset); scan != nil {
 			return scan, slot
 		}
-		return cycleParentSlot(n.right, d, offset+n.leftWidth)
+		return recursiveParentSlot(n.right, d, offset+n.leftWidth)
 	default:
 		left, _ := queryInputs(node)
 		if left != nil {
-			return cycleParentSlot(left, d, offset)
+			return recursiveParentSlot(left, d, offset)
 		}
 	}
 	return nil, 0

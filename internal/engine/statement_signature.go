@@ -6,11 +6,9 @@ func sameStatementUsage(a, b sqltype.Usage) bool {
 	if a.Type == nil || b.Type == nil {
 		return a.Type == b.Type && a.Typmod == b.Typmod && a.Collation == b.Collation
 	}
-	// RECORD[] has stable public identity even when a rebound key's member
-	// shape changes. Internal generation/shape checks remain exact in
-	// validExpressionUsageAt and the occurrence mapper.
+	// Parameter contracts retain exact occurrence shape, unlike public results.
 	if occurrenceRecordArray(a.Type) || occurrenceRecordArray(b.Type) {
-		return occurrenceRecordArray(a.Type) && occurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation
+		return occurrenceRecordArray(a.Type) && occurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation && sameStatementUsage(a.Type.Element().Usage(), b.Type.Element().Usage())
 	}
 	if a.Type.ID() == 2249 && a.Type.IsComposite() || b.Type.ID() == 2249 && b.Type.IsComposite() {
 		if !a.Type.IsComposite() || !b.Type.IsComposite() || a.Type.ID() != b.Type.ID() || a.Type.CompositeLen() != b.Type.CompositeLen() {
@@ -59,7 +57,7 @@ func checkStatementSignature(expected, actual StatementDescription) error {
 	if !changed {
 		for i, c := range expected.Results {
 			a := actual.Results[i]
-			if c.Name != a.Name || !sameStatementUsage(c.Usage, a.Usage) || lifetimeChanged && statementCatalogType(c.Usage.Type) {
+			if c.Name != a.Name || !sameStatementResultUsage(c.Usage, a.Usage) || lifetimeChanged && statementCatalogType(c.Usage.Type) {
 				changed = true
 				break
 			}
@@ -77,4 +75,15 @@ func checkStatementSignature(expected, actual StatementDescription) error {
 		}
 	}
 	return nil
+}
+
+func sameStatementResultUsage(a, b sqltype.Usage) bool {
+	record := func(t *sqltype.Descriptor) bool { return t != nil && t.ID() == 2249 && t.IsComposite() }
+	if record(a.Type) || record(b.Type) {
+		return record(a.Type) && record(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation
+	}
+	if occurrenceRecordArray(a.Type) || occurrenceRecordArray(b.Type) {
+		return occurrenceRecordArray(a.Type) && occurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation
+	}
+	return sameStatementUsage(a, b)
 }

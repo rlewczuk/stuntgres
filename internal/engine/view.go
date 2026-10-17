@@ -358,9 +358,13 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 	}
 	for _, column := range b.query.Root.Schema() {
-		if occurrenceRecordArray(column.Usage.Type) {
+		if occurrenceRecordArray(column.Usage.Type) || column.Usage.Type.ID() == 2249 && column.Usage.Type.IsComposite() {
 			e.mu.Unlock()
-			return Result{}, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type record[]`, column.Name))
+			typeName := "record"
+			if occurrenceRecordArray(column.Usage.Type) {
+				typeName = "record[]"
+			}
+			return Result{}, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type %s`, column.Name, typeName))
 		}
 	}
 	// Existing replacement shape errors precede the creation-only VOID

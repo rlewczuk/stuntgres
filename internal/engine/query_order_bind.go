@@ -143,7 +143,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		if key.targetIdentity == 0 && key.outputOrdinal > 0 {
 			key.targetIdentity = key.outputOrdinal
 		}
-		if !key.expression.CollationIndeterminate() && key.comparison.DefaultBtreeOpclass() == 0 {
+		if !key.expression.CollationIndeterminate() && !key.comparison.OrderingBound() {
 			provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
 			if err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {

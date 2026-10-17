@@ -832,7 +832,7 @@ Nested modifying WITH and referenced no-RETURNING output are rejected. Ordinary
 views reject modifying WITH at execution, including held statements; materialized
 views and cursors reject it at held preparation. Existing CTAS/SELECT INTO remain
 admitted consumers. CTAS WITH NO DATA creates empty schema without executing the
-query or its modifiers. Recursive modifying definitions, SEARCH, trigger and
+query or its modifiers. Recursive modifying definitions, trigger and
 foreign-write/hierarchy provider exclusions remain unchanged; admitted local
 consumers may read real foreign SELECT sources. Rule expansion must leave exactly one
 admitted auxiliary query; zero/multiple expansions retain the documented
@@ -2052,11 +2052,15 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   General named-function resolution and custom/generic optimizer-plan switching
   are not implemented.
 - Recursive SELECT CTEs support UNION/UNION ALL worktable iteration and parent
-  demand with existing type/equality providers. CYCLE supplies branch-local
-  ordered-key record[] paths, closing rows and typed marks; generated paths
-  cannot be persistent columns (project path::text instead). SEARCH, recursive
-  modifying definitions, and general lateral derived sources remain excluded. MERGE rejects
-  its own WITH RECURSIVE; a recursive SELECT inside its derived source is admitted.
+  demand with existing type/equality providers. SEARCH supplies typed breadth
+  RECORD or depth _RECORD sort values, without controlling evaluation order.
+  CYCLE supplies branch-local ordered-key record[] paths, closing rows and typed
+  marks. Anonymous generated records/paths cannot be persistent columns (project
+  seq::text/path::text instead). Occurrence record sorting uses existing lazy
+  field comparison; general array/named-composite sorting/indexes remain excluded.
+  Recursive modifying definitions and general lateral derived sources remain
+  excluded. MERGE rejects its own WITH RECURSIVE; a recursive SELECT inside its
+  derived source is admitted.
   Window providers are row_number(), rank(), dense_rank(), percent_rank(),
   cume_dist(), count(*), ntile(integer), existing integer/numeric/floating
   sum(expr), first_value/last_value/nth_value, and lead/lag with optional INT4

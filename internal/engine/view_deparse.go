@@ -74,10 +74,9 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		if columns == nil {
 			columns = set.Schema()
 		}
-		if recursive, ok := viewFromRoot(project).(*recursiveUnionNode); ok && recursive.cycle != nil {
-			// CYCLE is rendered after the body and regenerates these columns.
-			// Neither generated output nor hidden parent slots are SQL targets.
-			columns = columns[:recursive.cycle.width]
+		if recursive, ok := viewFromRoot(project).(*recursiveUnionNode); ok && (recursive.search != nil || recursive.cycle != nil) {
+			// Symbolic clauses regenerate outputs and hidden parent carries.
+			columns = columns[:recursive.definition.userWidth]
 		}
 		left, err := renderer.selectQueryColumnsSQL(ctx, catalog, s.Set.Left, set.left, columns, true)
 		if err != nil {

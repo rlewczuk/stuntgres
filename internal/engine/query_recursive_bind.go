@@ -26,6 +26,12 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 	leftCopy := *left
 	leftCopy.querySchema = d.schema
 	leftQuery.Root = &leftCopy
+	d.userWidth = len(d.schema)
+	if d.search != nil {
+		if err := b.bindSearchShape(d); err != nil {
+			return nil, err
+		}
+	}
 	if d.cycle != nil {
 		if err := b.bindCycleShape(d); err != nil {
 			return nil, err
@@ -73,7 +79,18 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 	if len(set.Schema()) == 0 {
 		set.grouping = nil
 	}
-	project.child = &recursiveUnionNode{setNode: *set, definition: d}
+	// SEARCH expandability is checked only after complete body analysis,
+	// including recursive width, type and collation reconciliation.
+	if d.search != nil {
+		if err := parser.CheckRecursiveCTESelectArms(s); err != nil {
+			return nil, err
+		}
+	}
+	if d.search != nil {
+		if err := searchNameError(d); err != nil {
+			return nil, err
+		}
+	}
 	if d.cycle != nil {
 		if d.cycle.shapeError != nil {
 			return nil, d.cycle.shapeError
@@ -81,35 +98,52 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 		if err := cycleNameError(d); err != nil {
 			return nil, err
 		}
-		c := d.cycle
-		right := set.right
-		scan, offset := cycleParentSlot(right.child, d, 0)
-		if scan == nil {
-			return nil, fmt.Errorf("stuntgres: missing cycle parent projection")
+		if d.search != nil {
+			name := d.search.syntax.Sequence.Text
+			if name == d.cycle.syntax.Mark.Text {
+				return nil, expressionError("42601", "search sequence column name and cycle mark column name are the same", d.search.syntax.Pos)
+			}
+			if name == d.cycle.syntax.Path.Text {
+				return nil, expressionError("42601", "search sequence column name and cycle path column name are the same", d.search.syntax.Pos)
+			}
 		}
-		for i := range 2 {
-			scan.demand[c.width+i] = true
-			usage := d.schema[c.width+i].Usage
-			info := b.info(usage, c.syntax.Pos, ExprProperties{RowDependent: true})
-			right.expressions = append(right.expressions, columnExpression{expressionInfo: info, scope: 1, frame: right.frame, slot: offset + c.width + i})
-			right.querySchema = append(right.querySchema, d.schema[c.width+i])
-			set.rightExpressions = append(set.rightExpressions, right.expressions[len(right.expressions)-1])
-		}
-		set.querySchema = d.schema
 		if !set.all {
-			markGrouping, err := b.bindDistinctGrouping(c.mark)
+			markGrouping, err := b.bindDistinctGrouping(d.cycle.mark)
 			if err != nil {
 				return nil, err
 			}
 			set.grouping = append(set.grouping, markGrouping)
 		}
-		for i := range 2 {
-			column := d.schema[c.width+i]
-			project.expressions = append(project.expressions, columnExpression{expressionInfo: b.info(column.Usage, c.syntax.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: project.frame, slot: c.width + i})
-		}
-		project.querySchema = d.schema
-		project.child = &recursiveUnionNode{setNode: *set, definition: d, cycle: c}
 	}
+	if d.search != nil {
+		if err := parser.CheckRecursiveCTETopLevel(s, parser.Identifier{Text: d.name, Pos: d.position}); err != nil {
+			return nil, err
+		}
+		if !set.all {
+			if err := b.bindSearchIdentity(d); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if d.search != nil || d.cycle != nil {
+		right := set.right
+		scan, offset := recursiveParentSlot(right.child, d, 0)
+		if scan == nil {
+			return nil, fmt.Errorf("stuntgres: missing recursive parent projection")
+		}
+		for slot := d.userWidth; slot < len(d.schema); slot++ {
+			scan.demand[slot] = true
+			column := d.schema[slot]
+			info := b.info(column.Usage, d.position, ExprProperties{RowDependent: true})
+			right.expressions = append(right.expressions, columnExpression{expressionInfo: info, scope: 1, frame: right.frame, slot: offset + slot})
+			right.querySchema = append(right.querySchema, column)
+			set.rightExpressions = append(set.rightExpressions, right.expressions[len(right.expressions)-1])
+			project.expressions = append(project.expressions, columnExpression{expressionInfo: info, scope: 1, frame: project.frame, slot: slot})
+		}
+		set.querySchema = d.schema
+		project.querySchema = d.schema
+	}
+	project.child = &recursiveUnionNode{setNode: *set, definition: d, search: d.search, cycle: d.cycle}
 	return query, nil
 }
 

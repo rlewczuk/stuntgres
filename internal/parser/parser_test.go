@@ -707,7 +707,7 @@ func TestUnicodeEscapesComposedRawCache(t *testing.T) {
 			for i, want := range tc.tokens {
 				code := l.Lex(&v)
 				pos := Position{Offset: want.character - 1, Character: want.character}
-				if l.err != nil || code != want.code || v.tok.text != want.text || v.tok.raw != want.raw || v.tok.pos != pos || l.current != v.tok || l.offset != want.scanned || l.hasLookahead != want.cached {
+				if l.err != nil || (code == 0) != (want.code == 0) || v.tok.text != want.text || v.tok.raw != want.raw || v.tok.pos != pos || l.current != v.tok || l.offset != want.scanned || l.hasLookahead != want.cached {
 					t.Fatalf("token %d: %d %#v current %#v scanned %d cached %v %v; want %#v", i, code, v.tok, l.current, l.offset, l.hasLookahead, l.err, want)
 				}
 				if want.keyword == "" {

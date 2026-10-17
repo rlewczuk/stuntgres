@@ -388,3 +388,81 @@ These cover positioned syntax/legality, retained equality/hash authorities,
 actual parent slots, immutable occurrence descriptors and memoized remap,
 cancellation/sticky failure/close ownership and public versus private signatures.
 
+### Recursive SEARCH verification
+
+The ten `TestReferenceQuerySearchOrdering`, `Keys`, `Metadata`, `Diagnostics`,
+`ReviewDiagnostics`, `Prepared`, `CycleInterop`, `Stored`, `Lifecycle` and
+`FeatureSmoke` definitions share public SQL/API bodies and independently specified
+expectations. The
+scrambled seven-node tree must sort to DFS `1,2,3,5,4,10,11` versus BFS
+`1,2,10,3,4,11,5`. Generated values are actual record ancestry arrays (DFS) or
+depth/current-key records (BFS), not traversal scheduling or output ordinals.
+NULL fields, multiple/reordered keys, tied values, augmented UNION identity,
+lazy JSON comparison demand, original-column alias/star boundaries and installed
+CYCLE interoperability have separate witnesses.
+
+The definitions are unfiltered and encode Main's pinned PostgreSQL 18.6
+discovery observations. Both raw BFS `RECORD` and DFS `_RECORD` expose pq
+`ScanType interface{}` and `[]byte` cells versus native string descriptions and
+cells. Original INT4 uses pq int32 versus native int64. Nullable is unknown,
+record Length is unknown, and DecimalSize is unknown; TEXT Length is MaxInt64.
+Metadata is asserted before iteration, including empty anchors and LIMIT0.
+Escaped NULL/empty/literal-NULL/comma/quote/backslash keys have exact codec goldens.
+Held raw seq and seq::text survive INT4→INT8 nested key changes in both modes;
+the exposed scalar control rejects execution with unpositioned 0A000.
+Full diagnostics include optional absence and rune-count positions. Analysis
+errors reject Prepare; raw pseudo-output persistence and reached JSON comparator
+errors prepare successfully and fail execution without publishing Rows/results.
+JSON errors have no Position or Hint. Independent semantic expectations remain
+the authority for DFS/BFS ordering and positive behavior. Root recorded native
+feature-red at SEARCH syntax before authorizing production. Final selected
+dual-mode proof is required after implementation; readiness is not verification.
+
+`ReviewDiagnostics` preserves the review's combined-error boundaries in both
+modes, with ASCII/Unicode prefixes, used/unused items and all diagnostic routes:
+body width/type/source errors before SELECT-arm expandability, arm form before
+SEARCH names, names before the top-level-self rewrite restriction, and excess
+nonrecursive aliases before the nonrecursive SEARCH guard. Ordinary nested
+recursive forms and installed CYCLE closing rows remain positive controls.
+
+Root-owned selectors, each under an external 900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceQuerySearch(Ordering|Keys|Metadata|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySearch(Prepared|CycleInterop)$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySearch(Stored|Lifecycle|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceQuerySearchReviewDiagnostics$'
+```
+
+Repeat all four completed selectors without `REFERENCE=1` as well. Stored
+scenarios reject raw pseudo-type outputs but preserve scalar/text views,
+CTAS/MV/INSERT data, symbolic native Dump/Reset/Restore, foreign-owner replay and
+actual native SQL replay into PostgreSQL. Lifecycle scenarios preserve sentinels,
+CTAS absence and old MV contents on late failure, and genuinely cancel infinite
+constant-key recursion before asserting same-owner/same-held recovery.
+
+The permanent feature smoke composes both exact tree orders, NULL values, repeated
+held inputs, positioned key/name errors, persistent text projections and native
+replay, late failure atomicity and active cancellation. Its final selectors are
+`make check RUN='^TestReferenceQuerySearchFeatureSmoke$'` and the same command
+with `REFERENCE=1`. The implementation handoff supplies session-only standalone
+public source `local://search-smoke.go`; root resolves `SEARCH_SMOKE_GO` and
+runs `timeout 900s go run "$SEARCH_SMOKE_GO"` separately. It also checks the two
+original R1 repros and R2 aliases in both modes and Unicode positions, with full
+logical diagnostics and no published Rows/statement on direct/Prepare failure.
+Neither smoke substitutes for the selected dual-mode definitions.
+
+
+Supplementary package-function selectors (no duplicated public SQL):
+
+```sh
+make check RUN='^(TestCTESearch(Grammar|Legality)|TestSearchOccurrenceOrdering|TestQuerySearch(Shape|Parent|Identity|Remap|Cancellation|Signature))$'
+make check RACE=1 RUN='^TestQuerySearch(Parent|Remap|Cancellation)$'
+make check RUN='^TestQueryCycle(Equality|Parent|Ownership|Lifecycle|Signature)$'
+make check RUN='^TestOrderingBtreeIdentity$'
+```
+
+Installed CYCLE interoperability regression selectors are
+`^TestReferenceQueryCycle(Metadata|Prepared|Stored|Lifecycle|FeatureSmoke)$`,
+each in native and real pinned modes. After edits root owns generation/formatting,
+selected proof, standalone smoke, whole-project quickcheck and independent review.

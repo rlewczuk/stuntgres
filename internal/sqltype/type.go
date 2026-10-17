@@ -1971,6 +1971,7 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 type Comparison struct {
 	left, right            *Descriptor
 	defaultBtreeOpclass    uint32
+	orderingBound          bool
 	inputCollation         CollationRef
 	collationIndeterminate bool
 	element                *Comparison
@@ -1982,6 +1983,10 @@ type Comparison struct {
 // DefaultBtreeOpclass identifies the provider admitted by BindOrdering.
 // Comparisons bound for scalar equality do not imply an ordering provider.
 func (p Comparison) DefaultBtreeOpclass() uint32 { return p.defaultBtreeOpclass }
+
+// OrderingBound distinguishes an admitted sort provider from plain comparison.
+// Occurrence records have no executable physical index opclass.
+func (p Comparison) OrderingBound() bool { return p.orderingBound }
 
 // InputCollation is the retained comparison authority, independent of BOOL
 // result metadata. The flag defers implicit conflicts until a comparison occurs.
@@ -1997,6 +2002,14 @@ func BindOrdering(u Usage) (Comparison, error) {
 	}
 	if !u.validCollation() {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
+	}
+	if u.Type.id == 2249 && u.Type.IsComposite() || u.Type.id == 2287 && u.Type.IsArray() && u.Type.Element().id == 2249 && u.Type.Element().IsComposite() {
+		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
+		if err != nil {
+			return Comparison{}, err
+		}
+		p.orderingBound = true
+		return p, nil
 	}
 	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == JSON || u.Type.BaseType().id == JSONPath || u.Type.BaseType().id == Xid || u.Type.BaseType().id == Cid {
 		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
@@ -2024,7 +2037,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if u.Type.BaseType().id == PgNodeTree && u.Collation.ID == 0 {
 		u.Collation = CollationRef{ID: 100}
 	}
-	return Comparison{left: u.Type, right: u.Type, defaultBtreeOpclass: class.OID(), inputCollation: u.Collation}, nil
+	return Comparison{left: u.Type, right: u.Type, defaultBtreeOpclass: class.OID(), orderingBound: true, inputCollation: u.Collation}, nil
 }
 
 func (p Comparison) SessionDependent() bool {

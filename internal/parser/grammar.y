@@ -75,6 +75,7 @@ package parser
  cteHint CTEMaterialization
  cteClause cteClause
  cycle *CycleClause
+ search *SearchClause
  parenthesizedQuery parenthesizedQuery
  insertSource *InsertSource
  mergeArms []MergeArm
@@ -261,6 +262,7 @@ package parser
 %token <tok> EXECUTE DEALLOCATE DISCARD
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
+%token <tok> SEARCH BREADTH DEPTH FIRST
 %token <tok> REASSIGN
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
 %token <tok> ROLE_PASSWORD ROLE_CONNECTION ROLE_VALID ROLE_ENCRYPTED ROLE_UNENCRYPTED
@@ -387,7 +389,8 @@ package parser
 %type <cte> cte_definition
 %type <cteHint> cte_materialization
 %type <cycle> cycle_clause
-%type <identifiers> cycle_keys
+%type <search> search_clause
+%type <identifiers> cte_keys
 %type <expr> cycle_constant
 %type <queryTable> query_table_target
 %type <stmt> create_query_table
@@ -892,7 +895,8 @@ cursor_direction: /* empty */ { $$=&FetchCursor{Count:1} }
  | BACKWARD ALL { $$=&FetchCursor{All:true,Direction:CursorBackward} }
  | ABSOLUTE cursor_integer { $$=&FetchCursor{Count:$2,Direction:CursorAbsolute} }
  | RELATIVE cursor_integer { $$=&FetchCursor{Count:$2,Direction:CursorRelative} }
- | KW_U { direction,count:=CursorForward,int64(1);switch $1.text {case "next":case "prior":direction=CursorBackward;case "first":direction=CursorAbsolute;case "last":direction=CursorAbsolute;count=-1;default:sqllex.(*lexer).syntax($1);return 1};$$=&FetchCursor{Count:count,Direction:direction} } ;
+ | FIRST { $$=&FetchCursor{Count:1,Direction:CursorAbsolute} }
+ | KW_U { direction,count:=CursorForward,int64(1);switch $1.text {case "next":case "prior":direction=CursorBackward;case "last":direction=CursorAbsolute;count=-1;default:sqllex.(*lexer).syntax($1);return 1};$$=&FetchCursor{Count:count,Direction:direction} } ;
 close_cursor: CLOSE name { $$=&CloseCursor{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | CLOSE ALL { $$=&CloseCursor{All:true,Pos:$1.pos} } ;
 cursor_word: DECLARE | CURSOR | CLOSE | SCROLL | HOLD | FORWARD | BACKWARD | ABSOLUTE | RELATIVE | MOVE ;
@@ -2080,12 +2084,15 @@ with_clause: WITH cte_list { $$=cteClause{Definitions:$2,Pos:$1.pos} }
  | WITH RECURSIVE cte_list { $$=cteClause{Definitions:$3,Recursive:true,Pos:$1.pos} } ;
 cte_list: cte_definition { $$=[]CommonTableExpression{$1} }
  | cte_list ',' cte_definition { $$=append($1,$3) } ;
-cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' cycle_clause { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4,Cycle:$8} } ;
+cte_definition: name alias_columns AS cte_materialization '(' cte_body ')' search_clause cycle_clause { $$=CommonTableExpression{Name:Identifier{Text:$1.text,Pos:$1.pos},Columns:$2,Query:$6,Materialization:$4,Search:$8,Cycle:$9} } ;
+search_clause: /* empty */ { $$=nil }
+ | SEARCH BREADTH FIRST BY cte_keys SET name { $$=&SearchClause{Breadth:true,Keys:$5,Sequence:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos} }
+ | SEARCH DEPTH FIRST BY cte_keys SET name { $$=&SearchClause{Keys:$5,Sequence:Identifier{Text:$7.text,Pos:$7.pos},Pos:$1.pos} } ;
 cycle_clause: /* empty */ { $$=nil }
- | CYCLE cycle_keys SET name USING name { $$=&CycleClause{Keys:$2,Mark:Identifier{Text:$4.text,Pos:$4.pos},Path:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos} }
- | CYCLE cycle_keys SET name TO cycle_constant DEFAULT cycle_constant USING name { $$=&CycleClause{Keys:$2,Mark:Identifier{Text:$4.text,Pos:$4.pos},Value:$6,Default:$8,Path:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos} } ;
-cycle_keys: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
- | cycle_keys ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+ | CYCLE cte_keys SET name USING name { $$=&CycleClause{Keys:$2,Mark:Identifier{Text:$4.text,Pos:$4.pos},Path:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos} }
+ | CYCLE cte_keys SET name TO cycle_constant DEFAULT cycle_constant USING name { $$=&CycleClause{Keys:$2,Mark:Identifier{Text:$4.text,Pos:$4.pos},Value:$6,Default:$8,Path:Identifier{Text:$10.text,Pos:$10.pos},Pos:$1.pos} } ;
+cte_keys: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
+ | cte_keys ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 cycle_constant: value { $$=LiteralExpr{Value:$1} }
  | type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} } ;
 cte_body: query_select { $$=$1 } | insert | update | delete | merge | with_mutation ;
@@ -2383,7 +2390,7 @@ order_keys: order_key { $$=[]OrderKey{$1} } | order_keys ',' order_key { $$=appe
 order_key: scalar_projection direction nulls { $$=OrderKey{Expr:$1,Pos:$1.SourcePosition(),Desc:$2,Nulls:$3} } ;
 nulls: /* empty */ { $$=NullsDefault } | nulls_keyword nulls_position { if $2.text=="first" {$$=NullsFirst} else {$$=NullsLast} } ;
 nulls_keyword: NULLS_LA ;
-nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
+nulls_position: FIRST { $$=$1 } | KW_U { if $1.keyword==nil || $1.text!="last" { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 locking: /* empty */ { $$=nil } | locking_list { $$=$1 } ;
 locking_list: locking_clause { $$=[]RowLockClause{$1} } | locking_list locking_clause { $$=append($1,$2) } ;
@@ -2415,7 +2422,7 @@ limit_clause: LIMIT limit_value { $$=&QueryBounds{Count:$2} }
  | FETCH fetch_direction count_rows WITH KW_U { if $5.text!="ties" {sqllex.(*lexer).syntax($5);return 1};$$=&QueryBounds{Count:LiteralExpr{Value:Value{Kind:IntegerValue,Integer:1,Pos:$1.pos}},WithTies:true,WithPosition:$4.pos} } ;
 limit_value: scalar_projection { $$=$1 } | ALL { $$=LiteralExpr{Value:Value{Kind:NullValue,Pos:$1.pos}} } ;
 offset_clause: OFFSET scalar_projection optional_count_rows { $$=&QueryBounds{Offset:$2} } ;
-fetch_direction: KW_U { if $1.text!="first" && $1.text!="next" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+fetch_direction: FIRST { $$=$1 } | KW_U { if $1.text!="next" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 count_rows: ROW { $$=$1 }
  | FRAME_UNIT { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | KW_U {sqllex.(*lexer).syntax($1);return 1} ;
@@ -2528,7 +2535,8 @@ fetch_count: scalar_atom { $$=$1 }
  | '+' NUMBER { $$=LiteralExpr{Value:numberValue($2,"")} }
  | '-' NUMBER { $$=LiteralExpr{Value:numberValue($2,"-")} } ;
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST
- | GENERATED | ALWAYS | IDENTITY | OVERRIDING | SYSTEM | VALUE ;
+ | GENERATED | ALWAYS | IDENTITY | OVERRIDING | SYSTEM | VALUE
+ | SEARCH | BREADTH | DEPTH | FIRST ;
 ownership_name_word: REASSIGN ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;

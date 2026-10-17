@@ -78,3 +78,11 @@ metadata and explicit unavailable-provider boundaries. Their owning
 [`reference/sessions` README](../../reference/sessions/README.md) contains the
 complete protocol proof and actual pq/psql smoke instructions. Selected checks
 do not replace the root's full-project verification.
+
+`make check RUN='^TestSearchOccurrenceOrdering$'` checks occurrence RECORD and
+record[] sorting through existing typed providers: numeric ordering, inner NULL
+high, ancestry prefix, reached JSON demand before NULL, context cancellation and
+OrderingBound versus authentic physical scalar opclass identity. General arrays,
+named composites and occurrence-record physical indexes remain unadmitted.
+`make check RUN='^TestOrderingBtreeIdentity$'` retains scalar identity/allocation
+coverage. Public SEARCH witnesses remain in `reference/query_core`.

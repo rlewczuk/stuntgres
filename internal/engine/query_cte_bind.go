@@ -23,6 +23,8 @@ type cteDefinition struct {
 	name       string
 	columns    []parser.Identifier
 	position   parser.Position
+	userWidth  int
+	search     *searchRecipe
 	cycle      *cycleRecipe
 }
 type cteBinding struct {
@@ -64,6 +66,9 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 		raw := rawDefinitions[index]
 		start := len(b.querySources)
 		definition := &cteDefinition{owner: b.frameID(), hint: raw.Materialization, position: raw.Name.Pos, name: raw.Name.Text, columns: raw.Columns, recursive: analysis.Recursive[index]}
+		if raw.Search != nil {
+			definition.search = &searchRecipe{syntax: raw.Search}
+		}
 		if raw.Cycle != nil {
 			definition.cycle, err = b.bindCycleMarks(raw.Cycle)
 			if err != nil {
@@ -111,6 +116,9 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 		}
 		if len(raw.Columns) > len(definition.outputSchema()) {
 			return nil, expressionError("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(definition.outputSchema()), len(raw.Columns)), raw.Name.Pos)
+		}
+		if raw.Search != nil && !definition.recursive {
+			return nil, expressionError("42601", "WITH query is not recursive", raw.Name.Pos)
 		}
 		if len(raw.Columns) != 0 {
 			aliased := append(querySchema(nil), definition.outputSchema()...)
@@ -161,7 +169,7 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	b.cteScanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
-		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan, hideStar: d.cycle != nil && binding.contained && i >= d.cycle.width}
+		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan, hideStar: (d.search != nil || d.cycle != nil) && binding.contained && i >= d.userWidth}
 	}
 	name := table.Name.Parts[0].Text
 	qualifier := queryQualifier{name: name, original: name, columns: columns}

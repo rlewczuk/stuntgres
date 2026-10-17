@@ -151,39 +151,60 @@ func AnalyzeRecursiveCTEs(statement Statement) (RecursiveCTEAnalysis, error) {
 		if err := visitQuerySources(body.Set.Right, nil, nil, nil, check, visible, "", true); err != nil {
 			return result, err
 		}
-		if d.Cycle != nil {
-			if body.Set.Left.Set != nil {
-				return result, recursiveCTEError("0A000", "with a SEARCH or CYCLE clause, the left side of the UNION must be a SELECT", Position{})
+		// SEARCH checks belong after body analysis and name validation. Keep
+		// the installed CYCLE-only legality boundary unchanged.
+		if d.Search == nil && d.Cycle != nil {
+			if err := CheckRecursiveCTESelectArms(body); err != nil {
+				return result, err
 			}
-			if body.Set.Right.Set != nil {
-				return result, recursiveCTEError("42601", "with a SEARCH or CYCLE clause, the right side of the UNION must be a SELECT", Position{})
-			}
-			top := make(map[*TableReference]bool)
-			var collect func(FromItem)
-			collect = func(item FromItem) {
-				switch n := item.(type) {
-				case *TableReference:
-					top[n] = true
-				case *AliasReference:
-					collect(n.Input)
-				case *JoinReference:
-					collect(n.Left)
-					collect(n.Right)
-				}
-			}
-			collect(body.Set.Right.From)
-			err := visitQuerySources(body.Set.Right, nil, nil, nil, func(table *TableReference, target *CommonTableExpression, _ string) error {
-				if target == d && !top[table] {
-					return recursiveCTEError("0A000", fmt.Sprintf(`with a SEARCH or CYCLE clause, the recursive reference to WITH query "%s" must be at the top level of its right-hand SELECT`, d.Name.Text), Position{})
-				}
-				return nil
-			}, visible, "", false)
-			if err != nil {
+			if err := checkRecursiveCTETopLevel(body, d, visible); err != nil {
 				return result, err
 			}
 		}
 	}
 	return result, nil
+}
+
+// CheckRecursiveCTESelectArms checks SEARCH/CYCLE expandability after the caller
+// has analyzed the complete recursive body, before validating generated names.
+func CheckRecursiveCTESelectArms(body *Select) error {
+	if body.Set.Left.Set != nil {
+		return recursiveCTEError("0A000", "with a SEARCH or CYCLE clause, the left side of the UNION must be a SELECT", Position{})
+	}
+	if body.Set.Right.Set != nil {
+		return recursiveCTEError("42601", "with a SEARCH or CYCLE clause, the right side of the UNION must be a SELECT", Position{})
+	}
+	return nil
+}
+
+// CheckRecursiveCTETopLevel checks the rewrite restriction after SEARCH/CYCLE
+// names. The existing source walker retains nested WITH shadowing and identity.
+func CheckRecursiveCTETopLevel(body *Select, name Identifier) error {
+	definition := &CommonTableExpression{Name: name, Query: body}
+	return checkRecursiveCTETopLevel(body, definition, []*CommonTableExpression{definition})
+}
+
+func checkRecursiveCTETopLevel(body *Select, definition *CommonTableExpression, visible []*CommonTableExpression) error {
+	top := make(map[*TableReference]bool)
+	var collect func(FromItem)
+	collect = func(item FromItem) {
+		switch n := item.(type) {
+		case *TableReference:
+			top[n] = true
+		case *AliasReference:
+			collect(n.Input)
+		case *JoinReference:
+			collect(n.Left)
+			collect(n.Right)
+		}
+	}
+	collect(body.Set.Right.From)
+	return visitQuerySources(body.Set.Right, nil, nil, nil, func(table *TableReference, target *CommonTableExpression, _ string) error {
+		if target == definition && !top[table] {
+			return recursiveCTEError("0A000", fmt.Sprintf(`with a SEARCH or CYCLE clause, the recursive reference to WITH query "%s" must be at the top level of its right-hand SELECT`, definition.Name.Text), Position{})
+		}
+		return nil
+	}, visible, "", false)
 }
 
 func mapContext(context string) string {

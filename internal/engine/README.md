@@ -378,3 +378,17 @@ definitions with `make check RUN='...'` and the same selection with `REFERENCE=1
 the private mechanisms are not a substitute for that proof. The owning sessions
 README contains the separate built-server smoke and complete selector inventory.
 
+
+### Recursive SEARCH components
+
+`make check RUN='^TestQuerySearch(Shape|Parent|Identity|Remap|Cancellation|Signature)$'`
+checks exact occurrence RECORD/_RECORD Usage and NULL fields, actual joined-parent
+slots, immutable ancestry, complete generated collision equality including CYCLE,
+destination leaf reownership/memoization and strict stored layouts. It distinguishes
+stable public result identity from exact internal/parameter shape, and polls real
+construction/hash/equality loops for cancellation. Run selected race proof with
+`make check RACE=1 RUN='^TestQuerySearch(Parent|Remap|Cancellation)$'`.
+The affected installed units are
+`make check RUN='^TestQueryCycle(Equality|Parent|Ownership|Lifecycle|Signature)$'`.
+Public ordering, prepared/native persistence, atomicity and cancellation witnesses
+remain the dual-mode definitions documented in `reference/query_core/README.md`.

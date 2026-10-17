@@ -46,3 +46,13 @@ Historical fresh-parser allocation profiles are motivation, not candidate
 deltas. Complete real-reference race measurements are human-only; agents MUST NOT
 invoke refcheck. Selected dual-mode proof and complete Docker-free verification
 precede postintegration finalcheck. Disclose timeouts/failures honestly.
+
+### Recursive SEARCH syntax
+
+`make check RUN='^TestCTESearch(Grammar|Legality)$'` exercises symbolic mode/key
+order, rune positions, SEARCH-before-CYCLE, unreserved names and existing FIRST
+consumers, malformed identifier-only key lists and recursive legality precedence.
+SEARCH-bearing expandability is deferred to binder analysis/rewrite boundaries;
+the same validators retain CYCLE-only early errors and identity-aware nested WITH
+shadowing. Ordinary recursion and subquery/count restrictions remain early.
+Public SQL diagnostics/results remain in `reference/query_core`, not this package.

@@ -11,6 +11,7 @@ type worktableScanNode struct{ derivedNode }
 type recursiveUnionNode struct {
 	setNode
 	definition *cteDefinition
+	search     *searchRecipe
 	cycle      *cycleRecipe
 }
 
@@ -130,13 +131,25 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			}
 			continue
 		}
-		cycle := s.node.cycle
-		if cycle != nil {
-			var parent sqltype.Value
-			if s.phase == 1 {
-				parent = row[cycle.width+1]
+		cycle, search := s.node.cycle, s.node.search
+		var parentSearch, parentCycle sqltype.Value
+		if s.phase == 1 {
+			if search != nil {
+				parentSearch = row[search.slot]
 			}
-			row, err = cycle.augment(ctx, row, parent, s.mark, s.fallback)
+			if cycle != nil {
+				parentCycle = row[cycle.markSlot+1]
+			}
+		}
+		if search != nil {
+			value, failure := search.value(ctx, row, parentSearch)
+			if failure != nil {
+				return false, failure
+			}
+			row[search.slot] = value
+		}
+		if cycle != nil {
+			row, err = cycle.augment(ctx, row, parentCycle, s.mark, s.fallback)
 			if err != nil {
 				return false, err
 			}
@@ -144,19 +157,27 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 		hash := uint64(14695981039346656037)
 		if s.seen != nil {
 			for i, family := range s.node.grouping {
-				value, err := family.PrepareKey(ctx, row[i])
+				slot := s.node.groupingSlot(i)
+				value, err := family.PrepareKey(ctx, row[slot])
 				if err != nil {
 					return false, err
 				}
-				row[i] = value
+				row[slot] = value
 				part, err := family.Hash(ctx, value)
 				if err != nil {
 					return false, err
 				}
 				hash = (hash ^ part) * 1099511628211
 			}
+			if search != nil {
+				part, err := search.hash(ctx, row[search.slot])
+				if err != nil {
+					return false, err
+				}
+				hash = (hash ^ part) * 1099511628211
+			}
 			if cycle != nil {
-				part, err := cycle.hashPath(ctx, row[cycle.width+1])
+				part, err := cycle.hashPath(ctx, row[cycle.markSlot+1])
 				if err != nil {
 					return false, err
 				}
@@ -181,7 +202,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 		}
 		expand := true
 		if cycle != nil {
-			value, err := cycle.inequality.Evaluate(ctx, row[cycle.width], s.mark, s.state.input)
+			value, err := cycle.inequality.Evaluate(ctx, row[cycle.markSlot], s.mark, s.state.input)
 			if err != nil {
 				return false, err
 			}
@@ -229,8 +250,8 @@ func openWorktableScan(ctx context.Context, state *queryState, n *worktableScanN
 }
 
 func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value, candidates []int) (int, error) {
-	c := s.node.cycle
-	if c == nil {
+	c, search := s.node.cycle, s.node.search
+	if c == nil && search == nil {
 		return findDistinctTuple(ctx, s.node.grouping, row, s.source.flat, candidates)
 	}
 	width := len(s.node.Schema())
@@ -238,7 +259,8 @@ func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value
 		other := s.source.flat[index*width : (index+1)*width]
 		equal := true
 		for i, g := range s.node.grouping {
-			same, err := g.Equal(ctx, row[i], other[i])
+			slot := s.node.groupingSlot(i)
+			same, err := g.Equal(ctx, row[slot], other[slot])
 			if err != nil {
 				return -1, err
 			}
@@ -247,15 +269,32 @@ func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value
 				break
 			}
 		}
-		if equal {
-			same, err := c.equalPath(ctx, row[c.width+1], other[c.width+1])
+		if equal && search != nil {
+			same, err := search.equal(ctx, row[search.slot], other[search.slot])
 			if err != nil {
 				return -1, err
 			}
-			if same {
-				return index, nil
+			equal = same
+		}
+		if equal && c != nil {
+			same, err := c.equalPath(ctx, row[c.markSlot+1], other[c.markSlot+1])
+			if err != nil {
+				return -1, err
 			}
+			equal = same
+		}
+		if equal {
+			return index, nil
 		}
 	}
 	return -1, ctx.Err()
+}
+
+// Ordinary groupings cover original columns and then the optional CYCLE mark;
+// generated record/path slots retain their recipe-owned equality authority.
+func (n *recursiveUnionNode) groupingSlot(i int) int {
+	if n.cycle != nil && i == n.definition.userWidth {
+		return n.cycle.markSlot
+	}
+	return i
 }

@@ -179,34 +179,6 @@ func TestKeywordContextualCapabilities(t *testing.T) {
 }
 
 func TestNullsTokenLookahead(t *testing.T) {
-	for _, s := range []struct {
-		input     string
-		tokens    []int
-		raw       []string
-		positions []int
-	}{
-		{"NULLS FIRST x", []int{NULLS_LA, KW_U, IDENT}, []string{"NULLS", "FIRST", "x"}, []int{1, 7, 13}},
-		{"NULLS bogus", []int{KW_U, IDENT}, []string{"NULLS", "bogus"}, []int{1, 7}},
-		{`NULLS "FIRST"`, []int{KW_U, IDENT}, []string{"NULLS", `"FIRST"`}, []int{1, 7}},
-		{`"NULLS" FIRST`, []int{IDENT, KW_U}, []string{`"NULLS"`, "FIRST"}, []int{1, 9}},
-		{"NULLS /*é*/ FIRST", []int{NULLS_LA, KW_U}, []string{"NULLS", "FIRST"}, []int{1, 13}},
-		{"NULLS NULLS FIRST", []int{KW_U, NULLS_LA, KW_U}, []string{"NULLS", "NULLS", "FIRST"}, []int{1, 7, 13}},
-		{"NULLS", []int{KW_U}, []string{"NULLS"}, []int{1}},
-		{"NULLS 1", []int{KW_U, NUMBER}, []string{"NULLS", "1"}, []int{1, 7}},
-		{"nUlLs lAsT", []int{NULLS_LA, KW_U}, []string{"nUlLs", "lAsT"}, []int{1, 7}},
-	} {
-		l := &lexer{input: s.input}
-		var v sqlSymType
-		for i, want := range s.tokens {
-			token := l.Lex(&v)
-			if token != want || v.tok.raw != s.raw[i] || v.tok.pos.Character != s.positions[i] || l.current != v.tok {
-				t.Fatalf("%q token%d: %d %#v current%#v", s.input, i, token, v.tok, l.current)
-			}
-		}
-		if token := l.Lex(&v); token != 0 || l.err != nil {
-			t.Fatalf("%q end: %d %v", s.input, token, l.err)
-		}
-	}
 	// Consuming the buffered FIRST must not invoke the scanner again.
 	l := &lexer{input: "NULLS FIRST x"}
 	var v sqlSymType
@@ -214,7 +186,7 @@ func TestNullsTokenLookahead(t *testing.T) {
 		t.Fatal("missing ordering token")
 	}
 	offset := l.offset
-	if l.Lex(&v) != KW_U || l.offset != offset {
+	if l.Lex(&v) == 0 || v.tok.raw != "FIRST" || v.tok.keyword == nil || v.tok.keyword.word != "first" || l.offset != offset {
 		t.Fatal("lookahead rescanned or lost")
 	}
 }

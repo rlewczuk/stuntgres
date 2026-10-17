@@ -83,12 +83,23 @@ func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog CatalogRead, r
 			hint = "NOT MATERIALIZED "
 		}
 		suffix := ""
+		if search := definition.Search; search != nil {
+			keys := make([]string, len(search.Keys))
+			for i, key := range search.Keys {
+				keys[i] = quoteIdentifier(key.Text)
+			}
+			mode := "DEPTH"
+			if search.Breadth {
+				mode = "BREADTH"
+			}
+			suffix = " SEARCH " + mode + " FIRST BY " + strings.Join(keys, ", ") + " SET " + quoteIdentifier(search.Sequence.Text)
+		}
 		if cycle := definition.Cycle; cycle != nil {
 			keys := make([]string, len(cycle.Keys))
 			for i, key := range cycle.Keys {
 				keys[i] = quoteIdentifier(key.Text)
 			}
-			suffix = " CYCLE " + strings.Join(keys, ", ") + " SET " + quoteIdentifier(cycle.Mark.Text)
+			suffix += " CYCLE " + strings.Join(keys, ", ") + " SET " + quoteIdentifier(cycle.Mark.Text)
 			if cycle.Value != nil {
 				project := r.queries[definition.Query.(*parser.Select)]
 				union, ok := viewFromRoot(project).(*recursiveUnionNode)

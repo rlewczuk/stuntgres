@@ -1164,7 +1164,16 @@ type CommonTableExpression struct {
 	Columns         []Identifier
 	Query           Statement
 	Materialization CTEMaterialization
+	Search          *SearchClause
 	Cycle           *CycleClause
+}
+
+// SearchClause is symbolic syntax, not a traversal scheduler or invocation state.
+type SearchClause struct {
+	Breadth  bool
+	Keys     []Identifier
+	Sequence Identifier
+	Pos      Position
 }
 
 // CycleClause retains only symbolic syntax; execution paths belong to invocations.

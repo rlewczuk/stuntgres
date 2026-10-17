@@ -841,19 +841,17 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.rightExpressions = expressions(set.rightExpressions)
 		copy.grouping = nil
 		if !(copy.operation == "union" && copy.all) {
-			width := len(schema)
-			if definition != nil && definition.cycle != nil {
-				width--
-			}
+			width := len(set.grouping)
 			copy.grouping = make([]queryGrouping, width)
-			for i, column := range schema {
-				if definition != nil && definition.cycle != nil && i == len(schema)-1 {
-					break
+			for i := range copy.grouping {
+				slot := i
+				if definition != nil && definition.cycle != nil && i == definition.userWidth {
+					slot = definition.cycle.markSlot
 				}
 				copy.grouping[i] = set.grouping[i]
 				copy.grouping[i].routine = ref(set.grouping[i].routine)
 				if err == nil {
-					copy.grouping[i].Grouping, err = sqltype.BindGrouping(column.Usage)
+					copy.grouping[i].Grouping, err = sqltype.BindGrouping(schema[slot].Usage)
 				}
 			}
 		}
@@ -862,7 +860,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if original := node.(*recursiveUnionNode).cycle; original != nil && original != node.(*recursiveUnionNode).definition.cycle {
 				cycle, err = m.cycle(original)
 			}
-			next = &recursiveUnionNode{setNode: copy, definition: definition, cycle: cycle}
+			next = &recursiveUnionNode{setNode: copy, definition: definition, search: definition.search, cycle: cycle}
 		} else {
 			next = &copy
 		}
@@ -1294,6 +1292,13 @@ func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
 			copy.schema[i].Usage.Collation = collation
 		}
 	}
+	if old.search != nil {
+		var err error
+		copy.search, err = m.search(old.search)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if old.cycle != nil {
 		var err error
 		copy.cycle, err = m.cycle(old.cycle)
@@ -1376,6 +1381,25 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	copy.inequality, err = sqltype.BindComparisonPredicate(sqltype.CompareNotEqual, usage.Type, usage.Type, boolean, usage.Collation, copy.mark.CollationIndeterminate())
 	if err != nil {
 		return nil, err
+	}
+	return &copy, nil
+}
+
+func (m *viewQueryRemapper) search(old *searchRecipe) (*searchRecipe, error) {
+	copy := *old
+	copy.record, copy.result, copy.depth = m.typ(old.record), m.typ(old.result), m.typ(old.depth)
+	if copy.record == nil || copy.record.ID() != 2249 || !copy.record.IsComposite() ||
+		old.syntax.Breadth && copy.result != copy.record ||
+		!old.syntax.Breadth && (!occurrenceRecordArray(copy.result) || copy.result.Element() != copy.record) {
+		return nil, ErrCatalogReplaced
+	}
+	copy.grouping = make([]sqltype.Grouping, len(old.grouping))
+	for i := range copy.grouping {
+		var err error
+		copy.grouping[i], err = sqltype.BindGrouping(copy.record.CompositeMember(i).Usage)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &copy, nil
 }

@@ -598,15 +598,30 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				}
 			}
 		case *setNode:
-			if err := validateStoredSetNode(n, nil); err != nil {
+			if err := validateStoredSetNode(n, nil, nil); err != nil {
 				return err
 			}
 		case *recursiveUnionNode:
 			if n.definition == nil || !n.definition.recursive {
 				return fmt.Errorf("stuntgres: invalid stored recursive definition")
 			}
-			if err := validateStoredSetNode(&n.setNode, n.cycle); err != nil {
+			if err := validateStoredSetNode(&n.setNode, n.cycle, n.search); err != nil {
 				return err
+			}
+			if n.search != nil || n.cycle != nil {
+				if n.definition.userWidth != len(n.leftExpressions) {
+					return fmt.Errorf("stuntgres: invalid stored original width")
+				}
+				scan, offset := recursiveParentSlot(n.right.child, n.definition, 0)
+				if scan == nil {
+					return fmt.Errorf("stuntgres: missing stored recursive parent")
+				}
+				for slot := n.definition.userWidth; slot < len(n.Schema()); slot++ {
+					carry, ok := n.rightExpressions[slot].(columnExpression)
+					if !ok || carry.slot != offset+slot || carry.frame != n.right.frame || slot >= len(scan.demand) || !scan.demand[slot] {
+						return fmt.Errorf("stuntgres: invalid stored recursive parent carry")
+					}
+				}
 			}
 		case *limitNode:
 			for _, expr := range []BoundExpr{n.offset, n.count} {
@@ -851,19 +866,50 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 	return nil
 }
 
-func validateStoredSetNode(n *setNode, cycle *cycleRecipe) error {
+func validateStoredSetNode(n *setNode, cycle *cycleRecipe, search *searchRecipe) error {
 	width := len(n.Schema())
 	leftWidth, groupingWidth := width, width
 	if cycle != nil {
-		// The anchor produces user fields only. The recursive arm also
-		// carries its parent's mark/path; the producer generates new values.
-		if cycle.width < 0 || width != cycle.width+2 ||
-			n.Schema()[cycle.width].Usage != cycle.mark.ResultUsage() ||
-			n.Schema()[cycle.width+1].Usage.Type != cycle.path {
+		if cycle.markSlot < 0 || width != cycle.markSlot+2 ||
+			n.Schema()[cycle.markSlot].Usage != cycle.mark.ResultUsage() ||
+			n.Schema()[cycle.markSlot+1].Usage.Type != cycle.path {
 			return fmt.Errorf("stuntgres: invalid stored cycle layout")
 		}
-		leftWidth = cycle.width
-		groupingWidth-- // Path equality belongs to the occurrence recipe.
+		leftWidth = cycle.markSlot
+		groupingWidth--
+	}
+	if search != nil {
+		if search.syntax == nil || search.result == nil {
+			return fmt.Errorf("stuntgres: invalid stored search recipe")
+		}
+		expected := search.slot + 1
+		if cycle != nil {
+			expected += 2
+		}
+		if search.slot < 0 || width != expected || cycle != nil && cycle.markSlot != search.slot+1 ||
+			n.Schema()[search.slot].Usage != search.result.Usage() ||
+			search.record == nil || !search.record.IsComposite() || search.record.ID() != 2249 ||
+			(search.syntax.Breadth && search.result != search.record) ||
+			(!search.syntax.Breadth && (!occurrenceRecordArray(search.result) || search.result.Element() != search.record)) {
+			return fmt.Errorf("stuntgres: invalid stored search layout")
+		}
+		if !n.all && len(search.grouping) != search.record.CompositeLen() || n.all && len(search.grouping) != 0 {
+			return fmt.Errorf("stuntgres: invalid stored search equality")
+		}
+		offset := 0
+		if search.syntax.Breadth {
+			offset = 1
+		}
+		if len(search.keys)+offset != search.record.CompositeLen() {
+			return fmt.Errorf("stuntgres: invalid stored search keys")
+		}
+		for i, key := range search.keys {
+			if key < 0 || key >= search.slot || n.Schema()[key].Usage != search.record.CompositeMember(i+offset).Usage {
+				return fmt.Errorf("stuntgres: invalid stored search key usage")
+			}
+		}
+		leftWidth = search.slot
+		groupingWidth--
 	}
 	if n.left == nil || n.right == nil || len(n.left.Schema()) != leftWidth || len(n.right.Schema()) != width || len(n.leftExpressions) != leftWidth || len(n.rightExpressions) != width {
 		return fmt.Errorf("stuntgres: invalid stored set width")

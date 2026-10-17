@@ -252,15 +252,15 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 	aliasWidth := len(from.columns)
 	switch scan := from.root.(type) {
 	case *worktableScanNode:
-		if scan.cte.cycle != nil {
-			aliasWidth = scan.cte.cycle.width
+		if scan.cte.search != nil || scan.cte.cycle != nil {
+			aliasWidth = scan.cte.userWidth
 		}
 	case *derivedNode:
-		if scan.cte != nil && scan.cte.cycle != nil {
-			aliasWidth = scan.cte.cycle.width
+		if scan.cte != nil && (scan.cte.search != nil || scan.cte.cycle != nil) {
+			aliasWidth = scan.cte.userWidth
 		}
 	}
-	// Every CYCLE reference accepts aliases only for original columns.
+	// SEARCH/CYCLE references accept aliases only for original columns.
 	// Generated columns retain their symbolic names but still need slots.
 	used := make(map[string]bool, len(from.columns))
 	for _, c := range from.columns[aliasWidth:] {

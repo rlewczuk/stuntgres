@@ -9,7 +9,7 @@ import (
 
 func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *cycleRecipe {
 	t.Helper()
-	c := &cycleRecipe{width: len(usages), keys: make([]int, len(usages)), grouping: make([]sqltype.Grouping, len(usages))}
+	c := &cycleRecipe{markSlot: len(usages), keys: make([]int, len(usages)), grouping: make([]sqltype.Grouping, len(usages))}
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	c.mark = literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: sqltype.Boolean(boolean, true)}
 	c.fallback = literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
@@ -65,8 +65,8 @@ func TestQueryCycleEquality(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pa := cycleUnitAugment(t, c, sqltype.Value{}, a)[c.width+1]
-		pb := cycleUnitAugment(t, c, sqltype.Value{}, b)[c.width+1]
+		pa := cycleUnitAugment(t, c, sqltype.Value{}, a)[c.markSlot+1]
+		pb := cycleUnitAugment(t, c, sqltype.Value{}, b)[c.markSlot+1]
 		equal, err := c.equalPath(ctx, pa, pb)
 		if err != nil || !equal {
 			t.Fatal(tc, equal, err)
@@ -79,7 +79,7 @@ func TestQueryCycleEquality(t *testing.T) {
 		if err != nil || ha != hb {
 			t.Fatal(tc, ha, hb, err)
 		}
-		null := cycleUnitAugment(t, c, sqltype.Value{}, sqltype.Null(typ))[c.width+1]
+		null := cycleUnitAugment(t, c, sqltype.Value{}, sqltype.Null(typ))[c.markSlot+1]
 		equal, err = c.equalPath(ctx, null, null)
 		if err != nil || !equal || null.ArrayElement(0).IsNull() {
 			t.Fatal("NULL field must remain a non-NULL record", err)
@@ -103,7 +103,7 @@ func TestQueryCycleEquality(t *testing.T) {
 	// Force a hash bucket whose first tuple has the same user fields and mark
 	// but different ancestry. Only full path equality may reject that tuple.
 	a = cycleUnitAugment(t, c, a[3], two, one)
-	stage := recursiveUnionStage{node: &recursiveUnionNode{setNode: setNode{querySchema: make(querySchema, 4), grouping: grouping}, cycle: c}, source: &querySource{flat: append(append([]sqltype.Value(nil), a...), b...)}}
+	stage := recursiveUnionStage{node: &recursiveUnionNode{setNode: setNode{querySchema: make(querySchema, 4), grouping: grouping}, definition: &cteDefinition{userWidth: 2}, cycle: c}, source: &querySource{flat: append(append([]sqltype.Value(nil), a...), b...)}}
 	if index, err := stage.findTuple(ctx, b, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal("full collision equality", index, err)
 	}
@@ -130,11 +130,11 @@ func TestQueryCycleParent(t *testing.T) {
 	self := &worktableScanNode{derivedNode: derivedNode{cte: d}}
 	physical := &singletonNode{querySchema: make(querySchema, 4)}
 	root := &joinNode{left: physical, right: self, leftWidth: 4}
-	if found, offset := cycleParentSlot(root, d, 0); found != self || offset != 4 {
+	if found, offset := recursiveParentSlot(root, d, 0); found != self || offset != 4 {
 		t.Fatal(found, offset)
 	}
 	root = &joinNode{left: self, right: physical, leftWidth: 3}
-	if found, offset := cycleParentSlot(root, d, 0); found != self || offset != 0 {
+	if found, offset := recursiveParentSlot(root, d, 0); found != self || offset != 0 {
 		t.Fatal(found, offset)
 	}
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
@@ -207,12 +207,12 @@ func TestQueryCycleOwnership(t *testing.T) {
 		catalogPath.Concrete() || catalogPath.Usage().Valid() || catalogPath.IsUserDefined() {
 		t.Fatal("occurrence shape replaced catalog record authority")
 	}
-	if err := validateStoredSetNode(&original.setNode, original.cycle); err != nil {
+	if err := validateStoredSetNode(&original.setNode, original.cycle, nil); err != nil {
 		t.Fatal("original cycle arm layout", err)
 	}
 	badWidth := original.setNode
-	badWidth.leftExpressions = append(append([]BoundExpr(nil), original.leftExpressions...), original.rightExpressions[original.cycle.width])
-	if err := validateStoredSetNode(&badWidth, original.cycle); err == nil {
+	badWidth.leftExpressions = append(append([]BoundExpr(nil), original.leftExpressions...), original.rightExpressions[original.cycle.markSlot])
+	if err := validateStoredSetNode(&badWidth, original.cycle, nil); err == nil {
 		t.Fatal("accepted generated anchor slot as an original user target")
 	}
 	destination := New()
@@ -227,16 +227,16 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	union := remapped.(*projectNode).child.(*recursiveUnionNode)
-	if err := validateStoredSetNode(&union.setNode, union.cycle); err != nil {
+	if err := validateStoredSetNode(&union.setNode, union.cycle, nil); err != nil {
 		t.Fatal("remapped cycle arm layout", err)
 	}
 	badParent := union.setNode
 	badParent.rightExpressions = append([]BoundExpr(nil), union.rightExpressions...)
-	badParent.rightExpressions[union.cycle.width+1] = union.rightExpressions[union.cycle.width]
-	if err := validateStoredSetNode(&badParent, union.cycle); err == nil {
+	badParent.rightExpressions[union.cycle.markSlot+1] = union.rightExpressions[union.cycle.markSlot]
+	if err := validateStoredSetNode(&badParent, union.cycle, nil); err == nil {
 		t.Fatal("accepted parent mark in the hidden path slot")
 	}
-	scan, offset := cycleParentSlot(union.right.child, union.definition, 0)
+	scan, offset := recursiveParentSlot(union.right.child, union.definition, 0)
 	if scan == nil || offset != 1 || scan.cte != union.definition || union.definition.query.Root != remapped {
 		t.Fatal("remapped self identity/parent", scan, offset)
 	}
@@ -247,8 +247,8 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal("foreign remap retained/mutated source")
 	}
 	for i := range 2 {
-		hidden, ok := union.rightExpressions[union.cycle.width+i].(columnExpression)
-		if !ok || hidden.slot != offset+union.cycle.width+i || !scan.demand[union.cycle.width+i] {
+		hidden, ok := union.rightExpressions[union.cycle.markSlot+i].(columnExpression)
+		if !ok || hidden.slot != offset+union.cycle.markSlot+i || !scan.demand[union.cycle.markSlot+i] {
 			t.Fatal("hidden projection lost joined parent authority", hidden)
 		}
 	}
@@ -317,7 +317,7 @@ func TestQueryCycleSignature(t *testing.T) {
 	small, _ := view.LookupType(sqltype.Int4)
 	big, _ := view.LookupType(sqltype.Int8)
 	a, b := cycleUnitRecipe(t, small.Usage()), cycleUnitRecipe(t, big.Usage())
-	if !sameStatementUsage(a.path.Usage(), b.path.Usage()) {
+	if !sameStatementResultUsage(a.path.Usage(), b.path.Usage()) {
 		t.Fatal("public RECORD[] OID froze private member shape")
 	}
 	if sameRecordUsage(a.path.Usage(), b.path.Usage()) {

@@ -5670,8 +5670,7 @@ locks. Existing native stored marked aggregate/blocking frontiers still run when
 independently reachable; dead qualification does not bypass their physical lock
 settlement.
 
-SEARCH, standalone VALUES/TABLE CTE bodies and lateral derived
-queries remain excluded. See
+Standalone VALUES/TABLE CTE bodies and lateral derived queries remain excluded. See
 [WITH query contracts](https://www.postgresql.org/docs/18/queries.html) and
 [implementation design](docs/design/PG18-QUERY-CTE.md).
 Feature smoke: `make check RUN='^TestReferenceQueryCTEFeatureSmoke$'`;
@@ -5697,7 +5696,7 @@ symbolic recursive definitions and physical dependencies, not runtime worktables
 
 SELECT, INSERT, UPDATE and DELETE accept the recursive modifier. MERGE rejects
 its own `WITH RECURSIVE`, but can consume a derived recursive SELECT.
-Recursive modifying definitions and SEARCH remain excluded.
+Recursive modifying definitions remain excluded.
 See [recursive query design](docs/design/PG18-QUERY-CTE-RECURSIVE.md) and
 [selected dual-mode proof](reference/query_core/README.md#recursive-cte-verification).
 Feature smoke: `make check RUN='^TestReferenceQueryRecursiveCTEFeatureSmoke$'`;
@@ -5720,6 +5719,27 @@ See [cycle design](docs/design/PG18-QUERY-CTE-RECURSIVE-CYCLE.md) and
 [selected proof](reference/query_core/README.md#recursive-cycle-verification).
 Feature smoke: `make check RUN='^TestReferenceQueryCycleFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQueryCycleFeatureSmoke$'`.
+
+### Recursive SEARCH ordering — change note
+
+SEARCH generates real ordering values: BREADTH FIRST exposes RECORD containing
+zero-based INT8 depth and current keys; DEPTH FIRST exposes _RECORD containing
+the current branch's key-record ancestry. ORDER BY the generated column obtains
+breadth/depth order; recursive evaluation order itself is not promised. NULL keys
+are typed fields inside non-NULL records, and equal keys remain ties.
+The complete generated tuple participates in recursive UNION identity. Combined
+SEARCH/CYCLE output is originals, sequence, mark, path; existing CYCLE closing
+rows and stop semantics are unchanged. Comparison uses retained key types and
+collations lazily, including execution-time failure for reached JSON keys.
+Prepared executions start fresh and preserve public RECORD/_RECORD result types
+across key-field reanalysis without relaxing internal shapes or catalog fences.
+Persist ordinary scalar outputs or seq::text; anonymous record/path columns are
+rejected. Views and native Dump/Restore retain symbolic SEARCH, not frontiers.
+See [SEARCH design](docs/design/PG18-QUERY-CTE-RECURSIVE-SEARCH.md) and
+[selected proof](reference/query_core/README.md#recursive-search-verification).
+Feature smoke: `make check RUN='^TestReferenceQuerySearchFeatureSmoke$'`;
+pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceQuerySearchFeatureSmoke$'`.
+
 
 
 ### Data-modifying CTEs — change note
@@ -5754,7 +5774,7 @@ AS WITH NO DATA does not execute its query at all: the destination is empty and
 auxiliary targets remain unchanged. This is not an exception to modifier
 completion inside an executing LIMIT 0 query.
 
-SEARCH and trigger/FDW/hierarchy providers retain their existing exclusions.
+Trigger/FDW/hierarchy providers retain their existing exclusions.
 Rule rewrites preserve original auxiliary identity and atomic completion when
 they leave one executable query; zero/multiple expansion retains PostgreSQL's
 INSTEAD NOTHING/conditional/ALSO/multi-statement diagnostics. PostgreSQL separately
