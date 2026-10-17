@@ -58,6 +58,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"setdatabase", sqltype.Oid}, {"setrole", sqltype.Oid}, {"setconfig", sqltype.ID(1009)}}},
+		{pgAMOID, "pg_am", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"amname", sqltype.Name}, {"amhandler", sqltype.Regproc}, {"amtype", sqltype.Char}}},
 		{1255, "pg_proc", []struct {
 			name string
 			typ  sqltype.ID
@@ -288,7 +292,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2606 {
 				d.columns[i].Nullable = i >= 20
 			}
-			if spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 2617 || spec.oid == 3501 || spec.oid == 2610 {
+			if spec.oid == pgAMOID || spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 2617 || spec.oid == 3501 || spec.oid == 2610 {
 				d.columns[i].Nullable = false
 			}
 			if spec.oid == ProcedureClassID || spec.oid == TSTemplateClassID {
@@ -408,6 +412,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 	}
 	if source.address.ObjectID == 2616 {
 		return capturePGOpclass(ctx, catalog, ref, source)
+	}
+	if source.address.ObjectID == pgAMOID {
+		return capturePGAM(ctx, catalog, ref, source)
 	}
 	if source.address.ObjectID == pgRangeOID {
 		return capturePGRange(ctx, catalog, ref, source)

@@ -227,16 +227,30 @@ Calls compose in query/write/stored expressions and native replay.
 See [native limits](docs/DIALECT.md#text-slicing) and
 [selected proof and feature smoke](reference/strings/README.md#text-slicing-selected-proof).
 
+## Access-method catalog — change note
+
+`pg_catalog.pg_am` exposes exact PostgreSQL access-method identities and the
+four documented fields, including genuine REGPROC handler values. The complete
+native inventory is heap2/handler3, btree403/330, hash405/331 and bounded logical
+GiST783/332. It is PUBLIC-readable, independent of user-index creation, and
+recreated by native Reset/Restore. Ordinary-role writes preserve PostgreSQL
+permission diagnostics; native superuser writes remain unsupported.
+These are implemented logical methods, not physical PostgreSQL heap or index
+algorithms. GIN, SP-GiST and BRIN are not advertised; handler metadata does not
+make handlers callable.
+See [native limits](docs/DIALECT.md#pg_am-supported-access-methods) and
+[selected proof and feature smoke](reference/catalogs/README.md#pg_am-selected-proof).
+
 ## Operator-class catalog — change note
 
 `pg_catalog.pg_opclass` exposes the nine PostgreSQL operator-class metadata
-columns for implemented btree/hash classes, with exact released OIDs, method/
-family/input linkage, default flags and key-storage types. The catalog is
+columns for implemented btree/hash and bounded GiST classes, with exact released
+OIDs, method/family/input linkage, default flags and key-storage types. The catalog is
 PUBLIC-readable and immutable; it describes supported providers, not only
 currently created indexes. Domains and concrete enums do not invent new classes.
 The existing JSONB hash provider now reports its own hash-class identity rather
-than the btree identity. No new index provider, pg_am/pg_opfamily source or
-pg_index vector columns are introduced.
+than the btree identity. No new index provider, pg_opfamily source or pg_index
+vector columns are introduced by that operator-class work.
 See [native limits](docs/DIALECT.md#pg_opclass-supported-operator-classes) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_opclass-selected-proof).
 

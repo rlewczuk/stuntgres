@@ -122,24 +122,3 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ObjectRef,
 	}
 	return &querySource{ref: ref, anonymous: rows}, nil
 }
-
-func aggregateCatalogRelation(d *relationDescriptor) bool {
-	return d != nil && d.relationKind == catalogRelation && d.address == (ObjectAddress{ClassID: RelationClassID, ObjectID: pgAggregateOID})
-}
-
-// Binding and frame import have completed before mutation admission. Recheck
-// the coherent effective actor at execution, including held SET ROLE commands.
-// System-catalog TRUNCATE has its own released English diagnostic.
-func aggregateCatalogMutationError(auth AuthorizationView, truncate bool) error {
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-	if err != nil {
-		return err
-	}
-	if actor.Superuser {
-		return sqlError("0A000", "catalog source mutation is unsupported")
-	}
-	if truncate {
-		return sqlError("42501", "permission denied: \"pg_aggregate\" is a system catalog")
-	}
-	return sqlError("42501", "permission denied for table pg_aggregate")
-}

@@ -975,9 +975,9 @@ The native physical fields are explicit boundaries, not approximated storage:
   pages. Estimates never become count(*), historical version counts or sizes.
   Real PostgreSQL sequence pages and partitioned-index initialization can differ;
   catalog reads do not implement ANALYZE/VACUUM.
-- `relam` exposes logical heap=2, btree=403 and hash=405 compatibility identities,
-  not PostgreSQL physical heap/index storage. Default partition roots and
-  sequence/view/composite relations have method zero.
+- `relam` exposes logical heap=2, btree=403, hash=405 and bounded GiST=783
+  compatibility identities, not PostgreSQL physical heap/index storage. Default
+  partition roots and sequence/view/composite relations have method zero.
 - The exact represented shared catalog identities 1213/1262/2396 expose shared=true
   and pg_global=1664 metadata. Data is still database-local; this does not enable
   physical user tablespaces. User table/MV/partition replica-identity defaults
@@ -2366,6 +2366,43 @@ their real aggregate and receiving namespace. Failed/canceled controls preserve
 the prior catalog and user data.
 See [selected proof and smoke](../reference/catalogs/README.md#pg_aggregate-oracle-first-contract).
 
+## pg_am supported access methods
+
+`pg_catalog.pg_am` (relation2601, row10015/array10014) exposes four nonnull
+fields in PostgreSQL order: `oid OID`, `amname NAME`, `amhandler REGPROC`,
+`amtype` internal `"char"` (not SQL CHAR(1)). NAME uses C collation950;
+all typmods are -1. `pg_class`, `pg_attribute` and `pg_tables` describe the
+represented permanent indexed catalog table, without inventing backing-index
+relations. It is not a `pg_views` entry.
+
+The complete native inventory is heap2/handler3/type`t`, btree403/330/`i`,
+hash405/331/`i` and GiST783/332/`i`. Ordinary symbolic handler output is
+`heap_tableam_handler`, `bthandler`, `hashhandler`, `gisthandler`; numeric
+`amhandler::oid` retains the same identities. The existing REGPROC output
+authority resolves names per statement; cells are not preformatted TEXT.
+Methods exist before any user index and remain after indexes are dropped.
+GiST represents existing INET/range exclusion execution, not a physical tree.
+GIN2742, SP-GiST4000 and BRIN3580 remain absent until their features exist.
+
+PUBLIC SELECT works for ordinary roles. Valid mutations, including false
+predicates and held commands prepared before SET ROLE, check the current
+effective actor after effect-free planning. Ordinary DML returns42501
+`permission denied for table pg_am`; TRUNCATE returns42501
+`permission denied: "pg_am" is a system catalog`. Native superuser mutation
+returns0A000 `catalog source mutation is unsupported`; virtual row locking
+retains its existing0A000 boundary. Earlier column/type failures retain their
+SQLSTATE, English message and diagnostic fields.
+
+Direct, freshly prepared and held queries use the existing query pipeline,
+including typed empty/NULL results. Captures retain generation-owned values
+and descriptors; held readers rebind after native Reset/Restore. Logical dumps
+contain real user data/views, never catalog INSERTs. Failed/canceled staged
+Restore preserves the prior catalog and user data. Native controls do not
+claim PostgreSQL physical durability, storage layout or pg_dump equivalence.
+Handler identities do not add callable handlers, access-method DDL, full
+builtin pg_proc population, or physical heap/btree/hash/GiST algorithms.
+See [selected proof and smoke](../reference/catalogs/README.md#pg_am-selected-proof).
+
 ## pg_opclass supported operator classes
 
 `pg_catalog.pg_opclass` is a read-only PUBLIC catalog with the released nine
@@ -2375,9 +2412,10 @@ nonnull columns: OID `oid`, OID `opcmethod`, NAME `opcname`, OID
 C collation950. Captured results retain their generation, while held numeric
 parameter queries read fresh owned descriptors after native replacement.
 
-The inventory contains30 implemented btree403 and30 hash405 classes, independent
-of user indexes. Names/identities/family/input/default/storage facts match the
-pinned PostgreSQL18.0 UTF8/C oracle's supported subset. VARCHAR aliases use
+The inventory contains62 implemented classes:30 btree403,30 hash405 and the two
+feature-local GiST783 classes inet_ops/range_ops, independent of user indexes.
+Names/identities/family/input/default/storage facts match the pinned
+PostgreSQL18.0 UTF8/C oracle's supported subset. VARCHAR aliases use
 TEXT25 input and are nondefault; pattern aliases are nondefault. Btree name_ops
 has keytype cstring2275, versus hash keytype0. Concrete enums share anyenum3500
 input; domains and object aliases reuse their original provider classes.
@@ -2386,9 +2424,9 @@ Existing JSONB hash uses class10089/family4034, distinct from btree10088/4033.
 Recognized diagnostic-only array/record/range/multirange/bit/varbit/pg_lsn/
 tsquery/tsvector classes are not advertised without executable method providers.
 The existing native hash-array0A000 and btree-array42704 boundaries remain;
-no gin/gist/spgist/brin provider, class DDL, catalog writes, pg_am/pg_opfamily
-source or pg_index.indclass/vector projection is added. Method and family OIDs
-are exact references, not a claim that neighboring catalogs are queryable.
+no gin/spgist/brin provider, class DDL, catalog writes, pg_opfamily source or
+pg_index.indclass/vector projection is added. Existing bounded GiST exclusion
+providers and the represented pg_am source do not claim physical index storage.
 Full diagnostic and lifecycle expectations and actual feature smoke selectors
 are in [the catalog proof](../reference/catalogs/README.md#pg_opclass-selected-proof).
 

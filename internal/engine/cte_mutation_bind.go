@@ -136,7 +136,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if b.relation.relationKind == indexRelation {
 			return b, tableKind(b.relation, "change")
 		}
-		if !b.relation.virtualView && b.relation.relationKind == catalogRelation && !aggregateCatalogRelation(b.relation) {
+		if !b.relation.virtualView && b.relation.relationKind == catalogRelation && !guardedCatalogRelation(b.relation) {
 			return b, tableKind(b.relation, "change")
 		}
 		if !b.relation.virtualView {

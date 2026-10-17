@@ -247,10 +247,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Preserve effect-free planning errors before catalog mutation admission,
 	// using refreshed role authority before table/source access or row effects.
-	if aggregateCatalogRelation(b.relation) {
+	if guardedCatalogRelation(b.relation) {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-			err := aggregateCatalogMutationError(auth, false)
+			err := guardedCatalogMutationError(auth, b.relation, false)
 			e.mu.Unlock()
 			return Result{}, err
 		}

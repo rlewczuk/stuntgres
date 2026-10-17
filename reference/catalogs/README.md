@@ -6,6 +6,92 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### pg_am selected proof
+
+The five `pg_am*_test.go` files define nine permanent public scenarios:
+`TestReferencePGAMInventory`, `TestReferencePGAMShape`,
+`TestReferencePGAMLinkage`, `TestReferencePGAMDiagnostics`,
+`TestReferencePGAMPermissions`, `TestReferencePGAMHeldExecution`,
+`TestReferencePGAMLifecycle`, `TestReferencePGAMCancellation` and
+`TestReferencePGAMFeatureSmoke`. All use the same body in native and pinned
+PostgreSQL modes, with independent expectations before comparison.
+
+Released [pg_am.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_am.dat),
+[pg_am.h](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_am.h)
+and [pg_proc.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat)
+specify identities; the [manual](https://www.postgresql.org/docs/18/catalog-pg-am.html)
+specifies the four fields. The fixture remains PostgreSQL18.0 UTF8/C, while the
+manual currently serves18.6; local20devel sources are research only. Oracle-first
+discovery observed all nine scenarios passing before production implementation,
+then native Inventory/Shape failed on missing pg_am relations.
+
+Native must return the entire four-row inventory heap2/handler3/type`t`,
+btree403/330/`i`, hash405/331/`i`, GiST783/332/`i`. PostgreSQL independently
+returns those plus gin2742/333, brin3580/335 and spgist4000/334, all type`i`.
+Shared supported-subset queries do not conceal extra native rows. Separate
+numeric and symbolic handler assertions preserve REGPROC identity. Methods
+describe implemented logical execution, not physical storage algorithms or
+callable handlers; GIN/SP-GiST/BRIN are not native capabilities.
+
+Direct, freshly prepared and SAME held OID/NAME readers retain all four
+descriptors for populated, unknown, false and NULL results. Names/types are
+`oid OID`, `amname NAME`, `amhandler REGPROC`, `amtype CHAR` (internal `"char"`).
+Native raw cells are int64/string/string/string, ScanTypes the same, and
+Nullable(false,true). Pinned pq raw cells are []byte/[]byte/[]byte/string;
+ScanTypes are interface{} and Nullable(false,false). Length/DecimalSize are
+unavailable. Metadata is checked before iteration and saved across Close.
+Relation2601, attributes1–4/types26,19,24,18/C950 NAME, row10015/array10014,
+pg_class/pg_tables discovery and absence from pg_views are independently checked.
+Public namespace discovery uses pg_namespace names, not an allocator-pinned OID.
+
+Real btree/hash indexes and an INET/range GiST exclusion witness link relam and
+opclass method identities; exact23P01 rejection preserves existing data.
+Ordinary roles read PUBLIC metadata and receive full42501 records for DML,
+false predicates, MERGE, CTE UPDATE and TRUNCATE. Owner-prepared held commands
+recheck the execution-time role. Missing columns/invalid OID/overflow assert
+complete diagnostics and actual prepare/execute stages. Parameter
+errors carry `unnamed portal parameter $1 = '...'` in both modes.
+Native superuser mutations/virtual row locking retain explicit0A000 boundaries,
+never real-PG superuser catalog writes.
+
+Held readers and unread results survive index/domain/enum DDL; native-only
+Dump/Reset/Restore phases retain old rows/metadata, recreate pg_am immediately,
+restore real user views/data/indexes, reject failed/canceled staged replay
+without effects and emit no catalog INSERTs. PostgreSQL shares the actual
+SQL/view/data phases, not an invented native-control equivalent. Precanceled
+native direct/Prepare/held APIs preserve ordinary context.Canceled without a
+SQLSTATE. `TestPGAMCaptureOwnership` supplements these public witnesses with
+package-function descriptor/ACL/type/row-array generation ownership, independent
+capture storage and deterministic entry/mid-materialization cancellation.
+
+Run each selected group in both modes, with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferencePGAM(Inventory|Shape|Linkage)$'
+make check RUN='^TestReferencePGAM(Inventory|Shape|Linkage)$' REFERENCE=1
+make check RUN='^TestReferencePGAM(Diagnostics|Permissions)$'
+make check RUN='^TestReferencePGAM(Diagnostics|Permissions)$' REFERENCE=1
+make check RUN='^TestReferencePGAM(HeldExecution|Lifecycle|Cancellation|FeatureSmoke)$'
+make check RUN='^TestReferencePGAM(HeldExecution|Lifecycle|Cancellation|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestPGAMCaptureOwnership$'
+make check RUN='^TestReferencePGAggregate(Permissions|Prepared|MutationPreflight)$'
+make check RUN='^TestReferencePGAggregate(Permissions|Prepared|MutationPreflight)$' REFERENCE=1
+```
+
+The aggregate selector preserves all existing callers of the narrowly generalized
+pg_aggregate/pg_am mutation-admission helper. Actual feature smoke composes the
+same inventory/typed empty-held reads, index/exclusion conflict/linkage,
+effective-role rejection and real control/view/data/retained-row helpers:
+
+```sh
+make check RUN='^TestReferencePGAMFeatureSmoke$'
+make check RUN='^TestReferencePGAMFeatureSmoke$' REFERENCE=1
+```
+
+Expected exit0 with independent native4/PG7 inventory and all assertions above;
+native controls are explicitly native-only. Whole-project Docker-free verification
+uses `make quickcheck`; selected checks do not replace it or post-merge finalcheck.
+
 ### pg_parameter_acl selected proof
 
 The six `pg_parameter_acl_*_test.go` files define eight shared scenarios for the
