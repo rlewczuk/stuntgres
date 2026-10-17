@@ -63,7 +63,9 @@ func regtypeDisplacementCatalog(t *testing.T, p *fixture.Pair, conn *sql.Conn, b
 	t.Helper()
 	var elem, associated, arrayID int64
 	var name string
-	q := "SELECT e.oid::bigint,e.typarray::bigint,a.oid::bigint,a.typname FROM pg_catalog.pg_type e JOIN pg_catalog.pg_type a ON a.typelem=e.oid WHERE e.oid=$1::regtype::oid AND a.oid=e.typarray"
+	// Restrict the existing element predicate before joining, in the same
+	// captured statement. Keep every matching companion; never use LIMIT 1.
+	q := "SELECT e.oid::bigint,e.typarray::bigint,a.oid::bigint,a.typname FROM (SELECT oid,typarray FROM pg_catalog.pg_type WHERE oid=$1::regtype::oid) e JOIN pg_catalog.pg_type a ON a.typelem=e.oid WHERE a.oid=e.typarray"
 	if err := conn.QueryRowContext(p.Ctx, q, fixture.RegtypeDisplacementQualified(base)).Scan(&elem, &associated, &arrayID, &name); err != nil {
 		t.Fatal("reciprocal oracle association", base, err)
 	}
@@ -201,7 +203,7 @@ func regtypeDisplacementLogicalCheck(t *testing.T, p *fixture.Pair, backend fixt
 	q := "SELECT " + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.base)) + "::regtype AS a," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.base+"[]")) + "::regtype AS b," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.named)) + "::regtype AS c," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.named+"[]")) + "::regtype AS d"
 	fixture.RegtypeBoth(t, p, conn, recorder, fixture.RegtypeSelect(q, c.base, c.base+"[]", c.named, c.named+"[]"))
 	for _, element := range []string{c.base, c.named} {
-		q := "SELECT (a.typelem=e.oid) AS reciprocal,(a.oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element+"[]")) + "::regtype::oid) AS associated FROM pg_catalog.pg_type e JOIN pg_catalog.pg_type a ON a.oid=e.typarray WHERE e.oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element)) + "::regtype::oid"
+		q := "SELECT (a.typelem=e.oid) AS reciprocal,(a.oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element+"[]")) + "::regtype::oid) AS associated FROM (SELECT oid,typarray FROM pg_catalog.pg_type WHERE oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element)) + "::regtype::oid) e JOIN pg_catalog.pg_type a ON a.oid=e.typarray"
 		fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(q, []string{"reciprocal", "associated"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 	}
 	if c.kind == "query_table" || c.kind == "view" {

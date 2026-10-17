@@ -699,6 +699,24 @@ remain unchanged. Identity results are refreshed after catalog replacement,
 not cached across generations. Shared checker migration also includes
 ArrayDisplacementControls.
 
+The shared reciprocal `pg_type` probes put their existing single-element OID
+restriction inside a derived left operand selecting `oid,typarray`, before the
+self-join. This is still one captured statement with the same two catalog
+sources, not separate lookups or a cache. The catalog probe retains both
+`a.typelem=e.oid` and `a.oid=e.typarray`; the logical probe retains the actual
+reciprocal and independently resolved array-identity booleans. Every matching
+row, projection, raw carrier, expected count and direct/prepared route remains
+required. No LIMIT, expected-derived catalog data, production optimizer change
+or relaxed fixture/external deadline is used to avoid whole-catalog pair scans.
+
+Exact transitive consumers of these two helper query definitions are
+`TestReferenceRegtypeArrayDisplacement`, `...Collisions`, `...Atomicity`,
+`...Controls` and `...MixedReplay`. Atomicity's catalog helper remains its
+existing PostgreSQL-only phase; its native assertions are unchanged.
+`regtypeDisplacementForeignReplay` belongs to MixedReplay, although its helper
+definition is located after the unrelated NamedDomainReplay test. Executable
+and NamedDomainReplay are unchanged preservation siblings, not extra callers.
+
 MixedReplay alone gives each cohesive phase a fresh 30-second context rooted
 in `t.Context()`: backend borrowing/schema/search-path setup, creator-pair
 setup, identity batch, each complete case check, each data witness, Dump,
@@ -737,13 +755,26 @@ redump/second Restore and two rows after every fresh default INSERT. Real mode
 also validates actual emitted SQL on pinned PostgreSQL. These are required
 outcomes, not a claim that the root has already verified this remedy.
 
-The broader shared-checker regression selectors remain:
+The complete affected shared-checker proof includes the small displacement,
+collision and atomicity group, plus Controls and the full MixedReplay. Run each
+selector natively, on pinned PostgreSQL and with the race detector, under the
+unchanged external900-second deadline per command:
 
 ```sh
-make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|MixedReplay)$'
-make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|MixedReplay)$' REFERENCE=1
-make check RUN='^TestReferenceRegtypeArrayDisplacement(Controls|MixedReplay)$' RACE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Collisions|Atomicity)?$'
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Collisions|Atomicity)?$' REFERENCE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacement(Collisions|Atomicity)?$' RACE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacementControls$'
+make check RUN='^TestReferenceRegtypeArrayDisplacementControls$' REFERENCE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacementControls$' RACE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacementMixedReplay$'
+make check RUN='^TestReferenceRegtypeArrayDisplacementMixedReplay$' REFERENCE=1
+make check RUN='^TestReferenceRegtypeArrayDisplacementMixedReplay$' RACE=1
 ```
+
+These focused observations do not replace whole-project quickcheck or the
+post-merge finalcheck and its unchanged1800-second external deadline. Prior
+timeouts remain failures; the rewritten definitions are not passing evidence.
 
 
 ### Regtype control lifetime
