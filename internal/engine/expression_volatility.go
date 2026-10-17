@@ -94,6 +94,8 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return session(v, n.predicate.SessionDependent())
 	case comparisonExpression:
 		return session(children(n.left, n.right), n.predicate.SessionDependent())
+	case selectedOperatorExpression:
+		return children(n.provider)
 	case arithmeticExpression:
 		return session(children(n.left, n.right), n.provider.SessionDependent())
 	case bitwiseExpression:

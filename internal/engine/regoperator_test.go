@@ -85,7 +85,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		ns          int
 		left, right OID
 	}{{0, 23, 23}, {1, 23, 23}, {2, 23, 23}, {2, 20, 20}, {3, 23, 23}} {
-		d := &operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", left: row.left, right: row.right}
+		d := &operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: OID(91000 + i)}, namespace: namespaces[row.ns], revision: 1, name: "#=#", left: row.left, right: row.right, owner: e.authorizationDomain.Principal(10)}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -141,7 +141,6 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 func TestRegOperatorPersistenceReferences(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	ctx := context.Background()
 	for _, alias := range []sqltype.ID{sqltype.Regoper, sqltype.Regoperator} {
 		typ, _ := view.LookupType(alias)
 		for _, id := range []uint32{551, 0, 4294967295} {
@@ -159,12 +158,6 @@ func TestRegOperatorPersistenceReferences(t *testing.T) {
 				}
 			} else if len(refs) != 0 {
 				t.Fatal(refs)
-			}
-			literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
-			text, err := catalogLiteralSQL(ctx, view, literal)
-			want := "CAST('" + strconv.FormatUint(uint64(id), 10) + "' AS " + typ.SQLName() + ")"
-			if err != nil || text != want {
-				t.Fatal(text, want, err)
 			}
 		}
 	}

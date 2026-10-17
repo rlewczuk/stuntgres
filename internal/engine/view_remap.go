@@ -152,6 +152,15 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 				return nil, failure
 			}
 		}
+		if n.usage.Type.ContainsOperatorAlias() && !n.value.IsNull() {
+			var failure error
+			n.value, failure = remapOperatorDatum(n.value, func(id OID) OID {
+				return ref(ObjectRef{Address: ObjectAddress{ClassID: OperatorClassID, ObjectID: id}}).Address.ObjectID
+			})
+			if failure != nil {
+				return nil, failure
+			}
+		}
 		if n.usage.Type.ContainsRegTS() && !n.value.IsNull() {
 			var failure error
 			n.value, failure = remapRegTSDatum(n.value, func(address ObjectAddress) ObjectAddress {
@@ -230,6 +239,12 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 		next = n
 	case bitwiseExpression:
 		n.left, n.right = child(n.left), child(n.right)
+		next = n
+	case selectedOperatorExpression:
+		n.provider = child(n.provider)
+		if ref != nil {
+			n.ref = ref(n.ref)
+		}
 		next = n
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)

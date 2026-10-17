@@ -301,12 +301,15 @@ func catalogLiteralWithACLAt(ctx context.Context, view CatalogRead, reader defin
 	if sqltype.IsRoutineAlias(u.Type.ID()) && !n.value.IsNull() {
 		return routineLiteralSQL(view, n.value)
 	}
+	if sqltype.IsOperatorAlias(u.Type.ID()) && !n.value.IsNull() {
+		return operatorLiteralSQL(view, n.value)
+	}
 	if u.Type.IsArray() || u.Type.IsComposite() {
 		declaration, err := catalogTypeDeclarationAt(view, reader, u)
 		if err != nil {
 			return "", err
 		}
-		if u.Type.ContainsRegproc() && !n.value.IsNull() {
+		if (u.Type.ContainsRegproc() || u.Type.ContainsOperatorAlias()) && !n.value.IsNull() {
 			return routineContainerLiteralAt(ctx, view, reader, n.value, u, aclOutput)
 		}
 		literal := "NULL"

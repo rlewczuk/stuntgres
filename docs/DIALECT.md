@@ -1575,8 +1575,28 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   then count/rank/all lengths/all bounds. NULL elements equal each other and sort
   last; whole-array NULL is strict. Element equality and ordering are separate,
   demand-driven capabilities; non-NULL collatable leaf pairs demand collation.
-  This adds no custom operators, missing element providers, array-key ordering/
-  index opclasses or general §9.19 array operators/functions.
+  Fresh builtin-only comparison consumers select the actual namespace/signature
+  winner, not a fallback based on spelling or builtin visibility. An executable
+  custom winner fails analysis with `0A000: custom operators are unsupported in
+  this comparison context`, including list/quantified comparisons, NULLIF,
+  simple CASE, distinctness, fresh ROW fields and USING/NATURAL equality.
+  Explicit `OPERATOR(pg_catalog.=)` and nonmatching custom overloads retain their
+  genuine builtin behavior. Scalar-array validation checks nonarray RHS first,
+  then selection errors/shells, then the selected result's Boolean requirement,
+  before rejecting an executable Boolean custom winner.
+  IN first partitions Var/non-Var items and attempts common-type scalar-array
+  batching. Eligible named-composite constructor batches use structural equality,
+  including equality of matching NULL fields. Only residual constructor pairs
+  (including one-item lists and anonymous RECORD) select fresh field operators.
+  Frozen residual comparisons retain coerced member casts and field NULL rules
+  through view capture and logical replay. Ordinary named-composite scalar equality
+  and stored composite-column IN remain structural. Array/record leaves, grouping,
+  extrema, CYCLE and retained provider reconstruction never reselect scalar field
+  operators by search_path.
+  Ordinary custom scalar operators, including BETWEEN's lowered operators,
+  still execute their actual providers. This adds no custom quantified runtime,
+  missing element providers, array-key ordering/index opclasses or general §9.19
+  array operators/functions.
   MONEY/INET/CIDR scalar-list comparisons do not enable their currently
   unsupported array elements or declarations.
 - Integer/bigint/numeric `generate_series` executes through SELECT-target expansion
@@ -2688,11 +2708,42 @@ declarations remain exact, including generic
 polymorphic identities; implementation/estimator fields use REGPROC and preserve
 zero `-` and valid identity-only references without requiring SQL pg_proc rows.
 See [released admission evidence](design/pg-operator-pg18-oracle.md).
-This does not add execution providers, CREATE/ALTER/DROP OPERATOR,
-to_regoper/to_regoperator, arbitrary implementation-function execution or
-physical planner/index storage. Quoted custom operator DDL/catalog/dependency
-mechanisms remain PostgreSQL-only reference phases; native algorithm units
-cover quoted output and path masking.
+CREATE/ALTER/DROP OPERATOR use the same staged catalog, namespace and ownership
+rules as other schema utilities. Binary and prefix definitions bind an exact
+existing function signature and execute that function's real registered provider;
+the symbolic spelling is not an arithmetic implementation. Forward commutator
+and negator references create catalog shells that can later be completed without
+changing identity. Operators support owner/schema changes, reciprocal links,
+selectivity metadata and enable-only HASHES/MERGES options. Selectivity metadata
+does not add optimizer execution, opclasses or physical index access methods.
+Definition options retain explicit presence and argument kinds. Every recognized
+CREATE element is extracted in source order before valid duplicates use their
+last value; superseded valid names are not looked up. String names and type names
+are single literal components, not SQL to reparse (`'pg_catalog.int4'` does not
+qualify `int4`). HASHES/MERGES accept bare flags, integer 0/1 and exact
+case-insensitive true/false/on/off, not Boolean-input abbreviations or yes/no.
+ALTER first extracts every non-NULL supplied value as a name, so numeric flag
+arguments are invalid there. Bare/unquoted NONE clears RESTRICT/JOIN, enables a
+flag, and is invalid for COMMUTATOR/NEGATOR; quoted/literal none is a real name.
+CREATE requires FUNCTION before operand lookup, resolves both surviving operand
+identities before missing/postfix checks, and checks type USAGE afterward.
+Schema rename and operator SET SCHEMA preserve stored-definition dependencies.
+Known allocated operator aliases replay by qualified exact signature, including
+mixed nested alias containers; fixed builtin and unknown numeric identities keep
+their bits. Native dumps reconstruct definitions, owners, links and shells before
+dependent expressions. An orphan shell uses transient genuine generator DDL;
+if no compatible real provider exists, Dump fails before writer I/O.
+There is no ALTER OPERATOR RENAME, CREATE FUNCTION runtime, invented user-routine
+frame, to_regoper/to_regoperator implementation or physical planner storage.
+Built-in operator mutation remains an explicit native 0A000 boundary.
+The existing read-only-first and explicit-transaction schema-DDL boundaries apply.
+Arbitrary symbolic and explicitly qualified `OPERATOR(schema.symbol)` expressions
+admit selected function operands. This does not promote standalone selected
+calls into restricted INSERT cells, direct casts or ordinary arithmetic operands.
+Those consumers retain their existing grouping and nested-call boundaries; use
+explicit `OPERATOR(schema.+)` for a custom `+` with direct selected-call operands.
+The unquoted word `operator` remains an ordinary identifier outside operator DDL
+and the qualified operator opener.
 REGCONFIG/REGDICTIONARY scalar numeric identities are executable, with lookup-only
 companion arrays. Symbolic REGDICTIONARY resolution uses only actual installed
 unaccent objects; native does not fabricate builtin `simple`/language dictionaries.

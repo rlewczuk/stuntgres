@@ -39,6 +39,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		query: &BoundQuery{Root: root}, dependencies: b.dependencies, querySources: b.querySources,
 		viewLiterals: b.viewLiterals, viewCastUsages: b.viewCastUsages, viewSimilarSubstrings: b.viewSimilarSubstrings,
 		viewIntaggRefs:      b.viewIntaggRefs,
+		viewOperatorRefs:    b.viewOperatorRefs,
 		viewPosixSubstrings: b.viewPosixSubstrings,
 		viewCollations:      b.viewCollations, viewColumns: b.viewColumns, viewStars: b.viewStars,
 		viewComposites: b.viewComposites,

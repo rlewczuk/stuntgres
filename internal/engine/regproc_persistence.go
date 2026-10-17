@@ -249,6 +249,13 @@ func routineContainerFragments(ctx context.Context, view CatalogRead, value sqlt
 		}
 		return []routineFragment{{text: "(" + literal + ")::oid::text", expression: true}}, nil
 	}
+	if sqltype.IsOperatorAlias(physical.ID()) {
+		literal, err := operatorLiteralSQL(view, value)
+		if err != nil {
+			return nil, err
+		}
+		return []routineFragment{{text: "(" + literal + ")::oid::text", expression: true}}, nil
+	}
 	text, err := value.Type().OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}, Regtype: dumpCatalogAliasOutput{view: view}, Regcollation: dumpCatalogAliasOutput{view: view}, Regnamespace: dumpCatalogAliasOutput{view: view}, Regrole: regroleContextFormatter(ctx), Operator: dumpOperatorOutput{}, RegTS: dumpRegTSOutput{view: view}, ACLItem: acl})
 	if err != nil {
 		return nil, err

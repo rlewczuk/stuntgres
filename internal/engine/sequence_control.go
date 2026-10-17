@@ -374,6 +374,24 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				n := *r
 				n.oid, n.namespace, n.handler = target.ObjectID, namespace, handler
 				d = &n
+			case *operatorDescriptor:
+				n := *r
+				n.address = target
+				move := func(class, id OID) OID {
+					if mapped, ok := mapping[ObjectAddress{ClassID: class, ObjectID: id}]; ok {
+						return mapped.ObjectID
+					}
+					return id
+				}
+				if mapped, ok := mapping[n.namespace]; ok {
+					n.namespace = mapped
+				}
+				n.left, n.right, n.result = move(TypeClassID, n.left), move(TypeClassID, n.right), move(TypeClassID, n.result)
+				n.function, n.restriction, n.join = move(ProcedureClassID, n.function), move(ProcedureClassID, n.restriction), move(ProcedureClassID, n.join)
+				n.commutator, n.negator = move(OperatorClassID, n.commutator), move(OperatorClassID, n.negator)
+				if n != *r {
+					d = &n
+				}
 			case *relationDescriptor:
 				if target == a && r.relationKind == catalogRelation && d == e.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.state}, a) {
 					if _, moved := mapping[r.namespace]; !moved {

@@ -101,9 +101,12 @@ func Reset(ctx context.Context, db *sql.DB) error {
 
 // Dump writes a consistent PostgreSQL-compatible persistent SQL snapshot,
 // including domains, independently reconstructed user collations/conversions,
-// simple B-tree index definitions, sequence options, ownership, comments and
+// owned operator definitions and shells, simple B-tree indexes, ownership, comments and
 // called generator state. Conversion seed deltas and legal duplicate defaults
 // replay without serializing codec data or external routine libraries.
+// Operator aliases replay by exact qualified signature, including nested carriers.
+// Orphan shells use transient real generator DDL; a shell without a compatible
+// registered implementation provider is rejected before writer I/O.
 // Named owners must already exist in the destination. Each relation owner group
 // explicitly selects its session authorization, including the bootstrap owner;
 // all tables precede sequence OWNED BY associations that depend on them.
@@ -149,7 +152,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
 // SCHEMA, CREATE COLLATION (and ALTER COLLATION), CREATE [DEFAULT] CONVERSION
-// (and ALTER CONVERSION), CREATE TYPE AS ENUM, CREATE DOMAIN,
+// (and ALTER CONVERSION), CREATE/ALTER/DROP OPERATOR, CREATE TYPE AS ENUM, CREATE DOMAIN,
 // CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, registered CREATE EXTENSION providers,
 // parameter-free scalar INSERT (including integer
 // arithmetic), database-local COMMENT, sequence OWNED BY associations, generated

@@ -326,6 +326,9 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
 		}
 		expression = e
+	case selectedOperatorExpression:
+		e.provider, err = child(e.provider)
+		expression = e
 	case arithmeticExpression:
 		e.left, err = child(e.left)
 		if err == nil {
@@ -1458,6 +1461,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return !e.plan.ChecksDomain() && literal(e.child)
 	case bitwiseExpression:
 		return literal(e.left) && (e.right == nil || literal(e.right))
+	case selectedOperatorExpression:
+		return conditionalConstantInputs(e.provider)
 	case arithmeticExpression:
 		return literal(e.left) && (e.right == nil || literal(e.right))
 	case likeExpression:

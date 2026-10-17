@@ -31,6 +31,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals, definition.castUsages = b.viewLiterals, b.viewCastUsages
 	definition.intaggRefs = b.viewIntaggRefs
+	definition.operatorRefs = b.viewOperatorRefs
 	definition.composites = b.viewComposites
 	definition.similarSubstrings = b.viewSimilarSubstrings
 	definition.posixSubstrings = b.viewPosixSubstrings

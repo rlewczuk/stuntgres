@@ -228,7 +228,10 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		}
 		return text, nil
 	}
-	if v.Type().ContainsRegproc() {
+	if sqltype.IsOperatorAlias(v.Type().BaseType().ID()) && !r.pretty {
+		return operatorLiteralSQL(r.view, v)
+	}
+	if v.Type().ContainsRegproc() || v.Type().ContainsOperatorAlias() {
 		return catalogLiteralSQL(ctx, r.view, n)
 	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
@@ -621,6 +624,35 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			simpleFunctionCall = !call.Plan.Membership()
 		}
 		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
+	case selectedOperatorExpression:
+		d, ok := r.view.state.descriptors[n.ref.Address].(*operatorDescriptor)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing selected operator during deparse")
+		}
+		namespace, ok := r.view.state.descriptors[d.namespace].(*namespaceDescriptor)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing selected operator namespace")
+		}
+		op := "OPERATOR(" + quoteIdentifier(namespace.name) + "." + d.name + ")"
+		var operands [2]BoundExpr
+		count := 0
+		boundExpressionChildren(n.provider, func(arg BoundExpr) {
+			if arg != nil && count < len(operands) {
+				operands[count] = arg
+				count++
+			}
+		})
+		if d.left == 0 {
+			if count != 1 {
+				return "", fmt.Errorf("stuntgres: invalid selected prefix operands")
+			}
+			text, err := child(operands[0])
+			return "(" + op + " " + text + ")", err
+		}
+		if count != 2 {
+			return "", fmt.Errorf("stuntgres: invalid selected binary operands")
+		}
+		return binary(operands[0], operands[1], op, 5, parent)
 	case arithmeticExpression:
 		ops := [...]string{"+", "-", "*", "/", "%", "^"}
 		if int(n.operator) >= len(ops) {

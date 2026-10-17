@@ -134,6 +134,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case coercionExpression:
 		fmt.Fprintf(out, "Coerce mode %d", n.mode)
 		err = child(n.child)
+	case selectedOperatorExpression:
+		fmt.Fprintf(out, "Operator oid %d", n.ref.Address.ObjectID)
+		err = child(n.provider)
 	case arithmeticExpression:
 		fmt.Fprintf(out, "Arithmetic %d namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)

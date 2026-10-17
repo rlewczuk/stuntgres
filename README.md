@@ -1103,9 +1103,12 @@ Change note: scalar REGOPER and REGOPERATOR retain unsigned operator OIDs throug
 direct/held values, distinct metadata and native logical Dump/Restore. Name-only
 input requires uniqueness; signature input preserves exact operand order and
 prefix NONE. All PostgreSQL 18 builtin operator identities are available without
-implying execution or custom operator DDL support. Ordinary output is symbolic;
-logical dumps use typed numeric identities to preserve overloaded and unknown
-OIDs losslessly. Companion arrays remain lookup-only.
+implying execution providers. CREATE/ALTER/DROP OPERATOR now register owned binary
+and prefix definitions against exact existing function signatures; execution uses
+the actual registered function provider. Schema moves/rename, shell links, stored
+dependencies and native logical replay preserve operator identity. Known custom
+aliases dump by qualified signature; fixed builtin and unknown OIDs remain
+lossless numeric identities. Companion arrays remain lookup-only declarations.
 
 Change note: `pg_catalog.pg_operator` exposes all 15 released metadata columns
 for 545 scalar-executable exact overloads plus the exclusion-only INET `&&`

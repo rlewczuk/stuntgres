@@ -1,0 +1,303 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/sqltype"
+)
+
+func operatorSQLName(view CatalogRead, d *operatorDescriptor) string {
+	return quoteIdentifier(view.state.descriptors[d.namespace].Name()) + "." + d.name
+}
+func operatorSQLSignature(view CatalogRead, d *operatorDescriptor) (string, error) {
+	arguments := [2]string{"NONE", "NONE"}
+	for i, id := range [...]OID{d.left, d.right} {
+		if id == 0 {
+			continue
+		}
+		t, ok := view.LookupType(sqltype.ID(id))
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing operator signature type")
+		}
+		text, err := catalogTypeDeclaration(view, t.Usage())
+		if err != nil {
+			return "", err
+		}
+		arguments[i] = text
+	}
+	return operatorSQLName(view, d) + " (" + arguments[0] + ", " + arguments[1] + ")", nil
+}
+func operatorRoutineSQLName(view CatalogRead, id OID) (string, error) {
+	identity, ok := routineIdentityByOID(view, id)
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing operator routine identity")
+	}
+	namespace := view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: identity.namespace}]
+	if namespace == nil {
+		return "", fmt.Errorf("stuntgres: missing operator routine namespace")
+	}
+	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(identity.name), nil
+}
+func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor) (dumpDomain, error) {
+	if err := ctx.Err(); err != nil {
+		return dumpDomain{}, err
+	}
+	if err := (operatorProvider{}).Validate(view, d); err != nil {
+		return dumpDomain{}, err
+	}
+	if d.function == 0 {
+		return orphanOperatorShellDump(ctx, view, roles, d)
+	}
+	return operatorDumpDefined(ctx, view, roles, d, false)
+}
+
+// Reciprocal links between defined custom operators are established only after
+// both declarations. Shell targets must instead be created by a forward link.
+func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind int, id OID) bool {
+	peer, _ := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+	if peer == nil || peer.function == 0 || peer.seeded() {
+		return false
+	}
+	reciprocal := peer.commutator
+	if kind == 1 {
+		reciprocal = peer.negator
+	}
+	return reciprocal == source.address.ObjectID
+}
+
+func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorization.Read, d *operatorDescriptor, keepForwardLinks bool) (dumpDomain, error) {
+	options := make([]string, 0, 10)
+	for i, id := range [...]OID{d.left, d.right} {
+		if id == 0 {
+			continue
+		}
+		t, _ := view.LookupType(sqltype.ID(id))
+		text, err := catalogTypeDeclaration(view, t.Usage())
+		if err != nil {
+			return dumpDomain{}, err
+		}
+		key := "RIGHTARG"
+		if i == 0 {
+			key = "LEFTARG"
+		}
+		options = append(options, key+" = "+text)
+	}
+	routine, err := operatorRoutineSQLName(view, d.function)
+	if err != nil {
+		return dumpDomain{}, err
+	}
+	options = append(options, "FUNCTION = "+routine)
+	for i, id := range [...]OID{d.commutator, d.negator} {
+		if id == 0 {
+			continue
+		}
+		peer, ok := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		if !ok {
+			return dumpDomain{}, fmt.Errorf("stuntgres: missing operator link")
+		}
+		if !keepForwardLinks && operatorDumpDeferredLink(view, d, i, id) {
+			continue
+		}
+		key := "COMMUTATOR"
+		if i == 1 {
+			key = "NEGATOR"
+		}
+		options = append(options, key+" = OPERATOR("+operatorSQLName(view, peer)+")")
+	}
+	for i, id := range [...]OID{d.restriction, d.join} {
+		if id == 0 {
+			continue
+		}
+		name, err := operatorRoutineSQLName(view, id)
+		if err != nil {
+			return dumpDomain{}, err
+		}
+		key := "RESTRICT"
+		if i == 1 {
+			key = "JOIN"
+		}
+		options = append(options, key+" = "+name)
+	}
+	if d.hash {
+		options = append(options, "HASHES")
+	}
+	if d.merge {
+		options = append(options, "MERGES")
+	}
+	text := "CREATE OPERATOR " + operatorSQLName(view, d) + " (" + strings.Join(options, ", ") + ");\n"
+	owners := []*operatorDescriptor{d}
+	for _, id := range [...]OID{d.commutator, d.negator} {
+		peer, _ := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		if peer != nil && peer.function == 0 {
+			owners = append(owners, peer)
+		}
+	}
+	for _, owned := range owners {
+		owner, err := roles.Descriptor(owned.owner)
+		if err != nil {
+			return dumpDomain{}, err
+		}
+		signature, err := operatorSQLSignature(view, owned)
+		if err != nil {
+			return dumpDomain{}, err
+		}
+		text += "ALTER OPERATOR " + signature + " OWNER TO " + quoteIdentifier(owner.Name) + ";\n"
+	}
+	// Create as bootstrap so independently owned forward shells can be completed
+	// and definitions whose owners lack schema CREATE still replay faithfully.
+	return dumpDomain{owner: "postgres", sql: text}, nil
+}
+
+// Select a deterministic extant forward reference for an unfilled shell.
+func operatorShellGenerator(view CatalogRead, shell *operatorDescriptor) *operatorDescriptor {
+	var selected *operatorDescriptor
+	for _, descriptor := range view.state.descriptors {
+		d, ok := descriptor.(*operatorDescriptor)
+		if ok && d.function != 0 && (d.commutator == shell.address.ObjectID || d.negator == shell.address.ObjectID) && (selected == nil || d.address.ObjectID < selected.address.ObjectID) {
+			selected = d
+		}
+	}
+	return selected
+}
+func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles authorization.Read, shell *operatorDescriptor) (dumpDomain, error) {
+	var routine *procedureDescriptor
+	negator := false
+	for key, declaration := range builtinOperatorRoutineByDeclaration {
+		comm := shell.left != 0 && key.left == shell.right && key.right == shell.left
+		neg := key.left == shell.left && key.right == shell.right && declaration.result == OID(sqltype.Bool)
+		if !comm && !neg {
+			continue
+		}
+		candidate, _ := view.state.descriptors[ObjectAddress{ClassID: ProcedureClassID, ObjectID: declaration.identity.id}].(*procedureDescriptor)
+		if candidate != nil && (routine == nil || candidate.address.ObjectID < routine.address.ObjectID) {
+			routine = candidate
+			negator = !comm
+		}
+	}
+	if routine == nil {
+		return dumpDomain{}, fmt.Errorf("stuntgres: cannot serialize orphan operator shell %s: no compatible real implementation provider", operatorSQLName(view, shell))
+	}
+	name := "#~#"
+	alphabet := "~!@#^&|`?"
+	for suffix := 0; ; suffix++ {
+		code := suffix
+		symbol := "#~"
+		for {
+			symbol += string(alphabet[code%len(alphabet)])
+			code /= len(alphabet)
+			if code == 0 {
+				break
+			}
+		}
+		symbol += "#"
+		left, right := shell.right, shell.left
+		if negator {
+			left, right = shell.left, shell.right
+		}
+		key := operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID}, namespace: shell.namespace, name: symbol, left: left, right: right}
+		if _, exists := view.state.names[descriptorNameKey(&key)]; !exists {
+			name = symbol
+			break
+		}
+	}
+	generator := *shell
+	generator.name = name
+	generator.left, generator.right = shell.right, shell.left
+	if negator {
+		generator.left, generator.right = shell.left, shell.right
+	}
+	generator.function, generator.result = routine.address.ObjectID, routine.result
+	generator.commutator, generator.negator = 0, 0
+	if negator {
+		generator.negator = shell.address.ObjectID
+	} else {
+		generator.commutator = shell.address.ObjectID
+	}
+	generator.hash, generator.merge = false, false
+	generator.restriction, generator.join = 0, 0
+	declaration, err := operatorDumpDefined(ctx, view, roles, &generator, true)
+	if err != nil {
+		return dumpDomain{}, err
+	}
+	// Emitted DDL creates a collision-free temporary operator using the genuine
+	// selected routine, generates the original shell, then retires the helper.
+	signature, err := operatorSQLSignature(view, &generator)
+	if err != nil {
+		return dumpDomain{}, err
+	}
+	declaration.sql += "DROP OPERATOR " + signature + ";\n"
+	return declaration, nil
+}
+
+// Link events use raw endpoint declarations. Only semantic consumers are
+// redirected to completion; redirecting structural edges would invent cycles.
+func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph map[dumpEventKey][]dumpEventKey) {
+	for _, source := range operators {
+		if source.function == 0 {
+			continue
+		}
+		declaration := dumpEventKey{oid: source.address.ObjectID}
+		for kind, id := range [...]OID{source.commutator, source.negator} {
+			peer, _ := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+			if peer == nil || peer.function == 0 || peer.seeded() {
+				continue
+			}
+			target := dumpEventKey{oid: id}
+			if operatorDumpDeferredLink(view, source, kind, id) {
+				event := dumpEventKey{oid: declaration.oid, phase: dumpOperatorLinks}
+				graph[event] = append(graph[event], declaration, target)
+			} else {
+				// Completing the target clears the transient reciprocal field
+				// installed by this asymmetric CREATE.
+				graph[target] = append(graph[target], declaration)
+			}
+		}
+	}
+}
+
+func normalizeOperatorDumpPredecessors(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) {
+	for event, predecessors := range graph {
+		_, operator := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: event.oid}].(*operatorDescriptor)
+		structural := event.phase == dumpOperatorLinks || operator && event.phase == dumpDeclaration
+		unique := predecessors[:0]
+		for _, predecessor := range predecessors {
+			if !structural && predecessor.phase == dumpDeclaration {
+				completion := dumpEventKey{oid: predecessor.oid, phase: dumpOperatorLinks}
+				if _, exists := graph[completion]; exists {
+					predecessor = completion
+				}
+			}
+			if !slices.Contains(unique, predecessor) {
+				unique = append(unique, predecessor)
+			}
+		}
+		graph[event] = unique
+	}
+}
+
+func operatorDumpLinks(view CatalogRead, source *operatorDescriptor) (string, error) {
+	var options []string
+	for kind, id := range [...]OID{source.commutator, source.negator} {
+		if id == 0 || !operatorDumpDeferredLink(view, source, kind, id) {
+			continue
+		}
+		peer := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		key := "COMMUTATOR"
+		if kind == 1 {
+			key = "NEGATOR"
+		}
+		options = append(options, key+" = OPERATOR("+operatorSQLName(view, peer)+")")
+	}
+	if len(options) == 0 {
+		return "", nil
+	}
+	signature, err := operatorSQLSignature(view, source)
+	if err != nil {
+		return "", err
+	}
+	return "ALTER OPERATOR " + signature + " SET (" + strings.Join(options, ", ") + ");\n", nil
+}

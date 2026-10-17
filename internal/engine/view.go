@@ -21,6 +21,7 @@ type viewDefinition struct {
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
 	intaggRefs        map[viewLiteralPath]ObjectRef
+	operatorRefs      map[viewLiteralPath]ObjectRef
 	composites        map[viewLiteralPath]compositeOccurrence
 	similarSubstrings map[viewLiteralPath]bool
 	posixSubstrings   map[viewLiteralPath]bool

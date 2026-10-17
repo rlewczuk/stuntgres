@@ -210,6 +210,8 @@ func generationImmutable(node BoundExpr) bool {
 		return one(n.child)
 	case coercionExpression:
 		return one(n.child) && (n.mode == sqltype.Assignment || !n.plan.SessionDependent())
+	case selectedOperatorExpression:
+		return one(n.provider)
 	case arithmeticExpression:
 		return !n.provider.SessionDependent() && both(n.left, n.right)
 	case bitwiseExpression:
@@ -497,6 +499,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return one(n.child)
 	case coercionExpression:
 		return one(n.child)
+	case selectedOperatorExpression:
+		return one(n.provider)
 	case arithmeticExpression:
 		return both(n.left, n.right)
 	case bitwiseExpression:
@@ -893,6 +897,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		return child(n.child)
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
 		return pair(n.Value, n.Zone)
+	case selectedOperatorExpression:
+		return child(n.provider)
 	case arithmeticExpression:
 		return pair(n.left, n.right)
 	case bitwiseExpression:

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -16,6 +17,8 @@ type rowComparisonExpression struct {
 	operator    string
 	// Analysis-only associations retain original expanded source occurrences.
 	expansions [2]map[int]compositeExpansionBinding
+	// Frozen erased constructor casts retain their analyzed member usages.
+	memberCasts [2]bool
 }
 
 func (e rowComparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -52,6 +55,71 @@ func (b *expressionBinder) rowComparisonOperands(raw parser.RowExpr) ([]comparis
 	return fields, list.expansions, nil
 }
 
+// IN recognizes transformed constructors too, but raw fields must retain unknown
+// occurrences until field selection. Scalar use materializes these same children.
+type inComparisonOperand struct {
+	scalar      comparisonOperand
+	fields      []comparisonOperand
+	expansions  map[int]compositeExpansionBinding
+	constructor bool
+}
+
+func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOperand, error) {
+	if row, ok := raw.(parser.RowExpr); ok {
+		fields, expansions, err := b.rowComparisonOperands(row)
+		return inComparisonOperand{scalar: comparisonOperand{raw: raw}, fields: fields, expansions: expansions, constructor: true}, err
+	}
+	operand, err := b.comparisonOperand(raw)
+	result := inComparisonOperand{scalar: operand}
+	if row, ok := operand.node.(rowExpression); ok && row.raw != nil && !row.usage.Type.IsDomain() {
+		result.constructor, result.expansions = true, row.expansions
+		result.fields = make([]comparisonOperand, len(row.fields))
+		for i, field := range row.fields {
+			result.fields[i] = comparisonOperand{node: field}
+		}
+	}
+	return result, err
+}
+
+// Raw constructors participate in common-type selection as RECORD, without
+// finalizing their unknown fields. This analysis-only node is never executed:
+// RECORD cannot enter the scalar-array branch, and residual pairs use fields.
+func (b *expressionBinder) inCommonOperand(operand inComparisonOperand) comparisonOperand {
+	if operand.constructor && operand.scalar.node == nil {
+		return comparisonOperand{node: rowExpression{expressionInfo: b.info(b.typ(2249).Usage(), operand.scalar.raw.SourcePosition(), ExprProperties{})}, raw: operand.scalar.raw}
+	}
+	return operand.scalar
+}
+
+func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (comparisonOperand, error) {
+	if operand.scalar.node != nil || !operand.constructor {
+		return operand.scalar, nil
+	}
+	fields := make([]BoundExpr, len(operand.fields))
+	members := make([]sqltype.CompositeMember, len(fields))
+	properties := ExprProperties{}
+	for i, field := range operand.fields {
+		target := field.descriptor()
+		if target == nil {
+			target = b.typ(sqltype.Text)
+		}
+		node, err := b.finalizeOperand(field, target)
+		if err != nil {
+			return comparisonOperand{}, err
+		}
+		fields[i] = node
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: "f" + strconv.Itoa(i+1), Usage: node.ResultUsage()}
+		properties = mergeExpressionProperties(properties, node.Properties())
+	}
+	shape, err := sqltype.RecordShape(members)
+	if err != nil {
+		return comparisonOperand{}, err
+	}
+	raw := operand.scalar.raw.(parser.RowExpr)
+	operand.scalar.node = rowExpression{expressionInfo: b.info(shape.Usage(), raw.Pos, properties), fields: fields, raw: &raw, expansions: operand.expansions}
+	return operand.scalar, nil
+}
+
 func (e rowComparisonExpression) distinct() bool {
 	return e.operator == "IS DISTINCT FROM" || e.operator == "IS NOT DISTINCT FROM"
 }
@@ -65,6 +133,10 @@ func (b *expressionBinder) bindRowPredicate(raw parser.OperatorExpr, operator sq
 	if err != nil {
 		return nil, err
 	}
+	return b.bindRowPredicateOperands(raw, operator, lhs, rhs, le, re, mode)
+}
+
+func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, lhs, rhs []comparisonOperand, le, re map[int]compositeExpansionBinding, mode string) (BoundExpr, error) {
 	if len(lhs) != len(rhs) {
 		return nil, expressionError("42601", "unequal number of entries in row expressions", raw.Pos)
 	}

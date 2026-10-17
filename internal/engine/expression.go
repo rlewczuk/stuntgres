@@ -1208,6 +1208,15 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		if lc || rc {
 			return e, true, nil
 		}
+	case selectedOperatorExpression:
+		provider, changed, err := preflightCoercionsWithPolicy(c, e.provider, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			e.provider = provider
+			return e, true, nil
+		}
 	case arithmeticExpression:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -2106,6 +2115,7 @@ type expressionBinder struct {
 	jsonbRecordBase       bool // Scope named cast identity to selected base trees.
 	domainValueUsage      *sqltype.Usage
 	functionProjection    functionProjectionScope
+	selectedOperatorArgs  []BoundExpr
 	anyParameters         []parameterExpression
 	deleteTarget          bool
 	deleteUsingSources    bool
@@ -2181,6 +2191,7 @@ type expressionBinder struct {
 	viewLiterals           map[viewLiteralPath]literalExpression
 	viewCastUsages         map[viewLiteralPath]sqltype.Usage
 	viewIntaggRefs         map[viewLiteralPath]ObjectRef
+	viewOperatorRefs       map[viewLiteralPath]ObjectRef
 	viewComposites         map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings  map[viewLiteralPath]bool
 	viewPosixSubstrings    map[viewLiteralPath]bool
@@ -2457,6 +2468,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	}
 	if raw == nil {
 		return nil, fmt.Errorf("stuntgres: missing scalar expression")
+	}
+	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.selectedOperatorArgs) {
+		return b.selectedOperatorArgs[-slot.Number-1], nil
 	}
 	defer func() {
 		if bindError != nil || boundResult == nil {
@@ -3039,38 +3053,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.OperatorExpr:
 			var err error
-			if r.SQLSimilar {
-				node, err = b.bindSimilar(r)
-			} else if subquery, ok := rowSubqueryComparison(r); ok {
-				node, err = b.bindSubquery(subquery)
-			} else if rangeSharedOperator(r) {
-				node, err = b.bindRangeShared(r)
-			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
-				node, err = b.bindStringConcat(r)
-			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "^@" {
-				node, err = b.bindStringPrefix(r)
-			} else if len(r.Name.Parts) > 0 && likeName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-				node, err = b.bindLike(r)
-			} else if len(r.Args) == 2 && len(r.Name.Parts) > 0 && functions.PosixName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-				node, err = b.bindPosix(r)
-			} else if len(r.Name.Parts) > 0 && arrayMembershipName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-				node, err = b.bindArrayMembership(r)
-			} else if len(r.Name.Parts) > 0 && jsonExtractionName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-				node, err = b.bindJSONExtraction(r)
-			} else if len(r.Name.Parts) > 0 && jsonbExistenceName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-				node, err = b.bindJSONBExistence(r)
-			} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "#-" {
-				node, err = b.bindJSONBPathDelete(r)
-			} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
-				node, err = b.bindBitwise(r)
-			} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {
-				node, err = b.bindArithmetic(r)
-			} else {
-				if policy.context == assignmentContext {
-					return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
-				}
-				node, err = b.bindComparison(r)
-			}
+			node, err = b.bindCatalogOperator(r, policy)
 			if err != nil {
 				return nil, err
 			}
@@ -3986,6 +3969,10 @@ func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Des
 }
 
 func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, error) {
+	return b.bindComparisonCandidates(raw, nil)
+}
+
+func (b *expressionBinder) bindComparisonCandidates(raw parser.OperatorExpr, candidates *operatorCandidateSet) (BoundExpr, error) {
 	if len(raw.Args) != 2 || len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid comparison expression")
 	}
@@ -4007,11 +3994,15 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	if err != nil {
 		return nil, err
 	}
-	return b.bindComparisonOperands(raw, operator, left, right)
+	return b.bindComparisonOperandCandidates(raw, operator, left, right, candidates)
 }
 
 func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right comparisonOperand) (BoundExpr, error) {
-	lt, rt, err := b.resolveComparisonTypes(raw, left.descriptor(), right.descriptor())
+	return b.bindComparisonOperandCandidates(raw, operator, left, right, nil)
+}
+
+func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right comparisonOperand, candidates *operatorCandidateSet) (BoundExpr, error) {
+	lt, rt, err := b.resolveComparisonCandidates(raw, left.descriptor(), right.descriptor(), candidates)
 	if err != nil {
 		return nil, err
 	}

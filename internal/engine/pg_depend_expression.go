@@ -52,6 +52,8 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 		return
 	}
 	switch n := expr.(type) {
+	case selectedOperatorExpression:
+		r.add(n.ref.Address)
 	case unnestExpression:
 		if n.procedure != nil {
 			r.add(n.ref.Address)

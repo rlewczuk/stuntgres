@@ -277,6 +277,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case functions.Timezone[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.Timezone[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Local == o.Local && same(e.Value, o.Value) && (e.Local || same(e.Zone, o.Zone))
+	case selectedOperatorExpression:
+		o, ok := other.(selectedOperatorExpression)
+		return ok && e.ref == o.ref && same(e.provider, o.provider)
 	case arithmeticExpression:
 		o, ok := other.(arithmeticExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -1092,6 +1095,10 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case selectedOperatorExpression:
+		e.provider = rewrite(e.provider)
+		stage(&e.expressionInfo)
+		expr = e
 	case arithmeticExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
@@ -1769,6 +1776,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		if !e.Local {
 			walk(e.Zone)
 		}
+	case selectedOperatorExpression:
+		walk(e.provider)
 	case arithmeticExpression:
 		walk(e.left)
 		walk(e.right)

@@ -369,14 +369,14 @@ signature resolution, prefix NONE, complete released builtin identities, direct
 and held parameters, metadata, complete diagnostics, and real private namespace
 and operand-type authorization. Independent expectations/provenance live in
 `docs/design/regoperator-pg18-inventory.tsv` and `regoperator-pg18-oracle.md`.
-Custom operator creation/catalog projection is a genuine PostgreSQL-only
-mechanism witness, not native custom DDL or execution support.
+Custom operator DDL, execution, live catalog rows, ownership, dependencies and
+logical replay are shared native/PostgreSQL scenarios, not a PostgreSQL-only phase.
 
 Pinned oracle discovery is complete in the root's tests-1 through tests-4 reports;
 tests-5 records the failing native-before-production regression. No discovery
-filter/logging remains. Both aliases' typed-nil byte binds are SQL NULL. The
-native unsupported CREATE OPERATOR boundary independently asserts the observed
-42601 primary and Position8, plus unchanged sentinel data.
+filter/logging remains. Both aliases' typed-nil byte binds are SQL NULL. The old
+native CREATE OPERATOR syntax-error boundary has been superseded by shared
+`ExternalBoundary` assertions and the user-operator definitions below.
 
 Review-remedy discovery is recorded in tests-13/14: pinned complete competing
 diagnostics and NBSP records preceded the observed native/parser/prepared failures.
@@ -385,7 +385,7 @@ diagnostics and NBSP records preceded the observed native/parser/prepared failur
 Internal `TestRegOperatorPrepared...` units additionally use real typed catalog
 descriptors to prove ordered operand manifests, direct shared-cell validation,
 atomic group publication and unchanged captures under unrelated role changes.
-Those internal descriptors do not extend public custom operator DDL support.
+Those internal fixtures now use legitimate owned shells without fake providers.
 
 Root verifies the identical completed definitions with an external 900-second
 deadline for each command:
@@ -405,6 +405,192 @@ SQL. Smoke covers unique/ambiguous names, exact ordered signatures, unary NONE,
 held parameter failure/recovery, metadata, private-schema denial, numeric dump
 roundtrips, retained strings and failed-tuple atomicity. These definitions and
 implementation are not passing evidence until root exercises the gates.
+
+### User-defined operators
+
+`TestReferenceUserOperatorDefinitionExecution`, `ResolutionPrecedence`,
+`DiagnosticsAtomicity`, `OptionsShells`, `OwnershipSchemaLifecycle` and
+`DependenciesPrepared` independently assert real int4pl/int4mi/int4um/lower
+execution, ordered resolution and masking, qualified generic precedence, exact
+diagnostics/atomicity, shells/options, authorization and stored call dependencies.
+The prefix `TestReferenceUserOperator` applies to each name.
+`NativeRoundTrip` additionally replays **actual native dump bytes** on PostgreSQL,
+perturbs destination allocations, checks mixed aliases and live definitions, and
+retains old cursor values across replacement. Orphan shells are reconstructed by
+transient real generator CREATE/DROP rather than omitted or given a fake body.
+`FeatureSmoke` is a standalone end-to-end witness, not a wrapper around old tests;
+it reuses one held statement for integer5, typed NULL, integer9 and integer5.
+Its unauthorized ALTER uses a separate schema-USAGE permission fixture that is
+dropped before native Dump; explicit custom namespace ACL serialization remains
+outside the portable dump boundary.
+`ShellCompletionReciprocalConflicts` covers stable shell identity, creator-owner
+replacement, clearing unspecified completion links without repairing asymmetric
+peers, and atomic rejection of a third commutator or negator.
+`ReviewRegressions` rejects replacement of a populated commutator by self with
+42P13 while preserving both links, execution and sentinel state; initial and
+same-value self-links remain legal. Its mixed `(float4,float8)` and
+`(float8,float4)` overloads independently require 42725 for two unknown operands
+in direct and prepared analysis. Unknown-category/preferred requirements must
+be computed for all positions before filtering, retaining the prior candidates
+when their combined requirements reject every signature. Pure
+`TestUserOperatorResolutionUnknownPositions` asserts that ambiguity in both
+declaration orders without SQL or provider execution.
+`ReplayGraph` independently checks the asymmetric D/C/A/B final graph in both
+shell-allocation orders, reciprocal commutator/negator pairs and cross-kind
+cycles, self-commutation, distinct peers and a still-unfilled shell carrying both
+link kinds. Separate peer/shell owners, provider/operand/result metadata,
+execution, a dependent view, fresh perturbed native replacement and stable
+redump are checked before/after replay. PostgreSQL executes the actual native
+bytes. The dump keeps asymmetric defined-target and unfilled-shell links in
+CREATE; per-source ordinary ALTER events finish reciprocal defined-target links
+after their endpoints. Semantic consumers await completion without making
+reciprocal links structural declaration dependencies or adding an operator-wide
+barrier. Bootstrap replay preserves captured owners through OWNER postludes.
+`OrderedArgumentValidation` rejects each earlier SETOF LEFTARG/RIGHTARG even
+when replaced later, with exact42P13, no target/shell publication and sentinel42
+unchanged. Valid repeated argument options still select the final int4/int4
+signature and execute real int4pl to5; valid repeated FUNCTION remains last-wins.
+`OptionExtraction`, `OptionBooleanForms`, `OptionAcceptedForms`,
+`OptionAlterExtraction` and `OptionLiteralAndPrecedence` cover the root-owned option-form matrix:
+required parameters/kinds, source-ordered extraction before duplicate overwrite,
+single-component string names/types, real string-bound int4pl/lower execution,
+invalid symbolic string names, exact definition-Boolean words and integer forms,
+ALTER's preliminary name extraction and command-specific bare/NONE semantics.
+Literal/quoted NONE stays a real name; empty literals and reserved names retain
+their lookup semantics. Qualified names keep both components through typmods,
+including `FUNCTION=pg_catalog.numeric(8,2)`. Malformed ALTER extraction precedes
+owner checks, while semantic reference lookup follows them.
+`OptionSemanticCheckpoints` covers competing ALTER errors after ownership:
+restriction then join estimator lookup; commutator then negator lookup (including
+shell/peer ownership and self-negation); protected commutator then negator;
+protected MERGES then HASHES; additional parameter combinations; only then tuple
+and reciprocal updates in the private CatalogStage. Missing or self-invalid
+negators therefore precede protected commutator replacements. Every public case
+checks unchanged links/flags, actual provider results and sentinel42 after failure.
+`CreationCheckpoints` covers CREATE's distinct post-implementation/result-USAGE
+order: surviving restriction then join estimators, valid new name, parameter
+combinations, duplicate or shell-owner checks, then CREATE-specific peer/shell
+staging. Missing estimators and invalid parameters therefore beat duplicate and
+shell-owner errors, without eagerly resolving superseded valid options.
+`ParameterCheckpoints` covers both commands' shared two-pass validator: all
+nonbinary restrictions (commutator, join, MERGES, HASHES), then all non-Boolean
+restrictions (negator, restriction, join, MERGES, HASHES). Unary integer NEGATOR
+plus HASHES reports the binary hash error, not the Boolean negator error.
+These cases independently preserve failed-CREATE absence, shell/peer owners,
+links/flags/estimators, actual providers and sentinel42; no ownership workaround
+or weakened diagnostics substitute for the competing checkpoints.
+CREATE resolves both surviving operand identities before missing/postfix
+diagnostics and checks operand USAGE only afterward. Parser
+`TestUserOperatorOptionGrammar` preserves positioned kind/presence, empty literal,
+NONE, name components, type decorations and signed int32-token versus Float
+boundaries. Pure engine `TestUserOperatorOptionExtraction` checks extraction,
+literal provenance and ordered errors; `TestUserOperatorArgumentValidationOrder`
+uses actual catalog/type ACLs to distinguish identity, postfix, USAGE and function
+checkpoints. No passing verification is implied until root records fresh proof.
+`TestUserOperatorAlterSemanticCheckpoints` additionally inspects actual staged
+source/peer roots: both link kinds targeting one peer accumulate without mutating
+published predecessors, and lookup/protected/combination failures stage no roots.
+`TestUserOperatorCreationCheckpoints` and `TestUserOperatorParameterCheckpoints`
+exercise those failures through real CREATE/ALTER staging, requiring both
+unchanged published catalog roots and no staged descriptors before peer mutation.
+`OperandDefaultBoundary` covers selected-function operands at generic precedence,
+preserves native direct and grouped ordinary math DEFAULT rejection, and separately
+executes a real custom-operator DEFAULT with literal operands. PostgreSQL admits
+the ordinary math defaults; syntax admission does not invent a native provider.
+`CatalogRows` checks all fifteen fields through the existing raw OID helper and
+captures allocated namespace/owner/operator identities independently.
+`RoutineAuthorization` uses actual authenticated raw login pools and checks their
+rows directly, without requesting middleware recordings they cannot produce.
+`Transactions`, `EdgeDefinitions` and `EdgeDiagnostics` retain utility and exact
+definition/diagnostic boundaries. Pure engine
+`TestUserOperatorCatalogEstimator...` units cover four/five-input selection,
+ambiguity, return metadata and custom-estimator privilege without fake providers.
+`LookupOnlySeedOverload` checks that custom integer `?` executes int4pl while
+the same-spelling released JSONB operator retains true/false/NULL behavior and
+its genuine routine identity4047, without fabricating a callable routine.
+The catalog lookup-only seed unit separately rejects corrupted seed metadata
+and custom definitions without an exact real implementation descriptor.
+`TestUserOperatorCatalogDropClosureRootsAndLinks` exercises real closure
+publication for deduplicated operator roots, shell removal and surviving links.
+The remap unit also requires each stored selected call to retain both its
+operator identity and actual provider routine manifest, before and after retagging.
+
+`ComparisonConsumerBoundary`, `ComparisonConsumerResultContracts`,
+`ComparisonConsumerStructuralControls`, `ComparisonConsumerBatching` and
+`ComparisonConsumerStoredConstructors` cover actual selected operators in
+direct and Prepare analysis, not builtin-by-spelling fallback. Native rejects an
+executable custom winner in builtin-only contexts with exact `0A000: custom
+operators are unsupported in this comparison context`; PostgreSQL executes it.
+Scalar-array RHS-not-array precedes selection; selected shells retain42883 and
+selected non-Boolean results retain42809 before the custom-runtime boundary.
+Token positions are preserved; synthesized USING/NATURAL equality has no Position.
+IN attempts common-type/non-Var batching before residual constructor lowering.
+Eligible named-composite batches remain structural even with scalar field
+operators shadowed; matching NULL members yield true for IN and false for NOT IN.
+Residual raw ROW and transformed non-domain cast ROW pairs select fresh field
+operators, including one-item lists; anonymous RECORD NULL fields remain unknown.
+Frozen residual views preserve member coercions (numeric5.9 to integer6), field
+NULL rules and actual emitted SQL through native Dump/Reset/Restore and PostgreSQL
+replay. Ordinary named-composite equality, stored composite-column IN, array/record
+leaves, grouping, extrema and retained provider reconstruction stay structural.
+Nonmatching overloads and explicitly qualified builtins remain supported, while
+ordinary custom scalar/BETWEEN operators execute real providers.
+No passing result is claimed here; Main owns fresh native and pinned18.6 proof.
+
+Selected consumer feature smoke/proof (external900s each):
+
+```sh
+make check RUN='^TestReferenceUserOperatorComparisonConsumer(Boundary|ResultContracts|StructuralControls|Batching|StoredConstructors)$'
+make check RUN='^TestReferenceUserOperatorComparisonConsumer(Boundary|ResultContracts|StructuralControls|Batching|StoredConstructors)$' REFERENCE=1
+```
+
+With int4 `=` bound to int4ne ahead of pg_catalog, `SELECT 2 = 2 AS v`
+returns false; `SELECT 2 = ANY(ARRAY[2]) AS v` fails native analysis at character10
+with the exact custom boundary, while PostgreSQL returns false.
+`SELECT 2 OPERATOR(pg_catalog.=) ANY(ARRAY[2]) AS v` returns true.
+`ROW(2) IN (ROW(2))` reaches the field boundary under that shadow and returns
+true with pg_catalog first; ordinary typed composite equality stays true.
+
+Root-owned selected proof (external deadline900 seconds each; both modes required):
+
+```sh
+make check RUN='^TestReferenceUserOperatorOption(Extraction|BooleanForms|AcceptedForms|AlterExtraction)$'
+make check RUN='^TestReferenceUserOperatorOption(Extraction|BooleanForms|AcceptedForms|AlterExtraction)$' REFERENCE=1
+make check RUN='^TestReferenceUserOperatorOptionLiteralAndPrecedence$'
+make check RUN='^TestReferenceUserOperatorOptionLiteralAndPrecedence$' REFERENCE=1
+make check RUN='^TestReferenceUserOperatorOptionSemanticCheckpoints$'
+make check RUN='^TestReferenceUserOperatorOptionSemanticCheckpoints$' REFERENCE=1
+make check RUN='^TestReferenceUserOperator(CreationCheckpoints|ParameterCheckpoints)$'
+make check RUN='^TestReferenceUserOperator(CreationCheckpoints|ParameterCheckpoints)$' REFERENCE=1
+make check RUN='^TestUserOperator(OptionGrammar|OptionExtraction|ArgumentValidationOrder|AlterSemanticCheckpoints|CreationCheckpoints|ParameterCheckpoints)$'
+make check RUN='^TestReferenceUserOperator(ReplayGraph|OrderedArgumentValidation)$'
+make check RUN='^TestReferenceUserOperator(ReplayGraph|OrderedArgumentValidation)$' REFERENCE=1
+make check RUN='^TestUserOperatorDump'
+make check RUN='^TestPartitionConstraintsDump'
+make check RUN='^TestReferencePartitionConstraints(Controls|ControlCollision|Attachment)$'
+make check RUN='^TestReferencePartitionConstraints(Controls|ControlCollision|Attachment)$' REFERENCE=1
+make check RUN='^TestReferenceUserOperator(DefinitionExecution|ResolutionPrecedence|DiagnosticsAtomicity)$'
+make check RUN='^TestReferenceUserOperator(DefinitionExecution|ResolutionPrecedence|DiagnosticsAtomicity)$' REFERENCE=1
+make check RUN='^TestReferenceUserOperator(OptionsShells|OwnershipSchemaLifecycle|DependenciesPrepared)$'
+make check RUN='^TestReferenceUserOperator(OptionsShells|OwnershipSchemaLifecycle|DependenciesPrepared)$' REFERENCE=1
+make check RUN='^TestReferenceUserOperator(CatalogRows|RoutineAuthorization|Transactions|EdgeDefinitions|EdgeDiagnostics)$'
+make check RUN='^TestReferenceUserOperator(CatalogRows|RoutineAuthorization|Transactions|EdgeDefinitions|EdgeDiagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceUserOperator(ShellCompletionReciprocalConflicts|OperandDefaultBoundary)$'
+make check RUN='^TestReferenceUserOperator(ShellCompletionReciprocalConflicts|OperandDefaultBoundary)$' REFERENCE=1
+make check RUN='^TestReferenceUserOperatorReviewRegressions$'
+make check RUN='^TestReferenceUserOperatorReviewRegressions$' REFERENCE=1
+make check RUN='^TestReferenceUserOperatorNativeRoundTrip$'
+make check RUN='^TestReferenceUserOperatorNativeRoundTrip$' REFERENCE=1
+make check RUN='^TestReferenceUserOperatorLookupOnlySeedOverload$'
+make check RUN='^TestReferenceUserOperatorLookupOnlySeedOverload$' REFERENCE=1
+make check RUN='^TestUserOperator(OptionGrammar|QualifiedPrecedenceGrammar)$'
+make check RUN='^TestUserOperator(Catalog|Resolution|RoutineBinding|Remap)'
+make check RUN='^TestReferenceUserOperatorFeatureSmoke$'
+make check RUN='^TestReferenceUserOperatorFeatureSmoke$' REFERENCE=1
+```
+
+These commands are required proof, not a claim that an implementer ran them.
+
 
 ### Regproc / regprocedure definitions and evidence
 

@@ -671,6 +671,35 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
+	case selectedOperatorExpression:
+		r.record(n.ref)
+		d, ok := view.state.descriptors[n.ref.Address].(*operatorDescriptor)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing default operator")
+		}
+		namespace := view.state.descriptors[d.namespace].Name()
+		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.name + ")"
+		var operands []BoundExpr
+		boundExpressionChildren(n.provider, func(arg BoundExpr) {
+			if arg != nil {
+				operands = append(operands, arg)
+			}
+		})
+		text := make([]string, len(operands))
+		for i, arg := range operands {
+			var err error
+			text[i], err = r.sql(ctx, view, arg)
+			if err != nil {
+				return "", err
+			}
+		}
+		if d.left == 0 && len(text) == 1 {
+			return "(" + op + " " + text[0] + ")", nil
+		}
+		if d.left != 0 && len(text) == 2 {
+			return "(" + text[0] + " " + op + " " + text[1] + ")", nil
+		}
+		return "", fmt.Errorf("stuntgres: invalid default operator operands")
 	case arithmeticExpression:
 		if u != u.Type.Usage() || n.left == nil {
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic operands")

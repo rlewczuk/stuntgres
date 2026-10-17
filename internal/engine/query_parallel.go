@@ -106,7 +106,7 @@ func parallelQueryExpression(expr BoundExpr, frame uint32, width int) bool {
 		if !parallelScalarType(e.ResultUsage().Type) || !parallelScalarType(e.child.ResultUsage().Type) {
 			return false
 		}
-	case arithmeticExpression, comparisonExpression, logicalExpression, distinctExpression, nullTestExpression, truthTestExpression, caseExpression, collationExpression:
+	case selectedOperatorExpression, arithmeticExpression, comparisonExpression, logicalExpression, distinctExpression, nullTestExpression, truthTestExpression, caseExpression, collationExpression:
 	default:
 		return false
 	}

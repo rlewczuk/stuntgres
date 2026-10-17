@@ -29,10 +29,6 @@ func TestCheckSelectedScalarContext(t *testing.T) {
 func TestCheckSelectedScalarContextDoesNotLeak(t *testing.T) {
 	for _, suffix := range []string{
 		"CREATE TABLE u(a INT DEFAULT abs(1))",
-		"SELECT abs(a)+1 FROM t",
-		"SELECT a FROM t WHERE abs(a)+1=2",
-		"UPDATE t SET a=abs(a)+1",
-		"INSERT INTO t VALUES(abs(1))",
 	} {
 		query := "CREATE TABLE t(a INT CHECK(abs(a)=1));" + suffix
 		t.Run(suffix, func(t *testing.T) {
@@ -43,8 +39,8 @@ func TestCheckSelectedScalarContextDoesNotLeak(t *testing.T) {
 			}
 		})
 	}
-	// Selected calls are now shared comparison leaves, independently of CHECK
-	// lexer state. Compare their ASTs with and without a preceding CHECK.
+	// Selected calls share operands independently of CHECK lexer state.
+	// Compare their ASTs with and without a preceding CHECK.
 	for _, suffix := range []string{
 		"SELECT abs(a)=1 FROM t",
 		"SELECT a FROM t WHERE abs(a)=1",

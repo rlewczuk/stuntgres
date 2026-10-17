@@ -929,6 +929,14 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return "CAST(" + text + " AS " + declaration + ")", nil
 	case parser.OperatorExpr:
+		if ref, selected := v.operatorRefs[path]; selected {
+			d, ok := catalog.state.descriptors[ref.Address].(*operatorDescriptor)
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing frozen selected operator")
+			}
+			ns := catalog.state.descriptors[d.namespace].Name()
+			e.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: d.name}}}
+		}
 		spelling := e.Name.Parts[len(e.Name.Parts)-1].Text
 		op := spelling
 		if len(e.Name.Parts) == 2 {

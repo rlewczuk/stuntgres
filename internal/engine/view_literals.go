@@ -471,6 +471,18 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return child(r.Args[1], n.right)
 			}
 			return nil
+		case selectedOperatorExpression:
+			if b.viewOperatorRefs == nil {
+				b.viewOperatorRefs = make(map[viewLiteralPath]ObjectRef)
+			}
+			b.viewOperatorRefs[path] = n.ref
+			var operands []BoundExpr
+			boundExpressionChildren(n.provider, func(arg BoundExpr) {
+				if arg != nil {
+					operands = append(operands, arg)
+				}
+			})
+			return children(r.Args, operands)
 		case arithmeticExpression:
 			if err := child(r.Args[0], n.left); err != nil {
 				return err
@@ -1425,11 +1437,11 @@ func (b *expressionBinder) captureSubqueryLeft(raw parser.Expr, n subqueryExpres
 		}
 		path.node = *ordinal
 		(*ordinal)++
-		return b.captureQuantifiedConstructor(row, constructor, path, ordinal)
+		return b.captureConstructorFields(row, len(constructor.fields), func(i int) BoundExpr { return constructor.fields[i] }, constructor.expansions, true, path, ordinal)
 	}
 	if row, ok := raw.(parser.RowExpr); ok {
 		(*ordinal)++
-		return b.captureRowComparisonFields(row, n.comparisons, 0, n.leftExpansions, path, ordinal)
+		return b.captureRowComparisonFields(row, n.comparisons, 0, n.leftExpansions, false, path, ordinal)
 	}
 	if len(n.comparisons) != 1 {
 		return fmt.Errorf("stuntgres: mismatched frozen scalar comparison")
@@ -1446,39 +1458,21 @@ func (b *expressionBinder) captureRowComparison(raw []parser.Expr, n rowComparis
 		if !ok {
 			return fmt.Errorf("stuntgres: mismatched row comparison syntax")
 		}
+		path.node = *ordinal
 		(*ordinal)++ // The structural constructor has no scalar datum.
-		if err := b.captureRowComparisonFields(row, n.comparisons, side, n.expansions[side], path, ordinal); err != nil {
+		if err := b.captureRowComparisonFields(row, n.comparisons, side, n.expansions[side], n.memberCasts[side], path, ordinal); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (b *expressionBinder) captureRowComparisonFields(row parser.RowExpr, pairs []comparisonExpression, side int, expansions map[int]compositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
+func (b *expressionBinder) captureRowComparisonFields(row parser.RowExpr, pairs []comparisonExpression, side int, expansions map[int]compositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
 	path.argument = 0
-	slot := 0
-	for source, field := range row.Fields {
-		if expansion, ok := expansions[source]; ok {
-			if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
-				return err
-			}
-			slot += len(expansion.fields)
-			continue
-		}
-		if slot >= len(pairs) {
-			return fmt.Errorf("stuntgres: missing row comparison source association")
-		}
-		operand := pairs[slot].left
+	return b.captureConstructorFields(row, len(pairs), func(i int) BoundExpr {
 		if side == 1 {
-			operand = pairs[slot].right
+			return pairs[i].right
 		}
-		if err := b.captureNormalizedViewLiteralTree(field, operand, path, ordinal); err != nil {
-			return err
-		}
-		slot++
-	}
-	if slot != len(pairs) {
-		return fmt.Errorf("stuntgres: invalid row comparison source association")
-	}
-	return nil
+		return pairs[i].left
+	}, expansions, memberCasts, path, ordinal)
 }

@@ -763,8 +763,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		// must remain quiet; Execute owns read-only-first and explicit-block
 		// rejection, without resolving or changing a domain during analysis.
 		return s.op.session.Engine().describeOperation(s, stmt)
-	case *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
-		// Conversion utilities have no result signature. Admission, read-only
+	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+		// These utilities have no result signature. Admission, read-only
 		// precedence and the explicit-transaction boundary belong to Execute.
 		return s.op.session.Engine().describeOperation(s, stmt)
 	case *parser.ObjectGrant:

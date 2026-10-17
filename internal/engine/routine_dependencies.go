@@ -6,6 +6,11 @@ import "fmt"
 // owner changes do not replace lifetime identity; native retagging remaps both
 // the descriptor carrier and existing manifest before this renderer runs.
 func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node BoundExpr) error {
+	if selected, ok := node.(selectedOperatorExpression); ok {
+		// The wrapper owns operator identity, not a second invocation. Its
+		// actual provider owns the selected routine and immutable body.
+		return r.recordStoredRoutine(view, selected.provider)
+	}
 	if expression, ok := node.(caseExpression); ok && expression.test != nil {
 		for _, arm := range expression.arms {
 			if arm.routine != nil {

@@ -20,6 +20,12 @@ func remapFrozenPresentation(view CatalogRead, original *viewDefinition, mapping
 			definition.intaggRefs[path] = ref(old)
 		}
 	}
+	if len(original.operatorRefs) != 0 {
+		definition.operatorRefs = make(map[viewLiteralPath]ObjectRef, len(original.operatorRefs))
+		for path, old := range original.operatorRefs {
+			definition.operatorRefs[path] = ref(old)
+		}
+	}
 	if collation != nil && len(original.collations) != 0 {
 		definition.collations = make(map[viewLiteralPath]uint32, len(original.collations))
 		for path, id := range original.collations {

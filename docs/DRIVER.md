@@ -1093,3 +1093,12 @@ Returned rows retain captured output names even after rename, Reset or Restore;
 fresh execution formats against its own snapshot. This does not change existing
 prepared parameter/result identity guards or sequence-regclass lifecycle.
 
+Custom operator calls preserve selected catalog identity separately from their
+actual function provider. Held execution uses current routine EXECUTE admission;
+operator owner metadata is not a permission cache. Schema rename/SET SCHEMA keep
+stored call identity while SQL rendering uses current operator names. Native
+Dump/Restore reconstructs ordinary operator DDL, options, owners and shells, and
+remaps known custom REGOPER/REGOPERATOR values by exact qualified signature,
+including mixed nested containers. Existing fixed/unknown OIDs remain numeric;
+old returned Rows retain their original spelling and type snapshot.
+

@@ -1,5 +1,16 @@
 # PostgreSQL 18 operator identifier expectations
 
+## User-operator supersession
+
+PG18-FUNC-OPERATOR-USER supersedes historical native CREATE OPERATOR42601 and
+PostgreSQL-only ExternalBoundary statements below. The original builtin alias
+inventory and numeric unknown/fixed-identity contracts remain; known allocated
+custom aliases now replay by exact qualified signature, including nested mixed
+containers. Shared reference definitions cover actual providers, owned shells,
+schema identity changes, dependency closure and emitted-script replay. Earlier
+numbered evidence remains historical, not proof of this production cutover.
+
+
 ## Authority and construction
 
 `regoperator-pg18-inventory.tsv` is an independent expectation artifact, constructed before any production operator inventory or generator. Its 799 data rows are all records in released [REL_18_0 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_operator.dat), sorted by numeric OID. Operand symbolic names resolve against released [pg_type.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_type.dat), including its `array_type_oid` companion identities. Zero is the absent operand, not a type or SQL NULL. The catalog defaults namespace to pg_catalog (11); see [pg_operator.h](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_operator.h).
@@ -84,3 +95,17 @@ make check RACE=1 RUN='^Test(RegOperatorPrepared|ReferenceRegOperator(PreparedLi
 These definitions and production changes are not passing evidence until root
 records fresh verification; whole-project quickcheck and the affected existing
 REGTYPE/REGCLASS selected gates remain required by the living plan.
+
+## Operator definition options versus utility signatures
+
+CREATE option strings are single literal name/type components, not REGTYPE or
+REGOPERATOR input text: dots, empty strings, quotes and decorations are not
+reparsed. Only the utility-signature helper interprets an unquoted NONE operand
+as an absent prefix slot. CREATE's supplied NONE option is an actual type/name;
+ALTER's bare/unquoted NONE option has command-specific NULL semantics, while
+quoted/literal none remains a name. Operand identity resolution and type USAGE
+are separate CREATE checkpoints, preserving utility signature authorization.
+The positioned AST/extraction contract and new root-owned dual-mode selectors
+are documented in [the operator design](pg-operator-pg18-oracle.md) and
+[selected reference proof](../../reference/type_resolution/README.md#user-defined-operators).
+This does not broaden alias-array, general type-input or routine capabilities.

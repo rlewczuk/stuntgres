@@ -23,6 +23,9 @@ type lexer struct {
 	previousToken int
 	// Contextual role payload words are not global SQL keywords.
 	roleHead int
+	// Operator definition options share type syntax, including SETOF, without
+	// reserving that spelling in ordinary expression or identifier contexts.
+	operatorDDL bool
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
 	extractField        bool
 	jsonParenDepth      int
@@ -38,11 +41,13 @@ type lexer struct {
 	viewQuery         bool // Actual CREATE VIEW body enables check-option lookahead.
 	ruleDefinition    bool // Rule actions use ordinary query expressions, not standalone VALUES replay.
 	insertScalarEnd   int
-	typeInputEntry    bool
-	typeInputMode     bool
-	typeInputResult   TypeName
-	typeInputNotice   func(sqlstate.Error)
-	options           Options
+	// Selected calls are arguments only beneath an admitted call/operator.
+	selectedInputDepth int
+	typeInputEntry     bool
+	typeInputMode      bool
+	typeInputResult    TypeName
+	typeInputNotice    func(sqlstate.Error)
+	options            Options
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -657,6 +662,9 @@ func (l *lexer) scan(v *sqlSymType) int {
 			}
 			l.offset = end
 			l.current.text = l.input[start:end]
+			if len(l.current.text) > 63 {
+				l.failAt("42601", "operator too long at or near \""+l.current.text+"\"", start)
+			}
 			switch l.current.text {
 			case "<=":
 				token = LESS_EQUAL
@@ -680,6 +688,23 @@ func (l *lexer) scan(v *sqlSymType) int {
 	}
 	v.tok = l.current
 	return token
+}
+
+// Distinguish the qualified operator opener from ordinary identifiers followed
+// by parentheses, such as CREATE TABLE operator(x INT). Probe raw tokens, not
+// SQL spelling; the authoritative scanner still consumes them exactly once.
+func (l *lexer) qualifiedOperatorAhead() bool {
+	probe := *l
+	probe.options.Notice = nil
+	probe.options.LineComment = nil
+	if probe.nextRaw().code != '(' {
+		return false
+	}
+	schema := probe.nextRaw()
+	if schema.code != IDENT && (schema.lexeme.keyword == nil || !schema.lexeme.keyword.columnName()) {
+		return false
+	}
+	return probe.nextRaw().code == '.'
 }
 
 func (l *lexer) nextRaw() rawToken {
@@ -709,6 +734,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	token := l.nextRaw()
 	if l.typeInputMode && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
+		token.code = SETOF_TYPE
+	}
+	if l.operatorDDL && l.previousToken == int('=') && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
 		token.code = SETOF_TYPE
 	}
 	if l.options.Context != nil {
@@ -1044,8 +1072,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if token.lexeme.keyword != nil {
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
-			if next.code == '(' {
+			if l.previousToken == CREATE || l.previousToken == ALTER || l.previousToken == DROP {
 				token.code = OPERATOR
+				l.operatorDDL = true
+			} else if next.code == '(' && l.qualifiedOperatorAhead() {
+				token.code = QUALIFIED_OPERATOR
+			} else {
+				token.code = KW_U
 			}
 		}
 	case "left", "right":
@@ -1388,6 +1421,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if token.code == int(';') {
 		l.roleHead = 0
+		l.operatorDDL = false
 		l.viewQuery = false
 	}
 	if token.code == int('(') {
@@ -1402,6 +1436,12 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.jsonParenDepth--
 	}
 	l.extractField = token.code == int('(') && l.previousToken == EXTRACT
+	// operator_def_arg accepts reserved words as String nodes, independently
+	// of expression/call keyword reinterpretation. Quoted identifiers have no
+	// keyword descriptor and keep the ordinary TypeName route.
+	if l.operatorDDL && l.previousToken == int('=') && token.lexeme.keyword != nil && token.lexeme.keyword.category == Reserved {
+		token.code = STRING
+	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
 	if token.code == int('(') && l.temporalLead {

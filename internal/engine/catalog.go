@@ -861,6 +861,10 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 		if d.(*conversionDescriptor).seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
+	case *operatorDescriptor:
+		if d.(*operatorDescriptor).seeded() {
+			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
+		}
 	case *foreignDescriptor:
 		if err := provider.owner.providers[ref.Address.ClassID].Validate(provider.base, d); err != nil {
 			return err
@@ -893,6 +897,11 @@ func (provider *dropProvider) removeObjectLocked(ref ObjectRef, namespace bool) 
 	}
 	if err := provider.recordRemoval(ref, namespace); err != nil {
 		return err
+	}
+	if operator, ok := d.(*operatorDescriptor); ok {
+		if err := provider.clearOperatorLinks(operator); err != nil {
+			return err
+		}
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
 		if backing, ok := provider.retirementDescriptor(typ.owningRelation).(*relationDescriptor); ok && backing.relationKind == compositeRelation {

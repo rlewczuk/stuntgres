@@ -281,6 +281,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		cascade = s.Mode == parser.DropCascade
 	case *parser.DropConversion:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.DropOperator:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropSchema:
 		cascade = s.Cascade
 		if !s.Cascade {
@@ -420,6 +422,18 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		}
 	case *parser.DropConversion:
 		if err = e.stageDropConversionLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.CreateOperator:
+		if err = e.stageCreateOperatorLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterOperator:
+		if err = e.stageAlterOperatorLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropOperator:
+		if err = e.stageDropOperatorLocked(op, auth, stage, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateDomain:
@@ -587,6 +601,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				domains = append(domains, c)
 			} else if c, ok := d.(*conversionDescriptor); ok {
 				domains = append(domains, c)
+			} else if operator, ok := d.(*operatorDescriptor); ok {
+				domains = append(domains, operator)
 			} else if extension, ok := d.(*extensionDescriptor); ok {
 				domains = append(domains, extension)
 			} else if procedure, ok := d.(*procedureDescriptor); ok && procedure.foreign != nil {

@@ -27,6 +27,18 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 		}
 		return extension.address.ObjectID, nil
 	}
+	if operator, ok := object.(*operatorDescriptor); ok {
+		if operator.seeded() {
+			return 0, nil
+		}
+		if operator.function != 0 {
+			return operator.address.ObjectID, nil
+		}
+		if source := operatorShellGenerator(view, operator); source != nil {
+			return source.address.ObjectID, nil
+		}
+		return operator.address.ObjectID, nil
+	}
 	if proc, ok := object.(*procedureDescriptor); ok {
 		ext, ok := view.state.descriptors[proc.extension].(*extensionDescriptor)
 		if !ok {
@@ -124,6 +136,7 @@ const (
 	dumpRetiredConstraints
 	dumpInheritedForeignKeys
 	dumpDomainChecks
+	dumpOperatorLinks
 )
 
 type dumpEventKey struct {

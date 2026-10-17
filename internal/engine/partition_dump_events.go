@@ -165,10 +165,17 @@ func partitionDumpEvents(ctx context.Context, view CatalogRead, graph map[dumpEv
 	}
 	lateNames := make(map[OID]bool)
 
-	// Keep the old definition-only source ordering exactly. Late declarations
-	// leave that chain and wait for real child memberships instead.
+	// Retain the existing nonoperator definition chain. Operator declarations
+	// interleave through real prerequisites: chaining an unrelated type after
+	// an operator could make it wait for links whose endpoint needs that type.
 	var earlyTail dumpEventKey
 	for _, event := range declarations {
+		if event.phase != dumpDeclaration {
+			continue
+		}
+		if _, operator := view.state.descriptors[ObjectAddress{ClassID: OperatorClassID, ObjectID: event.oid}].(*operatorDescriptor); operator {
+			continue
+		}
 		if lateDeclarations[event.oid] {
 			continue
 		}

@@ -15,6 +15,130 @@ No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### User-operator cutover
+
+PG18-FUNC-OPERATOR-USER supersedes the earlier builtin-only mutable-catalog
+boundary. The fixed546 supported seed rows and all799 alias identities remain
+distinct; custom definitions and shells add live rows without inventing pg_proc
+rows or broadening lookup-only seed execution. Selected calls bind the actual
+routine/provider and retain operator identity for dependencies and live SQL names.
+RESTRICT/JOIN are truthful released metadata, not optimizer invocation. New
+reference selectors and native emitted-script replay are documented in
+`reference/type_resolution/README.md`; verification remains root-owned.
+
+Shell completion replaces owner and all supplied/omitted definition fields at
+the original OID; omitted commutator/negator links become zero, even when peers
+still point to that completed operator. A third operator cannot steal an
+already-populated reciprocal field. These are source-grounded
+[REL_18_6 OperatorCreate/OperatorUpd rules](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/catalog/pg_operator.c),
+not a universal symmetric-link invariant or a claim of observed oracle results.
+The dedicated shared shell-completion regression and fresh root-owned pinned
+proof cover this edge. Estimator validation units use lookup metadata only:
+no estimator callable declaration, public pg_proc row or optimizer is fabricated.
+
+Dump reconstructs the captured **final state**, not operator allocation history.
+For each link kind independently, an asymmetric link to a defined target stays
+in CREATE and orders its source declaration before target completion. Reciprocal
+defined-target links (including self-commutators) are omitted from CREATE and
+restored with ordinary ALTER OPERATOR after their exact endpoint declarations.
+One per-source link-completion event gates semantic consumers; structural
+asymmetric and endpoint edges remain raw declarations, so valid reciprocal and
+cross-kind cycles are not normal dependency cycles. Normalization is reapplied
+after default retries and expanded replay phases. No live descriptor is modified
+and no persisted creation history or global all-operators barrier is introduced.
+The partition replay source-order chain contains only nonoperator declarations;
+operator declarations still participate in real dependency/late-phase propagation,
+but never turn an unrelated type declaration into an artificial link consumer.
+Unfilled-shell links remain forward CREATE references, including both link kinds;
+orphan shells retain their genuine transient provider-bound generator and DROP.
+CREATE/link replay uses bootstrap authorization while ordinary OWNER postludes
+preserve independent definition and shell owners, including owners without
+schema privileges. `TestReferenceUserOperatorReplayGraph` covers both allocation
+orders, actual emitted-byte replay, separate owners and equivalent redump.
+
+CREATE validates SETOF on **each** LEFTARG/RIGHTARG element during the ordered
+option pass, before a duplicate overwrites its value. Valid repeated arguments
+and FUNCTION/PROCEDURE retain last-value semantics; superseded valid argument
+names do not acquire extra type lookup. `OrderedArgumentValidation` asserts both
+invalid earlier argument cases, no operator/shell publication, sentinel survival
+and a real int4pl repeated-argument definition returning5.
+
+Review3 R5–R7 replace the lossy option carrier with explicit presence and
+NoArgument/Type/Name/String/Integer/Float/None kinds. PostgreSQL
+[definition-element extraction](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/commands/define.c)
+is local to operator DDL: every recognized CREATE element extracts before
+last-valid-value retention; strings remain one literal component, including empty
+strings, dots and SQL-looking text. String type names bypass SQL alias
+canonicalization, not catalog identity resolution. Unknown CREATE warnings and
+obsolete merge attributes keep their previous ignored-value rules.
+The existing operator-only lexer context maps reserved RHS keywords such as
+NULL/DEFAULT to String arguments, without broadening ordinary identifiers or
+type input. CURRENT_SCHEMA retains its TypeFunctionName/TypeName route.
+Type components retain original generic
+names such as int4 even where the operand declaration name is canonicalized;
+actual SQL type aliases instead retain canonical pg_catalog components.
+Generic option typmods survive parsing for extraction; name extraction ignores
+them, while supplied operand types use existing typmod validation.
+
+Definition Booleans accept exact case-insensitive true/false/on/off, bare flags
+and Integer-node values0/1, not GUC/Boolean-input prefixes. NumericOnly classifies
+the unsigned int32 token before applying its sign; decimal/exponent/out-of-int32
+tokens remain Float. ALTER maps only bare/unquoted NONE to NULL and first extracts
+every other supplied value as a name, even immutable/unknown/Boolean attributes.
+Thus numeric ALTER flags fail name extraction, while bare/NONE flags enable and
+bare/NONE RESTRICT/JOIN clear. Quoted/literal none must undergo real name lookup.
+
+CREATE keeps namespace CREATE and ordered extraction first, then requires the
+implementation option, resolves surviving left/right identities, diagnoses
+missing operands/postfix, checks operand type USAGE, then looks up/admit the
+implementation and checks result type USAGE. Next it resolves only the surviving
+restriction estimator, then join estimator, validates the new operator name,
+validates parameter combinations, and only then detects a duplicate definition
+or checks ownership of an existing shell. CREATE then resolves/creates and
+authorizes the commutator, followed by the negator, and rejects self-negation.
+Only after both peer checkpoints succeed does it stage the source definition
+and check/update reciprocal commutator then negator fields. A reciprocal
+commutator conflict therefore cannot hide an earlier invalid, inaccessible or
+self-referential negator. CREATE accepts legitimate forward shells; ALTER's
+shell-reference rejection does not apply to this phase.
+This is the boundary between
+[REL_18_6 DefineOperator](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/commands/operatorcmds.c)
+and
+[OperatorCreate/OperatorValidateParams](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/catalog/pg_operator.c):
+a missing estimator beats an invalid name, duplicate or shell-owner error, and
+invalid parameters beat duplicate/shell-owner errors. Superseded valid names are
+never eagerly resolved. The existing combined resolve/authorize helper remains
+for utility signature callers only; no provider or authorization authority changes.
+
+Shared parameter validation follows two complete source passes, not interleaved
+per-option tests. For a nonbinary signature, check commutator, join selectivity,
+MERGES, then HASHES. Only afterward, for a non-Boolean result, check negator,
+restriction selectivity, join selectivity, MERGES, then HASHES. Thus a unary
+integer operator with NEGATOR and HASHES fails `only binary operators can hash`
+in both CREATE and ALTER, before any reciprocal mutation.
+
+ALTER retains its different post-owner order: surviving restriction/join
+estimators; commutator/negator lookup and ownership including self-negation;
+protected commutator/negator; protected MERGES/HASHES; parameter validation; then
+private reciprocal/source updates. CREATE ordering must not be imposed on ALTER.
+The public `CreationCheckpoints` and `ParameterCheckpoints` regressions specify
+full diagnostics and unchanged graph/owners/providers/sentinel state; matching
+pure units inspect actual catalog stages and published predecessors. Fresh
+dual-mode proof remains root-owned, as do the retained option, ACL and replay
+regressions. Source explanations and readiness are not passing evidence.
+
+Review6 R12 separates peer setup from reciprocal updates without live rollback:
+all writes remain in the ordinary private catalog stage, discarded on failure.
+An unstaged new source's self-reference uses its reserved identity rather than
+creating a duplicate shell. Reciprocal updates read the latest staged peer, so
+COMMUTATOR and NEGATOR can both target one existing operator or one forward
+shell without losing either link. `TestReferenceUserOperatorPeerSetupCheckpoints`
+retains the root's four independent diagnostic/graph/provider/sentinel cases;
+`TestUserOperatorPeerSetupStagedRoots` inspects actual same-peer forward shells,
+stable completion with self-commutation, immutable predecessors, and discard
+after a later negator conflict follows a private commutator update.
+
+
 Released authorities (all `REL_18_0`, not the moving development branch):
 - [pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_operator.dat): every operator identity and explicit field.
 - [pg_operator.h](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_operator.h): namespace pg_catalog=11, owner POSTGRES=10, kind b, flags f, commutator/negator 0, estimator '-' defaults and 15-field ordering.
@@ -392,3 +516,133 @@ predicate for3552 separately from the scalar binder. The shared partition
 exclusion Metadata scenario exercises persistent ordinary INET-overlap metadata
 and conflicts. New definitions require fresh selected native and pinned proof;
 no verification is claimed by this implementation note.
+
+## User-operator startup and grammar validation distinction
+
+Released operator metadata and callable routine declarations remain separate
+authorities. Supported seed `?(jsonb,text)` is operator3247 with result BOOL16
+and routine identity4047. Its real JSONB expression provider does not require
+a callable `procedureDescriptor` for4047. Seed validation checks the immutable
+released result/function facts and existing operand/result types; normal
+catalog ACL validation still checks its owner. Custom defined operators must
+instead have a genuine function descriptor with the exact ordered signature
+and result. No routine provider or pg_proc row is fabricated from metadata.
+Unprojected builtin identities retain zero result/function without becoming
+custom forward shells. Existing protected builtin ALTER/DROP boundaries are
+unchanged; this part's full mutation support is for user-defined operators.
+
+When custom overloads force catalog selection, a selected seed uses its real
+existing expression binder with already-bound/coerced operands. This preserves
+lookup-only routine identities without turning them into invocation providers.
+`TestReferenceUserOperatorLookupOnlySeedOverload` independently expects custom
+integer `?` to return5 while released JSONB `?` still returns true/false/NULL.
+`TestUserOperatorCatalogLookupOnlySeedValidation` rejects altered seed return/
+function facts and a custom operator borrowing lookup-only routine4047.
+
+Operator option values share the `type_name '.'` prefix for types, functions
+and symbolic references. The remaining schema-name keyword alternatives are
+disjoint from `type_name`; this avoids a competing `name` reduction on every
+identifier before '.'. Existing lookahead separates the `OPERATOR(...)`
+introducer from the DDL OPERATOR keyword using `QUALIFIED_OPERATOR`, rather
+than adding precedence/conflict suppression or an alternate SQL parser.
+Expression prefix/infix/quantified uses retain the generic OPERATOR precedence
+tier. Parser units cover option types/functions/symbols, quoted and keyword
+schemas, source positions, DDL/identifier contexts and qualified precedence.
+
+The root-reported startup panic and167/129 grammar conflict totals are failure
+evidence, not rerun here. Root must regenerate/measure the resulting grammar and
+run selected native and pinned reference proof; no passing result is claimed.
+
+## User-operator exact lifecycle lookup and raw reference witnesses
+
+An operator name key includes its catalog class as well as namespace, symbolic
+name and ordered operand signature. Temporary lookup descriptors must therefore
+carry OperatorClassID even before allocating an object OID. CREATE duplicate/
+shell completion, ALTER/DROP exact lookup and reciprocal/self-link selection
+use the same descriptor key as publication; a class-zero probe cannot identify
+a published operator. `TestUserOperatorCatalogExactUtilityLifecycle` exercises
+these direct staged paths without public SQL or fabricated routine providers.
+
+Authorization views retain paired catalog and role provenance. Replacing the
+catalog for staged peer ownership checks or a post-publication unit fixture
+uses `recaptureCatalog`, not assignment to only the catalog field.
+
+The shared catalog-row witness uses `OidReferenceRows` to validate native int64
+and PostgreSQL decimal-byte transport independently before comparing numeric
+OID identities. Public namespace OIDs are captured from each installation, not
+assumed to be2200. Authenticated raw login pools have no recording interceptor;
+their successful rows are asserted directly, while full diagnostic/stage checks
+remain through the shared fixture. No native outcome supplies expected logical
+values or PostgreSQL diagnostics.
+
+Ordinary math DEFAULT admission is unchanged: grouping can admit syntax while
+the existing native math consumer still rejects the call. The operator DEFAULT
+witness instead invokes its actual selected int4pl implementation on literals.
+This does not enable standalone math defaults or implement a user routine runtime.
+
+Operator discovery and retirement are separate phases of the shared dependency
+closure. OperatorClassID must enter the final whole-object removal phase as
+well as discovery: collecting a root alone does not remove its descriptor or
+clear surviving reciprocal links. The pure drop-closure unit covers duplicate
+multi-root selection, shell retirement, exact-name removal, peer-link clearing
+and immutable predecessor preservation through actual publication.
+
+The selected-operator wrapper deliberately has no routine carrier of its own,
+so admission visits the real provider once. Stored recipe collection must
+likewise reach that provider via `recordStoredRoutine`, including its body
+manifest, before rendering the wrapper's original symbolic operands. The
+stored-manifest unit checks both original and remapped/retagged calls and
+ordinary stored routine admission; a bare operator reference is not execution
+authority. Existing DEFAULT/CHECK collection and restore remapping remain the
+owners of the resulting routine references.
+
+The feature smoke keeps its schema-USAGE grant and unauthorized ALTER in a
+separate permission schema, dropped before native Dump. Replay therefore
+exercises genuinely portable state without adding namespace ACL serialization,
+changing ownership to evade admission, or weakening the permission assertion.
+These are implementation explanations, not passing verification claims; root
+owns fresh selected native/pinned proof, feature smoke and whole-project checks.
+
+## Fresh comparison consumers and structural authority (R13)
+
+Released [parse_oper.c, make_scalar_array_op](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/parser/parse_oper.c)
+selects the actual operator before checking its result and retaining its function.
+The native builtin-only consumers share ordinary catalog candidate collection,
+namespace/signature masking and `sqltype.ResolveOperator` on already-analyzed
+descriptors. An executable custom winner is not silently replaced by a builtin:
+analysis returns `0A000: custom operators are unsupported in this comparison context`.
+Ordinary scalar custom calls and BETWEEN's ordinary lowered operators continue
+to use their real providers; this is not a custom quantified-runtime extension.
+
+Scalar-array order is RHS-array validation, actual selection errors, selected
+custom shell42883, selected non-Boolean result42809, then Boolean custom0A000.
+Explicit builtin qualification and exact builtin winners over nonmatching custom
+overloads preserve existing provider capabilities. Seed metadata is not a new
+executable provider. Original lexical positions survive; synthesized USING/NATURAL
+equality has no Position and resolves original key types before coercion.
+
+[parse_expr.c, transformAExprIn](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/parser/parse_expr.c)
+first partitions non-Var items and attempts common-type scalar-array batching.
+When the verified common type is not RECORD and has an admitted array type,
+named-composite constructors participate in that structural branch. Two equal
+typed constructors yield true for IN and false for NOT IN even under int4 field
+operator shadowing; matching NULL members have the same structural results.
+Only residual transformed RowExpr pairs compare fresh fields: one-item cast ROW
+lists remain fieldwise, and anonymous RECORD NULL fields remain unknown.
+Raw rows retain unknown field occurrences until field selection; admitted
+non-domain cast constructors reuse already-coerced fields without rebinding.
+Frozen residual syntax normalizes to ROW source associations and captures member
+usages through the shared constructor capture helper. Synthetic member casts,
+expansions and NULL semantics survive view presentation and logical replay;
+numeric5.9 cast into an integer member remains6 rather than an uncoerced5.9.
+Ordinary typed composite equality and actual composite-column IN remain
+structural, as do array/record leaves, fixed families, grouping, extrema, CYCLE
+and stored provider reconstruction. These do not perform fresh lexical scalar
+lookup.
+
+Root's five ComparisonConsumer reference definitions own independent PostgreSQL
+outcomes and direct/prepared native boundaries. Tests-30 records the original
+oracle-first proof; tests-34 adds PostgreSQL-first batching/stored-constructor
+proof and native red for R14/R15. Fresh both-mode verification, actual emitted
+SQL replay and complete review remain root-owned; this note claims no passing
+implementation checks.

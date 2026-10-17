@@ -98,6 +98,10 @@ func normalizeConflictPredicate(ctx *EvalContext, node BoundExpr) (BoundExpr, er
 			}
 		}
 		return n, nil
+	case selectedOperatorExpression:
+		var err error
+		n.provider, err = normalizeConflictPredicate(ctx, n.provider)
+		return n, err
 	case arithmeticExpression:
 		left, err := normalizeConflictPredicate(ctx, n.left)
 		if err != nil {

@@ -469,6 +469,19 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 					changed = changed || remapped != rebound
 					rebound = remapped
 				}
+				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsOperatorAlias() {
+					remapped, er := remapOperatorDatum(rebound, func(id OID) OID {
+						if target, ok := mapping[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}]; ok {
+							return target.ObjectID
+						}
+						return id
+					})
+					if er != nil {
+						return er
+					}
+					changed = changed || remapped != rebound
+					rebound = remapped
+				}
 				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegTS() {
 					remapped, er := remapRegTSDatum(rebound, func(address ObjectAddress) ObjectAddress {
 						if target, ok := mapping[address]; ok {

@@ -682,6 +682,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		return joinExpressionSides(e.child, leftWidth, rightWidth)
 	case collationExpression:
 		return joinExpressionSides(e.child, leftWidth, rightWidth)
+	case selectedOperatorExpression:
+		return joinExpressionSides(e.provider, leftWidth, rightWidth)
 	case arithmeticExpression:
 		children = []BoundExpr{e.left, e.right}
 	case bitwiseExpression:

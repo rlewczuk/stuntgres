@@ -212,6 +212,59 @@ func scalarGrammarOperand(expr Expr) bool {
 	return true
 }
 
+// Selected target calls did not enter the ordinary scalar production. Keep
+// that boundary at its consumers while sharing operands for custom operators.
+func directSelectedCall(expr Expr) bool {
+	call, ok := expr.(FunctionExpr)
+	return ok && call.directSelectedCall
+}
+
+func selectedScalarChild(l sqlLexer, expr Expr, token lexeme) bool {
+	if directSelectedCall(expr) {
+		l.(*lexer).syntax(token)
+		return false
+	}
+	return selectedScalarOperators(l, expr)
+}
+
+// Check only after the complete operand is known: abs(3)*4 remains a valid
+// child of a custom operator, not a new standalone selected-call arithmetic
+// route. Grouped targets and call arguments retain their own grammar frontier.
+func selectedScalarOperators(l sqlLexer, expr Expr) bool {
+	switch e := expr.(type) {
+	case OperatorExpr:
+		if len(e.Name.Parts) != 1 {
+			return true // Explicit OPERATOR owns its complete operand trees.
+		}
+		name := e.Name.Parts[0]
+		switch name.Text {
+		case "+", "-", "*", "/", "%", "^":
+			for _, child := range e.Args {
+				if !selectedScalarChild(l, child, lexeme{text: name.Text, pos: name.Pos}) {
+					return false
+				}
+			}
+		case "=", "<>", "!=", "<", ">", "<=", ">=":
+			for _, child := range e.Args {
+				if !selectedScalarOperators(l, child) {
+					return false
+				}
+			}
+		default:
+			return true // An arbitrary symbolic operator owns these operands.
+		}
+	case CastExpr:
+		return selectedScalarOperators(l, e.Child)
+	case RegclassExpr:
+		return selectedScalarOperators(l, e.Child)
+	case CollateExpr:
+		return selectedScalarOperators(l, e.Child)
+	case TimeZoneExpr:
+		return selectedScalarOperators(l, e.Value) && (e.Local || selectedScalarOperators(l, e.Zone))
+	}
+	return true
+}
+
 func arithmeticExpr(l sqlLexer, tok lexeme, left, right Expr) Expr {
 	if !scalarGrammarOperand(left) || (right != nil && !scalarGrammarOperand(right)) {
 		l.(*lexer).syntax(tok)
@@ -483,7 +536,7 @@ func (l *lexer) scalarInput(expr Expr) bool {
 		l.syntax(*token)
 		return false
 	}
-	return l.scalarInputTree(expr)
+	return selectedScalarOperators(l, expr) && l.scalarInputTree(expr)
 }
 
 func (l *lexer) scalarInputTree(expr Expr) bool {
@@ -522,6 +575,12 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 	case JSONPredicateExpr:
 		return l.scalarInputTree(r.Child)
 	case FunctionExpr:
+		if r.directSelectedCall && l.selectedInputDepth == 0 {
+			l.syntax(l.current)
+			return false
+		}
+		l.selectedInputDepth++
+		defer func() { l.selectedInputDepth-- }()
 		for _, arg := range r.Args {
 			if !l.scalarInputTree(arg) {
 				return false
@@ -630,6 +689,8 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 	case TimeZoneExpr:
 		return l.scalarInputTree(r.Value) && (r.Local || l.scalarInputTree(r.Zone))
 	case OperatorExpr:
+		l.selectedInputDepth++
+		defer func() { l.selectedInputDepth-- }()
 		for _, child := range r.Args {
 			if !l.scalarInputTree(child) {
 				return false
@@ -743,7 +804,7 @@ func intervalPrecision(l sqlLexer, mask int32, tok, open lexeme) (TypeName, bool
 }
 func typeModifierHead(l sqlLexer, tok, open lexeme, qualified bool) (TypeName, bool) {
 	raw := columnType(tok)
-	if l.(*lexer).typeInputMode {
+	if l.(*lexer).typeInputMode || l.(*lexer).operatorDDL {
 		raw = inputColumnType(l, tok)
 		if qualified || raw.Quoted || tok.keyword == nil || raw.Name != "float" && raw.Name != "char" && raw.Name != "character" && raw.Name != "varchar" && raw.Name != "character varying" && raw.Name != "bit" && raw.Name != "bit varying" {
 			l.(*lexer).characterGeneric = true

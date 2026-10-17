@@ -40,7 +40,20 @@ func invalidTypeName(input string) error {
 
 func inputColumnType(l sqlLexer, tok lexeme) TypeName {
 	if !l.(*lexer).typeInputMode {
-		return columnType(tok)
+		raw := columnType(tok)
+		if l.(*lexer).operatorDDL {
+			// Name extraction needs original components even where declaration
+			// syntax canonicalizes an operand type such as int4 to integer.
+			raw.Parts = []Identifier{{Text: tok.text, Pos: tok.pos}}
+			if tok.keyword != nil && !raw.Quoted {
+				alias := standaloneType(TypeName{Name: tok.text, Pos: tok.pos})
+				if alias.System {
+					raw.System = true
+					raw.Parts = []Identifier{{Text: "pg_catalog", Pos: tok.pos}, {Text: alias.Name, Pos: tok.pos}}
+				}
+			}
+		}
+		return raw
 	}
 	raw := TypeName{Name: tok.text, Pos: tok.pos, Quoted: columnType(tok).Quoted}
 	// Generic type names use PostgreSQL's type/function-name category, not

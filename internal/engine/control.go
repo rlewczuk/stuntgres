@@ -136,6 +136,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var domains []*typeDescriptor
 	var collations []*collationDescriptor
 	var conversions []*conversionDescriptor
+	var operators []*operatorDescriptor
 	type dumpSchema struct {
 		name, owner string
 		configured  bool
@@ -274,9 +275,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			case *operatorDescriptor:
-				if !pgDependPinned(catalog, t.address) {
+				if err := (operatorProvider{}).Validate(catalog, t); err != nil {
 					e.mu.Unlock()
-					return fmt.Errorf("stuntgres: dump cannot serialize custom operator identity")
+					return err
+				}
+				if !t.seeded() {
+					operators = append(operators, t)
 				}
 				continue
 			case *procedureDescriptor:
@@ -819,6 +823,28 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 	}
+	for _, d := range operators {
+		if d.function == 0 && operatorShellGenerator(catalog, d) != nil {
+			continue
+		}
+		id := d.address.ObjectID
+		viewDependencies[dumpEventKey{oid: id}] = nil
+		for _, dependency := range operatorDependencyAddresses(catalog, d) {
+			if dependency.ClassID == NamespaceClassID {
+				continue
+			}
+			predecessor, err := dumpPredecessor(catalog, dependency, d.address)
+			if err != nil {
+				return err
+			}
+			if predecessor != 0 {
+				viewDependencies[dumpEventKey{oid: id}] = append(viewDependencies[dumpEventKey{oid: id}], dumpEventKey{oid: predecessor})
+			}
+		}
+	}
+	// Reconstruct final links, not allocation history: asymmetric links remain
+	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
+	operatorDumpEvents(catalog, operators, viewDependencies)
 	for event, predecessors := range viewDependencies {
 		id := event.oid
 		relation, ok := catalog.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: id}].(*relationDescriptor)
@@ -873,6 +899,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err := physicalNotNullDumpDependencies(originalCatalog, viewDependencies); err != nil {
 		return err
 	}
+	normalizeOperatorDumpPredecessors(catalog, viewDependencies)
 	declarationOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil && !deferDefaults && ctx.Err() == nil && len(inlinePredecessors) != 0 {
 		for oid, predecessors := range inlinePredecessors {
@@ -881,6 +908,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err := physicalNotNullDumpDependencies(originalCatalog, viewDependencies); err != nil {
 			return err
 		}
+		normalizeOperatorDumpPredecessors(catalog, viewDependencies)
 		declarationOrder, err = viewDumpOrder(ctx, viewDependencies, priorities)
 		deferDefaults = err == nil
 	}
@@ -893,13 +921,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	viewOrder := dumpDeclarationIDs(declarationOrder)
-	if err := partitionDumpEvents(ctx, originalCatalog, viewDependencies, declarationOrder, tables, indexIndices, constraintReplay, deferDefaults); err != nil {
+	if err := partitionDumpEvents(ctx, originalCatalog, viewDependencies, dumpDeclarationEvents(viewOrder), tables, indexIndices, constraintReplay, deferDefaults); err != nil {
 		return err
 	}
 	invalidReplay := partitionInvalidDumpEvents(originalCatalog, viewDependencies, indexIndices)
 	if err := domainInvalidDumpEvents(ctx, catalog, viewDependencies, domainNodes); err != nil {
 		return err
 	}
+	normalizeOperatorDumpPredecessors(catalog, viewDependencies)
 	eventOrder, err := viewDumpOrder(ctx, viewDependencies, priorities)
 	if err != nil {
 		return err
@@ -907,6 +936,26 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	declarations, err := mixedDumpStatements(ctx, catalog, domainRoles, viewOrder, domainNodes, composites)
 	if err != nil {
 		return err
+	}
+	operatorLinks := make(map[OID]string)
+	for _, d := range operators {
+		if d.function == 0 && operatorShellGenerator(catalog, d) != nil {
+			continue
+		}
+		declaration, err := operatorDumpDeclaration(ctx, catalog, domainRoles, d)
+		if err != nil {
+			return err
+		}
+		declarations[d.address.ObjectID] = declaration
+		if d.function != 0 {
+			text, err := operatorDumpLinks(catalog, d)
+			if err != nil {
+				return err
+			}
+			if text != "" {
+				operatorLinks[d.address.ObjectID] = text
+			}
+		}
 	}
 	emit := func(s string) error {
 		if err := ctx.Err(); err != nil {
@@ -1001,6 +1050,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for _, event := range eventOrder {
 		oid := event.oid
 		if event.phase != dumpDeclaration {
+			if event.phase == dumpOperatorLinks {
+				if err := setOwner("postgres"); err != nil {
+					return err
+				}
+				if err := emit(operatorLinks[oid]); err != nil {
+					return err
+				}
+				continue
+			}
 			if event.phase == dumpDomainChecks {
 				text, err := domainInvalidDumpStatement(ctx, catalog, domainNodes[oid])
 				if err != nil {
@@ -1771,6 +1829,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return err
 			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
+		case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
 		case *parser.CreateExtension:
 		case *parser.AlterView:
 			if !s.Materialized || (s.Action != "depends" && s.Action != "no_depends") || s.IfExists {
@@ -2006,6 +2065,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.AlterConversion); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateOperator); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.AlterOperator); ok {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateExtension); ok {

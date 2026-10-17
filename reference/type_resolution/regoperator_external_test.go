@@ -9,27 +9,9 @@ import (
 
 func TestReferenceRegOperatorExternalBoundary(t *testing.T) {
 	fixture.SchemaReferenceCleanup(t, "Reg Op", "regop_later")
-	regoperatorScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+	userOperatorScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		ddl := `CREATE OPERATOR "Reg Op".#=# (LEFTARG=integer,RIGHTARG=integer,FUNCTION=pg_catalog.int4eq)`
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`CREATE SCHEMA "Reg Op"`, 0))
-		if !b.PG {
-			// Native custom operator DDL is a failure boundary, never fake success.
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TABLE regop_boundary_sentinel(v integer)", 0))
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO regop_boundary_sentinel VALUES (73)", 1))
-			result, e := c.ExecContext(p.Ctx, ddl)
-			if result != nil || e == nil {
-				t.Fatal("unsupported operator DDL succeeded", result, e)
-			}
-			diagnostic := fixture.ControlsReferenceDiagnostic("42601", `syntax error at or near "OPERATOR"`)
-			diagnostic.Position = "8"
-			fixture.AssertDiagnostic(t, e, &diagnostic)
-			var sentinel int
-			if e := c.QueryRowContext(p.Ctx, "SELECT v FROM regop_boundary_sentinel").Scan(&sentinel); e != nil || sentinel != 73 {
-				t.Fatal("unsupported DDL changed sentinel", sentinel, e)
-			}
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("DROP TABLE regop_boundary_sentinel", 0))
-			return
-		}
 		for _, q := range []string{ddl, `CREATE SCHEMA regop_later`, `CREATE OPERATOR regop_later.#=# (LEFTARG=integer,RIGHTARG=integer,FUNCTION=pg_catalog.int4eq)`, `CREATE OPERATOR "Reg Op".##- (RIGHTARG=integer,FUNCTION=pg_catalog.int4um)`} {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
 		}

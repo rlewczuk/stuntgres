@@ -273,6 +273,8 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 		return d.owner, authorization.ACLValue{}, nil
 	case *conversionDescriptor:
 		return d.owner, authorization.ACLValue{}, nil
+	case *operatorDescriptor:
+		return d.owner, authorization.ACLValue{}, nil
 	}
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
@@ -431,6 +433,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			kind = "collation"
 		} else if d.Kind() == ConversionObject {
 			kind = "conversion"
+		} else if d.Kind() == OperatorObject {
+			kind = "operator"
 		} else if d.Kind() == ProcedureObject {
 			kind = "function"
 		} else if d.Kind() == DatabaseObject {
@@ -529,7 +533,7 @@ func validateACL(r authorization.Read, d Descriptor) error {
 			}
 			return r.ValidatePrincipal(t.mappedRole)
 		}
-	case *tsTemplateDescriptor, *operatorDescriptor:
+	case *tsTemplateDescriptor:
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)
@@ -572,7 +576,7 @@ func descriptorReferences(d Descriptor) []authorization.PrincipalRef {
 			}
 			return []authorization.PrincipalRef{t.mappedRole}
 		}
-	case *tsTemplateDescriptor, *operatorDescriptor:
+	case *tsTemplateDescriptor:
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)

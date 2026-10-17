@@ -1359,6 +1359,19 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n.expressionInfo = info
 		rebound = n
+	case selectedOperatorExpression:
+		n.provider = child(n.provider)
+		if view.state != nil {
+			if current, ok := view.state.descriptors[n.ref.Address].(*operatorDescriptor); ok {
+				changed = changed || current != n.operator
+				n.operator = current
+			}
+		}
+		if !changed {
+			return node, false, err
+		}
+		n.expressionInfo = info
+		rebound = n
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		if !changed {

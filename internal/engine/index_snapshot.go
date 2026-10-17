@@ -180,6 +180,14 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 			return sqltype.Value{}, err
 		}
 	}
+	if !value.IsNull() && target.ContainsOperatorAlias() {
+		value, err = remapOperatorDatum(value, func(id OID) OID {
+			return snapshot.destination(ObjectAddress{ClassID: OperatorClassID, ObjectID: id}).ObjectID
+		})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+	}
 	if !value.IsNull() && target.ContainsRegTS() {
 		value, err = remapRegTSDatum(value, snapshot.destination)
 	}

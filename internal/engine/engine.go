@@ -98,6 +98,7 @@ type binding struct {
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
 	viewIntaggRefs        map[viewLiteralPath]ObjectRef
+	viewOperatorRefs      map[viewLiteralPath]ObjectRef
 	viewComposites        map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings map[viewLiteralPath]bool
 	viewPosixSubstrings   map[viewLiteralPath]bool
@@ -417,6 +418,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return StatementDescription{}, nil
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.DropComposite, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+		return StatementDescription{}, nil
+	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
 		return StatementDescription{}, nil
 	case *parser.CreateExtension:
 		return StatementDescription{}, nil
@@ -854,6 +857,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
 	b.viewIntaggRefs = binder.viewIntaggRefs
+	b.viewOperatorRefs = binder.viewOperatorRefs
 	b.viewComposites = binder.viewComposites
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
 	b.viewPosixSubstrings = binder.viewPosixSubstrings

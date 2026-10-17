@@ -119,6 +119,13 @@ func (provider *dropProvider) dependencyClosure(targets []ObjectAddress) ([]doma
 				continue
 			}
 			switch d := descriptor.(type) {
+			case *operatorDescriptor:
+				for _, dependency := range operatorDependencyAddresses(provider.base, d) {
+					if dependency == target {
+						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
+						break
+					}
+				}
 			case *foreignDescriptor:
 				for _, dependency := range foreignDependencyAddresses(d) {
 					if dependency == (ObjectAddress{}) {
@@ -487,7 +494,7 @@ func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode
 		if !slices.Contains(targets, edge.target) {
 			targets = append(targets, edge.target)
 		}
-		if foreignCatalogClass(edge.address.ClassID) || edge.address.ClassID == TypeClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
+		if foreignCatalogClass(edge.address.ClassID) || edge.address.ClassID == OperatorClassID || edge.address.ClassID == TypeClassID || edge.address.ClassID == ExtensionClassID || edge.address.ClassID == ProcedureClassID || edge.address.ClassID == TSTemplateClassID || edge.address.ClassID == TSDictionaryClassID || edge.column != "" || edge.relation != nil && edge.address == edge.relation.address {
 			targets = append(targets, edge.address)
 			if edge.address.ClassID == RelationClassID && edge.address.SubID == 0 {
 				seen[edge.address] = true
@@ -639,7 +646,7 @@ func (provider *dropProvider) expressionDependencies(roots []ObjectAddress, mode
 		}
 	}
 	for _, target := range targets {
-		if foreignCatalogClass(target.ClassID) || target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ConversionClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
+		if foreignCatalogClass(target.ClassID) || target.ClassID == OperatorClassID || target.ClassID == TypeClassID || target.ClassID == CollationClassID || target.ClassID == ConversionClassID || target.ClassID == ExtensionClassID || target.ClassID == ProcedureClassID || target.ClassID == TSTemplateClassID || target.ClassID == TSDictionaryClassID {
 			if err = provider.remove(ObjectRef{owner: e.owner, Epoch: provider.base.Epoch(), Address: target}); err != nil {
 				break
 			}

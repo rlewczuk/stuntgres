@@ -116,6 +116,17 @@ func remapPartitionDescriptor(view CatalogRead, d *relationDescriptor, ref func(
 						return nil, err
 					}
 				}
+				if !typesOnly && value.Type().ContainsOperatorAlias() {
+					value, err = remapOperatorDatum(value, func(id OID) OID {
+						if address, ok := mapping[ObjectAddress{ClassID: OperatorClassID, ObjectID: id}]; ok {
+							return address.ObjectID
+						}
+						return id
+					})
+					if err != nil {
+						return nil, err
+					}
+				}
 				if !typesOnly && value.Type().ContainsRegTS() {
 					value, err = remapRegTSDatum(value, func(address ObjectAddress) ObjectAddress {
 						if target, ok := mapping[address]; ok {

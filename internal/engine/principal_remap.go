@@ -51,8 +51,8 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	}
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
-		case *databaseDescriptor, *tsTemplateDescriptor, *operatorDescriptor:
-			// Attachment authority is local; templates and operator identities have no owner.
+		case *databaseDescriptor, *tsTemplateDescriptor:
+			// Attachment authority is local; text search templates have no owner.
 		case *extensionDescriptor:
 			n := *d
 			var err error
@@ -152,6 +152,14 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 			}
 			state.descriptors[addr] = &n
 		case *conversionDescriptor:
+			n := *d
+			var err error
+			n.owner, err = seedOwner(d.owner, d.seeded())
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
+		case *operatorDescriptor:
 			n := *d
 			var err error
 			n.owner, err = seedOwner(d.owner, d.seeded())

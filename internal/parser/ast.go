@@ -1905,6 +1905,9 @@ type FunctionExpr struct {
 	WithinPos Position
 	// Per-function definitions belong to the corresponding ROWS FROM member.
 	ColumnDefinitions []FunctionColumnDefinition
+	// Retains the direct selected-call DEFAULT boundary after scalar factoring.
+	// Parenthesized calls clear this parser-only marker.
+	directSelectedCall bool
 }
 
 // JSONFormat retains explicit SQL/JSON clauses and their diagnostic positions.

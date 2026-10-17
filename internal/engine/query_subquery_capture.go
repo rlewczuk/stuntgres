@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -64,18 +65,25 @@ func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDepend
 	return dependencies, nil
 }
 
-func (b *expressionBinder) captureQuantifiedConstructor(raw parser.RowExpr, constructor rowExpression, path viewLiteralPath, ordinal *int) error {
-	if b.viewCastUsages == nil {
+// Quantified and residual IN constructors share source slots, expansion
+// associations and synthetic member casts; only frozen capture needs this walk.
+func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) BoundExpr, expansions map[int]compositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
+	if memberCasts && b.viewCastUsages == nil {
 		b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
 	}
 	slot := 0
 	for source, field := range raw.Fields {
-		if expansion, ok := constructor.expansions[source]; ok {
+		if expansion, ok := expansions[source]; ok {
 			key := path
 			key.node = *ordinal
-			for i := range expansion.fields {
-				key.argument = i + 1
-				b.viewCastUsages[key] = constructor.fields[slot+i].ResultUsage()
+			if slot+len(expansion.fields) > count {
+				return fmt.Errorf("stuntgres: missing row comparison source association")
+			}
+			if memberCasts {
+				for i := range expansion.fields {
+					key.argument = i + 1
+					b.viewCastUsages[key] = fieldAt(slot + i).ResultUsage()
+				}
 			}
 			if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
 				return err
@@ -83,13 +91,21 @@ func (b *expressionBinder) captureQuantifiedConstructor(raw parser.RowExpr, cons
 			slot += len(expansion.fields)
 			continue
 		}
-		key := path
-		key.argument = source + 1
-		b.viewCastUsages[key] = constructor.fields[slot].ResultUsage()
-		if err := b.captureNormalizedViewLiteralTree(field, constructor.fields[slot], path, ordinal); err != nil {
+		if slot >= count {
+			return fmt.Errorf("stuntgres: missing row comparison source association")
+		}
+		if memberCasts {
+			key := path
+			key.argument = source + 1
+			b.viewCastUsages[key] = fieldAt(slot).ResultUsage()
+		}
+		if err := b.captureNormalizedViewLiteralTree(field, fieldAt(slot), path, ordinal); err != nil {
 			return err
 		}
 		slot++
+	}
+	if slot != count {
+		return fmt.Errorf("stuntgres: invalid row comparison source association")
 	}
 	return nil
 }

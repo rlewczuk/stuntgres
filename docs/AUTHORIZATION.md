@@ -148,6 +148,28 @@ routine's EXECUTE privilege; registered routines have genuine PUBLIC EXECUTE
 defaults through the same native ACL hook. ALTER/DROP check conversion ownership;
 owner transfer uses current SET eligibility and target-owner schema CREATE.
 
+Operators likewise have real creating-user ownership, schema/type/function
+dependencies and role ownership references, including unfilled forward shells.
+CREATE requires namespace CREATE, operand/result type USAGE and implementation
+EXECUTE. There is no grantable operator ACL: demanded invocation admits the
+actual function with fresh EXECUTE authority, including held prepared statements;
+strict NULL and skipped demand follow the existing routine admission contract.
+CREATE's ordered option extraction and required-function check precede operand
+identity lookup; both supplied operand identities resolve before missing/postfix
+checks, then operand USAGE is checked left-to-right before function lookup.
+Qualified-namespace USAGE remains part of identity lookup. ALTER finds the exact
+target, extracts every option (including preliminary name extraction for supplied
+non-NULL values), then checks ownership before resolving surviving option names.
+Malformed values can therefore precede ownership errors, but a valid extracted
+nonexistent estimator or invalid symbolic reference cannot bypass ownership.
+ALTER/DROP require ownership, linked-operator updates check the peer owner, and
+OWNER TO uses existing SET ROLE eligibility and target-schema CREATE checks.
+SET SCHEMA checks destination CREATE before operator ownership. REASSIGN OWNED,
+DROP OWNED and DROP ROLE use the shared ownership/dependency lifecycle.
+Commutator/negator are links rather than normal dependency edges; retiring a peer
+clears reciprocal fields without cascading the surviving definition.
+
+
 Conversion and routine owners use the extracted authorization domain's opaque
 principal references. Catalog `conowner` exposes only their numeric IDs; those
 IDs cannot establish ownership or authorize replacement. Restore validates

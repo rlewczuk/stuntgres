@@ -568,3 +568,17 @@ var supportedOperatorMetadata = [...]operatorMetadata{
 	{5075, 16, "b", false, false, 5076, 5074, 5036, 336, 386},
 	{5076, 16, "b", false, false, 5075, 5073, 5037, 337, 398},
 }
+
+// REL_18_6 pg_proc.dat estimator result facts supplement the existing identity
+// inventory only. They do not publish pg_proc rows or callable providers.
+// https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
+func releasedOperatorEstimatorResult(id OID) OID {
+	switch id {
+	case 101, 102, 103, 104, 105, 106, 107, 108, 139, 140, 336, 337, 386, 398,
+		1300, 1301, 1302, 1303, 1814, 1815, 1816, 1817, 1818, 1819, 1820,
+		1821, 1822, 1823, 1824, 1825, 1826, 1827, 1828, 1829, 3437, 3438,
+		3169, 3560, 3561, 3686, 3687, 3817, 3818, 4243, 5040, 5041:
+		return 701
+	}
+	return 0
+}

@@ -12,12 +12,12 @@ import (
 	"testing"
 )
 
-// These fixtures publish real typed descriptors through the catalog stage. They
-// do not implement, or claim public support for, CREATE OPERATOR.
+// These fixtures publish legitimate owned shells through CatalogStage. They
+// exercise alias retention independently of executable operator definitions.
 func regoperatorPreparedInstall(t *testing.T, e *Engine, namespace ObjectAddress, oid, left, right OID) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	d := &operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: "#=#", left: left, right: right}
+	d := &operatorDescriptor{address: ObjectAddress{ClassID: OperatorClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: "#=#", left: left, right: right, owner: e.authorizationDomain.Principal(10)}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}

@@ -78,6 +78,12 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			return nil, err
 		}
 		switch d := descriptor.(type) {
+		case *operatorDescriptor:
+			if !d.seeded() {
+				for _, address := range operatorDependencyAddresses(catalog, d) {
+					add(d.address, address, 'n')
+				}
+			}
 		case *foreignDescriptor:
 			for _, address := range foreignDependencyAddresses(d) {
 				if address != (ObjectAddress{}) {
