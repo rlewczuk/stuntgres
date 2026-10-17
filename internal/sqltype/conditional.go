@@ -12,6 +12,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},
 	{Money, Money},
 	{Inet, Inet},
+	{Char, Char},
 	{Text, Text}, {BPChar, BPChar}, {Name, Name}, {Name, Text}, {Text, Name},
 	{Date, Date}, {Time, Time}, {Timestamp, Timestamp}, {Date, Timestamp}, {Timestamp, Date}, {UUID, UUID}, {Bytea, Bytea},
 	{Timestamptz, Timestamptz}, {Timetz, Timetz},

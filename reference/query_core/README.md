@@ -6,6 +6,41 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Internal char conditional equality
+
+Change note: simple CASE now resolves existing catalog-owned internal `"char"`
+operands and unknown WHEN literals through the existing equality comparison
+provider. This also supplies the shared NULLIF resolver's missing exact signature;
+it adds no cast, user-column type, catalog provider or predicate syntax.
+
+`TestReferenceConditionalInternalCharEquality` independently checks an ordinary
+table and view's `pg_class.relkind`: matching and nonmatching arms, first-match
+selection, omitted ELSE, typed WHEN operands, NULL nonmatches and a nested typed
+NULL test. Direct and prepared execution assert exact names, NAME/TEXT/INT4/CHAR
+database types and rows. CHAR ScanType is string natively and interface{} through
+pq; returned non-NULL CHAR cells remain strings on both adapters.
+
+Run the selected proof in both modes with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceConditionalInternalCharEquality$' REFERENCE=1
+make check RUN='^TestReferenceConditionalInternalCharEquality$'
+make check RUN='^TestReferenceConditional(Results|Parameters|Diagnostics|TypeMatrix)$'
+make check RUN='^TestReferenceConditional(Results|Parameters|Diagnostics|TypeMatrix)$' REFERENCE=1
+make check RUN='^TestConditional(EqualitySignatures|RuntimeDemand)$'
+```
+
+The current pinned PostgreSQL18.6 oracle established the catalog fixture's
+expectations before the native regression exposed the missing equality signature.
+A separate standalone public `database/sql` smoke then observed direct execution
+and the same prepared statement twice: names `name/kind/omitted/unequal`, types
+`NAME/TEXT/TEXT/CHAR`, and table/view rows `(char_smoke_table,table,table,NULL)` and
+`(char_smoke_view,other,NULL,v)`. That throwaway program is not a tracked test
+deliverable; use the permanent selector above for reproducible feature proof.
+The unchanged psql relation-list query belongs to a separate, unintegrated
+Boolean-predicate part and is not claimed as verified by this revision.
+
+
 ### Parallel SELECT scan contract
 
 The shared `TestReferenceQueryParallel*` scenarios specify exact occurrence bags
