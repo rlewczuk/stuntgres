@@ -29,12 +29,13 @@ func castCatalogExpected() []CastMetadata {
 		{20065, 790, 1700, 3823, 'a', 'f'}, {20066, 1700, 790, 3824, 'a', 'f'},
 		{20067, 23, 790, 3811, 'a', 'f'}, {20068, 20, 790, 3812, 'a', 'f'},
 		{20069, 5069, 28, 5071, 'e', 'f'},
+		{20070, 18, 25, 946, 'i', 'f'}, {20071, 194, 25, 0, 'i', 'b'}, {20072, 1083, 1186, 1370, 'i', 'f'},
 	}
 }
 
 func TestCastCatalogMetadata(t *testing.T) {
 	want := castCatalogExpected()
-	if CastMetadataCount() != 70 || len(want) != 70 {
+	if CastMetadataCount() != 73 || len(want) != 73 {
 		t.Fatal("cast count", CastMetadataCount(), len(want))
 	}
 	ids, pairs := map[uint32]bool{}, map[[2]ID]bool{}
@@ -57,7 +58,7 @@ func TestCastCatalogMetadata(t *testing.T) {
 			t.Fatal("mutable metadata escaped", i, again)
 		}
 	}
-	for _, i := range []int{-1, 70, 71} {
+	for _, i := range []int{-1, 73, 74} {
 		if got, ok := CastMetadataAt(i); ok || got != (CastMetadata{}) {
 			t.Fatal("out of range", i, got, ok)
 		}
@@ -66,8 +67,8 @@ func TestCastCatalogMetadata(t *testing.T) {
 		{Int4, Text}, {Text, Int4}, {Float4, Text}, {Float8, Text}, {Oid, Text}, {Text, Text}, {Int4, Int4}, {Bool, Bool},
 		{Name, Text}, {Name, BPChar}, {Name, VarChar}, {Text, Name}, {BPChar, Name}, {VarChar, Name},
 		{Regclass, Oid}, {Oid, Regclass}, {Text, Regclass}, {Int4, Regclass},
-		{Bit, VarBit}, {VarBit, Bit}, {Bit, Bit}, {VarBit, VarBit}, {PgNodeTree, Text}, {Char, Text},
-		{JSONB, Int4}, {JSONB, Bool}, {JSONB, Numeric}, {Time, Interval}, {Interval, Time},
+		{Bit, VarBit}, {VarBit, Bit}, {Bit, Bit}, {VarBit, VarBit},
+		{JSONB, Int4}, {JSONB, Bool}, {JSONB, Numeric}, {Interval, Time},
 	} {
 		if pairs[pair] {
 			t.Fatal("overclaimed cast", pair)
@@ -79,7 +80,7 @@ func castCatalogText(id ID) string {
 	switch id {
 	case Bool:
 		return "true"
-	case Text, BPChar, VarChar:
+	case Text, BPChar, VarChar, Char, PgNodeTree:
 		return "ab"
 	case Date:
 		return "2000-01-01"
@@ -130,6 +131,9 @@ func TestCastCatalogCompleteContextClosure(t *testing.T) {
 				t.Fatal("claimed closure absent", row, mode, err)
 			}
 			value, err := types[row.Source].InputWithEnvironment(ctx, castCatalogText(row.Source), -1, input)
+			if row.Source == PgNodeTree {
+				value, err = Tree(types[PgNodeTree], &groupingTree{text: "ab"})
+			}
 			if err != nil {
 				t.Fatal(row, err)
 			}
@@ -139,6 +143,9 @@ func TestCastCatalogCompleteContextClosure(t *testing.T) {
 			}
 			text, err := types[row.Target].OutputWithEnvironment(ctx, got, output)
 			want := castCatalogText(row.Target)
+			if row.Source == Char && row.Target == Text {
+				want = "a"
+			}
 			if row.Target == Money {
 				want = "$7.00"
 			}

@@ -62,9 +62,6 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 			t.Fatal(v, err)
 		}
 	}
-	if _, err := sqltype.PlanCoercion(b.typ(sqltype.Time).Usage(), b.typ(sqltype.Interval).Usage(), sqltype.Implicit); err == nil {
-		t.Fatal("global TIME cast widened")
-	}
 }
 
 func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {

@@ -24,7 +24,11 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 // Policies share analyzed expression/query presentation without inheriting a
 // view's temporary-source restriction. An empty message permits those sources.
 func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
-	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
+	dependencies, err := frozenQueryDependencies(auth.catalog, b)
+	if err != nil {
+		return nil, err
+	}
+	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals, definition.castUsages = b.viewLiterals, b.viewCastUsages
 	definition.intaggRefs = b.viewIntaggRefs
 	definition.composites = b.viewComposites

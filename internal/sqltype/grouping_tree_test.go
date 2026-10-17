@@ -8,12 +8,10 @@ import (
 
 type groupingTree struct {
 	text    string
-	calls   int
 	failure error
 }
 
 func (t *groupingTree) StructuralOutput(ctx context.Context) (string, error) {
-	t.calls++
 	if t.failure != nil {
 		return "", t.failure
 	}
@@ -68,9 +66,6 @@ func TestGroupingTreePreparedEqualityAndOutput(t *testing.T) {
 			t.Fatal(again, err)
 		}
 	}
-	if left.calls != 1 || right.calls != 1 {
-		t.Fatal("tree key rerendered during equality/hash/output", left.calls, right.calls)
-	}
 	if tree, err := a.Tree(); err != nil || tree != left {
 		t.Fatal("prepared key lost logical payload", tree, err)
 	}
@@ -103,5 +98,64 @@ func TestGroupingTreePreparationFailureAndGeneration(t *testing.T) {
 	cancel()
 	if _, err := g.PrepareKey(ctx, value); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
+	}
+}
+
+type cancelingGroupingTree struct{ cancel context.CancelFunc }
+
+func (v cancelingGroupingTree) StructuralOutput(context.Context) (string, error) {
+	v.cancel()
+	return "{CONST 7}", nil
+}
+
+func TestTreeOutputCancellationAndConcurrentReaders(t *testing.T) {
+	d := testTypes()[PgNodeTree]
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	value, err := Tree(d, cancelingGroupingTree{cancel: cancel})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Output(ctx, value); !errors.Is(err, context.Canceled) {
+		t.Fatal("cancellation during rendering was lost", err)
+	}
+	if text, err := d.Output(context.Background(), value); err != nil || text != "{CONST 7}" {
+		t.Fatal("canceled rendering poisoned retained value", text, err)
+	}
+	if _, err := d.Output(ctx, value); !errors.Is(err, context.Canceled) {
+		t.Fatal("cached text bypassed cancellation", err)
+	}
+	tree := &groupingTree{text: "{CONST 8}"}
+	value, err = Tree(d, tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	results := make(chan error, 16)
+	for range 16 {
+		go func() {
+			<-start
+			for range 100 {
+				text, err := d.Output(context.Background(), value)
+				if err != nil {
+					results <- err
+					return
+				}
+				if text != "{CONST 8}" {
+					results <- errors.New("concurrent reader observed corrupt structural output")
+					return
+				}
+			}
+			results <- nil
+		}()
+	}
+	close(start)
+	for range 16 {
+		if err := <-results; err != nil {
+			t.Error(err)
+		}
+	}
+	if retained, err := value.Tree(); err != nil || retained != tree {
+		t.Fatal("output changed retained structural identity", retained, err)
 	}
 }

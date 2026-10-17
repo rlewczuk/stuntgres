@@ -91,6 +91,10 @@ func (r *pgDependRefs) expression(expr BoundExpr) {
 				return r.err
 			})
 		}
+	case rowExpression:
+		if typ := n.ResultUsage().Type; typ != nil && typ.ID() != 0 {
+			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})
+		}
 	case coercionExpression:
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.add(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())})

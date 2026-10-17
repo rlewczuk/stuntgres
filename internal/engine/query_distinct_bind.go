@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -15,6 +16,35 @@ type queryGrouping struct {
 	sqltype.Grouping
 	routine     ObjectRef
 	privateTree bool
+	conversion  sqltype.CoercionPlan
+	converted   sqltype.Grouping
+	convert     bool
+}
+
+func (g queryGrouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
+	if !g.convert {
+		return g.Grouping.Equal(ctx, a, b)
+	}
+	left, err := g.conversion.Apply(ctx, a, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	if err != nil {
+		return false, err
+	}
+	right, err := g.conversion.Apply(ctx, b, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	if err != nil {
+		return false, err
+	}
+	return g.converted.Equal(ctx, left, right)
+}
+
+func (g queryGrouping) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
+	if !g.convert {
+		return g.Grouping.Hash(ctx, value)
+	}
+	converted, err := g.conversion.Apply(ctx, value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	if err != nil {
+		return 0, err
+	}
+	return g.converted.Hash(ctx, converted)
 }
 
 func privateTreeGrouping(d *sqltype.Descriptor) bool {
@@ -65,6 +95,28 @@ func (b *expressionBinder) bindDistinctGrouping(expression BoundExpr) (queryGrou
 	if err != nil {
 		return queryGrouping{}, err
 	}
-	ref, private, err := b.groupingRoutineReference(expression.ResultUsage())
-	return queryGrouping{Grouping: family, routine: ref, privateTree: private}, err
+	group := queryGrouping{Grouping: family}
+	usage := expression.ResultUsage()
+	if !privateTreeGrouping(usage.Type) {
+		signature, err := sqltype.ResolveEquality(usage.Type.BaseType(), usage.Type.BaseType())
+		if err != nil {
+			return queryGrouping{}, err
+		}
+		if signature.Left != usage.Type.BaseType().ID() {
+			target := b.typ(signature.Left).Usage()
+			target.Collation = usage.Collation
+			group.conversion, err = sqltype.PlanCoercion(usage, target, sqltype.Implicit)
+			if err != nil {
+				return queryGrouping{}, err
+			}
+			group.converted, err = sqltype.BindGrouping(target)
+			if err != nil {
+				return queryGrouping{}, err
+			}
+			group.convert = true
+			usage = target
+		}
+	}
+	group.routine, group.privateTree, err = b.groupingRoutineReference(usage)
+	return group, err
 }

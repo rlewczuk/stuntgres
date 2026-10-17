@@ -47,9 +47,8 @@ func jsonpathReferenceStep(t *testing.T, b fixture.Backend, s fixture.Step) fixt
 	return s
 }
 
-// pg_type remains a named native exclusion. Original attribute inquiries retain
-// their full PostgreSQL results and exact native cast/mixed-OID boundaries; the
-// callers also exercise admitted numeric-OID attribute metadata separately.
+// pg_type remains a named native exclusion. Attribute inquiries share the
+// released mixed-OID comparisons; their separate cast boundary is unchanged.
 func jsonpathReferenceInquiry(b fixture.Backend, s fixture.Step) fixture.Step {
 	if b.PG {
 		return s
@@ -67,10 +66,10 @@ func jsonpathReferenceInquiry(b fixture.Backend, s fixture.Step) fixture.Step {
 		return boundary
 	}
 	if strings.Contains(s.Query, " FROM pg_catalog.pg_attribute") {
-		diagnostic := fixture.Diagnostic{Code: "42883", Message: "operator does not exist: oid = regclass", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: fixture.Position(strings.Index(s.Query, "attrelid=") + len("attrelid") + 1)}
-		if strings.Contains(s.Query, "attname::text") {
-			diagnostic = fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: fixture.Position(strings.Index(s.Query, "::text") + 1)}
+		if !strings.Contains(s.Query, "attname::text") {
+			return s
 		}
+		diagnostic := fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: fixture.Position(strings.Index(s.Query, "::text") + 1)}
 		boundary := fixture.ImplicitError(s.Query, diagnostic, s.Args...)
 		boundary.SelectRows, boundary.Prepared, boundary.ErrorStage = true, s.Prepared, "execute"
 		if s.Prepared {

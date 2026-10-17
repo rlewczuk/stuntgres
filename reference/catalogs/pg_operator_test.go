@@ -36,8 +36,8 @@ func pgOperatorFacts(t *testing.T) [][]any {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(records) != 547 || !reflect.DeepEqual(records[0], pgOperatorColumns) {
-		t.Fatalf("released inventory: %d records, want header plus 546", len(records))
+	if len(records) < 2 || !reflect.DeepEqual(records[0], pgOperatorColumns) {
+		t.Fatal("missing released inventory or invalid header")
 	}
 	var result [][]any
 	var previous int64

@@ -105,16 +105,5 @@ func (b *expressionBinder) resolveExtremaSignature(raw parser.AggregateExpr, nam
 			return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
 		}
 	}
-	if typ := operand.descriptor(); typ != nil && typ.BaseType().ID() == sqltype.Char {
-		info, failure := b.coercionInfo(b.info(selected.Usage(), operand.node.SourcePosition(), operand.node.Properties()), operand.node)
-		if failure != nil {
-			return nil, failure
-		}
-		plan, failure := sqltype.PlanExtremaCharText(operand.node.ResultUsage(), info.usage)
-		if failure != nil {
-			return nil, failure
-		}
-		return coercionExpression{info, operand.node, plan, sqltype.Implicit, false}, nil
-	}
 	return b.coerceConditional(operand, selected.Usage(), raw.Name)
 }

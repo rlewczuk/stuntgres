@@ -23,7 +23,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	for _, v := range []sqltype.Value{sqltype.Null(intType), integer, sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
 		child := literalExpression{b.info(v.Type().Usage(), parser.Position{}, ExprProperties{}), v}
 		for _, not := range []bool{false, true} {
-			node := nullTestExpression{boolInfo, child, not}
+			node := nullTestExpression{boolInfo, child, not, false}
 			got, err := node.Eval(evalContext)
 			want := v.IsNull() != not
 			truth, truthErr := TruthOf(got)
@@ -70,7 +70,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	column := columnExpression{expressionInfo: b.info(intType.Usage(), parser.Position{}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: 0}
 	parameter := parameterExpression{b.info(intType.Usage(), parser.Position{}, ExprProperties{ParameterDependent: true}), 1}
-	nodes := []BoundExpr{nullTestExpression{boolInfo, column, false}, truthTestExpression{boolInfo, column, True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
+	nodes := []BoundExpr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
 	invalid := []*EvalContext{nil, {Context: evalContext.Context, Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}, {Context: evalContext.Context, Scope: 1, Frame: 1, Row: []sqltype.Value{{}}, Parameters: []sqltype.Value{integer}}, {Context: evalContext.Context, Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}, Parameters: []sqltype.Value{integer}}}
 	for _, node := range nodes {
 		for _, frame := range invalid {

@@ -6,6 +6,57 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Complete comparison compatibility
+
+`comparison-ledger.md` owns the independent REL_18_6 signatures, direct implicit
+coercions, concrete/structural inventory and observed oracle provenance.
+`comparison_facts_test.go` enumerates 87 concrete types and all 52,983 ordered
+pair/spelling cells. Predicate shards classify 658,503 triples and exercise all
+4,103 ordering-admitted triples across six BETWEEN forms and27 value/NULL
+assignments:4,100 ordinary triples plus three demand-failing leaf-array triples.
+The latter independently require198 strict-NULL successes and288 demand errors.
+DISTINCT, null/truth, consumer, identity/demand and lifecycle definitions use the
+same public dual-mode fixture, not native-derived goldens.
+
+Run each suffix `Numeric`, `Strings`, `Temporal`, `Identifiers`, `BinaryNetwork`,
+`NegativeSpace`, `Ranges`, `Arrays` separately in both modes:
+
+```sh
+make check RUN='^TestReferenceComparisonMatrixNumeric$' REFERENCE=1
+make check RUN='^TestReferenceComparisonMatrixNumeric$'
+make check RUN='^TestReferenceComparisonBetweenNumeric$' REFERENCE=1
+make check RUN='^TestReferenceComparisonBetweenNumeric$'
+```
+
+Use the corresponding exact suffix for every shard; do not substitute a
+representative family. Other bounded selectors cover the remaining contracts:
+
+```sh
+make check RUN='^TestReferenceComparison(CoreConversions|UnknownParameters|CompositeDemand|RowEligibility|RecordImageBoundary|StructuralConstruction|PredicateSyntax)$' REFERENCE=1
+make check RUN='^TestReferenceComparison(Boundaries|Structural|DistinctParameters|DomainArrayRoutes|CycleRecordArray)$' REFERENCE=1
+make check RUN='^TestReferenceComparison(NestedCapabilities|CatalogConversions|NodeTreeLeaf|RecordUnknownFormals|DiagnosticVisibility|CompositeSortConsumer|DeferredRecord)$' REFERENCE=1
+make check RUN='^TestReferenceComparison(Distinct|NullTruth|NullOnlyRoutes|PredicateErrors)$' REFERENCE=1
+make check RUN='^TestReferenceComparison(Consumers|ConsumerReductions|BatchSelection)$' REFERENCE=1
+make check RUN='^TestReferenceComparison(PreparedLifecycle|StoredControls|StoredConstructor(Lifecycle|Replay|Dependencies)?|AnyarrayCatalog|InstalledQueryInt)$' REFERENCE=1
+make check RUN='^TestReferenceComparison(PreparedLifecycle|StoredConstructor(Lifecycle|Replay|Dependencies))$' RACE=1
+```
+
+Each changed definition also requires the identical selector without REFERENCE.
+Use an external900-second deadline per command. Full quickcheck and post-integration
+finalcheck are separate gates. The stored constructor witnesses distinguish erased
+outer identities from actual member/nested/whole-value/unused-CTE dependencies,
+member VARCHAR typmods, enum rename and replay of actual native-emitted SQL.
+Existing enum-DROP and absent codec boundaries are independently asserted, not
+implemented as comparison prerequisites.
+
+Standalone smoke uses the actual built `cmd/stuntgres` and a temporary raw/public
+client, not a Go test. Its `raw`, `public`, `feature` entrypoints assert explicit
+1043 metadata and reused counts, cross-family equality/order, NULL-aware
+predicates, composite/row semantics, stored member coercions after outer-type
+drop, held current data, node-tree leaves, canonical diagnostics and VARCHAR
+window peer equality. The sessions owner documents launch/teardown; the ledger
+records evidence provenance.
+
 ### Regcollation and regnamespace
 
 The shared scenarios independently specify symbolic/numeric identity, SQL

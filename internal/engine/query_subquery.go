@@ -10,33 +10,19 @@ import (
 // Correlated scans reopen; uncorrelated hashed occurrences retain a built RHS.
 type subqueryExpression struct {
 	expressionInfo
-	kind           parser.SubqueryKind
-	queryPlan      *BoundQuery
-	comparisons    []comparisonExpression
-	ordering       []sqltype.Comparison
-	membership     []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
-	operator       string
-	negate         bool
-	presenceOnly   bool
-	cteDefinition  bool // Analysis-only graph edge, never expression demand.
-	jsonArray      *sqlJSONArrayQuery
-	leftExpansions map[int]compositeExpansionBinding // Analysis-only source associations.
-}
-
-func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {
-	if len(raw.Args) != 2 {
-		return parser.SubqueryExpr{}, false
-	}
-	left, ok := raw.Args[0].(parser.RowExpr)
-	if !ok {
-		return parser.SubqueryExpr{}, false
-	}
-	right, ok := raw.Args[1].(parser.SubqueryExpr)
-	if !ok || right.Kind != parser.SubqueryScalar {
-		return parser.SubqueryExpr{}, false
-	}
-	right.Kind, right.Left, right.Operator, right.Pos = parser.SubqueryRow, left, raw.Name, raw.Pos
-	return right, true
+	kind            parser.SubqueryKind
+	queryPlan       *BoundQuery
+	comparisons     []comparisonExpression
+	ordering        []sqltype.Comparison
+	membership      []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
+	operator        string
+	negate          bool
+	presenceOnly    bool
+	cteDefinition   bool // Analysis-only graph edge, never expression demand.
+	jsonArray       *sqlJSONArrayQuery
+	leftExpansions  map[int]compositeExpansionBinding // Analysis-only source associations.
+	leftConstructor BoundExpr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
+	erasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
 }
 
 func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, error) {
@@ -58,6 +44,8 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	b.subqueryDemand = true
 	var left []comparisonOperand
 	var leftExpansions map[int]compositeExpansionBinding
+	var leftConstructor BoundExpr
+	var erasedLeftType sqltype.ID
 	if raw.Left != nil {
 		var err error
 		if row, ok := raw.Left.(parser.RowExpr); ok {
@@ -65,7 +53,25 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 		} else {
 			var operand comparisonOperand
 			operand, err = b.comparisonOperand(raw.Left)
-			left = []comparisonOperand{operand}
+			if constructor, ok := operand.node.(rowExpression); ok && constructor.raw != nil && !constructor.usage.Type.IsDomain() {
+				// A cast to a named composite can still analyze to a ROW
+				// constructor. Quantified subqueries compare its fields;
+				// a domain coercion or scalar subquery remains one value.
+				left = make([]comparisonOperand, len(constructor.fields))
+				for i, field := range constructor.fields {
+					left[i] = comparisonOperand{node: field}
+				}
+				leftExpansions = constructor.expansions
+				if b.noParameters || b.materializedDefinition {
+					erasedLeftType = constructor.usage.Type.ID()
+					leftConstructor, err = b.normalizeQuantifiedConstructor(raw.Left, constructor)
+					if err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				left = []comparisonOperand{operand}
+			}
 		}
 		if err != nil {
 			return nil, err
@@ -106,6 +112,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 	properties.StageDependent = true
 	e := subqueryExpression{expressionInfo: b.info(usage, raw.Pos, properties), kind: raw.Kind, queryPlan: query, negate: raw.Negate, presenceOnly: presenceOnly}
 	e.leftExpansions = leftExpansions
+	e.leftConstructor, e.erasedLeftType = leftConstructor, erasedLeftType
 	if raw.Kind == parser.SubqueryScalar || raw.Kind == parser.SubqueryExists {
 		return e, nil
 	}
@@ -145,6 +152,9 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 				return nil, err
 			}
 		}
+	}
+	if err := b.checkRowComparisonInterpretation(parser.OperatorExpr{Name: raw.Operator, Pos: raw.Pos}, e.comparisons); err != nil {
+		return nil, err
 	}
 	if raw.Kind == parser.SubqueryAny && operator == sqltype.CompareEqual && !properties.RowDependent {
 		families := make([]sqltype.Grouping, width)
@@ -280,90 +290,6 @@ func (e subqueryExpression) Eval(c *EvalContext) (value sqltype.Value, err error
 			return sqltype.Boolean(e.usage.Type, truth), nil
 		}
 	}
-}
-
-// A saved subquery tuple supplies left values. Local rows pass nil so each
-// reached pair evaluates left then right before deciding whether to continue.
-func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (sqltype.Value, error) {
-	unknown := false
-	for i, comparison := range e.comparisons {
-		var valueLeft sqltype.Value
-		if left == nil {
-			var err error
-			valueLeft, err = comparison.left.Eval(c)
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-		} else {
-			valueLeft = left[i]
-		}
-		right, err := comparison.right.Eval(c)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if e.distinct() {
-			distinct := valueLeft.IsNull() != right.IsNull()
-			if !valueLeft.IsNull() && !right.IsNull() {
-				value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				equal, err := value.Boolean()
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				distinct = !equal
-			}
-			if distinct {
-				return sqltype.Boolean(e.usage.Type, e.operator == "IS DISTINCT FROM"), nil
-			}
-			continue
-		}
-		if len(e.comparisons) == 1 {
-			return comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
-		}
-		if len(e.ordering) != 0 {
-			if valueLeft.IsNull() || right.IsNull() {
-				return sqltype.Null(e.usage.Type), nil
-			}
-			sign, err := e.ordering[i].Compare(c.Context, valueLeft, right, c.Input)
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-			if sign == 0 {
-				continue
-			}
-			truth := sign < 0
-			if e.operator == ">" || e.operator == ">=" {
-				truth = sign > 0
-			}
-			return sqltype.Boolean(e.usage.Type, truth), nil
-		}
-		value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if value.IsNull() {
-			unknown = true
-			continue
-		}
-		truth, err := value.Boolean()
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if e.operator == "<>" {
-			if truth {
-				return sqltype.Boolean(e.usage.Type, true), nil
-			}
-		} else if !truth {
-			return sqltype.Boolean(e.usage.Type, false), nil
-		}
-	}
-	if unknown {
-		return sqltype.Null(e.usage.Type), nil
-	}
-	truth := e.operator == "=" || e.operator == "<=" || e.operator == ">=" || e.operator == "IS NOT DISTINCT FROM"
-	return sqltype.Boolean(e.usage.Type, truth), nil
 }
 
 // Full analysis precedes this demand decision. A represented OFFSET, actual local

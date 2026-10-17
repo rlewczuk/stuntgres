@@ -114,6 +114,12 @@ func comparisonInfo(view CatalogRead, left, right BoundExpr) (expressionInfo, er
 }
 
 func (b *expressionBinder) comparisonInfo(left, right BoundExpr) (expressionInfo, error) {
+	if err := b.captureComparisonDiagnosticInput(left.ResultUsage().Type); err != nil {
+		return expressionInfo{}, err
+	}
+	if err := b.captureComparisonDiagnosticInput(right.ResultUsage().Type); err != nil {
+		return expressionInfo{}, err
+	}
 	return comparisonInfo(b.bindingCatalog(), left, right)
 }
 

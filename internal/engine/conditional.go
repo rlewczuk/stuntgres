@@ -267,37 +267,17 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	info.properties = coercionProperties(input, plan)
 	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false}), nil
 }
-func equalityError(err error, left, right *sqltype.Descriptor, pos parser.Position) error {
-	d, ok := err.(*sqlstate.Error)
-	if !ok {
-		return err
-	}
-	name := func(t *sqltype.Descriptor) string {
-		if t == nil {
-			return "unknown"
-		}
-		return t.DiagnosticName()
-	}
-	message := fmt.Sprintf("operator does not exist: %s = %s", name(left), name(right))
-	hint := "No operator matches the given name and argument types. You might need to add explicit type casts."
-	if d.Code == "42725" {
-		message = fmt.Sprintf("operator is not unique: %s = %s", name(left), name(right))
-		hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
-	}
-	copy := expressionError(d.Code, message, pos).(*sqlstate.Error)
-	copy.Hint = hint
-	return copy
-}
 func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (BoundExpr, BoundExpr, sqltype.Comparison, *procedureDescriptor, error) {
-	s, err := sqltype.ResolveEquality(left.descriptor(), right.descriptor())
-	if err != nil {
-		return nil, nil, sqltype.Comparison{}, nil, equalityError(err, left.descriptor(), right.descriptor(), pos)
-	}
-	l, err := b.coerceConditional(left, b.typ(s.Left).Usage(), "=")
+	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
+	lt, rt, err := b.resolveComparisonTypes(raw, left.descriptor(), right.descriptor())
 	if err != nil {
 		return nil, nil, sqltype.Comparison{}, nil, err
 	}
-	r, err := b.coerceConditional(right, b.typ(s.Right).Usage(), "=")
+	l, err := b.coerceConditional(left, lt.Usage(), "=")
+	if err != nil {
+		return nil, nil, sqltype.Comparison{}, nil, err
+	}
+	r, err := b.coerceConditional(right, rt.Usage(), "=")
 	if err != nil {
 		return nil, nil, sqltype.Comparison{}, nil, err
 	}

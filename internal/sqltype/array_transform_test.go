@@ -151,13 +151,6 @@ func TestArrayTransformSortAuthority(t *testing.T) {
 			t.Fatal("shape-only composite sort copied or demanded comparison", source, err)
 		}
 	}
-	for _, source := range []string{`{"(2)","(1)"}`, "{NULL,NULL}", `{{"(2)"},{"(1)"}}`} {
-		_, err := cp.Evaluate(ctx, arraySearchUnitInput(t, composites, source), false, false, InputEnvironment{})
-		arraySearchUnitState(t, err, "0A000", "composite comparison is unsupported")
-	}
-	// The ordinary comparison boundary is not broadened by sort's demand timing.
-	_, err = BindComparison(composite, composite, CollationRef{}, false)
-	arraySearchUnitState(t, err, "0A000", "composite comparison is unsupported")
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
 	a := arraySearchUnitInput(t, array, "{2,1}")

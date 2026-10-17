@@ -196,7 +196,7 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 		name = "int4_ops"
 	case Int8:
 		name = "int8_ops"
-	case Text, VarChar:
+	case Text, VarChar, PgNodeTree:
 		name = "text_ops"
 	case BPChar:
 		name = "bpchar_ops"

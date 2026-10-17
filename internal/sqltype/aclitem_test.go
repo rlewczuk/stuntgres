@@ -235,9 +235,6 @@ func TestACLItemEquality(t *testing.T) {
 			t.Fatal("scalar unsupported operator admitted", operator)
 		}
 	}
-	if _, err := BindComparison(d, d, CollationRef{}, false); err == nil {
-		t.Fatal("ACL gained total ordering")
-	}
 	null, err := plan.Evaluate(context.Background(), Null(d), Null(d), InputEnvironment{})
 	if err != nil || !null.IsNull() {
 		t.Fatal("strict NULL", err)

@@ -71,12 +71,6 @@ func TestReferenceArrayTransformSort(t *testing.T) {
 			"array_sort('{{NULL,1},{NULL,2}}'::json[])",
 			"array_sort(ARRAY['a'] COLLATE \"C\",false)",
 		} {
-			if expr == "array_sort(ARRAY[ROW(2,'a')::at_sort_pair,ROW(1,'b')::at_sort_pair])" && !b.PG {
-				// Use a typed runtime input so Prepare does not fold the
-				// immutable call before this execution-stage boundary.
-				arrayTransformDiagnostic(t, p, b, c, "SELECT array_sort($1::at_sort_pair[]) AS a FROM at_one", fixture.Diagnostic{Code: "0A000", Message: "composite comparison is unsupported"}, false, `{"(2,a)","(1,b)"}`)
-				continue
-			}
 			arrayTransformAssertContract(t, p, b, c, expr, "SELECT "+expr+" AS a FROM at_one")
 		}
 		for _, tc := range []struct{ expr, value string }{
@@ -113,20 +107,13 @@ func TestReferenceArrayTransformSort(t *testing.T) {
 			}
 			for _, tc := range []struct {
 				input, want any
-				demand      bool
 			}{
-				{"{}", "{}", false},
-				{`{"(2,a)"}`, `{"(2,a)"}`, false},
-				{`{"(2,a)","(1,b)"}`, `{"(1,b)","(2,a)"}`, true},
-				{nil, nil, false},
-				{`{"(2,a)"}`, `{"(2,a)"}`, false},
+				{"{}", "{}"},
+				{`{"(2,a)"}`, `{"(2,a)"}`},
+				{`{"(2,a)","(1,b)"}`, `{"(1,b)","(2,a)"}`},
+				{nil, nil},
+				{`{"(2,a)"}`, `{"(2,a)"}`},
 			} {
-				if tc.demand && !b.PG {
-					s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "composite comparison is unsupported"}, tc.input)
-					s.SelectRows, s.ErrorStage = true, "execute"
-					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
-					continue
-				}
 				s := fixture.ArrayReferenceSelect(q, []string{"a"}, []string{typ}, []string{"_INT4"}, [][]any{{tc.want}}, b.PG, tc.input)
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 			}

@@ -282,12 +282,6 @@ func BindArraySort(array *Descriptor, ref CollationRef, conflict bool) (ArraySor
 	if array == nil || !array.IsArray() {
 		return ArraySortPlan{}, fmt.Errorf("invalid array sort descriptor")
 	}
-	// Composite shape-only calls need no comparison provider. Retain the
-	// exact element generation, but demand its existing boundary only when
-	// evaluation actually has at least two first-axis items to sort.
-	if element := array.Element(); element.BaseType().IsComposite() {
-		return ArraySortPlan{array: array, leaf: Comparison{left: element, right: element}, ref: ref, conflict: conflict}, nil
-	}
 	leaf, err := bindArrayComparisonElement(array, ref, conflict)
 	if err != nil {
 		return ArraySortPlan{}, err
@@ -311,11 +305,7 @@ func (p ArraySortPlan) Evaluate(ctx context.Context, a Value, descending, nullsF
 	if a.ArrayRank() == 0 || a.ArrayDimension(0).Length < 2 {
 		return a, nil
 	}
-	if element := p.array.Element(); element.BaseType().IsComposite() {
-		_, err := bindComparisonTypes(element, element)
-		return Value{}, err
-	}
-	if err := p.leaf.demandOrdering(); err != nil {
+	if err := p.leaf.demandOrdering(input); err != nil {
 		if a.ArrayRank() == 1 {
 			if e, ok := err.(*sqlstate.Error); ok {
 				copy := *e

@@ -476,6 +476,14 @@ var supportedOperatorMetadata = [...]operatorMetadata{
 	{2975, 16, "b", false, false, 2974, 2976, 2958, 104, 108},
 	{2976, 16, "b", false, false, 2977, 2975, 2955, 336, 386},
 	{2977, 16, "b", false, false, 2976, 2974, 2957, 337, 398},
+	// Generic RECORD providers consume occurrence-owned or named row shapes;
+	// publication does not make the lookup-only builtin RECORD an input type.
+	{2988, 16, "b", true, true, 2988, 2989, 2981, 101, 105},
+	{2989, 16, "b", false, false, 2989, 2988, 2982, 102, 106},
+	{2990, 16, "b", false, false, 2991, 2993, 2983, 103, 107},
+	{2991, 16, "b", false, false, 2990, 2992, 2984, 104, 108},
+	{2992, 16, "b", false, false, 2993, 2991, 2985, 336, 386},
+	{2993, 16, "b", false, false, 2992, 2990, 2986, 337, 398},
 	{3206, 25, "b", false, false, 0, 0, 3940, 0, 0},
 	{3211, 3802, "b", false, false, 0, 0, 3478, 0, 0},
 	{3212, 3802, "b", false, false, 0, 0, 3215, 0, 0},

@@ -9,23 +9,10 @@ import (
 	"unicode/utf8"
 )
 
-// StringTextInput models only this string family's implicit TEXT candidates.
-// Internal CHAR's release edge does not broaden public general cast admission.
+// StringTextInput identifies the string family's direct implicit TEXT inputs.
 func StringTextInput(id ID) bool { return IsCharacter(id) || id == Name || id == Char }
 func StringCategory(id ID) bool  { return IsCharacter(id) || id == Name }
 
-// PlanExtremaCharText is the family-local internal CHAR input conversion for
-// min/max's TEXT overload. It deliberately does not add a general cast edge.
-func PlanExtremaCharText(source, target Usage) (CoercionPlan, error) {
-	if !source.Valid() || !target.Valid() || source.Type.BaseType().ID() != Char || target.Type.ID() != Text || target.Typmod != -1 {
-		return CoercionPlan{}, fmt.Errorf("invalid extrema CHAR conversion")
-	}
-	p := CoercionPlan{source: source.BaseUsage(), target: target, context: Implicit, method: charTextConversion}
-	if source.Type.IsDomain() {
-		p.logicalSource, p.logicalTarget = source.Type, target.Type
-	}
-	return p, nil
-}
 func StringScalar(d *Descriptor) bool { return d.Concrete() && !d.BaseType().IsArray() }
 
 // ConcatOutput is the release mixed wrapper's explicit-to-text output, not the

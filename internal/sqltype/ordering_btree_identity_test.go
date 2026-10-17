@@ -107,7 +107,7 @@ func TestOrderingBtreeIdentityEnumDomainsAndCollations(t *testing.T) {
 
 func TestOrderingBtreeIdentityRejectedProviders(t *testing.T) {
 	for _, typ := range Builtins() {
-		if typ.ID() != Unknown && typ.ID() != Void && typ.ID() != PgNodeTree && !typ.IsArray() {
+		if typ.ID() != Unknown && typ.ID() != Void && !typ.IsArray() {
 			continue
 		}
 		t.Run(fmt.Sprint(typ.ID()), func(t *testing.T) {

@@ -284,6 +284,9 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 		Info: functionInfo(info), Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: namespace, Operator: operator,
 	}
 	if kind == functions.ArraySort && !targets[0].CatalogNullUsage() {
+		if err := b.captureComparisonDiagnosticInput(targets[0].Type); err != nil {
+			return nil, err
+		}
 		first := e.Formal(0)
 		input := b.info(first.ResultUsage(), raw.Pos, properties)
 		var err error

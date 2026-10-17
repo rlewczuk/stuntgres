@@ -202,9 +202,6 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		state(t, err, "0A000")
 		_, err = e.resolveType(cast.TypeName, b.op)
 		state(t, err, "0A000")
-		if _, err := sqltype.PlanCoercion(b.typ(sqltype.Char).Usage(), b.typ(sqltype.Text).Usage(), sqltype.Explicit); err == nil {
-			t.Fatal("string role broadened general CHAR cast")
-		}
 	}
 	for _, established := range []bool{false, true} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)

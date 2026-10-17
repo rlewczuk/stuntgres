@@ -905,6 +905,12 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.not {
 			operator = "IS NOT NULL"
 		}
+		if n.whole && n.child.ResultUsage().Type.BaseType().IsComposite() {
+			operator = "IS NOT DISTINCT FROM NULL"
+			if n.not {
+				operator = "IS DISTINCT FROM NULL"
+			}
+		}
 		return "(" + child + " " + operator + ")", nil
 	case truthTestExpression:
 		if u.Type.ID() != sqltype.Bool || n.child == nil || n.child.ResultUsage().Type != u.Type {

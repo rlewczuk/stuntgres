@@ -6,6 +6,42 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Comparison resolution and fixed wire formals
+
+`server_comparison*_test.go` reuses the real server/raw protocol fixture.
+The exact catalog count query preserves explicit VARCHAR1043 across Parse,
+Describe, named/unnamed reuse, text/binary Bind, NULL and schema create/drop.
+The independent finite wire inventory covers 86 nonnull-decodable sources and
+all 51,772 ordered pair/spelling cells; catalog-only PG_NODE_TREE and null-only
+RECORD/ANYARRAY routes remain separate SQL contracts.
+Every admitted cell preserves source OIDs and BOOL results through base and
+independently expected fresh nonnull values in both directions, NULL/reuse and
+all available input formats. Canonical projected/roundtrip values are asserted,
+not merely nonnullness. Eighty-five source identities have distinct alternates;
+VOID has its unique empty nonnull value and no fabricated alternate.
+Compatible effective-path changes use named extended SET traffic, preserving
+even unnamed comparison handles; denied cells retain original typed diagnostics
+under both paths. SimpleQuery SET would destroy the unnamed PostgreSQL statement.
+
+```sh
+make check RUN='^TestReferenceServerComparisonWireMatrix$' REFERENCE=1
+make check RUN='^TestReferenceServerComparisonWireMatrix$'
+make check RUN='^TestReferenceServerComparison(OriginalVarchar|Lifecycle|Cancellation|Structural)$' REFERENCE=1
+make check RUN='^TestReferenceServerComparison(OriginalVarchar|Lifecycle|Cancellation|Structural)$'
+make check RUN='^TestReferenceServerComparison(Lifecycle|Cancellation)$' RACE=1
+```
+
+Use an external900-second deadline for each selected command. Finalcheck excludes
+TCP tests and does not replace this real-socket proof.
+Standalone smoke follows the existing phase-2 server launch/authentication and
+graceful-stop procedure below. Build `./cmd/stuntgres`, provision a private user
+file through `passwd`, and use a0600 PGPASSFILE rather than password argv.
+The temporary comparison client's `raw`, `public`, `feature` commands exercise
+the actual socket and embedded public APIs; an independent psql probe
+`SELECT 'a'::name < 'ab'::varchar, TIME '01:00' = INTERVAL '1 hour', NULL::int IS DISTINCT FROM 1`
+must return `t|t|t`. Record source/formal IDs and actual rows, then stop/join the
+owned process and remove its private temporary files.
+
 ### SQL version and Unicode inquiries
 
 The seven untagged `TestReferenceVersionInformation` scenarios exercise direct

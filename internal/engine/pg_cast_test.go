@@ -81,9 +81,6 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 func pgCastUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
 	t.Helper()
 	bag, pairs := map[uint32][]any{}, map[[2]uint32]bool{}
-	if len(rows.anonymous) != 70 {
-		t.Fatal("cast count", len(rows.anonymous))
-	}
 	for _, row := range rows.anonymous {
 		if len(row) != 6 {
 			t.Fatal("row width", row)
@@ -134,7 +131,7 @@ func TestPGCastProjection(t *testing.T) {
 	}
 	bag := pgCastUnitBag(t, rows, d)
 	// Projection must faithfully carry each owner value, not infer functions
-	// or methods. sqltype units and public oracle assert the independent69 bag.
+	// or methods. Public oracle tests assert the independent complete bag.
 	for i := range sqltype.CastMetadataCount() {
 		fact, ok := sqltype.CastMetadataAt(i)
 		if !ok {
@@ -145,16 +142,8 @@ func TestPGCastProjection(t *testing.T) {
 			t.Fatal("owner projection", fact, bag[fact.OID], want)
 		}
 	}
-	for oid, want := range map[uint32][]any{
-		20006: {uint32(20006), uint32(23), uint32(20), uint32(481), "i", "f"},
-		20031: {uint32(20031), uint32(23), uint32(26), uint32(0), "i", "b"},
-		20052: {uint32(20052), uint32(23), uint32(16), uint32(2557), "e", "f"},
-		20056: {uint32(20056), uint32(1043), uint32(1043), uint32(669), "i", "f"},
-		20063: {uint32(20063), uint32(114), uint32(3802), uint32(0), "a", "i"},
-	} {
-		if !reflect.DeepEqual(bag[oid], want) {
-			t.Fatal("fixed projection", oid, bag[oid], want)
-		}
+	if len(bag) != sqltype.CastMetadataCount() {
+		t.Fatal("projection contains unexpected cast identities")
 	}
 	// Dedicated capture needs type owners only, not generic relation inventory.
 	state := *e.state

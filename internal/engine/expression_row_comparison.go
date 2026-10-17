@@ -96,6 +96,11 @@ func (b *expressionBinder) bindRowPredicate(raw parser.OperatorExpr, operator sq
 			}
 		}
 	}
+	if !e.distinct() {
+		if err := b.checkRowComparisonInterpretation(raw, e.comparisons); err != nil {
+			return nil, err
+		}
+	}
 	return e, nil
 }
 
@@ -132,4 +137,103 @@ func renderRowComparison(e rowComparisonExpression, operand func(BoundExpr) (str
 func mapRowComparisonExpansions(expansions map[int]compositeExpansionBinding, child func(BoundExpr) (BoundExpr, bool, error)) (map[int]compositeExpansionBinding, bool, error) {
 	row, changed, err := mapRowAnalysis(rowExpression{expansions: expansions}, child)
 	return row.expansions, changed, err
+}
+func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {
+	if len(raw.Args) != 2 {
+		return parser.SubqueryExpr{}, false
+	}
+	left, ok := raw.Args[0].(parser.RowExpr)
+	if !ok {
+		return parser.SubqueryExpr{}, false
+	}
+	right, ok := raw.Args[1].(parser.SubqueryExpr)
+	if !ok || right.Kind != parser.SubqueryScalar {
+		return parser.SubqueryExpr{}, false
+	}
+	right.Kind, right.Left, right.Operator, right.Pos = parser.SubqueryRow, left, raw.Name, raw.Pos
+	return right, true
+}
+
+// A saved subquery tuple supplies left values. Local rows pass nil so each
+// reached pair evaluates left then right before deciding whether to continue.
+func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (sqltype.Value, error) {
+	unknown := false
+	for i, comparison := range e.comparisons {
+		var valueLeft sqltype.Value
+		if left == nil {
+			var err error
+			valueLeft, err = comparison.left.Eval(c)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		} else {
+			valueLeft = left[i]
+		}
+		right, err := comparison.right.Eval(c)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if e.distinct() {
+			distinct := valueLeft.IsNull() != right.IsNull()
+			if !valueLeft.IsNull() && !right.IsNull() {
+				value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+				equal, err := value.Boolean()
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+				distinct = !equal
+			}
+			if distinct {
+				return sqltype.Boolean(e.usage.Type, e.operator == "IS DISTINCT FROM"), nil
+			}
+			continue
+		}
+		if len(e.comparisons) == 1 {
+			return comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
+		}
+		if len(e.ordering) != 0 {
+			if valueLeft.IsNull() || right.IsNull() {
+				return sqltype.Null(e.usage.Type), nil
+			}
+			sign, err := e.ordering[i].Compare(c.Context, valueLeft, right, c.Input)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			if sign == 0 {
+				continue
+			}
+			truth := sign < 0
+			if e.operator == ">" || e.operator == ">=" {
+				truth = sign > 0
+			}
+			return sqltype.Boolean(e.usage.Type, truth), nil
+		}
+		value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if value.IsNull() {
+			unknown = true
+			continue
+		}
+		truth, err := value.Boolean()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if e.operator == "<>" {
+			if truth {
+				return sqltype.Boolean(e.usage.Type, true), nil
+			}
+		} else if !truth {
+			return sqltype.Boolean(e.usage.Type, false), nil
+		}
+	}
+	if unknown {
+		return sqltype.Null(e.usage.Type), nil
+	}
+	truth := e.operator == "=" || e.operator == "<=" || e.operator == ">=" || e.operator == "IS NOT DISTINCT FROM"
+	return sqltype.Boolean(e.usage.Type, truth), nil
 }

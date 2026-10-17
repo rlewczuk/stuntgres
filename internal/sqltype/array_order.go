@@ -9,8 +9,10 @@ import (
 // Equal compares bound authority structurally, not immutable child addresses.
 func (p Comparison) Equal(other Comparison) bool {
 	child, next := p.element, other.element
+	composite, nextComposite := p.composite, other.composite
 	p.element, other.element = nil, nil
-	if p != other {
+	p.composite, other.composite = nil, nil
+	if p != other || !composite.Equal(nextComposite) {
 		return false
 	}
 	if child == nil || next == nil {
@@ -24,34 +26,22 @@ func (p ComparisonPredicate) Equal(other ComparisonPredicate) bool {
 }
 
 func bindArrayComparisonElement(array *Descriptor, collation CollationRef, conflict bool) (*Comparison, error) {
-	element := array.Element()
-	base := element.BaseType()
-	var child Comparison
-	switch base.ID() {
-	case JSON, JSONPath:
-		child = Comparison{left: element, right: element, missingEquality: true, missingOrdering: true}
-	case ACLItem:
-		child = Comparison{left: element, right: element, missingOrdering: true}
-	default:
-		var err error
-		child, err = BindComparison(base, base, collation, conflict)
-		if err != nil {
-			return nil, err
-		}
-		child.left, child.right = element, element
+	child, err := bindComparisonLeaf(array.Element(), array.Element(), collation, conflict)
+	if err != nil {
+		return nil, err
 	}
 	return &child, nil
 }
 
-func (p Comparison) demandEquality() error {
+func (p Comparison) demandEquality(input InputEnvironment) error {
 	if p.missingEquality {
-		return failure("42883", "could not identify an equality operator for type "+p.left.DiagnosticName())
+		return failure("42883", "could not identify an equality operator for type "+p.left.enumDiagnosticName(input))
 	}
 	return nil
 }
-func (p Comparison) demandOrdering() error {
+func (p Comparison) demandOrdering(input InputEnvironment) error {
 	if p.missingOrdering {
-		return failure("42883", "could not identify a comparison function for type "+p.left.DiagnosticName())
+		return failure("42883", "could not identify a comparison function for type "+p.left.enumDiagnosticName(input))
 	}
 	return nil
 }
@@ -65,13 +55,19 @@ func (p Comparison) EqualValues(ctx context.Context, a, b Value, input InputEnvi
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return false, fmt.Errorf("invalid comparison values")
 	}
-	if err := p.demandEquality(); err != nil {
+	if err := p.demandEquality(input); err != nil {
 		return false, err
+	}
+	if p.composite != nil {
+		sign, err := p.compareComposites(ctx, a, b, input, false)
+		return sign == 0, err
 	}
 	if p.element == nil {
 		if p.left.BaseType().ID() == ACLItem {
 			return aclEquality(ctx, a, b)
 		}
+		// Equality-only datum providers do not require SQL ordering.
+		p.missingOrdering = false
 		sign, err := p.Compare(ctx, a, b, input)
 		return sign == 0, err
 	}
@@ -89,7 +85,7 @@ func (p Comparison) EqualValues(ctx context.Context, a, b Value, input InputEnvi
 			return false, nil
 		}
 	}
-	if err := p.element.demandEquality(); err != nil {
+	if err := p.element.demandEquality(input); err != nil {
 		return false, err
 	}
 	for i := range a.ArrayLen() {
@@ -115,7 +111,7 @@ func (p Comparison) compareArrays(ctx context.Context, a, b Value, input InputEn
 	if a.array == nil || b.array == nil {
 		return 0, fmt.Errorf("missing array payload")
 	}
-	if err := p.element.demandOrdering(); err != nil {
+	if err := p.element.demandOrdering(input); err != nil {
 		return 0, err
 	}
 	for i := range min(a.ArrayLen(), b.ArrayLen()) {

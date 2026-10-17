@@ -223,7 +223,7 @@ func (d *Descriptor) Usage() Usage {
 		return u
 	}
 	u := Usage{Type: d, Typmod: -1}
-	if IsCharacter(d.id) {
+	if IsCharacter(d.id) || d.id == PgNodeTree {
 		u.Collation = CollationRef{ID: 100, Derivation: Default}
 	} else if d.id == Name {
 		u.Collation = CollationRef{ID: 950, Derivation: Default}
@@ -922,7 +922,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		if v.tree == nil {
 			return "", fmt.Errorf("missing structural tree payload")
 		}
-		return v.tree.value.StructuralOutput(ctx)
+		return v.tree.output(ctx)
 	case Void:
 		return "", nil
 	case Oid, Xid, Cid:
@@ -1240,6 +1240,7 @@ const (
 	xid8Conversion
 	jsonFormattedInput
 	jsonReturningOutput
+	timeIntervalConversion
 )
 
 type CoercionPlan struct {
@@ -1391,6 +1392,7 @@ var baselineCasts = [...]castSpec{
 	{Date, Timestamp, Implicit, dateTimestampConversion, castCatalogFact{20035, 2024, 'i', 'f'}},
 	{Date, Timestamptz, Implicit, datetimeConversion, castCatalogFact{20036, 1174, 'i', 'f'}},
 	{Time, Timetz, Implicit, datetimeConversion, castCatalogFact{20037, 2047, 'i', 'f'}},
+	{Time, Interval, Implicit, timeIntervalConversion, castCatalogFact{20072, 1370, 'i', 'f'}},
 	{Timestamp, Date, Assignment, datetimeConversion, castCatalogFact{20038, 2029, 'a', 'f'}},
 	{Timestamp, Time, Assignment, datetimeConversion, castCatalogFact{20039, 1316, 'a', 'f'}},
 	{Timestamp, Timestamptz, Implicit, datetimeConversion, castCatalogFact{20040, 2028, 'i', 'f'}},
@@ -1405,6 +1407,8 @@ var baselineCasts = [...]castSpec{
 	{Text, Name, Implicit, nameConversion, castCatalogFact{}},
 	{BPChar, Name, Implicit, nameConversion, castCatalogFact{}},
 	{VarChar, Name, Implicit, nameConversion, castCatalogFact{}},
+	{Char, Text, Implicit, charTextConversion, castCatalogFact{20070, 946, 'i', 'f'}},
+	{PgNodeTree, Text, Implicit, viaIO, castCatalogFact{20071, 0, 'i', 'b'}},
 	{Int2, Int4, Implicit, integerConversion, castCatalogFact{20000, 313, 'i', 'f'}},
 	{Int2, Int8, Implicit, integerConversion, castCatalogFact{20001, 754, 'i', 'f'}},
 	{Int4, Int2, Assignment, integerConversion, castCatalogFact{20005, 314, 'a', 'f'}},
@@ -1665,11 +1669,19 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		if source.Type.id == target.Type.id {
 			return p, nil
 		}
-		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
+		if source.Type.id == PgNodeTree && target.Type.id == Text {
 			p.method = viaIO
 			return p, nil
 		}
 		return p, failure("42804", "incompatible source and destination types")
+	}
+	if source.Type.id == Char && target.Type.id == Text {
+		p.method = charTextConversion
+		return p, nil
+	}
+	if source.Type.id == Time && target.Type.id == Interval {
+		p.method = timeIntervalConversion
+		return p, nil
 	}
 	if context == Explicit && (source.Type.id == Regtype && (target.Type.id == Text || target.Type.id == VarChar) || target.Type.id == Regtype && (source.Type.id == Text || source.Type.id == VarChar)) {
 		p.method = viaIO
@@ -1848,6 +1860,8 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 	case bitStringConversion:
 		v.typ = p.target.Type
 		return sizeBitString(v, p.target.Typmod)
+	case timeIntervalConversion:
+		return IntervalValue(p.target.Type, 0, 0, v.integer)
 	case charTextConversion:
 		text, err := p.source.Type.ConcatOutput(ctx, v, output)
 		if err != nil {
@@ -1960,6 +1974,7 @@ type Comparison struct {
 	inputCollation         CollationRef
 	collationIndeterminate bool
 	element                *Comparison
+	composite              *compositeComparison
 	missingEquality        bool
 	missingOrdering        bool
 }
@@ -1990,7 +2005,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
 			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Text, VarChar, Time,
-			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8, Tid:
+			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8, Tid, PgNodeTree:
 		case Void:
 			message := "could not identify an ordering operator for type void"
 			return Comparison{}, &sqlstate.Error{
@@ -2005,6 +2020,9 @@ func BindOrdering(u Usage) (Comparison, error) {
 	class, ok := DefaultIndexClass(u.Type)
 	if !ok || class.OID() == 0 {
 		return Comparison{}, fmt.Errorf("invalid ordering class identity")
+	}
+	if u.Type.BaseType().id == PgNodeTree && u.Collation.ID == 0 {
+		u.Collation = CollationRef{ID: 100}
 	}
 	return Comparison{left: u.Type, right: u.Type, defaultBtreeOpclass: class.OID(), inputCollation: u.Collation}, nil
 }
@@ -2023,19 +2041,8 @@ func CheckComparisonTypes(left, right *Descriptor) error {
 
 // CheckComparisonOperator separates SQL operator admission from datum providers.
 func CheckComparisonOperator(operator ComparisonOperator, left, right *Descriptor) error {
-	if left == nil || right == nil {
-		return CheckComparisonTypes(left, right)
-	}
-	l, r := left.BaseType().id, right.BaseType().id
-	if IsTransactionIdentifier(l) || IsTransactionIdentifier(r) {
-		admitted := l == Xid8 && r == Xid8 ||
-			l == Xid && (r == Xid || r == Int4) && (operator == CompareEqual || operator == CompareNotEqual) ||
-			l == Cid && r == Cid && operator == CompareEqual
-		if !admitted {
-			return failure("42883", "incompatible comparison operands")
-		}
-	}
-	return CheckComparisonTypes(left, right)
+	_, err := ResolveComparison(operator, left, right)
+	return err
 }
 
 func BindComparison(left, right *Descriptor, collation CollationRef, indeterminate bool) (Comparison, error) {
@@ -2054,6 +2061,9 @@ func BindComparison(left, right *Descriptor, collation CollationRef, indetermina
 			return Comparison{}, err
 		}
 	}
+	if left.BaseType().IsComposite() && right.BaseType().IsComposite() {
+		p.composite = bindCompositeComparison(left, right, collation, indeterminate)
+	}
 	return p, nil
 }
 
@@ -2062,8 +2072,11 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
 	}
-	if left.BaseType().IsComposite() || right.BaseType().IsComposite() {
-		return p, failure("0A000", "composite comparison is unsupported")
+	if left.BaseType().IsComposite() || right.BaseType().IsComposite() || left.IsDeferredRecord() || right.IsDeferredRecord() {
+		if !(left.BaseType().IsComposite() || left.IsDeferredRecord()) || !(right.BaseType().IsComposite() || right.IsDeferredRecord()) {
+			return p, failure("42883", "incompatible comparison operands")
+		}
+		return p, nil
 	}
 	if left.BaseType().IsArray() || right.BaseType().IsArray() {
 		if !left.BaseType().IsArray() || left.BaseType() != right.BaseType() {
@@ -2083,7 +2096,7 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		_, err := bindComparisonTypes(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.id == ACLItem || right.id == ACLItem || left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath {
+	if left.id == JSON || right.id == JSON || left.id == JSONPath || right.id == JSONPath {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if isRange(left.id) || isRange(right.id) || isMultirange(left.id) || isMultirange(right.id) {
@@ -2116,8 +2129,12 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 	if (isFloat(left.id) && numericFloatOperand(right.id)) || (isFloat(right.id) && numericFloatOperand(left.id)) {
 		return p, nil
 	}
-	if left == right || (left.id == Int2 || left.id == Int4 || left.id == Int8) && (right.id == Int2 || right.id == Int4 || right.id == Int8) {
-		return p, nil
+	if left == right {
+		equality, ordering := ComparisonCapabilities(left)
+		if equality || ordering {
+			p.missingOrdering = !ordering
+			return p, nil
+		}
 	}
 	return p, failure("42883", "incompatible comparison operands")
 }
@@ -2128,11 +2145,14 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
 	}
-	if err := p.demandOrdering(); err != nil {
+	if err := p.demandOrdering(input); err != nil {
 		return 0, err
 	}
 	if p.element != nil {
 		return p.compareArrays(ctx, a, b, input)
+	}
+	if p.composite != nil {
+		return p.compareComposites(ctx, a, b, input, true)
 	}
 	if p.collationIndeterminate {
 		return 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
@@ -2168,6 +2188,20 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 			return 0, fmt.Errorf("missing JSONB payload")
 		}
 		return compareJSONB(ctx, &a.jsonb.root, &b.jsonb.root, false)
+	}
+	if p.left.id == PgNodeTree {
+		// Reuse the represented binary TEXT conversion, including prepared
+		// grouping keys. No input parser, descriptor lookup or retagging is
+		// needed, and structural-output failures are not overload retries.
+		left, err := p.left.Output(ctx, a)
+		if err != nil {
+			return 0, err
+		}
+		right, err := p.right.Output(ctx, b)
+		if err != nil {
+			return 0, err
+		}
+		return p.inputCollation.CompareText(ctx, left, right)
 	}
 	if p.left.id != p.right.id && dateTimestampType(p.left.id) && dateTimestampType(p.right.id) {
 		return compareDatetime(a, b, input), nil

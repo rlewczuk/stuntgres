@@ -14,6 +14,22 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Comparison resolution and predicates — change note
+
+Comparisons select PostgreSQL's operator-specific signatures and direct implicit
+conversions without changing prepared source parameter identities. NAME/VARCHAR
+catalog predicates retain full VARCHAR contents and explicit wire OID1043.
+Ordinary composite comparisons now use logical field identity and NULL-field
+ordering, distinct from row-constructor three-valued comparisons. Explicit
+ASYMMETRIC, Boolean-domain truth tests and NULL-aware distinctness share the
+existing expression and occurrence owners. Stored quantified ROW casts preserve
+analyzed member coercions and real logical dependencies without retaining an
+erased outer typename. Physical record-image operators remain outside the native
+representation.
+See [native boundaries](docs/DIALECT.md#comparison-resolution-and-predicates),
+[the independent comparison ledger](reference/type_resolution/comparison-ledger.md)
+and [real-wire proof](reference/sessions/README.md#comparison-resolution-and-fixed-wire-formals).
+
 ## SQL version and Unicode inquiries — change note
 
 `version()`, `unicode_version()` and `icu_unicode_version()` are zero-argument
@@ -1805,7 +1821,8 @@ remain scalar; ordinality/multiple-call aliases retain genuine tuple presence.
 Anonymous constructed results report RECORD. Structural constructor predicates
 support field-wise `=`, `<>`, lexical `<`, `<=`, `>`, `>=`, total Boolean
 `IS [NOT] DISTINCT FROM`, and row IN/NOT IN/quantified subqueries, including
-constructor field expansion. Composite-datum comparisons remain unsupported.
+constructor field expansion. Ordinary composite comparisons use the separate
+logical record provider described in the comparison change note.
 Executable named-composite arrays support storage and textual I/O.
 Named assignments preserve descriptor identity: equal-shaped distinct named
 types are not interchangeable. Direct UPDATE/INSERT VALUES may contextually
@@ -2378,8 +2395,8 @@ Change note: `date_trunc(text,timestamp|timestamptz|interval)` and
 `date_trunc(text,timestamptz,text)` preserve typed temporal results, with fields
 from microseconds through millennium. Session/explicit zones preserve each
 fold occurrence for hour truncation and recompute day-or-larger boundaries.
-DATE selects TIMESTAMPTZ; TIME converts to INTERVAL only within this selected
-call (24:00 remains zero days and24hours). See
+DATE selects TIMESTAMPTZ; TIME uses the shared implicit INTERVAL conversion
+(24:00 remains zero days and24hours). See
 [datetime truncation](https://www.postgresql.org/docs/18/functions-datetime.html) for
 the explicit naive-input timezone boundary and unsupported interval week.
 Feature smoke: `make check RUN='^TestReferenceDatetimeTruncFeatureSmoke$'`;

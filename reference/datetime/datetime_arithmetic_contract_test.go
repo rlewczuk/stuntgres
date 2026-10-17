@@ -89,23 +89,9 @@ func TestReferenceDatetimeArithmeticInference(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 			})
 		}
-		// PostgreSQL accepts DATE−TIME through implicit TIME→INTERVAL, not a
-		// direct date/time signature. That prerequisite cast is not implemented
-		// natively and is not added by this operator-only part (root decision).
+		// DATE−TIME uses the released implicit TIME→INTERVAL conversion.
 		q := "SELECT DATE '2000-01-01' - TIME '01:00' AS result"
-		if b.PG {
-			datetimeArithmeticContractBoth(t, p, b, c, fixture.Select(q, []string{"result"}, []string{"TIMESTAMP"}, [][]any{{time.Date(1999, 12, 31, 23, 0, 0, 0, time.UTC)}}))
-		} else {
-			d := fixture.ControlsReferenceDiagnostic("42883", "operator does not exist: date - time without time zone")
-			d.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
-			d.Position = "26"
-			s := fixture.ErrorDiagnostic(q, d)
-			s.SelectRows = true
-			s.ErrorStage = "execute"
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-			s.ErrorStage = "prepare"
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
-		}
+		datetimeArithmeticContractBoth(t, p, b, c, fixture.Select(q, []string{"result"}, []string{"TIMESTAMP"}, [][]any{{time.Date(1999, 12, 31, 23, 0, 0, 0, time.UTC)}}))
 	})
 }
 

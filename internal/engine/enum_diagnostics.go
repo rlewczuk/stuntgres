@@ -34,8 +34,8 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	return typeDiagnosticNameAt(auth.catalog, descriptor, path)
 }
 
-// captureTypeDiagnosticName freezes input naming against the same catalog and
-// reference path used for binding. Recursive codecs consult it only on failure.
+// captureTypeDiagnosticName freezes input and demanded-comparison naming against
+// the catalog and reference path used for binding. Providers consult it on failure.
 func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error) {
 	path, err := e.referencePath(auth)
 	if err != nil {
@@ -46,6 +46,11 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 		descriptor, ok := catalog.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)}].(*typeDescriptor)
 		if !ok {
 			return ""
+		}
+		if descriptor.typ.NamespaceName() == "pg_catalog" {
+			// Released diagnostics use SQL aliases, not catalog spellings such
+			// as int4, and do not identifier-quote builtin names such as json.
+			return descriptor.typ.DiagnosticName()
 		}
 		return typeDiagnosticNameAt(catalog, descriptor, path)
 	}, nil
@@ -75,8 +80,8 @@ func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltyp
 
 func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
 	acl := typ.ContainsACLItem() && b.input.ACLItem == nil
-	enum := b.input.TypeDiagnosticName == nil && hasEnumInput(typ)
-	if !acl && !enum {
+	naming := b.input.TypeDiagnosticName == nil && needsTypeDiagnosticInput(typ)
+	if !acl && !naming {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
@@ -90,7 +95,7 @@ func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *Operatio
 	if typ.ContainsACLItem() && input.ACLItem == nil {
 		input.ACLItem = e.captureACLItemInput(auth, op)
 	}
-	if input.TypeDiagnosticName == nil && hasEnumInput(typ) {
+	if input.TypeDiagnosticName == nil && needsTypeDiagnosticInput(typ) {
 		var err error
 		input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		return err
@@ -98,6 +103,22 @@ func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *Operatio
 	return nil
 }
 
+// Comparisons need names, not input codecs or role-name resolution. Capture the
+// existing naming authority once without acquiring unrelated ACL input state.
+func (b *expressionBinder) captureComparisonDiagnosticInput(typ *sqltype.Descriptor) error {
+	if b.input.TypeDiagnosticName != nil || !needsTypeDiagnosticInput(typ) {
+		return nil
+	}
+	auth, err := b.bindingAuthorization()
+	if err != nil {
+		return err
+	}
+	b.input.TypeDiagnosticName, err = b.engine.captureTypeDiagnosticName(auth)
+	return err
+}
+
+// Input provenance and diagnostic naming are separate demands. Only enum
+// inputs and checked domains retain the existing replacement fence here.
 func hasEnumInput(typ *sqltype.Descriptor) bool {
 	if typ == nil {
 		return false
@@ -122,9 +143,41 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 	return false
 }
 
+func needsTypeDiagnosticInput(typ *sqltype.Descriptor) bool {
+	if typ == nil {
+		return false
+	}
+	if typ.IsUserDefined() || typ.HasDomainChecks() {
+		return true
+	}
+	typ = typ.BaseType()
+	if typ.IsEnum() {
+		return true
+	}
+	if typ.IsArray() {
+		return needsTypeDiagnosticInput(typ.Element())
+	}
+	if typ.IsComposite() {
+		for i := range typ.CompositeLen() {
+			if needsTypeDiagnosticInput(typ.CompositeMember(i).Usage.Type) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Retained reads and writes have identical input demands, independent of the
 // tree walker used by their consumer. Naming never suppresses catalog input.
 func captureRetainedExpressionInput(node BoundExpr, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+	// Stored columns and record constructors can demand a named nested provider
+	// without any input conversion. Retain the same naming authority as fresh
+	// comparison binding, including domain and array identity.
+	if needsTypeDiagnosticInput(node.ResultUsage().Type) {
+		if err := diagnostic(node.ResultUsage().Type); err != nil {
+			return err
+		}
+	}
 	switch node := node.(type) {
 	case functions.Enum[BoundExpr, *EvalContext, ExprProperties]:
 		return diagnostic(node.Plan.Enum())

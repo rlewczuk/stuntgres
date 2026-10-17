@@ -41,7 +41,7 @@ func (p MathPlan) thresholdBucket(ctx context.Context, operand, thresholds Value
 			return Value{}, failure("22004", "thresholds array must not contain NULLs")
 		}
 	}
-	if err := p.comparison.demandOrdering(); err != nil {
+	if err := p.comparison.demandOrdering(input); err != nil {
 		return Value{}, err
 	}
 	low, high := 0, thresholds.ArrayLen()

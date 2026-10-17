@@ -110,12 +110,7 @@ func TestReferenceSizeSignatures(t *testing.T) {
 				want = 1
 			}
 			s := fixture.Select("SELECT pg_size_bytes("+expr+")", []string{"pg_size_bytes"}, []string{"INT8"}, [][]any{{want}})
-			// Internal CHAR input already exists, but its implicit TEXT cast
-			// is not a native coercion edge. Do not add an adjacent cast.
-			if expr == "'1'::\"char\"" && !b.PG {
-				s = fixture.ErrorDiagnostic(s.Query, sizeDiagnostic("42883", `function pg_size_bytes("char") does not exist`, sizeMissingHint, "8"))
-			}
-			sizeBoth(t, p, b, c, s, expr == "'1'::\"char\"" && !b.PG)
+			sizeBoth(t, p, b, c, s, false)
 		}
 		for _, v := range []struct{ q, message, pos string }{
 			{"SELECT pg_size_bytes($1),pg_size_pretty($1)", "function pg_size_pretty(text) does not exist", "26"},

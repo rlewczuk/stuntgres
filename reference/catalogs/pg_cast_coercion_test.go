@@ -103,19 +103,18 @@ func TestReferencePGCastExclusions(t *testing.T) {
 		s := fixture.Select(query, fixture.PgCastFactColumns, fixture.PgCastFactTypes, [][]any{})
 		fixture.PgDescriptionRows(t, p, b, s)
 		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
-		for _, fact := range [][]any{{int64(3802), int64(23), int64(3451), "e", "f"}, {int64(1083), int64(1186), int64(1370), "i", "f"}} {
-			want := [][]any{}
-			if b.PG {
-				want = append(want, fact)
-			}
-			s = fixture.Select("SELECT castsource,casttarget,castfunc,castcontext,castmethod FROM pg_catalog.pg_cast"+fixture.PgCastPredicate([][]any{fact}), fixture.PgCastFactColumns, fixture.PgCastFactTypes, want)
-			fixture.PgDescriptionRows(t, p, b, s)
-			fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
+		fact := []any{int64(3802), int64(23), int64(3451), "e", "f"}
+		want := [][]any{}
+		if b.PG {
+			want = append(want, fact)
 		}
+		s = fixture.Select("SELECT castsource,casttarget,castfunc,castcontext,castmethod FROM pg_catalog.pg_cast"+fixture.PgCastPredicate([][]any{fact}), fixture.PgCastFactColumns, fixture.PgCastFactTypes, want)
+		fixture.PgDescriptionRows(t, p, b, s)
+		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 		if !b.PG {
-			// NAME, REGCLASS, BIT/VARBIT and PG_NODE_TREE are partial native
-			// providers, not an assertion that PostgreSQL lacks these rows.
-			pairs := [][]any{{int64(19), int64(25)}, {int64(25), int64(19)}, {int64(26), int64(2205)}, {int64(2205), int64(26)}, {int64(1560), int64(1562)}, {int64(1562), int64(1560)}, {int64(1560), int64(1560)}, {int64(1562), int64(1562)}, {int64(194), int64(25)}, {int64(18), int64(25)}}
+			// Unchanged NAME, REGCLASS and BIT/VARBIT catalog omissions do
+			// not imply that PostgreSQL lacks these casts.
+			pairs := [][]any{{int64(19), int64(25)}, {int64(25), int64(19)}, {int64(26), int64(2205)}, {int64(2205), int64(26)}, {int64(1560), int64(1562)}, {int64(1562), int64(1560)}, {int64(1560), int64(1560)}, {int64(1562), int64(1562)}}
 			fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT castsource,casttarget FROM pg_catalog.pg_cast"+fixture.PgCastPredicate(pairs), []string{"castsource", "casttarget"}, []string{"OID", "OID"}, [][]any{}))
 		}
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE DOMAIN pgcast_domain AS INT", 0))

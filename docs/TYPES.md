@@ -88,6 +88,11 @@ binds encode `true`/`false`, distinct from the SQL Boolean output route.
 Binary NAME receive rejects an overlength payload rather than applying textual
 clipping. Its unpadded stream value is not PostgreSQL's physical padded storage.
 
+Comparison with typed VARCHAR retains its full contents and source OID1043.
+Selected NAME/TEXT or TEXT/NAME formals are occurrence conversions, not a NAME
+input operation or a synthetic NAME/VARCHAR catalog signature. Textual NAME
+clipping and binary NAME length rejection therefore remain input boundaries.
+
 ## BYTEA
 
 Inferred BYTEA string and byte-slice binds are raw octets, not encoded SQL text.
@@ -732,7 +737,17 @@ Distinct named types are not interchangeable by shape. Composite arrays preserve
 shape, bounds, NULL elements and nested/domain member generations through evolution.
 Domains over executable composites publish executable reciprocal arrays too;
 catalog replacement reowns their domain, element and member codecs together.
-Comparison/hash/key providers and enum/base-type deletion remain excluded.
+Generic composite hash/key providers and enum/base-type deletion remain excluded.
+Logical record equality/ordering uses exact reached field identities, with NULL
+fields equal and ordered last; distinct named outer identities are comparable,
+not interchangeable assignment destinations. Whole SQL NULL remains strict.
+The six PostgreSQL physical record-image operators have no native layout provider.
+
+In quantified subquery comparisons, analyzed non-domain ROW casts supply their
+coerced members; domain-wrapped or scalar-subquery composites supply one value.
+Stored normalization preserves member typmods, enum identity and star-expansion
+associations while erasing the unused outer constructor type. Logical replay does
+not re-input stale enum labels or recreate a dependency on that erased typename.
 
 Recursive CYCLE adds a bounded occurrence-owned `record[]` expression result
 (record OID2249, array OID2287). Its concrete ordered members retain exact key
@@ -740,8 +755,9 @@ types, typmods and collations; generic catalog `_record` remains lookup-only.
 Native results export canonical array/composite text and truthful `_RECORD`
 metadata, including empty results. Held raw/text paths retain public result
 compatibility when only a key member changes type, while internal descriptor
-generation and remapping remain exact. CYCLE alone owns structural path equality;
-this does not install generic composite comparison/hash/storage providers.
+generation and remapping remain exact. Ordinary logical composite/array
+comparisons can inspect these occurrence-owned values; this does not install
+generic composite hash/key providers or pseudo-type storage.
 VIEW/CTAS/materialized-view direct record[] columns reject pseudo-type storage;
 `path::text` is persistable.
 

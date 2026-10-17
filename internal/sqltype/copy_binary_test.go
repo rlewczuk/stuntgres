@@ -34,6 +34,12 @@ func binaryUnitCase(t *testing.T, d *Descriptor, input, want string) {
 	if v.typ != d || v.null {
 		t.Fatal("binary descriptor identity", v)
 	}
+	if d.id == Regclass {
+		text, err := d.Input(context.Background(), v.text, -1)
+		if err != nil || v.integer != text.integer || v.oid != text.oid || !SameDatum(v, text) {
+			t.Fatal("binary regclass lost canonical identity", v, text, err)
+		}
+	}
 	// A nonempty prefix also proves appending preserves caller-owned scratch.
 	out, err := d.AppendBinaryWithEnvironment(context.Background(), []byte{7, 9}, v, OutputEnvironment{})
 	expected := append([]byte{7, 9}, binaryUnitHex(t, want)...)

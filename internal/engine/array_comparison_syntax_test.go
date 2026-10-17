@@ -15,7 +15,7 @@ func TestArrayCompareVisitorsStoredSyntax(t *testing.T) {
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}},
 		Args: []parser.Expr{left, item}, Pos: position,
 	}
-	b := &expressionBinder{inListSyntax: map[inListSyntaxKey]parser.Expr{
+	b := &expressionBinder{storedExpressionSyntax: map[storedExpressionSyntaxKey]parser.Expr{
 		{frame: 1, position: position}: lowered,
 	}}
 	childQuery := &parser.Select{Targets: []parser.Expr{in}}

@@ -1,9 +1,8 @@
 package engine
 
-// Exact REL_18_0 oprcode associations for the successful existing provider
-// families. Lookup-only operator identities remain separate. Selection still
-// requires the existing native capability gate and exact declared formals.
-// Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_operator.dat
+// Released oprcode associations for genuine callable provider families.
+// Comparison selection resolves actual formals before recording this identity.
+// Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat
 var builtinOperatorRoutineAssociations = [...]struct {
 	operator OID
 	routine  OID
@@ -453,6 +452,12 @@ var builtinOperatorRoutineAssociations = [...]struct {
 	{2975, 2958}, // > (2950,2950)
 	{2976, 2955}, // <= (2950,2950)
 	{2977, 2957}, // >= (2950,2950)
+	{2988, 2981}, // = (2249,2249)
+	{2989, 2982}, // <> (2249,2249)
+	{2990, 2983}, // < (2249,2249)
+	{2991, 2984}, // > (2249,2249)
+	{2992, 2985}, // <= (2249,2249)
+	{2993, 2986}, // >= (2249,2249)
 	{3206, 3940}, // #>> (3802,1009)
 	{3211, 3478}, // -> (3802,25)
 	{3212, 3215}, // -> (3802,23)

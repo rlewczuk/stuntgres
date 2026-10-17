@@ -98,7 +98,8 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 			v.integer = 1
 		}
 	case Regclass:
-		v.text = strconv.FormatUint(uint64(binary.BigEndian.Uint32(p)), 10)
+		v.oid, v.integer = binary.BigEndian.Uint32(p), 1
+		v.text = strconv.FormatUint(uint64(v.oid), 10)
 	case Float4:
 		v.floating = float64(math.Float32frombits(binary.BigEndian.Uint32(p)))
 	case Float8:

@@ -37,7 +37,7 @@ func pgCastRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, ids m
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if index != 70 {
+	if index != len(facts) {
 		t.Fatal("retained cast count", index)
 	}
 	// Captured public descriptors remain usable after exhaustion and controls.

@@ -105,16 +105,12 @@ func comparisonOperator(name string) (sqltype.ComparisonOperator, bool) {
 	return 0, false
 }
 
-// resolveComparisonTypes is analysis-only and shared by ordinary and quantified
-// comparisons. Unknown occurrences are not finalized or mutated by this probe.
+// Resolve the operator before finalizing unknown occurrences. The returned
+// targets are the selected operation's actual inputs, not the source pair.
 func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, rt *sqltype.Descriptor) (*sqltype.Descriptor, *sqltype.Descriptor, error) {
-	originalLeft, originalRight := lt, rt
 	operator, ok := comparisonOperator(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: invalid comparison operator")
-	}
-	if lt != nil && lt.BaseType().IsComposite() || rt != nil && rt.BaseType().IsComposite() {
-		return nil, nil, expressionError("0A000", "composite comparison is unsupported", raw.Pos)
 	}
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {
@@ -123,62 +119,26 @@ func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, r
 	if !visible {
 		return nil, nil, b.comparisonError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 	}
-	if lt != nil && rt != nil && (lt.BaseType().IsEnum() || rt.BaseType().IsEnum()) {
-		if err := sqltype.CheckComparisonOperator(operator, lt, rt); err != nil {
-			return nil, nil, b.comparisonError(err, lt, rt, raw)
+	signature, err := sqltype.ResolveComparison(operator, lt, rt)
+	if err != nil {
+		return nil, nil, b.comparisonError(err, lt, rt, raw)
+	}
+	target := func(id sqltype.ID, own, other *sqltype.Descriptor) *sqltype.Descriptor {
+		if own == nil && id == 2249 {
+			return sqltype.DeferredRecord()
 		}
-	}
-	if lt != nil {
-		lt = lt.BaseType()
-	}
-	if rt != nil {
-		rt = rt.BaseType()
-	}
-	if lt == nil {
-		lt = rt
-	}
-	if rt == nil {
-		rt = lt
-	}
-	if lt == nil {
-		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
-	}
-	wantLeft, wantRight := b.comparisonCoercionTypes(lt, rt)
-	// Scalar ACL has equality only. Arrays use the generic SQL signature and
-	// retain their own demand-driven element equality/comparison capability.
-	if wantLeft == wantRight && wantLeft.ID() == sqltype.ACLItem {
-		if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "=" {
-			return nil, nil, b.comparisonError(sqlError("42883", "operator does not exist"), originalLeft, originalRight, raw)
+		// Occurrence-owned RECORD shapes are not registered catalog types.
+		for _, source := range [...]*sqltype.Descriptor{own, other} {
+			if source != nil && source.BaseType().ID() == id {
+				return source.BaseType()
+			}
 		}
-		return lt, rt, nil
+		if id == 2249 {
+			return sqltype.DeferredRecord()
+		}
+		return b.typ(id)
 	}
-	if err := sqltype.CheckComparisonOperator(operator, wantLeft, wantRight); err != nil {
-		return nil, nil, b.comparisonError(err, originalLeft, originalRight, raw)
-	}
-	return lt, rt, nil
-}
-
-// Comparison's existing implicit cross-family edges apply equally to array
-// elements. Numeric width comparisons otherwise retain their exact providers.
-func (b *expressionBinder) comparisonCoercionTypes(lt, rt *sqltype.Descriptor) (*sqltype.Descriptor, *sqltype.Descriptor) {
-	integer := func(t *sqltype.Descriptor) bool {
-		return t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8
-	}
-	switch {
-	case bitStringType(lt) && bitStringType(rt) && lt.ID() != rt.ID():
-		lt, rt = b.typ(sqltype.VarBit), b.typ(sqltype.VarBit)
-	case lt.ID() == sqltype.Xid && rt.ID() == sqltype.Int2:
-		rt = b.typ(sqltype.Int4)
-	case lt.ID() == sqltype.Inet && rt.ID() == sqltype.Cidr,
-		lt.ID() == sqltype.Oid && integer(rt),
-		lt.ID() == sqltype.Timetz && rt.ID() == sqltype.Time:
-		rt = lt
-	case rt.ID() == sqltype.Inet && lt.ID() == sqltype.Cidr,
-		rt.ID() == sqltype.Oid && integer(lt),
-		rt.ID() == sqltype.Timetz && lt.ID() == sqltype.Time:
-		lt = rt
-	}
-	return lt, rt
+	return target(signature.Left, lt, rt), target(signature.Right, rt, lt), nil
 }
 
 func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (BoundExpr, error) {
@@ -231,7 +191,6 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	if err != nil {
 		return nil, err
 	}
-	lt, rt = b.comparisonCoercionTypes(lt, rt)
 	l, err := b.coerceConditional(left, lt.Usage(), name)
 	if err != nil {
 		return nil, err
@@ -301,7 +260,7 @@ func (b *expressionBinder) inListHasVar(node BoundExpr) bool {
 	return found
 }
 
-type inListSyntaxKey struct {
+type storedExpressionSyntaxKey struct {
 	frame    uint32
 	position parser.Position
 }
@@ -366,25 +325,30 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 				if err != nil {
 					return nil, err
 				}
-				properties = mergeExpressionProperties(properties, children[i].Properties())
 			}
 			// The batch array inputs are finalized before scalar operator lookup
 			// and lhs input, matching transformAExprIn's diagnostic precedence.
-			leftTarget, _, err := b.resolveComparisonTypes(op, left.descriptor(), common.Type)
+			leftTarget, rightTarget, err := b.resolveComparisonTypes(op, left.descriptor(), common.Type)
 			if err != nil {
 				return nil, err
 			}
-			declaration, _, err := b.comparisonRoutineDeclaration(name, leftTarget, common.Type)
+			declaration, _, err := b.comparisonRoutineDeclaration(name, leftTarget, rightTarget)
 			if err != nil {
 				return nil, err
 			}
-			leftTarget, _ = b.comparisonCoercionTypes(leftTarget, common.Type.BaseType())
+			for i, child := range children {
+				children[i], err = b.coerceConditional(comparisonOperand{node: child}, rightTarget.Usage(), name)
+				if err != nil {
+					return nil, err
+				}
+				properties = mergeExpressionProperties(properties, children[i].Properties())
+			}
 			l, err := b.coerceConditional(left, leftTarget.Usage(), name)
 			if err != nil {
 				return nil, err
 			}
 			properties = mergeExpressionProperties(properties, l.Properties())
-			input, err := b.collatedInfo(b.info(common, raw.Pos, properties), children...)
+			input, err := b.collatedInfo(b.info(rightTarget.Usage(), raw.Pos, properties), children...)
 			if err != nil {
 				return nil, err
 			}
@@ -447,10 +411,10 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (BoundExpr, error) 
 		}
 	}
 	if capture {
-		if b.inListSyntax == nil {
-			b.inListSyntax = make(map[inListSyntaxKey]parser.Expr)
+		if b.storedExpressionSyntax == nil {
+			b.storedExpressionSyntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 		}
-		b.inListSyntax[inListSyntaxKey{frame: b.frameID(), position: raw.Pos}] = syntax
+		b.storedExpressionSyntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.Pos}] = syntax
 	}
 	return result, nil
 }

@@ -8,6 +8,50 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## Comparison resolution and predicates
+
+Executable type/shape admission is separate from operator admission. Comparison
+binding uses released exact signatures, direct implicit conversions and generic
+identity rules, not transitive cast searches or assignment-only conversions.
+CID and ACLITEM remain equality-only. XID/INT4 has its released one-way equality
+signature, not reverse or ordering overloads. JSON and JSONPATH do not gain natural
+comparison.
+The [reference-owned ledger](../reference/type_resolution/comparison-ledger.md)
+records the concrete universe, formal signatures, structural rules and unavailable
+non-comparison construction/codec routes.
+
+Typed VARCHAR compared with NAME selects an existing NAME/TEXT or TEXT/NAME
+provider without clipping the VARCHAR or changing its prepared OID1043.
+CHAR→TEXT, PG_NODE_TREE→TEXT and TIME→INTERVAL use shared implicit coercion
+providers. Structural node output remains the existing native symbolic
+representation; immutable output is computed lazily and retained per payload.
+
+Logical composite comparisons permit different named outer identities but demand
+identical reached field types and their own providers. Nonnull NULL fields are
+equal and sort after nonnull fields; whole SQL NULL remains strict. Row
+constructors retain field-wise three-valued semantics and multi-field B-tree
+eligibility. Boolean domains use ordinary Boolean coercion for truth predicates;
+undecorated NULL distinctness tests whole-value nullness, not row-field nullness.
+These comparisons do not grant absent storage, grouping/hash or index providers.
+
+Quantified named ROW constructors follow PostgreSQL's field extraction; domain
+wrappers and scalar-subquery composites remain whole values. Stored views freeze
+the analyzed member coercions and actual dependencies, not the erased outer
+constructor type. Dropping/recreating that outer type does not reinterpret the
+view; retained enum/domain/nested/whole-value identities remain authoritative.
+
+Canonical catalog ANYARRAY NULLs fail unresolved polymorphic comparisons with
+42804, while incompatible concrete-array contexts retain42883 no-match.
+This does not grant ANYARRAY input, storage or general parameter codecs.
+NULLIF and simple CASE preserve this same generic-enforcement diagnostic rather
+than relabeling it as missing operator lookup; ordinary lookup errors retain
+their own source positions and explicit-cast hints.
+
+PostgreSQL's six record-image operators `*=`, `*<>`, `*<`, `*<=`, `*>`, `*>=`
+compare physical Datum/tuple bytes. Native logical values have no equivalent
+layout; these operators retain the explicit `invalid comparison operator`
+boundary rather than a logical-equality or Go-memory fallback.
+
 ## SQL version and Unicode inquiries
 
 The zero-argument `version()`, `unicode_version()` and `icu_unicode_version()`
@@ -1364,8 +1408,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Relevant incoming-use/storage drift returns a native publication conflict
   without CHECK-truth replay; PostgreSQL's complete concurrency schedule is not
   promised. Failed/canceled validation leaves its previous flag and roots intact.
-  Executable composite arrays support storage and textual I/O; builtin/catalog
-  row execution and composite comparison/hash/key providers remain excluded.
+  Executable composite arrays support storage and textual I/O. Logical composite
+  comparison is supported; builtin/catalog row execution and generic composite
+  hash/key providers remain separate boundaries.
   Pending conversions are not evaluated by JOIN/MERGE capability proofs or
   conflict inference. Retained expression recipes still initialize before rows
   are demanded; existing ADD COLUMN uses real per-row conversion, and existing
@@ -1381,8 +1426,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   and inequality combine three-valued field results; ordering stops at the first
   unequal or NULL pair. `IS [NOT] DISTINCT FROM` always returns Boolean, including
   empty constructors. Constructor expansion also applies to row IN/NOT IN and
-  quantified subqueries. This does not enable composite-datum comparisons,
-  composite-valued field comparisons, or internal `*` comparison operators.
+  quantified subqueries. Composite-valued fields use their ordinary logical
+  comparator, not row-constructor NULL rules; physical record-image operators
+  remain unavailable.
 - `aclitem` and `aclitem[]` are ordinary stored values, not authorization grants.
   Scalar comparison supplies only `=`; ACL arrays supply equality/inequality
   with shape, lower-bound and NULL-element semantics, but not ordering.
@@ -1985,9 +2031,10 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   Custom aggregates and expanded ordering families remain outside this feature.
   See the selected proof's PostgreSQL
   18.0 execution-boundary caveat for 50 pairs.
-- Temporal providers retain exclusions for timezone age/finite inquiries,
-  epoch `to_timestamp` and the general TIME-to-INTERVAL cast. General named-function
-  resolution and custom/generic optimizer-plan switching are not implemented.
+- Temporal providers retain exclusions for timezone age/finite inquiries and
+  epoch `to_timestamp`.
+  General named-function resolution and custom/generic optimizer-plan switching
+  are not implemented.
 - Recursive SELECT CTEs support UNION/UNION ALL worktable iteration and parent
   demand with existing type/equality providers. CYCLE supplies branch-local
   ordered-key record[] paths, closing rows and typed marks; generated paths

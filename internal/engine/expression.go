@@ -2160,21 +2160,21 @@ type expressionBinder struct {
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
 	checkLiterals []literalExpression
-	// Frozen IN syntax duplicates the lhs per actual independently typed branch.
+	// Frozen syntax retains analyzed lowering without changing prepared source.
 	// Analysis-only templates never enter executable nodes or prepared frames.
-	inListSyntax          map[inListSyntaxKey]parser.Expr
-	viewLiterals          map[viewLiteralPath]literalExpression
-	viewCastUsages        map[viewLiteralPath]sqltype.Usage
-	viewIntaggRefs        map[viewLiteralPath]ObjectRef
-	viewComposites        map[viewLiteralPath]compositeOccurrence
-	viewSimilarSubstrings map[viewLiteralPath]bool
-	viewPosixSubstrings   map[viewLiteralPath]bool
-	viewColumns           map[viewLiteralPath]viewColumn
-	viewStars             map[viewLiteralPath][]viewColumn
-	viewJoinCount         int
-	viewFunctionCount     int
-	viewNamespaces        []viewNamespace
-	viewCollations        map[viewLiteralPath]uint32
+	storedExpressionSyntax map[storedExpressionSyntaxKey]parser.Expr
+	viewLiterals           map[viewLiteralPath]literalExpression
+	viewCastUsages         map[viewLiteralPath]sqltype.Usage
+	viewIntaggRefs         map[viewLiteralPath]ObjectRef
+	viewComposites         map[viewLiteralPath]compositeOccurrence
+	viewSimilarSubstrings  map[viewLiteralPath]bool
+	viewPosixSubstrings    map[viewLiteralPath]bool
+	viewColumns            map[viewLiteralPath]viewColumn
+	viewStars              map[viewLiteralPath][]viewColumn
+	viewJoinCount          int
+	viewFunctionCount      int
+	viewNamespaces         []viewNamespace
+	viewCollations         map[viewLiteralPath]uint32
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -3768,7 +3768,10 @@ func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw par
 		copy.Message = strings.Replace(copy.Message, "operator does not exist:", "operator is not unique:", 1)
 		copy.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 	}
-	copy.Position = strconv.Itoa(raw.Pos.Character)
+	copy.Position = ""
+	if raw.Pos.Character > 0 {
+		copy.Position = strconv.Itoa(raw.Pos.Character)
+	}
 	return &copy
 }
 
@@ -3882,11 +3885,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument[BoundExpr]
 	plan := request.Plan
 	var err error
 	if !request.Planned {
-		if (request.Intent == functions.TextFormalArgument || request.Intent == functions.CollatedTextFormalArgument) && argument.Usage.Type.BaseType().ID() == sqltype.Char {
-			plan, err = sqltype.PlanExtremaCharText(argument.Usage, request.Target)
-		} else {
-			plan, err = sqltype.PlanCoercion(argument.Usage, request.Target, sqltype.Implicit)
-		}
+		plan, err = sqltype.PlanCoercion(argument.Usage, request.Target, sqltype.Implicit)
 		if err != nil {
 			return nil, err
 		}
@@ -3971,35 +3970,6 @@ func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Des
 	return b.bind(o.raw, expressionPolicy{context: projectionContext, expected: typ.Usage()})
 }
 
-// Apply existing implicit integer→OID, TIME→TIMETZ and CIDR→INET edges after
-// occurrence-sensitive unknown inference. Coercion owns NULL/range/environment
-// semantics and volatility; the comparison provider remains homogeneous.
-func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (BoundExpr, BoundExpr, error) {
-	lt, rt := left.ResultUsage().Type, right.ResultUsage().Type
-	wantLeft, wantRight := b.comparisonCoercionTypes(lt, rt)
-	var child BoundExpr
-	var target sqltype.Usage
-	switch {
-	case wantLeft != lt:
-		child, target = left, wantLeft.Usage()
-	case wantRight != rt:
-		child, target = right, wantRight.Usage()
-	default:
-		return left, right, nil
-	}
-	plan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Implicit)
-	if err != nil {
-		return nil, nil, err
-	}
-	converted := coercionExpression{b.info(target, child.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Implicit, false}
-	if wantRight != rt {
-		right = converted
-	} else {
-		left = converted
-	}
-	return left, right, nil
-}
-
 func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, error) {
 	if len(raw.Args) != 2 || len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid comparison expression")
@@ -4031,19 +4001,34 @@ func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, opera
 		return nil, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	declaration, formal, err := b.comparisonRoutineDeclaration(name, lt, rt)
+	declaration, _, err := b.comparisonRoutineDeclaration(name, lt, rt)
 	if err != nil {
 		return nil, err
 	}
-	l, err := b.comparisonOperandWithFormalInput(left, lt, formal.Left, name)
+	// VARCHAR has binary-compatible TEXT operator formals, but a contextual
+	// literal still owns its original concrete usage for stored CHECK replay.
+	// Keep that source node and put the conversion on this occurrence.
+	contextualize := func(operand comparisonOperand, source, target *sqltype.Descriptor) (comparisonOperand, error) {
+		if operand.node == nil && source != nil && source.BaseType().ID() == sqltype.VarChar && target.ID() == sqltype.Text {
+			node, err := b.finalizeOperand(operand, source.BaseType())
+			operand.node = node
+			return operand, err
+		}
+		return operand, nil
+	}
+	left, err = contextualize(left, right.descriptor(), lt)
 	if err != nil {
 		return nil, err
 	}
-	r, err := b.comparisonOperandWithFormalInput(right, rt, formal.Right, name)
+	right, err = contextualize(right, left.descriptor(), rt)
 	if err != nil {
 		return nil, err
 	}
-	l, r, err = b.coerceComparisonOperands(l, r)
+	l, err := b.coerceConditional(left, lt.Usage(), name)
+	if err != nil {
+		return nil, err
+	}
+	r, err := b.coerceConditional(right, rt.Usage(), name)
 	if err != nil {
 		return nil, err
 	}

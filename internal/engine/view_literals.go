@@ -512,6 +512,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		case rowComparisonExpression:
 			return b.captureRowComparison([]parser.Expr{r.Left, r.Right}, n, path, ordinal)
 		case nullTestExpression:
+			if (r.Kind == parser.IsDistinct || r.Kind == parser.IsNotDistinct) && rawNull(r.Left) {
+				return child(r.Right, n.child)
+			}
 			return child(r.Left, n.child)
 		case truthTestExpression:
 			return child(r.Left, n.child)
@@ -1411,6 +1414,15 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 func (b *expressionBinder) captureSubqueryLeft(raw parser.Expr, n subqueryExpression, path viewLiteralPath, ordinal *int) error {
 	if raw == nil {
 		return nil
+	}
+	if constructor, ok := n.leftConstructor.(rowExpression); ok {
+		row, ok := raw.(parser.RowExpr)
+		if !ok {
+			return fmt.Errorf("stuntgres: mismatched normalized quantified constructor")
+		}
+		path.node = *ordinal
+		(*ordinal)++
+		return b.captureQuantifiedConstructor(row, constructor, path, ordinal)
 	}
 	if row, ok := raw.(parser.RowExpr); ok {
 		(*ordinal)++

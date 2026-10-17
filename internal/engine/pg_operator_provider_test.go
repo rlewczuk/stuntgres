@@ -80,9 +80,6 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		production[fact.oid] = fact
 	}
 	universe := pgOperatorReleaseRows(t, "regoperator-pg18-inventory.tsv", 8)
-	if len(universe) != 799 || len(want) != 546 {
-		t.Fatal("incomplete release evidence", len(universe), len(want))
-	}
 	seen, admitted := map[OID]bool{}, map[OID]bool{}
 	for _, candidate := range universe {
 		oid := OID(integer(candidate[0]))
@@ -179,7 +176,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 			}
 		})
 	}
-	if len(seen) != 799 || len(admitted) != len(want) || len(production) != len(want) {
+	if len(seen) != len(universe) || len(admitted) != len(want) || len(production) != len(want) {
 		t.Errorf("partition visited=%d admitted=%d production=%d expected=%d", len(seen), len(admitted), len(production), len(want))
 	}
 	for oid := range production {

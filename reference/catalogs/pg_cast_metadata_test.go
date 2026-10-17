@@ -9,10 +9,13 @@ import (
 
 const pgCastProbe = "SELECT * FROM pg_catalog.pg_cast WHERE castsource=$1::oid AND casttarget=$2::oid"
 
-// Independently transcribed REL_18_0 pg_cast.dat / pg_proc.dat contract.
+// Independent REL_18_0 contract, extended by the three REL_18_6 comparison casts.
 // Row OIDs are generated identities, intentionally not PostgreSQL goldens.
 func pgCastFacts() [][]any {
 	return [][]any{
+		{int64(18), int64(25), int64(946), "i", "f"},
+		{int64(194), int64(25), int64(0), "i", "b"},
+		{int64(1083), int64(1186), int64(1370), "i", "f"},
 		{int64(21), int64(23), int64(313), "i", "f"},
 		{int64(21), int64(20), int64(754), "i", "f"},
 		{int64(21), int64(700), int64(236), "i", "f"},
@@ -138,7 +141,7 @@ func pgCastIdentities(t *testing.T, p *fixture.Pair, b fixture.Backend) map[[2]i
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if index != 70 {
+	if index != len(facts) {
 		t.Fatal("complete supported cast count", index)
 	}
 	return ids

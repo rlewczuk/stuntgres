@@ -157,7 +157,15 @@ func TestACLItemEqualityAdmission(t *testing.T) {
 	for _, typ := range []*sqltype.Descriptor{d, array} {
 		comparison, err := sqltype.BindComparison(typ, typ, sqltype.CollationRef{}, false)
 		if typ == d {
-			if err == nil {
+			if err != nil {
+				t.Fatal("scalar ACL equality provider absent", err)
+			}
+			aclUnitRoles(e, "acl_compare_unit")
+			value := aclUnitValue(t, e, "=r/acl_compare_unit")
+			if equal, err := comparison.EqualValues(context.Background(), value, value, sqltype.InputEnvironment{}); err != nil || !equal {
+				t.Fatal("scalar ACL equality", equal, err)
+			}
+			if _, err := comparison.Compare(context.Background(), value, value, sqltype.InputEnvironment{}); err == nil {
 				t.Fatal("scalar ACL gained total ordering")
 			}
 		} else {

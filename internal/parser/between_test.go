@@ -88,7 +88,7 @@ func TestBetweenGrammarBoundaries(t *testing.T) {
 	for _, q := range []string{
 		"SELECT v BETWEEN 1 3 FROM t", "SELECT v BETWEEN AND 3 FROM t", "SELECT v BETWEEN 1 AND",
 		"SELECT v BETWEEN 1 AND 3 BETWEEN 0 AND 4 FROM t", "SELECT v BETWEEN TRUE OR FALSE AND TRUE FROM t",
-		"SELECT v BETWEEN ASYMMETRIC 1 AND 3 FROM t", "CREATE TABLE t(b BOOL DEFAULT 2 BETWEEN 1 AND 3)",
+		"CREATE TABLE t(b BOOL DEFAULT 2 BETWEEN 1 AND 3)",
 		"SELECT v BETWEEN 1 AND 3 FROM t; garbage",
 	} {
 		if ast, err := Parse(q); err == nil || len(ast) != 0 {

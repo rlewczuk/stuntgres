@@ -1,7 +1,7 @@
 package sqltype
 
-// EqualitySignature is a supported builtin '=' operand signature, not a
-// catalog identity. Unknown operands are represented by nil during analysis.
+// EqualitySignature contains the instantiated operand targets of a selected
+// comparison. Generic targets retain their concrete descriptor identities.
 type EqualitySignature struct{ Left, Right ID }
 
 var equalitySignatures = [...]EqualitySignature{
@@ -17,10 +17,17 @@ var equalitySignatures = [...]EqualitySignature{
 	{Date, Date}, {Time, Time}, {Timestamp, Timestamp}, {Date, Timestamp}, {Timestamp, Date}, {UUID, UUID}, {Bytea, Bytea},
 	{Timestamptz, Timestamptz}, {Timetz, Timetz},
 	{Date, Timestamptz}, {Timestamptz, Date}, {Timestamp, Timestamptz}, {Timestamptz, Timestamp},
+	{Interval, Interval}, {Bit, Bit}, {VarBit, VarBit}, {JSONB, JSONB}, {ACLItem, ACLItem},
 }
 
 func equalityCategory(id ID) byte {
 	switch id {
+	case Regclass, Regtype, Regrole, Regproc, Regprocedure, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary:
+		return 'N'
+	case Char, PgNodeTree:
+		return 'Z'
+	case Bit, VarBit:
+		return 'V'
 	case Inet, Cidr:
 		return 'I'
 	case Bool:
@@ -45,7 +52,10 @@ func equalityImplicit(from, to ID) bool {
 	if from == to {
 		return true
 	}
-	if from == Cidr && to == Inet {
+	if (IsRoutineAlias(from) || IsOperatorAlias(from) || IsRegObjectAlias(from) || IsRegTS(from)) && to == Oid {
+		return true
+	}
+	if from == Cidr && to == Inet || from == Bit && to == VarBit {
 		return true
 	}
 	if IsCharacter(from) && IsCharacter(to) {
@@ -59,6 +69,16 @@ func equalityImplicit(from, to ID) bool {
 	return false
 }
 func ResolveEquality(left, right *Descriptor) (EqualitySignature, error) {
+	return ResolveComparison(CompareEqual, left, right)
+}
+
+// ResolveComparison follows released binary operator resolution: exact/unknown
+// shortcuts, then direct implicit candidates and the prescribed best-match
+// filters. Provider demand is separate from generic operator selection.
+func ResolveComparison(operator ComparisonOperator, left, right *Descriptor) (EqualitySignature, error) {
+	if operator > CompareGreaterEqual {
+		return EqualitySignature{}, failure("42883", "incompatible comparison operands")
+	}
 	var l, r ID
 	if left != nil {
 		l = left.BaseType().ID()
@@ -66,28 +86,57 @@ func ResolveEquality(left, right *Descriptor) (EqualitySignature, error) {
 	if right != nil {
 		r = right.BaseType().ID()
 	}
-	// Generic array equality uses simple anyarray identity, not numeric common
-	// type promotion. Whole domains peel, but element-domain identities do not.
-	if left != nil && left.BaseType().IsArray() || right != nil && right.BaseType().IsArray() {
-		known := left
-		if known == nil {
-			known = right
+	known := left
+	if known == nil {
+		known = right
+	}
+	if known != nil {
+		base := known.BaseType()
+		other := right
+		if left == nil {
+			other = nil
 		}
-		array := known.BaseType()
-		if left != nil && left.BaseType() != array || right != nil && right.BaseType() != array {
-			return EqualitySignature{}, failure("42883", "incompatible equality operands")
+		// The canonical catalog NULL carrier matches anyarray's signature,
+		// but two unresolved family members cannot determine an element type.
+		// This is analysis failure, not input or comparison-provider admission.
+		if base.Usage().CatalogNullUsage() && (other == nil || other.BaseType().Usage().CatalogNullUsage()) {
+			return EqualitySignature{}, failure("42804", `cannot determine element type of "anyarray" argument`)
 		}
-		return EqualitySignature{array.ID(), array.ID()}, nil
+		if base.IsComposite() || base.IsDeferredRecord() {
+			if other == nil || other.BaseType().IsComposite() || other.BaseType().IsDeferredRecord() {
+				if other == nil {
+					if left == nil {
+						return EqualitySignature{2249, base.ID()}, nil
+					}
+					return EqualitySignature{base.ID(), 2249}, nil
+				}
+				return EqualitySignature{base.ID(), other.BaseType().ID()}, nil
+			}
+			return EqualitySignature{}, failure("42883", "incompatible comparison operands")
+		}
+		if base.IsArray() || base.IsEnum() || isRange(base.ID()) || isMultirange(base.ID()) {
+			// anyenum accepts actual enums, not domains over enums.
+			if base.IsEnum() && (known.IsDomain() || other != nil && other.IsDomain()) ||
+				other != nil && other.BaseType() != base {
+				return EqualitySignature{}, failure("42883", "incompatible comparison operands")
+			}
+			return EqualitySignature{base.ID(), base.ID()}, nil
+		}
 	}
 	for _, s := range equalitySignatures {
-		if left != nil && right != nil && s.Left == l && s.Right == r || left == nil && right != nil && s.Left == r && s.Right == r || right == nil && left != nil && s.Left == l && s.Right == l {
+		if !comparisonSignatureAvailable(operator, s) {
+			continue
+		}
+		if left != nil && right != nil && !left.IsDomain() && !right.IsDomain() && s.Left == l && s.Right == r ||
+			left == nil && right != nil && s.Left == r && s.Right == r ||
+			right == nil && left != nil && s.Left == l && s.Right == l {
 			return s, nil
 		}
 	}
 	var active [len(equalitySignatures)]bool
 	count := 0
 	for i, s := range equalitySignatures {
-		if (left == nil || equalityImplicit(l, s.Left)) && (right == nil || equalityImplicit(r, s.Right)) {
+		if comparisonSignatureAvailable(operator, s) && (left == nil || equalityImplicit(l, s.Left)) && (right == nil || equalityImplicit(r, s.Right)) {
 			active[i] = true
 			count++
 		}
@@ -226,6 +275,16 @@ func ResolveEquality(left, right *Descriptor) (EqualitySignature, error) {
 		return EqualitySignature{}, failure("42883", "incompatible equality operands")
 	}
 	return EqualitySignature{}, failure("42725", "ambiguous equality operands")
+}
+
+func comparisonSignatureAvailable(operator ComparisonOperator, s EqualitySignature) bool {
+	switch s.Left {
+	case ACLItem, Cid:
+		return operator == CompareEqual
+	case Xid:
+		return operator == CompareEqual || operator == CompareNotEqual
+	}
+	return true
 }
 
 func compareDateTimestamp(day, stamp int64) int {

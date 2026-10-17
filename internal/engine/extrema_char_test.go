@@ -28,7 +28,7 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 				v = sqltype.Null(char)
 			}
 			child := literalExpression{expressionInfo: expressionInfo{usage: char.Usage()}, value: v}
-			plan, err := sqltype.PlanExtremaCharText(char.Usage(), text.Usage())
+			plan, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Implicit)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -57,11 +57,5 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 			// Old bound plans and values retain their original generation.
 			check(node, text)
 		}
-	}
-	if _, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Implicit); err == nil {
-		t.Fatal("extrema broadened public implicit CHAR cast")
-	}
-	if _, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Explicit); err == nil {
-		t.Fatal("extrema broadened public explicit CHAR cast")
 	}
 }

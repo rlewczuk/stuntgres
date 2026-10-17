@@ -168,9 +168,6 @@ func TestDatetimeTruncZonesOwnershipErrors(t *testing.T) {
 	if _, err := BindDatetimeTrunc(d[Text], d[Timestamp], d[Timestamp], d[Text]); err == nil {
 		t.Fatal("naive explicit zone accepted")
 	}
-	if _, err := PlanCoercion(d[Time].Usage(), d[Interval].Usage(), Implicit); err == nil {
-		t.Fatal("general TIME cast changed")
-	}
 }
 
 func TestDatetimeTruncBoundsInfinityTime(t *testing.T) {

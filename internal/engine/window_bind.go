@@ -698,7 +698,16 @@ func (b *expressionBinder) bindWindowSpec(raw parser.WindowSpec, names map[strin
 			}
 		}
 		if index < 0 {
-			routine, _, err := b.groupingRoutineReference(expr.ResultUsage())
+			usage := expr.ResultUsage()
+			base := usage.Type.BaseType()
+			signature, err := sqltype.ResolveEquality(base, base)
+			if err != nil {
+				return spec, err
+			}
+			if signature.Left != base.ID() {
+				usage.Type = b.typ(signature.Left)
+			}
+			routine, _, err := b.groupingRoutineReference(usage)
 			if err != nil {
 				return spec, err
 			}

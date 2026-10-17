@@ -222,6 +222,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		err = pair(n.left, n.right)
 	case nullTestExpression:
 		fmt.Fprintf(out, "NullTest not %t", n.not)
+		if n.whole {
+			out.WriteString(" whole true")
+		}
 		err = child(n.child)
 	case truthTestExpression:
 		fmt.Fprintf(out, "TruthTest %d not %t", n.truth, n.not)

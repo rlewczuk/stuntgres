@@ -111,7 +111,7 @@ var keywords = [...]keyword{
 	{"asensitive", Unreserved, true, 0},
 	{"assertion", Unreserved, true, 0},
 	{"assignment", Unreserved, true, 0},
-	{"asymmetric", Reserved, true, 0},
+	{"asymmetric", Reserved, true, ASYMMETRIC},
 	{"at", Unreserved, true, AT},
 	{"atomic", Unreserved, true, 0},
 	{"attach", Unreserved, true, 0},

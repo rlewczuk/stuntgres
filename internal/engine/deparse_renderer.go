@@ -839,6 +839,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.not {
 			suffix = " IS NOT NULL"
 		}
+		if n.whole && n.child.ResultUsage().Type.BaseType().IsComposite() {
+			suffix = " IS NOT DISTINCT FROM NULL"
+			if n.not {
+				suffix = " IS DISTINCT FROM NULL"
+			}
+		}
 		return unary(n.child, suffix)
 	case truthTestExpression:
 		truth := [...]string{"FALSE", "TRUE", "UNKNOWN"}

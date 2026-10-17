@@ -2,11 +2,11 @@ package engine
 
 import "stuntgres/internal/parser"
 
-// Stored syntax follows the actual IN lowering, including independently typed
-// copies of its left operand. Only changed ancestors are copied. Child queries
-// retain their identities and normalize in their own lexical binding frame.
+// Stored syntax follows analyzed lowering, including independently typed IN
+// operands and erased quantified constructor casts. Only changed ancestors are
+// copied; child queries normalize in their own lexical binding frame.
 func (b *expressionBinder) normalizeStoredExpression(raw parser.Expr) parser.Expr {
-	if len(b.inListSyntax) == 0 {
+	if len(b.storedExpressionSyntax) == 0 {
 		return raw
 	}
 	next, _ := b.normalizeInListExpression(raw)
@@ -35,11 +35,16 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 		changed = changed || did
 		return next
 	}
+	if raw != nil {
+		switch raw.(type) {
+		case parser.InListExpr, parser.CastExpr:
+			if lowered, ok := b.storedExpressionSyntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}]; ok {
+				return b.normalizeStoredExpression(lowered), true
+			}
+		}
+	}
 	switch r := raw.(type) {
 	case parser.InListExpr:
-		if lowered, ok := b.inListSyntax[inListSyntaxKey{frame: b.frameID(), position: r.Pos}]; ok {
-			return b.normalizeStoredExpression(lowered), true
-		}
 		r.Left, r.Items = child(r.Left), args(r.Items)
 		if changed {
 			return r, true
@@ -246,7 +251,7 @@ func (b *expressionBinder) normalizeInListWindow(raw *parser.WindowSpec) (*parse
 }
 
 func (b *expressionBinder) normalizeStoredQuerySyntax(s *parser.Select) {
-	if len(b.inListSyntax) == 0 {
+	if len(b.storedExpressionSyntax) == 0 {
 		return
 	}
 	s.Targets, _ = b.normalizeInListArguments(s.Targets)

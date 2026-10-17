@@ -493,6 +493,12 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return nil, false, err
 		}
 		changed = changed || expansionChanged
+		if n.leftConstructor != nil {
+			n.leftConstructor = child(n.leftConstructor)
+			if err != nil {
+				return nil, false, err
+			}
+		}
 		if n.jsonArray != nil {
 			copy := *n.jsonArray
 			copy.input = child(copy.input)
@@ -1316,11 +1322,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		// storage/formal destinations. Map that captured Usage and structure;
 		// rederiving from the child would erase the destination contract.
 		if changed && err == nil {
-			if n.mode == sqltype.Implicit && n.child.ResultUsage().Type.BaseType().ID() == sqltype.Char && info.usage.Type.ID() == sqltype.Text {
-				n.plan, err = sqltype.PlanExtremaCharText(n.child.ResultUsage(), info.usage)
-			} else {
-				n.plan, err = n.plan.Rebind(n.child.ResultUsage(), info.usage, n.mode)
-			}
+			n.plan, err = n.plan.Rebind(n.child.ResultUsage(), info.usage, n.mode)
 		}
 		n.expressionInfo = info
 		rebound = n

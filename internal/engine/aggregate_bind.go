@@ -385,7 +385,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 		return ok && e.op == o.op && e.queryRight == o.queryRight && same(e.left, o.left) && same(e.right, o.right)
 	case nullTestExpression:
 		o, ok := other.(nullTestExpression)
-		return ok && e.not == o.not && same(e.child, o.child)
+		return ok && e.not == o.not && e.whole == o.whole && same(e.child, o.child)
 	case truthTestExpression:
 		o, ok := other.(truthTestExpression)
 		return ok && e.truth == o.truth && e.not == o.not && same(e.child, o.child)

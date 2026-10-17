@@ -109,6 +109,9 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			next := child(old)
 			return next, true, err
 		})
+		if n.leftConstructor != nil {
+			n.leftConstructor = child(n.leftConstructor)
+		}
 		next = n
 	case functions.VersionInformation[*EvalContext, ExprProperties]:
 		next = n

@@ -617,7 +617,8 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				}
 				predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, le.ResultUsage().Type, re.ResultUsage().Type, b.typ(sqltype.Bool), input.usage.Collation, input.collationConflict)
 				if err != nil {
-					return nil, queryNamespace{}, equalityError(err, le.ResultUsage().Type, re.ResultUsage().Type, pos)
+					raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
+					return nil, queryNamespace{}, b.comparisonError(err, le.ResultUsage().Type, re.ResultUsage().Type, raw)
 				}
 				eq := comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), le, re, predicate, "=", ""}
 				if join.predicate == nil {

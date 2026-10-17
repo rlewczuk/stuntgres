@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -119,16 +118,5 @@ func TestArrayCompareCommonType(t *testing.T) {
 	other.frame++
 	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{expressionInfo: expressionInfo{properties: ExprProperties{RowDependent: true}}}) {
 		t.Fatal("IN Var classification lost lexical identity")
-	}
-	b.noParameters = true
-	raw := statement(t, "SELECT '1' IN(1,2,3)").(*parser.Select).Targets[0]
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
-	if err != nil {
-		t.Fatal(err)
-	}
-	template := b.inListSyntax[inListSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}]
-	array, ok := template.(parser.ArrayComparisonExpr)
-	if !ok || len(array.Right.(parser.ArrayExpr).Elements) != 3 || !reflect.DeepEqual(array.Left, raw.(parser.InListExpr).Left) {
-		t.Fatal("missing exact frozen lowering", template, node)
 	}
 }

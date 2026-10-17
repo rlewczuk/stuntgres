@@ -697,7 +697,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if err != nil {
 			return "", err
 		}
-		return strings.Join(fields, ", "), nil
+		return v.quantifiedFieldsSQL(ctx, catalog, path, fields)
 	case parser.FieldExpr:
 		captured, ok := v.composites[path]
 		if !ok {
@@ -714,12 +714,17 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if err != nil {
 			return "", err
 		}
-		return strings.Join(fields, ", "), nil
+		return v.quantifiedFieldsSQL(ctx, catalog, path, fields)
 	case parser.RowExpr:
-		text, err := args(e.Fields)
-		if err != nil {
-			return "", err
+		parts := make([]string, len(e.Fields))
+		for i, field := range e.Fields {
+			var err error
+			parts[i], err = selectedOperand(i, field, pgRenderParent{functionArgument: true})
+			if err != nil {
+				return "", err
+			}
 		}
+		text := strings.Join(parts, ", ")
 		if e.Explicit {
 			return "ROW(" + text + ")", nil
 		}

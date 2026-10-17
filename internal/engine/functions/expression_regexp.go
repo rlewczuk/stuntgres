@@ -155,12 +155,7 @@ func RegexpCompatible(source, target sqltype.Usage) bool {
 	if source.Type == nil {
 		return true
 	}
-	var err error
-	if target.Type.ID() == sqltype.Text && source.Type.BaseType().ID() == sqltype.Char {
-		_, err = sqltype.PlanExtremaCharText(source, target)
-	} else {
-		_, err = sqltype.PlanCoercion(source, target, sqltype.Implicit)
-	}
+	_, err := sqltype.PlanCoercion(source, target, sqltype.Implicit)
 	return err == nil
 }
 func CoerceRegexpArguments[E any, B ArgumentCoercer[E]](b B, operands []Argument[E], written [7]uint8, targets [7]sqltype.Usage) ([]E, error) {
