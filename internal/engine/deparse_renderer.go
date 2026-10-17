@@ -459,6 +459,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
 		text, err := currentDateTimeSQL(n)
 		return strings.ToUpper(text), err
+	case functions.VersionInformation[*EvalContext, ExprProperties]:
+		return versionInformationSQL(n)
 	case functions.TransactionTime[*EvalContext, ExprProperties]:
 		return transactionTimeSQL(n)
 	case identityExpression:

@@ -110,6 +110,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			return next, true, err
 		})
 		next = n
+	case functions.VersionInformation[*EvalContext, ExprProperties]:
+		next = n
 	case domainValueExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		next = n
 	case literalExpression:

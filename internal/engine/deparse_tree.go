@@ -79,6 +79,11 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			return err
 		}
 		fmt.Fprintf(out, "CurrentDateTime kind %d hasPrecision %t precision %d", n.Kind, n.HasPrecision, n.Precision)
+	case functions.VersionInformation[*EvalContext, ExprProperties]:
+		if err := n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "VersionInformation kind %d", n.Kind)
 	case functions.TransactionTime[*EvalContext, ExprProperties]:
 		if err := n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule())); err != nil {
 			return err

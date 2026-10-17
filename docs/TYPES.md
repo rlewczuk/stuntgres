@@ -1249,6 +1249,11 @@ attribution and license beside the runtime. Sources are the official
 UnicodeData, DerivedNormalizationProps, SpecialCasing, CaseFolding and
 DerivedCoreProperties.
 
+`unicode_version()` exposes this actual provider's major.minor spelling `16.0`
+as TEXT. Native `icu_unicode_version()` returns a typed TEXT SQL NULL because
+these execution providers do not use ICU. Neither inquiry consults the host Go
+Unicode version, an external PostgreSQL runtime or a collation version label.
+
 Deterministic offline regeneration from the repository root:
 
 ```sh

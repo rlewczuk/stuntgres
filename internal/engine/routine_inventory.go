@@ -25,6 +25,7 @@ var builtinRoutineDeclarations = [...]builtinRoutineDeclaration{
 	{routineIdentity{74, PGCatalogNamespaceOID, "charge", "18,18"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, operatorRoutineProvider},
 	{routineIdentity{79, PGCatalogNamespaceOID, "nameregexeq", "19,25"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, operatorRoutineProvider},
 	{routineIdentity{84, PGCatalogNamespaceOID, "boolne", "16,16"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, operatorRoutineProvider},
+	{routineIdentity{89, PGCatalogNamespaceOID, "version", ""}, functionRoutine, 25, true, Stable, 's', false, 0, 0, catalogRoutineProvider},
 	{routineIdentity{141, PGCatalogNamespaceOID, "int4mul", "23,23"}, functionRoutine, 23, true, Immutable, 's', false, 0, 0, operatorRoutineProvider},
 	{routineIdentity{144, PGCatalogNamespaceOID, "int4ne", "23,23"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, operatorRoutineProvider},
 	{routineIdentity{145, PGCatalogNamespaceOID, "int2ne", "21,21"}, functionRoutine, 16, true, Immutable, 's', false, 0, 0, operatorRoutineProvider},
@@ -1216,6 +1217,8 @@ var builtinRoutineDeclarations = [...]builtinRoutineDeclaration{
 	{routineIdentity{3537, PGCatalogNamespaceOID, "pg_describe_object", "26,26,23"}, functionRoutine, 25, true, Stable, 's', false, 0, 0, catalogRoutineProvider},
 	{routineIdentity{3032, PGCatalogNamespaceOID, "get_bit", "1560,23"}, functionRoutine, 23, true, Immutable, 's', false, 0, 0, binaryRoutineProvider},
 	{routineIdentity{3033, PGCatalogNamespaceOID, "set_bit", "1560,23,23"}, functionRoutine, 1560, true, Immutable, 's', false, 0, 0, binaryRoutineProvider},
+	{routineIdentity{4549, PGCatalogNamespaceOID, "unicode_version", ""}, functionRoutine, 25, true, Immutable, 's', false, 0, 0, catalogRoutineProvider},
+	{routineIdentity{6099, PGCatalogNamespaceOID, "icu_unicode_version", ""}, functionRoutine, 25, true, Immutable, 's', false, 0, 0, catalogRoutineProvider},
 }
 
 var builtinRoutineByOID = indexBuiltinRoutineDeclarations()

@@ -8,6 +8,25 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## SQL version and Unicode inquiries
+
+The zero-argument `version()`, `unicode_version()` and `icu_unicode_version()`
+functions return TEXT with ordinary direct/prepared result metadata.
+`version()` is STABLE and returns exactly
+`PostgreSQL 18.0 compatible; embedded stuntgres`. This is an embedded
+compatibility declaration, not a PostgreSQL process, compiler or platform banner.
+It does not change `server_version`, `server_version_num` or wire startup metadata.
+
+The IMMUTABLE Unicode inquiry returns `16.0`, derived from the same embedded
+Unicode16.0.0 data used by normalization, case conversion, assignment and regex
+providers. Native execution has no ICU provider, so the IMMUTABLE ICU inquiry
+returns a concrete TEXT SQL NULL, not an empty string. The pinned PostgreSQL18.6
+oracle independently reports Unicode16.0 and ICU15.0; these providers need not
+match each other. No host Go Unicode or runtime ICU version is substituted.
+These stateless functions need no serialized provider state; supported stored
+views and DEFAULT expressions replay their symbolic calls.
+See [selected proof and smoke](../reference/sessions/README.md#sql-version-and-unicode-inquiries).
+
 ## Text slicing
 
 Text `left`/`right` and positional `substring`/`substr` use INT4 codepoint

@@ -6,6 +6,39 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### SQL version and Unicode inquiries
+
+The seven untagged `TestReferenceVersionInformation` scenarios exercise direct
+and actually held-prepared TEXT inquiries, canonical names, empty-result metadata,
+typed ICU NULL, Unicode16 assignment/normalization, full English diagnostic
+fields and positions at Query/Prepare, and unchanged sentinel rows after misuse.
+The native banner is exactly `PostgreSQL 18.0 compatible; embedded stuntgres`;
+the real oracle must identify PostgreSQL18.6 without a fabricated portable build
+suffix. Native Unicode is16.0 with no ICU; the pinned oracle reports Unicode16.0
+and ICU15.0. These expectations are independent, not blanket parity normalization.
+
+Stored view and DEFAULT calls remain symbolic across native Dump/Reset/Restore,
+including separate-destination replay and new defaulted inserts. Cancellation
+checks ordinary native `context.Canceled` without inventing deterministic
+precanceled pq behavior for a constant inquiry. These controls/cancellation
+phases live inside the same shared scenarios, not separate SQL implementations.
+
+Run from the repository root with an external900-second deadline per invocation:
+
+```sh
+make check RUN='^TestReferenceVersionInformation(Values|Metadata|UnicodeProvider|Diagnostics|StoredControls|Cancellation|Smoke)$'
+make check RUN='^TestReferenceVersionInformation(Values|Metadata|UnicodeProvider|Diagnostics|StoredControls|Cancellation|Smoke)$' REFERENCE=1
+make check RUN='^TestVersionInformation(Carrier|Binding|Remap)$'
+make check RUN='^TestReferenceVersionInformationSmoke$'
+make check RUN='^TestReferenceVersionInformationSmoke$' REFERENCE=1
+```
+
+Smoke executes real new inquiry values and held reuse, Unicode operation witnesses,
+full representative misuse diagnostics, stored recipes and native logical replay.
+Expected passing output is the quiet package summary/exit0, not banner stdout.
+Every changed definition requires both selected modes before review; the internal
+carrier/binding/remap units supplement, rather than replace, public SQL proof.
+
 ### Transaction status with default tracking
 
 `TestReferenceTransactionIdentityStatusDefaultTracking` independently requires

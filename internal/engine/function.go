@@ -54,6 +54,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
 		return b.bindSimilarEscape(raw)
 	}
+	if parser.VersionInformationFunctionName(name) {
+		return b.bindVersionInformation(raw)
+	}
 	if parser.TransactionTimeFunctionName(name) {
 		return b.bindTransactionTime(raw)
 	}

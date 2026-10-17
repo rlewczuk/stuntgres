@@ -1375,6 +1375,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			// decoded quoted keyword names cannot be replayed unqualified.
 			return "pg_catalog." + name + "()", nil
 		}
+		if functions.VersionInformationKindForName(name) != 0 && len(e.Args) == 0 {
+			if v.presentation.deparse {
+				return name + "()", nil
+			}
+			return "pg_catalog." + name + "()", nil
+		}
 		if functions.TransactionTimeKindForName(name) != 0 && len(e.Args) == 0 {
 			if v.presentation.deparse {
 				return name + "()", nil

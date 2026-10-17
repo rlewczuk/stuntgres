@@ -125,6 +125,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
 		o, ok := other.(functions.CurrentDateTime[*EvalContext, ExprProperties])
 		return ok && e.Kind == o.Kind && e.HasPrecision == o.HasPrecision && (!checkDefinitionEquality || e.Precision == o.Precision)
+	case functions.VersionInformation[*EvalContext, ExprProperties]:
+		o, ok := other.(functions.VersionInformation[*EvalContext, ExprProperties])
+		return ok && e.Kind == o.Kind
 	case functions.TransactionTime[*EvalContext, ExprProperties]:
 		o, ok := other.(functions.TransactionTime[*EvalContext, ExprProperties])
 		return ok && e.Kind == o.Kind

@@ -970,6 +970,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (enumFunctionName(token.lexeme.text) || jsonCreateFunction(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
+	if token.code == IDENT && VersionInformationFunctionName(token.lexeme.text) {
+		token.code = SELECTED_FUNC
+	}
 	if token.code == IDENT && (CatalogRelationFunctionName(token.lexeme.text) || TransactionIdentityFunctionName(token.lexeme.text) || ACLValueFunctionName(token.lexeme.text) || ObjectAddressFunctionName(token.lexeme.text) || RangeInspectFunctionName(token.lexeme.text) || UUIDExtractFunctionName(token.lexeme.text) || CommitTimestampFunctionName(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
@@ -1203,10 +1206,17 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = TX_TIME_FUNC
 		}
 	}
-	// Selected time, enum and delay calls reuse failure-only decorations;
-	// their binder rejects aggregate modifiers after resolving the operands.
+	// Selected scalar calls reuse failure-only decorations; version inquiries
+	// also need this full operand route in DEFAULTs and nested expressions.
 	if token.code == CHECK_FUNC && strings.EqualFold(token.lexeme.text, "parse_ident") {
 		token.code = TX_TIME_FUNC
+	}
+	if (token.code == SELECTED_FUNC || token.code == CHECK_FUNC) && VersionInformationFunctionName(token.lexeme.text) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = TX_TIME_FUNC
+		}
 	}
 	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || (JSONBSetFunctionName(token.lexeme.text) || (strings.EqualFold(token.lexeme.text, "jsonb_path_query_array") || JSONBPathQueryFunctionName(token.lexeme.text))) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || strings.EqualFold(token.lexeme.text, "unnest") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
@@ -1830,6 +1840,12 @@ func datetimeFunctionName(name string) bool {
 		strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp") || strings.EqualFold(name, "to_number") ||
 		strings.EqualFold(name, "timezone") || strings.EqualFold(name, "date_add") || strings.EqualFold(name, "date_subtract") ||
 		datetimeMakeFunctionName(name) || TransactionTimeFunctionName(name)
+}
+
+// Admission folds spelling; ordinary resolution retains the exact identifier.
+func VersionInformationFunctionName(name string) bool {
+	return strings.EqualFold(name, "version") || strings.EqualFold(name, "unicode_version") ||
+		strings.EqualFold(name, "icu_unicode_version")
 }
 
 // Admission folds spelling; the binder still resolves quoted names exactly.

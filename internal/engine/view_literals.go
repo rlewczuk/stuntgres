@@ -612,6 +612,9 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
 			return nil
 		}
+		if n, ok := bound.(functions.VersionInformation[*EvalContext, ExprProperties]); ok && len(r.Args) == 0 {
+			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
+		}
 		if n, ok := bound.(functions.TransactionTime[*EvalContext, ExprProperties]); ok && len(r.Args) == 0 {
 			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
 		}

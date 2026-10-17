@@ -650,6 +650,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	}
 	var children []BoundExpr
 	switch e := expr.(type) {
+	case functions.VersionInformation[*EvalContext, ExprProperties]:
+		return 0, nil
 	case literalExpression, parameterExpression, identityExpression, functions.CurrentDateTime[*EvalContext, ExprProperties], functions.TransactionTime[*EvalContext, ExprProperties]:
 		return 0, nil
 	case rowExpression:

@@ -471,6 +471,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return n.kind.spelling(), nil
 	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
 		return currentDateTimeSQL(n)
+	case functions.VersionInformation[*EvalContext, ExprProperties]:
+		return versionInformationSQL(n)
 	case functions.TransactionTime[*EvalContext, ExprProperties]:
 		return transactionTimeSQL(n)
 	case literalExpression:

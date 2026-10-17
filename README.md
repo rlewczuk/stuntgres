@@ -14,6 +14,18 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## SQL version and Unicode inquiries — change note
+
+`version()`, `unicode_version()` and `icu_unicode_version()` are zero-argument
+TEXT inquiries through the ordinary expression path. Native `version()` returns
+`PostgreSQL 18.0 compatible; embedded stuntgres`, identifying compatibility
+without claiming a native PostgreSQL server build. Unicode reports `16.0` from
+the embedded Unicode16 provider; ICU reports SQL NULL because native execution
+does not use ICU. Stored calls remain symbolic through Dump/Restore.
+Machine-readable version settings and wire version reporting are unchanged.
+See [compatibility boundaries](docs/DIALECT.md#sql-version-and-unicode-inquiries)
+and [selected proof and smoke](reference/sessions/README.md#sql-version-and-unicode-inquiries).
+
 ## Catalog linkage and role names — change note
 
 `pg_get_catalog_foreign_keys()` exposes the complete 219-link PostgreSQL18.0

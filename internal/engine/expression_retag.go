@@ -1257,6 +1257,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 	case functions.CurrentDateTime[*EvalContext, ExprProperties]:
 		n.Info = functionInfo(info)
 		rebound = n
+	case functions.VersionInformation[*EvalContext, ExprProperties]:
+		n.Info = functionInfo(info)
+		rebound = n
 	case functions.TransactionTime[*EvalContext, ExprProperties]:
 		n.Info = functionInfo(info)
 		rebound = n
