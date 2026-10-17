@@ -1010,6 +1010,30 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		}, pgIdentifier)
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbPathExistsSQL(n, "jsonb_path_exists", func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbPathMatchSQL(n, "jsonb_path_match", func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbPathQueryFirstSQL(n, "jsonb_path_query_first", func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		return jsonbPathQuerySQL(n, "jsonb_path_query", func(arg BoundExpr) (string, error) {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			return argRenderer.sql(ctx, arg, pgRenderParent{})
+		}, pgIdentifier)
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return jsonbSetSQL(n, n.Plan.Name(), func(arg BoundExpr) (string, error) {
 			argRenderer := r

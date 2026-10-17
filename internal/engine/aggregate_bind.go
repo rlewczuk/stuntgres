@@ -532,6 +532,54 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties])
+		// Redundant VARIADIC is presentation only for this nonvariadic routine.
+		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+			return false
+		}
+		for i, arg := range e.Arguments() {
+			if !same(arg, o.Args[i]) {
+				return false
+			}
+		}
+		return true
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties])
+		// Redundant VARIADIC is presentation only for this nonvariadic routine.
+		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+			return false
+		}
+		for i, arg := range e.Arguments() {
+			if !same(arg, o.Args[i]) {
+				return false
+			}
+		}
+		return true
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties])
+		// Redundant VARIADIC is presentation only for this nonvariadic routine.
+		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+			return false
+		}
+		for i, arg := range e.Arguments() {
+			if !same(arg, o.Args[i]) {
+				return false
+			}
+		}
+		return true
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties])
+		// Redundant VARIADIC is presentation only for this nonvariadic routine.
+		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+			return false
+		}
+		for i, arg := range e.Arguments() {
+			if !same(arg, o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties])
 		if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
@@ -1305,6 +1353,38 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range e.Arguments() {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range e.Arguments() {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range e.Arguments() {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range e.Arguments() {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1794,6 +1874,22 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
+			walk(arg)
+		}
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
+			walk(arg)
+		}
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
+			walk(arg)
+		}
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
+			walk(arg)
+		}
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}

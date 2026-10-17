@@ -1058,7 +1058,7 @@ a native exclusion. FROM source support is described below. See
 ## Set-returning functions in FROM — change note
 
 Existing integer/bigint/numeric series and array subscript providers share the
-function-source lane with supported string, JSON and regexp providers. Sources
+function-source lane with supported string, JSON, `jsonb_path_query` and regexp providers. Sources
 retain output aliases and empty-result metadata. `ROWS FROM` zips members to the
 longest output, padding exhausted members with their own typed NULLs; comma
 sources form a Cartesian product. `WITH ORDINALITY` appends one-based INT8 values
@@ -2939,8 +2939,8 @@ output is canonical. INSERT/UPDATE destinations and explicit CAST infer bound
 path types before import. SQL NULL differs from path `null`. Native metadata
 is JSONPATH/string; lib/pq reports an empty type name and interface{} ScanType,
 with raw bytes. Defaults, views, arrays/domains and native Dump/Restore reuse
-existing providers. The array-query consumer below executes parsed paths;
-JSONPath operators, other query functions and GIN remain excluded.
+existing providers. The array-query and four query-family consumers below
+execute parsed paths; JSONPath operators and GIN remain excluded.
 See [JSONPath typed IO](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONPathFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'`.
@@ -2958,10 +2958,30 @@ through stored expressions and native replay, and use the real routine's ACL
 and dependency authority. GROUP matching distinguishes named/positional and
 omitted/explicit-default forms. Demanded arithmetic and scalar methods raise
 native `0A000`, even with silent enabled; unreachable branches remain undemanded.
-Other JSONPath query functions/operators, `_tz`, SQL/JSON query syntax and GIN
-remain excluded. See [navigation contracts](reference/binary_json_arrays/README.md#jsonpath-navigation-and-array-queries).
+JSONPath operators, `_tz`, SQL/JSON query syntax and GIN remain excluded.
+See [navigation contracts](reference/binary_json_arrays/README.md#jsonpath-navigation-and-array-queries).
 Feature smoke: `make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$' REFERENCE=1`.
+
+Change note: `jsonb_path_exists`, `jsonb_path_match`, `jsonb_path_query_first`
+and set-returning `jsonb_path_query` share that same navigation evaluator and
+four formals/defaults, genuine strict immutable routines and ordinary ACLs.
+Existence counts any item (including JSON false/null); strict existence demands
+the whole path while lax existence may stop at its first hit. Match requires a
+single boolean or JSON null (`22038` otherwise); silent structural failure still
+uses a retained singleton boolean prefix. First selects the first JSONB item but
+traverses the complete path; no match is SQL NULL, unlike selected JSON null.
+Query returns ordered JSONB rows, zero on no match or any SQL NULL formal, and
+materializes each invocation before publishing rows. Silent structural failure
+can retain its prefix; ordinary errors and cancellation never publish that
+invocation's partial collection. Target-list and FROM calls reuse the existing
+set lane, including lateral reopening, zip/padding and INT8 ordinality. This is
+not whole-query read atomicity across separate invocations. Stored scalar calls
+and symbolic query views use existing persistence; Restore INSERT query-source
+restrictions and advanced method/operator/timezone boundaries remain unchanged.
+Feature smoke: `make check RUN='^TestReferenceJSONPathQueryFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceJSONPathQueryFeatureSmoke$' REFERENCE=1`.
+See [query-family contracts](reference/binary_json_arrays/README.md#jsonpath-query-consumer-contracts).
 
 
 

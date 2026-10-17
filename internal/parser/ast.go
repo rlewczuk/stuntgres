@@ -1478,7 +1478,7 @@ func singletonArgument(expr Expr) bool {
 			case "pg_collation_actual_version":
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			case "gen_random_uuid", "uuidv4", "uuidv7":
-			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "jsonb_path_query_array":
+			case "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query":
 			case "json_typeof", "jsonb_typeof", "json_array_length", "jsonb_array_length", "json_object_keys", "jsonb_object_keys", "json_each", "json_each_text", "json_array_elements", "json_array_elements_text", "jsonb_array_elements", "jsonb_array_elements_text", "json_strip_nulls":
 			case "generate_series", "generate_subscripts", "unnest":
 			case "unaccent":
@@ -1489,7 +1489,7 @@ func singletonArgument(expr Expr) bool {
 				if strings.EqualFold(name, "int_array_enum") {
 					break
 				}
-				if !strings.EqualFold(name, "unnest") && !strings.EqualFold(name, "generate_series") && !strings.EqualFold(name, "generate_subscripts") && !JSONFunctionName(name) && !JSONBSetFunctionName(name) && !strings.EqualFold(name, "jsonb_path_query_array") && !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.EqualFold(name, "jsonb_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !strings.EqualFold(name, "unnest") && !strings.EqualFold(name, "generate_series") && !strings.EqualFold(name, "generate_subscripts") && !JSONFunctionName(name) && !JSONBSetFunctionName(name) && !strings.EqualFold(name, "jsonb_path_query_array") && !JSONBPathQueryFunctionName(name) && !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.EqualFold(name, "jsonb_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}

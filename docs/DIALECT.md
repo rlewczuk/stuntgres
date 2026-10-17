@@ -1445,8 +1445,8 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   casts. Identifier companion arrays remain lookup-only. Scalar input itself
   does not allocate; the selected transaction-information functions above own
   actual assignment, full epochs and retention, without populating system columns.
-- JSONPath supports the selected `jsonb_path_query_array` consumer described
-  below, not SQL/JSON query syntax or GIN. JSON has no equality provider.
+- JSONPath supports `jsonb_path_query_array` and the four query-family consumers
+  described below, not SQL/JSON query syntax or GIN. JSON has no equality provider.
   Catalog type identities do not imply executable codecs.
 - Scalar `IN`/`NOT IN` lists and scalar operators with array-expression
   `ANY`/`SOME`/`ALL` reuse existing scalar comparison providers; array forms
@@ -1682,8 +1682,25 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   ACL/dependency and descriptor authority. Existing strict-NULL pruning and
   runtime-parameter optimizer boundaries remain unchanged. Demanded arithmetic
   and all scalar methods raise native `0A000` through silent/predicate layers;
-  unreachable branches are not eagerly rejected. Other JSONPath query functions,
-  operators, `_tz`, SQL/JSON query forms and GIN remain unsupported.
+  unreachable branches are not eagerly rejected. JSONPath operators, `_tz`,
+  SQL/JSON query forms and GIN remain unsupported.
+  `jsonb_path_exists`, `jsonb_path_match`, `jsonb_path_query_first` and
+  `jsonb_path_query` reuse this evaluator, signature/defaults and immutable,
+  strict, parallel-safe routine authority. Exists returns BOOL for any item,
+  not its truth value; strict traversal is complete, lax traversal may stop on
+  its first item. Silent structural error returns SQL NULL even after a hit.
+  Match fully traverses, requires exactly one boolean/null item, and raises
+  `22038` otherwise (SQL NULL if silent). A silent structural stop retains a
+  singleton boolean prefix for match. First fully traverses but retains only
+  the first JSONB item; no match is SQL NULL, selected JSON null is JSONB null.
+  Query yields ordered JSONB rows; no match or any SQL NULL formal means zero
+  rows. It collects one invocation atomically before target/FROM iteration,
+  permits an explicitly silent structural prefix, and discards results on
+  ordinary error/cancellation. Existing aliases, ROWS FROM padding, lateral
+  reopening and INT8 ordinality apply; this does not promise whole-read
+  atomicity across invocations. Scalar stored consumers and symbolic query
+  views retain ordinary rendering/dependencies. Restore scalar replay admits
+  the three new scalar calls; Restore INSERT query sources remain excluded.
   `jsonb_set` and `jsonb_set_lax` return typed immutable JSONB through ordinary
   direct/prepared and stored scalar consumers. TEXT[] paths require existing
   intermediate parents; only a missing final item is created by the default

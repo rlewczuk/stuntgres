@@ -1486,6 +1486,62 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || anyChanged, err
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		anyChanged := false
+		for i, arg := range e.Arguments() {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.Args[i] = folded
+				anyChanged = true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		anyChanged := false
+		for i, arg := range e.Arguments() {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.Args[i] = folded
+				anyChanged = true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		anyChanged := false
+		for i, arg := range e.Arguments() {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.Args[i] = folded
+				anyChanged = true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		anyChanged := false
+		for i, arg := range e.Arguments() {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.Args[i] = folded
+				anyChanged = true
+			}
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || anyChanged, err
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		anyChanged := false
 		for i, arg := range e.Arguments() {

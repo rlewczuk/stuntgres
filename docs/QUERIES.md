@@ -336,11 +336,22 @@ See [selected proof](../reference/numeric/README.md#array-target-subscripts-sele
 ## Function sources
 
 Existing integer/bigint/numeric `generate_series` and `generate_subscripts` calls use the
-same typed source stage as supported string, JSON and regexp calls. Output
-aliases preserve positional names and types, including empty metadata.
+same typed source stage as supported string, JSON, `jsonb_path_query` and regexp
+calls. Output aliases preserve positional names and types, including empty metadata.
 Comma sources form Cartesian products; `ROWS FROM` zips to the longest member
 and pads exhausted members with typed NULLs, emitting no row when all are empty.
 `WITH ORDINALITY` appends INT8 starting at1 before filters/OFFSET.
+
+`jsonb_path_query(target jsonb,path jsonpath,vars jsonb DEFAULT '{}',silent boolean
+DEFAULT false)` returns ordered JSONB items, with base column name
+`jsonb_path_query` (not `value`). Each invocation completes before exposing its
+rows, including in target-list expansion and under LIMIT. No match or any SQL
+NULL formal produces zero rows; selected JSON null remains a present JSONB row.
+An explicitly silent structural stop retains its prefix, while ordinary errors
+and cancellation discard the invocation. Existing owned-set cursors hold only
+that invocation's collection and release it on close; no live evaluator state
+is stored in views or dumps. Scalar exists/match/first calls do not become
+additional FROM providers. Restore INSERT query sources remain unsupported.
 
 Functions implicitly see preceding FROM columns; `LATERAL` makes that scope
 explicit. Each left occurrence opens fresh arguments and ordinal state.

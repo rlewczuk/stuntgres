@@ -790,6 +790,14 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Arguments()
 	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Arguments()
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		children = e.Arguments()
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Arguments()
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

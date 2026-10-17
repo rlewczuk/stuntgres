@@ -199,6 +199,12 @@ func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInv
 }
 func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
 	switch call := expression.(type) {
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		values, err := call.EvalSet(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
 	case transactionIdentityExpression:
 		if call.kind == identityMembers {
 			rows, err := call.openMembers(c)
@@ -577,7 +583,7 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 			s.position++
 			return value, true, nil
 		}
-		s.exhausted = true
+		s.close()
 		return sqltype.Null(typ), false, nil
 	}
 	if s.kind == functionScalarCursor {

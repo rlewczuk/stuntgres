@@ -785,6 +785,50 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		}
+		if n, ok := bound.(functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]); ok {
+			if len(r.Args) != n.WrittenCount {
+				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
+			}
+			for i, arg := range r.Args {
+				if err := child(arg, n.Args[n.WrittenSlots[i]]); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if n, ok := bound.(functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]); ok {
+			if len(r.Args) != n.WrittenCount {
+				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
+			}
+			for i, arg := range r.Args {
+				if err := child(arg, n.Args[n.WrittenSlots[i]]); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if n, ok := bound.(functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]); ok {
+			if len(r.Args) != n.WrittenCount {
+				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
+			}
+			for i, arg := range r.Args {
+				if err := child(arg, n.Args[n.WrittenSlots[i]]); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if n, ok := bound.(functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]); ok {
+			if len(r.Args) != n.WrittenCount {
+				return fmt.Errorf("stuntgres: mismatched JSONPath query syntax")
+			}
+			for i, arg := range r.Args {
+				if err := child(arg, n.Args[n.WrittenSlots[i]]); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
 		if n, ok := bound.(functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]); ok {
 			if len(r.Args) != n.WrittenCount {
 				return fmt.Errorf("stuntgres: mismatched JSONB replacement syntax")

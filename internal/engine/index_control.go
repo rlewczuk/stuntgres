@@ -248,6 +248,12 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
 		return true
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		return true
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		return true
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return true
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

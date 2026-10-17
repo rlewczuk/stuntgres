@@ -310,6 +310,18 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("JSONPath array query")
 		err = args(n.Arguments())
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("JSONPath query")
+		err = args(n.Arguments())
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("JSONPath query")
+		err = args(n.Arguments())
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("JSONPath query")
+		err = args(n.Arguments())
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("JSONPath query")
+		err = args(n.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("JSONB replacement " + n.Plan.Name())
 		err = args(n.Arguments())

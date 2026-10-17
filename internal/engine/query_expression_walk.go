@@ -210,6 +210,14 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Arguments())
 	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Arguments())
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Arguments())
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Arguments())
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

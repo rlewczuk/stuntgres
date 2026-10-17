@@ -29,6 +29,9 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 		return false
 	}
 	switch first := a.(type) {
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		second, ok := b.(functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties])
+		return ok && first.ResultUsage() == second.ResultUsage()
 	case aclValueExpression:
 		second, ok := b.(aclValueExpression)
 		return ok && first.kind == aclExplode && second.kind == aclExplode && sameRecordUsage(first.ResultUsage(), second.ResultUsage())

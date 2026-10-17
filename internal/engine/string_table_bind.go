@@ -26,6 +26,8 @@ func isQuerySet(expr BoundExpr) bool {
 		return call.ReturnsSet()
 	}
 	switch expr.(type) {
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case functions.RegexpSet[BoundExpr, *EvalContext, ExprProperties], functions.JSONKeys[BoundExpr, *EvalContext, ExprProperties], functions.JSONEach[BoundExpr, *EvalContext, ExprProperties], functions.JSONElements[BoundExpr, *EvalContext, ExprProperties], functions.JSONBElements[BoundExpr, *EvalContext, ExprProperties], seriesExpression, subscriptsExpression, unnestExpression:
 		return true
 	}
@@ -33,6 +35,8 @@ func isQuerySet(expr BoundExpr) bool {
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case aclValueExpression:
 		return call.kind != aclContains
 	case objectAddressExpression, functions.JSONBRecord[BoundExpr, *EvalContext, ExprProperties]:
@@ -61,7 +65,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 // Selected rendering and binding share a lane; typed admission remains owned
 // by validFunctionSourceCall after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {
-	return parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
+	return name == "jsonb_path_query" || parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
 		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) || parser.TransactionIdentityFunctionName(name) ||
 		name == "age" || name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
@@ -102,6 +106,8 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 }
 func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		return call.Arguments()
 	case aclValueExpression:
 		return call.arguments()
 	case objectAddressExpression:
@@ -150,6 +156,11 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 }
 func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, error) {
 	switch call := expr.(type) {
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		if len(args) != 4 {
+			return nil, fmt.Errorf("invalid JSONPath query arguments")
+		}
+		return call.Reconstruct(call.Info, [4]BoundExpr{args[0], args[1], args[2], args[3]})
 	case aclValueExpression:
 		if len(args) != len(call.arguments()) {
 			return nil, fmt.Errorf("stuntgres: invalid ACL call arguments")

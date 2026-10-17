@@ -385,6 +385,26 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 			n.Args[i] = child(n.Args[i])
 		}
 		next = n
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
+		}
+		next = n
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
+		}
+		next = n
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
+		}
+		next = n
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Arguments() {
+			n.Args[i] = child(n.Args[i])
+		}
+		next = n
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range n.Arguments() {
 			n.Args[i] = child(n.Args[i])

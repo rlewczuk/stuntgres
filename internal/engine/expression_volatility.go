@@ -170,6 +170,14 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return children(n.Arguments()...)
 	case functions.JSONBPathQueryArray[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Arguments()...)
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arguments()...)
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arguments()...)
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arguments()...)
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		return children(n.Arguments()...)
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		return children(n.Arguments()...)
 	case functions.DatetimeMake[BoundExpr, *EvalContext, ExprProperties]:

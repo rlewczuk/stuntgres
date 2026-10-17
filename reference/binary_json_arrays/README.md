@@ -2036,8 +2036,76 @@ Replay retains captured JSONPath leaf typing without accumulating duplicate
 casts on redump; outer explicit casts, domains and typmod conversions remain
 part of the stored recipe.
 Whole-project Docker-free verification remains `make quickcheck`.
-Other query functions/operators, `_tz`, arithmetic/scalar methods, SQL/JSON
-query syntax and GIN are not enabled by this consumer.
+JSONPath operators, `_tz`, arithmetic/scalar methods, SQL/JSON query syntax and
+GIN are not enabled by this consumer. The four query consumers below reuse it.
+
+### JSONPath query consumer contracts
+
+The `TestReferenceJSONPathQuery` definitions independently specify
+contracts for exists/match/query/first without changing the array provider.
+Values/Nulls/Demand cover result packaging, JSON versus SQL null, predicate
+cardinality, strict late errors and retained silent prefixes. Arguments and
+Diagnostics cover binding, defaults, variables and exact public error fields.
+Metadata/RoutineAuthority/HeldParameters/FromComposition cover consumer schemas,
+real routine ACLs, inferred held arguments and set composition. Consumers,
+Controls, Atomicity and Cancellation cover stored recipes, actual native replay,
+publication failure and active cancellation with same-owner recovery.
+Atomicity checks failed CTAS absence with a zero `pg_class` count joined to
+`pg_namespace`, restricted to `public.jpq_failed`; it does not require the
+adjacent, lookup-only `to_regclass` identity to be executable.
+
+The four providers use real strict/immutable/parallel-safe declarations:
+OID4005 exists→BOOL, OID4009 match→BOOL, OID4008 first→JSONB, and OID4006
+query→SETOF JSONB; each full IN signature is `3802 4072 3802 16` with two defaults.
+Native pg_proc's bounded projection is unchanged. Existence counts false/null
+items and only lax existence may stop early. First traverses the complete path.
+Match keeps only a first node and saturated count while demanding the tail;
+a silent singleton boolean prefix still determines its answer. Query collects
+one invocation atomically, not an entire multi-invocation SELECT. Silent never
+swallows missing variables, vars-shape errors, unsupported demanded operations
+or cancellation. The array provider remains permanently NAVIGATE-owned.
+
+Cancellation requires actual PostgreSQL argument progress (sequence advance),
+not merely Bind activity; it drains pq RowDescription cursors to a genuine
+terminal57014 without accepting successful rows or nil errors. Native admission
+observes each typed consumer's evaluator stack. Same-owner held recovery and
+sentinel-preserving canceled writes remain mandatory.
+
+The same scenario bodies run on native and PostgreSQL backends without
+discovery filters. Native-only control phases remain explicit.
+
+Selected proof commands (external deadline900 seconds each); run every set
+both without and with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceJSONPathQuery(Values|Nulls|Demand|Arguments|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceJSONPathQuery(Metadata|RoutineAuthority|HeldParameters|FromComposition)$' REFERENCE=1
+make check RUN='^TestReferenceJSONPathQuery(Consumers|Controls|Atomicity|Cancellation|FeatureSmoke)$' REFERENCE=1
+```
+
+The focused result-policy regression is
+`make check RUN='^TestReferenceJSONPathQuery(Values|Nulls|Demand)$'`.
+Feature smoke uses `make check RUN='^TestReferenceJSONPathQueryFeatureSmoke$'`
+and its `REFERENCE=1` counterpart: independently expect true/true, rows2,3,4,
+first2, array[2,3,4], ordinals1,2,3, strict error2203A, silent prefix1,
+same-held recovery and stored view outputs. Native control phases exercise
+actual Dump/Reset/Restore and emitted-SQL replay, not a PostgreSQL control API.
+Whole-project Docker-free proof remains `make quickcheck`.
+
+Private non-SQL boundary proofs supplement, never replace, these definitions:
+
+```sh
+make check RUN='^TestJSONBPathQuery(Signatures|Consumers|Reconstruct|Binding|Invocation|Parser)$'
+make check RUN='^TestReferenceJSONPathNavigate(FeatureSmoke|Suppression|RoutineAuthority)$'
+make check RUN='^TestReferenceJSONPathNavigate(FeatureSmoke|Suppression|RoutineAuthority)$' REFERENCE=1
+make check RUN='^TestReferenceJSONPathQuery(Cancellation|Atomicity|HeldParameters|Controls)$' RACE=1
+```
+
+These units cover descriptor/value affinity and context-before-NULL, full
+consumer demand and no-prefix-on-error, reminted child authority and once-only
+written argument order, genuine routine lifetime manifests, and invocation
+cursor ownership/reopening. Parser units inspect transported AST state and
+full consumption rather than execute public SQL outside reference/.
 
 ### Binary conversion
 

@@ -688,6 +688,54 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 			}
 		}
 		expression = e
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Arguments() {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.Args[i] = node
+				changed = true
+			}
+		}
+		expression = e
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Arguments() {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.Args[i] = node
+				changed = true
+			}
+		}
+		expression = e
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Arguments() {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.Args[i] = node
+				changed = true
+			}
+		}
+		expression = e
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		for i, old := range e.Arguments() {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.Args[i] = node
+				changed = true
+			}
+		}
+		expression = e
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for i, old := range e.Arguments() {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -1514,6 +1562,29 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
+	case functions.JSONBPathExists[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case functions.JSONBPathMatch[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case functions.JSONBPathQueryFirst[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Arguments() {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+		return false
 	case functions.JSONBSet[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Arguments() {
 			if !literal(arg) {

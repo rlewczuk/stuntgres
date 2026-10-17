@@ -982,7 +982,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (mathConstantFunction(token.lexeme.text) || gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.EqualFold(token.lexeme.text, "jsonb_object") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
-	if token.code == IDENT && (JSONBSetFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "jsonb_path_query_array")) {
+	if token.code == IDENT && (JSONBSetFunctionName(token.lexeme.text) || (strings.EqualFold(token.lexeme.text, "jsonb_path_query_array") || JSONBPathQueryFunctionName(token.lexeme.text))) {
 		token.code = SELECTED_FUNC
 	}
 	if token.code == IDENT && RegexpFunctionName(token.lexeme.text) {
@@ -1208,7 +1208,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == CHECK_FUNC && strings.EqualFold(token.lexeme.text, "parse_ident") {
 		token.code = TX_TIME_FUNC
 	}
-	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || (JSONBSetFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "jsonb_path_query_array")) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || strings.EqualFold(token.lexeme.text, "unnest") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
+	if token.code == CHECK_FUNC && (JSONFunctionName(token.lexeme.text) || (JSONBSetFunctionName(token.lexeme.text) || (strings.EqualFold(token.lexeme.text, "jsonb_path_query_array") || JSONBPathQueryFunctionName(token.lexeme.text))) || strings.EqualFold(token.lexeme.text, "generate_series") || strings.EqualFold(token.lexeme.text, "generate_subscripts") || strings.EqualFold(token.lexeme.text, "unnest") || TransactionTimeFunctionName(token.lexeme.text) || enumFunctionName(token.lexeme.text) || ArrayTransformFunctionName(token.lexeme.text) || ArraySearchFunctionName(token.lexeme.text) || ArrayInspectFunctionName(token.lexeme.text) || ArrayRandomFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || jsonCreateFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "pg_sleep") || strings.EqualFold(token.lexeme.text, "pg_sleep_for") || strings.EqualFold(token.lexeme.text, "pg_sleep_until")) {
 		token.code = TX_TIME_FUNC
 	}
 	// Selected logarithm/root/bucket calls are scalar operands, including
@@ -1666,14 +1666,24 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
 	switch name {
-	case "left", "right", "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "jsonb_path_query_array":
+	case "left", "right", "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query":
 		return true
 	}
-	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name) || JSONBSetFunctionName(name) || strings.EqualFold(name, "jsonb_path_query_array")
+	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name) || JSONBSetFunctionName(name) || strings.EqualFold(name, "jsonb_path_query_array") || JSONBPathQueryFunctionName(name)
 }
 
 func JSONBSetFunctionName(name string) bool {
 	return strings.EqualFold(name, "jsonb_set") || strings.EqualFold(name, "jsonb_set_lax") || strings.EqualFold(name, "jsonb_insert")
+}
+
+// JSONBPathQueryFunctionName admits the four ordinary query-family calls.
+func JSONBPathQueryFunctionName(name string) bool {
+	for _, selected := range [...]string{"jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query"} {
+		if strings.EqualFold(name, selected) {
+			return true
+		}
+	}
+	return false
 }
 
 // JSONFunctionName admits only the selected ordinary JSON processing calls.
