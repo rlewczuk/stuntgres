@@ -683,6 +683,17 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		o, ok := other.(functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties])
+		if !ok || e.Kind != o.Kind || e.Plan != o.Plan {
+			return false
+		}
+		for i := range e.Kind.Arity() {
+			if !same(e.Args[i], o.Args[i]) {
+				return false
+			}
+		}
+		return true
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		o, ok := other.(functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties])
 		return ok && e.Plan == o.Plan && e.Namespace == o.Namespace && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
@@ -1496,6 +1507,14 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		stage(&info)
 		e.Info = functionInfo(info)
 		expr = e
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range e.Kind.Arity() {
+			e.Args[i] = rewrite(e.Args[i])
+		}
+		info := boundExpressionInfo(e)
+		stage(&info)
+		e.Info = functionInfo(info)
+		expr = e
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -1958,6 +1977,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args[:e.Kind.Arity()] {
+			walk(arg)
+		}
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		for _, arg := range e.Args {
 			walk(arg)

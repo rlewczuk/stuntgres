@@ -124,6 +124,13 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return closedTransactionTimeDefault(n.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range n.Args[:n.Kind.Arity()] {
+			if !closedTransactionTimeDefault(arg) {
+				return false
+			}
+		}
+		return true
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })

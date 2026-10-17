@@ -264,8 +264,26 @@ Immutable row-independent constants and imported network parameters are
 preflighted at Execute even behind FALSE filters or empty sources; row-dependent
 expressions remain lazy. These operators retain the same canonical transport
 and metadata through direct/prepared binds and native stored-recipe replay.
-Containment, named network helper functions, INET XOR/shifts and network
-array/grouping/hash providers are not added.
+Selected network scalars share this transport: `abbrev(inet)` returns ordinary
+INET display, while `abbrev(cidr)` uses the released prefix-bounded CIDR
+abbreviation algorithm. Thus CIDR `10.1/16` abbreviates to `10.1/16`, whereas
+its promoted INET representation is `10.1.0.0/16`. IPv6 abbreviation retains
+released truncated-word, single-zero and mapped dotted-tail behavior.
+`host(inet)` omits the prefix without masking host bits; `text(inet)` always
+appends the prefix, including /32 or /128, without expanding IPv6 hextets.
+`family` and `masklen` return INT4; mapped IPv6 has family6.
+`inet_same_family(inet,inet)` returns BOOL and compares families, not subnets.
+`broadcast(inet)` returns INET with all host bits set, preserving family/prefix;
+IPv6 support is address arithmetic, not an OS broadcast protocol.
+CIDR promotes implicitly to INET except for its distinct abbrev overload.
+All selected signatures are strict and immutable, with typed NULL results and
+computed result metadata preserved for empty/all-NULL streams. Original inputs
+remain immutable. Stored defaults, generated columns, CHECKs and views use
+ordinary symbolic native replay. Held statements check current routine EXECUTE;
+the narrowly observed PostgreSQL warmed-constant distinction is documented in
+[dialect authorization](DIALECT.md).
+Containment, network/netmask/hostmask/set_masklen/inet_merge, INET XOR/shifts and
+network array/grouping/hash providers remain excluded.
 
 BIT/VARBIT byte binds are textual digits, never packed bits. Typed-nil bytes are
 NULL; nonnil empty bytes can represent a nonnull empty value. Metadata reports

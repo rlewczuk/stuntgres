@@ -321,6 +321,8 @@ func generationImmutable(node BoundExpr) bool {
 		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return generationImmutable(n.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:n.Kind.Arity()])
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args[:])
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
@@ -606,6 +608,8 @@ func generationHasTableOID(node BoundExpr) bool {
 		return n.arg != nil && generationHasTableOID(n.arg)
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return generationHasTableOID(n.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		return args(n.Args[:n.Kind.Arity()])
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		return args(n.Args[:])
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:
@@ -1041,6 +1045,11 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			return err
 		}
 		return validateGenerationPlan(view, d, n.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.Validate(); err != nil {
+			return err
+		}
+		return args(n.Args[:n.Kind.Arity()])
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		if err := n.Validate(); err != nil {
 			return err

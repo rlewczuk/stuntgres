@@ -883,6 +883,12 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 				return nil, false, err
 			}
 		}
+		// A function-method coercion is subject to the same execution-known
+		// strict NULL pruning as other selected scalars. Do this after child
+		// input/domain preflight but before constant computation admits EXECUTE.
+		if folded, did, err := foldStrictParameterNull(c, e); err != nil || did {
+			return folded, did, err
+		}
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
 			value, err := evaluatePlanningExpression(c, e)
@@ -1706,6 +1712,15 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 		e.Arg = arg
 		next, folded, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || folded, err
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		next, changed, err := mapNetworkFormatChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
+			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		folded, replaced, err := simplifyConditional(c, next, decisiveDefaults)
+		return folded, changed || replaced, err
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		next, changed, err := mapRangeOperatorChildren(e, func(child BoundExpr) (BoundExpr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)

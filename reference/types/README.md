@@ -35,6 +35,92 @@ domain/base catalog identity; a late malformed UTF8 parameter raising 22021
 without partial insertion; and native Dump/Reset/Restore with fresh reads.
 The PostgreSQL phase shares the SQL assertions but has no native-control API.
 
+### INET formatting oracle-first contract
+
+The untagged `TestReferenceINETFormatValues`, `Abbreviation`, `Broadcast`,
+`Resolution`, `MetadataAndBinds`, `Diagnostics`, `RoutineIdentity`,
+`Authorization`, `Stored`, and `FeatureSmoke` definitions specify the eight
+selected signatures: abbrev(INET/CIDR), host, text, family, masklen,
+inet_same_family and broadcast. Initial expectations come from the PostgreSQL18
+manual/released sources, with corrections grounded only in pinned PostgreSQL
+observations, never native output. Root completed all ten PostgreSQL-only
+discovery definitions against pinned18.6, then removed the sole temporary
+native filter and observed the unsupported native regression before production
+authorization. The shared definitions now exercise both available backends.
+The native-only control phase inside Stored is an API distinction, not a
+discovery filter. New production edits still require fresh selected proof.
+
+```sh
+make check RUN='^TestReferenceINETFormat(Values|Abbreviation|Broadcast|Resolution|MetadataAndBinds|Diagnostics|RoutineIdentity)$' REFERENCE=1
+make check RUN='^TestReferenceINETFormat(Authorization|Stored|FeatureSmoke)$' REFERENCE=1
+# Native proof uses the same definitions without any discovery filter:
+make check RUN='^TestReferenceINETFormat(Values|Abbreviation|Broadcast|Resolution|MetadataAndBinds|Diagnostics|RoutineIdentity)$'
+make check RUN='^TestReferenceINETFormat(Authorization|Stored|FeatureSmoke)$'
+# Kernel, carrier, parser and original-authority supplements (not public SQL):
+make check RUN='^TestNetworkFormat(Values|Abbreviation|Broadcast|Validation|OriginalAuthority|Reconstruction|StrictDemand|Cancellation|ParserAdmission|StrictParameterNull|StoredLiteralIdentity)$'
+```
+
+Each command has an external900-second deadline and is root-only during this
+assignment. Repeat both selected modes after expectation/implementation changes.
+Ordinary whole-project Docker-free verification uses `make quickcheck`.
+
+Discovery obligations include distinct CIDR and promoted-INET output, IPv6
+truncated-word boundaries and mapped dotted tails, full/zero/nonbyte broadcast,
+NULL/empty raw metadata, typed held bind recovery, full diagnostics and routine
+ACL demand frontiers across direct/newly prepared/same warmed statements.
+Unconstrained TEXT has known Length MaxInt64 on both backends, following the
+existing character descriptor contract; INT4, BOOL and INET have no length.
+Native stored-view columns have catalog-known nullable descriptors, while direct
+computed and pq descriptors retain unknown nullability. The consumer smoke
+asserts that existing distinction explicitly rather than altering driver metadata.
+The odd-zero-run input `2001:db8:0:1:0:2::/112` asserts
+`2001:db8:0:1::0/112`, initially a released-source hypothesis and now exercised
+without reported failure in root's complete Abbreviation discovery run.
+Expectations are never native-derived goldens; source evidence alone is not an
+oracle observation.
+
+Root's initial pinned18.6 discovery observed
+`abbrev(CIDR '::ffff:0.0.0.0/111') = '::ffff:0.0/111'`, correcting the
+source-derived `::ffff:0/111` hypothesis. The failed discovery run also exposed
+test callback-index and denial-argument plumbing bugs; correcting those does not
+establish outcomes for routes that the failure prevented from completing.
+
+Root's focused pinned18.6 ACL discovery identified one distinct frontier for
+each of the eight signatures: a non-NULL all-constant selected call on the
+same already-warmed PostgreSQL statement succeeds after EXECUTE revocation,
+while direct and newly prepared calls are denied. The semantic
+`pgWarmConstant` case flag preserves that observed PostgreSQL success only on
+the same-held route. All other tested ACL frontiers retain their independent
+expectations. Native prepared analysis identities are not executable-result
+caches: this PostgreSQL folded-plan distinction does not authorize a new
+native cache or broader prepared machinery. Both modes are rerun after
+production changes; initial oracle discovery does not replace that proof.
+
+The complete temporary consumer source is handed to root as
+`local://net-format-smoke.go`. Materialize it as
+`net-format-smoke-temporary/main.go` inside this module, then execute
+`go run ./net-format-smoke-temporary/main.go` with external900-second deadline.
+Remove the temporary directory after recording evidence. The executable uses
+only public APIs and independently checks all eight signatures, generated/view/
+default recipes, raw metadata including empty/all-NULL streams, exact held22P02
+recovery and atomicity, retained rows and Dump/Reset/Restore into a fresh Driver.
+Success is exit0, empty stderr and these seven lines, printed only after all
+assertions and checked resource closes:
+
+```text
+format: 192.168.1.5/24 | 192.168.1.5 | 192.168.1.5/24
+cidr: 10.1/16 | 2001:4f8:3:ba/64 | ::ffff:1.2.3/120
+broadcast: 192.168.1.255/24 | 2001:db8::7fff/113
+family/mask/null: IPv4=4/24; IPv6=6/113; strict NULL
+metadata: TEXT INT4 BOOL INET; empty/all-NULL preserved
+held recovery: 22P02; valid again; 2 rows unchanged
+stored replay: selected calls preserved; fresh-driver 2 rows
+```
+
+The smoke's odd-zero-run assertion retains the pinned source-derived outcome.
+Adjacent helpers, operators, arrays and protocol expansion are not added by
+these definitions.
+
 
 ### Selected-call comparison and null-test consumers
 

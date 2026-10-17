@@ -276,6 +276,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return true
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		return true
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		return false
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:

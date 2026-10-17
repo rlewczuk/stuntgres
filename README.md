@@ -14,6 +14,20 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## IP address formatting and network inquiries — change note
+
+`abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,
+`inet_same_family` and `broadcast` use the existing typed network expression
+and routine-authorization paths. CIDR abbreviation is distinct from promoted
+INET output; TEXT conversion always includes the prefix. IPv4, IPv6 and mapped
+IPv6 retain their family and prefix semantics, including IPv6 broadcast
+arithmetic. Stored expressions replay symbolically through native Dump/Restore.
+Adjacent network helpers, containment, arrays and OS networking remain excluded.
+See [network transport](docs/TYPES.md#textual-structured-and-network-transport),
+[native authority boundaries](docs/DIALECT.md) and
+[selected proof and standalone smoke](reference/types/README.md#inet-formatting-oracle-first-contract).
+
+
 ## Comparison resolution and predicates — change note
 
 Comparisons select PostgreSQL's operator-specific signatures and direct implicit

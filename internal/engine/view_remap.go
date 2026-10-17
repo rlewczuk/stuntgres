@@ -463,6 +463,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		n.Arg = child(n.Arg)
 		next = n
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Kind.Arity() {
+			n.Args[i] = child(n.Args[i])
+		}
+		next = n
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])

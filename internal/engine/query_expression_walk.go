@@ -247,6 +247,8 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		}
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		walk(e.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		args(e.Args[:e.Kind.Arity()])
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args[:])
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:

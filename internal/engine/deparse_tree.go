@@ -287,6 +287,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("UUIDExtract " + n.Kind.Name())
 		err = child(n.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		out.WriteString("NetworkFormat " + n.Kind.Name())
+		err = args(n.Args[:n.Kind.Arity()])
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("RangeOperator " + n.Plan.Name() + " namespace " + n.Namespace)
 		err = args(n.Args[:])

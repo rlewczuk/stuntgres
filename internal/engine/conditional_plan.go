@@ -896,6 +896,16 @@ func simplifyConditionalNode(c *EvalContext, expression BoundExpr, decisiveDefau
 		e.Arg = arg
 		changed = changed || did
 		expression = e
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		var did bool
+		e, did, err = mapNetworkFormatChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
+			return simplifyConditional(c, old, decisiveDefaults)
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		changed = changed || did
+		expression = e
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		var did bool
 		e, did, err = mapRangeOperatorChildren(e, func(old BoundExpr) (BoundExpr, bool, error) {
@@ -1657,6 +1667,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return false
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return literal(e.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range e.Args[:e.Kind.Arity()] {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		return literal(e.Args[0]) && literal(e.Args[1])
 	case functions.RangeInspect[BoundExpr, *EvalContext, ExprProperties]:

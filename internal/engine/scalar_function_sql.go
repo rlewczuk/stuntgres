@@ -357,6 +357,11 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		return "pg_catalog." + n.Kind.Name() + "(" + arg + ")", nil
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		if err := n.Validate(); err != nil {
+			return "", err
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.Kind.Name(), n.Args[:n.Kind.Arity()])
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		if n.Args[0] == nil || n.Args[1] == nil {
 			return "", fmt.Errorf("stuntgres: missing range operator operand")

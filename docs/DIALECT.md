@@ -567,6 +567,16 @@ partition-key relation-cache programs during populated DEFAULT validation:
 an inlined SQL wrapper can disappear there while its child still needs EXECUTE.
 Native retains fresh original-wrapper and child authority instead of emulating
 that executable normalization cache.
+Pinned PostgreSQL18.6 discovery also distinguishes already-warmed all-constant,
+non-NULL calls to `abbrev(inet)`, `abbrev(cidr)`, `host(inet)`, `text(inet)`,
+`family(inet)`, `masklen(inet)`, `broadcast(inet)` and
+`inet_same_family(inet,inet)`: the same PostgreSQL statement retains its folded
+result after EXECUTE revocation, although direct and newly prepared calls deny.
+Native deliberately checks current EXECUTE on that held route rather than
+caching an executable result or permission. This bounded existing architectural
+difference is independently asserted in the selected formatting test contract;
+it does not exempt row-dependent, runtime-NULL, empty-source, view or cast routes
+from their actual routine-demand checks.
 This fresh-statement rule is distinct from an already initialized SQL cursor:
 ordinary FETCH and HOLD materialization retain DECLARE's routine authority.
 New declarations still check current EXECUTE; original identity/revision,
@@ -1534,8 +1544,14 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   existing default/generated/view validation and native reconstruction.
   Pinned release arithmetic edges and diagnostic Context are documented under
   [network transport](TYPES.md#textual-structured-and-network-transport).
-  This adds no INET XOR/shifts, containment, named helper functions, network
-  arrays, grouping/hash providers or OS-networking mechanism.
+  Selected network functions add `abbrev(inet/cidr)`, `host`, `text(inet)`,
+  `family`, `masklen`, `inet_same_family` and `broadcast`, using the existing
+  scalar, coercion, routine-ACL and stored-recipe paths. CIDR abbreviation is
+  distinct from INET display, host omits prefixes, and text always includes
+  them. Family/masklen return INT4, same-family returns BOOL, broadcast returns
+  INET with host bits set for either family. All are strict and immutable.
+  This adds no INET XOR/shifts, containment, network/netmask/hostmask/
+  set_masklen/inet_merge, network arrays, grouping/hash providers or OS networking.
 - XID/CID/XID8 are distinct scalar identifiers, not integer/OID aliases or
   generated system attributes. XID supports equality/inequality (including INT4
   only on its right); CID only equality; XID8 unsigned comparisons/order.

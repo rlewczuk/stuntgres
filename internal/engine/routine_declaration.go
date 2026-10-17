@@ -68,6 +68,7 @@ const (
 	operatorRoutineProvider
 	rangeRoutineProvider
 	embeddedRoutineProvider // Existing function-method conversion inside genuine SQL bodies, not standalone dispatch.
+	networkRoutineProvider
 )
 
 func (d *procedureDescriptor) seeded() bool {

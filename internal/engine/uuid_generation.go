@@ -137,6 +137,13 @@ func closedUUIDDefault(node BoundExpr) bool {
 		return valid
 	case functions.UUIDExtract[BoundExpr, *EvalContext, ExprProperties]:
 		return closedUUIDDefault(n.Arg)
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		for _, arg := range n.Args[:n.Kind.Arity()] {
+			if !closedUUIDDefault(arg) {
+				return false
+			}
+		}
+		return true
 	case functions.ArrayRandom[BoundExpr, *EvalContext, ExprProperties]:
 		valid := true
 		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedUUIDDefault(child) })

@@ -1,0 +1,170 @@
+package engine
+
+import (
+	"context"
+	"reflect"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+// Non-public binder/authority test: released declarations and exact dependency
+// manifests, not a second public SQL result scenario or native-derived golden.
+func TestNetworkFormatOriginalAuthority(t *testing.T) {
+	for _, tc := range []struct {
+		expr, name, sig string
+		id, result      OID
+	}{
+		{"abbrev(ip)", "abbrev", "869", 598, 25}, {"abbrev(net)", "abbrev", "650", 599, 25}, {"host(ip)", "host", "869", 699, 25}, {"text(ip)", "text", "869", 730, 25}, {"family(ip)", "family", "869", 711, 23}, {"masklen(ip)", "masklen", "869", 697, 23}, {"broadcast(ip)", "broadcast", "869", 698, 869}, {"inet_same_family(ip,ip)", "inet_same_family", "869,869", 4071, 16},
+	} {
+		t.Run(tc.expr, func(t *testing.T) {
+			e := New()
+			admin, finish := roleOperation(t, e, "postgres")
+			defer finish()
+			roleExecute(t, e, admin, "CREATE TABLE nf_unit(ip inet,net cidr)")
+			ref := roleTableRef(t, e, "public.nf_unit")
+			input, _ := sessionPresentation(admin.session)
+			raw := statement(t, "SELECT "+tc.expr).(*parser.Select).Targets[0]
+			e.mu.Lock()
+			auth, err := e.authorizationLocked(admin)
+			if err != nil {
+				e.mu.Unlock()
+				t.Fatal(err)
+			}
+			binder := newExpressionBinder(context.Background(), e, input, admin, nil)
+			binder.queryAuth, binder.ref = &auth, ref
+			binder.relation = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+			e.mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			outer, err := expressionRoutineDescriptor(node)
+			if err != nil || outer == nil || outer.builtin == nil {
+				t.Fatal("missing original declaration", outer, err)
+			}
+			d := outer.builtin
+			if d.identity != (routineIdentity{tc.id, PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.result != tc.result || !d.strict || d.volatility != Immutable || d.parallel != 's' || d.returnsSet || d.variadic != 0 || d.defaults != 0 || OID(node.ResultUsage().Type.ID()) != tc.result {
+				t.Fatal("released declaration", d)
+			}
+			found := map[OID]bool{}
+			for _, dep := range binder.dependencies {
+				if dep.ref.Address.ClassID == ProcedureClassID {
+					found[dep.ref.Address.ObjectID] = true
+				}
+			}
+			if !reflect.DeepEqual(found, map[OID]bool{tc.id: true}) {
+				t.Fatal("exact selected dependencies", found)
+			}
+			evaluation := EvalContext{Context: context.Background(), routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}
+			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+				t.Fatal(err)
+			}
+			foreign := New()
+			for _, mode := range []string{"missing", "foreign", "stale"} {
+				var checks []expressionDependency
+				for _, dep := range binder.dependencies {
+					if dep.ref.Address == (ObjectAddress{ClassID: ProcedureClassID, ObjectID: tc.id}) {
+						switch mode {
+						case "missing":
+							continue
+						case "foreign":
+							dep.ref.owner = foreign.owner
+						case "stale":
+							dep.revision++
+						}
+					}
+					checks = append(checks, dep)
+				}
+				evaluation.routineChecks = checks
+				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
+					t.Fatal("accepted invalid authority", mode)
+				}
+			}
+			remapped, _, err := retagBoundTypes(foreign.CatalogRead(), node, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+				current, _ := foreign.CatalogRead().LookupType(old.ID())
+				return current
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluation.routineChecks = []expressionDependency{}
+			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
+				t.Fatal("retag manufactured authority")
+			}
+			evaluation.routineChecks = binder.dependencies
+			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
+				t.Fatal("source authority mutated", err)
+			}
+		})
+	}
+}
+
+func TestNetworkFormatStrictParameterNull(t *testing.T) {
+	e, op, scope := strictNullUnitFixture(t)
+	for _, expression := range []string{"text($1::inet)", "($1::inet)::text", "CAST($1::inet AS text)", "host($1::inet)", "abbrev($1::cidr)", "family($1::inet)", "masklen($1::inet)", "broadcast($1::inet)", "inet_same_family($1::inet,INET '::1')", "inet_same_family(INET '::1',$1::inet)"} {
+		t.Run(expression, func(t *testing.T) {
+			node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.parameters[1].Type)}
+			// No original routine manifest is available for computation. A known-NULL
+			// formal must prune without invoking/admitting the selected routine.
+			evaluation.routineChecks = []expressionDependency{}
+			planned, changed, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			if err != nil || !changed {
+				t.Fatal("known NULL was not pruned before admission", changed, err)
+			}
+			value, err := planned.Eval(&evaluation)
+			if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type || planned.Properties() != node.Properties() {
+				t.Fatal(value, err)
+			}
+			input, err := b.parameters[1].Type.Input(context.Background(), "::1", -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluation.Parameters[0] = input
+			// The original analyzed expression and its manifest are not replaced by
+			// the execution-local NULL result. Restoring authority permits real work.
+			evaluation.routineChecks = b.dependencies
+			again, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := again.Eval(&evaluation)
+			if err != nil || got.IsNull() || got.Type() != node.ResultUsage().Type {
+				t.Fatal("NULL pruning changed original analysis", got, err)
+			}
+		})
+	}
+}
+
+func TestNetworkFormatStoredLiteralIdentity(t *testing.T) {
+	e, op, scope := strictNullUnitFixture(t)
+	for _, tc := range []struct {
+		expression string
+		literals   int
+	}{
+		{"abbrev(INET '192.168.1.5/24')", 1}, {"abbrev(CIDR '10.1')", 1},
+		{"host(INET '192.168.1.5/24')", 1}, {"text(INET '192.168.1.5/24')", 1},
+		{"family(INET '::1')", 1}, {"masklen(INET '::1')", 1},
+		{"broadcast(INET '2001:db8::1/113')", 1},
+		{"inet_same_family(INET '::1',INET '::ffff:1.2.3.4')", 2},
+	} {
+		t.Run(tc.expression, func(t *testing.T) {
+			node, b, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
+			raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0]
+			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+				t.Fatal("stored literal occurrence pairing", err)
+			}
+			if len(b.viewLiterals) != tc.literals {
+				t.Fatal("lost original literal occurrences", len(b.viewLiterals), tc.literals)
+			}
+			// Captured leaves retain their declared network type, not the parent's
+			// TEXT/INT4/BOOL result or an erased function-call placeholder.
+			for _, literal := range b.viewLiterals {
+				if !sqltype.IsNetwork(literal.ResultUsage().Type.BaseType().ID()) {
+					t.Fatal("lost typed network literal", literal.ResultUsage())
+				}
+			}
+		})
+	}
+}

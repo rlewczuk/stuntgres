@@ -178,6 +178,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if parser.UUIDExtractFunctionName(name) {
 		return b.bindUUIDExtract(raw)
 	}
+	if parser.NetworkFormatFunctionName(name) {
+		return b.bindNetworkFormat(raw)
+	}
 	if parser.BlockingInquiryFunctionName(name) {
 		return b.bindBlockingInquiry(raw)
 	}

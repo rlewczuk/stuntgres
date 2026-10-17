@@ -1076,6 +1076,18 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Arg)
 		rebound = n
+	case functions.NetworkFormat[BoundExpr, *EvalContext, ExprProperties]:
+		for i := range n.Kind.Arity() {
+			n.Args[i] = child(n.Args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n, err = n.Reconstruct(functionInfo(info), n.Args)
+		rebound = n
 	case functions.RangeOperator[BoundExpr, *EvalContext, ExprProperties]:
 		for i := range n.Args {
 			n.Args[i] = child(n.Args[i])
