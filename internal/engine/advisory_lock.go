@@ -194,10 +194,14 @@ func (m *relationLockManager) unlockAdvisoryHoldsLocked(t *relationTicket) *rela
 	return notify
 }
 
-func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, mode relationLockMode, try bool) (bool, error) {
+func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, mode relationLockMode, lifetime advisoryLifetime, try bool) (bool, error) {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{operation: s.op, nowait: try, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, provenance: s.txRef}
-	request, err := e.locks.startAcquire(ctx, s.op.session.advisory.ticket, ref, mode, policy)
+	ticket := s.op.session.advisory.ticket
+	if lifetime == advisoryTransaction {
+		ticket = s.ticket
+	}
+	request, err := e.locks.startAcquire(ctx, ticket, ref, mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
 		return false, nil
 	}
@@ -219,4 +223,24 @@ func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, 
 		}
 	}
 	return err == nil, err
+}
+
+// Caller owns the serialized transaction operation, but no transaction,
+// session or engine metadata. Only genuine overlapping grants restrict PREPARE.
+func (m *relationLockManager) checkPreparedAdvisory(t *relationTicket) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.valid(t) || t.persistent || t.detached {
+		return ErrCatalogReplaced
+	}
+	session := m.sessions[t.session]
+	for ref := range t.resources {
+		if ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource {
+			continue
+		}
+		if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 && entry.holders[session].mode != 0 {
+			return sqlError("0A000", "cannot PREPARE while holding both session-level and transaction-level locks on the same object")
+		}
+	}
+	return nil
 }

@@ -136,7 +136,10 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 			e.mu.Unlock()
 			s.attachTransactionLocked()
 			t.mu.Unlock()
-			err = e.checkTransactionExclusions(s)
+			err = e.locks.checkPreparedAdvisory(entry.ticket)
+			if err == nil {
+				err = e.checkTransactionExclusions(s)
+			}
 			if err == nil {
 				err = e.publishRowsPrepared(s.op, ref, t.writes, t.deletes, t.catalog, nil, &preparedPublication{entry: entry, preparing: true, origin: t}, s)
 			}

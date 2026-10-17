@@ -9,7 +9,7 @@ import (
 
 type advisoryScopeOutcome struct{ err, finish error }
 
-func advisoryUnitScopeWait(t *testing.T, s *Session, key lockResource) (*relationTicket, TxRef, <-chan advisoryScopeOutcome) {
+func advisoryUnitScopeWait(t *testing.T, s *Session, key lockResource, lifetime advisoryLifetime) (*relationTicket, TxRef, <-chan advisoryScopeOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)
@@ -33,7 +33,7 @@ func advisoryUnitScopeWait(t *testing.T, s *Session, key lockResource) (*relatio
 	done := make(chan advisoryScopeOutcome, 1)
 	joined := make(chan struct{})
 	go func() {
-		_, err := scope.acquireAdvisory(op.Context(), key, advisoryExclusive, false)
+		_, err := scope.acquireAdvisory(op.Context(), key, advisoryExclusive, lifetime, false)
 		finish := scope.Finish(err)
 		op.Done()
 		done <- advisoryScopeOutcome{err, finish}
@@ -120,7 +120,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			advisoryUnitGrant(t, a, ra, key, advisoryShared)
 			advisoryUnitGrant(t, b, rb, key, advisoryShared)
 			transactionEnd(t, b, rb, false)
-			ticket, provenance, done := advisoryUnitScopeWait(t, b, key)
+			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
 			m := e.locks
 			m.mu.Lock()
 			request := m.entries[key].pending[0]
@@ -207,7 +207,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ticket, _, done := advisoryUnitScopeWait(t, b, key)
+		ticket, _, done := advisoryUnitScopeWait(t, b, key, advisorySession)
 		b.RequestEnd(CleanClose)
 		advisoryUnitScopeResult(t, done, context.Canceled)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

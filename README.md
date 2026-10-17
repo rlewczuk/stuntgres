@@ -2074,9 +2074,19 @@ Change note: the thirteen session advisory lock signatures support bigint and
 integer-pair keys, shared/exclusive modes, counted reentry, try and explicit unlock.
 Ownership belongs to the physical connection: rollback and borrower/statement
 close do not release it; actual session close does. Native Reset/Restore retain
-held counts, while Dump excludes live ownership. Transaction-level advisory calls
-remain unsupported; live lock introspection uses `pg_locks`. See
-[session advisory locks](https://www.postgresql.org/docs/18/functions-admin.html).
+held counts, while Dump excludes live ownership. The eight transaction advisory
+signatures (`pg_advisory_xact_lock[_shared]` and
+`pg_try_advisory_xact_lock[_shared]`, with bigint or integer-pair keys) share
+conflicts with session locks but release automatically on transaction end and
+rollback to the acquiring savepoint. There is no transaction unlock operation.
+Bigint and pair key spaces remain disjoint; same-session requests can reenter
+across lifetimes even with a queued competitor. PREPARE retains transaction
+ownership, but rejects holding both lifetimes on the same key, even in different
+modes. `pg_locks` aggregates same-process/key/mode grants across lifetimes and
+shows detached prepared holders with NULL PID. Native replacement retires
+transaction holds, not session holds. See
+[advisory locks](https://www.postgresql.org/docs/18/functions-admin.html) and
+[transaction advisory proof and consumer smoke](reference/locking_transactions/README.md#transaction-advisory-lock-reference-contract).
 Feature smoke: `make check RUN='^TestReferenceAdvisorySessionFeatureSmoke'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceAdvisorySessionFeatureSmoke'`.
 

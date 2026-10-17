@@ -982,7 +982,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (stringSplitFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "parse_ident")) {
 		token.code = SELECTED_FUNC
 	}
-	if token.code == IDENT && (mathConstantFunction(token.lexeme.text) || gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisorySessionFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.EqualFold(token.lexeme.text, "jsonb_object") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (mathConstantFunction(token.lexeme.text) || gcdLcmFunction(token.lexeme.text) || trigFunction(token.lexeme.text) || AdvisoryFunctionName(token.lexeme.text) || sizeFunction(token.lexeme.text) || binaryConversionFunction(token.lexeme.text) || binaryHashFunction(token.lexeme.text) || binaryAccessFunction(token.lexeme.text) || stringNumericBaseFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || stringPaddingFunction(token.lexeme.text) || stringEncodingFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || stringVariadicFunction(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.EqualFold(token.lexeme.text, "jsonb_object") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	if token.code == IDENT && (JSONBSetFunctionName(token.lexeme.text) || (strings.EqualFold(token.lexeme.text, "jsonb_path_query_array") || JSONBPathQueryFunctionName(token.lexeme.text))) {
@@ -1679,7 +1679,7 @@ func binaryScalarFunction(name string) bool {
 	case "left", "right", "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format", "json_object", "jsonb_object", "jsonb_set", "jsonb_set_lax", "jsonb_insert", "jsonb_path_query_array", "jsonb_path_exists", "jsonb_path_match", "jsonb_path_query_first", "jsonb_path_query":
 		return true
 	}
-	return AdvisorySessionFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name) || JSONBSetFunctionName(name) || strings.EqualFold(name, "jsonb_path_query_array") || JSONBPathQueryFunctionName(name)
+	return AdvisoryFunctionName(name) || sizeFunction(name) || binaryConversionFunction(name) || binaryHashFunction(name) || binaryAccessFunction(name) || stringNumericBaseFunction(name) || stringReplacementFunction(name) || stringPaddingFunction(name) || stringEncodingFunction(name) || strings.EqualFold(name, "format") || stringVariadicFunction(name) || jsonCreateFunction(name) || JSONBSetFunctionName(name) || strings.EqualFold(name, "jsonb_path_query_array") || JSONBPathQueryFunctionName(name)
 }
 
 func JSONBSetFunctionName(name string) bool {
@@ -1764,8 +1764,8 @@ func mathLogPowerFunction(name string) bool {
 }
 
 // Admission is case-insensitive without changing quoted AST spelling.
-func AdvisorySessionFunctionName(name string) bool {
-	for _, builtin := range [...]string{"pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared"} {
+func AdvisoryFunctionName(name string) bool {
+	for _, builtin := range [...]string{"pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared", "pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared"} {
 		if strings.EqualFold(name, builtin) {
 			return true
 		}

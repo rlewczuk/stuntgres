@@ -403,7 +403,7 @@ descriptor cache isolation, copy-on-change syntax preservation, row-frame restor
 and complete immutable-child diagnostics. `TestCheckAbsentValidatorHasNoAllocation`
 retains the no-CHECK allocation regression.
 
-Root first resolves any new unknown result on pinned PostgreSQL18.0, then runs
+Root first resolves any new unknown result on pinned PostgreSQL18.6, then runs
 both complete modes after changes. Discovery filters/logging are temporary only;
 native controls are explicit native phases, not invented PostgreSQL equivalents.
 Exact PostgreSQL pending evidence uses a narrow advisory `pg_locks` observer and
@@ -436,6 +436,87 @@ empty unlock-all. Native phases additionally require retained counts and data
 through actual controls. Private ownership/graph/binding/parser tests supplement,
 not replace, the identical public contract. Finalcheck runs only after merge
 under one1800second deadline.
+
+### Transaction advisory lock reference contract
+
+The four transaction advisory functions support bigint and integer-pair overloads,
+shared/exclusive blocking requests and nonblocking Boolean try requests. Both
+lifetimes share resource identities and conflicts, while the two overload spaces
+remain disjoint. Same physical-session reentry spans lifetimes and can pass a
+queued competitor, never an incompatible external grant. Transaction repeated
+mode acquisition is idempotent; session acquisition remains counted.
+
+Transaction modes release at implicit statement completion, full transaction end
+(including CHAIN), physical end and rollback to their acquiring savepoint.
+Earlier modes survive rollback; RELEASE retains child contributions. Rows/Stmt
+close and borrower return do not end an explicit block. No manual transaction
+unlock exists, and session unlock/unlock-all cannot remove those contributions.
+PREPARE transfers the exact transaction ticket; origin reuse/close cannot bypass
+or release detached ownership. Holding both lifetimes on the same tag, including
+different modes, rejects PREPARE with exact0A000/English diagnostics and ends the
+transaction without publishing a GID/private writes. Different tags/spaces do not.
+
+`pg_locks` aggregates granted modes per physical participant/tag, not lifetime or
+repeat count. Detached prepared owners remain separate and have NULL PID; pending
+requests retain their actual mode, wait timestamp and blocker. Native successful
+replacement retires transaction ownership and fences old waits while preserving
+session holds; failed staging preserves both.
+
+The eight untagged `TestReferenceAdvisoryXact` tests independently specify all8
+signatures/direct and held Query/Exec, formal inference/strict demand/complete
+diagnostics, lifetime/mode conflict matrices, actual pending wakeups, savepoints,
+pooling/physical termination, cancellation/timeouts/deadlocks, prepared ownership
+and lock metadata. Workers cancel and join before teardown. Discovery used the
+pinned18.6 fixture first; no discovery filter remains. Internal tests exercise
+stored lifetime, exact grants/journals, savepoint intersections, replacement
+readmission, prepared transfer, snapshot capture and terminal races.
+PostgreSQL participant identity uses `pg_backend_pid()`. Native observation and
+the standalone consumer reuse the existing public TEMP-namespace identity route:
+initialize TEMP outside potentially prepared transactions, then read the physical
+session suffix from its `pg_temp_` namespace. This does not add native
+`pg_backend_pid()` support or weaken exact waiter/blocker checks.
+
+Run each selected command with an external900second deadline. Every changed
+reference definition requires both modes:
+
+```sh
+make check RUN='^TestReferenceAdvisoryXact(Signatures|DiagnosticsStrictness)$'
+make check RUN='^TestReferenceAdvisoryXact(Signatures|DiagnosticsStrictness)$' REFERENCE=1
+make check RUN='^TestReferenceAdvisoryXact(CompatibilityBlocking|LifecycleSavepoints)$'
+make check RUN='^TestReferenceAdvisoryXact(CompatibilityBlocking|LifecycleSavepoints)$' REFERENCE=1
+make check RUN='^TestReferenceAdvisoryXact(CancellationTimeout|Deadlocks)$'
+make check RUN='^TestReferenceAdvisoryXact(CancellationTimeout|Deadlocks)$' REFERENCE=1
+make check RUN='^TestReferenceAdvisoryXact(PreparedTransactions|LockMetadata)$'
+make check RUN='^TestReferenceAdvisoryXact(PreparedTransactions|LockMetadata)$' REFERENCE=1
+make check RUN='^TestAdvisoryXact(BindingTraversal|OwnershipCompatibility|SavepointLifecycle)$'
+make check RUN='^TestAdvisoryXact(PreparedOwnership|LockSnapshot|TerminalRaces)$'
+make check RUN='^TestAdvisoryXact(SavepointLifecycle|PreparedOwnership|TerminalRaces)$' RACE=1
+make check RUN='^TestReferenceAdvisoryXact(CancellationTimeout|Deadlocks)$' RACE=1
+make check RUN='^TestReferenceAdvisorySession(Signatures|DiagnosticsConsumers)$'
+make check RUN='^TestReferenceAdvisorySession(Signatures|DiagnosticsConsumers)$' REFERENCE=1
+make check RUN='^TestReferencePreparedTransactionSessionBoundaries$'
+make check RUN='^TestReferencePreparedTransactionSessionBoundaries$' REFERENCE=1
+make check RUN='^TestAdvisorySession(LifecycleReplacement|QueueTimersDeadlock|CompatibleCohortTerminalOrder|PhysicalSoftCycle)$'
+```
+
+The standalone public consumer is supplied as session source
+`local://advisory-xact-feature-smoke.go`, not a permanent duplicate SQL test.
+Materialize it at `/tmp/pg18-tx-advisory-xact-smoke/main.go`, then run from the
+worktree (external900second deadlines):
+
+```sh
+go run /tmp/pg18-tx-advisory-xact-smoke/main.go -case lifecycle
+go run /tmp/pg18-tx-advisory-xact-smoke/main.go -case prepared-metadata
+```
+
+`lifecycle` must report held VOID/counts, overload independence, savepoint mode
+release/earlier retention, unlock-all isolation, actual pending/blocker observation
+and rollback wakeup, healthy try failure and native replacement lifetime effects.
+`prepared-metadata` must report one overlapping exclusive row, exact mixed
+PREPARE rejection without GID, retained session exclusion, NULL-PID detached
+ownership, origin exclusion, peer completion release and real private-write
+commit/rollback. Any failed assertion exits nonzero. Remove the temporary
+materialization after recording argv/output and expected-versus-observed evidence.
 
 ### Transaction and ALTER smoke migrations
 

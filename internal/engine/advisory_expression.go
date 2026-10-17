@@ -17,7 +17,14 @@ const (
 	advisoryUnlockAll
 )
 
-func advisoryDefinition(name string) (mode relationLockMode, action advisoryAction, id sqltype.ID, ok bool) {
+type advisoryLifetime uint8
+
+const (
+	advisorySession advisoryLifetime = iota
+	advisoryTransaction
+)
+
+func advisoryDefinition(name string) (mode relationLockMode, action advisoryAction, lifetime advisoryLifetime, id sqltype.ID, ok bool) {
 	mode, action, id, ok = advisoryExclusive, advisoryAcquire, sqltype.Void, true
 	switch name {
 	case "pg_advisory_lock":
@@ -27,6 +34,14 @@ func advisoryDefinition(name string) (mode relationLockMode, action advisoryActi
 		action = advisoryTry
 	case "pg_try_advisory_lock_shared":
 		mode, action = advisoryShared, advisoryTry
+	case "pg_advisory_xact_lock":
+		lifetime = advisoryTransaction
+	case "pg_advisory_xact_lock_shared":
+		lifetime, mode = advisoryTransaction, advisoryShared
+	case "pg_try_advisory_xact_lock":
+		lifetime, action = advisoryTransaction, advisoryTry
+	case "pg_try_advisory_xact_lock_shared":
+		lifetime, mode, action = advisoryTransaction, advisoryShared, advisoryTry
 	case "pg_advisory_unlock":
 		action = advisoryUnlock
 	case "pg_advisory_unlock_shared":
@@ -34,7 +49,7 @@ func advisoryDefinition(name string) (mode relationLockMode, action advisoryActi
 	case "pg_advisory_unlock_all":
 		action = advisoryUnlockAll
 	default:
-		return 0, 0, 0, false
+		return 0, 0, 0, 0, false
 	}
 	if action == advisoryTry || action == advisoryUnlock {
 		id = sqltype.Bool
@@ -43,8 +58,8 @@ func advisoryDefinition(name string) (mode relationLockMode, action advisoryActi
 }
 
 func (x advisoryExpression) validStored() bool {
-	mode, action, id, ok := advisoryDefinition(x.name)
-	if !ok || x.mode != mode || x.action != action || x.usage.Type == nil || x.usage.Type.ID() != id {
+	mode, action, lifetime, id, ok := advisoryDefinition(x.name)
+	if !ok || x.mode != mode || x.action != action || x.lifetime != lifetime || x.usage.Type == nil || x.usage.Type.ID() != id {
 		return false
 	}
 	if action == advisoryUnlockAll {
@@ -67,10 +82,11 @@ func (x advisoryExpression) validStored() bool {
 
 type advisoryExpression struct {
 	expressionInfo
-	name   string
-	args   []BoundExpr
-	mode   relationLockMode
-	action advisoryAction
+	name     string
+	args     []BoundExpr
+	mode     relationLockMode
+	action   advisoryAction
+	lifetime advisoryLifetime
 }
 
 func (x advisoryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -128,7 +144,7 @@ func (x advisoryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Boolean(x.usage.Type, unlocked), nil
 	}
 	try := x.action == advisoryTry
-	acquired, err := s.acquireAdvisory(c.Context, ref, x.mode, try)
+	acquired, err := s.acquireAdvisory(c.Context, ref, x.mode, x.lifetime, try)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -172,7 +188,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	mode, action, id, defined := advisoryDefinition(name)
+	mode, action, lifetime, id, defined := advisoryDefinition(name)
 	valid := defined && visible && !raw.Variadic && len(raw.ArgNames) == 0
 	if action == advisoryUnlockAll {
 		valid = valid && len(args) == 0
@@ -225,7 +241,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 	if err != nil {
 		return nil, err
 	}
-	return advisoryExpression{expressionInfo: info, name: name, args: args, mode: mode, action: action}, nil
+	return advisoryExpression{expressionInfo: info, name: name, args: args, mode: mode, action: action, lifetime: lifetime}, nil
 }
 
 func foldAdvisoryNull(x advisoryExpression) (BoundExpr, bool) {

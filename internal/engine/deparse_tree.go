@@ -373,7 +373,11 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		out.WriteString("DatetimeSleep " + n.Kind.Name())
 		err = args([]BoundExpr{n.Arg})
 	case advisoryExpression:
-		out.WriteString("AdvisorySession " + n.name)
+		if n.lifetime == advisoryTransaction {
+			out.WriteString("AdvisoryTransaction " + n.name)
+		} else {
+			out.WriteString("AdvisorySession " + n.name)
+		}
 		err = args(n.args)
 	case functions.UUIDGeneration[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("UUIDGeneration " + n.Name)

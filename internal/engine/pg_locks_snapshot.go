@@ -108,6 +108,9 @@ func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecor
 			records = append(records, pgLockRecord{kind: pgTransactionLock, owner: owner, xid: identity.xid})
 		}
 	}
+	// Reuse one resource-local index; live lifetimes contribute modes to one
+	// process/object row, while detached prepared participants stay separate.
+	var advisoryRows map[pgLockOwner]int
 	for resource, entry := range m.entries {
 		if resource.kind == ordinaryResource && resource.completion == nil && resource.Epoch != epoch {
 			continue
@@ -115,6 +118,8 @@ func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecor
 		// Logical row/key holds have no physical target. Completion ownership
 		// was emitted exactly once from the owning ticket above.
 		projectHolds := resource.row == 0 && resource.key == nil && resource.completion == nil
+		advisory := resource.kind == advisoryBigintResource || resource.kind == advisoryPairResource
+		clear(advisoryRows)
 		if projectHolds {
 			for ticket, hold := range entry.holders {
 				if hold.mode == 0 || !m.valid(ticket) {
@@ -137,6 +142,21 @@ func (m *relationLockManager) snapshotPGLocks(epoch CatalogEpoch) ([]pgLockRecor
 				}
 				if !visible {
 					continue
+				}
+				if advisory {
+					if !ticket.detached {
+						if current, ok := active[owner.session]; ok {
+							owner = current
+						}
+					}
+					if index, ok := advisoryRows[owner]; ok {
+						records[index].mode |= hold.mode
+						continue
+					}
+					if advisoryRows == nil {
+						advisoryRows = make(map[pgLockOwner]int)
+					}
+					advisoryRows[owner] = len(records)
 				}
 				record, err := pgResourceRecord(resource, owner, hold.mode)
 				if err != nil {

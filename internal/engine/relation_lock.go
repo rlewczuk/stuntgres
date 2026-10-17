@@ -235,7 +235,7 @@ func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoi
 	}
 	held := make(relationLockCheckpoint, len(t.resources))
 	for ref := range t.resources {
-		if ref.completion != nil || ref.kind != ordinaryResource {
+		if ref.completion != nil || ref.kind != ordinaryResource && ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource {
 			continue
 		}
 		if entry := m.entries[ref]; entry != nil && entry.holders[t].mode != 0 {
@@ -261,7 +261,7 @@ func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckp
 	if m.valid(t) && !t.persistent {
 		m.restoreMultiContributionsLocked(t, held)
 		for ref := range t.resources {
-			if ref.completion != nil || ref.kind != ordinaryResource {
+			if ref.completion != nil || ref.kind != ordinaryResource && ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource {
 				continue
 			}
 			entry := m.entries[ref]
@@ -362,7 +362,7 @@ func terminalRequest(r *relationRequest, err error, notify **relationRequest) {
 					break
 				}
 			}
-			if !pending {
+			if !pending && r.entry.holders[source].mode == 0 {
 				delete(source.resources, r.ref)
 			}
 		}
@@ -397,14 +397,17 @@ func (m *relationLockManager) settle(e *relationEntry, notify **relationRequest)
 			terminalRequest(r, err, notify)
 			continue
 		}
-		blocked := false
+		blocked, participantHeld := false, false
 		for t, held := range e.holders {
-			if !sameLockSession(t, r.ticket) && lockConflict(r.mode, held.mode) {
+			if sameLockSession(t, r.ticket) {
+				if (r.ref.kind == advisoryBigintResource || r.ref.kind == advisoryPairResource) && held.mode != 0 {
+					participantHeld = true
+				}
+			} else if lockConflict(r.mode, held.mode) {
 				blocked = true
-				break
 			}
 		}
-		if !blocked {
+		if !blocked && !participantHeld {
 			for _, earlier := range remaining {
 				if r.ref.completion == nil && (r.ref.row == 0 || r.mode != noKeyUpdate) && !sameLockSession(earlier.ticket, r.ticket) && lockConflict(r.mode, earlier.mode) {
 					blocked = true
@@ -454,24 +457,26 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	if t.persistent {
-		if ref.kind != advisoryBigintResource && ref.kind != advisoryPairResource ||
-			ref.ObjectRef != (ObjectRef{}) || ref.row != 0 || ref.key != nil || ref.completion != nil ||
-			mode != advisoryShared && mode != advisoryExclusive || policy.provenance.session != t.session {
+	advisory := ref.kind == advisoryBigintResource || ref.kind == advisoryPairResource
+	if advisory {
+		if ref.ObjectRef != (ObjectRef{}) || ref.row != 0 || ref.key != nil || ref.completion != nil ||
+			mode != advisoryShared && mode != advisoryExclusive || t.detached {
 			m.mu.Unlock()
 			return nil, errors.New("stuntgres: invalid advisory lock request")
 		}
-		source := m.owners[policy.provenance]
-		if source == nil || source.detached || policy.provenance.epoch < m.epoch {
-			m.mu.Unlock()
-			return nil, ErrCatalogReplaced
+		if t.persistent {
+			source := m.owners[policy.provenance]
+			if source == nil || source.detached || source.session != t.session || policy.provenance.epoch < m.epoch {
+				m.mu.Unlock()
+				return nil, ErrCatalogReplaced
+			}
 		}
-	} else if ref.kind != ordinaryResource || ref.high != 0 || ref.low != 0 {
+	} else if t.persistent || ref.kind != ordinaryResource || ref.high != 0 || ref.low != 0 {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid ordinary lock resource")
 	}
-	if t.persistent {
-		// Session resources were validated above without a fabricated catalog ref.
+	if advisory {
+		// Advisory tags have no catalog ObjectRef, for either lifetime.
 	} else if ref.completion != nil {
 		owner := ref.completion
 		if mode != transactionCompletion || owner == t || owner.manager != m || owner.ref.epoch != t.ref.epoch {
@@ -508,17 +513,19 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, err
 	}
-	eligible := true
+	eligible, participantHeld := true, false
 	for other, held := range e.holders {
+		if advisory && sameLockSession(other, t) && held.mode != 0 {
+			participantHeld = true
+		}
 		if !sameLockSession(other, t) && lockConflict(mode, held.mode) {
 			eligible = false
-			break
 		}
 	}
 	// Self reentry bypasses requests blocked by this owner's existing hold.
 	// A compatible tuple NO KEY UPDATE also need not wait behind a pending
 	// UPDATE blocked by KEY SHARE; actual granted tuple modes still conflict.
-	if eligible && e.holders[t].mode == 0 {
+	if eligible && e.holders[t].mode == 0 && !participantHeld {
 		for _, earlier := range e.pending {
 			if ref.completion == nil && (ref.row == 0 || mode != noKeyUpdate) && !earlier.terminal && !sameLockSession(earlier.ticket, t) && lockConflict(mode, earlier.mode) {
 				eligible = false
@@ -656,6 +663,11 @@ func (m *relationLockManager) fence(epoch CatalogEpoch) {
 		}
 		for ref, e := range m.entries {
 			if ref.kind != ordinaryResource {
+				for ticket := range e.holders {
+					if !ticket.persistent && ticket.ref.epoch < epoch {
+						delete(e.holders, ticket)
+					}
+				}
 				for _, r := range e.pending {
 					if !r.terminal && r.provenance.epoch < epoch {
 						terminalRequest(r, ErrCatalogReplaced, &notify)

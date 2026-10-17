@@ -351,7 +351,7 @@ One native Engine represents one logical database; this is not a cross-Driver,
 cross-DSN or external PostgreSQL cluster aggregator.
 
 Native rows cover all eight ordinary relation modes, enum/type object locks,
-both session-advisory key spaces and their counted mode ownership, live VXIDs,
+both advisory key spaces with counted session and idempotent transaction ownership, live VXIDs,
 genuinely assigned public XIDs, actual completion waits and retained relation
 SSI reads. Prepared transactions have NULL PID, retain originating owner text
 and assigned-XID/object ownership, and no longer own a live VXID. Committed
@@ -385,7 +385,7 @@ is promised. Live PID overflow is an ordinary range error, not wrapping or
 silent omission; private maintenance owners are not public backends.
 
 Held statements and stored view recipes capture fresh state at execution.
-Reset/Restore fence old ordinary ownership, waits and SSI evidence; real
+Reset/Restore fence old ordinary and transaction-advisory ownership, waits and SSI evidence; real
 session-advisory holds survive and use current database identity. Dump never
 serializes live ownership or waits. Native admitted context cancellation remains
 ordinary `context.Canceled`; actual PostgreSQL server cancellation retains57014.

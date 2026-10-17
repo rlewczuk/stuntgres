@@ -43,9 +43,6 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 	if _, err := other.locks.startAcquire(context.Background(), a.advisory.ticket, key, advisoryExclusive, relationLockPolicy{provenance: ra, nowait: true}); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("foreign manager authorized", err)
 	}
-	if _, err := e.locks.startAcquire(context.Background(), a.transactions.ticket, key, advisoryExclusive, relationLockPolicy{nowait: true}); err == nil || errors.Is(err, ErrCatalogReplaced) {
-		t.Fatal("advisory payload accepted by ordinary ticket", err)
-	}
 	contaminated := key
 	contaminated.ObjectRef = ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 1}}
 	if _, err := advisoryUnitAcquire(t, a, ra, contaminated, advisoryExclusive, true); err == nil || errors.Is(err, ErrCatalogReplaced) {

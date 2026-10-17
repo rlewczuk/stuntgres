@@ -274,7 +274,8 @@ root/internal/smoke packages. Internal units supplement them with wide timestamp
 nonfinite/chunk/cancellation, fixed-clock DST/month-end and descriptor-generation
 behavior. Ownership witnesses use existing relation LOCK/NOWAIT admission for
 transaction holds and existing session advisory try/unlock for physical-session
-holds; they do not require unsupported transaction advisory functions.
+holds; transaction advisory functions have their own lifetime/savepoint coverage
+in `reference/locking_transactions`, rather than duplicating it here.
 
 The cancellation and owner/savepoint fixtures disable `statement_timeout` for
 unrelated setup, lock probes and recovery work. They enable the unchanged100ms

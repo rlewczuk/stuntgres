@@ -51,7 +51,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		advisoryUnitGrant(t, a, ra, key, advisoryShared)
 		advisoryUnitGrant(t, b, rb, key, advisoryShared)
 		transactionEnd(t, b, rb, false)
-		source, provenance, done := advisoryUnitScopeWait(t, b, key)
+		source, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
 		e.locks.mu.Lock()
 		oldManagerEpoch := e.locks.epoch
 		e.locks.mu.Unlock()
@@ -84,7 +84,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		b := sessionStart(t, e, nil)
 		key := lockResource{kind: advisoryBigintResource, low: 21}
 		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
-		_, provenance, done := advisoryUnitScopeWait(t, b, key)
+		_, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
 		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
 		advisoryUnitScopeResult(t, done, nil)
 		if advisoryUnitHold(b, key).exclusive != 1 {

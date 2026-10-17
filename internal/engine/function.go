@@ -189,7 +189,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindStringFunction(raw, visible && name == "parse_ident")
 	}
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && !parser.AdvisorySessionFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)
 	}
 	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
@@ -282,7 +282,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindMath(raw, visible)
 	case "random", "random_normal", "setseed":
 		return b.bindRandom(raw, visible)
-	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared":
+	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared", "pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared":
 		return b.bindAdvisory(raw, visible)
 	default:
 		kind = functions.NullCountFunctionKind(name)
@@ -442,7 +442,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 	// only, the argument limit still precedes exact-name signature resolution.
 	if len(raw.Args) > 100 && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-		selectedName := parser.AdvisorySessionFunctionName(name)
+		selectedName := parser.AdvisoryFunctionName(name)
 		if !selectedName {
 			for _, selected := range [...]string{"sum", "convert", "convert_from", "convert_to", "encode", "decode", "to_bin", "to_oct", "to_hex", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512", "pg_size_bytes", "pg_size_pretty", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte"} {
 				if len(name) == len(selected) && strings.EqualFold(name, selected) {

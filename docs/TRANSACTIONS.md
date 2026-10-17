@@ -256,8 +256,26 @@ before cache use/mutation; caller-owned TEMP has its existing distinct admission
 
 Session advisory counts belong to the physical owner, survive rollback and do
 not transfer to prepared ownership. Only matching release, release-all or
-physical end removes them. Transaction-level advisory providers and lock
-introspection remain unsupported.
+physical end removes them. Transaction advisory requests use the current
+transaction's ticket and the same shared/exclusive conflicts and key IDs as
+session requests; bigint and integer-pair spaces are disjoint. They release
+automatically at implicit completion, COMMIT/ROLLBACK (including CHAIN), physical
+end, or rollback to the savepoint after which a mode was acquired. RELEASE
+SAVEPOINT retains child contributions; earlier modes survive rollback. Closing
+Rows/Stmt or returning a borrower does not end an explicit transaction.
+Session unlock/unlock-all never releases transaction contributions.
+
+Same-session advisory requests can reenter across lifetimes despite queued peers,
+without ignoring incompatible external grants. PREPARE transfers transaction
+advisory ownership, but rejects holding session and transaction locks on the same
+tag, even in different modes, with `0A000`:
+`cannot PREPARE while holding both session-level and transaction-level locks on the same object`.
+That failure ends the transaction and retains session holds. Detached prepared
+holders no longer share the originating session's reentry priority; only prepared
+completion releases them. `pg_locks` combines same-process/key/mode grants across
+lifetimes; prepared ownership has NULL PID. Native successful Reset/Restore fences
+transaction advisory ownership while preserving session holds; failed replacement
+preserves both.
 
 ## Prepared transactions
 

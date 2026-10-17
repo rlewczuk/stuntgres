@@ -1493,7 +1493,7 @@ func singletonArgument(expr Expr) bool {
 				if strings.EqualFold(name, "int_array_enum") {
 					break
 				}
-				if !strings.EqualFold(name, "unnest") && !strings.EqualFold(name, "generate_series") && !strings.EqualFold(name, "generate_subscripts") && !JSONFunctionName(name) && !JSONBSetFunctionName(name) && !strings.EqualFold(name, "jsonb_path_query_array") && !JSONBPathQueryFunctionName(name) && !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisorySessionFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.EqualFold(name, "jsonb_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !strings.EqualFold(name, "unnest") && !strings.EqualFold(name, "generate_series") && !strings.EqualFold(name, "generate_subscripts") && !JSONFunctionName(name) && !JSONBSetFunctionName(name) && !strings.EqualFold(name, "jsonb_path_query_array") && !JSONBPathQueryFunctionName(name) && !enumFunctionName(name) && !mathConstantFunction(name) && !gcdLcmFunction(name) && !trigFunction(name) && !AdvisoryFunctionName(name) && !binaryConversionFunction(name) && !binaryHashFunction(name) && !binaryAccessFunction(name) && !datetimeFunctionName(name) && !stringEncodingFunction(name) && !strings.EqualFold(name, "format") && !strings.EqualFold(name, "json_object") && !strings.EqualFold(name, "jsonb_object") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}
