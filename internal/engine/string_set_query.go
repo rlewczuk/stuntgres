@@ -80,6 +80,7 @@ const (
 	functionNumericSeriesCursor
 	functionJSONRecordCursor
 	functionACLCursor
+	functionCatalogKeysCursor
 )
 
 type functionSetCursor struct {
@@ -94,6 +95,7 @@ type functionSetCursor struct {
 	array                  sqltype.Value
 	owned                  []sqltype.Value
 	acl                    aclExplodeCursor
+	catalogKeys            *catalogForeignKeyValues
 	position               int
 	scalar                 sqltype.Value
 	kind                   functionCursorKind
@@ -131,6 +133,7 @@ func (s *functionSetCursor) close() {
 		s.acl.close()
 	}
 	s.owned = nil
+	s.catalogKeys = nil
 	s.array = sqltype.Value{}
 	s.exhausted = true
 }
@@ -205,6 +208,20 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
+	case catalogUserNameExpression:
+		value, err := call.Eval(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
+	case catalogForeignKeysExpression:
+		if err := evaluationContext(c); err != nil {
+			return functionSetCursor{}, err
+		}
+		if err := call.validate(); err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{catalogKeys: call.metadata, kind: functionCatalogKeysCursor, initialized: true}, nil
 	case transactionIdentityExpression:
 		if call.kind == identityMembers {
 			rows, err := call.openMembers(c)
@@ -544,6 +561,9 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 	}
 	if s.kind == functionACLCursor {
 		return s.acl.next(ctx, typ)
+	}
+	if s.kind == functionCatalogKeysCursor {
+		return s.nextCatalogForeignKey(typ)
 	}
 	if s.kind == functionArrayCursor {
 		if s.position == s.array.ArrayLen() {

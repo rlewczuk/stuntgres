@@ -255,6 +255,17 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		out.WriteString("ArraySearch " + n.Plan.Name() + " namespace " + n.Namespace)
 		err = args(n.Args)
+	case catalogUserNameExpression:
+		if failure := n.validate(); failure != nil {
+			return failure
+		}
+		out.WriteString("CatalogUserName")
+		err = child(n.arg)
+	case catalogForeignKeysExpression:
+		if failure := n.validate(); failure != nil {
+			return failure
+		}
+		out.WriteString("CatalogForeignKeys")
 	case transactionIdentityExpression:
 		out.WriteString("TransactionIdentity " + n.kind.name())
 		if n.arg != nil {

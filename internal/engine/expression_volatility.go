@@ -214,6 +214,10 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 		return merge(children(n.arguments()...), n.baseProperties().Volatility)
 	case objectAddressExpression:
 		return merge(children(n.args[:]...), Stable)
+	case catalogUserNameExpression:
+		return merge(children(n.arg), Stable)
+	case catalogForeignKeysExpression:
+		return Stable
 	case transactionIdentityExpression:
 		volatility := Stable
 		if n.kind == identityStatus || n.kind == identityMembers {

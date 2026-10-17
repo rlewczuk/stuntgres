@@ -234,6 +234,9 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 		args(e.Args)
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		args(e.Args)
+	case catalogUserNameExpression:
+		walk(e.arg)
+	case catalogForeignKeysExpression:
 	case transactionIdentityExpression:
 		if e.arg != nil {
 			walk(e.arg)

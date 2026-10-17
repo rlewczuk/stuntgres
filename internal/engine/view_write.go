@@ -418,6 +418,11 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			switch n.(type) {
 			case subqueryExpression:
 				b.subqueryDemand = true
+			case catalogUserNameExpression, catalogForeignKeysExpression:
+				// This binding flag owns nonquery catalog/role capture in
+				// executeBoundCommandLocked; expressionBinder.catalogSnapshot is
+				// analysis-only and is not a field of binding.
+				b.regclassConcat = true
 			case visibilityInquiryExpression:
 				b.visibilitySnapshot = true
 			case functions.Binary[BoundExpr, *EvalContext, ExprProperties]:

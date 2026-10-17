@@ -15,6 +15,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if parser.CatalogRelationFunctionName(name) {
+		return b.bindCatalogRelation(raw)
+	}
 	if parser.ACLValueFunctionName(name) {
 		return b.bindACLValue(raw)
 	}

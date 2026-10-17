@@ -114,6 +114,10 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 			}
 		}
 		return true
+	case catalogUserNameExpression:
+		return closedTransactionTimeDefault(n.arg)
+	case catalogForeignKeysExpression:
+		return false
 	case transactionIdentityExpression:
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case commitTimestampExpression:

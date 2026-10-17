@@ -14,6 +14,17 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Catalog linkage and role names — change note
+
+`pg_get_catalog_foreign_keys()` exposes the complete 219-link PostgreSQL18.0
+catalog relationship bag with typed REGCLASS/TEXT[] fields and array/optional
+flags, independently of the smaller set of queryable native catalog providers.
+`pg_get_userbyid(oid)` resolves raw role names from the statement's captured
+role authority, with typed NAME NULLs and PostgreSQL's unknown-OID spelling.
+Held statements refresh on execution; stored calls remain symbolic through
+native logical replay. See [catalog contract](docs/DIALECT.md#catalog-linkage-and-role-names)
+and [selected proof and smoke](reference/catalogs/README.md#catalog-relations-oracle-first-contract).
+
 ## Transaction defaults and read-only temporary data — change note
 
 The six current/default transaction settings share transaction and savepoint

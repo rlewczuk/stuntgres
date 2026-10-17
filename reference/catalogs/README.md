@@ -92,6 +92,102 @@ Expected exit0 with independent native4/PG7 inventory and all assertions above;
 native controls are explicitly native-only. Whole-project Docker-free verification
 uses `make quickcheck`; selected checks do not replace it or post-merge finalcheck.
 
+### Catalog relations oracle-first contract
+
+`catalog_relations_*_test.go` independently specifies
+`pg_get_catalog_foreign_keys()` and `pg_get_userbyid(oid)`. The literal
+bag contains all **219** PostgreSQL REL_18_0 links, numeric REGCLASS identities,
+ordered TEXT column arrays and both flags. Expectations come from all 64 release
+catalog headers and Catalog.pm's implicit/explicit annotation rules, excluding
+only the synthetic `encoding` target as genbki.pl does. All ordered column pairs
+and multiplicities were separately cross-checked against release `oidjoins.out`;
+flags are source-derived, not learned from native output. `is_opt` permits zero
+references, not SQL NULL, and `is_array` applies to the last source column.
+Unsupported native catalog providers must not filter this bag. Unsorted scans
+assert bags, never a tuple-to-ordinality mapping.
+
+The seven shared scenarios cover complete direct/prepared inventory and user-FK
+independence; typed empty/expanded/aliased/ordinal/zipped records; exact known,
+unknown and NULL NAME values with implicit OID inputs; structured diagnostics
+and actual prepare/execute stages; one physical held scalar across role
+publication, rollback and effective-role changes; and symbolic view/default
+consumers with native same/fresh-driver Dump/Reset/Restore. Roles use their own
+queried backend identities, not allocator constants or assumed login names.
+Native retained cursors and ordinary Go cancellation are explicit native
+contracts; PostgreSQL does not receive invented host-control APIs.
+
+Transactional CREATE TABLE/CREATE ROLE are not prerequisites of these
+inquiries. PostgreSQL exercises their actual successful utility rollback;
+native independently asserts its existing `0A000` explicit-transaction utility
+boundary, rolls back and checks unchanged complete linkage/role-existence/name
+results. Both backends also exercise real supported DML and SET ROLE rollback.
+Autocommit role drop/recreate still uses the SAME held inquiry and actual new
+role OIDs. No adjacent transactional utility capability is introduced.
+
+The initial pinned PostgreSQL discovery is root-recorded; all temporary
+discovery filters, switches and logging have been removed. Both available
+backends now run unconditionally. The final PostgreSQL lifecycle phase requires
+nonempty actual native dump bytes and cannot fall back to source declarations.
+`catalogRelationsMetadata` now always asserts the pinned PostgreSQL accessor
+observations: BOOL ScanType is bool; NAME, REGCLASS, TEXT[] and RECORD ScanTypes
+are interface{}; Nullable is false/unknown, Length is zero/unknown and
+DecimalSize is zero,zero/unknown. Native independently requires its public typed
+string/bool ScanTypes and conservative unknown nullability/length/decimal
+descriptors, not fabricated NOT NULL information from nonnull result data.
+Temporary capture logging has been removed.
+
+Diagnostic expectations incorporate the root-recorded pinned observations:
+parameter Context redacts the value as `unnamed portal parameter $1 = '...'`,
+and the nested generate_series example fails signature resolution with 42883
+at character15 before SRF placement analysis. Fixture checks also require
+complete values, labels, SQL types, raw codecs, middleware row ownership and
+closure. All checks remain root-owned; no check was run by the test author.
+
+Run from the repository root, each with an **external 900-second deadline**:
+
+```sh
+make check RUN='^TestReferenceCatalogRelations(Inventory|Shape|Roles)$' REFERENCE=1
+make check RUN='^TestReferenceCatalogRelations(Diagnostics|Held|Lifecycle|FeatureSmoke)$' REFERENCE=1
+```
+Initial PG-only lifecycle discovery exercised independently authored SQL
+declarations. Final unfiltered proof additionally requires native lifecycle
+controls to produce actual dump SQL which PostgreSQL replays and checks
+independently. That final replay is not claimed by the initial discovery.
+
+The root recorded the unguarded native-red gate after pinned discovery and
+before production implementation. Selected Docker-free proof uses:
+
+```sh
+make check RUN='^TestReferenceCatalogRelations(Inventory|Shape|Roles)$'
+make check RUN='^TestReferenceCatalogRelations(Diagnostics|Held|Lifecycle|FeatureSmoke)$'
+```
+
+Both command groups in both modes must pass on the completed definitions;
+discovery/native-red evidence is not final proof. Internal supplemental units
+exercise authentic typed binding, immutable role capture/publication, metadata
+ownership, retag/remap/symbolic rendering and lazy cursor EOF/close/cancellation:
+
+```sh
+make check RUN='^TestCatalogRelations(Binding|Inventory|Capture|Cursor|Consumers)$'
+make check RUN='^Test(CatalogRelations(Capture|Cursor)|ReferenceCatalogRelations(Held|Lifecycle))$' RACE=1
+```
+
+The actual feature smoke reuses the complete expected bag, six-field empty
+metadata, unknown/NULL scalar lookup, same-held role drop/recreate/rollback and
+symbolic view/default replay consumers:
+
+```sh
+make check RUN='^TestReferenceCatalogRelationsFeatureSmoke$'
+make check RUN='^TestReferenceCatalogRelationsFeatureSmoke$' REFERENCE=1
+```
+
+Expected final observations are exact 219-row six-field bags; types
+`REGCLASS,_TEXT,REGCLASS,_TEXT,BOOL,BOOL`; raw NAME role spelling and
+`unknown (OID=0)`/typed NULL; old dropped role identity becoming unknown while
+the recreated actual identity resolves; and preserved dynamic calls after
+replacement and real emitted-SQL replay. These are prescribed observations,
+not claims of verification. Root owns discovery, native red and all proof.
+
 ### pg_parameter_acl selected proof
 
 The six `pg_parameter_acl_*_test.go` files define eight shared scenarios for the

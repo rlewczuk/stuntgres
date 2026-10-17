@@ -313,6 +313,8 @@ func generationImmutable(node BoundExpr) bool {
 		return n.kind != aclExplode && args(n.arguments())
 	case objectAddressExpression:
 		return false
+	case catalogUserNameExpression, catalogForeignKeysExpression:
+		return false
 	case transactionIdentityExpression:
 		return false
 	case commitTimestampExpression:
@@ -594,6 +596,10 @@ func generationHasTableOID(node BoundExpr) bool {
 		return args(n.arguments())
 	case objectAddressExpression:
 		return args(n.args[:])
+	case catalogUserNameExpression:
+		return generationHasTableOID(n.arg)
+	case catalogForeignKeysExpression:
+		return false
 	case transactionIdentityExpression:
 		return n.arg != nil && generationHasTableOID(n.arg)
 	case commitTimestampExpression:
@@ -1007,6 +1013,13 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 			return err
 		}
 		return args(n.args[:])
+	case catalogUserNameExpression:
+		if err := n.validate(); err != nil {
+			return err
+		}
+		return validateGenerationPlan(view, d, n.arg)
+	case catalogForeignKeysExpression:
+		return n.validate()
 	case transactionIdentityExpression:
 		if err := n.validate(); err != nil {
 			return err

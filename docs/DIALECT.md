@@ -66,6 +66,39 @@ missing/empty/unclosed component after a consumed dot. This does not expand the
 general function resolver, cast graph, SQL identifier lexer or catalog SQL rows.
 See [selected proof and smoke](../reference/strings/README.md#identifier-parsing-selected-proof).
 
+## Catalog linkage and role names
+
+`pg_catalog.pg_get_catalog_foreign_keys()` returns the complete PostgreSQL18.0
+**219-link** catalog metadata bag as
+`(fktable REGCLASS, fkcols TEXT[], pktable REGCLASS, pkcols TEXT[],
+is_array BOOL, is_opt BOOL)`. Ordered source/target column arrays describe
+catalog annotations, not user foreign-key constraints or scans of pg_constraint.
+`is_array` applies to the final source column; `is_opt` permits zero references,
+not SQL NULLs. All six returned fields are nonnull. Traversal order is not a SQL
+ordering guarantee; use explicit ORDER BY where order matters.
+
+The complete linkage inventory does not create adjacent SQL catalog providers
+or phantom queryable columns. Existing captured REGCLASS presentation resolves
+supported descriptors through the current search path; unavailable descriptors
+retain ordinary numeric spelling. Cast table fields to OID for portable full-bag
+comparisons rather than filtering links through the partial native pg_class.
+
+`pg_catalog.pg_get_userbyid(oid) -> NAME` returns the exact raw role name,
+without identifier quoting, for LOGIN and NOLOGIN roles alike. Missing IDs,
+including zero, produce `unknown (OID=<unsigned decimal>)`; NULL produces typed
+NAME NULL. Existing implicit integer/OID-alias coercions remain available;
+typed TEXT is not a new overload and manual `role` is not a named input.
+Lookup uses the statement's immutable authorization root and needs no
+pg_authid SELECT privilege. New executions of held statements see current role
+publication, while already returned native rows retain captured names/types.
+
+Both routines are strict STABLE, parallel-safe declarations on the existing
+typed expression path. Record aliases/expansion, ordinality, ROWS FROM and
+ordinary public driver metadata use existing query infrastructure. Stored
+view/default calls remain symbolic through Dump/Restore; the stateless linkage
+inventory has no separate serialized state and roles retain existing separate
+provisioning requirements. See [selected proof and actual feature smoke](../reference/catalogs/README.md#catalog-relations-oracle-first-contract).
+
 ## Transaction identity information
 
 The six selected PostgreSQL18 signatures execute with genuine typed XID/XID8

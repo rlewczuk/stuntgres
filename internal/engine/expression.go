@@ -674,6 +674,15 @@ func preflightCoercionNode(c *EvalContext, expression BoundExpr, decisiveDefault
 			e.args = args
 		}
 		return e, args != nil, nil
+	case catalogUserNameExpression:
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.arg = arg
+		return e, changed, nil
+	case catalogForeignKeysExpression:
+		return e, false, nil
 	case visibilityInquiryExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
 		if err != nil {
@@ -2719,7 +2728,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 			switch inquiry := node.(type) {
-			case commentInquiryExpression, objectAddressExpression:
+			case catalogUserNameExpression, catalogForeignKeysExpression, commentInquiryExpression, objectAddressExpression:
 				b.catalogSnapshot = true
 			case deparseExpression:
 				// This family retains STRICT nodes rather than folding them; a

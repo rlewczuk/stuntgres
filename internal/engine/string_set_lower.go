@@ -29,6 +29,9 @@ func sameQuerySetOccurrence(a, b BoundExpr) bool {
 		return false
 	}
 	switch first := a.(type) {
+	case catalogForeignKeysExpression:
+		second, ok := b.(catalogForeignKeysExpression)
+		return ok && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
 		second, ok := b.(functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties])
 		return ok && first.ResultUsage() == second.ResultUsage()

@@ -440,6 +440,11 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ObjectRef) ObjectRef
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		n.Args = args(n.Args)
 		next = n
+	case catalogUserNameExpression:
+		n.arg = child(n.arg)
+		next = n
+	case catalogForeignKeysExpression:
+		next = n
 	case transactionIdentityExpression:
 		if n.arg != nil {
 			n.arg = child(n.arg)

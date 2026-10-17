@@ -1016,6 +1016,26 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(functionInfo(info), n.Args, array, info.usage.Type, integer, ref, conflict)
 		rebound = n
+	case catalogUserNameExpression:
+		n.arg = child(n.arg)
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n.expressionInfo = info
+		rebound = n
+	case catalogForeignKeysExpression:
+		if !changed {
+			return node, false, nil
+		}
+		n.expressionInfo = info
+		n.metadata, err = newCatalogForeignKeyValues(info.usage.Type)
+		if err != nil {
+			return node, false, err
+		}
+		rebound = n
 	case transactionIdentityExpression:
 		if n.arg != nil {
 			n.arg = child(n.arg)

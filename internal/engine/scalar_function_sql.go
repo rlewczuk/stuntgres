@@ -313,6 +313,23 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		})
 	case aclValueExpression:
 		return n.sql(func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+	case catalogUserNameExpression:
+		if r.commentSnapshot != nil {
+			*r.commentSnapshot = true
+		}
+		if err := n.validate(); err != nil {
+			return "", err
+		}
+		args := [1]BoundExpr{n.arg}
+		return r.functionSQL(ctx, view, "pg_catalog.pg_get_userbyid", args[:])
+	case catalogForeignKeysExpression:
+		if r.commentSnapshot != nil {
+			*r.commentSnapshot = true
+		}
+		if err := n.validate(); err != nil {
+			return "", err
+		}
+		return r.functionSQL(ctx, view, "pg_catalog.pg_get_catalog_foreign_keys", nil)
 	case transactionIdentityExpression:
 		if err := n.validate(); err != nil {
 			return "", err

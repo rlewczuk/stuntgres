@@ -970,7 +970,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.code == IDENT && (enumFunctionName(token.lexeme.text) || jsonCreateFunction(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
-	if token.code == IDENT && (TransactionIdentityFunctionName(token.lexeme.text) || ACLValueFunctionName(token.lexeme.text) || ObjectAddressFunctionName(token.lexeme.text) || RangeInspectFunctionName(token.lexeme.text) || UUIDExtractFunctionName(token.lexeme.text) || CommitTimestampFunctionName(token.lexeme.text)) {
+	if token.code == IDENT && (CatalogRelationFunctionName(token.lexeme.text) || TransactionIdentityFunctionName(token.lexeme.text) || ACLValueFunctionName(token.lexeme.text) || ObjectAddressFunctionName(token.lexeme.text) || RangeInspectFunctionName(token.lexeme.text) || UUIDExtractFunctionName(token.lexeme.text) || CommitTimestampFunctionName(token.lexeme.text)) {
 		token.code = SELECTED_FUNC
 	}
 	if token.lexeme.text == "lateral" && token.lexeme.keyword != nil {
@@ -1196,7 +1196,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
-	if (token.code == SELECTED_FUNC || token.code == STRING_FUNC || token.code == CHECK_FUNC) && (TransactionIdentityFunctionName(token.lexeme.text) || ACLValueFunctionName(token.lexeme.text) || ObjectAddressFunctionName(token.lexeme.text) || RangeInspectFunctionName(token.lexeme.text) || UUIDExtractFunctionName(token.lexeme.text) || CommitTimestampFunctionName(token.lexeme.text)) {
+	if (token.code == SELECTED_FUNC || token.code == STRING_FUNC || token.code == CHECK_FUNC) && (CatalogRelationFunctionName(token.lexeme.text) || TransactionIdentityFunctionName(token.lexeme.text) || ACLValueFunctionName(token.lexeme.text) || ObjectAddressFunctionName(token.lexeme.text) || RangeInspectFunctionName(token.lexeme.text) || UUIDExtractFunctionName(token.lexeme.text) || CommitTimestampFunctionName(token.lexeme.text)) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {

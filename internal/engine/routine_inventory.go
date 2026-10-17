@@ -1187,6 +1187,8 @@ var builtinRoutineDeclarations = [...]builtinRoutineDeclaration{
 	{routineIdentity{5060, PGCatalogNamespaceOID, "pg_current_xact_id_if_assigned", ""}, functionRoutine, 5069, true, Stable, 'u', false, 0, 0, catalogRoutineProvider},
 	{routineIdentity{5066, PGCatalogNamespaceOID, "pg_xact_status", "5069"}, functionRoutine, 25, true, Volatile, 's', false, 0, 0, catalogRoutineProvider},
 	{routineIdentity{3819, PGCatalogNamespaceOID, "pg_get_multixact_members", "28"}, functionRoutine, 2249, true, Volatile, 's', true, 0, 0, catalogRoutineProvider},
+	{routineIdentity{1642, PGCatalogNamespaceOID, "pg_get_userbyid", "26"}, functionRoutine, 19, true, Stable, 's', false, 0, 0, catalogRoutineProvider},
+	{routineIdentity{6159, PGCatalogNamespaceOID, "pg_get_catalog_foreign_keys", ""}, functionRoutine, 2249, true, Stable, 's', true, 0, 0, catalogRoutineProvider},
 	{routineIdentity{6384, PGCatalogNamespaceOID, "lgamma", "701"}, functionRoutine, 701, true, Immutable, 's', false, 0, 0, mathRoutineProvider},
 	{routineIdentity{1341, PGCatalogNamespaceOID, "ln", "701"}, functionRoutine, 701, true, Immutable, 's', false, 0, 0, mathRoutineProvider},
 	{routineIdentity{1734, PGCatalogNamespaceOID, "ln", "1700"}, functionRoutine, 1700, true, Immutable, 's', false, 0, 0, mathRoutineProvider},

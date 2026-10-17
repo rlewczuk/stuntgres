@@ -72,7 +72,7 @@ func overlapsNodeCost(node BoundExpr) int {
 			cost++
 		}
 		return cost
-	case visibilityInquiryExpression:
+	case catalogUserNameExpression, visibilityInquiryExpression:
 		return 10
 	case commentInquiryExpression:
 		return 100

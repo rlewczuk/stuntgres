@@ -936,6 +936,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return text, nil
 		}
 		return function(n.Plan.Name(), n.Args, true)
+	case catalogUserNameExpression:
+		args := [1]BoundExpr{n.arg}
+		return function("pg_get_userbyid", args[:], true)
+	case catalogForeignKeysExpression:
+		return function("pg_get_catalog_foreign_keys", nil, true)
 	case transactionIdentityExpression:
 		if n.arg == nil {
 			return function(n.kind.name(), nil, true)

@@ -13,6 +13,9 @@ func isStringSet(expr BoundExpr) bool {
 	return ok && e.Plan.Name() == "string_to_table"
 }
 func isQuerySet(expr BoundExpr) bool {
+	if _, ok := expr.(catalogForeignKeysExpression); ok {
+		return true
+	}
 	if call, ok := expr.(transactionIdentityExpression); ok {
 		return call.kind == identityMembers
 	}
@@ -35,7 +38,7 @@ func isQuerySet(expr BoundExpr) bool {
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
-	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
+	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties], catalogUserNameExpression, catalogForeignKeysExpression:
 		return true
 	case aclValueExpression:
 		return call.kind != aclContains
@@ -66,6 +69,7 @@ func validFunctionSourceCall(expr BoundExpr) bool {
 // by validFunctionSourceCall after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {
 	return name == "jsonb_path_query" || parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
+		parser.CatalogRelationFunctionName(name) ||
 		parser.ObjectAddressFunctionName(name) || parser.CommitTimestampFunctionName(name) || parser.TransactionIdentityFunctionName(name) ||
 		name == "age" || name == "aclexplode" || name == "acldefault" || name == "makeaclitem" || name == "int_array_enum" || name == "generate_series" || name == "generate_subscripts" || name == "unnest" || name == "multirange"
 }
@@ -108,6 +112,10 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
 	case functions.JSONBPathQuery[BoundExpr, *EvalContext, ExprProperties]:
 		return call.Arguments()
+	case catalogUserNameExpression:
+		return []BoundExpr{call.arg}
+	case catalogForeignKeysExpression:
+		return nil
 	case aclValueExpression:
 		return call.arguments()
 	case objectAddressExpression:
@@ -161,6 +169,17 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 			return nil, fmt.Errorf("invalid JSONPath query arguments")
 		}
 		return call.Reconstruct(call.Info, [4]BoundExpr{args[0], args[1], args[2], args[3]})
+	case catalogUserNameExpression:
+		if len(args) != 1 {
+			return nil, fmt.Errorf("stuntgres: invalid catalog role-name arguments")
+		}
+		call.arg = args[0]
+		return call, nil
+	case catalogForeignKeysExpression:
+		if len(args) != 0 {
+			return nil, fmt.Errorf("stuntgres: invalid catalog foreign-key arguments")
+		}
+		return call, nil
 	case aclValueExpression:
 		if len(args) != len(call.arguments()) {
 			return nil, fmt.Errorf("stuntgres: invalid ACL call arguments")

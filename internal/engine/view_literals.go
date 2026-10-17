@@ -872,6 +872,12 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]); ok {
 			return selectedArrayArguments(r.Args, n.Args)
 		}
+		if n, ok := bound.(catalogUserNameExpression); ok && len(r.Args) == 1 {
+			return child(r.Args[0], n.arg)
+		}
+		if _, ok := bound.(catalogForeignKeysExpression); ok && len(r.Args) == 0 {
+			return nil
+		}
 		if n, ok := bound.(transactionIdentityExpression); ok {
 			if n.arg == nil && len(r.Args) == 0 {
 				return nil

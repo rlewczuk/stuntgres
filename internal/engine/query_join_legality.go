@@ -816,6 +816,10 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case functions.ArraySearch[BoundExpr, *EvalContext, ExprProperties]:
 		children = e.Args
+	case catalogUserNameExpression:
+		return joinExpressionSides(e.arg, leftWidth, rightWidth)
+	case catalogForeignKeysExpression:
+		return 0, nil
 	case transactionIdentityExpression:
 		if e.arg == nil {
 			return 0, nil

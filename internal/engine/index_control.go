@@ -268,6 +268,8 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return !n.Plan.Membership()
 	case aclValueExpression:
 		return n.kind != aclContains
+	case catalogUserNameExpression, catalogForeignKeysExpression:
+		return true
 	case transactionIdentityExpression:
 		return true
 	case commitTimestampExpression:
