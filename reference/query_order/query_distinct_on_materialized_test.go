@@ -99,7 +99,7 @@ func TestReferenceQueryDistinctOnMaterializedPolicies(t *testing.T) {
 			parameter := fixture.Prepared(fixture.ErrorDiagnostic("CREATE MATERIALIZED VIEW mv_on_parameter AS SELECT DISTINCT ON($1::integer) id FROM events"+suffix, fixture.ControlsReferenceDiagnostic("0A000", "materialized views may not be defined using bound parameters"), 7))
 			parameter.ErrorStage = "prepare"
 			run(parameter)
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_on_parameter")
+			fixture.QueryTableCreateAbsent(t, run, "mv_on_parameter")
 			run(sentinel)
 		}
 		failing := "SELECT DISTINCT ON(k) 1/(id-1) AS payload FROM events ORDER BY k,id DESC"
@@ -108,7 +108,7 @@ func TestReferenceQueryDistinctOnMaterializedPolicies(t *testing.T) {
 			failure.Prepared = prepared
 			failure.ErrorStage = "execute"
 			run(failure)
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_on_failed")
+			fixture.QueryTableCreateAbsent(t, run, "mv_on_failed")
 			run(sentinel)
 			fixture.MaterializedViewPopulation(run, "mv_on_sentinel", true)
 		}

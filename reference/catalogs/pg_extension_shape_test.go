@@ -124,9 +124,7 @@ func TestReferencePGExtensionShape(t *testing.T) {
 			{int64(8), "extcondition", int64(1009), int64(-1), false, int64(950)},
 		}
 		pgExtensionBoth(t, p, b, fixture.Select("SELECT attnum,attname,atttypid,atttypmod,attnotnull,attcollation FROM pg_attribute WHERE attrelid=3079 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "atttypid", "atttypmod", "attnotnull", "attcollation"}, []string{"INT2", "NAME", "OID", "INT4", "BOOL", "OID"}, want))
-		if b.PG {
-			pgExtensionBoth(t, p, b, fixture.Select("SELECT t.typrelid,a.typelem=t.oid AS element_link,t.typarray=a.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid=3079", []string{"typrelid", "element_link", "array_link"}, []string{"OID", "BOOL", "BOOL"}, [][]any{{int64(3079), true, true}}))
-		}
+		pgExtensionBoth(t, p, b, fixture.Select("SELECT t.typrelid,a.typelem=t.oid AS element_link,t.typarray=a.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid=3079", []string{"typrelid", "element_link", "array_link"}, []string{"OID", "BOOL", "BOOL"}, [][]any{{int64(3079), true, true}}))
 		owner, reader := fixture.LockConnections(t, p.Ctx, b.DB)
 		fixture.RunStep(t, p.Ctx, owner, b.Recorder, fixture.Exec("CREATE ROLE pgext_shape_reader", 0))
 		fixture.RunStep(t, p.Ctx, reader, b.Recorder, fixture.Exec("SET ROLE pgext_shape_reader", 0))

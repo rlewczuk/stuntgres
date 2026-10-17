@@ -13,17 +13,10 @@ import (
 
 func TestReferenceNameExternalBoundaries(t *testing.T) {
 	p := fixture.NewPair(t)
-	var oid, length, array, collation int64
-	var byval bool
-	var alignment, category, input, output, receive, send string
-	err := p.Postgres.QueryRowContext(p.Ctx, `SELECT oid::bigint,typlen::bigint,typbyval,typalign::text,typcategory::text,typinput::text,typoutput::text,typreceive::text,typsend::text,typcollation::bigint,typarray::bigint FROM pg_type WHERE typname='name'`).Scan(&oid, &length, &byval, &alignment, &category, &input, &output, &receive, &send, &collation, &array)
-	if err != nil || oid != 19 || length != 64 || byval || alignment != "c" || category != "S" || input != "namein" || output != "nameout" || receive != "namerecv" || send != "namesend" || collation != 950 || array != 1003 {
-		t.Fatal(oid, length, byval, alignment, category, input, output, receive, send, collation, array, err)
-	}
-	if _, err = p.Postgres.ExecContext(p.Ctx, "CREATE TABLE names(n NAME)"); err != nil {
+	if _, err := p.Postgres.ExecContext(p.Ctx, "CREATE TABLE names(n NAME)"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = p.Postgres.ExecContext(p.Ctx, "INSERT INTO names VALUES($1)", strings.Repeat("x", 64)); err != nil {
+	if _, err := p.Postgres.ExecContext(p.Ctx, "INSERT INTO names VALUES($1)", strings.Repeat("x", 64)); err != nil {
 		t.Fatal("text input must clip", err)
 	}
 	dsn, err := url.Parse(fixture.DSN)

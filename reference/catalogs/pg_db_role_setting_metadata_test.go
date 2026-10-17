@@ -20,14 +20,9 @@ func pgDBRoleSettingFacts(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			{int64(2964), int64(3), "setconfig", int64(1009), false, int64(-1), int64(950), false},
 		}),
 	}
-	if b.PG {
-		// pg_type is not a native catalog provider. Its reciprocal SQL proof
-		// supplements shared pg_attribute/result metadata and identity witnesses,
-		// plus exact native descriptor/reciprocal ownership component coverage.
-		steps = append(steps,
-			fixture.Select("SELECT t.typrelid=2964::oid AS same_relation,a.typelem=t.oid AS same_element,a.oid='pg_catalog.pg_db_role_setting[]'::regtype::oid AS same_array FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='pg_catalog.pg_db_role_setting'::regtype::oid", []string{"same_relation", "same_element", "same_array"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}),
-		)
-	}
+	steps = append(steps,
+		fixture.Select("SELECT t.typrelid=2964::oid AS same_relation,a.typelem=t.oid AS same_element,a.oid='pg_catalog.pg_db_role_setting[]'::regtype::oid AS same_array FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='pg_catalog.pg_db_role_setting'::regtype::oid", []string{"same_relation", "same_element", "same_array"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}),
+	)
 	for _, s := range steps {
 		// Reuse the catalog codec assertions, including pq's raw OID/NAME carriers.
 		pgDatabaseCheck(t, p, b, b.DB, s)

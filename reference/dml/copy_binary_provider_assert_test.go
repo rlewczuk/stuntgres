@@ -14,7 +14,11 @@ import (
 )
 
 type copyBinaryProviderExpected struct {
-	diagnostic                  *fixture.Diagnostic
+	diagnostic *fixture.Diagnostic
+	// Like fixture.Step.PostgresDiagnostic, an explicit pinned-oracle override
+	// preserves the independently required native diagnostic without rewriting
+	// actual errors or accepting either backend's record indiscriminately.
+	postgresDiagnostic          *fixture.Diagnostic
 	text, databaseType, rawKind string
 	raw                         any
 }

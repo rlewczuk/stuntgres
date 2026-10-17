@@ -1168,7 +1168,7 @@ and NUMERIC precision/scale metadata remain independent contracts.
 Domain identity is asserted independently through `pg_attribute.atttypid`
 equaling the declared domain's qualified `regtype::oid`; the expected BOOL is
 true, while cursor metadata independently requires JSONB as the physical base.
-This does not admit adjacent `pg_type` or `pg_typeof` execution. All eleven
+This does not admit `pg_typeof` execution or widen the bounded type catalog. All eleven
 definitions execute their shared SQL on every available backend. Native-only
 controls execute repeated Restore/redump, and real mode additionally checks
 each emitted native dump on PostgreSQL.
@@ -1911,13 +1911,13 @@ Scalar/array catalog and attribute identities use separate equality-filtered
 queries on PostgreSQL, retaining every independently expected OID, typmod,
 collation and domain-base field. Their equality filters are inquiry witnesses,
 not a restriction on scalar IN-list expression support.
-Native retains the exact missing-`pg_catalog.pg_type` diagnostic. The original
-PostgreSQL attribute queries still assert every expected row; native now asserts
+The bounded pg_type source now supports genuine metadata inquiries. Original
+PostgreSQL attribute queries still assert every expected row; native asserts
 their existing NAME-to-TEXT cast (`0A000`) or mixed OID/regclass comparison
 (`42883`) boundary instead of claiming pg_attribute is absent. Additional shared
 direct/prepared inquiries use raw NAME fields and each backend's discovered
 numeric relation OID, asserting JSONPATH4072/_JSONPATH4073, typmod-1 and collation0.
-No NAME cast, mixed-OID operator or pg_type provider is introduced by this migration.
+No NAME cast or mixed-OID operator is introduced by this catalog cutover.
 All shared native JSONPATH/_JSONPATH IO, composition and controls remain asserted
 without a skip. Equality, ordering and grouping
 must reject rather than compare canonical output; grouping diagnostics retain

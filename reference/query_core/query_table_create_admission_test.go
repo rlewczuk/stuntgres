@@ -38,7 +38,7 @@ func TestReferenceQueryTableCreateReadOnlyPrepare(t *testing.T) {
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_ro_prepare")
+			fixture.QueryTableCreateAbsent(t, run, "qc_ro_prepare")
 			run(fixture.Select("SELECT 1 AS recovered", []string{"recovered"}, []string{"INT4"}, [][]any{{int64(1)}}))
 		})
 	}
@@ -86,7 +86,7 @@ func TestReferenceQueryTableCreateReadOnlyLocks(t *testing.T) {
 					run(c, fixture.Exec("ROLLBACK", 0))
 					run(a, fixture.Exec("ROLLBACK", 0))
 					run(c, fixture.Exec("RESET lock_timeout", 0))
-					fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, b.PG, "qc_ro_target")
+					fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, "qc_ro_target")
 					run(c, fixture.Select("SELECT i FROM qc_ro_locked", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
 				})
 			}
@@ -164,7 +164,7 @@ func TestReferenceQueryTableCreateSnapshotAdmission(t *testing.T) {
 						}
 						run(reader, fixture.Exec("RESET statement_timeout", 0))
 						run(reader, fixture.Exec("RESET default_transaction_deferrable", 0))
-						fixture.QueryTableCreateAbsent(t, func(step fixture.Step) { run(reader, step) }, b.PG, "qc_snapshot_target")
+						fixture.QueryTableCreateAbsent(t, func(step fixture.Step) { run(reader, step) }, "qc_snapshot_target")
 						run(reader, fixture.Select("SELECT i FROM qc_snapshot_source", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
 						run(writerTx, fixture.Select("SELECT i FROM qc_snapshot_source", []string{"i"}, []string{"INT4"}, [][]any{{int64(8)}}))
 						if err := writerTx.Rollback(); err != nil {

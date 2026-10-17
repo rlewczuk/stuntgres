@@ -23,20 +23,7 @@ func TestReferencePGNamespaceShape(t *testing.T) {
 		}
 		pgNamespaceRow(t, p, b, b.DB, "pg_toast", 99, 10, nil)
 		pgNamespaceCheck(t, p, b, b.DB, fixture.Select("SELECT c.oid,c.relnamespace,c.relhasindex,n.nspname,c.reltype='pg_catalog.pg_namespace'::regtype::oid AS rowtype FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=2615", []string{"oid", "relnamespace", "relhasindex", "nspname", "rowtype"}, []string{"OID", "OID", "BOOL", "NAME", "BOOL"}, [][]any{{int64(2615), int64(11), true, "pg_catalog", true}}))
-		if b.PG {
-			pgNamespaceCheck(t, p, b, b.DB, fixture.Select("SELECT c.relnamespace,c.relhasindex,t.typrelid FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype WHERE c.oid=2615", []string{"relnamespace", "relhasindex", "typrelid"}, []string{"OID", "BOOL", "OID"}, [][]any{{int64(11), true, int64(2615)}}))
-		} else {
-			// Rowtype/array reciprocal ownership is proven by TestPGNamespaceShape.
-			// This catalog does not add the adjacent pg_type SQL source.
-			for _, prepared := range []bool{false, true} {
-				s := fixture.ImplicitError("SELECT oid FROM pg_catalog.pg_type", fixture.Diagnostic{Code: "42P01", Message: "relation \"pg_catalog.pg_type\" does not exist", Position: "17"})
-				s.SelectRows, s.Prepared, s.ErrorStage = true, prepared, "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-			}
-		}
+		pgNamespaceCheck(t, p, b, b.DB, fixture.Select("SELECT c.relnamespace,c.relhasindex,t.typrelid FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype WHERE c.oid=2615", []string{"relnamespace", "relhasindex", "typrelid"}, []string{"OID", "BOOL", "OID"}, [][]any{{int64(11), true, int64(2615)}}))
 	})
 }
 

@@ -45,11 +45,15 @@ func copyBinaryProviders(t *testing.T, cases []copyBinaryProviderCase, expected 
 					payload = tc.build(t, c)
 				}
 				result, err := c.from("COPY copy_binary_probe FROM STDIN WITH(FORMAT binary)", bytes.NewReader(copyBinaryStream(copyBinaryRow(payload))))
-				if want.diagnostic != nil {
+				diagnostic := want.diagnostic
+				if c.pg && want.postgresDiagnostic != nil {
+					diagnostic = want.postgresDiagnostic
+				}
+				if diagnostic != nil {
 					if tc.valid {
 						t.Fatal("oracle rejection conflicts with independently valid fixture")
 					}
-					copyTextDiagnostic(t, result, err, *want.diagnostic)
+					copyTextDiagnostic(t, result, err, *diagnostic)
 					copyBinaryCount(t, c, 0)
 					return
 				}

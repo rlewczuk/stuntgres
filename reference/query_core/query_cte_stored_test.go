@@ -94,11 +94,7 @@ func TestReferenceQueryCTECatalog(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		catalogs := []string{"pg_class"}
-		// pg_type is an oracle-only supplement; native has no pg_type provider.
-		if b.PG {
-			catalogs = append(catalogs, "pg_type")
-		}
+		catalogs := []string{"pg_class", "pg_type"}
 		for _, catalog := range catalogs {
 			column := map[string]string{"pg_class": "relname", "pg_type": "typname"}[catalog]
 			q := "SELECT " + column + " FROM pg_catalog." + catalog + " WHERE " + column + "='cte_transient_probe'"

@@ -107,7 +107,7 @@ func TestReferenceMaterializedViewSnapshotTypmods(t *testing.T) {
 							t.Fatalf("Restore accepted lossy %s %s cast tree", tc.name, expression.name)
 						}
 						check()
-						fixture.QueryTableCreateAbsent(t, run, backend.PG, "mv_import")
+						fixture.QueryTableCreateAbsent(t, run, "mv_import")
 						var after bytes.Buffer
 						if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
 							t.Fatal(err)

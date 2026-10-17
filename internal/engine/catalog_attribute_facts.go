@@ -80,6 +80,8 @@ func initializeCatalogAttributes(d *relationDescriptor) {
 				fact.collation = 950
 			}
 			switch d.address.ObjectID {
+			case pgTypeOID:
+				fact.notNull = i < 29
 			case 1213:
 				fact.notNull = i < 3
 			case 1262:

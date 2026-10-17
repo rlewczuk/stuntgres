@@ -147,13 +147,7 @@ func cycleRetained(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn
 	subqueryBoth(run, cteBag(q, []string{"n", "cyc", "path"}, []string{"INT4", "BOOL", "_RECORD"}, want))
 	run(cteBag(catalog, []string{"relname"}, []string{"NAME"}, nil))
 	typeCatalog := "SELECT typname FROM pg_catalog.pg_type WHERE typname='cycle_transient_probe'"
-	if b.PG {
-		run(cteBag(typeCatalog, []string{"typname"}, []string{"NAME"}, nil))
-	} else {
-		// pg_type is not an installed native catalog provider. Assert that
-		// capability boundary, not an invented empty catalog result.
-		cycleAssertDiagnostic(t, p, b, c, typeCatalog, cycleDiagnostic("42P01", `relation "pg_catalog.pg_type" does not exist`, typeCatalog, "pg_catalog.pg_type"))
-	}
+	run(cteBag(typeCatalog, []string{"typname"}, []string{"NAME"}, nil))
 	if b.PG {
 		return
 	}

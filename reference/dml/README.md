@@ -601,6 +601,16 @@ exercise genuine binary population, canonical four-byte export and text output;
 the independently pinned short/trailing diagnostics remain 08P01/22P03 with full
 COPY context. pgx XID int64 and native canonical decimal byte results are asserted
 separately before normalization; existing query-derived carrier witnesses remain.
+The negative multirange-count fixture keeps independently required backend
+diagnostics: pinned PostgreSQL18.6 reports54000,
+`invalid memory allocation request size 8 * 18446744073709551615`;
+native safely rejects the payload with its existing XX000,
+`invalid memory alloc request size 34359738360`. Both require the complete
+`COPY copy_binary_probe, line 1, column v` Context and all other logical fields.
+Provider goldens use an explicit PostgreSQL diagnostic override following
+`fixture.Step.PostgresDiagnostic`; actual errors are never normalized and neither
+backend may pass by returning the other backend's record. No COPY receive or
+allocation semantics are changed to mimic the oracle.
 
 Each command has an external900-second deadline. Run every shared group in both
 native and real pinned modes; race proof remains a separate native invocation:

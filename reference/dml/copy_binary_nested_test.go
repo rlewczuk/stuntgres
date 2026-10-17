@@ -61,9 +61,6 @@ func copyBinaryTypeOID(t *testing.T, c copyTextConnection, name string) int32 {
 	t.Helper()
 	var oid int64
 	query := "SELECT oid FROM pg_type WHERE typname=$1"
-	if !c.pg {
-		query = "SELECT $1::regtype::bigint"
-	}
 	if err := c.conn.QueryRowContext(c.ctx, query, name).Scan(&oid); err != nil {
 		t.Fatal(err)
 	}

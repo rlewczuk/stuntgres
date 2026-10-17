@@ -112,9 +112,7 @@ func TestReferenceDomainBaseValues(t *testing.T) {
 		s := fixture.Select("SELECT v FROM domain_s.collation_values ORDER BY v NULLS LAST", []string{"v"}, []string{"TEXT"}, [][]any{{"A"}, {"a"}, {nil}})
 		run(s)
 		run(fixture.Prepared(s))
-		if backend.PG {
-			run(fixture.Select("SELECT t.typname::text AS domain,c.collname::text AS collation FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_collation c ON c.oid=t.typcollation WHERE n.nspname='domain_s' AND t.typname IN ('collated','d_textual') ORDER BY t.typname", []string{"domain", "collation"}, []string{"TEXT", "TEXT"}, [][]any{{"collated", "C"}, {"d_textual", "default"}}))
-		}
+		run(fixture.Select("SELECT t.typname AS domain,c.collname AS collation FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_collation c ON c.oid=t.typcollation WHERE n.nspname='domain_s' AND t.typname IN ('collated','d_textual') ORDER BY t.typname", []string{"domain", "collation"}, []string{"NAME", "NAME"}, [][]any{{"collated", "C"}, {"d_textual", "default"}}))
 		// Qualified quoted spelling, optional AS and current-schema resolution.
 		run(fixture.Exec("CREATE DOMAIN domain_s.\"Quoted Domain\" integer", 0))
 		run(fixture.Exec("SET search_path TO domain_s, public", 0))

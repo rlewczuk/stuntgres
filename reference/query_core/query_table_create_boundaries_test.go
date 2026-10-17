@@ -39,10 +39,10 @@ func TestReferenceQueryTableCreateBoundaries(t *testing.T) {
 						}
 						if tc.name == "external_method" {
 							run(fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "42704", Message: `access method "qc_external" does not exist`}))
-							fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_boundary")
+							fixture.QueryTableCreateAbsent(t, run, "qc_boundary")
 						} else if tc.name == "on_commit_regular" {
 							run(fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "42P16", Message: "ON COMMIT can only be used on temporary tables"}))
-							fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_boundary")
+							fixture.QueryTableCreateAbsent(t, run, "qc_boundary")
 						} else {
 							run(fixture.Exec(tc.query, count))
 							if tc.name == "table" {
@@ -62,7 +62,7 @@ func TestReferenceQueryTableCreateBoundaries(t *testing.T) {
 						}
 						want.Position = fixture.Position(at + 1)
 						run(fixture.ErrorDiagnostic(tc.query, want))
-						fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_boundary")
+						fixture.QueryTableCreateAbsent(t, run, "qc_boundary")
 					}
 					run(fixture.QueryTableCreateBag("qc_source"))
 				})
@@ -96,8 +96,8 @@ func TestReferenceQueryTableCreateWholeInput(t *testing.T) {
 						want.Position = fixture.Position(strings.Index(q, "qc_nested") + 1)
 					}
 					run(fixture.ErrorDiagnostic(q, want))
-					fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_bad")
-					fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_nested")
+					fixture.QueryTableCreateAbsent(t, run, "qc_bad")
+					fixture.QueryTableCreateAbsent(t, run, "qc_nested")
 					run(fixture.Select("SELECT i FROM qc_sentinel", []string{"i"}, []string{"INT4"}, [][]any{{int64(1)}}))
 				})
 			}

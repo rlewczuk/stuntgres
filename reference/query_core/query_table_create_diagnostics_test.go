@@ -55,8 +55,8 @@ func TestReferenceQueryTableCreateDiagnostics(t *testing.T) {
 							s.ErrorStage = "prepare"
 						}
 						run(s)
-						fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_bad")
-						fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_inner")
+						fixture.QueryTableCreateAbsent(t, run, "qc_bad")
+						fixture.QueryTableCreateAbsent(t, run, "qc_inner")
 						run(fixture.QueryTableCreateBag("qc_source"))
 						run(fixture.Select("SELECT * FROM qc_existing", []string{"v"}, []string{"TEXT"}, [][]any{{"sentinel"}}))
 					})
@@ -85,7 +85,7 @@ func TestReferenceQueryTableCreateAtomicity(t *testing.T) {
 					s := fixture.ErrorDiagnostic(q, want)
 					s.SelectRows = true
 					run(s)
-					fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_late")
+					fixture.QueryTableCreateAbsent(t, run, "qc_late")
 					run(fixture.QueryTableCreateBag("qc_source"))
 					run(fixture.Exec("CREATE TABLE qc_late AS SELECT i,s FROM qc_source", 3))
 					run(fixture.QueryTableCreateBag("qc_late"))

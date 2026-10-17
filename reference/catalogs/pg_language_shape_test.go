@@ -185,10 +185,7 @@ func pgLanguageCatalogLinks(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	}
 	pgLanguageBoth(t, p, b, b.DB, fixture.Select("SELECT attnum,attname,atttypid,atttypmod,attnotnull,attcollation,attndims FROM pg_attribute WHERE attrelid=2612 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "atttypid", "atttypmod", "attnotnull", "attcollation", "attndims"}, []string{"INT2", "NAME", "OID", "INT4", "BOOL", "OID", "INT2"}, want))
 	pgLanguageBoth(t, p, b, b.DB, fixture.Select("SELECT reltype='pg_catalog.pg_language'::regtype::oid AS row_type_link FROM pg_class WHERE oid=2612", []string{"row_type_link"}, []string{"BOOL"}, [][]any{{true}}))
-	if b.PG {
-		// Native owns these type descriptors, but does not expose pg_type SQL rows.
-		pgLanguageBoth(t, p, b, b.DB, fixture.Select("SELECT t.typrelid,t.typname,a.typname AS array_name,t.typnamespace,a.typnamespace AS array_namespace,a.typelem=t.oid AS element_link,t.typarray=a.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid=2612", []string{"typrelid", "typname", "array_name", "typnamespace", "array_namespace", "element_link", "array_link"}, []string{"OID", "NAME", "NAME", "OID", "OID", "BOOL", "BOOL"}, [][]any{{int64(2612), "pg_language", "_pg_language", int64(11), int64(11), true, true}}))
-	}
+	pgLanguageBoth(t, p, b, b.DB, fixture.Select("SELECT t.typrelid,t.typname,a.typname AS array_name,t.typnamespace,a.typnamespace AS array_namespace,a.typelem=t.oid AS element_link,t.typarray=a.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid=2612", []string{"typrelid", "typname", "array_name", "typnamespace", "array_namespace", "element_link", "array_link"}, []string{"OID", "NAME", "NAME", "OID", "OID", "BOOL", "BOOL"}, [][]any{{int64(2612), "pg_language", "_pg_language", int64(11), int64(11), true, true}}))
 	owner := "postgres"
 	if b.PG {
 		owner = "stuntgres"

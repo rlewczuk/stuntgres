@@ -81,8 +81,8 @@ New or changed definitions require selected native and pinned real runs before
 review; these commands are proof instructions, not claims of exercised passes.
 The concrete SQL reader discovers source tables/attributes through supported
 catalogs and obtains actual column codec metadata with `ColumnTypes` on a
-zero-row SELECT. It does not depend on an absent `pg_type` implementation or
-invent user-defined type spellings. Unsupported codec metadata fails explicitly.
+zero-row SELECT. This discovery remains independent of type-catalog projection
+and does not invent user-defined spellings. Unsupported codec metadata fails explicitly.
 Rescan witnesses use the existing scalar-correlated SELECT seam, not an
 otherwise unavailable LATERAL-derived-query capability. SQL/MED rollback uses
 the common private catalog overlay; generic OWNED-in-transaction exclusions

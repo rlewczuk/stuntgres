@@ -63,17 +63,17 @@ func copyTextRawCodecs(t *testing.T, c copyTextConnection) {
 	t.Helper()
 	names := []string{"s", "i", "l", "n", "v", "b", "x", "d", "t", "z", "r", "a", "p", "e", "u", "c", "y"}
 	types := []string{"INT2", "INT4", "INT8", "NUMERIC", "VARCHAR", "BOOL", "BYTEA", "DATE", "TIMESTAMP", "TIMESTAMPTZ", "INTERVAL", "_INT4", "INT4", "", "UUID", "REGCLASS", "REGTYPE"}
+	var oid int64
+	var name string
+	if err := c.conn.QueryRowContext(c.ctx, "SELECT oid,typname FROM pg_type WHERE typname='copy_mood'").Scan(&oid, &name); err != nil {
+		t.Fatal(err)
+	}
+	if oid <= 0 || name != "copy_mood" {
+		t.Fatal("oracle enum catalog identity", oid, name)
+	}
 	if c.pg {
 		// pgx leaves these built-in symbolic OIDs unregistered as well.
 		types[15], types[16] = "2205", "2206"
-		var oid int64
-		var name string
-		if err := c.conn.QueryRowContext(c.ctx, "SELECT oid,typname FROM pg_type WHERE typname='copy_mood'").Scan(&oid, &name); err != nil {
-			t.Fatal(err)
-		}
-		if oid <= 0 || name != "copy_mood" {
-			t.Fatal("oracle enum catalog identity", oid, name)
-		}
 		// stdlib's unregistered custom-type tag is its genuine server OID.
 		types[13] = strconv.FormatInt(oid, 10)
 	}

@@ -37,7 +37,7 @@ func TestReferenceQueryTableCreateAtomicSequence(t *testing.T) {
 			run(fixture.Exec("INSERT INTO qc_late_source VALUES(1,1),(2,1),(3,0)", 3))
 			run(fixture.Exec("CREATE SEQUENCE qc_late_draw START 10", 0))
 			run(fixture.ImplicitError("CREATE TABLE qc_late_effect AS SELECT nextval('qc_late_draw') AS n,10/divisor AS v FROM (SELECT i,divisor FROM qc_late_source ORDER BY i OFFSET 0) d", fixture.Diagnostic{Code: "22012", Message: "division by zero"}))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_late_effect")
+			fixture.QueryTableCreateAbsent(t, run, "qc_late_effect")
 			// Sequence effects are deliberately not included in statement rollback.
 			run(fixture.Select("SELECT nextval('qc_late_draw') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(13)}}))
 			run(fixture.QueryTableCreateBag("qc_source"))
@@ -68,7 +68,7 @@ func TestReferenceQueryTableCreateStatementTimeout(t *testing.T) {
 			if err := c.Close(); err != nil {
 				t.Fatal(err)
 			}
-			fixture.QueryTableCreateAbsent(t, observe, b.PG, "qc_timed_out")
+			fixture.QueryTableCreateAbsent(t, observe, "qc_timed_out")
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}

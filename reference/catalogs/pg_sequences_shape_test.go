@@ -140,11 +140,6 @@ func TestReferencePGSequencesShape(t *testing.T) {
 				fixture.PgDescriptionRows(t, p, b, s)
 				fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 			})
-			// Physical pg_type links are a PostgreSQL control; native links are
-			// exercised directly by TestPGSequencesDescriptors, not a new SQL catalog.
-			if !b.PG {
-				return
-			}
 			q := "SELECT c.oid,c.relkind,c.relnatts,c.reltype,t.typrelid,t.typarray,a.typelem FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.relname='pg_sequences'"
 			var oid, fields, rowtype, relation, array, element int64
 			var kind string

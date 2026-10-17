@@ -38,14 +38,10 @@ func TestReferenceTypedTableDependencyIdentity(t *testing.T) {
 	typedTableScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, prepared bool, run func(fixture.Step)) {
 		run(fixture.Exec("CREATE TYPE pair AS (id integer)", 0))
 		run(fixture.Exec("CREATE TABLE t OF pair", 0))
-		// The fixed pg_type catalog class is1247; it is not a native queryable
-		// relation. The selected NORMAL edge and distinct own-row identity are
-		// shared, while PostgreSQL's full reciprocal catalog bag supplements them.
+		// The fixed pg_type catalog class1247 and the distinct own-row identity
+		// participate in the same genuine relation/type dependency graph.
 		run(fixture.Select("SELECT deptype FROM pg_depend WHERE classid='pg_class'::regclass::oid AND objid='t'::regclass::oid AND objsubid=0 AND refclassid=1247::oid AND refobjid='pair'::regtype::oid AND refobjsubid=0", []string{"deptype"}, []string{"CHAR"}, [][]any{{"n"}}))
 		run(fixture.Select("SELECT 't'::regtype::oid<>'pair'::regtype::oid AS distinct_row", []string{"distinct_row"}, []string{"BOOL"}, [][]any{{true}}))
-		if !b.PG {
-			return
-		}
 		// Complete selected type/relation edge bag. Namespace and ordinary scalar
 		// column dependencies are outside this explicitly selected address set.
 		q := "SELECT classid='pg_class'::regclass::oid AS relation_source,(classid='pg_class'::regclass::oid AND objid='t'::regclass::oid) AS table_source,refclassid='pg_type'::regclass::oid AS type_target,(refclassid='pg_type'::regclass::oid AND refobjid='pair'::regtype::oid) AS pair_target,deptype FROM pg_depend WHERE objsubid=0 AND refobjsubid=0 AND ((classid='pg_class'::regclass::oid AND (objid='t'::regclass::oid OR objid='pair'::regclass::oid) AND refclassid='pg_type'::regclass::oid) OR (classid='pg_type'::regclass::oid AND (objid='t'::regtype::oid OR objid='pair[]'::regtype::oid OR objid='t[]'::regtype::oid) AND (refclassid='pg_class'::regclass::oid OR refclassid='pg_type'::regclass::oid)))"

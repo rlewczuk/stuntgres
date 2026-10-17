@@ -30,7 +30,7 @@ func queryTableCreateSmoke(t *testing.T, retained bool) {
 				t.Fatal(err)
 			}
 			defer stmt.Close()
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_smoke_copy")
+			fixture.QueryTableCreateAbsent(t, run, "qc_smoke_copy")
 			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}, b.Recorder, fixture.Exec(q, 3, 1))
 			run(fixture.Select("SELECT i,s INTO qc_smoke_into FROM qc_source", []string{}, []string{}, nil))
 			run(fixture.Exec("CREATE TABLE qc_smoke_empty AS SELECT 1/0 AS x WITH NO DATA", 0))
@@ -52,9 +52,9 @@ func queryTableCreateSmoke(t *testing.T, retained bool) {
 			run(fixture.Exec("UPDATE qc_smoke_copy SET k=5 WHERE k=4", 1))
 			run(fixture.Exec("DELETE FROM qc_smoke_copy WHERE k=5", 1))
 			run(fixture.ImplicitError("CREATE TABLE qc_smoke_bad AS SELECT 1 AS x,2 AS x", fixture.Diagnostic{Code: "42701", Message: `column "x" specified more than once`}))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_smoke_bad")
+			fixture.QueryTableCreateAbsent(t, run, "qc_smoke_bad")
 			run(fixture.ImplicitError("CREATE TABLE qc_smoke_bad AS SELECT 1/0 AS x", fixture.Diagnostic{Code: "22012", Message: "division by zero"}))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_smoke_bad")
+			fixture.QueryTableCreateAbsent(t, run, "qc_smoke_bad")
 			if !b.PG {
 				// Explicit native control phase: these APIs have no PostgreSQL equivalent.
 				var saved bytes.Buffer
@@ -98,7 +98,7 @@ func queryTableCreateSmoke(t *testing.T, retained bool) {
 				} else if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 					t.Fatal(err)
 				}
-				fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_smoke_copy")
+				fixture.QueryTableCreateAbsent(t, run, "qc_smoke_copy")
 				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 					t.Fatal(err)
 				}

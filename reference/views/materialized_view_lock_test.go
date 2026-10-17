@@ -36,7 +36,7 @@ func TestReferenceMaterializedViewLocks(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, source, b.Recorder, fixture.Exec("LOCK TABLE mv_base IN ACCESS EXCLUSIVE MODE", 0))
 			run(materializedViewBag("mv_lock"))
 			run(fixture.ImplicitError("CREATE MATERIALIZED VIEW mv_lock_failed AS SELECT i,s FROM mv_base", fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout", Position: "60"}))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_lock_failed")
+			fixture.QueryTableCreateAbsent(t, run, "mv_lock_failed")
 			if err := source.Rollback(); err != nil {
 				t.Fatal(err)
 			}
@@ -52,11 +52,11 @@ func TestReferenceMaterializedViewLocks(t *testing.T) {
 				if result != nil || !errors.Is(err, context.Canceled) {
 					t.Fatalf("precanceled result=%v error=%v", result, err)
 				}
-				fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_canceled")
+				fixture.QueryTableCreateAbsent(t, run, "mv_canceled")
 			}
 			run(materializedViewBag("mv_lock"))
 			run(fixture.Exec("DROP MATERIALIZED VIEW mv_lock,mv_lock_failed", 0))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_lock")
+			fixture.QueryTableCreateAbsent(t, run, "mv_lock")
 		})
 	}
 }

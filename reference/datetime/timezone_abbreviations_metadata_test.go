@@ -67,16 +67,11 @@ func TestReferenceTimezoneAbbreviationsMetadataAtomicity(t *testing.T) {
 			nulls.Prepared = prepared
 			run(nulls)
 		}
-		// Native exposes type/scan metadata, not a public OID catalog/API.
-		// Keep the exact release identities asserted on genuine PostgreSQL,
-		// matching TestReferenceTimezoneMetadataParametersAndFreeze.
-		if pg {
-			for _, tc := range []struct {
-				name string
-				oid  int64
-			}{{"date", 1082}, {"time", 1083}, {"timestamp", 1114}, {"timestamptz", 1184}, {"interval", 1186}, {"timetz", 1266}} {
-				run(fixture.Select("SELECT oid::BIGINT AS oid FROM pg_catalog.pg_type WHERE typname='"+tc.name+"'", []string{"oid"}, []string{"INT8"}, [][]any{{tc.oid}}))
-			}
+		for _, tc := range []struct {
+			name string
+			oid  int64
+		}{{"date", 1082}, {"time", 1083}, {"timestamp", 1114}, {"timestamptz", 1184}, {"interval", 1186}, {"timetz", 1266}} {
+			run(fixture.Select("SELECT oid::BIGINT AS oid FROM pg_catalog.pg_type WHERE typname='"+tc.name+"'", []string{"oid"}, []string{"INT8"}, [][]any{{tc.oid}}))
 		}
 		run(fixture.Exec("UPDATE tz_witness SET z='2004-07-01 12:00 IST' WHERE id=1", 1))
 		canceled, cancel := context.WithCancel(p.Ctx)

@@ -98,7 +98,9 @@ func (u Usage) validCollation() bool {
 		u.Type = u.Type.element
 		return u.validCollation()
 	}
-	if IsCharacter(u.Type.ID()) || u.Type.ID() == Name {
+	// Private node-tree values already carry a collation (default100); catalog
+	// attributes can own C950 without changing their input/storage boundaries.
+	if IsCharacter(u.Type.ID()) || u.Type.ID() == Name || u.Type.ID() == PgNodeTree {
 		return u.Collation.Valid()
 	}
 	return u.Collation == u.Type.Usage().Collation

@@ -18,6 +18,19 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{pgTypeOID, "pg_type", []struct {
+			name string
+			typ  sqltype.ID
+		}{
+			{"oid", 26}, {"typname", 19}, {"typnamespace", 26}, {"typowner", 26},
+			{"typlen", 21}, {"typbyval", 16}, {"typtype", 18}, {"typcategory", 18},
+			{"typispreferred", 16}, {"typisdefined", 16}, {"typdelim", 18}, {"typrelid", 26},
+			{"typsubscript", 24}, {"typelem", 26}, {"typarray", 26}, {"typinput", 24},
+			{"typoutput", 24}, {"typreceive", 24}, {"typsend", 24}, {"typmodin", 24},
+			{"typmodout", 24}, {"typanalyze", 24}, {"typalign", 18}, {"typstorage", 18},
+			{"typnotnull", 16}, {"typbasetype", 26}, {"typtypmod", 23}, {"typndims", 23},
+			{"typcollation", 26}, {"typdefaultbin", 194}, {"typdefault", 25}, {"typacl", 1034},
+		}},
 		{pgAttributeOID, "pg_attribute", []struct {
 			name string
 			typ  sqltype.ID
@@ -250,6 +263,15 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			if spec.oid == pgTypeOID {
+				d.columns[i].Nullable = i >= 29
+				if i == 29 || i == 30 {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+				if i == 31 {
+					d.columns[i].DeclaredDimensions = 1
+				}
+			}
 			if spec.oid == pgAttributeOID {
 				d.columns[i].Nullable = i >= 20
 				if column.typ == sqltype.ID(1009) {
@@ -369,6 +391,9 @@ func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == pgTypeOID {
+		return e.capturePGType(ctx, catalog, roles, ref, source)
+	}
 	if source.address.ObjectID == pgAttributeOID {
 		return e.capturePGAttribute(ctx, catalog, roles, ref, source)
 	}

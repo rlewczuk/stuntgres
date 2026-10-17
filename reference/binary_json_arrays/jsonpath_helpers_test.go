@@ -47,26 +47,14 @@ func jsonpathReferenceStep(t *testing.T, b fixture.Backend, s fixture.Step) fixt
 	return s
 }
 
-// pg_type remains a named native exclusion. Attribute inquiries share the
-// released mixed-OID comparisons; their separate cast boundary is unchanged.
+// Catalog inquiries are shared. Existing explicit NAME/CHAR-to-TEXT cast
+// boundaries remain independent of pg_type source availability.
 func jsonpathReferenceInquiry(b fixture.Backend, s fixture.Step) fixture.Step {
 	if b.PG {
 		return s
 	}
-	if offset := strings.Index(s.Query, " FROM pg_catalog.pg_type"); offset >= 0 {
-		boundary := fixture.ErrorDiagnostic(s.Query, fixture.Diagnostic{
-			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01",
-			Message:  `relation "pg_catalog.pg_type" does not exist`,
-			Position: fixture.Position(offset + len(" FROM ") + 1),
-		})
-		boundary.SelectRows, boundary.Prepared, boundary.ErrorStage = true, s.Prepared, "execute"
-		if s.Prepared {
-			boundary.ErrorStage = "prepare"
-		}
-		return boundary
-	}
-	if strings.Contains(s.Query, " FROM pg_catalog.pg_attribute") {
-		if !strings.Contains(s.Query, "attname::text") {
+	if strings.Contains(s.Query, " FROM pg_catalog.pg_attribute") || strings.Contains(s.Query, " FROM pg_catalog.pg_type") {
+		if !strings.Contains(s.Query, "::text") {
 			return s
 		}
 		diagnostic := fixture.Diagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: fixture.Position(strings.Index(s.Query, "::text") + 1)}

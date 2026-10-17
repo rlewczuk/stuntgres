@@ -61,14 +61,11 @@ func TestReferenceAvailableExtensionsMetadata(t *testing.T) {
 			s := fixture.Select("SELECT attnum,attname,atttypid::bigint AS atttypid,atttypmod,attnotnull,attcollation::bigint AS attcollation FROM pg_attribute WHERE attrelid=$1 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "atttypid", "atttypmod", "attnotnull", "attcollation"}, []string{"INT2", "NAME", "INT8", "INT4", "BOOL", "INT8"}, want, oid)
 			fixture.RunStep(t, p.Ctx, c, r, s)
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
-			if pg {
-				// Adjacent pg_type producer remains a real-only observation.
-				var rowtype, array int64
-				if err := c.QueryRowContext(p.Ctx, "SELECT c.reltype,t.typarray FROM pg_class c JOIN pg_type t ON t.oid=c.reltype WHERE c.oid=$1", oid).Scan(&rowtype, &array); err != nil || rowtype <= 0 || array <= 0 {
-					t.Fatal("oracle type identities", rowtype, array, err)
-				}
-				availableExtensionsBoth(t, p, c, r, fixture.Select("SELECT t.typrelid::bigint AS typrelid,a.typelem=t.oid AS element_link,t.typarray=a.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid=$1", []string{"typrelid", "element_link", "array_link"}, []string{"INT8", "BOOL", "BOOL"}, [][]any{{oid, true, true}}, oid))
+			var rowtype, array int64
+			if err := c.QueryRowContext(p.Ctx, "SELECT c.reltype,t.typarray FROM pg_class c JOIN pg_type t ON t.oid=c.reltype WHERE c.oid=$1", oid).Scan(&rowtype, &array); err != nil || rowtype <= 0 || array <= 0 {
+				t.Fatal("oracle type identities", rowtype, array, err)
 			}
+			availableExtensionsBoth(t, p, c, r, fixture.Select("SELECT t.typrelid::bigint AS typrelid,a.typelem=t.oid AS element_link,t.typarray=a.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid=$1", []string{"typrelid", "element_link", "array_link"}, []string{"INT8", "BOOL", "BOOL"}, [][]any{{oid, true, true}}, oid))
 		}
 	})
 }

@@ -147,9 +147,7 @@ func TestReferenceRoleOwnershipTypedDependencyCleanup(t *testing.T) {
 				}
 				ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relname='own_pair' OR relname='own_typed' OR relname='own_typed_index' OR relname='own_early'", 0)
 				ownershipCount(s, fmt.Sprintf("SELECT count(*) FROM pg_depend WHERE (classid=1259::oid AND objid=%d::oid) OR (refclassid=1259::oid AND refobjid=%d::oid) OR (classid=1247::oid AND (objid=%d::oid OR objid=%d::oid)) OR (refclassid=1247::oid AND (refobjid=%d::oid OR refobjid=%d::oid))", tableID, tableID, sourceID, rowID, sourceID, rowID), 0)
-				if s.backend.PG {
-					ownershipCount(s, "SELECT count(*) FROM pg_type WHERE typname='own_pair' OR typname='_own_pair' OR typname='own_typed' OR typname='_own_typed'", 0)
-				}
+				ownershipCount(s, "SELECT count(*) FROM pg_type WHERE typname='own_pair' OR typname='_own_pair' OR typname='own_typed' OR typname='_own_typed'", 0)
 				ownershipSelect(s, "SELECT id FROM own_sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(9)}})
 				ownershipOwner(s, "own_sentinel", "own_alt")
 				ownershipFailure(s, "ALTER POLICY own_typed_keep ON own_sentinel", fixture.Diagnostic{Code: "42704", Message: `policy "own_typed_keep" for table "own_sentinel" does not exist`})

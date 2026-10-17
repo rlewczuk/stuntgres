@@ -23,12 +23,7 @@ func TestReferenceViewLocksMetadata(t *testing.T) {
 		viewLocksEmpty(t, p, b, x, "false")
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT relkind,relnatts FROM pg_class WHERE relnamespace=11 AND relname='pg_locks'", []string{"relkind", "relnatts"}, []string{"CHAR", "INT2"}, [][]any{{"v", int64(16)}}))
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT reltype='pg_catalog.pg_locks'::regtype::oid AS row_link FROM pg_class WHERE relnamespace=11 AND relname='pg_locks'", []string{"row_link"}, []string{"BOOL"}, [][]any{{true}}))
-		if b.PG {
-			// PostgreSQL supplies the additional pg_type SQL source. Native
-			// reciprocal row/array ownership is checked through catalog provider
-			// APIs by TestPGLocksProjectionModes, without implementing pg_type here.
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT t.typrelid=c.oid AS row_link,a.typelem=t.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.relnamespace=11 AND c.relname='pg_locks'", []string{"row_link", "array_link"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
-		}
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT t.typrelid=c.oid AS row_link,a.typelem=t.oid AS array_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.relnamespace=11 AND c.relname='pg_locks'", []string{"row_link", "array_link"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 		if !b.PG {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT reltype FROM pg_class WHERE relnamespace=11 AND relname='pg_locks'", []string{"reltype"}, []string{"OID"}, [][]any{{int64(12075)}}))
 		}

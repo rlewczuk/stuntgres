@@ -76,7 +76,7 @@ func TestReferenceQueryTableCreateExplicitAdmission(t *testing.T) {
 								t.Fatal(err)
 							}
 						}
-						fixture.QueryTableCreateAbsent(t, func(step fixture.Step) { run(c, step) }, b.PG, "qc_explicit_target")
+						fixture.QueryTableCreateAbsent(t, func(step fixture.Step) { run(c, step) }, "qc_explicit_target")
 						run(c, fixture.Select("SELECT 1 AS recovered", []string{"recovered"}, []string{"INT4"}, [][]any{{int64(1)}}))
 						if sourceState == "locked" {
 							run(c, fixture.Select("SELECT i FROM qc_explicit_source", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))

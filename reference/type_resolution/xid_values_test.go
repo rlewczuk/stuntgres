@@ -130,8 +130,7 @@ func TestReferenceXIDValuesMetadata(t *testing.T) {
 				xidReferenceRoutes(t, p.Ctx, b, fixture.Select(q, []string{"v"}, []string{map[string]string{"xid": "XID", "cid": "CID", "xid8": "XID8"}[typ]}, [][]any{{tc.out}}))
 			}
 		}
-		// Public type lookup proves scalar and companion identities without
-		// claiming a native pg_type relation projection.
+		// Public type lookup independently proves scalar/companion identities.
 		for _, fact := range []struct {
 			name string
 			oid  int64
@@ -149,8 +148,8 @@ func TestReferenceXIDValuesMetadata(t *testing.T) {
 		if castOID <= 0 || castOID > 4294967295 || !b.PG && castOID != 20069 || functionOID != 5071 || castContext != "e" || castMethod != "f" {
 			t.Fatalf("xid8->xid cast: oid=%d function=%d context=%q method=%q", castOID, functionOID, castContext, castMethod)
 		}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT oid::int8,typname,typlen FROM pg_catalog.pg_type WHERE typname IN ('xid','cid','xid8','_xid','_cid','_xid8') ORDER BY oid", []string{"oid", "typname", "typlen"}, []string{"INT8", "NAME", "INT2"}, [][]any{{int64(28), "xid", int64(4)}, {int64(29), "cid", int64(4)}, {int64(271), "_xid8", int64(-1)}, {int64(1011), "_xid", int64(-1)}, {int64(1012), "_cid", int64(-1)}, {int64(5069), "xid8", int64(8)}}))
 		if b.PG {
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT oid::int8,typname,typlen FROM pg_catalog.pg_type WHERE typname IN ('xid','cid','xid8','_xid','_cid','_xid8') ORDER BY oid", []string{"oid", "typname", "typlen"}, []string{"INT8", "NAME", "INT2"}, [][]any{{int64(28), "xid", int64(4)}, {int64(29), "cid", int64(4)}, {int64(271), "_xid8", int64(-1)}, {int64(1011), "_xid", int64(-1)}, {int64(1012), "_cid", int64(-1)}, {int64(5069), "xid8", int64(8)}}))
 			var oid int64
 			var name string
 			err := b.DB.QueryRowContext(p.Ctx, "SELECT o.oid::int8,o.opcname FROM pg_catalog.pg_opclass o JOIN pg_catalog.pg_am a ON a.oid=o.opcmethod WHERE o.opcintype='xid8'::regtype AND a.amname='btree' AND o.opcdefault").Scan(&oid, &name)

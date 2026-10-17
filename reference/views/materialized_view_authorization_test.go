@@ -32,7 +32,7 @@ func TestReferenceMaterializedViewAuthorization(t *testing.T) {
 			fixture.WithPublicSchemaOwner(t, p, b, "mv_reader", func() {
 				run(fixture.ImplicitError("CREATE MATERIALIZED VIEW mv_denied AS SELECT i,s FROM mv_base", fixture.Diagnostic{Code: "42501", Message: "permission denied for table mv_base"}))
 			})
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_denied")
+			fixture.QueryTableCreateAbsent(t, run, "mv_denied")
 			fixture.WithPublicSchemaOwner(t, p, b, "mv_reader", func() {
 				run(fixture.Exec("CREATE MATERIALIZED VIEW mv_reader_no AS SELECT i,s FROM mv_base WITH NO DATA", 0))
 			})

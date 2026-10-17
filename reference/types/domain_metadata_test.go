@@ -107,8 +107,6 @@ func TestReferenceDomainMetadata(t *testing.T) {
 				}
 			}
 		}
-		if backend.PG {
-			run(fixture.Select("SELECT t.typtype::text AS kind,t.typbasetype::regtype::text AS base,t.typtypmod AS modifier,t.typndims AS dimensions,t.typnotnull AS required FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='domain_s' AND t.typname='dn'", []string{"kind", "base", "modifier", "dimensions", "required"}, []string{"TEXT", "TEXT", "INT4", "INT4", "BOOL"}, [][]any{{"d", "numeric", int64(327686), int64(0), false}}))
-		}
+		run(fixture.Select("SELECT t.typtype AS kind,t.typbasetype::regtype::text AS base,t.typtypmod AS modifier,t.typndims AS dimensions,t.typnotnull AS required FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='domain_s' AND t.typname='dn'", []string{"kind", "base", "modifier", "dimensions", "required"}, []string{"CHAR", "TEXT", "INT4", "INT4", "BOOL"}, [][]any{{"d", "numeric", int64(327686), int64(0), false}}))
 	})
 }

@@ -151,8 +151,8 @@ func TestReferenceDataTypePrivilegesShape(t *testing.T) {
 			}
 			run(fixture.Select("SELECT a.attname,t.typname FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_type t ON t.oid=a.atttypid WHERE a.attrelid='information_schema.data_type_privileges'::regclass AND a.attnum>0 ORDER BY a.attnum", []string{"attname", "typname"}, []string{"NAME", "NAME"}, declared))
 		} else {
-			// Native pg_type is not exposed. Assert actual attribute identities
-			// and fixed builtin carrier OIDs, not an invented pg_type projection.
+			// Native declares existing builtin carriers; information-schema
+			// sql_identifier/character_data domains remain lookup-only.
 			var attributes [][]any
 			for i, name := range dtpColumns {
 				typeOID, collation := int64(19), int64(950)

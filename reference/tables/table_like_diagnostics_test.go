@@ -27,9 +27,7 @@ func TestReferenceTableLikeDiagnostics(t *testing.T) {
 		} {
 			run(fixture.TableLikeError(tc.q, tc.d))
 			fixture.TableLikeAbsent(run, "clone", prepared)
-			if b.PG {
-				run(fixture.Select("SELECT typname FROM pg_type WHERE typname='clone'", []string{"typname"}, []string{"NAME"}, nil))
-			}
+			run(fixture.Select("SELECT typname FROM pg_type WHERE typname='clone'", []string{"typname"}, []string{"NAME"}, nil))
 			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='clone_a_seq' OR relname='clone_a_key'", []string{"relname"}, []string{"NAME"}, nil))
 		}
 		for _, tc := range []struct{ q, token, pos string }{

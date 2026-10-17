@@ -45,6 +45,14 @@ func pgcryptoTempMetadata(t *testing.T, columns []string, metadata []*sql.Column
 	return snapshot
 }
 
+func pgcryptoTempLinks(t *testing.T, p *fixture.Pair, c *sql.Conn) {
+	t.Helper()
+	var rowtype, namespace, relation, element, arrayRelation bool
+	if err := c.QueryRowContext(p.Ctx, "SELECT t.oid=c.reltype,t.typnamespace=c.relnamespace,t.typrelid=c.oid,a.typelem=t.oid,a.typrelid=0 FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid='pgcrypto_retained'::regclass::oid").Scan(&rowtype, &namespace, &relation, &element, &arrayRelation); err != nil || !rowtype || !namespace || !relation || !element || !arrayRelation {
+		t.Fatal("TEMP inverse type links", rowtype, namespace, relation, element, arrayRelation, err)
+	}
+}
+
 func pgcryptoCaptureTemp(t *testing.T, p *fixture.Pair, c *sql.Conn) pgcryptoTempCapture {
 	t.Helper()
 	var capture pgcryptoTempCapture
@@ -54,8 +62,8 @@ func pgcryptoCaptureTemp(t *testing.T, p *fixture.Pair, c *sql.Conn) pgcryptoTem
 	if capture.namespace <= 0 || capture.relation <= 0 || capture.rowtype <= 0 {
 		t.Fatal("invalid TEMP identities", capture)
 	}
-	// Native pg_type is not exposed. Resolve the named row type in the actual
-	// captured namespace rather than inventing a typnamespace/typrelid witness.
+	// Qualified REGTYPE is an independent authority alongside inverse SQL links.
+	pgcryptoTempLinks(t, p, c)
 	typeName := `"` + strings.ReplaceAll(capture.schema, `"`, `""`) + `".pgcrypto_retained`
 	var resolvedRelation, resolvedType int64
 	if err := c.QueryRowContext(p.Ctx, "SELECT $1::text::regclass::oid,$1::text::regtype::oid", typeName).Scan(&resolvedRelation, &resolvedType); err != nil || resolvedRelation != capture.relation || resolvedType != capture.rowtype {
@@ -81,6 +89,7 @@ func pgcryptoCaptureTemp(t *testing.T, p *fixture.Pair, c *sql.Conn) pgcryptoTem
 
 func (capture pgcryptoTempCapture) unchanged(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder) {
 	t.Helper()
+	pgcryptoTempLinks(t, p, c)
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT n.oid::bigint AS namespace,c.oid::bigint AS relation,c.reltype::bigint AS rowtype,n.nspname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid='pgcrypto_retained'::regclass::oid", []string{"namespace", "relation", "rowtype", "nspname"}, []string{"INT8", "INT8", "INT8", "NAME"}, [][]any{{capture.namespace, capture.relation, capture.rowtype, capture.schema}}))
 	typeName := `"` + strings.ReplaceAll(capture.schema, `"`, `""`) + `".pgcrypto_retained`
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT $1::text::regclass::oid::bigint AS relation,$1::text::regtype::oid::bigint AS rowtype", []string{"relation", "rowtype"}, []string{"INT8", "INT8"}, [][]any{{capture.relation, capture.rowtype}}, typeName))

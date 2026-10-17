@@ -151,17 +151,12 @@ func TestReferencePGRolesShape(t *testing.T) {
 }
 
 func TestReferencePGRolesOracleCatalog(t *testing.T) {
-	if !*fixture.Mode {
-		t.Skip("pg_type metadata witness requires real pinned PostgreSQL")
-	}
 	p := fixture.NewScenario(t)
-	if p.Postgres == nil {
-		t.Fatal("enabled reference backend is unavailable")
+	for _, b := range p.Backends() {
+		t.Run(b.Name, func(t *testing.T) {
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.reltype=t.oid AS row_link,t.typrelid=c.oid AS owner_link,a.typelem=t.oid AS element_link FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE c.oid='pg_catalog.pg_roles'::regclass::oid", []string{"row_link", "owner_link", "element_link"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+		})
 	}
-	t.Run("postgres", func(t *testing.T) {
-		b := fixture.Backend{Name: "postgres", DB: p.Postgres, Recorder: p.PostgresRecord, PG: true}
-		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT c.reltype=t.oid AS row_link,t.typrelid=c.oid AS owner_link,a.typelem=t.oid AS element_link FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE c.oid='pg_catalog.pg_roles'::regclass", []string{"row_link", "owner_link", "element_link"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
-	})
 }
 
 func TestReferencePGRolesAttributeCatalog(t *testing.T) {

@@ -66,7 +66,7 @@ func TestReferenceMaterializedViewPopulation(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer held.Close()
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_unpopulated")
+			fixture.QueryTableCreateAbsent(t, run, "mv_unpopulated")
 			fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: held, SQL: q}, b.Recorder, fixture.Exec(q, 0))
 			fixture.MaterializedViewPopulation(run, "mv_unpopulated", false)
 			run(fixture.MaterializedViewUnpopulated("mv_unpopulated"))

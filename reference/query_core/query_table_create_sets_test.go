@@ -135,7 +135,7 @@ func TestReferenceQueryTableCreateSetCollation(t *testing.T) {
 								step.Prepared = prepared
 								step.ErrorStage = "execute"
 								run(step)
-								fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_set_collated")
+								fixture.QueryTableCreateAbsent(t, run, "qc_set_collated")
 							} else {
 								step := fixture.Exec(q, int64(len(rows)))
 								step.Prepared = prepared
@@ -176,7 +176,7 @@ func TestReferenceQueryTableCreateSetAtomicity(t *testing.T) {
 							step.Prepared = prepared
 							step.ErrorStage = "execute"
 							run(step)
-							fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_set_atomic")
+							fixture.QueryTableCreateAbsent(t, run, "qc_set_atomic")
 						}
 						run(fixture.Select("SELECT i FROM qc_set_failure_source ORDER BY i", []string{"i"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
 						run(fixture.Select("SELECT 1 AS recovered", []string{"recovered"}, []string{"INT4"}, [][]any{{int64(1)}}))

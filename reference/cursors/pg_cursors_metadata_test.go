@@ -32,12 +32,7 @@ func TestReferencePGCursorsMetadata(t *testing.T) {
 		sqlCursorStep(t, p, b, c, fixture.Exec(omitted, 0))
 		pgcOne(t, p, b, c, "pgc_omitted", omitted, false, b.PG)
 		sqlCursorStep(t, p, b, c, fixture.Select("SELECT relkind,relnatts FROM pg_catalog.pg_class WHERE relnamespace=11 AND relname='pg_cursors'", []string{"relkind", "relnatts"}, []string{"CHAR", "INT2"}, [][]any{{"v", int64(6)}}))
-		if b.PG {
-			// Supplementary oracle catalog relationships; these adjacent catalog
-			// surfaces are not native features. Native ownership is checked by
-			// TestPGCursorsCatalog through the actual catalog descriptor APIs.
-			sqlCursorStep(t, p, b, c, fixture.Select("SELECT t.typrelid=c.oid AS row_link,a.typelem=t.oid AS array_link FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE c.relnamespace=11 AND c.relname='pg_cursors'", []string{"row_link", "array_link"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
-		}
+		sqlCursorStep(t, p, b, c, fixture.Select("SELECT t.typrelid=c.oid AS row_link,a.typelem=t.oid AS array_link FROM pg_catalog.pg_class c JOIN pg_catalog.pg_type t ON t.oid=c.reltype JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE c.relnamespace=11 AND c.relname='pg_cursors'", []string{"row_link", "array_link"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 		sqlCursorStep(t, p, b, c, fixture.Exec("CLOSE pgc_plain", 0))
 		pgcEmpty(t, p, b, held, "pgc_plain")
 	})

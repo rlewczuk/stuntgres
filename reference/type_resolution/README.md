@@ -262,10 +262,10 @@ Dictionary identity discovery uses the existing installation's
 `pg_catalog.pg_extension.extnamespace` and numerically filters actual
 `pg_catalog.pg_ts_dict` rows; named alias input must equal that descriptor OID.
 Scalar/companion identities are independently fixed through public REGTYPE/OID
-casts (3734/3769/3735/3770). Native pg_type and pg_namespace projections are
-absent and are not added by this feature. PostgreSQL-only pg_type metadata
-assertions retain genuine release catalog context; native units independently
-check fixed descriptors, numeric category and four-byte inline codecs.
+casts (3734/3769/3735/3770). Shared bounded pg_type metadata assertions retain
+genuine release identities, raw NAME/CHAR properties and existing namespace
+relationships; native units independently check fixed descriptors, numeric
+category and four-byte inline codecs. No NAME/CHAR-to-TEXT casts are added.
 Stored CHECK, DEFAULT and generated-expression publication validates
 real dictionary dependencies under the existing owner/epoch fences. Integral
 carrier casts cover both implicit/assignment and explicit admission, and typed-nil

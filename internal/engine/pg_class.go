@@ -14,7 +14,7 @@ import (
 // the bounded pg_tables summary-inclusion predicate.
 func representedCatalogHasIndexes(oid OID) bool {
 	switch oid {
-	case 1213, 1249, 1255, 1259, 1262, 2224, 2396, 2600, pgAMOID, 2604, 2605, 2606, 2607,
+	case pgTypeOID, 1213, 1249, 1255, 1259, 1262, 2224, 2396, 2600, pgAMOID, 2604, 2605, 2606, 2607,
 		2608, 2609, 2610, 2612, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, 3600, 3764, ParameterClassID:
 		return true
 	}

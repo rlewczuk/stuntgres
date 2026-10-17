@@ -27,12 +27,12 @@ func TestReferenceQueryTableCreateLockingCancellation(t *testing.T) {
 			run(c, fixture.Select("SELECT i FROM qc_lock_nodata", []string{"i"}, []string{"INT4"}, nil))
 			want := fixture.ControlsReferenceDiagnostic("55P03", `could not obtain lock on row in relation "qc_lock_source"`)
 			run(c, fixture.ErrorDiagnostic("CREATE TABLE qc_lock_failed AS SELECT i FROM qc_lock_source FOR UPDATE NOWAIT", want))
-			fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, b.PG, "qc_lock_failed")
+			fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, "qc_lock_failed")
 			tuple := fixture.QueryTableCreateTuple(t, p.Ctx, c, b.PG, "qc_lock_source")
 			run(c, fixture.Exec("SET lock_timeout='100ms'", 0))
 			fixture.QueryTableCreateLockExec(t, p, b, c, "SELECT i INTO qc_lock_failed FROM qc_lock_source FOR UPDATE", "55P03", "canceling statement due to lock timeout", "qc_lock_source", tuple)
 			run(c, fixture.Exec("RESET lock_timeout", 0))
-			fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, b.PG, "qc_lock_failed")
+			fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, "qc_lock_failed")
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}
@@ -79,7 +79,7 @@ func TestReferenceQueryTableCreateCancellation(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, b.PG, "qc_canceled")
+			fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { run(c, s) }, "qc_canceled")
 			run(c, fixture.Exec(q, 1))
 			run(c, fixture.Select("SELECT i FROM qc_canceled", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		})

@@ -1002,8 +1002,8 @@ close while objects retire. The toast descriptor does not enable TOAST storage
 or own-table authority. Direct catalog mutation and virtual-relation row locks
 remain unsupported. Schema GRANT/REVOKE uses the owning immutable ACL authority;
 general ACL serialization remains unavailable.
-Registered rowtype ownership does not add a `pg_type` SQL source. Native role
-rename SQL remains excluded; actual namespace ownership/ACL merge is supported
+Registered rowtype ownership is exposed through the bounded `pg_type` source.
+Native role rename SQL remains excluded; namespace ownership/ACL merge is supported
 through its existing producer. TEMP absence observations use real catalog
 relationships, not execution of lookup-only namespace/relation inquiry functions.
 
@@ -2017,7 +2017,7 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   codec/catalog-carrier boundaries. Text-search scalar admission does not enable
   unsupported native name lookup or its lookup-only arrays. Internal CHAR uses
   admitted `pg_catalog.pg_class.relkind` expressions/providers, not unsupported
-  user-table/CAST routes or an invented pg_type catalog.
+  user-table/CAST routes. Catalog metadata does not grant additional cast edges.
   Arrays, composite records, ranges/multiranges, bit strings and private trees
   do not acquire general ordering providers. ORDER BY USING, arbitrary collation
   providers, primary-key functional dependency and spill remain excluded.
@@ -2318,8 +2318,8 @@ The complete native inventory is exactly
 role, named `postgres` natively. NAME uses C collation950; every column has
 typmod−1. The initialized row/array types retain ordinary catalog ownership and
 relationships; `pg_class.reltype` identifies the row type through REGTYPE.
-Native `pg_type` SQL projection remains unavailable. The language relation
-appears as an indexed catalog table in `pg_class`
+The bounded `pg_type` source exposes its actual row/array links. The language
+relation appears as an indexed catalog table in `pg_class`
 and `pg_tables`, not `pg_views`; this does not synthesize physical indexes or
 TOAST storage.
 
@@ -2342,6 +2342,77 @@ universally immutable. Held native results retain their row/types across
 Reset/Restore, while held statements read the replacement catalog.
 See [selected proof and smoke](../reference/catalogs/README.md#pg_language-selected-proof).
 
+## pg_type supported type metadata
+
+`pg_catalog.pg_type` is relation1247 in pg_catalog11, owner10, rowtype71 and
+array210. It is an indexed catalog table in pg_class/pg_tables with32 columns,
+not a physical implementation of PostgreSQL index2703/2704 or TOAST storage.
+Its released order and database types are:
+
+```
+oid OID, typname NAME, typnamespace OID, typowner OID,
+typlen INT2, typbyval BOOL, typtype CHAR, typcategory CHAR,
+typispreferred BOOL, typisdefined BOOL, typdelim CHAR, typrelid OID,
+typsubscript REGPROC, typelem OID, typarray OID,
+typinput REGPROC, typoutput REGPROC, typreceive REGPROC, typsend REGPROC,
+typmodin REGPROC, typmodout REGPROC, typanalyze REGPROC,
+typalign CHAR, typstorage CHAR, typnotnull BOOL, typbasetype OID,
+typtypmod INT4, typndims INT4, typcollation OID,
+typdefaultbin PG_NODE_TREE, typdefault TEXT, typacl _ACLITEM
+```
+
+The first29 attributes are nonnullable; default/tree/ACL are nullable. Catalog
+NAME, typdefaultbin and typdefault use C950; typacl has declared array rank1.
+The private PG_NODE_TREE carrier accepts genuine collation usage authority,
+including C950 on catalog attributes; this does not enable tree text input,
+user storage declarations or additional cast/codec routes.
+Captured metadata preserves typed OID/REGPROC values, NULL versus explicit
+empty/custom ACLs and actual owner principals. Zero REGPROC displays `-`.
+PUBLIC reads expose the inventory independently of schema/type USAGE grants.
+
+Families deliberately opt into metadata: implemented scalar/alias/temporal/
+JSON/numeric/network/bit/UUID/ACL families, the six executable ranges and three
+executable integer/numeric multiranges, unknown/void/record/anyarray, actual
+enum/domain/composite/installed-query_int definitions, and real represented
+catalog/user-relation rowtypes. Every admitted element retains its genuine
+canonical companion array; array typrelid is0, including relation-row arrays.
+Nested domains retain the immediate base and declaration typmod/dimensions;
+bootstrap array typmod callbacks and NAME's char element/handler are preserved.
+Installed query_int uses actual installation-owned I/O procedure addresses.
+Domains resolve complete immediate-base facts through that same captured
+catalog before applying the shared family inheritance rules. This includes
+domains and nested domains over installed query_int: typoutput is the actual
+installation-owned bqarr_out, typinput2597/typreceive2598/typsend0 and immediate
+typbasetype remain exact. Canonical companions use the completed element facts.
+A same-numbered but foreign immediate-base generation is not interchangeable;
+retained roots keep their own installation while fresh publication/reinstallation
+uses current authority. This metadata composition adds no codec or SQL capability.
+
+This inventory is deliberately narrower than REGTYPE lookup. Unimplemented
+xml/geometry/full-text/refcursor/vector/pseudo families and unrelated
+lookup-only relation identities are absent. Temporal multiranges4533/4534/4535
+and arrays6152/6153/6155 remain absent even though pg_range preserves their
+released identity links. Existing concrete and lookup-only companion codec
+flags are unchanged: catalog visibility never enables storage, input, casts,
+constructors or invocation of identity-only I/O routines.
+
+The seeded information_schema.time_stamp domain exposes the pinned18.6 stored
+metadata default `CURRENT_TIMESTAMP(2)` and exact SQLVALUEFUNCTION
+op4/type1184/typmod2/location-1 tree. This is metadata, not inherited-default
+execution or new CREATE DOMAIN DEFAULT/NOT NULL support.
+
+Direct/prepared/held reads follow existing catalog publication, transaction,
+physical TEMP-session and native Dump/Reset/Restore lifecycles. Dumps contain
+user DDL/data, not pg_type rows. Unknown columns retain42703/English messages
+and character positions; OID syntax/overflow retain22P02/22003. Ordinary roles
+cannot mutate pg_type (42501, `permission denied for table pg_type`).
+Native privileged mutation remains0A000 `catalog source mutation is unsupported`;
+virtual row locking remains0A000
+`row locking is not supported for virtual catalog relations`. NAME/CHAR-to-TEXT
+cast exclusions remain independent of catalog availability.
+
+See [selected proof and feature smoke](../reference/catalogs/README.md#type-catalog-metadata-and-proof).
+
 ## pg_range supported range metadata
 
 `pg_catalog.pg_range` is relation3541 in pg_catalog, owner10 (`postgres`
@@ -2351,7 +2422,7 @@ then REGPROC `rngcanonical`, `rngsubdiff`. Each has typmod−1, collation0 and
 four-byte type width. Row type10101 and array10100 retain reciprocal ownership.
 It is an indexed catalog table in pg_class/pg_tables, not a view; this reports
 released index metadata without synthesizing physical native index relations.
-Native pg_type SQL projection remains unavailable.
+The bounded pg_type source exposes actual executable range families and arrays.
 
 The complete inventory is one row per executable builtin base range:
 

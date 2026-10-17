@@ -94,11 +94,8 @@ func TestReferenceRoleOwnershipAssociations(t *testing.T) {
 			s.actor("")
 			s.exec("ALTER " + typ.kind + " " + typ.name + " OWNER TO own_target")
 		}
-		// Supplemental PG catalogs are not a request for absent native providers.
-		if s.backend.PG {
-			ownershipCount(s, "SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray JOIN pg_roles r ON r.oid=t.typowner WHERE t.typname IN('own_e','own_d','own_c') AND a.typelem=t.oid AND a.typowner=t.typowner AND r.rolname='own_target'", 3)
-			ownershipBool(s, "SELECT t.typowner=c.relowner AND a.typowner=c.relowner FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid='own_parent'::regclass", true)
-		}
+		ownershipCount(s, "SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray JOIN pg_roles r ON r.oid=t.typowner WHERE t.typname IN('own_e','own_d','own_c') AND a.typelem=t.oid AND a.typowner=t.typowner AND r.rolname='own_target'", 3)
+		ownershipBool(s, "SELECT t.typowner=c.relowner AND a.typowner=c.relowner FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.oid='own_parent'::regclass::oid", true)
 		ownershipOwner(s, "own_c", "own_target")
 		// Explicit ordinary privileges remain revoked, even from the successor;
 		// ownership's implicit grant options still permit it to grant to a reader.

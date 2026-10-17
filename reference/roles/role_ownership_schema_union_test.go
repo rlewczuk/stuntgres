@@ -60,12 +60,8 @@ func TestReferenceRoleOwnershipRestrictSchemaUnion(t *testing.T) {
 		ownershipNotices(s)
 		s.actor("")
 		ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relnamespace="+strconv.FormatInt(namespaceID, 10), 0)
-		if s.backend.PG {
-			ownershipCount(s, "SELECT count(*) FROM pg_namespace WHERE nspname='own_union_schema'", 0)
-			ownershipCount(s, "SELECT count(*) FROM pg_type WHERE typnamespace="+strconv.FormatInt(namespaceID, 10), 0)
-		}
-		// Actual schema/type recreation proves cleanup, without adding absent
-		// native namespace/type catalog projections just for this test.
+		ownershipCount(s, "SELECT count(*) FROM pg_namespace WHERE nspname='own_union_schema'", 0)
+		ownershipCount(s, "SELECT count(*) FROM pg_type WHERE typnamespace="+strconv.FormatInt(namespaceID, 10), 0)
 		s.exec("CREATE SCHEMA own_union_schema AUTHORIZATION own_source")
 		s.actor("own_source")
 		s.exec("CREATE TYPE own_union_schema.e AS ENUM('b')")

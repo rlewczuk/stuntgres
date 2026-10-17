@@ -83,7 +83,7 @@ func TestReferenceQueryTableCreateCommandMetadata(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						fixture.QueryTableCreateAbsent(t, run, b.PG, name)
+						fixture.QueryTableCreateAbsent(t, run, name)
 						fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}, b.Recorder, s)
 						if err := stmt.Close(); err != nil {
 							t.Fatal(err)
@@ -122,7 +122,7 @@ func TestReferenceQueryTableCreatePrepared(t *testing.T) {
 				}
 				func() {
 					defer stmt.Close()
-					fixture.QueryTableCreateAbsent(t, run, b.PG, tc.name)
+					fixture.QueryTableCreateAbsent(t, run, tc.name)
 					held := fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}
 					for i, arg := range []any{tc.a, tc.next} {
 						fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, arg))

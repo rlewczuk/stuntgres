@@ -8,7 +8,7 @@ func guardedCatalogRelation(d *relationDescriptor) bool {
 	if d == nil || d.relationKind != catalogRelation || d.address.ClassID != RelationClassID {
 		return false
 	}
-	return d.address.ObjectID == pgAggregateOID || d.address.ObjectID == pgAMOID
+	return d.address.ObjectID == pgAggregateOID || d.address.ObjectID == pgAMOID || d.address.ObjectID == pgTypeOID
 }
 
 // Binding and frame import have completed before mutation admission. Recheck

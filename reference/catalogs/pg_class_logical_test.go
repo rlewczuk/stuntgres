@@ -76,18 +76,7 @@ func TestReferencePgClassBuiltins(t *testing.T) {
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relname,relnatts,relisshared,reltablespace FROM pg_class WHERE oid=1259 OR oid=1213 OR oid=2396 ORDER BY relname", []string{"relname", "relnatts", "relisshared", "reltablespace"}, []string{"NAME", "INT2", "BOOL", "OID"}, [][]any{{"pg_class", int64(34), false, int64(0)}, {"pg_shdescription", int64(3), true, int64(1664)}, {"pg_tablespace", int64(5), true, int64(1664)}}))
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT reltype='pg_catalog.pg_class'::regtype::oid AS rowtype FROM pg_class WHERE oid=1259", []string{"rowtype"}, []string{"BOOL"}, [][]any{{true}}))
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT c.relnamespace,n.nspname='pg_catalog' AS namespace FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=1259", []string{"relnamespace", "namespace"}, []string{"OID", "BOOL"}, [][]any{{int64(11), true}}))
-		if b.PG {
-			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT t.typrelid=c.oid AS reciprocal,n.nspname='pg_catalog' AS namespace FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=1259", []string{"reciprocal", "namespace"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
-		} else {
-			for _, prepared := range []bool{false, true} {
-				s := fixture.ImplicitError("SELECT oid FROM pg_type", fixture.Diagnostic{Code: "42P01", Message: "relation \"pg_type\" does not exist", Position: "17"})
-				s.SelectRows, s.Prepared, s.ErrorStage = true, prepared, "execute"
-				if prepared {
-					s.ErrorStage = "prepare"
-				}
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-			}
-		}
+		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT t.typrelid=c.oid AS reciprocal,n.nspname='pg_catalog' AS namespace FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.oid=1259", []string{"reciprocal", "namespace"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 		if !b.PG {
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT oid,relname FROM pg_class WHERE oid=12000 OR oid=12001 OR oid=12002 OR oid=12003 OR oid=12006 ORDER BY oid", []string{"oid", "relname"}, []string{"OID", "NAME"}, [][]any{{int64(12000), "pg_views"}, {int64(12001), "pg_prepared_xacts"}, {int64(12002), "pg_indexes"}, {int64(12003), "pg_tables"}, {int64(12006), "pg_matviews"}}))
 		}

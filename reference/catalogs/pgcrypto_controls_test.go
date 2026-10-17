@@ -54,10 +54,9 @@ func TestReferencePgcryptoConsumersAndControls(t *testing.T) {
 		run(fixture.Select("SELECT count(*) FROM pgcrypto_atomic", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 		pgcryptoConsumerDependencies(t, p, c, r, pgcryptoProcedureIDs(t, p, c))
 		if pg {
-			// PostgreSQL exposes the inverse row-descriptor links; native does
-			// not expose pg_type and uses qualified REGTYPE in its control phase.
+			// This phase uses PostgreSQL's real TEMP lifetime, not native Restore.
 			run(fixture.Exec("CREATE TEMP TABLE pgcrypto_retained(v integer,b bytea)", 0))
-			run(fixture.Select("SELECT t.oid=c.reltype AS rowtype,t.typnamespace=c.relnamespace AS namespace,t.typrelid=c.oid AS relation FROM pg_class c JOIN pg_type t ON t.oid=c.reltype WHERE c.oid='pgcrypto_retained'::regclass::oid", []string{"rowtype", "namespace", "relation"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+			pgcryptoTempLinks(t, p, c)
 			return
 		}
 		heldSQL := "SELECT pgcrypto_part.digest($1,$2)"

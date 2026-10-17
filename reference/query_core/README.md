@@ -311,10 +311,9 @@ modifiers. Unconstrained NUMERIC truthfully exposes pq's precision/scale
 65535/65531 versus native unknown precision/scale; raw decimal values retain
 their observed scale and character values retain padding.
 Transient coverage retains shared pg_class absence checks, native unchanged
-Dump and retained generated rows/metadata. PostgreSQL additionally asserts no
-pg_type pollution; native independently asserts the positioned 42P01 boundary
-for its absent pg_type provider. Private ownership units ensure occurrence
-descriptors do not replace catalog RECORD/RECORD[] identities.
+Dump and retained generated rows/metadata. Both backends additionally assert no
+pg_type pollution through the genuine catalog source. Private ownership units
+ensure occurrence descriptors do not replace catalog RECORD/RECORD[] identities.
 
 
 Held raw `record[]` and `path::text` both survive an INT4→INT8 key-field

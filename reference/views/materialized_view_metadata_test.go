@@ -62,8 +62,8 @@ func TestReferenceMaterializedViewMetadata(t *testing.T) {
 				}
 			}
 			run(fixture.Prepared(typed))
+			run(fixture.Select("SELECT t.typrelid=c.oid AS linked FROM pg_type t JOIN pg_class c ON c.reltype=t.oid WHERE c.relname='mv_meta'", []string{"linked"}, []string{"BOOL"}, [][]any{{true}}))
 			if b.PG {
-				run(fixture.Select("SELECT t.typrelid=c.oid AS linked FROM pg_type t JOIN pg_class c ON c.reltype=t.oid WHERE c.relname='mv_meta'", []string{"linked"}, []string{"BOOL"}, [][]any{{true}}))
 				run(fixture.Select("SELECT c.collname::text AS c FROM pg_attribute a JOIN pg_collation c ON c.oid=a.attcollation WHERE a.attrelid='mv_typed'::regclass AND a.attname='s'", []string{"c"}, []string{"TEXT"}, [][]any{{"C"}}))
 			}
 		})

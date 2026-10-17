@@ -47,7 +47,7 @@ func TestReferenceQueryTableCreateCatalogTypes(t *testing.T) {
 				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 					t.Fatal(err)
 				}
-				fixture.QueryTableCreateAbsent(t, run, false, "qc_catalog_copy")
+				fixture.QueryTableCreateAbsent(t, run, "qc_catalog_copy")
 				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 					t.Fatal(err)
 				}

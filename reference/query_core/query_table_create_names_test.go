@@ -15,7 +15,7 @@ func TestReferenceQueryTableCreateNamespaces(t *testing.T) {
 			run(fixture.Exec("SET search_path TO ''", 0))
 			run(fixture.ImplicitError("CREATE TABLE qc_dest AS SELECT 1 AS i", fixture.Diagnostic{Code: "3F000", Message: "no schema has been selected to create in"}))
 			run(fixture.Exec("RESET search_path", 0))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_dest")
+			fixture.QueryTableCreateAbsent(t, run, "qc_dest")
 			run(fixture.Exec("CREATE TYPE qc_type_collision AS ENUM('x')", 0))
 			want := fixture.ControlsReferenceDiagnostic("42710", `type "qc_type_collision" already exists`)
 			want.Hint = "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."

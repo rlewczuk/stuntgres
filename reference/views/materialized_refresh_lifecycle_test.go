@@ -142,7 +142,7 @@ func TestReferenceMaterializedRefreshMetadata(t *testing.T) {
 			conn, run := fixture.QueryTableCreateSession(t, p, b)
 			refreshSeed(run)
 			// Public regtype resolution observes the rowtype registry in both modes.
-			// pg_class.reltype/pg_type.typrelid remain independent PG complements.
+			// Relation, rowtype and rewrite identities remain independent witnesses.
 			identitySQL := "SELECT c.oid,'refresh_mv'::regtype::oid AS rowtype_oid,w.oid FROM pg_class c JOIN pg_rewrite w ON w.ev_class=c.oid WHERE c.relname='refresh_mv'"
 			var oid, typ, rule int64
 			if err := conn.QueryRowContext(p.Ctx, identitySQL).Scan(&oid, &typ, &rule); err != nil {
@@ -163,9 +163,7 @@ func TestReferenceMaterializedRefreshMetadata(t *testing.T) {
 			for _, suffix := range []string{"WITH DATA", "WITH NO DATA", "WITH DATA"} {
 				run(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_mv "+suffix, 0))
 				run(fixture.Select(identitySQL, []string{"oid", "rowtype_oid", "oid"}, []string{"OID", "OID", "OID"}, [][]any{identity}))
-				if b.PG {
-					run(fixture.Select("SELECT c.reltype='refresh_mv'::regtype::oid AS rowtype_link,t.typrelid=c.oid AS relation_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype WHERE c.relname='refresh_mv'", []string{"rowtype_link", "relation_link"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
-				}
+				run(fixture.Select("SELECT c.reltype='refresh_mv'::regtype::oid AS rowtype_link,t.typrelid=c.oid AS relation_link FROM pg_class c JOIN pg_type t ON t.oid=c.reltype WHERE c.relname='refresh_mv'", []string{"rowtype_link", "relation_link"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 				run(fixture.Select("SELECT matviewowner,definition FROM pg_matviews WHERE matviewname='refresh_mv'", []string{"matviewowner", "definition"}, []string{"NAME", "TEXT"}, [][]any{{owner, " SELECT i,\n    s\n   FROM mv_base;"}}))
 			}
 			run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_typed AS SELECT 'abcd'::varchar(4) AS v,12.34::numeric(5,2) AS n", 1))

@@ -87,9 +87,7 @@ func TestReferenceQueryIntInstallation(t *testing.T) {
 			s := queryIntSelect(b, "SELECT v FROM public.qi_path", []string{"v"}, [][]any{{"!1 | 2"}, {nil}})
 			s.Bag = true
 			run(s)
-			if b.PG {
-				run(fixture.Select("SELECT t.typname,n.nspname,t.typtype,t.typlen,p.proname AS input,o.proname AS output FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_proc p ON p.oid=t.typinput JOIN pg_proc o ON o.oid=t.typoutput WHERE t.oid=('qi_install_namespace.query_int'::regtype)::oid", []string{"typname", "nspname", "typtype", "typlen", "input", "output"}, []string{"NAME", "NAME", "CHAR", "INT2", "NAME", "NAME"}, [][]any{{"query_int", "qi_install_namespace", "b", int64(-1), "bqarr_in", "bqarr_out"}}))
-			}
+			run(fixture.Select("SELECT t.typname,n.nspname,t.typtype,t.typlen,p.proname AS input,o.proname AS output FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_proc p ON p.oid=t.typinput JOIN pg_proc o ON o.oid=t.typoutput WHERE t.oid=('qi_install_namespace.query_int'::regtype)::oid", []string{"typname", "nspname", "typtype", "typlen", "input", "output"}, []string{"NAME", "NAME", "CHAR", "INT2", "NAME", "NAME"}, [][]any{{"query_int", "qi_install_namespace", "b", int64(-1), "bqarr_in", "bqarr_out"}}))
 		})
 	})
 	for _, conflict := range []struct{ name, setup string }{
@@ -114,14 +112,13 @@ func TestReferenceQueryIntInstallation(t *testing.T) {
 				}
 				queryIntError(t, p, b, c, "CREATE EXTENSION intarray", false, false, false, want)
 				run(fixture.Select("SELECT extname FROM pg_extension WHERE extname='intarray'", []string{"extname"}, []string{"NAME"}, [][]any{}))
-				if b.PG {
-					typeRows, helperRows := [][]any{{"_query_int", "b"}, {"query_int", "e"}}, [][]any{}
-					if conflict.name == "input_helper" {
-						typeRows, helperRows = [][]any{}, [][]any{{"bqarr_in"}}
-					}
-					run(fixture.Select("SELECT typname,typtype FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('query_int','_query_int') ORDER BY typname", []string{"typname", "typtype"}, []string{"NAME", "CHAR"}, typeRows))
-					run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('bqarr_in','bqarr_out') ORDER BY proname", []string{"proname"}, []string{"NAME"}, helperRows))
-				} else {
+				typeRows, helperRows := [][]any{{"_query_int", "b"}, {"query_int", "e"}}, [][]any{}
+				if conflict.name == "input_helper" {
+					typeRows, helperRows = [][]any{}, [][]any{{"bqarr_in"}}
+				}
+				run(fixture.Select("SELECT typname,typtype FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('query_int','_query_int') ORDER BY typname", []string{"typname", "typtype"}, []string{"NAME", "CHAR"}, typeRows))
+				run(fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('bqarr_in','bqarr_out') ORDER BY proname", []string{"proname"}, []string{"NAME"}, helperRows))
+				if !b.PG {
 					fixture.EnumReferenceRunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT 'occupied'::query_int AS v", []string{"v"}, []string{""}, [][]any{{"occupied"}}))
 				}
 			})

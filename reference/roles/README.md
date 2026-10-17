@@ -158,9 +158,9 @@ make check RACE=1 RUN='^(TestRoleOwnershipPublication|TestRoleOwnershipDatabase|
 ```
 
 Use external900-second deadlines. Shared schema/type assertions use actual
-successor authority and data/control outcomes; absent native pg_namespace/pg_type
-SQL providers are not invented. PG supplements and native descriptor units
-prove reciprocal associations independently. Schema ACL Dump guard coverage is
+successor authority and data/control outcomes. Shared pg_namespace/pg_type SQL
+and native descriptor units independently prove reciprocal associations.
+Schema ACL Dump guard coverage is
 an ordinary Go error with zero writer calls. Preserve sequence OWNER transaction
 coverage and explicit native utility boundaries. Remove discovery filters before
 native red, final proof and review; whole-project Docker-free proof is quickcheck.

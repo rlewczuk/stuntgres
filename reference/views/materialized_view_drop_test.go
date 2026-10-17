@@ -42,7 +42,7 @@ func TestReferenceMaterializedViewDrop(t *testing.T) {
 			}
 			run(fixture.Exec("DROP MATERIALIZED VIEW mv_drop CASCADE", 0))
 			for _, name := range []string{"mv_drop", "mv_dependent", "mv_dependent_stored"} {
-				fixture.QueryTableCreateAbsent(t, run, b.PG, name)
+				fixture.QueryTableCreateAbsent(t, run, name)
 			}
 			run(materializedViewBag("mv_base"))
 			var notices []fixture.Diagnostic
@@ -55,11 +55,11 @@ func TestReferenceMaterializedViewDrop(t *testing.T) {
 			run(fixture.Exec("CREATE MATERIALIZED VIEW mv_one AS SELECT i FROM mv_base", 3))
 			run(fixture.Exec("CREATE MATERIALIZED VIEW mv_two AS SELECT i FROM mv_base", 3))
 			run(fixture.Prepared(fixture.Exec("DROP MATERIALIZED VIEW mv_one,mv_two RESTRICT", 0)))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_one")
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_two")
+			fixture.QueryTableCreateAbsent(t, run, "mv_one")
+			fixture.QueryTableCreateAbsent(t, run, "mv_two")
 			run(fixture.Exec("CREATE MATERIALIZED VIEW mv_cascade AS SELECT i FROM mv_base", 3))
 			run(fixture.Exec("DROP TABLE mv_base CASCADE", 0))
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_cascade")
+			fixture.QueryTableCreateAbsent(t, run, "mv_cascade")
 		})
 	}
 }

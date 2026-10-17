@@ -50,7 +50,7 @@ func TestReferenceMaterializedViewDiagnostics(t *testing.T) {
 							s.ErrorStage = "prepare"
 						}
 						run(s)
-						fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_bad")
+						fixture.QueryTableCreateAbsent(t, run, "mv_bad")
 						run(materializedViewBag("mv_base"))
 						run(materializedViewBag("mv_existing"))
 						run(fixture.Exec("CREATE MATERIALIZED VIEW mv_bad AS SELECT i,s FROM mv_base", 3))
@@ -69,7 +69,7 @@ func TestReferenceMaterializedViewDiagnostics(t *testing.T) {
 				s := fixture.Prepared(fixture.ErrorDiagnostic("CREATE MATERIALIZED VIEW mv_parameter AS SELECT $1::integer AS i", want, 7))
 				s.ErrorStage = "prepare"
 				run(s)
-				fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_parameter")
+				fixture.QueryTableCreateAbsent(t, run, "mv_parameter")
 			})
 		}
 	})
@@ -88,7 +88,7 @@ func TestReferenceMaterializedViewAtomicity(t *testing.T) {
 					materializedViewSeed(run)
 					run(fixture.Exec("CREATE MATERIALIZED VIEW mv_sentinel AS SELECT i,s FROM mv_base", 3))
 					run(fixture.ImplicitError("CREATE MATERIALIZED VIEW mv_late AS "+tc.body, fixture.Diagnostic{Code: tc.code, Message: tc.message}))
-					fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_late")
+					fixture.QueryTableCreateAbsent(t, run, "mv_late")
 					run(materializedViewBag("mv_base"))
 					run(materializedViewBag("mv_sentinel"))
 					fixture.MaterializedViewPopulation(run, "mv_sentinel", true)

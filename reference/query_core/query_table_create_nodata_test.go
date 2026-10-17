@@ -35,7 +35,7 @@ func TestReferenceQueryTableCreateNoData(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer stmt.Close()
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_no_param")
+			fixture.QueryTableCreateAbsent(t, run, "qc_no_param")
 			for _, tc := range []struct {
 				args    []any
 				message string
@@ -47,7 +47,7 @@ func TestReferenceQueryTableCreateNoData(t *testing.T) {
 				if result != nil || err == nil || err.Error() != tc.message {
 					t.Fatalf("argument count result=%v err=%v want=%q", result, err, tc.message)
 				}
-				fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_no_param")
+				fixture.QueryTableCreateAbsent(t, run, "qc_no_param")
 			}
 			held := fixture.HeldStatement{Executor: conn, Statement: stmt, SQL: q}
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 0, 0))
@@ -56,7 +56,7 @@ func TestReferenceQueryTableCreateNoData(t *testing.T) {
 			invalid := fixture.ImplicitError(q, fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`, Context: "unnamed portal parameter $1 = '...'"}, "bad")
 			invalid.ErrorStage = "execute"
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, invalid)
-			fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_no_param")
+			fixture.QueryTableCreateAbsent(t, run, "qc_no_param")
 			run(fixture.Exec("CREATE TABLE qc_no_zero AS SELECT FROM qc_source WITH NO DATA", 0))
 			run(fixture.Select("SELECT * FROM qc_no_zero", []string{}, []string{}, nil))
 		})

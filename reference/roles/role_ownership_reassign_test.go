@@ -113,9 +113,7 @@ func TestReferenceRoleOwnershipReassignFamilies(t *testing.T) {
 		ownershipRows(s, "own_bulk.mv")
 		ownershipSelect(s, "SELECT nextval('own_bulk.s') AS n", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}})
 		s.actor("")
-		if s.backend.PG {
-			ownershipCount(s, "SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray JOIN pg_roles r ON r.oid=t.typowner JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='own_bulk' AND t.typname IN('e','d','c') AND a.typowner=t.typowner AND r.rolname='own_target'", 3)
-		}
+		ownershipCount(s, "SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray JOIN pg_roles r ON r.oid=t.typowner JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='own_bulk' AND t.typname IN('e','d','c') AND a.typowner=t.typowner AND r.rolname='own_target'", 3)
 	})
 }
 

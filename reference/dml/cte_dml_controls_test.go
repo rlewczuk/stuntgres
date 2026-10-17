@@ -24,10 +24,6 @@ func TestReferenceCTEDMLControls(t *testing.T) {
 		cteDMLRun(t, p, b, false, fixture.Select("SELECT relname FROM pg_class WHERE relname IN ('moved','copied')", []string{"relname"}, []string{"NAME"}, [][]any{}))
 		typeQuery := "SELECT typname FROM pg_type WHERE typname IN ('moved','copied')"
 		typeStep := fixture.Select(typeQuery, []string{"typname"}, []string{"NAME"}, [][]any{})
-		if !b.PG {
-			typeStep = fixture.ImplicitError(typeQuery, fixture.Diagnostic{Code: "42P01", Message: `relation "pg_type" does not exist`, Position: "21"})
-			typeStep.SelectRows = true
-		}
 		cteDMLRun(t, p, b, false, typeStep)
 		if b.PG {
 			return

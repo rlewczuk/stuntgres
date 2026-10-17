@@ -40,7 +40,7 @@ func TestReferenceQueryTableCreateAuthorization(t *testing.T) {
 					s := fixture.ImplicitError("CREATE TABLE qc_acl_denied AS "+body, fixture.Diagnostic{Code: "42501", Message: "permission denied for table qc_acl_source"})
 					s.ErrorStage = "execute"
 					fixture.WithPublicSchemaOwner(t, p, b, "qc_reader", func() { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) })
-					fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, b.PG, "qc_acl_denied")
+					fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, "qc_acl_denied")
 				})
 			}
 			t.Run("held_source_denial", func(t *testing.T) {
@@ -49,14 +49,14 @@ func TestReferenceQueryTableCreateAuthorization(t *testing.T) {
 				fixture.WithPublicSchemaOwner(t, p, b, "qc_reader", func() {
 					fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: held, SQL: heldQuery}, b.Recorder, s)
 				})
-				fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, b.PG, "qc_acl_held")
+				fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, "qc_acl_held")
 			})
 			t.Run("source_namespace_nodata", func(t *testing.T) {
 				q := "CREATE TABLE qc_namespace_denied AS SELECT i FROM qc_private.qc_owned WITH NO DATA"
 				want := fixture.ControlsReferenceDiagnostic("42501", "permission denied for schema qc_private")
 				want.Position = "51"
 				fixture.WithPublicSchemaOwner(t, p, b, "qc_reader", func() { fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.ErrorDiagnostic(q, want)) })
-				fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, b.PG, "qc_namespace_denied")
+				fixture.QueryTableCreateAbsent(t, func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, b.Recorder, s) }, "qc_namespace_denied")
 			})
 			t.Run("schema_denial", func(t *testing.T) {
 				q := "CREATE TABLE qc_private.qc_denied AS SELECT 1 AS i"

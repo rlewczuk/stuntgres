@@ -55,7 +55,7 @@ func TestReferenceQueryTableCreateTransactions(t *testing.T) {
 						if err := tx.Rollback(); err != nil {
 							t.Fatal(err)
 						}
-						fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_tx")
+						fixture.QueryTableCreateAbsent(t, run, "qc_tx")
 						run(fixture.Select("SELECT 1 AS recovered", []string{"recovered"}, []string{"INT4"}, [][]any{{int64(1)}}))
 					})
 				}
@@ -120,7 +120,7 @@ func TestReferenceQueryTableCreateReadOnly(t *testing.T) {
 							if err := tx.Rollback(); err != nil {
 								t.Fatal(err)
 							}
-							fixture.QueryTableCreateAbsent(t, run, b.PG, "qc_ro")
+							fixture.QueryTableCreateAbsent(t, run, "qc_ro")
 							run(fixture.Select("SELECT 1 AS recovered", []string{"recovered"}, []string{"INT4"}, [][]any{{int64(1)}}))
 						})
 					}

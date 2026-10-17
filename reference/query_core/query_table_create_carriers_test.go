@@ -75,7 +75,7 @@ func TestReferenceQueryTableCreateXID(t *testing.T) {
 				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 					t.Fatal(err)
 				}
-				fixture.QueryTableCreateAbsent(t, run, false, "qc_xid")
+				fixture.QueryTableCreateAbsent(t, run, "qc_xid")
 				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 					t.Fatal(err)
 				}
@@ -127,7 +127,7 @@ func TestReferenceQueryTableCreateStructuralOutput(t *testing.T) {
 				} else {
 					// Descriptor-time Execute boundary, not syntax/Prepare or runtime folding.
 					run(fixture.Prepared(fixture.ImplicitError(tc.query, fixture.Diagnostic{Code: "0A000", Message: "query table output type pg_node_tree is unsupported"})))
-					fixture.QueryTableCreateAbsent(t, run, false, tc.name)
+					fixture.QueryTableCreateAbsent(t, run, tc.name)
 				}
 			}
 			run(fixture.Exec("CREATE TABLE qc_tree_skip(keep INT)", 0))

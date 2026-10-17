@@ -81,10 +81,7 @@ func TestReferenceCompositeCatalogRelationships(t *testing.T) {
 		fixture.PgDependBag(t, p, b, 1259, relation, fixture.PgDependEdge(1259, relation, 0, 1247, rowType, 0, "i"), fixture.PgDependEdge(1259, relation, 1, 1247, memberInteger, 0, "n"), fixture.PgDependEdge(1259, relation, 2, 1247, memberText, 0, "n"))
 		fixture.PgDependBag(t, p, b, 1247, rowType, fixture.PgDependEdge(1247, rowType, 0, 2615, namespace, 0, "n"))
 		fixture.PgDependBag(t, p, b, 1247, arrayType, fixture.PgDependEdge(1247, arrayType, 0, 1247, rowType, 0, "i"))
-		// pg_type is release-only observation, not a new native catalog source.
-		if b.PG {
-			fixture.PgDescriptionExecutorRows(t, p, b, c, fixture.Select(`SELECT c.relkind,t.typtype,t.typrelid=c.oid AS reciprocal,a.typelem=t.oid AS element FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.relname='catalog_record'`, []string{"relkind", "typtype", "reciprocal", "element"}, []string{"CHAR", "CHAR", "BOOL", "BOOL"}, [][]any{{"c", "c", true, true}}))
-		}
+		fixture.PgDescriptionExecutorRows(t, p, b, c, fixture.Select(`SELECT c.relkind,t.typtype,t.typrelid=c.oid AS reciprocal,a.typelem=t.oid AS element FROM pg_class c JOIN pg_type t ON t.oid=c.reltype JOIN pg_type a ON a.oid=t.typarray WHERE c.relname='catalog_record'`, []string{"relkind", "typtype", "reciprocal", "element"}, []string{"CHAR", "CHAR", "BOOL", "BOOL"}, [][]any{{"c", "c", true, true}}))
 	})
 }
 

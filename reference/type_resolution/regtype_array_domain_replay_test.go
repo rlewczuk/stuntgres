@@ -28,10 +28,8 @@ func TestReferenceRegtypeArrayDisplacementNamedDomainReplay(t *testing.T) {
 		}
 		fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("INSERT INTO regtype_displacement.named_values DEFAULT VALUES", 1))
 		check := func(p *fixture.Pair, conn *sql.Conn, recorder *fixture.Recorder, postgres bool, count int) {
-			if postgres {
-				q := "SELECT t.typname,t.typndims::bigint,(t.typbasetype='regtype_displacement.payload[]'::regtype::oid) AS base FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='regtype_displacement' AND t.typname IN ('named_zero','named_after','rank_two') ORDER BY t.typname"
-				fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(q, []string{"typname", "typndims", "base"}, []string{"NAME", "INT8", "BOOL"}, [][]any{{"named_after", int64(0), true}, {"named_zero", int64(0), true}, {"rank_two", int64(2), true}}))
-			}
+			q := "SELECT t.typname,t.typndims::bigint,(t.typbasetype='regtype_displacement.payload[]'::regtype::oid) AS base FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='regtype_displacement' AND t.typname IN ('named_zero','named_after','rank_two') ORDER BY t.typname"
+			fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(q, []string{"typname", "typndims", "base"}, []string{"NAME", "INT8", "BOOL"}, [][]any{{"named_after", int64(0), true}, {"named_zero", int64(0), true}, {"rank_two", int64(2), true}}))
 			family := "__PAYLOAD"
 			if postgres {
 				family = ""

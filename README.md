@@ -212,6 +212,30 @@ See [embedding API](docs/DRIVER.md#foreign-provider-registration),
 Feature smoke: `make check RUN='^TestReferenceFDWScan$'`, and the same command
 with `REFERENCE=1`; Rescan and Import smoke selectors are documented alongside it.
 
+## Type catalog — change note
+
+`pg_catalog.pg_type` exposes all32 PostgreSQL18 metadata columns for implemented
+families, genuine registered/user-relation rowtypes and canonical companion
+arrays. OID/name/schema/owner, physical facts, immediate domain bases/typmods,
+collation, numeric/symbolic I/O routines, raw defaults and ACLs come from their
+existing immutable authorities. Installed query_int retains its actual dynamic
+routine identities, including inheritance through domains and nested domains.
+Immediate-base facts are completed through the same captured catalog before
+domain composition; no routine addresses are inferred from names or flattened
+base types. PUBLIC inventory reads do not depend on type/schema USAGE.
+
+Metadata admission is not codec admission: broader REGTYPE lookup, lookup-only
+companions, unsupported casts/routines and unimplemented temporal multiranges
+retain their existing boundaries. Seeded time_stamp default metadata does not
+enable inherited-default execution. Native mutation/row locking remain explicit
+0A000 boundaries; ordinary mutation is denied42501. Captures follow existing
+transaction, TEMP-session and Dump/Reset/Restore publication without dump rows.
+
+See the [bounded contract](docs/DIALECT.md#pg_type-supported-type-metadata) and
+[selected proof](reference/catalogs/README.md#type-catalog-metadata-and-proof).
+Feature smoke: `make check RUN='^TestReferencePGTypeFeatureSmoke$'`, also with
+`REFERENCE=1`, under an external900-second deadline.
+
 ## Range catalog — change note
 
 `pg_catalog.pg_range` exposes the seven PostgreSQL18 metadata columns for the

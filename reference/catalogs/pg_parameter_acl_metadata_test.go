@@ -20,10 +20,7 @@ func pgParameterACLFacts(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			{int64(6243), int64(3), "paracl", int64(1034), false, int64(1), int64(-1), int64(0), false},
 		}),
 	}
-	if b.PG {
-		// pg_type is not a native provider; native reciprocal identity is a component assertion.
-		steps = append(steps, fixture.Select("SELECT t.typrelid=6243::oid AS same_relation,a.typelem=t.oid AS same_element,a.oid='pg_catalog.pg_parameter_acl[]'::regtype::oid AS same_array FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='pg_catalog.pg_parameter_acl'::regtype::oid", []string{"same_relation", "same_element", "same_array"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
-	}
+	steps = append(steps, fixture.Select("SELECT t.typrelid=6243::oid AS same_relation,a.typelem=t.oid AS same_element,a.oid='pg_catalog.pg_parameter_acl[]'::regtype::oid AS same_array FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='pg_catalog.pg_parameter_acl'::regtype::oid", []string{"same_relation", "same_element", "same_array"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
 	for _, s := range steps {
 		pgDatabaseCheck(t, p, b, b.DB, s)
 		pgDatabaseCheck(t, p, b, b.DB, fixture.Prepared(s))

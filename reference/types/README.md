@@ -442,8 +442,7 @@ Root's initial Messages discovery against pinned PostgreSQL18.0 completed before
 removing its sole callback gate. The development source tree is not a release
 oracle. Catalog predicates use explicit OID casts rather than requiring
 additional OID/regtype operators. Rollback absence uses direct typed-cast and
-relation lookup diagnostics rather than requiring pg_type, to_regtype or
-to_regclass support.
+relation lookup diagnostics rather than requiring to_regtype or to_regclass.
 ALTER accepts and ignores NO INHERIT (`connoinherit=false`); the separate
 CREATE DOMAIN rejection remains covered by the existing CHECK scenarios.
 
@@ -890,7 +889,9 @@ require full rows on clean EOF. Native pre-cancellation requires context.Cancele
 without a cursor. Separate cancellation handles preserve an untouched write
 atomicity observer. This adapter distinction never weakens domain SQL diagnostics.
 Native inherited-domain defaults, sibling-domain/implicit-array executability
-and general information-schema/pg_type views are explicit exclusions.
+and general information-schema views remain excluded. The bounded pg_type source
+does expose the exact seeded default/tree metadata and genuine type relationships;
+metadata visibility does not enable default execution or lookup-only codecs.
 
 ### INET and CIDR
 

@@ -8,23 +8,19 @@ import (
 func TestReferenceMultirangeMetadata(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
-		if backend.PG {
-			// pq exposes blank names for these OIDs. Independently establish
-			// the declared release identities through PostgreSQL's public catalog.
-			for _, identity := range []struct {
-				name          string
-				oid, rangeOID int64
-			}{
-				{"int4multirange", 4451, 3904}, {"int8multirange", 4536, 3926}, {"nummultirange", 4532, 3906},
-			} {
-				var oid int64
-				if err := backend.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_catalog.pg_type WHERE typname=$1 AND typnamespace='pg_catalog'::regnamespace", identity.name).Scan(&oid); err != nil || oid != identity.oid {
-					t.Fatalf("%s release OID=%d want=%d err=%v", identity.name, oid, identity.oid, err)
-				}
-				var rangeOID int64
-				if err := backend.DB.QueryRowContext(p.Ctx, "SELECT rngtypid FROM pg_catalog.pg_range WHERE rngmultitypid=$1", identity.oid).Scan(&rangeOID); err != nil || rangeOID != identity.rangeOID {
-					t.Fatalf("%s range OID=%d want=%d err=%v", identity.name, rangeOID, identity.rangeOID, err)
-				}
+		for _, identity := range []struct {
+			name          string
+			oid, rangeOID int64
+		}{
+			{"int4multirange", 4451, 3904}, {"int8multirange", 4536, 3926}, {"nummultirange", 4532, 3906},
+		} {
+			var oid int64
+			if err := backend.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_catalog.pg_type WHERE typname=$1 AND typnamespace='pg_catalog'::regnamespace", identity.name).Scan(&oid); err != nil || oid != identity.oid {
+				t.Fatalf("%s release OID=%d want=%d err=%v", identity.name, oid, identity.oid, err)
+			}
+			var rangeOID int64
+			if err := backend.DB.QueryRowContext(p.Ctx, "SELECT rngtypid FROM pg_catalog.pg_range WHERE rngmultitypid=$1", identity.oid).Scan(&rangeOID); err != nil || rangeOID != identity.rangeOID {
+				t.Fatalf("%s range OID=%d want=%d err=%v", identity.name, rangeOID, identity.rangeOID, err)
 			}
 		}
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("CREATE TABLE r(k integer NOT NULL,a int4multirange NOT NULL,b int8multirange,c nummultirange)", 0))

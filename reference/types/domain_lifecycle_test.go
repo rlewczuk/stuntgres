@@ -17,14 +17,12 @@ func TestReferenceDomainPreparedLifecycle(t *testing.T) {
 		// External catalog control: obtain the original PostgreSQL identity before
 		// DROP. Internal cache diagnostics must not hardcode a physical oracle OID.
 		var oldDomainOID int64
-		if backend.PG {
-			err := conn.QueryRowContext(p.Ctx, "SELECT t.oid::bigint FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='domain_s' AND t.typname='di'").Scan(&oldDomainOID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if oldDomainOID <= 0 {
-				t.Fatalf("invalid PostgreSQL domain OID %d", oldDomainOID)
-			}
+		err := conn.QueryRowContext(p.Ctx, "SELECT t.oid::bigint FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='domain_s' AND t.typname='di'").Scan(&oldDomainOID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if oldDomainOID <= 0 {
+			t.Fatalf("invalid PostgreSQL domain OID %d", oldDomainOID)
 		}
 		insertQ := "INSERT INTO domain_s.held VALUES ($1,$2)"
 		selectQ := "SELECT id,v FROM domain_s.held ORDER BY id"

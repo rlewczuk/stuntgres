@@ -135,18 +135,14 @@ func TestReferenceTimezoneMetadataParametersAndFreeze(t *testing.T) {
 				}
 			}
 			fixture.RunStep(t, p.Ctx, timezoneAdmittedRows{Executor: backend.DB, rows: rows}, backend.Recorder, fixture.Select("SELECT z,q FROM tz_witness WHERE id=1", []string{"z", "q"}, []string{"TIMESTAMPTZ", "TIMETZ"}, [][]any{{nil, nil}}))
-			if backend.PG {
-				// Native exposes SQL type/scan metadata above, not pg_type or
-				// a public OID API. Assert the fixed release OIDs on PostgreSQL.
-				for _, tc := range []struct {
-					name string
-					oid  int64
-				}{{"timestamptz", 1184}, {"timetz", 1266}} {
-					for _, prepared := range []bool{false, true} {
-						s := fixture.Select(fmt.Sprintf("SELECT oid::BIGINT AS oid FROM pg_catalog.pg_type WHERE typname='%s'", tc.name), []string{"oid"}, []string{"INT8"}, [][]any{{tc.oid}})
-						s.Prepared = prepared
-						run(s)
-					}
+			for _, tc := range []struct {
+				name string
+				oid  int64
+			}{{"timestamptz", 1184}, {"timetz", 1266}} {
+				for _, prepared := range []bool{false, true} {
+					s := fixture.Select(fmt.Sprintf("SELECT oid::BIGINT AS oid FROM pg_catalog.pg_type WHERE typname='%s'", tc.name), []string{"oid"}, []string{"INT8"}, [][]any{{tc.oid}})
+					s.Prepared = prepared
+					run(s)
 				}
 			}
 		})

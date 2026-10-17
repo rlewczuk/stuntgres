@@ -72,7 +72,7 @@ func TestReferenceQueryTableCreateIntoFrontiers(t *testing.T) {
 						}
 						run(step)
 						for _, name := range []string{"qc_frontier_dst", "qc_frontier_table", "qc_frontier_view"} {
-							fixture.QueryTableCreateAbsent(t, run, b.PG, name)
+							fixture.QueryTableCreateAbsent(t, run, name)
 						}
 						run(fixture.Select("SELECT 1 AS recovered", []string{"recovered"}, []string{"INT4"}, [][]any{{int64(1)}}))
 					})

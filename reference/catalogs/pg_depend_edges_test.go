@@ -45,9 +45,7 @@ func TestReferencePGDependTypeEdges(t *testing.T) {
 		fixture.PgDependBag(t, p, b, 1259, table, fixture.PgDependEdge(1259, table, 0, 2615, ns, 0, "n"), fixture.PgDependEdge(1259, table, 1, 1247, d1, 0, "n"), fixture.PgDependEdge(1259, table, 2, 1247, d2, 0, "n"), fixture.PgDependEdge(1259, table, 3, 1247, array, 0, "n"))
 		s := fixture.Select("SELECT count(*) FROM pg_catalog.pg_depend WHERE classid=1247 AND refclassid=2615 AND refobjid=$1", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}, ns)
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
-		if b.PG { // Independent release-only naming control, not a native pg_type API.
-			fixture.PgDescriptionExecutorRows(t, p, b, b.DB, fixture.Select("SELECT oid,typname FROM pg_catalog.pg_type WHERE oid=$1 OR oid=$2 ORDER BY typname", []string{"oid", "typname"}, []string{"OID", "NAME"}, [][]any{{d1, "d1"}, {d2, "d2"}}, d1, d2))
-		}
+		fixture.PgDescriptionExecutorRows(t, p, b, b.DB, fixture.Select("SELECT oid,typname FROM pg_catalog.pg_type WHERE oid=$1 OR oid=$2 ORDER BY typname", []string{"oid", "typname"}, []string{"OID", "NAME"}, [][]any{{d1, "d1"}, {d2, "d2"}}, d1, d2))
 	})
 }
 func TestReferencePGDependNoSyntheticEdges(t *testing.T) {

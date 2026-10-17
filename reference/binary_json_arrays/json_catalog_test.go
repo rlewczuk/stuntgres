@@ -9,9 +9,8 @@ func TestReferenceJSONCatalogAndGenericConsumers(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s) }
-		// Native pg_type projections are outside the documented catalog surface.
-		// Public array/domain consumers below witness the actual association;
-		// descriptor OIDs and reverse links are covered by supplemental units.
+		// These public consumers prove array/domain behavior independently of
+		// the bounded pg_type metadata and supplemental descriptor units.
 		run(fixture.Exec("CREATE TABLE json_arrays(id INTEGER,v JSON[])", 0))
 		array := `{NULL,"null"," {\"a\":1,\"a\":2} "}`
 		for _, prepared := range []bool{false, true} {

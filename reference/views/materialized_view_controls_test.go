@@ -108,7 +108,7 @@ func materializedViewControls(t *testing.T) {
 				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 					t.Fatal(err)
 				}
-				fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_control")
+				fixture.QueryTableCreateAbsent(t, run, "mv_control")
 				if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 					t.Fatal(err)
 				}
@@ -224,7 +224,7 @@ func TestReferenceMaterializedViewRestoreAtomicity(t *testing.T) {
 				run(materializedViewBag("mv_sentinel"))
 				run(materializedViewBag("mv_base"))
 				fixture.MaterializedViewPopulation(run, "mv_sentinel", true)
-				fixture.QueryTableCreateAbsent(t, run, b.PG, "mv_import")
+				fixture.QueryTableCreateAbsent(t, run, "mv_import")
 			}
 			for i, script := range bad {
 				if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(script)); err == nil {

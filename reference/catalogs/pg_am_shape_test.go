@@ -40,11 +40,7 @@ func TestReferencePGAMShape(t *testing.T) {
 			{int64(4), "amtype", int64(18), true, int64(-1), int64(0), int64(0)},
 		}
 		checks = append(checks, fixture.Select("SELECT attnum,attname,atttypid,attnotnull,atttypmod,attcollation,attndims FROM pg_attribute WHERE attrelid=2601 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "atttypid", "attnotnull", "atttypmod", "attcollation", "attndims"}, []string{"INT2", "NAME", "OID", "BOOL", "INT4", "OID", "INT2"}, attrs))
-		// Native row/array generation ownership is additionally exercised by U1;
-		// builtin pg_type SQL population is not extended by this catalog part.
-		if b.PG {
-			checks = append(checks, fixture.Select("SELECT oid,typrelid,typarray,typelem FROM pg_type WHERE oid IN (10014,10015) ORDER BY oid", []string{"oid", "typrelid", "typarray", "typelem"}, []string{"OID", "OID", "OID", "OID"}, [][]any{{int64(10014), int64(0), int64(0), int64(10015)}, {int64(10015), int64(2601), int64(10014), int64(0)}}))
-		}
+		checks = append(checks, fixture.Select("SELECT oid,typrelid,typarray,typelem FROM pg_type WHERE oid IN (10014,10015) ORDER BY oid", []string{"oid", "typrelid", "typarray", "typelem"}, []string{"OID", "OID", "OID", "OID"}, [][]any{{int64(10014), int64(0), int64(0), int64(10015)}, {int64(10015), int64(2601), int64(10014), int64(0)}}))
 		for _, s := range checks {
 			fixture.PgDescriptionRows(t, p, b, s)
 			fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))

@@ -21,14 +21,10 @@ func QueryTableCreateSession(t *testing.T, p *Pair, b Backend) (*sql.Conn, func(
 	return conn, func(s Step) { RunStep(t, p.Ctx, conn, b.Recorder, s) }
 }
 
-func QueryTableCreateAbsent(t *testing.T, run func(Step), postgres bool, name string) {
+func QueryTableCreateAbsent(t *testing.T, run func(Step), name string) {
 	t.Helper()
 	run(Select("SELECT relname FROM pg_catalog.pg_class WHERE relname='"+name+"'", []string{"relname"}, []string{"NAME"}, nil))
-	// Native has no pg_type SQL provider. Private publication tests cover its
-	// actual type registry; this companion checks PostgreSQL's associated row type.
-	if postgres {
-		run(Select("SELECT typname FROM pg_catalog.pg_type WHERE typname='"+name+"'", []string{"typname"}, []string{"NAME"}, nil))
-	}
+	run(Select("SELECT typname FROM pg_catalog.pg_type WHERE typname='"+name+"'", []string{"typname"}, []string{"NAME"}, nil))
 }
 
 func QueryTableCreateSource(run func(Step)) {

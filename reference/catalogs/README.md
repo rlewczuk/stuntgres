@@ -6,6 +6,111 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Type catalog metadata and proof
+
+`TestReferencePGTypeShape`, `TestReferencePGTypeBuiltins`,
+`TestReferencePGTypeFamilies` and `TestReferencePGTypeDiagnostics` define the
+32-column PostgreSQL18 `pg_type` contract independently of native production
+metadata. The builtin matrix contains114 scalar/special/companion rows derived
+from REL_18_6 `pg_type.dat`, `pg_type.h`, `pg_proc.dat` and `Catalog.pm`;
+it is a supported positive subset, not PostgreSQL's complete type inventory.
+Tests preserve raw NAME/CHAR/REGPROC/tree/ACL representations, full descriptors,
+literal numeric procedure identities, actual held statements, empty results,
+immediate domain metadata, genuine relation links and ordinary-role errors.
+Generated object identities come from independent REGTYPE/REGCLASS authorities.
+Seeded `time_stamp` defaults assert the exact expression observed by the pinned
+PostgreSQL18.6 discovery: `CURRENT_TIMESTAMP(2)` and SQLVALUEFUNCTION
+op4/type1184/typmod2/location-1. Failure diagnostics retain the full raw
+default/tree and cursor metadata rather than accepting NULL or a substring.
+
+Small discovery/proof selectors (external900-second deadline per command):
+
+```sh
+make check RUN='^TestReferencePGType(Shape|Builtins)$' REFERENCE=1
+make check RUN='^TestReferencePGType(Families|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferencePGType(Shape|Builtins)$'
+make check RUN='^TestReferencePGType(Families|Diagnostics)$'
+```
+
+Admission, lifecycle and feature-smoke definitions additionally cover the exact
+native eligible bag, absent unsupported families, actual catalog-row links,
+transaction rollback, relation/schema/owner edits, physical TEMP retirement,
+native Dump/Reset/Restore with receiving identities and retained cursor metadata.
+These controls do not serialize pg_type rows or invent a PostgreSQL Reset API.
+Committed other-session TEMP rowtype/array identities remain public inventory
+until actual owner-backend retirement. The lifetime test reuses the existing
+physical-exit barrier: PostgreSQL must leave `pg_stat_activity` after the client
+transport closes before asserting both identities absent; native retirement is
+synchronous. This does not add a session-visibility filter to `pg_type`.
+Both adapters assert the same held OID-input parameter Context,
+`unnamed portal parameter $1 = '...'`. Transaction-private TEMP table rowtypes
+and their arrays are checked before and after rollback in both modes.
+PostgreSQL additionally exercises transactional domain creation; native direct
+and actual Prepare attempts preserve the existing explicit-transaction utility
+0A000 boundary and leave no domain identity behind.
+Installed `query_int` retains its full32 goldens across namespace changes:
+PostgreSQL uses `ALTER EXTENSION SET SCHEMA`, while native uses supported
+`ALTER SCHEMA` and asserts its exact unsupported extension-alter/drop boundaries
+without changing either type row. PostgreSQL SQL drop/reinstall and actual
+native Reset/reinstall both remove the old pair, establish new independent
+REGTYPE/REGPROC identities and preserve an unread pre-replacement catalog row.
+`TestReferencePGTypeInstalledDomains` independently specifies composition over
+the installed type: a domain and nested domain inherit the actual `bqarr_out`
+identity, retain immediate bases, use domain_in2597/domain_recv2598/send0, and
+own exact canonical companion metadata. Full32 numeric and symbolic REGPROC
+expectations run direct, actual Prepare and retained statements. A pinned
+physical connection with explicit search_path checks qualification after shared
+schema rename/back; native Reset or PostgreSQL extension DROP CASCADE followed
+by real reinstall/recreation checks current authorities and unread old metadata.
+The retained cursor is opened with the shipped fixture recorder context, so
+post-replacement checks cover its actual middleware-owned row and closure as
+well as values and saved descriptors; they do not reissue the old query.
+Numeric OID inequality and wider array codecs are not requirements.
+Oracle-first discovery must precede native-red and production remediation;
+after discovery-filter removal, selected dual-mode proof is:
+
+```sh
+make check RUN='^TestReferencePGTypeInstalledDomains$'
+make check RUN='^TestReferencePGTypeInstalledDomains$' REFERENCE=1
+```
+
+Supplemental `TestPGTypeBuiltinFacts` and `TestPGTypeCaptureOwnership` exercise
+actual family/capture authority, NULL/tree/ACL payloads, foreign generations,
+cancellation, independent backing and retained immutable roots without SQL.
+`TestPGTypeDomainComposition` checks the single family override/inheritance seam
+with supplied complete facts. `TestPGTypeInstalledDomainAuthority` uses real
+engine installation/domain creation and captures to check complete inherited
+routines, nested immediate bases, canonical arrays, missing/foreign same-ID base
+generations and actual Reset/reinstall with retained old roots.
+
+```sh
+make check RUN='^TestPGType(BuiltinFacts|CaptureOwnership)$'
+make check RUN='^TestPGType(DomainComposition|InstalledDomainAuthority)$'
+make check RUN='^TestReferencePGType(Shape|Builtins|Admission)$'
+make check RUN='^TestReferencePGType(Shape|Builtins|Admission)$' REFERENCE=1
+make check RUN='^TestReferencePGType(Families|Lifecycle|Diagnostics)$'
+make check RUN='^TestReferencePGType(Families|Lifecycle|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferencePGTypeFeatureSmoke$'
+make check RUN='^TestReferencePGTypeFeatureSmoke$' REFERENCE=1
+```
+
+Smoke expects exact primitive rows/raw metadata and repeated held/empty reads,
+42703 diagnostics with valid recovery, ordinary-role PUBLIC SELECT, genuine
+enum/table data and reciprocal row/array links, plus native logical replacement
+with preserved unread rows/descriptors and actual receiving user identities.
+Reset/Restore may reuse numeric OIDs; numeric inequality is not generation
+provenance. Held reads must observe Reset absence and restored publication,
+with canonical arrays independently resolved by REGTYPE, stored enum-column
+types checked through pg_attribute, actual table data and reciprocal links.
+Private capture ownership coverage checks fresh source/type authority and
+retained old roots without depending on the allocator sequence.
+The contract is bounded by deliberate family opt-in, not the wider REGTYPE
+inventory: temporal multirange identities remain lookup-only, unsupported
+families are not advertised, and visible companion arrays do not widen codecs.
+NAME/CHAR casts and virtual mutation/locking retain their independent exclusions.
+These definitions and contracts are not a claim of completed verification.
+
+
 ### Boolean call predicates
 
 The four `TestReferenceBooleanCall*` definitions independently cover all four
@@ -298,9 +403,9 @@ rendered `-`), direct/new-prepared/held reads, unordered multiplicities, and
 empty/NULL parameter metadata. Shape checks raw native int64/string versus
 pq bytes, ScanType/nullability/length/precision, saved metadata after Close,
 pg_class, all seven pg_attribute facts, row/array identities and pg_tables.
-PostgreSQL alone supplies pg_type reciprocal ownership SQL; private native
-`TestPGRangeCaptureOwnership` supplies actual descriptor ownership, foreign-
-generation/shape rejection, independent capture storage and cancellation.
+Both backends supply pg_type reciprocal ownership SQL; private native
+`TestPGRangeCaptureOwnership` additionally supplies descriptor ownership,
+foreign-generation/shape rejection, independent storage and cancellation.
 `TestRangeMetadata` independently checks six exact owner facts and admission,
 including preserved lookup-only temporal companions and absent domain rows.
 
@@ -614,10 +719,10 @@ Shape/Metadata/CatalogLinks cover all nine columns, backend raw codecs,
 ScanType/nullability/length/decimal metadata before iteration on populated and
 empty cursors, owner/attribute/class/table-summary relationships and
 direct/new-prepared/actual-held name/OID predicates. Both backends assert
-`pg_class.reltype` resolves to the pg_language REGTYPE identity. PostgreSQL also
-joins `pg_type` to assert reciprocal row/array relationships; native has no
-`pg_type` SQL projection, so its actual row/array descriptor ownership and links
-are checked privately before and after Reset. Diagnostics and Permissions
+`pg_class.reltype` resolves to the pg_language REGTYPE identity. Both backends
+join `pg_type` to assert reciprocal row/array relationships; private native
+coverage additionally checks descriptor ownership before and after Reset.
+Diagnostics and Permissions
 assert complete English error records and stages, native immutable mutation/
 row-lock boundaries, preserved rows/sentinel and ordinary-role PUBLIC reads.
 HeldExecution adds native ordinary-context cancellation and recovery.
@@ -668,7 +773,7 @@ No routine descriptors or neighboring information-schema views are synthesized.
 
 PostgreSQL declared domains are checked through its real `pg_type` join; native
 carrier OIDs, positive attribute numbers, nullability and collation are checked
-through `pg_attribute` without adding absent `pg_type` capability. Composite
+through `pg_attribute`; other information-schema domains remain lookup-only. Composite
 attribute edits share both backends; whole-type RENAME TO retains its native
 syntax-error boundary and unchanged descriptors while PostgreSQL performs the
 rename. Pre-canceled pool queries test the ordinary adapter boundary without
@@ -949,8 +1054,8 @@ row REGTYPE, require positive distinct row/array identities, and equate bracket
 array lookup with the initialized `_pg_db_role_setting` array name. They prescribe
 relationships, not PostgreSQL's allocated OID sequence.
 Exact `pg_attribute` rows now run on both backends through the existing native
-attribute catalog. The actual `pg_type` reciprocal row/array catalog remains an
-explicit PostgreSQL-only phase because pg_type is not a native provider.
+attribute catalog. Both backends also assert the genuine pg_type reciprocal
+row/array relationships.
 Native component coverage independently asserts the exact descriptor attributes,
 row/array owner and owning-relation links, associated array and element reciprocity.
 Public native Rows metadata remains checked exactly in the shared shape scenario.
@@ -1133,8 +1238,8 @@ make check REFERENCE=1 RUN='^TestReferencePGAttributeSmoke$'
 
 Attribute assertions formerly guarded as PostgreSQL-only are now shared in the
 owning extension/enum/available-extension tests and the named role/group/user
-AttributeCatalog definitions. Adjacent pg_type-only observations retain their
-real-only guards. Private units supplement SQL with actual capture, descriptor,
+AttributeCatalog definitions. Genuine pg_type row/array observations are shared;
+unrelated feature-specific boundaries remain. Private units supplement SQL with capture, descriptor,
 mutation, publication, type-fact and adapter-export functions, including foreign
 authority rejection, checked INT2 narrowing and immutable scalar tombstones.
 
@@ -1186,9 +1291,8 @@ TEMP footprint and denied stream I/O are supplemented by
 `TestPGNamespaceViewStoragePrecedence` and `TestPGNamespaceCopyStoragePrecedence`.
 
 Shared public relation/namespace identities and existing REGTYPE lookup prove
-the registered source relationship. PostgreSQL additionally executes its true
-pg_type reciprocal query; native asserts the exact missing-pg_type boundary,
-with registered rowtype/array ownership covered by TestPGNamespaceShape.
+the registered source relationship. Both backends execute the pg_type reciprocal
+query, supplemented by private generation/ownership checks.
 ACL ownership transfer/merge remains real shared SQL. Role rename remains a
 PostgreSQL SQL phase: native direct and actual Prepare attempts assert the
 existing 0A000/Position1 exclusion, check no effect, and retain eager ACL rows across
@@ -1784,9 +1888,9 @@ The collision destination captures its actual TEMP namespace/relation/rowtype,
 and every retained sequence's relation/namespace association. Native verifies
 both captured pg_class relation and reltype OIDs with REGCLASS and REGTYPE
 resolution qualified by the captured actual TEMP namespace, before and after replacement.
-Native does not expose pg_type, so this is not independent proof of its inverse
-typnamespace/typrelid fields. The PostgreSQL-only SQL phase asserts those public
-pg_type links for its TEMP table; it does not simulate native Restore. The unread
+The PostgreSQL-specific TEMP SQL phase asserts its public pg_type links without
+simulating native Restore; shared PGType lifetime/control scenarios cover native
+type metadata publication independently. The unread
 INT4/BYTEA cursor and TEMP prepared SELECT are opened before Restore. The same
 unread cursor's current Columns/ColumnTypes are checked before replacement,
 after successful publication and after every refusal against independent names,
@@ -2079,7 +2183,7 @@ never enters the recorder or diagnostic failure output.
 Oracle-first discovery may temporarily filter native backends **only** in the
 new group scenario helper under the policy above. Remove the filter before
 native-red and every completed dual-mode verification. Keep the permanent
-PostgreSQL-only pg_attribute/pg_type structural witness and actual native-only
+shared pg_type structural witness, separate pg_attribute cast boundary and native-only
 retained Rows/metadata, catalog-write/row-lock exclusions, cancellation and
 Dump/Reset/Restore phases. Native controls preserve role identities/edges and
 stored symbolic consumers; real mode replays the **actual native-emitted SQL**
@@ -2164,9 +2268,9 @@ make check RUN='^TestPGShDescription'
 `Demand`, `Transactions`, `Diagnostics`, `CTE` and `Controls` prescribe independent
 pinned PostgreSQL18.0 outcomes, including exact cache high-water/NULL masks,
 all eleven descriptors, full English diagnostic records, physical TEMP exit,
-actual emitted Dump replay and cancellation cleanup. PostgreSQL-only pg_type
-identity links supplement native actual descriptor/type-link units; the TEMP
-namespace is independently obtained from the public pg_sequences row. The
+actual emitted Dump replay and cancellation cleanup. Shared pg_type identity
+links supplement native descriptor/type-link units; the TEMP namespace is
+independently obtained from the public pg_sequences row. The
 session namespace inquiry scenarios additionally cover pg_my_temp_schema and
 physical TEMP/TOAST ownership. Shared direct/prepared behavior is not skipped.
 

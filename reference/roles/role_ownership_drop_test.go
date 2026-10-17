@@ -152,9 +152,7 @@ func TestReferenceRoleOwnershipCascade(t *testing.T) {
 		s.run(fixture.Exec("INSERT INTO own_default_survivor(keep) VALUES(9)", 1))
 		ownershipSelect(s, "SELECT id,keep FROM own_default_survivor ORDER BY id NULLS LAST", []string{"id", "keep"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(9)}, {nil, int64(9)}})
 		ownershipOwner(s, "own_cascade_sequence_nearby", "own_other")
-		if s.backend.PG {
-			ownershipCount(s, "SELECT count(*) FROM pg_type WHERE typname IN('own_cascade','_own_cascade','own_cascade_domain','_own_cascade_domain')", 0)
-		}
+		ownershipCount(s, "SELECT count(*) FROM pg_type WHERE typname IN('own_cascade','_own_cascade','own_cascade_domain','_own_cascade_domain')", 0)
 		s.exec("DROP ROLE own_source")
 	})
 }

@@ -143,12 +143,7 @@ func TestReferenceRegTSValuesMetadata(t *testing.T) {
 			regtsSelect(t, p, b, c, "SELECT '8'::"+alias+"='010'::"+alias+" AS same,'0'::"+alias+" IS NULL AS missing", []string{"same", "missing"}, []string{"BOOL", "BOOL"}, [][]any{{true, false}})
 		}
 		regtsSelect(t, p, b, c, "SELECT 'regconfig'::regtype::oid::bigint AS c,'regdictionary'::regtype::oid::bigint AS d,'regconfig[]'::regtype::oid::bigint AS ca,'regdictionary[]'::regtype::oid::bigint AS da", []string{"c", "d", "ca", "da"}, []string{"INT8", "INT8", "INT8", "INT8"}, [][]any{{int64(3734), int64(3769), int64(3735), int64(3770)}})
-		// pg_type is a genuine PostgreSQL-only catalog projection, not a
-		// native provider. Shared identities above and native codec units
-		// independently retain scalar/array IDs and four-byte inline storage.
-		if b.PG {
-			regtsSelect(t, p, b, c, "SELECT typname::text AS n,oid::bigint AS id,typarray::bigint AS a,typlen::integer AS size,typbyval AS bv,typcategory::text AS cat FROM pg_catalog.pg_type WHERE typname IN ('regconfig','regdictionary') ORDER BY typname", []string{"n", "id", "a", "size", "bv", "cat"}, []string{"TEXT", "INT8", "INT8", "INT4", "BOOL", "TEXT"}, [][]any{{"regconfig", int64(3734), int64(3735), int64(4), true, "N"}, {"regdictionary", int64(3769), int64(3770), int64(4), true, "N"}})
-		}
+		regtsSelect(t, p, b, c, "SELECT typname AS n,oid::bigint AS id,typarray::bigint AS a,typlen::integer AS size,typbyval AS bv,typcategory AS cat FROM pg_catalog.pg_type WHERE typname IN ('regconfig','regdictionary') ORDER BY typname", []string{"n", "id", "a", "size", "bv", "cat"}, []string{"NAME", "INT8", "INT8", "INT4", "BOOL", "CHAR"}, [][]any{{"regconfig", int64(3734), int64(3735), int64(4), true, "N"}, {"regdictionary", int64(3769), int64(3770), int64(4), true, "N"}})
 		oid := regtsDictionaryOID(t, p, c)
 		regtsSelect(t, p, b, c, fmt.Sprintf("SELECT '%d'::regdictionary AS d,'%d'::regconfig AS c", oid, oid), []string{"d", "c"}, []string{"REGDICTIONARY", "REGCONFIG"}, [][]any{{`"Reg.TS".unaccent`, fmt.Sprint(oid)}})
 		regtsSelect(t, p, b, c, `SELECT '"Reg.TS".unaccent'::regdictionary::oid::bigint AS id`, []string{"id"}, []string{"INT8"}, [][]any{{oid}})

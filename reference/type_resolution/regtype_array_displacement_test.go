@@ -57,14 +57,13 @@ func regtypeDisplacementCreate(c regtypeDisplacementCase, name string) fixture.S
 	return s
 }
 
-// pg_type is an oracle observation, not a requested native catalog projection.
-// The shared assertions below prove the same association through public input,
-// numeric identity, array spelling and symbolic output.
+// The SQL catalog witnesses the actual canonical array association; independent
+// REGTYPE input and numeric identities above remain separate authorities.
 func regtypeDisplacementCatalog(t *testing.T, p *fixture.Pair, conn *sql.Conn, base, array string) {
 	t.Helper()
 	var elem, associated, arrayID int64
 	var name string
-	q := "SELECT e.oid::bigint,e.typarray::bigint,a.oid::bigint,a.typname::text FROM pg_catalog.pg_type e JOIN pg_catalog.pg_type a ON a.typelem=e.oid WHERE e.oid=$1::regtype::oid AND a.oid=e.typarray"
+	q := "SELECT e.oid::bigint,e.typarray::bigint,a.oid::bigint,a.typname FROM pg_catalog.pg_type e JOIN pg_catalog.pg_type a ON a.typelem=e.oid WHERE e.oid=$1::regtype::oid AND a.oid=e.typarray"
 	if err := conn.QueryRowContext(p.Ctx, q, fixture.RegtypeDisplacementQualified(base)).Scan(&elem, &associated, &arrayID, &name); err != nil {
 		t.Fatal("reciprocal oracle association", base, err)
 	}
@@ -84,10 +83,8 @@ func regtypeDisplacementCheck(t *testing.T, p *fixture.Pair, backend fixture.Bac
 	fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(q, []string{"a", "b", "c", "d"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true}}, baseID, arrayID, namedArrayID))
 	q = "SELECT " + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.baseArray)) + "::regtype AS a," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.named)) + "::regtype AS b," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.namedArray)) + "::regtype AS c"
 	fixture.RegtypeBoth(t, p, conn, recorder, fixture.RegtypeSelect(q, c.base+"[]", c.named, c.named+"[]"))
-	if backend.PG {
-		regtypeDisplacementCatalog(t, p, conn, c.base, c.baseArray)
-		regtypeDisplacementCatalog(t, p, conn, c.named, c.namedArray)
-	}
+	regtypeDisplacementCatalog(t, p, conn, c.base, c.baseArray)
+	regtypeDisplacementCatalog(t, p, conn, c.named, c.namedArray)
 	if c.kind == "query_table" || c.kind == "view" {
 		for _, n := range []string{c.base, c.named} {
 			fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select("SELECT v FROM "+fixture.RegtypeDisplacementQualified(n), []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
@@ -203,11 +200,9 @@ func regtypeDisplacementLogicalCheck(t *testing.T, p *fixture.Pair, backend fixt
 	}
 	q := "SELECT " + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.base)) + "::regtype AS a," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.base+"[]")) + "::regtype AS b," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.named)) + "::regtype AS c," + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(c.named+"[]")) + "::regtype AS d"
 	fixture.RegtypeBoth(t, p, conn, recorder, fixture.RegtypeSelect(q, c.base, c.base+"[]", c.named, c.named+"[]"))
-	if backend.PG {
-		for _, element := range []string{c.base, c.named} {
-			q := "SELECT (a.typelem=e.oid) AS reciprocal,(a.oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element+"[]")) + "::regtype::oid) AS associated FROM pg_catalog.pg_type e JOIN pg_catalog.pg_type a ON a.oid=e.typarray WHERE e.oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element)) + "::regtype::oid"
-			fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(q, []string{"reciprocal", "associated"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
-		}
+	for _, element := range []string{c.base, c.named} {
+		q := "SELECT (a.typelem=e.oid) AS reciprocal,(a.oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element+"[]")) + "::regtype::oid) AS associated FROM pg_catalog.pg_type e JOIN pg_catalog.pg_type a ON a.oid=e.typarray WHERE e.oid=" + fixture.RegtypeLiteral(fixture.RegtypeDisplacementQualified(element)) + "::regtype::oid"
+		fixture.RegtypeBoth(t, p, conn, recorder, fixture.Select(q, []string{"reciprocal", "associated"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 	}
 	if c.kind == "query_table" || c.kind == "view" {
 		for _, name := range []string{c.base, c.named} {
