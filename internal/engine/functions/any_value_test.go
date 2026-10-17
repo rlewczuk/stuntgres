@@ -128,6 +128,22 @@ func TestAnyValueProviderDatums(t *testing.T) {
 						t.Fatal(err)
 					}
 					values = append(values, v)
+				case 13256:
+					// Aggregates retain already-validated datums; the engine owns
+					// CHECK evaluation. Build valid inline carriers without a fake
+					// evaluator or bypass in the domain's input implementation.
+					for _, text := range []string{"YES", "NO"} {
+						physical := sqltype.String(d.DomainBase().Type, text)
+						value, err := d.Wrap(physical)
+						if err != nil {
+							t.Fatal(err)
+						}
+						unwrapped, err := value.BaseValue()
+						if err != nil || value.Type() != d || !sqltype.SameDatum(unwrapped, physical) {
+							t.Fatal("checked-domain carrier", value, physical, err)
+						}
+						values = append(values, value)
+					}
 				default:
 					for _, text := range inputs[d.ID()] {
 						v, err := d.Input(ctx, text, -1)

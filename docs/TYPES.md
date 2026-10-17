@@ -967,6 +967,22 @@ enable domain-array storage or binary NAME transport. Other predefined
 information-schema domains and existing view carriers are not promoted by this
 support. See [information-schema data types](https://www.postgresql.org/docs/18/infoschema-datatypes.html).
 
+The predefined `information_schema.yes_or_no` is a nullable domain over
+`pg_catalog.varchar(3)` with `pg_catalog."C"` collation and one validated
+`yes_or_no_check` constraint, `VALUE IN ('YES','NO')`. Its existing native
+identity13256 remains distinct from VARCHAR1043; companion13255 stays lookup-only.
+Consumer-created columns retain the qualified logical domain and typmod-1.
+The shared base codec and driver metadata expose VARCHAR, Go string, length3;
+NULL stays NULL. Fresh conversion applies character sizing before the real
+catalog-owned CHECK: assignment `YESx` fails22001, `abc` or `NO ` fails23514,
+and `YES ` trims excess space to YES. Explicit conversion can truncate `YESx`
+to YES. CHECK violations identify the actual schema, domain and named constraint.
+Native Dump emits the qualified column declaration, not a new builtin domain,
+and Restore preserves both sizing and CHECK enforcement. This selected domain
+does not promote its array or other information-schema domain siblings, add
+general information-schema views, or change the existing primitive
+`information_schema.table_privileges` provider fields.
+
 ## Catalog-valued and supporting types
 
 REGCLASS and REGTYPE own unsigned catalog identities; symbolic output is captured

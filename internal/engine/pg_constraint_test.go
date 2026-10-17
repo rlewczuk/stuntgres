@@ -39,7 +39,42 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view CatalogRead) map[stri
 		}
 		out[name] = row
 	}
+	pgConstraintUnitBootstrap(t, view, out["yes_or_no_check"])
 	return out
+}
+
+func pgConstraintUnitBootstrap(t *testing.T, view CatalogRead, row []sqltype.Value) {
+	t.Helper()
+	domain := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 13256}].(*typeDescriptor)
+	if len(row) != 28 || len(domain.domainChecks) != 1 {
+		t.Fatal("missing real bootstrap domain CHECK", row)
+	}
+	id, err := row[0].OID()
+	if err != nil || id == 0 || OID(id) != domain.domainChecks[0].OID {
+		t.Fatal("bootstrap CHECK identity detached from recipe", id, err)
+	}
+	for i, value := range row {
+		if value.Type().ID() != pgConstraintTypeIDs[i] || i < 20 && value.IsNull() {
+			t.Fatal("bootstrap typed scalar", i, value)
+		}
+	}
+	for i, want := range map[int]string{
+		1: "yes_or_no_check", 2: "13229", 3: "c", 4: "f", 5: "f",
+		6: "t", 7: "t", 8: "0", 9: "13256", 10: "0", 11: "0", 12: "0",
+		13: " ", 14: " ", 15: " ", 16: "t", 17: "0", 18: "f", 19: "f",
+	} {
+		if got := pgConstraintUnitText(t, row[i]); got != want {
+			t.Fatal("bootstrap constraint field", i, got, want)
+		}
+	}
+	for i := 20; i < 27; i++ {
+		if !row[i].IsNull() {
+			t.Fatal("bootstrap domain CHECK has relation keys", i, row[i])
+		}
+	}
+	if row[27].IsNull() {
+		t.Fatal("bootstrap CHECK lost actual expression tree")
+	}
 }
 
 // Exercise the real private CREATE binder and publication boundary, not SQL
@@ -97,9 +132,10 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 		t.Fatal("row/array ownership", row, array)
 	}
 	captured, err := capturePGConstraint(context.Background(), view, ref, source)
-	if err != nil || captured == nil || captured.anonymous == nil || len(captured.anonymous) != 0 {
-		t.Fatal("invented bootstrap rows", captured, err)
+	if err != nil || captured == nil || len(captured.anonymous) != 1 {
+		t.Fatal("bootstrap constraint bag", captured, err)
 	}
+	pgConstraintUnitBootstrap(t, view, captured.anonymous[0])
 	invalid := *source
 	invalid.columns = slices.Clone(source.columns[:9])
 	if got, err := capturePGConstraint(context.Background(), view, ref, &invalid); got != nil || err == nil {
@@ -123,7 +159,7 @@ func pgConstraintUnitText(t *testing.T, value sqltype.Value) string {
 func TestPGConstraintProjection(t *testing.T) {
 	e := pgConstraintUnitFixture(t)
 	rows := pgConstraintUnitCapture(t, e, e.CatalogRead())
-	if len(rows) != 9 {
+	if len(rows) != 10 {
 		t.Fatal("actual constraint bag", len(rows), rows)
 	}
 	for _, tc := range []struct {
@@ -237,8 +273,8 @@ func TestPGConstraintCapture(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); len(got) != 0 {
-		t.Fatal("reset retained current definitions", got)
+	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); len(got) != 1 {
+		t.Fatal("reset did not retain exactly the bootstrap CHECK", got)
 	}
 	if got := pgConstraintUnitCapture(t, e, view); !reflect.DeepEqual(got, before) {
 		t.Fatal("reset mutated captured generation", got, before)
@@ -262,17 +298,18 @@ func TestPGConstraintPublication(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	base := e.CatalogRead()
+	baseline := pgConstraintUnitCapture(t, e, base)
 	stage := pgConstraintUnitTableStage(t, e, op, "CREATE TABLE pc_private(a INT CONSTRAINT pc_private_u UNIQUE)")
 	private := e.stageRead(stage)
-	if got := pgConstraintUnitCapture(t, e, base); len(got) != 0 {
+	if got := pgConstraintUnitCapture(t, e, base); !reflect.DeepEqual(got, baseline) {
 		t.Fatal("private creation leaked", got)
 	}
 	candidate := pgConstraintUnitCapture(t, e, private)
-	if len(candidate) != 1 || candidate["pc_private_u"] == nil {
+	if len(candidate) != 2 || candidate["pc_private_u"] == nil {
 		t.Fatal("private view omitted creation", candidate)
 	}
 	e.DiscardCatalogStage(stage)
-	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); len(got) != 0 {
+	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); !reflect.DeepEqual(got, baseline) {
 		t.Fatal("discard leaked creation", got)
 	}
 	stage = pgConstraintUnitTableStage(t, e, op, "CREATE TABLE pc_private(a INT CONSTRAINT pc_private_u UNIQUE)")
@@ -281,7 +318,7 @@ func TestPGConstraintPublication(t *testing.T) {
 	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); !reflect.DeepEqual(got, candidate) {
 		t.Fatal("publication changed candidate metadata", got, candidate)
 	}
-	if got := pgConstraintUnitCapture(t, e, base); len(got) != 0 {
+	if got := pgConstraintUnitCapture(t, e, base); !reflect.DeepEqual(got, baseline) {
 		t.Fatal("publication mutated retained base", got)
 	}
 }

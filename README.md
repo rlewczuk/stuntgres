@@ -3341,6 +3341,19 @@ See [type contracts](docs/TYPES.md#arrays-composites-enums-and-domains).
 Feature smoke: `make check RUN='^TestReferenceInfoSQLIdentifierFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceInfoSQLIdentifierFeatureSmoke$' REFERENCE=1`.
 
+Change note: consumer columns can declare the predefined
+`information_schema.yes_or_no` domain. Its existing qualified identity wraps
+VARCHAR(3) with C collation and the genuine named `yes_or_no_check`, accepting
+YES, NO and NULL through ordinary direct/prepared input. Physical result metadata
+is VARCHAR/string/length3 while pg_catalog retains domain/base/constraint links.
+Assignment overlength fails22001 before CHECK; invalid in-range values fail23514
+with PostgreSQL English/schema/type/constraint diagnostics and no partial INSERT.
+Native Dump/Reset/Restore retains the declaration, values, metadata and validation.
+This does not enable sibling domains, its implicit array, general information-schema
+views or migrate the existing table_privileges provider's primitive yes/no fields.
+Feature smoke: `make check RUN='^TestReferenceInfoYesOrNoFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceInfoYesOrNoFeatureSmoke$' REFERENCE=1`.
+
 Change note: `CREATE POLICY`, selective `ALTER POLICY`, policy rename and
 `DROP POLICY [IF EXISTS]` now define immutable, table-attached policy metadata.
 Definitions support PERMISSIVE/RESTRICTIVE, ALL/SELECT/INSERT/UPDATE/DELETE,

@@ -646,12 +646,16 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 	for _, fact := range builtinIdentities {
 		d := byID[fact.id]
 		if d == nil {
-			if fact.namespace == "information_schema" && (fact.name == "time_stamp" || fact.name == "sql_identifier") {
-				// Construct the selected domain before arrays capture element authority.
+			if fact.namespace == "information_schema" && (fact.name == "time_stamp" || fact.name == "sql_identifier" || fact.name == "yes_or_no") {
+				// Construct selected domains before arrays capture element authority.
 				base := byID[fact.base].Usage()
 				base.Typmod = fact.typmod
+				checks := fact.name == "yes_or_no"
+				if checks {
+					base.Collation = CollationRef{ID: 950, Derivation: Default}
+				}
 				var err error
-				d, err = Domain(fact.id, fact.name, fact.namespace+"."+fact.name, base)
+				d, err = Domain(fact.id, fact.name, fact.namespace+"."+fact.name, base, checks)
 				if err != nil {
 					panic(err) // Fixed inventory and supported base must be coherent.
 				}
@@ -674,6 +678,9 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 		if fact.base != 0 {
 			d.base = byID[fact.base].Usage()
 			d.base.Typmod = fact.typmod
+			if fact.namespace == "information_schema" && fact.name == "yes_or_no" {
+				d.base.Collation = CollationRef{ID: 950, Derivation: Default}
+			}
 		}
 		if fact.element != 0 {
 			d.element = byID[fact.element]

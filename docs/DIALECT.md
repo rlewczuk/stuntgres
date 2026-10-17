@@ -2236,7 +2236,8 @@ SQL_IDENTIFIER/CHARACTER_DATA/YES_OR_NO domain identities. The shared reference
 case independently checks PostgreSQL's actual domain identities and this named
 native representation boundary; names/ordinals, C collation, false NOT NULL and
 absence of system rows remain exact. Executable user-declared
-`information_schema.sql_identifier` columns do not migrate these view carriers.
+`information_schema.sql_identifier` and `information_schema.yes_or_no` columns
+do not migrate these provider fields.
 All 28 represented `pg_constraint` fields retain their released physical/type
 facts. Its first 20 fields are nonnullable; the seven array fields and `conbin`
 in its variable-width tail are nullable.
@@ -2417,6 +2418,24 @@ The seeded information_schema.time_stamp domain exposes the pinned18.6 stored
 metadata default `CURRENT_TIMESTAMP(2)` and exact SQLVALUEFUNCTION
 op4/type1184/typmod2/location-1 tree. This is metadata, not inherited-default
 execution or new CREATE DOMAIN DEFAULT/NOT NULL support.
+
+The predefined `information_schema.yes_or_no` accepts consumer-declared columns
+through the ordinary type resolver and catalog. It is a nullable VARCHAR(3)/C
+domain, not a Boolean or unconstrained string alias. One genuine validated
+`yes_or_no_check` recipe enforces `VALUE IN ('YES','NO')`; NULL passes UNKNOWN.
+Qualified pg_catalog introspection preserves domain identity, immediate base1043,
+base typmod7, C collation950, column typmod-1 and the actual constraint linkage.
+Generated constraint identities are not promised equal to another server's OIDs.
+Direct/prepared result metadata uses the physical base VARCHAR/string/length3.
+Assignment `YESx` fails22001 before CHECK; `abc`, lowercase `yes`, empty string
+and in-range `NO ` fail23514 with the domain/schema/constraint identity.
+Excess assignment spaces after YES are trimmed by character sizing; explicit
+casts can truncate YESx to YES before the same CHECK. Failed multirow INSERT
+publishes no prefix. Native Dump/Reset/Restore retains the qualified declaration,
+values/NULL, base metadata and both validations. Its implicit array remains
+lookup-only; other predefined domains and general information_schema.columns/
+domains providers are not enabled by this selected support. The existing native
+table_privileges source keeps its documented primitive usages.
 
 Direct/prepared/held reads follow existing catalog publication, transaction,
 physical TEMP-session and native Dump/Reset/Restore lifecycles. Dumps contain

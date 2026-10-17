@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -36,6 +37,26 @@ func (e domainValueExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 }
 
 func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *CatalogStage, d *typeDescriptor, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+	return e.bindDomainCheckRecipes(op.Context(), op, auth, stage, d, raw, input)
+}
+
+// The constructor uses the same VALUE binder and dependency cooking as user
+// domains, without a session, SQL execution or a separately allocated type.
+func (e *Engine) initializeBuiltinDomainChecks() error {
+	view := CatalogRead{owner: e, state: e.state}
+	d := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: 13256}].(*typeDescriptor)
+	raw, err := parser.Parse(`CREATE DOMAIN information_schema.yes_or_no AS character varying(3) COLLATE "C" CONSTRAINT yes_or_no_check CHECK (VALUE IN ('YES','NO'))`)
+	if err != nil {
+		return err
+	}
+	auth := AuthorizationView{
+		engine: e, pairedCatalog: view, roleRecord: e.roles, catalog: view,
+		roles: e.roleRead(view, e.roles), state: authorization.RoleState{CurrentUser: d.owner},
+	}
+	return e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{})
+}
+
+func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *typeDescriptor, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	used := constraintNames(auth.catalog, d.namespace, nil)
 	installed := make(map[string]bool)
 	for _, check := range d.domainChecks {
@@ -61,7 +82,7 @@ func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *
 			return sqlError("42710", fmt.Sprintf("constraint %q for domain %q already exists", name, d.Name()))
 		}
 		installed[name], used[name] = true, true
-		b := newExpressionBinder(op.Context(), e, input, op, nil)
+		b := newExpressionBinder(ctx, e, input, op, nil)
 		b.queryAuth = &auth
 		b.queryNamespace = &queryNamespace{}
 		b.checkConsumer, b.noParameters = true, true
@@ -72,7 +93,7 @@ func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *
 			return alterCookingError(err)
 		}
 		var refs []ObjectRef
-		if _, err := (scalarRenderer{domainValue: &base, dependencies: &refs}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{domainValue: &base, dependencies: &refs}).sql(ctx, auth.catalog, node); err != nil {
 			return err
 		}
 		oid, err := e.allocateOIDLocked()
@@ -88,7 +109,9 @@ func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *
 				return fmt.Errorf("stuntgres: missing domain CHECK provider")
 			}
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: provider.Revision()})
-			stage.domainBases = append(stage.domainBases, provider)
+			if stage != nil {
+				stage.domainBases = append(stage.domainBases, provider)
+			}
 		}
 		d.domainChecks = append(d.domainChecks, definition)
 	}

@@ -1300,3 +1300,44 @@ native Dump replay on pinned PostgreSQL, with future accepted/rejected writes.
 Ordinary inherited ALTER and absent comparison/index providers remain unchanged.
 
 
+### Information-schema yes_or_no selected proof
+
+The untagged `TestReferenceInfoYesOrNo` definitions independently cover
+consumer-created public columns declared as `information_schema.yes_or_no`,
+YES/NO/NULL, direct/prepared/held bindings, assignment sizing versus explicit
+truncation, raw VARCHAR/string/length3 metadata on populated/empty/all-NULL
+results, logical domain/base/C/companion/CHECK catalog relationships, complete
+English diagnostics, failed multirow atomicity and ordinary precancellation.
+The PostgreSQL-observed inferred-parameter portal Context is asserted identically
+on both backends. General information-schema columns/domains queries remain
+explicit PostgreSQL controls; the existing native table_privileges fields keep
+their primitive representation. No neighboring provider is migrated.
+
+Run from the repository root with an external900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceInfoYesOrNo'
+make check RUN='^TestReferenceInfoYesOrNo' REFERENCE=1
+make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1
+make check RUN='^TestReferencePGTypeAdmission$'
+make check RUN='^(TestInfoYesOrNo|TestInfoTimeStampBuiltinDescriptor)'
+make check RUN='^TestReferenceInfoYesOrNoFeatureSmoke$'
+make check RUN='^TestReferenceInfoYesOrNoFeatureSmoke$' REFERENCE=1
+```
+
+The feature smoke declares the qualified domain, binds YES/NO/nil, checks exact
+rows and base metadata plus genuine catalog identity, rejects CHECK-invalid and
+overlength multirow writes without a prefix, and exercises native Dump/Reset/
+Restore with enforcement still active. The larger NativeControls definition
+adds same/fresh/repeated replacement, retained rows/metadata and atomic failed/
+canceled Restore. PostgreSQL runs the shared SQL acceptance before the explicit
+native-only API boundary; no PostgreSQL control API or allocator parity is implied.
+Private units supplement this with immutable inline values, base sizing before
+CHECK, exact native13256/13255 identity, real recipe truth/dependencies and catalog
+generation reownership. Reserve quickcheck for whole-project Docker-free checks.
+The catalog admission definition also keeps native13256/13255 in its complete
+inventory and independently checks the shared domain/base/C/companion facts.
+Private catalog fixtures allocate relation identities rather than assuming the
+first user-range OID is free; complete pg_constraint bags retain and validate
+the genuine bootstrap CHECK through staging, publication and Reset.
+

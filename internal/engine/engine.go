@@ -298,6 +298,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	}
 	e.initializeOperators()
 	e.initializeDatabase(database)
+	if err := e.initializeBuiltinDomainChecks(); err != nil {
+		return nil, err
+	}
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}

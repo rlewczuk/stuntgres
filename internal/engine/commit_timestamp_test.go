@@ -137,7 +137,7 @@ func TestCommitTimePublication(t *testing.T) {
 					if route == "catalog" {
 						stage.initialTx = ref
 					}
-					d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
+					d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "commit_time_unit", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
 					if err := stage.Create(d); err != nil {
 						t.Fatal(err)
 					}

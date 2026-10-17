@@ -11,6 +11,19 @@ import (
 	"testing"
 )
 
+// Fixture identities use the real allocator: bootstrap definitions can occupy
+// user-range OIDs without becoming relation descriptors.
+func catalogUnitOID(t *testing.T, e *Engine) OID {
+	t.Helper()
+	e.mu.Lock()
+	oid, err := e.allocateOIDLocked()
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return oid
+}
+
 func TestCatalogIdentityAndReplacement(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
@@ -86,10 +99,10 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 		return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ns, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}, attributeHighWater: 1}
 	}
 	first, second := e.BeginCatalogStage(base), e.BeginCatalogStage(base)
-	if err := first.Create(makeDesc(16384, "first")); err != nil {
+	if err := first.Create(makeDesc(catalogUnitOID(t, e), "first")); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.Create(makeDesc(16385, "second")); err != nil {
+	if err := second.Create(makeDesc(catalogUnitOID(t, e), "second")); err != nil {
 		t.Fatal(err)
 	}
 	p, err := e.ValidateCatalogStage(context.Background(), first)
@@ -107,10 +120,10 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 		t.Fatalf("unrelated-key stage conflicted: %v", err)
 	}
 	conflictA, conflictB := e.BeginCatalogStage(e.CatalogRead()), e.BeginCatalogStage(e.CatalogRead())
-	if err = conflictA.Create(makeDesc(16386, "same")); err != nil {
+	if err = conflictA.Create(makeDesc(catalogUnitOID(t, e), "same")); err != nil {
 		t.Fatal(err)
 	}
-	if err = conflictB.Create(makeDesc(16387, "same")); err != nil {
+	if err = conflictB.Create(makeDesc(catalogUnitOID(t, e), "same")); err != nil {
 		t.Fatal(err)
 	}
 	p, err = e.ValidateCatalogStage(context.Background(), conflictA)
@@ -132,7 +145,9 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	if _, err = e.ValidateCatalogStage(context.Background(), bad); err == nil {
 		t.Fatal("foreign stage accepted")
 	}
-	if err = e.ValidateObjectRef(foreign, ObjectRef{Epoch: foreign.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 1}}); err == nil {
+	ref := catalogRef(t, e, e.CatalogRead(), "first")
+	ref.Address.SubID = 1
+	if err = e.ValidateObjectRef(foreign, ref); err == nil {
 		t.Fatal("foreign read accepted")
 	}
 }
@@ -194,7 +209,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ns, name: "canceled", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ns, name: "canceled", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
 	d.attributeHighWater = 1
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
@@ -220,11 +235,14 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 1}}
+	ref := catalogRef(t, e, view, "p")
+	ref.Address.SubID = 1
 	if err := e.ValidateObjectRef(view, ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.ValidateObjectRef(view, ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 2}}); err == nil {
+	invalid := ref
+	invalid.Address.SubID = 2
+	if err := e.ValidateObjectRef(view, invalid); err == nil {
 		t.Fatal("invalid attribute number accepted")
 	}
 	stage := e.BeginCatalogStage(view)
@@ -238,17 +256,24 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	e.state = cloneCatalog(e.state)
-	e.state.epoch = CatalogEpoch(^uint64(0))
-	e.mu.Unlock()
+	setEpoch := func(epoch CatalogEpoch) {
+		e.mu.Lock()
+		next := cloneCatalog(e.state)
+		next.epoch = epoch
+		err := e.reownCatalogExpressions(next, nil, false)
+		if err == nil {
+			e.state = next
+		}
+		e.mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	setEpoch(CatalogEpoch(^uint64(0)))
 	if _, err = e.ReplaceCatalog(context.Background(), e.CatalogRead()); err == nil || err.Error() != "stuntgres: catalog epoch exhausted" {
 		t.Fatalf("epoch exhaustion: %v", err)
 	}
-	e.mu.Lock()
-	e.state = cloneCatalog(e.state)
-	e.state.epoch = view.Epoch()
-	e.mu.Unlock()
+	setEpoch(view.Epoch())
 	if err = e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +286,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	address := ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}
+	address := ObjectAddress{ClassID: RelationClassID, ObjectID: catalogUnitOID(t, e)}
 	prepare := func(name string) *PreparedCatalogPublication {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)

@@ -18,6 +18,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			links = append(links, []any{id, true, true, true, true})
 		}
 		fixture.PgDescriptionRows(t, p, b, fixture.Select(q, []string{"oid", "row_link", "relation_link", "element_link", "array_relation"}, []string{"OID", "BOOL", "BOOL", "BOOL", "BOOL"}, links))
+		// The selected predefined domain and canonical companion are real
+		// catalog identities, independently of executable array admission.
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.typtype,t.typbasetype::integer AS base,t.typtypmod,t.typcollation::integer AS collation,(a.typelem=t.oid AND a.typnamespace=t.typnamespace) AS companion FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid=t.typnamespace JOIN pg_catalog.pg_type a ON a.oid=t.typarray WHERE n.nspname='information_schema' AND t.typname='yes_or_no'", []string{"typtype", "base", "typtypmod", "collation", "companion"}, []string{"CHAR", "INT4", "INT4", "INT4", "BOOL"}, [][]any{{"d", int64(1043), int64(7), int64(950), true}}))
 		if b.PG {
 			return
 		} // PostgreSQL genuinely implements additional families.
@@ -27,6 +30,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		}
 		expected[13254], expected[13253] = true, true
 		expected[13248], expected[13247] = true, true
+		expected[13256], expected[13255] = true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")
