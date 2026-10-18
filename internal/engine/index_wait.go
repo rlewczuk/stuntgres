@@ -38,13 +38,6 @@ func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, k
 	e.mu.Unlock()
 }
 
-type completionLockPurpose uint8
-
-const (
-	completionVirtual completionLockPurpose = iota
-	completionTransaction
-)
-
 func (s *StatementScope) waitCompletion(owner *relationTicket, purpose completionLockPurpose) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{timeoutSlot: &s.op.lockWait, timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext, completionPurpose: purpose}

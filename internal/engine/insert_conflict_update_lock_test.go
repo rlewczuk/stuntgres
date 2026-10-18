@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
 )
@@ -105,7 +106,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 				pending := entry.pending[0]
 				if len(entry.pending) != 1 || pending.mode != uniqueClaim || pending.ref.key == nil ||
 					pending.policy.timeoutSlot == nil ||
-					len(pending.ref.key.values) != 1 || testExport(pending.ref.key.values[0]) != int64(1) ||
+					len(pending.ref.key.value.([]sqltype.Value)) != 1 || testExport(pending.ref.key.value.([]sqltype.Value)[0]) != int64(1) ||
 					len(entry.holders) != 1 {
 					t.Fatal("not the actual source proposal's UniqueKey queue", pending)
 				}

@@ -385,16 +385,6 @@ func (m *relationLockManager) physicalEvents(owner *relationTicket, events []mul
 	m.multiNext = next
 	return nil
 }
-func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mode multiMode, successor ids.VersionID) error {
-	e := s.op.session.Engine()
-	e.mu.Lock()
-	err := e.assignTransactionXIDLocked(s.txRef)
-	e.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	return s.op.session.Engine().locks.physicalEvents(s.ticket, []multiEvent{{tuple: multiTuple{lockResource{ObjectRef: ref, row: row.row}, row.version}, mode: mode, successor: successor}})
-}
 
 // Restore contribution provenance independently of immutable retained records.
 // Singleton current state can be restored without changing any allocated bag.
@@ -451,26 +441,6 @@ func (m *relationLockManager) restoreMultiContributionsLocked(t *relationTicket,
 	}
 }
 
-func (s *StatementScope) flushPhysicalEvents() error {
-	events := s.multiEvents
-	if len(events) == 0 {
-		return nil
-	}
-	e := s.op.session.Engine()
-	e.mu.Lock()
-	assignmentErr := e.assignTransactionXIDLocked(s.txRef)
-	e.mu.Unlock()
-	if assignmentErr != nil {
-		clear(events)
-		s.multiEvents = events[:0]
-		return assignmentErr
-	}
-	err := s.op.session.Engine().locks.physicalEvents(s.ticket, events)
-	clear(events)
-	s.multiEvents = events[:0]
-	return err
-}
-
 func (m *relationLockManager) retireMultiOwnerLocked(owner *relationTicket) {
 	for tuple := range owner.multiContributions {
 		m.retireMultiTupleLocked(tuple)
@@ -485,4 +455,11 @@ func (m *relationLockManager) retireMultiTupleLocked(tuple multiTuple) {
 		}
 	}
 	delete(m.multiRows, tuple)
+}
+
+func multiTransactionAge(next, xid uint32) int32 {
+	if xid == 0 {
+		return 2147483647
+	}
+	return int32(next - xid)
 }

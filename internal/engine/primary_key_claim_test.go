@@ -83,12 +83,12 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 		}
 	}
 	ref := e.domain.Ref(e.state.epoch, index.address)
-	first, releaseFirst, err := e.locks.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
+	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer releaseFirst()
-	equivalent, releaseEquivalent, err := e.locks.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, equivalentValues)
+	equivalent, releaseEquivalent, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, equivalentValues)
 	if err != nil {
 		t.Fatal(err)
 	}

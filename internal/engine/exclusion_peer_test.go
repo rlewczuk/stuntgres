@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 func exclusionInsertAwait(t *testing.T, done <-chan deleteOutcome, count int64, code string) {
@@ -104,7 +105,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 						// DELETE retains the existing exact-key grant. The eager
 						// admission waits here before its dirty completion probe.
 						for resource, entry := range e.locks.entries {
-							if resource.key != nil && resource.key.bucket.ObjectRef.Address == index && len(resource.key.values) == 1 && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.session == b.token && entry.holders[at].mode&uniqueClaim != 0 {
+							if resource.key != nil && resource.key.bucket.ObjectRef.Address == index && len(resource.key.value.([]sqltype.Value)) == 1 && len(entry.pending) == 1 && entry.pending[0].mode == uniqueClaim && entry.pending[0].ticket.session == b.token && entry.holders[at].mode&uniqueClaim != 0 {
 								matched = true
 							}
 						}

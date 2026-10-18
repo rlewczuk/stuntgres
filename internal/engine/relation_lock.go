@@ -164,13 +164,13 @@ type relationLockManager struct {
 func newRelationLockManager(domain *ids.Domain) *relationLockManager {
 	return &relationLockManager{domain: domain, multiNext: 1, owners: make(map[ids.TxRef]*relationTicket), entries: make(map[lockResource]*relationEntry)}
 }
+
+// register admits a transaction ticket. The engine has already checked that
+// ref is attached to its transaction owner and session (txOwnerAttached).
 func (m *relationLockManager) register(ref ids.TxRef) (*relationTicket, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	owner, private := txOwnerOf(ref), privateSessionOf(ref.Session())
-	if ref.Domain() != m.domain || ref.ID() == 0 || ref.Epoch() == 0 || owner == nil || ref.Session().Domain() != m.domain ||
-		ref.Session().ID() == 0 && (private == nil || owner.session != private || private.token != ref.Session()) ||
-		ref.Session().ID() != 0 && private != nil {
+	if ref.Domain() != m.domain || ref.ID() == 0 || ref.Epoch() == 0 || ref.Attachment() == nil || ref.Session().Domain() != m.domain {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
 	if ref.Epoch() < m.epoch {
@@ -693,3 +693,10 @@ func (m *relationLockManager) fence(epoch ids.CatalogEpoch) {
 	m.mu.Unlock()
 	notifyRequests(notify)
 }
+
+type completionLockPurpose uint8
+
+const (
+	completionVirtual completionLockPurpose = iota
+	completionTransaction
+)

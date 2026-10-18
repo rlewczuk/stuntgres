@@ -31,12 +31,6 @@ func transactionAge(now, xid uint32) int32 {
 	}
 	return int32(now - xid)
 }
-func multiTransactionAge(next, xid uint32) int32 {
-	if xid == 0 {
-		return 2147483647
-	}
-	return int32(next - xid)
-}
 func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
 		return 0, ErrCatalogReplaced

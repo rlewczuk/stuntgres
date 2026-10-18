@@ -51,7 +51,7 @@ type pgLockRecord struct {
 
 func publicLockOwner(domain *ids.Domain, ref ids.TxRef, prepared bool) (pgLockOwner, bool, error) {
 	token := ref.Session()
-	if ref.Domain() != domain || token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0 {
+	if ref.Domain() != domain || token.Domain() != domain || token.Private() != nil || token.ID() == 0 {
 		return pgLockOwner{}, false, nil
 	}
 	if !prepared && token.ID() > math.MaxInt32 {

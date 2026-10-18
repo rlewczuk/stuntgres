@@ -23,6 +23,9 @@ type transactionVisibility struct {
 // associate its exact ticket before any command can reach canonical assignment.
 // Neither manager nor TX synchronization is held while taking Engine.mu.
 func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error) {
+	if !txOwnerAttached(ref) {
+		return nil, errors.New("stuntgres: invalid lock owner")
+	}
 	ticket, err := e.locks.register(ref)
 	if err != nil {
 		return nil, err

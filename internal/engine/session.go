@@ -222,7 +222,11 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	if err == nil {
 		var ticket *relationTicket
-		ticket, err = e.locks.registerSession(s.token)
+		if sessionTokenAttached(s.token) {
+			ticket, err = e.locks.registerSession(s.token)
+		} else {
+			err = errors.New("stuntgres: invalid advisory session")
+		}
 		if err == nil {
 			s.advisory.ticket = ticket
 			_, err = op.Attach(AdvisorySession, &s.advisory)

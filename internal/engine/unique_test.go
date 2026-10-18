@@ -103,11 +103,11 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, releaseFirst, err := e.locks.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
+	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
-	equal, releaseEqual, err := e.locks.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{scaled})
+	equal, releaseEqual, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{scaled})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,11 +118,11 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	// alone must not grant equality, and provider comparison must find the real key.
 	e.locks.mu.Lock()
 	bucket := e.locks.keyBuckets[first.key.bucket]
-	collision := &uniqueLockKey{bucket: first.key.bucket, values: []sqltype.Value{two}}
+	collision := &uniqueLockKey{bucket: first.key.bucket, value: []sqltype.Value{two}}
 	bucket.keys = append([]*uniqueLockKey{collision}, bucket.keys...)
 	bucket.generation++
 	e.locks.mu.Unlock()
-	again, releaseAgain, err := e.locks.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
+	again, releaseAgain, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, release, err := e.locks.pinUniqueKey(canceled, scope.ticket, ref, ordering, grouping, []sqltype.Value{one}); !errors.Is(err, context.Canceled) || release != nil {
+	if _, release, err := e.pinUniqueKey(canceled, scope.ticket, ref, ordering, grouping, []sqltype.Value{one}); !errors.Is(err, context.Canceled) || release != nil {
 		t.Fatal(err)
 	}
 }

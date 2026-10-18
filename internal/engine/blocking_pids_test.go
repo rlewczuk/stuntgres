@@ -29,7 +29,7 @@ func blockingUnitType(e *Engine) *sqltype.Descriptor {
 
 func blockingUnitWant(t *testing.T, e *Engine, target ids.SessionID, want ...int64) []sqltype.Value {
 	t.Helper()
-	values, err := e.locks.blockingPids(target, blockingUnitType(e))
+	values, err := e.blockingPidValues(target, blockingUnitType(e))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if request == nil {
 			t.Fatal("high holder did not block")
 		}
-		if _, err := e.locks.blockingPids(next.session.ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+		if _, err := e.blockingPidValues(next.session.ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 			t.Fatal("high live blocker", err)
 		}
 		e.endLockOwner(ht)

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"math"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -143,7 +142,7 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if pid > 0 && n.kind == ordinaryBlockingInquiry {
-		elements, err = e.locks.blockingPids(ids.SessionID(pid), n.usage.Type.Element())
+		elements, err = e.blockingPidValues(ids.SessionID(pid), n.usage.Type.Element())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -159,21 +158,33 @@ func (n blockingInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 }
 
 func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token ids.SessionToken, prepared bool, domain *ids.Domain) ([]sqltype.Value, error) {
-	if !prepared && (token.Domain() != domain || privateSessionOf(token) != nil || token.ID() == 0) {
+	pid, visible, err := blockingPid(token, prepared, domain)
+	if err != nil {
+		return nil, err
+	}
+	if !visible {
 		return values, nil
 	}
-	var pid int64
-	if !prepared {
-		if token.ID() > math.MaxInt32 {
-			return nil, fmt.Errorf("stuntgres: blocking session identity exceeds integer range")
-		}
-		pid = int64(token.ID())
-	}
-	value, err := sqltype.Integer(typ, pid)
+	value, err := sqltype.Integer(typ, int64(pid))
 	if err != nil {
 		return nil, err
 	}
 	return append(values, value), nil
+}
+
+// blockingPidValues projects the lock manager's blocking PIDs of one session.
+func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
+	pids, err := e.locks.blockingPids(pid)
+	if err != nil || len(pids) == 0 {
+		return nil, err
+	}
+	values := make([]sqltype.Value, len(pids))
+	for i, pid := range pids {
+		if values[i], err = sqltype.Integer(typ, int64(pid)); err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
 }
 
 // Caller holds Engine.mu. These flags describe an unresolved acquisition,
@@ -197,121 +208,4 @@ func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.
 		return values, nil
 	}
 	return nil, nil
-}
-
-func (m *relationLockManager) validInquiryRequest(r *relationRequest, entry *relationEntry, resource lockResource) bool {
-	if r == nil || r.terminal || r.entry != entry || r.ref != resource || !m.validRequest(r) {
-		return false
-	}
-	if _, journaled := r.ticket.resources[resource]; !journaled {
-		return false
-	}
-	if r.ticket.persistent {
-		_, journaled := m.owners[r.provenance].resources[resource]
-		return journaled
-	}
-	return true
-}
-
-func (m *relationLockManager) pendingInquiryRequest(t *relationTicket) *relationRequest {
-	if !m.valid(t) || t.detached {
-		return nil
-	}
-	for resource := range t.resources {
-		entry := m.entries[resource]
-		if entry == nil {
-			continue
-		}
-		for _, r := range entry.pending {
-			if r.ticket == t && m.validInquiryRequest(r, entry, resource) {
-				return r
-			}
-		}
-	}
-	return nil
-}
-
-// Only manager metadata is held. Inspect the authoritative journal and resource
-// queue without granting, settling, copying the graph, or invoking callbacks.
-func (m *relationLockManager) blockingPids(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	token := m.domain.Session(pid)
-	r := m.pendingInquiryRequest(m.sessions[token])
-	if r == nil {
-		for _, t := range m.owners {
-			if t.session == token && !t.detached {
-				r = m.pendingInquiryRequest(t)
-				if r != nil {
-					break
-				}
-			}
-		}
-	}
-	if r == nil {
-		return nil, nil
-	}
-	var values []sqltype.Value
-	// Deduplicate by participant, never by projected PID: prepared owners with
-	// different TxRefs must retain separate zero entries. Scanning the small
-	// resource-local prefixes avoids allocating a second identity registry.
-	appendParticipant := func(t *relationTicket) error {
-		var err error
-		values, err = appendBlockingPid(values, typ, t.session, t.detached, m.domain)
-		return err
-	}
-	for t, held := range r.entry.holders {
-		if !m.valid(t) || sameLockSession(t, r.ticket) || !lockConflict(r.mode, held.mode) {
-			continue
-		}
-		// A participant can have session and transaction tickets. Pick one
-		// canonical ticket without sorting/copying the holder map.
-		duplicate := false
-		for other, hold := range r.entry.holders {
-			if other == t || !m.valid(other) || !sameLockSession(t, other) || !lockConflict(r.mode, hold.mode) {
-				continue
-			}
-			if other.persistent && !t.persistent || other.persistent == t.persistent && other.ref.ID() < t.ref.ID() {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			if err := appendParticipant(t); err != nil {
-				return nil, err
-			}
-		}
-	}
-	if r.ref.completion != nil || r.ref.row != 0 && r.mode == noKeyUpdate {
-		return values, nil
-	}
-	for i, earlier := range r.entry.pending {
-		if earlier == r {
-			break
-		}
-		if !m.validInquiryRequest(earlier, r.entry, r.ref) || sameLockSession(earlier.ticket, r.ticket) || !lockConflict(r.mode, earlier.mode) {
-			continue
-		}
-		duplicate := false
-		for t, hold := range r.entry.holders {
-			if m.valid(t) && sameLockSession(t, earlier.ticket) && lockConflict(r.mode, hold.mode) {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			for _, previous := range r.entry.pending[:i] {
-				if m.validInquiryRequest(previous, r.entry, r.ref) && sameLockSession(previous.ticket, earlier.ticket) && lockConflict(r.mode, previous.mode) {
-					duplicate = true
-					break
-				}
-			}
-		}
-		if !duplicate {
-			if err := appendParticipant(earlier.ticket); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return values, nil
 }
