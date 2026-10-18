@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+)
 
 // SQL routine kind is independent of the catalog's ProcedureObject class.
 type routineKind byte
@@ -45,32 +48,34 @@ type builtinRoutineDeclaration struct {
 	providers  routineProvider
 }
 
-type routineProvider uint32
+// Temporary aliases for the provider vocabulary that moved to functions in
+// ENGINE-SPLIT step 3 F3. A later alias-removal sub-step replaces their uses.
+type routineProvider = functions.RoutineProvider
 
 const (
-	stringRoutineProvider routineProvider = 1 << iota
-	binaryRoutineProvider
-	mathRoutineProvider
-	variadicRoutineProvider
-	jsonRoutineProvider
-	arrayRoutineProvider
-	enumRoutineProvider
-	regexpRoutineProvider
-	datetimeRoutineProvider
-	randomRoutineProvider
-	uuidRoutineProvider
-	catalogRoutineProvider
-	advisoryRoutineProvider
-	sequenceRoutineProvider
-	settingRoutineProvider
-	aggregateRoutineProvider
-	windowRoutineProvider
-	seriesRoutineProvider
-	subscriptRoutineProvider
-	operatorRoutineProvider
-	rangeRoutineProvider
-	embeddedRoutineProvider // Existing function-method conversion inside genuine SQL bodies, not standalone dispatch.
-	networkRoutineProvider
+	stringRoutineProvider    = functions.StringRoutineProvider
+	binaryRoutineProvider    = functions.BinaryRoutineProvider
+	mathRoutineProvider      = functions.MathRoutineProvider
+	variadicRoutineProvider  = functions.VariadicRoutineProvider
+	jsonRoutineProvider      = functions.JSONRoutineProvider
+	arrayRoutineProvider     = functions.ArrayRoutineProvider
+	enumRoutineProvider      = functions.EnumRoutineProvider
+	regexpRoutineProvider    = functions.RegexpRoutineProvider
+	datetimeRoutineProvider  = functions.DatetimeRoutineProvider
+	randomRoutineProvider    = functions.RandomRoutineProvider
+	uuidRoutineProvider      = functions.UUIDRoutineProvider
+	catalogRoutineProvider   = functions.CatalogRoutineProvider
+	advisoryRoutineProvider  = functions.AdvisoryRoutineProvider
+	sequenceRoutineProvider  = functions.SequenceRoutineProvider
+	settingRoutineProvider   = functions.SettingRoutineProvider
+	aggregateRoutineProvider = functions.AggregateRoutineProvider
+	windowRoutineProvider    = functions.WindowRoutineProvider
+	seriesRoutineProvider    = functions.SeriesRoutineProvider
+	subscriptRoutineProvider = functions.SubscriptRoutineProvider
+	operatorRoutineProvider  = functions.OperatorRoutineProvider
+	rangeRoutineProvider     = functions.RangeRoutineProvider
+	embeddedRoutineProvider  = functions.EmbeddedRoutineProvider
+	networkRoutineProvider   = functions.NetworkRoutineProvider
 )
 
 func (d *procedureDescriptor) seeded() bool {
