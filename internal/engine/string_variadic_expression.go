@@ -106,7 +106,7 @@ func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExp
 		properties.Volatility = Stable
 	}
 	for _, arg := range args {
-		if parameter, ok := arg.(parameterExpression); ok && parameter.usage.Type == nil {
+		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
 			b.anyParameters = append(b.anyParameters, parameter)
 		}
 		p := arg.Properties()

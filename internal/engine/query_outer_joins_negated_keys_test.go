@@ -12,8 +12,8 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	info := expressionInfo{usage: boolean.Usage(), properties: ExprProperties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
-	columnInfo := expressionInfo{usage: integer.Usage(), properties: info.properties}
+	info := expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
+	columnInfo := expressionInfo{Usage: integer.Usage(), Property: info.Property}
 	left := columnExpression{expressionInfo: columnInfo, slot: 0}
 	right := columnExpression{expressionInfo: columnInfo, slot: 1}
 	comparison := func(op string, a, b BoundExpr) comparisonExpression {
@@ -35,14 +35,14 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	not := func(a BoundExpr) BoundExpr { return logical(parser.LogicalNot, a, nil) }
 	equal := comparison("=", left, right)
 	unequal := comparison("<>", left, right)
-	unknown := literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: sqltype.Null(boolean)}
+	unknown := literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Null(boolean)}
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
-	constant := literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, value: one}
+	constant := literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: one}
 	volatile := left
-	volatile.properties.Volatility = Volatile
+	volatile.Property.Volatility = Volatile
 	stable := left
-	stable.properties.Volatility = Stable
+	stable.Property.Volatility = Stable
 	cases := []struct {
 		name string
 		expr BoundExpr
@@ -75,7 +75,7 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 			if err != nil || facts.constant || len(facts.keys) != tc.keys {
 				t.Fatalf("facts=%+v error=%v; want %d keys", facts, err, tc.keys)
 			}
-			if !reflect.DeepEqual(join.predicate, before) || join.predicate.Properties() != info.properties {
+			if !reflect.DeepEqual(join.predicate, before) || join.predicate.Properties() != info.Property {
 				t.Fatal("planning changed the runtime predicate or analyzed dependencies")
 			}
 			// Planning facts must not replace runtime FALSE/UNKNOWN results,

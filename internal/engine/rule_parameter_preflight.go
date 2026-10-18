@@ -14,7 +14,7 @@ func specializeRuleParameterExpression(c *EvalContext, expression BoundExpr) (Bo
 			return nil, false, err
 		}
 		info := parameter.expressionInfo
-		info.properties.ParameterDependent = false
+		info.Property.ParameterDependent = false
 		return literalExpression{expressionInfo: info, value: value}, true, nil
 	}, func(root LogicalNode, _ func(BoundExpr) (BoundExpr, bool, error)) (LogicalNode, error) {
 		// A query in a discarded conditional branch is not scalar demand.

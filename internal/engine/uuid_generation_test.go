@@ -28,8 +28,8 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	}
 	uuid := b.typ(sqltype.UUID)
 	iv := b.typ(sqltype.Interval)
-	argument := literalExpression{expressionInfo{usage: iv.Usage()}, sqltype.Null(iv)}
-	expr := functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: uuid.Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "uuidv7", Args: []BoundExpr{argument}}
+	argument := literalExpression{expressionInfo{Usage: iv.Usage()}, sqltype.Null(iv)}
+	expr := functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "uuidv7", Args: []BoundExpr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
 	stored, err := b.bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), expressionPolicy{context: projectionContext})
 	if err != nil {
@@ -47,7 +47,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	if generationImmutable(expr) {
 		t.Fatal("UUID admitted to immutable consumer")
 	}
-	if closedUUIDDefault(functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: uuid.Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}) {
+	if closedUUIDDefault(functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}) {
 		t.Fatal("unrelated volatile default admitted")
 	}
 }

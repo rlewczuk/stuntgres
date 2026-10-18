@@ -255,7 +255,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if !ok {
 				t.Fatal("fixture JSON argument is not the original literal", arg)
 			}
-			literal.routineRecipe = recipe
+			literal.RoutineRecipeReference = recipe
 			expectedGraft.Args[i] = literal
 		}
 		if !reflect.DeepEqual(grafted, expectedGraft) {

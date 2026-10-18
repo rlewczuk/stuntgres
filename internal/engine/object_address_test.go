@@ -167,7 +167,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 			t.Fatal("duplicate slot accepted")
 		}
 		bad = n
-		bad.properties.Volatility = Immutable
+		bad.Property.Volatility = Immutable
 		if bad.validateStored() == nil {
 			t.Fatal("immutable inquiry accepted")
 		}

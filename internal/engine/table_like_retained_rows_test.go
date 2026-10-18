@@ -226,8 +226,8 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 					t.Fatal("local row authority not current", n.origin)
 				}
 			case literalExpression:
-				if n.regclassRef.Address == anchor.address && n.regclassRef != oldRef {
-					t.Fatal("external constant retagged", n.regclassRef)
+				if n.RegclassRef.Address == anchor.address && n.RegclassRef != oldRef {
+					t.Fatal("external constant retagged", n.RegclassRef)
 				}
 			}
 		})

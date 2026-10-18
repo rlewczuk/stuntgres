@@ -43,7 +43,7 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 		if !valid {
 			return signature()
 		}
-		views[0].node = literalExpression{expressionInfo: expressionInfo{usage: u}}
+		views[0].node = literalExpression{expressionInfo: expressionInfo{Usage: u}}
 	}
 	// anycompatible resolution collects known leaf OIDs before selecting a
 	// common type; UNKNOWN arguments must not erase an agreed domain identity.
@@ -211,7 +211,7 @@ func (b *expressionBinder) newArraySearch(name string, rawName parser.ObjectName
 			return nil, err
 		}
 	}
-	plan, err := sqltype.BindArraySearch(name, args[0].ResultUsage().Type.BaseType(), result.Type, b.typ(sqltype.Int4), input.usage.Collation, input.collationConflict)
+	plan, err := sqltype.BindArraySearch(name, args[0].ResultUsage().Type.BaseType(), result.Type, b.typ(sqltype.Int4), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, err
 	}

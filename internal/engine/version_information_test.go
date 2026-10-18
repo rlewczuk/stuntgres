@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -90,7 +91,7 @@ func TestVersionInformationRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 		copy := remapped.(functions.VersionInformation[ExprContext, ExprProperties])
-		if copy.Kind != kind || copy.Pos != leaf.Pos || copy.Usage.Type == leaf.Usage.Type || copy.RoutineReference == nil || copy.RoutineReference.RoutineOID() != leaf.RoutineReference.RoutineOID() || copy.Validate(functionPropertiesMatch(copy.Property, kind.IntrinsicRule())) != nil {
+		if copy.Kind != kind || copy.Pos != leaf.Pos || copy.Usage.Type == leaf.Usage.Type || copy.RoutineReference == nil || copy.RoutineReference.RoutineOID() != leaf.RoutineReference.RoutineOID() || copy.Validate(expr.PropertiesMatch(copy.Property, kind.IntrinsicRule())) != nil {
 			t.Fatal("lost remap identity", leaf, copy)
 		}
 		value, err := copy.Eval(&EvalContext{Context: ctx})

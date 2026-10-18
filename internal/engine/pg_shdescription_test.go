@@ -67,7 +67,7 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	}
 	for i, column := range d.columns {
 		root.expressions = append(root.expressions, columnExpression{
-			expressionInfo: expressionInfo{usage: column.Usage},
+			expressionInfo: expressionInfo{Usage: column.Usage},
 			origin:         ref, scope: 1, frame: 1, slot: i,
 		})
 	}
@@ -126,9 +126,9 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := commentInquiryExpression{expressionInfo: expressionInfo{usage: textUsage}, kind: sharedDescription, args: []BoundExpr{
-		literalExpression{expressionInfo: expressionInfo{usage: oidUsage}, value: oid},
-		literalExpression{expressionInfo: expressionInfo{usage: nameUsage}, value: sqltype.String(nameUsage.Type, "pg_authid")},
+	expr := commentInquiryExpression{expressionInfo: expressionInfo{Usage: textUsage}, kind: sharedDescription, args: []BoundExpr{
+		literalExpression{expressionInfo: expressionInfo{Usage: oidUsage}, value: oid},
+		literalExpression{expressionInfo: expressionInfo{Usage: nameUsage}, value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
 	value, err := expr.Eval(&EvalContext{Context: context.Background(), statementScope: &StatementScope{commentRoles: roles, commentCatalog: catalog}})
 	if err != nil {

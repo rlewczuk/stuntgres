@@ -20,7 +20,7 @@ func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *
 	for i := range schema {
 		usage := testUsage(e, sqltype.Int4)
 		schema[i] = ColumnDescriptor{Name: "i", Usage: usage}
-		expressions[i] = columnExpression{expressionInfo: expressionInfo{usage: usage, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: i}
+		expressions[i] = columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: i}
 		for j := range rows {
 			rows[j][i], _ = sqltype.Integer(usage.Type, int64(j+1))
 		}

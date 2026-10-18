@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -99,7 +100,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				}
 				key := path
 				key.argument = i + 1
-				b.viewCastUsages[key] = coercion.usage
+				b.viewCastUsages[key] = coercion.Usage
 			}
 			if err := child(raw[i], arg); err != nil {
 				return err
@@ -167,11 +168,11 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if _, typed := r.(parser.TypedLiteralExpr); typed {
 			if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
-				if literal, ok := coercion.child.(literalExpression); ok && literal.usage.Type == coercion.usage.Type {
+				if literal, ok := coercion.child.(literalExpression); ok && literal.Usage.Type == coercion.Usage.Type {
 					// The stored query retains the executable typmod coercion.
 					// Literal replay writes its raw value with the typed occurrence's
 					// annotation, so ordinary binding reconstructs that same coercion.
-					literal.usage = coercion.usage
+					literal.Usage = coercion.Usage
 					bound = literal
 				}
 			}
@@ -395,7 +396,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if b.viewCollations == nil {
 				b.viewCollations = make(map[viewLiteralPath]uint32)
 			}
-			b.viewCollations[path] = n.usage.Collation.ID
+			b.viewCollations[path] = n.Usage.Collation.ID
 			return child(r.Child, n.child)
 		}
 	case parser.CastExpr:
@@ -629,10 +630,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return nil
 		}
 		if n, ok := bound.(functions.VersionInformation[ExprContext, ExprProperties]); ok && len(r.Args) == 0 {
-			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
+			return n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
 		}
 		if n, ok := bound.(functions.TransactionTime[ExprContext, ExprProperties]); ok && len(r.Args) == 0 {
-			return n.Validate(functionPropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
+			return n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule()))
 		}
 		if n, ok := bound.(functions.Random[BoundExpr, ExprContext, ExprProperties]); ok {
 			return children(r.Args, n.Args)
@@ -645,7 +646,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				if b.viewCastUsages == nil {
 					b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
 				}
-				b.viewCastUsages[path] = coercion.usage
+				b.viewCastUsages[path] = coercion.Usage
 			}
 			return children(r.Args, []BoundExpr{n.Arg})
 		}
@@ -1241,7 +1242,7 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			if !validExpressionUsage(catalog, usage) {
 				return fmt.Errorf("stuntgres: foreign view literal type")
 			}
-			if ref := literal.regclassRef; ref != (ids.ObjectRef{}) {
+			if ref := literal.RegclassRef; ref != (ids.ObjectRef{}) {
 				consumer, _ := catalog.state.descriptors[v.consumer].(*relationDescriptor)
 				if !storedViewReferenceValid(catalog, consumer, ref) || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.value.IsNull() {
 					return fmt.Errorf("stuntgres: invalid view regclass literal authority")

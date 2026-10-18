@@ -150,7 +150,7 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 		return nil, fmt.Errorf("stuntgres: invalid pgcrypto result")
 	}
 	info := b.info(result, raw.Pos, properties)
-	info.routineReference = proc
+	info.RoutineReference = proc
 	call, err := functions.NewPgcrypto[BoundExpr, ExprContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err

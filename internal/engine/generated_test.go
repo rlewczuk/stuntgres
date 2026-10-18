@@ -34,7 +34,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	ref := e.domain.Ref(view.Epoch(), d.address)
 	ref.Address.SubID = 1
-	node := columnExpression{expressionInfo: expressionInfo{usage: d.columns[0].Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
+	node := columnExpression{expressionInfo: expressionInfo{Usage: d.columns[0].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: node, planned: node}}
 	value, err := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	if err != nil {
@@ -97,12 +97,12 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	ref := e.domain.Ref(view.Epoch(), d.address)
-	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
-	volatile := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: oid.Usage(), properties: ExprProperties{Volatility: Volatile}}), Name: "random"}
+	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
+	volatile := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: oid.Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}
 	if generationImmutable(volatile) {
 		t.Fatal("volatile accepted")
 	}
-	pruned := caseExpression{expressionInfo: expressionInfo{usage: oid.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true}}, otherwise: leaf}
+	pruned := caseExpression{expressionInfo: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{Volatility: Volatile, RowDependent: true}}, otherwise: leaf}
 	if !generationImmutable(pruned) || !generationHasTableOID(pruned) {
 		t.Fatal("surviving provider walk uses inherited volatility")
 	}
@@ -126,7 +126,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	e, view, parent := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	owner := e.domain.Ref(view.Epoch(), parent.address)
-	original := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, owner}
+	original := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, owner}
 	child := *parent
 	child.address.ObjectID++
 	mapper := createLikeInput{source: parent}
@@ -147,7 +147,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 		func(n *tableOIDExpression) { n.owner.Epoch++ },
 		func(n *tableOIDExpression) { n.owner.Address.ObjectID++ },
 		func(n *tableOIDExpression) { n.owner.Address.SubID++ },
-		func(n *tableOIDExpression) { n.usage = parent.columns[0].Usage },
+		func(n *tableOIDExpression) { n.Usage = parent.columns[0].Usage },
 	} {
 		different := mapped
 		change(&different)
@@ -212,7 +212,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	d.address.ObjectID = 26000
 	d.columns[1].Usage = oid.Usage()
 	ref := e.domain.Ref(view.Epoch()+1, d.address)
-	leaf := tableOIDExpression{expressionInfo{usage: oid.Usage(), properties: ExprProperties{RowDependent: true}}, ref}
+	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	base, _ := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
@@ -237,7 +237,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
-	d.checkConstraints = []checkConstraint{{Name: "blocked", expression: literalExpression{expressionInfo{usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
+	d.checkConstraints = []checkConstraint{{Name: "blocked", expression: literalExpression{expressionInfo{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}

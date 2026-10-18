@@ -172,7 +172,7 @@ func (b *expressionBinder) bindIntaggFunction(raw parser.FunctionExpr) (BoundExp
 	}
 	properties := mergeExpressionProperties(ExprProperties{Volatility: Immutable, StageDependent: true}, arg.Properties())
 	info := b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties)
-	info.routineReference = proc
+	info.RoutineReference = proc
 	return unnestExpression{expressionInfo: info, args: []BoundExpr{arg}, procedure: proc, ref: ref}, nil
 }
 

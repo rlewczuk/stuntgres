@@ -13,13 +13,13 @@ import (
 
 func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) seriesExpression {
 	t.Helper()
-	e := seriesExpression{expressionInfo: expressionInfo{usage: d.Usage(), pos: parser.Position{Character: 8, Offset: 7}, properties: ExprProperties{StageDependent: true}}}
+	e := seriesExpression{expressionInfo: expressionInfo{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: ExprProperties{StageDependent: true}}}
 	for _, s := range args {
 		v, err := d.Input(context.Background(), s, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.args = append(e.args, literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: v})
+		e.args = append(e.args, literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v})
 	}
 	return e
 }

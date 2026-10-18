@@ -15,28 +15,28 @@ func TestSimilarSubstringPresentationIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	args := [3]BoundExpr{
-		columnExpression{expressionInfo: expressionInfo{usage: usage}, scope: 1, frame: 1, slot: 0},
-		literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "%")},
-		literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "#")},
+		columnExpression{expressionInfo: expressionInfo{Usage: usage}, scope: 1, frame: 1, slot: 0},
+		literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: sqltype.String(text, "%")},
+		literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: sqltype.String(text, "#")},
 	}
-	ordinary := functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Args: args, Provider: provider, Syntax: parser.OrdinaryFunctionSyntax}
+	ordinary := functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: usage}), Args: args, Provider: provider, Syntax: parser.OrdinaryFunctionSyntax}
 	standard := ordinary
 	standard.Syntax = parser.SQLFunctionSyntax
 	if !sameGroupExpression(ordinary, standard) || !sameGroupExpression(standard, ordinary) {
 		t.Fatal("presentation syntax changed semantic grouped identity")
 	}
 	different := standard
-	different.Args[1] = literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "a%")}
+	different.Args[1] = literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: sqltype.String(text, "a%")}
 	if sameGroupExpression(ordinary, different) {
 		t.Fatal("different patterns compared equal")
 	}
 	different = standard
-	different.Args[2] = literalExpression{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "!")}
+	different.Args[2] = literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: sqltype.String(text, "!")}
 	if sameGroupExpression(ordinary, different) {
 		t.Fatal("different escapes compared equal")
 	}
 	different = standard
-	different.Args[0] = columnExpression{expressionInfo: expressionInfo{usage: usage}, scope: 1, frame: 1, slot: 1}
+	different.Args[0] = columnExpression{expressionInfo: expressionInfo{Usage: usage}, scope: 1, frame: 1, slot: 1}
 	if sameGroupExpression(ordinary, different) {
 		t.Fatal("different source children compared equal")
 	}

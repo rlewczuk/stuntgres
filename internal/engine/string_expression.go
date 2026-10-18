@@ -40,7 +40,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if result.Collation.ID != 0 {
 		info = inputInfo
 	}
-	node, err := functions.NewString[BoundExpr, ExprContext](functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.collationConflict)
+	node, err := functions.NewString[BoundExpr, ExprContext](functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.CollationConflict)
 	if err != nil {
 		return nil, err
 	}

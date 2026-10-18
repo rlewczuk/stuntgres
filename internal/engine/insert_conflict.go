@@ -1,10 +1,9 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 	"slices"
-	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -158,7 +157,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		if key.Collation != nil {
 			id, err := e.lookupCollation(*key.Collation, shared.op)
 			if err != nil {
-				return expressionErrorFrom(err, raw.Pos)
+				return expr.WithPosition(err, raw.Pos)
 			}
 			if expression.ResultUsage().Type.Usage().Collation.ID == 0 {
 				return sqlError("42804", "collations are not supported by type "+expression.ResultUsage().Type.DiagnosticName())
@@ -189,16 +188,6 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		shared.dependency(dep.ref, dep.revision)
 	}
 	return nil
-}
-
-func expressionErrorFrom(err error, pos parser.Position) error {
-	var diagnostic *sqlstate.Error
-	if errors.As(err, &diagnostic) {
-		copy := *diagnostic
-		copy.Position = strconv.Itoa(pos.Character)
-		return &copy
-	}
-	return err
 }
 
 func (c *boundInsertConflict) selectArbiters(ctx *EvalContext, parent *relationDescriptor, view CatalogRead) error {

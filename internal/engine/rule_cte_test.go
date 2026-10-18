@@ -118,7 +118,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		oldColumn.frame = 1
 		provider := &BoundQuery{Root: &projectNode{expressions: []BoundExpr{newColumn, oldColumn}}}
 		local := &cteDefinition{query: provider, position: position}
-		body := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{analysisExpressions: []BoundExpr{subqueryExpression{expressionInfo: expressionInfo{pos: position}, queryPlan: provider, cteDefinition: true}}}}}
+		body := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{analysisExpressions: []BoundExpr{subqueryExpression{expressionInfo: expressionInfo{Pos: position}, queryPlan: provider, cteDefinition: true}}}}}
 		for _, action := range []parser.Statement{
 			&parser.Insert{With: []parser.CommonTableExpression{raw}},
 			&parser.Insert{Source: &parser.InsertSource{Select: &parser.Select{With: []parser.CommonTableExpression{raw}}}},

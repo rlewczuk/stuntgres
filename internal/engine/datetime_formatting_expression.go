@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,7 +55,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		return b.numericFormattingOperands(raw, operands, source)
 	}
 	var args [2]BoundExpr
-	properties := functionIntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.DatetimeFormattingIntrinsicRule())
 	for i, o := range operands {
 		target := b.typ(sqltype.Text)
 		if i == 0 {
@@ -90,11 +91,11 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 		}
 		constant = &text
 	}
-	plan, err := sqltype.BindDatetimeFormat(b.ctx, name, info.usage, args[0].ResultUsage(), constant)
+	plan, err := sqltype.BindDatetimeFormat(b.ctx, name, info.Usage, args[0].ResultUsage(), constant)
 	if err != nil {
 		return nil, err
 	}
-	plan = plan.WithCollationConflict(collated.collationConflict)
+	plan = plan.WithCollationConflict(collated.CollationConflict)
 	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, selection.Source, sqltype.Text)
 	if err != nil {
 		return nil, err

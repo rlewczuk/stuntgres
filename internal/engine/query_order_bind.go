@@ -209,7 +209,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 			properties := output.Properties()
 			properties.StageDependent = true
 			info := boundExpressionInfo(output)
-			info.properties = properties
+			info.Property = properties
 			projection[j] = cachedOrderExpression{expressionInfo: info, slot: key.cache}
 		}
 	}

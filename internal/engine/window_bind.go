@@ -317,16 +317,16 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 	}
 	info := b.info(resultUsage, raw.Pos, ExprProperties{StageDependent: true})
 	if raw.Name == "ntile" {
-		info.properties = mergeExpressionProperties(info.properties, argument.Properties())
+		info.Property = mergeExpressionProperties(info.Property, argument.Properties())
 	}
 	if windowValueName(raw.Name) || windowOffsetName(raw.Name) {
-		info.properties = mergeExpressionProperties(info.properties, argument.Properties())
+		info.Property = mergeExpressionProperties(info.Property, argument.Properties())
 		if ordinal != nil {
-			info.properties = mergeExpressionProperties(info.properties, ordinal.Properties())
+			info.Property = mergeExpressionProperties(info.Property, ordinal.Properties())
 		}
 		var err error
 		if defaultValue != nil {
-			info.properties = mergeExpressionProperties(info.properties, defaultValue.Properties())
+			info.Property = mergeExpressionProperties(info.Property, defaultValue.Properties())
 			info, err = b.collatedInfo(info, argument, defaultValue)
 		} else {
 			info, err = b.collatedInfo(info, argument)

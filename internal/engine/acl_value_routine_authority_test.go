@@ -174,7 +174,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("incompatible current declaration admitted")
 			}
 			invalid := call
-			invalid.routineReference = (*procedureDescriptor)(nil)
+			invalid.RoutineReference = (*procedureDescriptor)(nil)
 			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed-nil selected descriptor admitted")
 			}

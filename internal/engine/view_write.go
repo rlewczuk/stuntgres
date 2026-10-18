@@ -176,7 +176,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	// outputs start in the logical target's canonical mutation frame.
 	outputs := make([]BoundExpr, len(d.columns))
 	for i, c := range d.columns {
-		outputs[i] = columnExpression{expressionInfo: expressionInfo{usage: c.Usage, properties: ExprProperties{RowDependent: true}}, origin: ref, slot: i}
+		outputs[i] = columnExpression{expressionInfo: expressionInfo{Usage: c.Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, slot: i}
 	}
 	cascaded := false
 	for d.relationKind == viewRelation {
@@ -311,7 +311,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 				c.virtual = nil
 				c.rowStart, c.rowWidth, c.queryOccurrence = 0, 0, 0
 				c = c.withGeneration(source, slot, 0)
-				c.routineRecipe = d
+				c.RoutineRecipeReference = d
 				if c.virtual != nil {
 					virtual, _, err := lowerStored(c.virtual, false)
 					if err != nil {

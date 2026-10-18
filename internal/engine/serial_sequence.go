@@ -52,7 +52,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if isSystemColumn(column) {
 			switch relation.relationKind {
 			case tableRelation, sequenceRelation, catalogRelation, indexRelation:
-				return sqltype.Null(e.usage.Type), nil
+				return sqltype.Null(e.Usage.Type), nil
 			}
 		}
 		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.name))
@@ -69,7 +69,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing owned sequence namespace")
 		}
-		return sqltype.String(e.usage.Type, pgIdentifier(namespace.name)+"."+pgIdentifier(sequence.name)), nil
+		return sqltype.String(e.Usage.Type, pgIdentifier(namespace.name)+"."+pgIdentifier(sequence.name)), nil
 	}
-	return sqltype.Null(e.usage.Type), nil
+	return sqltype.Null(e.Usage.Type), nil
 }

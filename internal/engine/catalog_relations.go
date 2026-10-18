@@ -128,7 +128,7 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 }
 
 func (n catalogUserNameExpression) validate() error {
-	if n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage().Type.ID() != sqltype.Oid || n.usage.Type == nil || n.usage.Type.ID() != sqltype.Name {
+	if n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage().Type.ID() != sqltype.Oid || n.Usage.Type == nil || n.Usage.Type.ID() != sqltype.Name {
 		return fmt.Errorf("stuntgres: invalid catalog role-name signature")
 	}
 	return nil
@@ -144,7 +144,7 @@ func (n catalogUserNameExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	oid, err := value.OID()
 	if err != nil {
@@ -160,13 +160,13 @@ func (n catalogUserNameExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 	}
 	role, found := scope.commentRoles.Find(engine.authorizationDomain.Principal(uint64(oid)))
 	if found {
-		return sqltype.String(n.usage.Type, role.Name), nil
+		return sqltype.String(n.Usage.Type, role.Name), nil
 	}
-	return sqltype.String(n.usage.Type, "unknown (OID="+strconv.FormatUint(uint64(oid), 10)+")"), nil
+	return sqltype.String(n.Usage.Type, "unknown (OID="+strconv.FormatUint(uint64(oid), 10)+")"), nil
 }
 
 func (n catalogForeignKeysExpression) validate() error {
-	d := n.usage.Type
+	d := n.Usage.Type
 	if d == nil || !d.IsComposite() || d.ID() != 2249 || d.CompositeLen() != 6 || n.metadata == nil {
 		return fmt.Errorf("stuntgres: invalid catalog foreign-key shape")
 	}

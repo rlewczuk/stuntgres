@@ -57,11 +57,11 @@ func (b *expressionBinder) bindSQLJSONObjectAggregate(raw parser.AggregateExpr, 
 	if err != nil {
 		return nil, err
 	}
-	plan, err := jsonReturningCoercion(node.ResultUsage(), info.usage, raw.JSON.Output)
+	plan, err := jsonReturningCoercion(node.ResultUsage(), info.Usage, raw.JSON.Output)
 	if err != nil {
 		return nil, err
 	}
-	info.properties = coercionProperties(node, plan)
+	info.Property = coercionProperties(node, plan)
 	return coercionExpression{info, node, plan, sqltype.Assignment, false}, nil
 }
 

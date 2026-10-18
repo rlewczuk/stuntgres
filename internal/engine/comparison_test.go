@@ -102,7 +102,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	p := parameterExpression{expressionInfo: expressionInfo{pos: parser.Position{Character: 8}, properties: ExprProperties{ParameterDependent: true}}, number: 1}
+	p := parameterExpression{expressionInfo: expressionInfo{Pos: parser.Position{Character: 8}, Property: ExprProperties{ParameterDependent: true}}, number: 1}
 	b.parameters[1] = b.typ(sqltype.Int4).Usage()
 	_, err := b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 	state(t, err, "42P08")

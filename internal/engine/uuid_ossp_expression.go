@@ -79,7 +79,7 @@ func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (Bound
 		return nil, expressionError("42809", "OVER specified, but "+objectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
 	}
 	info := b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, ExprProperties{Volatility: Volatile})
-	info.routineReference = proc
+	info.RoutineReference = proc
 	call, err := functions.NewUUIDGeneration[BoundExpr, ExprContext](functionInfo(info), "uuidv4", nil, nil)
 	if err != nil {
 		return nil, err

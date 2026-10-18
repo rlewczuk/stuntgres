@@ -30,9 +30,9 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: result.Usage(), properties: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
-			literalExpression{expressionInfo{usage: source.Usage()}, sqltype.Null(source)},
-			literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, template)},
+		node := functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: result.Usage(), Property: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
+			literalExpression{expressionInfo{Usage: source.Usage()}, sqltype.Null(source)},
+			literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, template)},
 		}}
 		if plannedVolatility(node) != Stable || generationImmutable(node) {
 			t.Fatal("lost intrinsic STABLE classification", signature)
@@ -41,7 +41,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			t.Fatal("semantic identity lost", signature)
 		}
 		other := node
-		other.Args[1] = literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "MM")}
+		other.Args[1] = literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "MM")}
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("template omitted from semantic identity", signature)
 		}

@@ -252,9 +252,9 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	ref := b.engine.domain.Ref(set.catalog.Epoch(), d.address)
 	b.dependency(ref, d.revision)
 	info := boundExpressionInfo(provider)
-	info.pos = raw.Pos
+	info.Pos = raw.Pos
 	// Admission belongs to the actual provider only, not twice to the wrapper.
-	info.routineReference = nil
+	info.RoutineReference = nil
 	return selectedOperatorExpression{expressionInfo: info, operator: d, ref: ref, provider: provider}, nil
 }
 

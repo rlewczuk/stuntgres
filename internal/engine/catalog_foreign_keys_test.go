@@ -94,12 +94,12 @@ func TestCatalogRelationsCursor(t *testing.T) {
 	if first.catalogKeys != call.metadata || second.catalogKeys != call.metadata || first.position != 0 || second.position != 0 || first.owned != nil || second.owned != nil {
 		t.Fatal("opening eagerly materialized rows or copied immutable metadata")
 	}
-	value, present, err := first.next(context.Background(), call.usage.Type)
-	if err != nil || !present || value.IsNull() || value.Type() != call.usage.Type || first.position != 1 || second.position != 0 {
+	value, present, err := first.next(context.Background(), call.Usage.Type)
+	if err != nil || !present || value.IsNull() || value.Type() != call.Usage.Type || first.position != 1 || second.position != 0 {
 		t.Fatal("invocations share index", present, err)
 	}
 	for i := range 6 {
-		if value.CompositeField(i).IsNull() || value.CompositeField(i).Type() != call.usage.Type.CompositeMember(i).Usage.Type {
+		if value.CompositeField(i).IsNull() || value.CompositeField(i).Type() != call.Usage.Type.CompositeMember(i).Usage.Type {
 			t.Fatal("composite field generation", i)
 		}
 	}
@@ -109,7 +109,7 @@ func TestCatalogRelationsCursor(t *testing.T) {
 	}
 	count := 1
 	for {
-		_, present, err := first.next(context.Background(), call.usage.Type)
+		_, present, err := first.next(context.Background(), call.Usage.Type)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestCatalogRelationsCursor(t *testing.T) {
 	if count != 219 || !first.exhausted || first.catalogKeys != nil {
 		t.Fatal("EOF ownership/count", count)
 	}
-	if _, present, err := first.next(context.Background(), call.usage.Type); present || err != nil {
+	if _, present, err := first.next(context.Background(), call.Usage.Type); present || err != nil {
 		t.Fatal("EOF is not stable", present, err)
 	}
 	restarted, err := openFunctionCall(evaluation, call)
@@ -131,7 +131,7 @@ func TestCatalogRelationsCursor(t *testing.T) {
 	defer restarted.close()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, present, err := restarted.next(ctx, call.usage.Type); present || !errors.Is(err, context.Canceled) || restarted.position != 0 {
+	if _, present, err := restarted.next(ctx, call.Usage.Type); present || !errors.Is(err, context.Canceled) || restarted.position != 0 {
 		t.Fatal("canceled cursor advanced", present, err)
 	}
 	restarted.close()

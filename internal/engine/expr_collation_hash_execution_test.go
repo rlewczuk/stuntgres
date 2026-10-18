@@ -22,7 +22,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			calls++
 			return sqltype.Integer(usage.Type, int64(calls))
 		}).(queryProbeExpression)
-		probe.properties.Volatility = Volatile
+		probe.Property.Volatility = Volatile
 		subqueryTestTarget(t, rhs, probe)
 		leftUsage, rightUsage := expr.comparisons[0].left.ResultUsage(), expr.comparisons[0].right.ResultUsage()
 		ref, conflict := expr.comparisons[0].predicate.InputCollation()

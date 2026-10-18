@@ -79,7 +79,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	literal := literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}, value: values}
+	literal := literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}, value: values}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		{ClassID: ids.RelationClassID, ObjectID: 23}: {ClassID: ids.RelationClassID, ObjectID: 99},
 	}

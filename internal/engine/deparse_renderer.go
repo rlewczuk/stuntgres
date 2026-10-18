@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -63,8 +64,8 @@ func validateDeparseIdentity(n identityExpression) error {
 	if n.kind == identitySystemUser {
 		typ = sqltype.Text
 	}
-	if n.usage.Type == nil || n.usage.Type.ID() != typ || n.usage != n.usage.Type.Usage() ||
-		n.properties != (ExprProperties{Volatility: Stable}) || n.unknownNull {
+	if n.Usage.Type == nil || n.Usage.Type.ID() != typ || n.Usage != n.Usage.Type.Usage() ||
+		n.Property != (ExprProperties{Volatility: Stable}) || n.UnknownNull {
 		return fmt.Errorf("stuntgres: invalid deparse identity metadata")
 	}
 	return nil
@@ -151,10 +152,10 @@ func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string
 // Numeric's emitted annotation is authoritative: integer-spelled, sized and
 // special values are annotated, while genuinely bare decimal literals are not.
 func pgLiteralSimple(n literalExpression, rendered string) bool {
-	if n.value.IsNull() || n.usage.Type.IsUserDefined() || n.usage.Type.IsDomain() {
+	if n.value.IsNull() || n.Usage.Type.IsUserDefined() || n.Usage.Type.IsDomain() {
 		return false
 	}
-	switch n.usage.Type.ID() {
+	switch n.Usage.Type.ID() {
 	case sqltype.Bool:
 		return true
 	case sqltype.Int4:
@@ -170,7 +171,7 @@ func pgLiteralSimple(n literalExpression, rendered string) bool {
 func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, error) {
 	u := n.ResultUsage()
 	v := n.value
-	if n.unknownNull && (!v.IsNull() || u.Type == nil || u.Type.ID() != sqltype.Text) {
+	if n.UnknownNull && (!v.IsNull() || u.Type == nil || u.Type.ID() != sqltype.Text) {
 		return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
 	}
 	typ, err := r.typeSQL(u)
@@ -178,7 +179,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return "", err
 	}
 	if v.IsNull() {
-		if n.unknownNull {
+		if n.UnknownNull {
 			return "NULL::unknown", nil
 		}
 		return "NULL::" + typ, nil
@@ -511,8 +512,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			parts[i] = text
 		}
 		text := "ROW(" + strings.Join(parts, ", ") + ")"
-		if n.usage.Type.ID() != 2249 {
-			return r.cast(text, n.usage, true)
+		if n.Usage.Type.ID() != 2249 {
+			return r.cast(text, n.Usage, true)
 		}
 		return text, nil
 	case fieldExpression:
@@ -572,23 +573,23 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		text += " COLLATE " + collationDisplayName(r.view, n.usage.Collation.ID, r.path)
+		text += " COLLATE " + collationDisplayName(r.view, n.Usage.Collation.ID, r.path)
 		if r.pretty && parent.functionArgument {
 			return text, nil
 		}
 		return "(" + text + ")", nil
 	case coercionExpression:
 		if constructor, ok := n.child.(sqlJSONExpression); ok && n.plan.IsJSONReturning() {
-			return r.sqlJSON(ctx, constructor, n.usage)
+			return r.sqlJSON(ctx, constructor, n.Usage)
 		}
 		// Identifier leaves already retain their scalar annotation. A transparent
 		// relabel must not duplicate it around a genuine enclosing conversion.
-		if n.child != nil && sqltype.IsTransactionIdentifier(n.usage.Type.ID()) && n.child.ResultUsage() == n.usage {
+		if n.child != nil && sqltype.IsTransactionIdentifier(n.Usage.Type.ID()) && n.child.ResultUsage() == n.Usage {
 			return r.sql(ctx, n.child, parent)
 		}
 		if literal, ok := n.child.(literalExpression); ok && n.mode == sqltype.Explicit &&
-			literal.usage.Type == n.usage.Type && n.usage.Typmod >= 0 {
-			literal.usage = n.usage
+			literal.Usage.Type == n.Usage.Type && n.Usage.Typmod >= 0 {
+			literal.Usage = n.Usage
 			return r.literal(ctx, literal)
 		}
 		if n.mode == sqltype.Implicit && !showImplicit {
@@ -1184,7 +1185,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
 		return function(n.Name, n.Args, true)
 	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
-		if !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
+		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid datetime sleep signature")
 		}
 		return function(n.Kind.Name(), []BoundExpr{n.Arg}, true)

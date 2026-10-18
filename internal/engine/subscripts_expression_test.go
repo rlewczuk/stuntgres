@@ -40,13 +40,13 @@ func subscriptsUnit(t *testing.T, view CatalogRead, dimensions []sqltype.ArrayDi
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := subscriptsExpression{expressionInfo: expressionInfo{usage: d.Usage(), pos: parser.Position{Character: 8, Offset: 7}, properties: ExprProperties{StageDependent: true}}, args: []BoundExpr{
-		literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}, value: value},
-		literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: integer},
+	e := subscriptsExpression{expressionInfo: expressionInfo{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: ExprProperties{StageDependent: true}}, args: []BoundExpr{
+		literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}, value: value},
+		literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: integer},
 	}}
 	if len(reverse) != 0 {
 		boolean, _ := view.LookupType(sqltype.Bool)
-		e.args = append(e.args, literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: sqltype.Boolean(boolean, reverse[0])})
+		e.args = append(e.args, literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, reverse[0])})
 	}
 	return e
 }
@@ -145,7 +145,7 @@ func TestSubscriptsCursor(t *testing.T) {
 	}
 	e := subscriptsUnit(t, view, dims, 2, true)
 	sentinel := errors.New("later child")
-	e.args[0] = literalExpression{expressionInfo: expressionInfo{usage: e.args[0].ResultUsage()}, value: sqltype.Null(e.args[0].ResultUsage().Type)}
+	e.args[0] = literalExpression{expressionInfo: expressionInfo{Usage: e.args[0].ResultUsage()}, value: sqltype.Null(e.args[0].ResultUsage().Type)}
 	e.args[1] = queryProbe(e.args[1].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
 	e.args[2] = queryProbe(e.args[2].ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
 		t.Fatal("evaluation continued after child error")
@@ -261,7 +261,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	volatile := original
 	volatile.args = append([]BoundExpr(nil), original.args...)
 	probe := queryProbe(original.args[2].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, nil }).(queryProbeExpression)
-	probe.properties.Volatility = Volatile
+	probe.Property.Volatility = Volatile
 	volatile.args[2] = probe
 	if plannedVolatility(volatile) != Volatile {
 		t.Fatal("reverse child volatility erased")

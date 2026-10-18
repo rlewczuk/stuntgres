@@ -126,7 +126,7 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 	if b.query != nil {
 		visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(expr BoundExpr) {
 			walkBoundExpression(expr, func(node BoundExpr) {
-				if query, ok := node.(subqueryExpression); ok && query.cteDefinition && owned(query.pos) {
+				if query, ok := node.(subqueryExpression); ok && query.cteDefinition && owned(query.Pos) {
 					for _, definition := range b.ctes {
 						if definition.query == query.queryPlan && owned(definition.position) {
 							return

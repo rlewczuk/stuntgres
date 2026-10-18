@@ -37,10 +37,10 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 			t.Run(tc.name+"/"+mode, func(t *testing.T) {
 				var order []int
 				probe := func(id int, value sqltype.Value, failure error) BoundExpr {
-					return rowOperandEffect{expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, value, &order, id, failure}
+					return rowOperandEffect{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, value, &order, id, failure}
 				}
-				row := rowComparisonExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, operator: mode, comparisons: []comparisonExpression{{
-					expressionInfo: expressionInfo{usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "=",
+				row := rowComparisonExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, operator: mode, comparisons: []comparisonExpression{{
+					expressionInfo: expressionInfo{Usage: boolean.Usage()}, left: probe(0, tc.left, nil), right: probe(1, tc.right, nil), predicate: predicate, operator: "=",
 				}}}
 				value, err := row.Eval(&EvalContext{Context: context.Background()})
 				truth, boolErr := value.Boolean()
@@ -51,7 +51,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				if err != nil || boolErr != nil || truth != want || !reflect.DeepEqual(order, []int{0, 1}) {
 					t.Fatal("single pair total result/demand", value, err, boolErr, order)
 				}
-				row.comparisons = append(row.comparisons, comparisonExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, one, nil), predicate: predicate, operator: "="})
+				row.comparisons = append(row.comparisons, comparisonExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, left: probe(2, one, failure), right: probe(3, one, nil), predicate: predicate, operator: "="})
 				order = nil
 				_, err = row.Eval(&EvalContext{Context: context.Background()})
 				if tc.distinct {
@@ -71,7 +71,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 		}
 	}
 	for _, mode := range []string{"IS DISTINCT FROM", "IS NOT DISTINCT FROM"} {
-		row := rowComparisonExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, operator: mode}
+		row := rowComparisonExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, operator: mode}
 		value, err := row.Eval(&EvalContext{Context: context.Background()})
 		truth, boolErr := value.Boolean()
 		if err != nil || boolErr != nil || truth != (mode == "IS NOT DISTINCT FROM") {

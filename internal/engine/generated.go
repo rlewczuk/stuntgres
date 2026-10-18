@@ -53,7 +53,7 @@ func (n tableOIDExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if c.physicalTable != (ids.ObjectRef{}) {
 		owner = c.physicalTable
 	}
-	return sqltype.OIDValue(n.usage.Type, uint32(owner.Address.ObjectID))
+	return sqltype.OIDValue(n.Usage.Type, uint32(owner.Address.ObjectID))
 }
 
 func generationWriteError(column string, update bool) error {
@@ -146,24 +146,24 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 		if failure != nil {
 			return columnGeneration{}, failure
 		}
-		plan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
+		plan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if failure != nil {
 			diagnostic := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
 			diagnostic.Hint = "You will need to rewrite or cast the expression."
 			return columnGeneration{}, diagnostic
 		}
-		info.properties = coercionProperties(input, plan)
+		info.Property = coercionProperties(input, plan)
 		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
 		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {
 			return columnGeneration{}, failure
 		}
-		analyzedPlan, failure := sqltype.PlanCoercion(analyzedInput.ResultUsage(), analyzedInfo.usage, sqltype.Assignment)
+		analyzedPlan, failure := sqltype.PlanCoercion(analyzedInput.ResultUsage(), analyzedInfo.Usage, sqltype.Assignment)
 		if failure != nil {
 			return columnGeneration{}, failure
 		}
-		analyzedInfo.properties = coercionProperties(analyzedInput, analyzedPlan)
+		analyzedInfo.Property = coercionProperties(analyzedInput, analyzedPlan)
 		analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment, false})
 	}
 	node, err = storageDestination(node, column.Usage, parser.Position{})
@@ -350,7 +350,7 @@ func generationImmutable(node BoundExpr) bool {
 	case installedFunctionExpression:
 		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.arg})
 	case sqlJSONExpression:
-		return n.properties.Volatility == Immutable && args(n.args)
+		return n.Property.Volatility == Immutable && args(n.args)
 	case jsonPredicateExpression:
 		return args([]BoundExpr{n.child})
 	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
@@ -850,7 +850,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	}
 	switch n := node.(type) {
 	case rowExpression:
-		shape := n.usage.Type.BaseType()
+		shape := n.Usage.Type.BaseType()
 		if !shape.IsComposite() || len(n.fields) != shape.CompositeLen() || n.presenceSlot < 0 || n.wholeNames == nil && (n.presenceSlot != 0 || n.presenceFrame != 0) || n.wholeNames != nil && (len(n.wholeNames) != len(n.fields) || n.presenceFrame == 0) {
 			return fmt.Errorf("stuntgres: invalid composite row plan")
 		}
@@ -866,7 +866,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 		}
 		shape := n.base.ResultUsage().Type.BaseType()
 		index, ok := shape.CompositeAttributeIndex(n.attribute)
-		if !ok || index != n.index || !sameRecordUsage(n.usage, shape.CompositeMember(index).Usage) {
+		if !ok || index != n.index || !sameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
 			return fmt.Errorf("stuntgres: invalid composite field plan")
 		}
 		return child(n.base)

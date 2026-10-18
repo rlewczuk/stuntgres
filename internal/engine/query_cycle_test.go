@@ -12,8 +12,8 @@ func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *cycleRecipe {
 	t.Helper()
 	c := &cycleRecipe{markSlot: len(usages), keys: make([]int, len(usages)), grouping: make([]sqltype.Grouping, len(usages))}
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
-	c.mark = literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: sqltype.Boolean(boolean, true)}
-	c.fallback = literalExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
+	c.mark = literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, true)}
+	c.fallback = literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
 	members := make([]sqltype.CompositeMember, len(usages))
 	for i, u := range usages {
 		c.keys[i] = i

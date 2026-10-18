@@ -32,7 +32,7 @@ func (e mergeActionExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	default:
 		return sqltype.Value{}, errors.New("stuntgres: invalid MERGE output action")
 	}
-	return sqltype.String(e.usage.Type, text), nil
+	return sqltype.String(e.Usage.Type, text), nil
 }
 func (b *expressionBinder) bindMergeAction(raw parser.MergeActionExpr) (BoundExpr, error) {
 	frame := uint32(0)

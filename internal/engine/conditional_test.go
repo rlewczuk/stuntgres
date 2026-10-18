@@ -39,7 +39,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	ctx := &EvalContext{Context: context.Background()}
 	calls := [5]int{}
 	spy := func(i int, v sqltype.Value) BoundExpr {
-		return conditionalSpy{expressionInfo{usage: v.Type().Usage(), properties: ExprProperties{RowDependent: true}}, v, &calls[i], nil}
+		return conditionalSpy{expressionInfo{Usage: v.Type().Usage(), Property: ExprProperties{RowDependent: true}}, v, &calls[i], nil}
 	}
 	comparison, err := sqltype.BindComparison(integer, integer, sqltype.CollationRef{}, false)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	info := expressionInfo{usage: integer.Usage()}
+	info := expressionInfo{Usage: integer.Usage()}
 	searched := caseExpression{expressionInfo: info, arms: []caseBranch{{condition: spy(0, sqltype.Boolean(boolean, true)), result: spy(1, value)}, {condition: spy(2, sqltype.Boolean(boolean, true)), result: spy(3, other)}}, otherwise: spy(4, other)}
 	got, err := searched.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 0, 0} {
@@ -276,7 +276,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	info := expressionInfo{usage: floating.Usage()}
+	info := expressionInfo{Usage: floating.Usage()}
 	comparison, err := sqltype.BindComparison(floating, floating, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -496,7 +496,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 			assertValue(next, newDomain, tc.label, tc.null)
 			original, reminted := node.(conditionalExpression), next.(conditionalExpression)
 			expectedInfo := before
-			expectedInfo.usage.Type = newDomain
+			expectedInfo.Usage.Type = newDomain
 			if original.expressionInfo != before || reminted.expressionInfo != expectedInfo {
 				t.Fatal("reownership changed Usage fields, properties or positions")
 			}

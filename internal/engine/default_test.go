@@ -35,7 +35,7 @@ func (e *defaultOrdinal) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 		return sqltype.Value{}, sqlError("22003", "integer out of range")
 	}
-	return sqltype.Integer(e.usage.Type, e.ordinal)
+	return sqltype.Integer(e.Usage.Type, e.ordinal)
 }
 func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	t.Helper()
@@ -44,7 +44,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	for address, descriptor := range e.state.descriptors {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
-			probe.expressionInfo = expressionInfo{usage: old.columns[1].Usage}
+			probe.expressionInfo = expressionInfo{Usage: old.columns[1].Usage}
 			next.defaults = map[int32]columnDefault{old.attributes[1]: {expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.

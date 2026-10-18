@@ -661,11 +661,11 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Implicit)
+						plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						info.properties = coercionProperties(input, plan)
+						info.Property = coercionProperties(input, plan)
 						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false})
 					}
 					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}

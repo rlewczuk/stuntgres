@@ -27,12 +27,12 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 			if null {
 				v = sqltype.Null(char)
 			}
-			child := literalExpression{expressionInfo: expressionInfo{usage: char.Usage()}, value: v}
+			child := literalExpression{expressionInfo: expressionInfo{Usage: char.Usage()}, value: v}
 			plan, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Implicit)
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := coercionExpression{expressionInfo{usage: text.Usage()}, child, plan, sqltype.Implicit, false}
+			node := coercionExpression{expressionInfo{Usage: text.Usage()}, child, plan, sqltype.Implicit, false}
 			check := func(expression BoundExpr, owner *sqltype.Descriptor) {
 				got, err := expression.Eval(&EvalContext{Context: ctx})
 				if err != nil || got.Type() != owner || got.IsNull() != null {

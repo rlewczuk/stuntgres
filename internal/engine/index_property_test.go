@@ -64,10 +64,10 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 	textType, _ := view.LookupType(sqltype.Text)
 	regType, _ := view.LookupType(sqltype.Regclass)
 	literal := func(v sqltype.Value) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{usage: v.Type().Usage()}, value: v}
+		return literalExpression{expressionInfo: expressionInfo{Usage: v.Type().Usage()}, value: v}
 	}
 	oid, _ := sqltype.OIDValue(oidType, 403)
-	n := indexPropertyExpression{expressionInfo: expressionInfo{usage: boolType.Usage(), properties: ExprProperties{Volatility: Stable}}, kind: accessMethodProperty, args: [3]BoundExpr{literal(oid), literal(sqltype.String(textType, "can_order"))}}
+	n := indexPropertyExpression{expressionInfo: expressionInfo{Usage: boolType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: accessMethodProperty, args: [3]BoundExpr{literal(oid), literal(sqltype.String(textType, "can_order"))}}
 	value, err := n.Eval(&EvalContext{Context: context.Background()})
 	if err != nil {
 		t.Fatal(err)
@@ -86,8 +86,8 @@ func TestIndexPropertyExpressionGuardsAndNull(t *testing.T) {
 	}
 	for _, change := range []func(*indexPropertyExpression){
 		func(n *indexPropertyExpression) { n.kind = 255 }, func(n *indexPropertyExpression) { n.args[0] = nil },
-		func(n *indexPropertyExpression) { n.args[2] = literal(oid) }, func(n *indexPropertyExpression) { n.usage = textType.Usage() },
-		func(n *indexPropertyExpression) { n.args[0] = literal(sqltype.String(textType, "403")) }, func(n *indexPropertyExpression) { n.properties.Volatility = Immutable },
+		func(n *indexPropertyExpression) { n.args[2] = literal(oid) }, func(n *indexPropertyExpression) { n.Usage = textType.Usage() },
+		func(n *indexPropertyExpression) { n.args[0] = literal(sqltype.String(textType, "403")) }, func(n *indexPropertyExpression) { n.Property.Volatility = Immutable },
 		func(n *indexPropertyExpression) { n.oidUsage = oidType.Usage() },
 	} {
 		broken := n

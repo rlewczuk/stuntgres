@@ -25,7 +25,7 @@ func (e returningWholeRowExpression) Eval(ctx ExprContext) (sqltype.Value, error
 		return sqltype.Value{}, err
 	}
 	if e.merge && mergeReturningAbsent(parent, e.side) || !e.merge && e.old && parent.OldRow == nil {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	fields := make([]sqltype.Value, len(e.members))
 	for i, member := range e.members {
@@ -34,7 +34,7 @@ func (e returningWholeRowExpression) Eval(ctx ExprContext) (sqltype.Value, error
 			return sqltype.Value{}, err
 		}
 	}
-	return sqltype.OwnedCompositeValue(e.usage.Type, fields)
+	return sqltype.OwnedCompositeValue(e.Usage.Type, fields)
 }
 func (b *expressionBinder) returningWholeRow(name string, relation *relationDescriptor, frame uint32, aliases *returningAliases, pos parser.Position) (BoundExpr, bool, error) {
 	if aliases == nil || aliases.mode != returningInsert && aliases.mode != returningMerge {

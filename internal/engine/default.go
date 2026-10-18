@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -69,7 +70,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 		if err != nil {
 			return nil, err
 		}
-		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
+		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42804" {
 				d := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
@@ -78,7 +79,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 			}
 			return nil, err
 		}
-		info.properties = coercionProperties(input, plan)
+		info.Property = coercionProperties(input, plan)
 		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
 	}
 	return storageDestination(node, column.Usage, parser.Position{})
@@ -184,7 +185,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	r.recordStoredType(view, view.owner.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case domainValueExpression:
-		if r.domainValue == nil || *r.domainValue != n.usage {
+		if r.domainValue == nil || *r.domainValue != n.Usage {
 			return "", fmt.Errorf("stuntgres: foreign stored domain VALUE")
 		}
 		return "VALUE", nil
@@ -252,7 +253,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		r.record(n.origin)
 		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
 	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
-		if !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
+		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			return "", fmt.Errorf("stuntgres: invalid stored datetime sleep signature")
 		}
 		if clock, ok := definitionTypeAt(view, r.definition, sqltype.Timestamptz); !ok || clock != n.ClockUsage.Type {
@@ -481,8 +482,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err := validateRegroleStoredLiteral(n.value); err != nil {
 			return "", err
 		}
-		if n.regclassRef != (ids.ObjectRef{}) {
-			ref := n.regclassRef
+		if n.RegclassRef != (ids.ObjectRef{}) {
+			ref := n.RegclassRef
 			target, ok := definitionDescriptorAt(view, r.definition, ref.Address)
 			_, relationOK := target.(*relationDescriptor)
 			if !ok || !relationOK || !storedReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.value.IsNull() {
@@ -565,7 +566,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err != nil {
 			return "", err
 		}
-		if name := collationSQLName(view, n.usage.Collation.ID); name != "" {
+		if name := collationSQLName(view, n.Usage.Collation.ID); name != "" {
 			return "(" + text + " COLLATE " + name + ")", nil
 		}
 		return "", fmt.Errorf("stuntgres: invalid default collation")
@@ -1024,7 +1025,7 @@ func (r scalarRenderer) stringArgumentSQL(ctx context.Context, view CatalogRead,
 	if err != nil {
 		return "", err
 	}
-	if literal, ok := arg.(literalExpression); ok && literal.usage.Type.ID() == sqltype.Name && r.checkLiterals == nil {
+	if literal, ok := arg.(literalExpression); ok && literal.Usage.Type.ID() == sqltype.Name && r.checkLiterals == nil {
 		return "CAST(" + text + " AS NAME)", nil
 	}
 	return text, nil

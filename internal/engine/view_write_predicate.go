@@ -40,14 +40,14 @@ func (e viewQualificationExpression) Eval(ctx ExprContext) (sqltype.Value, error
 			return sqltype.Value{}, err
 		}
 		if truth != True {
-			return sqltype.Boolean(e.usage.Type, false), nil
+			return sqltype.Boolean(e.Usage.Type, false), nil
 		}
 	}
 	if known {
 		return value, c.Context.Err()
 	}
 	if e.user == nil {
-		return sqltype.Boolean(e.usage.Type, true), c.Context.Err()
+		return sqltype.Boolean(e.Usage.Type, true), c.Context.Err()
 	}
 	return e.user.Eval(c)
 }

@@ -24,7 +24,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{expressionInfo: expressionInfo{usage: foreignType.Usage()}, value: foreignValue}
+	foreignChild := literalExpression{expressionInfo: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32
@@ -42,7 +42,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 		{"wrong-child-width", 1, func(n arithmeticExpression) arithmeticExpression { n.left = old.defaults[2].expression; return n }},
 		{"dependent-child", 1, func(n arithmeticExpression) arithmeticExpression {
 			child := n.left.(literalExpression)
-			child.properties.RowDependent = true
+			child.Property.RowDependent = true
 			n.left = child
 			return n
 		}},

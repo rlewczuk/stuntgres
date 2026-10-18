@@ -55,7 +55,7 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 		for _, mode := range []string{"ties hidden", "only hidden", "only visible"} {
 			t.Run(properties.name+"/"+mode, func(t *testing.T) {
 				calls := 0
-				expr := queryProbeExpression{expressionInfo: expressionInfo{usage: typ.Usage(), properties: properties.properties}, eval: func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
+				expr := queryProbeExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
 				ordered := &sortNode{keys: []sortKey{{cache: 0, expression: expr, output: mode == "only visible"}, {cache: 0, expression: expr, output: mode == "only visible"}}, cacheWidth: 1}
 				if mode == "ties hidden" {
 					limit := &limitNode{withTies: true}
@@ -110,7 +110,7 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls := 0
-			expr := queryProbeExpression{expressionInfo: expressionInfo{usage: typ.Usage(), properties: ExprProperties{RowDependent: true}}, eval: func(c *EvalContext) (sqltype.Value, error) {
+			expr := queryProbeExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, eval: func(c *EvalContext) (sqltype.Value, error) {
 				calls++
 				switch phase {
 				case "type":

@@ -92,13 +92,13 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	}{
 		{"kind", func(n *visibilityInquiryExpression) { n.kind = 255 }},
 		{"child", func(n *visibilityInquiryExpression) { n.arg = nil }},
-		{"result", func(n *visibilityInquiryExpression) { n.usage.Type = intType }},
+		{"result", func(n *visibilityInquiryExpression) { n.Usage.Type = intType }},
 		{"argument", func(n *visibilityInquiryExpression) {
 			c := n.arg.(columnExpression)
-			c.usage = intType.Usage()
+			c.Usage = intType.Usage()
 			n.arg = c
 		}},
-		{"properties", func(n *visibilityInquiryExpression) { n.properties.RowDependent = false }},
+		{"properties", func(n *visibilityInquiryExpression) { n.Property.RowDependent = false }},
 		{"origin", func(n *visibilityInquiryExpression) { c := n.arg.(columnExpression); c.origin.Epoch++; n.arg = c }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := visibilityInquiryExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, kind: tableVisibility, arg: literalExpression{expressionInfo: expressionInfo{usage: oid.Usage()}, value: value}}
+	n := visibilityInquiryExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, kind: tableVisibility, arg: literalExpression{expressionInfo: expressionInfo{Usage: oid.Usage()}, value: value}}
 	got, err := n.Eval(&EvalContext{Context: ctx, statementScope: scope})
 	if err != nil {
 		t.Fatal(err)

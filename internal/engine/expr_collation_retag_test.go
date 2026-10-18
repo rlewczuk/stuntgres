@@ -56,8 +56,8 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	table := view.state.descriptors[tableRef.Address].(*relationDescriptor)
 	original := table.defaults[table.attributes[0]].expression.(comparisonExpression)
 	oldRef, conflict := original.predicate.InputCollation()
-	if oldRef.ID != uint32(source.oid) || conflict || original.usage.Collation.ID != 0 {
-		t.Fatal("BOOL result hid wrong input authority", oldRef, conflict, original.usage)
+	if oldRef.ID != uint32(source.oid) || conflict || original.Usage.Collation.ID != 0 {
+		t.Fatal("BOOL result hid wrong input authority", oldRef, conflict, original.Usage)
 	}
 	oldSQL, err := defaultSQL(context.Background(), view, original)
 	if err != nil {
@@ -95,7 +95,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	viewRef := catalogRef(t, e, view, "expr_retag_v")
 	stored := view.state.descriptors[viewRef.Address].(*relationDescriptor).view.query.Root.(*projectNode).expressions[0].(comparisonExpression)
 	selected, ambiguous := stored.predicate.InputCollation()
-	if !ambiguous || selected.ID != 100 || stored.usage.Collation.ID != 0 {
+	if !ambiguous || selected.ID != 100 || stored.Usage.Collation.ID != 0 {
 		t.Fatal("stored implicit conflict erased", selected, ambiguous)
 	}
 	rebound, changed, err = retagBoundTypes(view, stored, identity, remap)

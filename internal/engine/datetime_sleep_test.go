@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestDatetimeSleepBinding(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := x.(functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties])
-		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != Volatile || !n.Properties().ParameterDependent || b.parameters[1].Type.ID() != tc.id || !n.Validate(functionPropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
+		if n.ResultUsage().Type.ID() != sqltype.Void || n.Properties().Volatility != Volatile || !n.Properties().ParameterDependent || b.parameters[1].Type.ID() != tc.id || !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
 			t.Fatalf("binding %s: %#v", tc.name, n)
 		}
 		if generationImmutable(n) {

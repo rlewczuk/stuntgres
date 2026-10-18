@@ -30,24 +30,24 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	oid, _ := catalog.LookupType(sqltype.Oid)
 	boolean, _ := catalog.LookupType(sqltype.Bool)
 	ref := roleTableRef(t, e, "provider")
-	literal := literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage(), regclassRef: ref}, value: sqltype.String(regclass, "10000")}
+	literal := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, "10000")}
 	definition := columnDefault{expression: literal, dependencies: []ids.ObjectRef{ref}}
 	if !defaultReplayDeferrable(definition) {
 		t.Fatal("genuine scalar Const not deferrable")
 	}
 	for _, properties := range []ExprProperties{{Volatility: Stable}, {Volatility: Volatile}, {RowDependent: true}, {ParameterDependent: true}, {StageDependent: true}} {
 		changed := literal
-		changed.properties = properties
+		changed.Property = properties
 		definition.expression = changed
 		if defaultReplayDeferrable(definition) {
 			t.Fatalf("nonclosed scalar properties %#v admitted", properties)
 		}
 	}
 	for _, mutate := range []func(*literalExpression){
-		func(n *literalExpression) { n.regclassRef.Epoch++ },
-		func(n *literalExpression) { n.regclassRef.Address.SubID = 1 },
+		func(n *literalExpression) { n.RegclassRef.Epoch++ },
+		func(n *literalExpression) { n.RegclassRef.Address.SubID = 1 },
 		func(n *literalExpression) {
-			n.usage = oid.Usage()
+			n.Usage = oid.Usage()
 			value, err := sqltype.OIDValue(oid, 10000)
 			if err != nil {
 				t.Fatal(err)
@@ -60,7 +60,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 		mutate(&changed)
 		// These mutations must not create captured authority for a pure BOOL
 		// result. REGCLASS results independently belong to the selected subset.
-		definition.expression = nullTestExpression{expressionInfo: expressionInfo{usage: boolean.Usage()}, child: changed, not: true}
+		definition.expression = nullTestExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, child: changed, not: true}
 		if defaultReplayDeferrable(definition) {
 			t.Fatal("noncaptured, mismatched, nonscalar or NULL reference admitted")
 		}

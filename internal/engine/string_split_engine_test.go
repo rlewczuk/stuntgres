@@ -22,7 +22,7 @@ func stringSplitMarker(t *testing.T, b *expressionBinder, pos int, args ...Bound
 }
 func stringSplitLiteral(b *expressionBinder, s string) BoundExpr {
 	text := b.typ(sqltype.Text)
-	return literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, s)}
+	return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
 }
 func TestStringSplitExpansion(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
@@ -188,7 +188,7 @@ func TestStringSplitExpansion(t *testing.T) {
 									index, failure = 1, scenario.sourceError
 								}
 								info := boundExpressionInfo(expression)
-								info.properties.Volatility = Volatile
+								info.Property.Volatility = Volatile
 								return mathObservedArgument{expressionInfo: info, value: literal.value, order: &observed, index: index, err: failure}, true, nil
 							})
 						return next, err
@@ -291,11 +291,11 @@ func TestStringSplitExpansion(t *testing.T) {
 		node := root.(*setProjectNode)
 		trace := []int{}
 		for i, value := range []string{"s", "t"} {
-			node.scalars[i] = mathObservedArgument{expressionInfo: expressionInfo{usage: node.scalars[i].ResultUsage(), properties: ExprProperties{Volatility: Volatile}}, value: sqltype.String(node.scalars[i].ResultUsage().Type, value), order: &trace, index: i}
+			node.scalars[i] = mathObservedArgument{expressionInfo: expressionInfo{Usage: node.scalars[i].ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.String(node.scalars[i].ResultUsage().Type, value), order: &trace, index: i}
 		}
 		for i, value := range []string{"a,b", "x"} {
 			argument := functionCallArguments(node.calls[i])[0]
-			functionSetUnitArgument(t, node.calls, i, 0, mathObservedArgument{expressionInfo: expressionInfo{usage: argument.ResultUsage(), properties: ExprProperties{Volatility: Volatile}}, value: sqltype.String(argument.ResultUsage().Type, value), order: &trace, index: 10 + i})
+			functionSetUnitArgument(t, node.calls, i, 0, mathObservedArgument{expressionInfo: expressionInfo{Usage: argument.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.String(argument.ResultUsage().Type, value), order: &trace, index: 10 + i})
 		}
 		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
@@ -319,12 +319,12 @@ func TestStringSplitExpansion(t *testing.T) {
 	})
 	text := b.typ(sqltype.Text)
 	var order []int
-	input := mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "a,b"), order: &order, index: 0}
-	delimiter := mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, ","), order: &order, index: 1}
-	marker := mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 2}
+	input := mathObservedArgument{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "a,b"), order: &order, index: 0}
+	delimiter := mathObservedArgument{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, ","), order: &order, index: 1}
+	marker := mathObservedArgument{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 2}
 	first := stringSplitMarker(t, b, 1, input, delimiter, marker)
 	second := stringSplitMarker(t, b, 2, stringSplitLiteral(b, "x"), stringSplitLiteral(b, ","))
-	scalar := mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Volatile}}, value: sqltype.String(text, "s"), order: &order, index: 3}
+	scalar := mathObservedArgument{expressionInfo: expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.String(text, "s"), order: &order, index: 3}
 	node := &setProjectNode{child: &singletonNode{}, calls: []BoundExpr{first, second}, callSlots: []int{0, 1}, markerWidth: 2, scalars: []BoundExpr{scalar}, scalarSlots: []int{0}, steps: []querySetStep{{kind: querySetCallStep, index: 0}, {kind: querySetCallStep, index: 1}, {kind: querySetScalarStep, index: 0}}, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}}
 	t.Run("sparse_slot_invariants", func(t *testing.T) {
 		for _, tc := range []struct {
@@ -642,7 +642,7 @@ func TestStringSplitLifecycle(t *testing.T) {
 		for _, malformed := range []unknownOutput{
 			{raw: parser.ColumnExpr{}},
 			{raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}},
-			{expressionInfo: expressionInfo{usage: call.ResultUsage()}, raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}},
+			{expressionInfo: expressionInfo{Usage: call.ResultUsage()}, raw: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}},
 		} {
 			stage := makeStage(malformed)
 			if err := validateViewLeaves(b.bindingCatalog(), &viewDefinition{query: &BoundQuery{Root: stage}}); err == nil || err.Error() != "stuntgres: invalid contextual view output" {
@@ -804,7 +804,7 @@ func TestStringSplitPreflight(t *testing.T) {
 	t.Run("scalar_owner_boundary", func(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		text := b.typ(sqltype.Text)
-		info := expressionInfo{usage: text.Usage()}
+		info := expressionInfo{Usage: text.Usage()}
 		lowered := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 0}
 		reserved := columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: 1}
 		for _, tc := range []struct {

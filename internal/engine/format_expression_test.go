@@ -236,7 +236,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil || text != "b/a" {
 		t.Fatal(text, err)
 	}
-	column := columnExpression{expressionInfo: expressionInfo{usage: node.ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID()}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID()}
 	node.Variadic = false
 	node.Args = []BoundExpr{node.Args[0], column}
 	node.Property.RowDependent = true
@@ -254,7 +254,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if _, ok := node.Args[1].(columnExpression); !ok {
 		t.Fatal("group rewrite mutated shared children")
 	}
-	aggregate := aggregateExpression{expressionInfo: expressionInfo{usage: node.ResultUsage(), properties: ExprProperties{StageDependent: true}}, slot: 7}
+	aggregate := aggregateExpression{expressionInfo: expressionInfo{Usage: node.ResultUsage(), Property: ExprProperties{StageDependent: true}}, slot: 7}
 	node.Args = []BoundExpr{node.Args[0], column, aggregate}
 	if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
 		t.Fatal("all arguments must participate in aggregate traversal")

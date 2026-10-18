@@ -25,10 +25,10 @@ func (e bitwiseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.right == nil {
-		if e.usage.Type.ID() == sqltype.Inet {
+		if e.Usage.Type.ID() == sqltype.Inet {
 			return e.network.Unary(c.Context, a)
 		}
-		if e.usage.Type.ID() == sqltype.Bit {
+		if e.Usage.Type.ID() == sqltype.Bit {
 			return e.bits.Unary(c.Context, a)
 		}
 		return e.provider.Unary(c.Context, a)
@@ -37,10 +37,10 @@ func (e bitwiseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.usage.Type.ID() == sqltype.Inet {
+	if e.Usage.Type.ID() == sqltype.Inet {
 		return e.network.Binary(c.Context, a, b)
 	}
-	if e.usage.Type.ID() == sqltype.Bit {
+	if e.Usage.Type.ID() == sqltype.Bit {
 		return e.bits.Binary(c.Context, a, b)
 	}
 	return e.provider.Binary(c.Context, a, b)
@@ -51,7 +51,7 @@ func (e bitwiseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 // facts; conservative row/stage dependence on an already-pruned literal remains.
 func bitwiseConstantNull(node BoundExpr) bool {
 	literal, ok := node.(literalExpression)
-	return ok && !literal.properties.ParameterDependent && literal.value.IsNull()
+	return ok && !literal.Property.ParameterDependent && literal.value.IsNull()
 }
 
 func integralBitwiseType(t *sqltype.Descriptor) bool {

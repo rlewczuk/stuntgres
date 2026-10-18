@@ -26,12 +26,12 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	base := inner.child.(*sourceNode)
 	outer := &projectNode{querySchema: inner.querySchema, frame: inner.frame + 1}
 	outer.child = &sourceNode{querySchema: inner.querySchema, ref: base.ref, occurrence: 0, presenceSlot: base.presenceSlot}
-	column := columnExpression{expressionInfo: expressionInfo{usage: inputUsage}, scope: 1, frame: outer.frame, slot: 0}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: inputUsage}, scope: 1, frame: outer.frame, slot: 0}
 	outer.expressions = []BoundExpr{column}
 	bound := *query
 	bound.Root = outer
 	expr := subqueryTestExpression(t, e, &bound, parser.SubqueryScalar)
-	expr.usage = jsonType.Usage()
+	expr.Usage = jsonType.Usage()
 	expr.jsonArray = &sqlJSONArrayQuery{plan: plan, input: column}
 	newCapture := func() *querySource {
 		return &querySource{ref: base.ref, authority: captured.authority, nestedRoot: inner, nestedInputs: captured, flatWidth: 1, materialized: true}

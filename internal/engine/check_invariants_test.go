@@ -29,7 +29,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		{"wrong dense slot", func(c *columnExpression) { c.slot++ }},
 		{"wrong scope", func(c *columnExpression) { c.scope++ }},
 		{"wrong frame", func(c *columnExpression) { c.frame++ }},
-		{"foreign type", func(c *columnExpression) { c.usage.Type, _ = New().CatalogRead().LookupType(sqltype.Int4) }},
+		{"foreign type", func(c *columnExpression) { c.Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Int4) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			copy := *original
@@ -45,8 +45,8 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		})
 	}
 	for _, node := range []BoundExpr{
-		parameterExpression{expressionInfo: expressionInfo{usage: predicate.usage}, number: 1},
-		aggregateExpression{expressionInfo: expressionInfo{usage: predicate.usage}, slot: 0},
+		parameterExpression{expressionInfo: expressionInfo{Usage: predicate.Usage}, number: 1},
+		aggregateExpression{expressionInfo: expressionInfo{Usage: predicate.Usage}, slot: 0},
 	} {
 		copy := *original
 		copy.checkConstraints = append([]checkConstraint(nil), original.checkConstraints...)

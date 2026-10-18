@@ -47,23 +47,23 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	ref := func(a ids.ObjectAddress) ids.ObjectRef {
 		return e.domain.Ref(catalog.state.epoch, a)
 	}
-	variable := columnExpression{expressionInfo: expressionInfo{usage: domain.Usage()}, origin: ref(column)}
-	scalar := literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage(), regclassRef: ref(provider)}}
+	variable := columnExpression{expressionInfo: expressionInfo{Usage: domain.Usage()}, origin: ref(column)}
+	scalar := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref(provider)}}
 	cases := []struct {
 		name string
 		expr BoundExpr
 		want []ids.ObjectAddress
 	}{
 		{"domain_var", variable, []ids.ObjectAddress{column}},
-		{"domain_const", literalExpression{expressionInfo: expressionInfo{usage: domain.Usage()}}, []ids.ObjectAddress{pgDependUnitAddress(1247, 48003, 0)}},
-		{"domain_coercion", coercionExpression{expressionInfo: expressionInfo{usage: domain.Usage()}, child: variable}, []ids.ObjectAddress{pgDependUnitAddress(1247, 48003, 0), column}},
+		{"domain_const", literalExpression{expressionInfo: expressionInfo{Usage: domain.Usage()}}, []ids.ObjectAddress{pgDependUnitAddress(1247, 48003, 0)}},
+		{"domain_coercion", coercionExpression{expressionInfo: expressionInfo{Usage: domain.Usage()}, child: variable}, []ids.ObjectAddress{pgDependUnitAddress(1247, 48003, 0), column}},
 		{"scalar_regclass", scalar, []ids.ObjectAddress{provider}},
-		{"null_regclass", literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}}, nil},
-		{"absent_regclass", literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}}, nil},
-		{"regclass_array", literalExpression{expressionInfo: expressionInfo{usage: array.Usage()}}, nil},
-		{"runtime_numeric_cast", coercionExpression{expressionInfo: expressionInfo{usage: regclass.Usage()}, child: literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}}, nil},
-		{"repeated_var", functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: domain.Usage()}), Args: []BoundExpr{variable, variable}}, []ids.ObjectAddress{column}},
-		{"dead_case", caseExpression{arms: []caseBranch{{condition: literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}}, result: variable}}, otherwise: scalar}, []ids.ObjectAddress{column, provider}},
+		{"null_regclass", literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}}, nil},
+		{"absent_regclass", literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}}, nil},
+		{"regclass_array", literalExpression{expressionInfo: expressionInfo{Usage: array.Usage()}}, nil},
+		{"runtime_numeric_cast", coercionExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}, child: literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}}}, nil},
+		{"repeated_var", functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: domain.Usage()}), Args: []BoundExpr{variable, variable}}, []ids.ObjectAddress{column}},
+		{"dead_case", caseExpression{arms: []caseBranch{{condition: literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}}, result: variable}}, otherwise: scalar}, []ids.ObjectAddress{column, provider}},
 		{"tableoid", tableOIDExpression{owner: ref(parent)}, []ids.ObjectAddress{pgDependUnitAddress(1259, 48001, -6)}},
 	}
 	for _, tc := range cases {
@@ -113,7 +113,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{table})
 	ref.Address = column
-	variable := columnExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, origin: ref}
+	variable := columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, origin: ref}
 	query := &BoundQuery{Root: &projectNode{child: source, expressions: []BoundExpr{variable, variable}}}
 	got, err = pgDependQueryRefs(context.Background(), catalog, query)
 	if err != nil {

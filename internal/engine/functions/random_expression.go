@@ -3,19 +3,11 @@ package functions
 import (
 	"fmt"
 	"math"
-	random "math/rand/v2"
 	"strconv"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// RandomOwner borrows the existing session's generator for one whole operation.
-// Borrow unlocks on failure; only a successful borrow requires Release.
-type RandomOwner interface {
-	SeedWords(uint64, uint64)
-	Borrow() (*random.Rand, error)
-	Release()
-}
 type RandomContext interface {
 	Context
 	FunctionRandomOwner() (RandomOwner, error)

@@ -138,7 +138,7 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 		if !ok {
 			return signature()
 		}
-		views[1].node = literalExpression{expressionInfo: expressionInfo{usage: leaf}}
+		views[1].node = literalExpression{expressionInfo: expressionInfo{Usage: leaf}}
 	}
 	known := views[:0]
 	for _, view := range views {
@@ -185,7 +185,7 @@ func (b *expressionBinder) bindThresholdBucket(raw parser.FunctionExpr, visible 
 		return nil, err
 	}
 	result := b.typ(sqltype.Int4).Usage()
-	plan, err := sqltype.BindWidthBucketThreshold(result, args[0].ResultUsage(), args[1].ResultUsage(), input.usage.Collation, input.collationConflict)
+	plan, err := sqltype.BindWidthBucketThreshold(result, args[0].ResultUsage(), args[1].ResultUsage(), input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, err
 	}

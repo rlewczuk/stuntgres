@@ -229,8 +229,8 @@ func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 }
 func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
-	expression := logicalExpression{expressionInfo: expressionInfo{usage: f.predicate.usage, properties: ExprProperties{RowDependent: true}}, op: parser.LogicalNot, left: f.predicate}
-	class, _ := sqltype.DefaultIndexClass(f.predicate.usage.Type)
+	expression := logicalExpression{expressionInfo: expressionInfo{Usage: f.predicate.Usage, Property: ExprProperties{RowDependent: true}}, op: parser.LogicalNot, left: f.predicate}
+	class, _ := sqltype.DefaultIndexClass(f.predicate.Usage.Type)
 	for i := range 2 {
 		index := *f.index
 		index.address.ObjectID += ids.OID(i + 1)

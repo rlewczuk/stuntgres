@@ -123,12 +123,48 @@ evaluation regression. 2d completes the step.
 
 - [x] 2a — Evaluation through an interface; `routineRecipe` cut (`52d15cad4`
   seam, `a7bc48424` port, `d0fb3f388` recipe cut)
-- [ ] 2b — `expr` created, contract moved, aliases in place
+- [x] 2b — `expr` created, contract moved, aliases in place (`dced86ba6`
+  field export, `9e1ba1dae` move, docs `8f542f797`)
 - [ ] 2c — Node protocol landed with the walk switch as first adopter
 - [ ] 2d — Aliases removed
 
-Outstanding aliases: none yet. The engine-local `ExprContext`
-(`internal/engine/expression_context.go`) becomes `expr.Context` in 2b.
+Outstanding aliases (2d removes them):
+
+- Engine, `internal/engine/expr_aliases.go`: types `BoundExpr`,
+  `ExprProperties`, `ExprContext`, `Volatility` and `expressionInfo`;
+  constants `Immutable`, `Stable` and `Volatile`; forwarding functions
+  `boundExpressionInfo` (→ `expr.InfoOf`, 132 uses),
+  `mergeExpressionProperties` (→ `expr.MergeProperties`, 95) and
+  `expressionError` (→ `expr.ErrorAt`, 577).
+- `functions`, `internal/engine/functions/expr_aliases.go`: types
+  `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
+  `IntrinsicPropertyRule`; constants `ExactStable`, `ExactVolatile`,
+  `VolatileOnly` and `ExactImmutable`.
+
+Corrections to this prompt, measured at the 2b start:
+
+- `expr.Info` needed exported fields, so 2b starts with a port-in-place commit:
+  `gopls rename` of the 12 `expressionInfo` fields to the `functions.Info[P]`
+  names (`Usage`, `Pos`, `Property`, `Collation*`, `RoutineReference`,
+  `RoutineRecipeReference`) plus `UnknownNull` and `RegclassRef`. It touched
+  329 files. Matching names keep F1's `functions.Info[P]` → `expr.Info` swap
+  mechanical.
+- Replacing `functions.Info[P]` was not trivial anywhere: its `P` reaches the
+  `FunctionPropertiesMatch(P, ...)` context constraints, and the `functions`
+  unit tests instantiate `P` as `bool` and `IntrinsicPropertyRule`. It stays
+  generic; the engine's `functionInfo` conversion stays until F1.
+- Besides the listed helpers, `functionIntrinsicProperties` and
+  `functionPropertiesMatch` moved as `expr.IntrinsicProperties` and
+  `expr.PropertiesMatch`, and `expressionErrorFrom` as `expr.WithPosition`.
+  Their callers (14, 21 and 2) call `expr` directly. `foldedExpressionInfo`
+  stays in the engine: dropping the routine reference is folding policy.
+- The nil-context question is settled: evaluation requires a non-nil
+  `Context` (documented on `expr.Context` and `Expr.Eval`). Nil-safety is not
+  added; a nil `*EvalContext` still reports "missing expression context".
+
+Tests in 2b: new `expr/expr_test.go` pins the moved helpers. Engine tests were
+adapted only by the same mechanical renames (field names, `expr.PropertiesMatch`,
+`expr.IntrinsicProperties`). None were moved or deleted.
 
 Corrections to this prompt, measured at the 2a start:
 
@@ -154,13 +190,12 @@ deleted.
 
 Notes for later steps:
 
-- 2b: `functions.RandomOwner` and `functions.IntrinsicPropertyRule` move to
-  `expr`, because `expr.Context` names them and `expr` cannot import
-  `functions`. Both depend only on the standard library.
-- 2b: an untyped nil `ExprContext` makes `functions` nodes panic in
-  `c.FunctionContext()`, where a nil `*EvalContext` returned "missing
-  expression context". Production never passes one. Decide in 2b whether
-  `expr` makes nil contexts safe.
+- 2d: the forwarding functions are not type aliases; rewrite their call
+  sites to the `expr` names (adding the import), then delete them.
+- 2d: engine nodes embed `expr.Info` under the alias name `expressionInfo`,
+  so composite literals spell `expressionInfo: ...` and code selects
+  `.expressionInfo`. Removing that alias renames the embedded field to `Info`
+  at every such site.
 - F1: `functions/pgcrypto.go` checks entropy, UUID and FIPS capabilities with
   `any(c).(interface{...})`. Once nodes take `expr.Context`, these become
   direct calls.

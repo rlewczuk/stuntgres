@@ -103,7 +103,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			dest = target.column(dest)
 		}
 		if source.ResultUsage() != dest.Usage {
-			if row, ok := source.(rowExpression); ok && row.usage.Type.ID() == 2249 && dest.Usage.Type.BaseType().IsComposite() {
+			if row, ok := source.(rowExpression); ok && row.Usage.Type.ID() == 2249 && dest.Usage.Type.BaseType().IsComposite() {
 				source, err = binder.assignCompositeMember(row, dest.Usage, sqltype.Assignment, a.Value.SourcePosition())
 				if err != nil {
 					return err
@@ -116,7 +116,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			if err != nil {
 				return err
 			}
-			plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Assignment)
+			plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 			if err != nil {
 				if target != nil {
 					return target.diagnostic(binder, err, source.ResultUsage().Type)
@@ -134,9 +134,9 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			if plan.RequiresCatalogOutput() {
 				binder.regclassConcat = true
 			}
-			info.properties = coercionProperties(input, plan)
+			info.Property = coercionProperties(input, plan)
 			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
-			source, err = storageDestination(source, dest.Usage, info.pos)
+			source, err = storageDestination(source, dest.Usage, info.Pos)
 			if err != nil {
 				return err
 			}

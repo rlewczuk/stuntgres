@@ -14,7 +14,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	u := typ.Usage()
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000}, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "v", Usage: u}}, index: map[string]int{"v": 0}}
-	column := columnExpression{expressionInfo: expressionInfo{usage: u, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: u, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	plan, err := sqltype.BindString("lower", u, u, []sqltype.Usage{u}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(ordering.slots, []int{1, 0}) || ordering.derived != nil {
 		t.Fatal(ordering, err)
 	}
-	d.keys[0] = indexKey{derived: &derivedIndexKey{execution: literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: sqltype.Null(typ)}}}
+	d.keys[0] = indexKey{derived: &derivedIndexKey{execution: literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
 	if _, err := bindIndexOrdering(parent, d); err == nil {
 		t.Fatal("derived UNIQUE sentinel admitted")
 	}
@@ -69,7 +69,7 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 func TestExpressionIndexPlannedVolatility(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Float8)
-	value := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage(), properties: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(typ)}
+	value := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(typ)}
 	if plannedVolatility(value) != Immutable {
 		t.Fatal("conservative literal metadata rejected")
 	}

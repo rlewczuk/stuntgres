@@ -15,7 +15,7 @@ func TestQueryRecursiveCTELimitZeroAndEmptyAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	limit := &limitNode{querySchema: node.Schema(), child: node, count: literalExpression{expressionInfo: expressionInfo{usage: int8.Usage()}, value: zero}}
+	limit := &limitNode{querySchema: node.Schema(), child: node, count: literalExpression{expressionInfo: expressionInfo{Usage: int8.Usage()}, value: zero}}
 	stage, err := openLimitNode(context.Background(), state, limit)
 	if err != nil {
 		t.Fatal(err)

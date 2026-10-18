@@ -145,7 +145,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 963})
-	literal := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
+	literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
 	if err := validateCollationProvider(view, ref); err == nil {
 		t.Fatal("fixture's unsupported comparison provider became executable")
 	}
@@ -153,7 +153,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 		t.Fatal("scalar collation identity requires comparison capability", err)
 	}
 	// Even the very same alias Const cannot authorize an actual collation use.
-	literal.usage.Collation.ID = 963
+	literal.Usage.Collation.ID = 963
 	if err := validateStoredCollationDependency(view, ref, literal); err == nil {
 		t.Fatal("identity reference bypassed comparison validation")
 	}
@@ -162,7 +162,7 @@ func TestRegObjectAliasComparisonBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opaque := literalExpression{expressionInfo: expressionInfo{usage: arrayType.Usage()}, value: array}
+	opaque := literalExpression{expressionInfo: expressionInfo{Usage: arrayType.Usage()}, value: array}
 	if err := validateStoredCollationDependency(view, ref, opaque); err == nil {
 		t.Fatal("opaque array mistaken for scalar collation identity")
 	}

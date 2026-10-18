@@ -7,16 +7,16 @@ import (
 )
 
 func insertConflictTruthSubject(f insertConflictProofFixture) columnExpression {
-	return columnExpression{expressionInfo: expressionInfo{usage: f.boolean.Usage(), properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	return columnExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
 }
 func insertConflictTruthTest(f insertConflictProofFixture, child BoundExpr, truth Truth, not bool) truthTestExpression {
-	return truthTestExpression{expressionInfo: expressionInfo{usage: f.boolean.Usage(), properties: child.Properties()}, child: child, truth: truth, not: not}
+	return truthTestExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, truth: truth, not: not}
 }
 func insertConflictNullTest(f insertConflictProofFixture, child BoundExpr, not bool) nullTestExpression {
-	return nullTestExpression{expressionInfo: expressionInfo{usage: f.boolean.Usage(), properties: child.Properties()}, child: child, not: not}
+	return nullTestExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage(), Property: child.Properties()}, child: child, not: not}
 }
 func insertConflictNot(f insertConflictProofFixture, child BoundExpr) logicalExpression {
-	return logicalExpression{expressionInfo: expressionInfo{usage: f.boolean.Usage(), properties: child.Properties()}, op: parser.LogicalNot, left: child}
+	return logicalExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage(), Property: child.Properties()}, op: parser.LogicalNot, left: child}
 }
 func TestInsertConflictPredicateNestedTruthTests(t *testing.T) {
 	f := insertConflictProofTypes(t)
@@ -55,7 +55,7 @@ func TestInsertConflictPredicateValueNormalization(t *testing.T) {
 	subject := insertConflictTruthSubject(f)
 	isTrue := insertConflictTruthTest(f, subject, True, false)
 	isFalse := insertConflictTruthTest(f, subject, False, false)
-	falseLiteral := literalExpression{expressionInfo: expressionInfo{usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
+	falseLiteral := literalExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, false)}
 	ctx := f.ctx
 	ctx.Scope, ctx.Frame = 1, 1
 	inputs := [3]sqltype.Value{sqltype.Boolean(f.boolean, true), sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 			if functions.FormatUnknownArgument(r, i) {
 				rawUnknown[i/64] |= uint64(1) << uint(i%64)
 			}
-			if parameter, ok := node.(parameterExpression); ok && parameter.usage.Type == nil {
+			if parameter, ok := node.(parameterExpression); ok && parameter.Usage.Type == nil {
 				b.anyParameters = append(b.anyParameters, parameter)
 			}
 		}
@@ -72,7 +73,7 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 			return nil, err
 		}
 	}
-	properties := functionIntrinsicProperties(functions.FormatIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.FormatIntrinsicRule())
 	for _, arg := range args {
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)

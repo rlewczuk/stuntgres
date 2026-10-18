@@ -107,15 +107,15 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		if err != nil {
 			return nil, err
 		}
-		common = info.usage
+		common = info.Usage
 		for side, node := range [2]BoundExpr{l, r} {
 			plan, err := sqltype.PlanCoercion(node.ResultUsage(), common, sqltype.Implicit)
 			if err != nil {
 				return nil, err
 			}
 			coercionInfo := info
-			coercionInfo.pos = node.SourcePosition()
-			coercionInfo.properties = coercionProperties(node, plan)
+			coercionInfo.Pos = node.SourcePosition()
+			coercionInfo.Property = coercionProperties(node, plan)
 			expression := coercionExpression{coercionInfo, node, plan, sqltype.Implicit, false}
 			if side == 0 {
 				n.leftExpressions[i] = expression

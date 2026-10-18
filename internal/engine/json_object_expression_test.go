@@ -36,13 +36,13 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 				t.Fatal(err)
 			}
 			usages[i] = types[1009].Usage()
-			args[i] = literalExpression{expressionInfo: expressionInfo{usage: usages[i]}, value: value}
+			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: usages[i]}, value: value}
 		}
 		plan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usages...)
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: args}
+		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: args}
 		rebound, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
@@ -101,12 +101,12 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[1009].Usage()
-	column := columnExpression{expressionInfo: expressionInfo{usage: usage, properties: ExprProperties{RowDependent: true}}}
+	column := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}}
 	plan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usage, usage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
+	expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: types[sqltype.JSON].Usage()}), Plan: plan, Args: []BoundExpr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	rewritten, err := binder.rewriteGroup(expr, []BoundExpr{column})
 	if err != nil {

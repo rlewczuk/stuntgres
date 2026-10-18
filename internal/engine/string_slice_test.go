@@ -91,7 +91,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 			if i == 0 {
 				typ = text
 			}
-			args[i] = columnExpression{expressionInfo: expressionInfo{usage: typ.Usage(), properties: ExprProperties{RowDependent: true}}, slot: i}
+			args[i] = columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, slot: i}
 		}
 		node, err := b.stringNode(name, text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 		if err != nil {
@@ -119,9 +119,9 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
 	args := []BoundExpr{
-		literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "Aé🙂Z")},
-		literalExpression{expressionInfo{usage: integer.Usage()}, two},
-		literalExpression{expressionInfo{usage: integer.Usage()}, one},
+		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "Aé🙂Z")},
+		literalExpression{expressionInfo{Usage: integer.Usage()}, two},
+		literalExpression{expressionInfo{Usage: integer.Usage()}, one},
 	}
 	ordinary, err := b.stringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {

@@ -43,7 +43,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordinal := literalExpression{expressionInfo: expressionInfo{usage: b.typ(sqltype.Int4).Usage()}, value: offset}
+	ordinal := literalExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.Int4).Usage()}, value: offset}
 	tail := stringSplitLiteral(b, "tail")
 	retainedCalls := []windowCall{
 		{operation: windowLead, argument: argument, ordinal: ordinal, defaultValue: marker},

@@ -58,10 +58,10 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	two, _ := sqltype.Integer(integer, 2)
 	one, _ := sqltype.Integer(integer, 1)
 	args := []BoundExpr{
-		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{ParameterDependent: true}}, sqltype.Null(text)},
-		literalExpression{expressionInfo{usage: text.Usage(), properties: ExprProperties{RowDependent: true}}, sqltype.String(text, "X")},
-		literalExpression{expressionInfo{usage: integer.Usage(), properties: ExprProperties{Volatility: Stable}}, two},
-		literalExpression{expressionInfo{usage: integer.Usage(), properties: ExprProperties{Volatility: Volatile, StageDependent: true}}, one},
+		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true}}, sqltype.String(text, "X")},
+		literalExpression{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{Volatility: Stable}}, two},
+		literalExpression{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{Volatility: Volatile, StageDependent: true}}, one},
 	}
 	bound, err := b.stringNode("overlay", text.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OverlayStringSyntax)
 	if err != nil {
@@ -75,7 +75,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	}
 	// Retag executable literal children, retaining all four formal owners.
 	original := bound.(functions.String[BoundExpr, ExprContext, ExprProperties])
-	original.Args = []BoundExpr{literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "X")}, literalExpression{expressionInfo{usage: integer.Usage()}, two}, literalExpression{expressionInfo{usage: integer.Usage()}, one}}
+	original.Args = []BoundExpr{literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "X")}, literalExpression{expressionInfo{Usage: integer.Usage()}, two}, literalExpression{expressionInfo{Usage: integer.Usage()}, one}}
 	fresh := map[sqltype.ID]*sqltype.Descriptor{}
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
@@ -104,7 +104,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, boolean := b.typ(sqltype.Text), b.typ(sqltype.Bool)
-	args := []BoundExpr{literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{usage: text.Usage()}, sqltype.String(text, "a")}}
+	args := []BoundExpr{literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "a")}}
 	function, err := b.stringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	}
 	left, right := text.Usage(), text.Usage()
 	left.Collation.ID, right.Collation.ID = 950, 951
-	args = []BoundExpr{literalExpression{expressionInfo{usage: left}, sqltype.String(text, "")}, literalExpression{expressionInfo{usage: right}, sqltype.String(text, "")}}
+	args = []BoundExpr{literalExpression{expressionInfo{Usage: left}, sqltype.String(text, "")}, literalExpression{expressionInfo{Usage: right}, sqltype.String(text, "")}}
 	conflict, err := b.stringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.PrefixStringSyntax)
 	if err != nil {
 		t.Fatal(err)

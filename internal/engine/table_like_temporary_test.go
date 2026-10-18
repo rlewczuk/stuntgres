@@ -222,7 +222,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	}
 	// The copied DEFAULT owner must retain its closed-row policy, not borrow a row owner.
 	integer, _ := view.LookupType(sqltype.Int8)
-	row := columnExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{RowDependent: true}}, origin: e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}), scope: 1, frame: 1, slot: 0}
+	row := columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage(), Property: ExprProperties{RowDependent: true}}, origin: e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: 1}), scope: 1, frame: 1, slot: 0}
 	if _, err := (scalarRenderer{provenance: destination}).sql(context.Background(), view, row); err == nil {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}

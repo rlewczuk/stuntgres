@@ -34,7 +34,7 @@ type commitTimestampExpression struct {
 }
 
 func (n commitTimestampExpression) validate() error {
-	if n.kind > commitTimestampLast || !n.usage.Valid() || n.properties.Volatility != Volatile {
+	if n.kind > commitTimestampLast || !n.Usage.Valid() || n.Property.Volatility != Volatile {
 		return fmt.Errorf("stuntgres: invalid stored commit timestamp provider")
 	}
 	if (n.arg == nil) != (n.kind == commitTimestampLast) {
@@ -44,7 +44,7 @@ func (n commitTimestampExpression) validate() error {
 		return fmt.Errorf("stuntgres: invalid commit timestamp argument")
 	}
 	if n.kind == commitTimestampScalar {
-		if n.usage.Type.ID() != sqltype.Timestamptz {
+		if n.Usage.Type.ID() != sqltype.Timestamptz {
 			return fmt.Errorf("stuntgres: invalid commit timestamp result")
 		}
 	} else {
@@ -52,7 +52,7 @@ func (n commitTimestampExpression) validate() error {
 		if n.kind == commitTimestampLast {
 			count = 3
 		}
-		if !n.usage.Type.IsComposite() || n.usage.Type.CompositeLen() != count {
+		if !n.Usage.Type.IsComposite() || n.Usage.Type.CompositeLen() != count {
 			return fmt.Errorf("stuntgres: invalid commit timestamp record")
 		}
 		for i := range count {
@@ -62,7 +62,7 @@ func (n commitTimestampExpression) validate() error {
 			} else if count == 3 && i == 0 {
 				name, id = "xid", sqltype.Xid
 			}
-			member := n.usage.Type.CompositeMember(i)
+			member := n.Usage.Type.CompositeMember(i)
 			if member.Name != name || member.Usage.Type.ID() != id {
 				return fmt.Errorf("stuntgres: invalid commit timestamp OUT field")
 			}
@@ -171,7 +171,7 @@ func (n commitTimestampExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 			return sqltype.Value{}, err
 		}
 		if value.IsNull() {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
 		xid, err = value.XID()
 		if err != nil {
@@ -202,11 +202,11 @@ func (n commitTimestampExpression) Eval(ctx ExprContext) (sqltype.Value, error) 
 	}
 	if n.kind == commitTimestampScalar {
 		if !entry.present {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
-		return sqltype.TimestampFromTime(n.usage.Type, entry.stamp)
+		return sqltype.TimestampFromTime(n.Usage.Type, entry.stamp)
 	}
-	shape := n.usage.Type
+	shape := n.Usage.Type
 	fields := make([]sqltype.Value, shape.CompositeLen())
 	for i := range fields {
 		fields[i] = sqltype.Null(shape.CompositeMember(i).Usage.Type)

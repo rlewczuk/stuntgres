@@ -116,13 +116,13 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			}
 		})
 		if operation != nil {
-			return out, expressionError("42803", "grouping operations are not allowed in GROUP BY", operation.pos)
+			return out, expressionError("42803", "grouping operations are not allowed in GROUP BY", operation.Pos)
 		}
 		if call := aggregateOccurrence(key); call != nil && (call.frame == 0 || call.frame == b.frameID()) {
-			return out, expressionError("42803", "aggregate functions are not allowed in GROUP BY", call.pos)
+			return out, expressionError("42803", "aggregate functions are not allowed in GROUP BY", call.Pos)
 		}
 		if call := windowOccurrence(key); call != nil && call.frame == b.frameID() {
-			return out, expressionError("42P20", "window functions are not allowed in GROUP BY", call.pos)
+			return out, expressionError("42P20", "window functions are not allowed in GROUP BY", call.Pos)
 		}
 		key, err = b.finalizeProjection(key)
 		if err != nil {
@@ -337,7 +337,7 @@ func (e groupingExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if occurrence < 0 || occurrence >= int64(len(e.masks)) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid grouping occurrence")
 	}
-	return sqltype.Integer(e.usage.Type, int64(e.masks[occurrence]))
+	return sqltype.Integer(e.Usage.Type, int64(e.masks[occurrence]))
 }
 
 func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, error) {
@@ -414,7 +414,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (BoundExpr, err
 		b.groupingActive = true
 	}
 	usage := b.typ(sqltype.Int4).Usage()
-	return groupingExpression{expressionInfo: expressionInfo{usage: usage, pos: raw.Pos, properties: ExprProperties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
+	return groupingExpression{expressionInfo: expressionInfo{Usage: usage, Pos: raw.Pos, Property: ExprProperties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
 }
 
 func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []BoundExpr) (BoundExpr, error) {

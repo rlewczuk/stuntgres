@@ -100,7 +100,7 @@ func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundE
 		result = b.typ(sqltype.Int4).Usage()
 	}
 	info := b.info(result, raw.Pos, properties)
-	info.routineReference = proc
+	info.RoutineReference = proc
 	call, err := functions.NewSoundex[BoundExpr, ExprContext](functionInfo(info), canonical, args)
 	if err != nil {
 		return nil, err

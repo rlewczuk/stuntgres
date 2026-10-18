@@ -40,7 +40,7 @@ func (b *expressionBinder) bindSimilar(raw parser.OperatorExpr) (BoundExpr, erro
 	op := raw.Name.Parts[0].Text
 	result := b.typ(sqltype.Bool).Usage()
 	info := b.info(result, raw.Pos, likeProperties(l, r))
-	node, err := functions.NewSimilar[BoundExpr, ExprContext](functionInfo(info), l, r, op, collation.usage.Collation, collation.collationConflict)
+	node, err := functions.NewSimilar[BoundExpr, ExprContext](functionInfo(info), l, r, op, collation.Usage.Collation, collation.CollationConflict)
 	if err != nil {
 		return nil, err
 	}

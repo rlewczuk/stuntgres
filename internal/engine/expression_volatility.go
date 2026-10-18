@@ -258,7 +258,7 @@ func plannedNodeVolatility(node BoundExpr, copyNextval, intrinsicOnly bool) Vola
 	case installedFunctionExpression:
 		return merge(n.procedure.volatility, children(n.arg))
 	case sqlJSONExpression:
-		return merge(n.properties.Volatility, children(n.args...))
+		return merge(n.Property.Volatility, children(n.args...))
 	case jsonPredicateExpression:
 		return children(n.child)
 	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:

@@ -104,7 +104,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: d.name}}}, Args: args})
 	if err == nil {
-		selected := boundExpressionInfo(node).routineReference
+		selected := boundExpressionInfo(node).RoutineReference
 		if selected == nil || selected.RoutineOID() != oid {
 			err = sqlError("0A000", fmt.Sprintf("function \"%s\" is not executable via fastpath interface", d.name))
 		}

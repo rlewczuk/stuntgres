@@ -105,7 +105,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			calls++
 			return variable.Eval(c)
 		}).(queryProbeExpression)
-		probe.properties.Volatility = Volatile
+		probe.Property.Volatility = Volatile
 		original.expressions[0] = probe
 		evaluation := EvalContext{Context: context.Background(), planStaticOperators: true}
 		prepared, err := preflightQuery(&evaluation, original)

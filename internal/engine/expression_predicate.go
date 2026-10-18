@@ -32,7 +32,7 @@ func (e nullTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	} else if e.not {
 		result = !result
 	}
-	return sqltype.Boolean(e.usage.Type, result), nil
+	return sqltype.Boolean(e.Usage.Type, result), nil
 }
 
 type truthTestExpression struct {
@@ -55,7 +55,7 @@ func (e truthTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if e.not {
 		result = !result
 	}
-	return sqltype.Boolean(e.usage.Type, result), nil
+	return sqltype.Boolean(e.Usage.Type, result), nil
 }
 
 type distinctExpression struct {
@@ -90,7 +90,7 @@ func (e distinctExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if e.not {
 		distinct = !distinct
 	}
-	return sqltype.Boolean(e.usage.Type, distinct), nil
+	return sqltype.Boolean(e.Usage.Type, distinct), nil
 }
 
 func rawNull(raw parser.Expr) bool {
@@ -120,7 +120,7 @@ func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, w
 	if err != nil {
 		return nil, err
 	}
-	if p, ok := child.(parameterExpression); ok && p.usage.Type == nil {
+	if p, ok := child.(parameterExpression); ok && p.Usage.Type == nil {
 		b.anyParameters = append(b.anyParameters, p)
 	}
 	return nullTestExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), child, not, whole}, nil

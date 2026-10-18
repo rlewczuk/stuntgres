@@ -14,7 +14,7 @@ import (
 func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, constructor rowExpression) (BoundExpr, error) {
 	members := make([]sqltype.CompositeMember, len(constructor.fields))
 	for i, field := range constructor.fields {
-		members[i] = constructor.usage.Type.CompositeMember(i)
+		members[i] = constructor.Usage.Type.CompositeMember(i)
 		members[i].Attribute = int32(i + 1)
 		members[i].Usage = field.ResultUsage()
 	}
@@ -22,7 +22,7 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 	if err != nil {
 		return nil, err
 	}
-	constructor.usage = shape.Usage()
+	constructor.Usage = shape.Usage()
 	if b.storedExpressionSyntax == nil {
 		b.storedExpressionSyntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 	}

@@ -41,7 +41,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			newUsage := oldUsage
 			newUsage.Type = current
 			currentColumn := f.predicate
-			currentColumn.usage = newUsage
+			currentColumn.Usage = newUsage
 			predicate := *oldPredicate
 			if name == "definition_only" {
 				predicate.execution = currentColumn

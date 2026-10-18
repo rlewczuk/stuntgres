@@ -135,7 +135,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 			t.Fatal("nested/error VALUE frame leaked", tc)
 		}
 	}
-	leaf := domainValueExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: ExprProperties{DomainDependent: true}}}
+	leaf := domainValueExpression{expressionInfo: expressionInfo{Usage: integer.Usage(), Property: ExprProperties{DomainDependent: true}}}
 	if _, err := leaf.Eval(&eval); err == nil {
 		t.Fatal("wrong VALUE frame type accepted")
 	}
@@ -152,7 +152,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	textLeaf := domainValueExpression{expressionInfo: expressionInfo{usage: short, properties: ExprProperties{DomainDependent: true}}}
+	textLeaf := domainValueExpression{expressionInfo: expressionInfo{Usage: short, Property: ExprProperties{DomainDependent: true}}}
 	eval.domainValue, eval.domainFrameUsage, eval.domainValueActive = sqltype.String(varchar, "abc"), long, true
 	if _, err := textLeaf.Eval(&eval); err == nil {
 		t.Fatal("foreign immediate-base typmod accepted")

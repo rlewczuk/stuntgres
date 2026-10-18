@@ -90,7 +90,7 @@ func partitionFunctionConjuncts(join *joinNode, predicate BoundExpr) (before, af
 			}
 			copy := logical
 			copy.left, copy.right = left, right
-			copy.properties = mergeExpressionProperties(left.Properties(), right.Properties())
+			copy.Property = mergeExpressionProperties(left.Properties(), right.Properties())
 			return copy
 		}
 		return combine(leftBefore, rightBefore), combine(leftAfter, rightAfter)

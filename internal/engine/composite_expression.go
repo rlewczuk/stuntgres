@@ -32,14 +32,14 @@ func (n rowExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if n.returningNull {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	absent, err := n.absent(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if absent {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	values := make([]sqltype.Value, len(n.fields))
 	for i, child := range n.fields {
@@ -49,7 +49,7 @@ func (n rowExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
-	return sqltype.OwnedCompositeValue(n.usage.Type, values)
+	return sqltype.OwnedCompositeValue(n.Usage.Type, values)
 }
 
 type fieldExpression struct {
@@ -69,7 +69,7 @@ func (n fieldExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		if absent {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
 		return row.fields[n.index].Eval(c)
 	}
@@ -78,7 +78,7 @@ func (n fieldExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	index, ok := value.Type().BaseType().CompositeAttributeIndex(n.attribute)
 	if !ok {
@@ -179,7 +179,7 @@ func (b *expressionBinder) assignCompositeMember(node BoundExpr, target sqltype.
 	}
 	// Structural conversion is an anonymous RECORD authority, not permission
 	// to reinterpret a named constructor or a domain's underlying members.
-	if row, ok := node.(rowExpression); ok && row.usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
+	if row, ok := node.(rowExpression); ok && row.Usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
 		if row.raw != nil {
 			return b.bindRow(*row.raw, target, mode, pos)
 		}
@@ -203,7 +203,7 @@ func (b *expressionBinder) assignCompositeMember(node BoundExpr, target sqltype.
 			}
 			props = mergeExpressionProperties(props, fields[i].Properties())
 		}
-		return rowExpression{expressionInfo: b.info(target, row.pos, props), fields: fields}, nil
+		return rowExpression{expressionInfo: b.info(target, row.Pos, props), fields: fields}, nil
 	}
 	plan, err := sqltype.PlanCoercion(node.ResultUsage(), target, mode)
 	if err != nil {
@@ -252,19 +252,19 @@ func (b *expressionBinder) compositeFieldAt(base BoundExpr, index int, pos parse
 		switch value := field.(type) {
 		case returningColumnExpression:
 			if value.merge {
-				value.pos = pos
+				value.Pos = pos
 				return value
 			}
 			if value.value != nil {
 				value.old, value.absent = false, false
-				value.pos = pos
+				value.Pos = pos
 				return value
 			}
 			column = value.columnExpression
 		default:
 			return fieldExpression{b.info(member.Usage, pos, base.Properties()), base, member.Attribute, index}
 		}
-		column.pos = pos
+		column.Pos = pos
 		return column
 	}
 	return fieldExpression{b.info(member.Usage, pos, base.Properties()), base, member.Attribute, index}
@@ -544,7 +544,7 @@ func (b *expressionBinder) expandRawList(raw []parser.Expr) (expandedExpressionL
 			if err == nil {
 				row := expansion.base.(rowExpression)
 				expansion.fields = row.fields
-				shape := row.usage.Type.BaseType()
+				shape := row.Usage.Type.BaseType()
 				expansion.names = make([]string, len(row.fields))
 				expansion.attributes = make([]int32, len(row.fields))
 				for j := range row.fields {

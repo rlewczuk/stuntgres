@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -44,7 +45,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 	if err != nil {
 		return nil, err
 	}
-	properties := functionIntrinsicProperties(functions.EnumIntrinsicRule())
+	properties := expr.IntrinsicProperties(functions.EnumIntrinsicRule())
 	for _, arg := range args {
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}

@@ -139,7 +139,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []BoundExpr
 	}
 	column := func(expr BoundExpr, slot int) BoundExpr {
 		info := boundExpressionInfo(expr)
-		info.properties.StageDependent, info.properties.RowDependent = true, true
+		info.Property.StageDependent, info.Property.RowDependent = true, true
 		return columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: base + slot}
 	}
 	rewrite := func(expr BoundExpr, sql99 bool, beforeDepth int) (BoundExpr, error) {
@@ -281,7 +281,7 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	}
 	column := func(original BoundExpr, slot int) BoundExpr {
 		info := boundExpressionInfo(original)
-		info.properties.StageDependent, info.properties.RowDependent = true, true
+		info.Property.StageDependent, info.Property.RowDependent = true, true
 		return columnExpression{expressionInfo: info, scope: 1, frame: n.frame, slot: n.baseWidth + slot}
 	}
 	rewrite := func(expr BoundExpr, beforeDepth int) (BoundExpr, error) {

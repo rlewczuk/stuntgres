@@ -182,14 +182,14 @@ func (n aclValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if null {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	if n.kind == aclContains {
 		ok, err := aclValueContains(c, values[0], values[1])
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.Boolean(n.usage.Type, ok), nil
+		return sqltype.Boolean(n.Usage.Type, ok), nil
 	}
 	if n.kind == aclExplode {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: ACL set call requires an invocation")
@@ -224,7 +224,7 @@ func (n aclValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		if grantable {
 			options = mask
 		}
-		return sqltype.ACLItemValue(n.usage.Type, authority, grantee, grantor, mask, options)
+		return sqltype.ACLItemValue(n.Usage.Type, authority, grantee, grantor, mask, options)
 	}
 	code, err := values[0].Text()
 	if err != nil {
@@ -239,7 +239,7 @@ func (n aclValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if own == 0 && public == 0 {
-		return sqltype.EmptyACLArrayValue(n.usage.Type)
+		return sqltype.EmptyACLArrayValue(n.Usage.Type)
 	}
 	count := 1
 	if public != 0 {
@@ -247,20 +247,20 @@ func (n aclValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	items := make([]sqltype.Value, 0, count)
 	if public != 0 {
-		v, err := sqltype.ACLItemValue(n.usage.Type.Element(), authority, 0, owner, public, 0)
+		v, err := sqltype.ACLItemValue(n.Usage.Type.Element(), authority, 0, owner, public, 0)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		items = append(items, v)
 	}
 	if own != 0 {
-		v, err := sqltype.ACLItemValue(n.usage.Type.Element(), authority, owner, owner, own, 0)
+		v, err := sqltype.ACLItemValue(n.Usage.Type.Element(), authority, owner, owner, own, 0)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		items = append(items, v)
 	}
-	return sqltype.OwnedArrayValue(n.usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(items))}}, items)
+	return sqltype.OwnedArrayValue(n.Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(items))}}, items)
 }
 
 var aclPrivilegeLabels = [...]string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "EXECUTE", "USAGE", "CREATE", "TEMPORARY", "CONNECT", "SET", "ALTER SYSTEM", "MAINTAIN"}
@@ -395,7 +395,7 @@ func aclValueContains(c *EvalContext, array, item sqltype.Value) (bool, error) {
 	return false, c.Context.Err()
 }
 func (n aclValueExpression) validateStored() error {
-	if n.kind > aclContains || n.usage.Type == nil {
+	if n.kind > aclContains || n.Usage.Type == nil {
 		return fmt.Errorf("stuntgres: invalid stored ACL recipe")
 	}
 	p := n.baseProperties()
@@ -406,10 +406,10 @@ func (n aclValueExpression) validateStored() error {
 		}
 		p = mergeExpressionProperties(p, arg.Properties())
 	}
-	if n.properties != p {
+	if n.Property != p {
 		return fmt.Errorf("stuntgres: invalid stored ACL properties")
 	}
-	if n.usage != n.usage.Type.Usage() || n.named && n.kind != aclExplode || n.namespace != "" && (n.kind != aclContains || n.namespace != "pg_catalog") {
+	if n.Usage != n.Usage.Type.Usage() || n.named && n.kind != aclExplode || n.namespace != "" && (n.kind != aclContains || n.namespace != "pg_catalog") {
 		return fmt.Errorf("stuntgres: invalid stored ACL result or notation")
 	}
 	for _, arg := range n.args[len(n.arguments()):] {
@@ -425,7 +425,7 @@ func (n aclValueExpression) validateStored() error {
 		result = sqltype.Bool
 	}
 	if n.kind == aclExplode {
-		shape := n.usage.Type
+		shape := n.Usage.Type
 		labels := [4]string{"grantor", "grantee", "privilege_type", "is_grantable"}
 		types := [4]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Text, sqltype.Bool}
 		if shape.ID() != 2249 || !shape.IsComposite() || shape.CompositeLen() != 4 {
@@ -437,7 +437,7 @@ func (n aclValueExpression) validateStored() error {
 				return fmt.Errorf("stuntgres: invalid stored ACL record member")
 			}
 		}
-	} else if n.usage.Type.ID() != result {
+	} else if n.Usage.Type.ID() != result {
 		return fmt.Errorf("stuntgres: invalid stored ACL result")
 	}
 	return nil

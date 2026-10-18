@@ -107,7 +107,7 @@ func (b *expressionBinder) bindJSONFunction(raw parser.FunctionExpr, visible boo
 			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
-		info.properties = properties
+		info.Property = properties
 		if definition.Elements {
 			if definition.Input == sqltype.JSONB {
 				return functions.NewJSONBElements[BoundExpr, ExprContext](functionInfo(info), name, arg)

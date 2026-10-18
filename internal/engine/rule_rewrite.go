@@ -45,7 +45,7 @@ type ruleAncestry struct {
 }
 
 func ruleColumnInfo(column ColumnDescriptor) expressionInfo {
-	return expressionInfo{usage: column.Usage, pos: parser.Position{Offset: -1}, properties: ExprProperties{RowDependent: true}}
+	return expressionInfo{Usage: column.Usage, Pos: parser.Position{Offset: -1}, Property: ExprProperties{RowDependent: true}}
 }
 
 func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses ...[]int) (ruleProducer, error) {
@@ -68,7 +68,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 		assign := func(output int, value BoundExpr) {
 			slot := b.targets[output]
 			if len(b.arrayTargets) > output && b.arrayTargets[output] != nil {
-				value = assignmentValueExpression{expressionInfo: expressionInfo{usage: d.columns[slot].Usage, pos: value.SourcePosition(), properties: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
+				value = assignmentValueExpression{expressionInfo: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.arrayTargets[output]}
 			}
 			p.new[slot] = value
 		}
@@ -125,7 +125,7 @@ func makeRuleProducer(catalog CatalogRead, b binding, event string, outputUses .
 			for i, slot := range b.targets {
 				value := b.update.assignments[i]
 				if len(b.update.arrayTargets) > i && b.update.arrayTargets[i] != nil {
-					value = assignmentValueExpression{expressionInfo: expressionInfo{usage: d.columns[slot].Usage, pos: value.SourcePosition(), properties: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
+					value = assignmentValueExpression{expressionInfo: expressionInfo{Usage: d.columns[slot].Usage, Pos: value.SourcePosition(), Property: mergeExpressionProperties(p.new[slot].Properties(), value.Properties())}, base: p.new[slot], value: value, target: b.update.arrayTargets[i]}
 				}
 				p.new[slot] = value
 			}
@@ -947,7 +947,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		if err != nil {
 			return b, err
 		}
-		predicates = append(predicates, truthTestExpression{expressionInfo: expressionInfo{usage: condition.ResultUsage(), pos: condition.SourcePosition(), properties: condition.Properties()}, child: condition, truth: True, not: true})
+		predicates = append(predicates, truthTestExpression{expressionInfo: expressionInfo{Usage: condition.ResultUsage(), Pos: condition.SourcePosition(), Property: condition.Properties()}, child: condition, truth: True, not: true})
 	}
 	if len(predicates) == 0 {
 		return b, nil

@@ -93,7 +93,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, present, err := cursor.next(evaluation.Context, enum.usage.Type)
+					_, present, err := cursor.next(evaluation.Context, enum.Usage.Type)
 					cursor.close()
 					if err != nil || present {
 						t.Fatal("NULL enum is not an empty set", present, err)
@@ -212,7 +212,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				if err := admitRoutineCall(&graftProbe, grafted, false, false); err != nil {
 					t.Fatal("graft did not select actual owning manifest", err)
 				}
-				if boundExpressionInfo(grafted).routineRecipe != recipe || boundExpressionInfo(node).routineRecipe != nil {
+				if boundExpressionInfo(grafted).RoutineRecipeReference != recipe || boundExpressionInfo(node).RoutineRecipeReference != nil {
 					t.Fatal("graft ancestry lost or mutated source")
 				}
 				if tc.name == "enum_parameter" {

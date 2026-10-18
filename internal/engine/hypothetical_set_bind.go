@@ -115,13 +115,13 @@ func (b *expressionBinder) bindHypotheticalSet(raw parser.AggregateExpr, name pa
 		if err != nil {
 			return nil, err
 		}
-		if info.collationConflict {
-			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(info.collationLeft.ID), b.collationName(info.collationRight.ID)), info.collationConflictPos).(*sqlstate.Error)
+		if info.CollationConflict {
+			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(info.CollationLeft.ID), b.collationName(info.CollationRight.ID)), info.CollationConflictPos).(*sqlstate.Error)
 			d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
 			return nil, d
 		}
 		usage := input.ResultUsage()
-		usage.Typmod, usage.Collation = typmods[i], info.usage.Collation
+		usage.Typmod, usage.Collation = typmods[i], info.Usage.Collation
 		if usage.Collation != input.ResultUsage().Collation {
 			comparison, err := aggregateOrdering(usage, raw.Order[i].Pos, false)
 			if err != nil {
@@ -133,7 +133,7 @@ func (b *expressionBinder) bindHypotheticalSet(raw parser.AggregateExpr, name pa
 		// metadata wrapper drops a restriction without recasting stored values.
 		wrap := func(child BoundExpr) BoundExpr {
 			metadata := info
-			metadata.usage, metadata.pos, metadata.properties = usage, child.SourcePosition(), child.Properties()
+			metadata.Usage, metadata.Pos, metadata.Property = usage, child.SourcePosition(), child.Properties()
 			return collationExpression{expressionInfo: metadata, child: child}
 		}
 		call.order[i].expression, call.direct[i] = wrap(input), wrap(direct)

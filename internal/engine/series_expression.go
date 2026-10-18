@@ -77,7 +77,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (Bo
 		if l, ok := r.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
 			if args != nil {
 				unknown[i] = true
-				args[i] = literalExpression{expressionInfo: expressionInfo{pos: r.SourcePosition()}}
+				args[i] = literalExpression{expressionInfo: expressionInfo{Pos: r.SourcePosition()}}
 			}
 			continue
 		}

@@ -31,9 +31,9 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := functions.String[BoundExpr, ExprContext, ExprProperties]{
-			Info: functionInfo(expressionInfo{usage: usage, collationConflict: conflict}),
+			Info: functionInfo(expressionInfo{Usage: usage, CollationConflict: conflict}),
 			Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-			Args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "ß")}},
+			Args: []BoundExpr{literalExpression{expressionInfo{Usage: usage}, sqltype.String(text, "ß")}},
 		}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == text {
@@ -82,12 +82,12 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	// Runtime once-only/Unicode assertions live in functions.TestStringCaseRuntimeDemand;
 	// this fixture retains the generic owner's nested collation authority.
 	node := functions.String[BoundExpr, ExprContext, ExprProperties]{
-		Info: functionInfo(expressionInfo{usage: usage, properties: ExprProperties{Volatility: Immutable, RowDependent: true}}),
+		Info: functionInfo(expressionInfo{Usage: usage, Property: ExprProperties{Volatility: Immutable, RowDependent: true}}),
 		Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-		Args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "İ")}},
+		Args: []BoundExpr{literalExpression{expressionInfo{Usage: usage}, sqltype.String(text, "İ")}},
 	}
-	info, err := collatedInfo(New().CatalogRead(), expressionInfo{usage: usage}, node)
-	if err != nil || info.usage.Collation.ID != 811 || info.collationConflict {
+	info, err := collatedInfo(New().CatalogRead(), expressionInfo{Usage: usage}, node)
+	if err != nil || info.Usage.Collation.ID != 811 || info.CollationConflict {
 		t.Fatal("nested authority", info, err)
 	}
 }

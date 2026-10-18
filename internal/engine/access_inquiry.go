@@ -147,7 +147,7 @@ func (n accessInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		null = null || value.IsNull()
 	}
 	if null {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	scope := c.liveScope()
 	if scope == nil {
@@ -225,7 +225,7 @@ func (n accessInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return sqltype.Boolean(n.usage.Type, result), nil
+	return sqltype.Boolean(n.Usage.Type, result), nil
 }
 
 func accessRoleArgument(auth AuthorizationView, arg BoundExpr, value sqltype.Value) (uint64, error) {
@@ -271,7 +271,7 @@ func (n accessInquiryExpression) validateStored() error {
 		}
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
-	if n.usage.Type == nil || n.usage != n.usage.Type.Usage() || n.usage.Type.ID() != sqltype.Bool || n.Properties() != properties {
+	if n.Usage.Type == nil || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != sqltype.Bool || n.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored access inquiry result")
 	}
 	return nil

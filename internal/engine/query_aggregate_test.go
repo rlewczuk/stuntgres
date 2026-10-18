@@ -268,9 +268,9 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	key := node.keys[0].(arithmeticExpression)
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	equivalent := key
-	equivalent.pos.Character = 999
+	equivalent.Pos.Character = 999
 	column := key.left.(columnExpression)
-	column.pos.Character = 888
+	column.Pos.Character = 888
 	equivalent.left = column
 	if !binder.sameGroupExpression(key, equivalent) {
 		t.Fatal("positions changed semantic identity")
@@ -280,14 +280,14 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if binder.sameGroupExpression(key, reversed) {
 		t.Fatal("algebraic identity admitted")
 	}
-	first := parameterExpression{expressionInfo: expressionInfo{usage: key.ResultUsage()}, number: 1}
+	first := parameterExpression{expressionInfo: expressionInfo{Usage: key.ResultUsage()}, number: 1}
 	second := first
 	second.number = 2
 	if binder.sameGroupExpression(first, second) {
 		t.Fatal("different parameters equated")
 	}
 	differentUsage := first
-	differentUsage.usage.Typmod = 4
+	differentUsage.Usage.Typmod = 4
 	if binder.sameGroupExpression(first, differentUsage) {
 		t.Fatal("different typmods equated")
 	}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -57,7 +58,7 @@ func (b *expressionBinder) bindDatetimeSleep(raw parser.FunctionExpr, visible bo
 	if err != nil {
 		return nil, err
 	}
-	properties := mergeExpressionProperties(functionIntrinsicProperties(functions.DatetimeSleepIntrinsicRule()), arg.Properties())
+	properties := mergeExpressionProperties(expr.IntrinsicProperties(functions.DatetimeSleepIntrinsicRule()), arg.Properties())
 	clockUsage := b.typ(sqltype.Timestamptz).Usage()
 	info := b.info(b.typ(sqltype.Void).Usage(), raw.Pos, properties)
 	info, err = b.builtinRoutineInfo(info, datetimeRoutineProvider, name, id)

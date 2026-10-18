@@ -53,7 +53,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 		} else {
 			var operand comparisonOperand
 			operand, err = b.comparisonOperand(raw.Left)
-			if constructor, ok := operand.node.(rowExpression); ok && constructor.raw != nil && !constructor.usage.Type.IsDomain() {
+			if constructor, ok := operand.node.(rowExpression); ok && constructor.raw != nil && !constructor.Usage.Type.IsDomain() {
 				// A cast to a named composite can still analyze to a ROW
 				// constructor. Quantified subqueries compare its fields;
 				// a domain coercion or scalar subquery remains one value.
@@ -63,7 +63,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 				}
 				leftExpansions = constructor.expansions
 				if b.noParameters || b.materializedDefinition {
-					erasedLeftType = constructor.usage.Type.ID()
+					erasedLeftType = constructor.Usage.Type.ID()
 					leftConstructor, err = b.normalizeQuantifiedConstructor(raw.Left, constructor)
 					if err != nil {
 						return nil, err
@@ -144,7 +144,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (BoundExpr, err
 			return nil, err
 		}
 		e.comparisons[i] = bound.(comparisonExpression)
-		e.properties = mergeExpressionProperties(e.properties, e.comparisons[i].left.Properties())
+		e.Property = mergeExpressionProperties(e.Property, e.comparisons[i].left.Properties())
 		if len(e.ordering) != 0 {
 			ref, conflict := e.comparisons[i].predicate.InputCollation()
 			e.ordering[i], err = sqltype.BindComparison(e.comparisons[i].left.ResultUsage().Type, e.comparisons[i].right.ResultUsage().Type, ref, conflict)
@@ -211,14 +211,14 @@ func (e subqueryExpression) Eval(ctx ExprContext) (value sqltype.Value, err erro
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		return sqltype.Boolean(e.usage.Type, present), nil
+		return sqltype.Boolean(e.Usage.Type, present), nil
 	}
 	if e.kind == parser.SubqueryExists {
 		present, failure := stage.nextProjected(c.Context, nil)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		return sqltype.Boolean(e.usage.Type, present), nil
+		return sqltype.Boolean(e.Usage.Type, present), nil
 	}
 	width := len(stage.Schema())
 	var small [4]sqltype.Value
@@ -232,7 +232,7 @@ func (e subqueryExpression) Eval(ctx ExprContext) (value sqltype.Value, err erro
 			return sqltype.Value{}, failure
 		}
 		if !present {
-			return sqltype.ResultNull(e.usage), nil
+			return sqltype.ResultNull(e.Usage), nil
 		}
 		value = row[0]
 		extra, failure := stage.nextProjected(c.Context, nil)
@@ -252,13 +252,13 @@ func (e subqueryExpression) Eval(ctx ExprContext) (value sqltype.Value, err erro
 		}
 		if !present {
 			if e.kind == parser.SubqueryRow || unknown {
-				return sqltype.Null(e.usage.Type), nil
+				return sqltype.Null(e.Usage.Type), nil
 			}
 			truth := e.kind == parser.SubqueryAll
 			if e.negate {
 				truth = !truth
 			}
-			return sqltype.Boolean(e.usage.Type, truth), nil
+			return sqltype.Boolean(e.Usage.Type, truth), nil
 		}
 		rightContext := state.evaluation(c.Context)
 		rightContext.Row = row
@@ -288,7 +288,7 @@ func (e subqueryExpression) Eval(ctx ExprContext) (value sqltype.Value, err erro
 			if e.negate {
 				truth = !truth
 			}
-			return sqltype.Boolean(e.usage.Type, truth), nil
+			return sqltype.Boolean(e.Usage.Type, truth), nil
 		}
 	}
 }
@@ -595,7 +595,7 @@ func (e subqueryExpression) hashMembership(c *EvalContext) (sqltype.Value, error
 	}
 	// Empty RHS truth is known before any LHS projection, provider or effect.
 	if len(membership.flat) == 0 {
-		return sqltype.Boolean(e.usage.Type, e.negate), nil
+		return sqltype.Boolean(e.Usage.Type, e.negate), nil
 	}
 	left := membership.scratch
 	leftNull := false
@@ -624,7 +624,7 @@ func (e subqueryExpression) hashMembership(c *EvalContext) (sqltype.Value, error
 			return sqltype.Value{}, err
 		}
 		if index >= 0 {
-			return sqltype.Boolean(e.usage.Type, !e.negate), nil
+			return sqltype.Boolean(e.Usage.Type, !e.negate), nil
 		}
 	}
 	// Keep NULL row indexes immutable: every probe needs the same partial-match
@@ -663,8 +663,8 @@ func (e subqueryExpression) hashMembership(c *EvalContext) (sqltype.Value, error
 			}
 		}
 		if unknown && !unequal {
-			return sqltype.Null(e.usage.Type), nil
+			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
-	return sqltype.Boolean(e.usage.Type, e.negate), nil
+	return sqltype.Boolean(e.Usage.Type, e.negate), nil
 }

@@ -32,7 +32,7 @@ func (e domainValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if !c.domainValueActive || c.domainValue.Type() != e.usage.Type || c.domainFrameUsage != e.usage {
+	if !c.domainValueActive || c.domainValue.Type() != e.Usage.Type || c.domainFrameUsage != e.Usage {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing domain VALUE frame")
 	}
 	return c.domainValue, nil
@@ -356,8 +356,8 @@ func domainNullInputExpression(target sqltype.Usage) BoundExpr {
 	if err != nil {
 		panic(err)
 	}
-	child := literalExpression{expressionInfo: expressionInfo{usage: base}, value: sqltype.Null(base.Type)}
-	return coercionExpression{expressionInfo: expressionInfo{usage: target, properties: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
+	child := literalExpression{expressionInfo: expressionInfo{Usage: base}, value: sqltype.Null(base.Type)}
+	return coercionExpression{expressionInfo: expressionInfo{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) error {

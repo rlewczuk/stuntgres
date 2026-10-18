@@ -100,7 +100,7 @@ through one of these fields:
 | 4 | `TxRef.attachment *transactionOwner` | Pointer-identity check, owner lookup | Sealed `ids.TxOwner` interface; `transactionOwner` embeds `ids.TxOwnerMarker` (done in step 1) |
 | 5 | `SessionToken.owner *Engine` | Provenance check; also backed `Session.Engine()` and session and notification teardown | `ids.Domain` token; `Session` and `sessionNotifications` hold their engine (done in step 1) |
 | 6 | `SessionToken.private *Session` | Identity of private maintenance sessions | Sealed `ids.SessionOwner` interface; `Session` embeds `ids.SessionOwnerMarker` (done in step 1) |
-| 7 | `BoundExpr.Eval(*EvalContext)` | Expression evaluation | `Eval(expr.Context)`, an interface `*EvalContext` implements (engine-local `ExprContext` since 2a) |
+| 7 | `BoundExpr.Eval(*EvalContext)` | Expression evaluation | `Eval(expr.Context)`, an interface `*EvalContext` implements (engine-local `ExprContext` in 2a, `expr.Context` since 2b) |
 | 8 | `ruleDefinition.conditionBinding *binding` | Stored rule condition analysis | Rule payload that is opaque to the catalog |
 | 9 | `ruleAction.binding binding` | Stored rule action analysis | Same rule payload |
 | 10 | `relationLockManager.engine *Engine` | Identity check only | `ids.Domain` token (done in step 1) |
@@ -119,8 +119,8 @@ not part of the knot itself:
   presentation. It is the frozen stored-SQL presentation and holds plan IR.
 - **Extension provider pointers on `procedureDescriptor`.** These are
   `unaccentProvider`, `pgcryptoProvider` and similar.
-- **`expressionInfo.routineRecipe *relationDescriptor`.** It can become an
-  interface; `functions.RoutineRecipeReference` already exists.
+- **`expressionInfo.routineRecipe *relationDescriptor`.** It holds the
+  `RoutineRecipeReference` interface since 2a, now `expr.RoutineRecipeReference`.
 - **`relationTicket` storing a `transactionIdentityState`.** That enum moves
   down to `ids` (done in step 1 as `ids.TxCompletion`).
 
@@ -130,7 +130,7 @@ types new to that layer:
 | Layer | New types | Content |
 |---|---:|---|
 | `ids` | 11 | OID, ObjectAddress, ObjectRef, epochs, revisions, NameKey, ObjectKind, SessionToken, TxRef, TxID, ... |
-| `expr` | 4 | BoundExpr, ExprProperties, Volatility, expressionInfo |
+| `expr` | 9 | Expr, Properties, Volatility, Info, Context, RoutineReference, RoutineRecipeReference, RandomOwner, IntrinsicPropertyRule (measured at 2b) |
 | `catalog` | 64 | Descriptors (namespace, relation, type, procedure, operator, collation), constraint, default, generation, identity, index, partition, inheritance, policy and foreign-table records, `catalogState`, `CatalogRead`, default ACL records, operator name index, `expressionDependency` |
 | `lock` | 20 | Relation, tuple, advisory and unique-key resources, tickets, policies, multixact |
 | `storage` | 18 | `rowVersion`, `relationStorage`, deletion roots, logical and hash index roots, `sequenceGenerator`, truncate and materialized-view lineage, `CommitSeq`/`RowID`/`VersionID` |
@@ -183,8 +183,8 @@ combine several subsystems stay in the engine as orchestration.
 The runtime capabilities that functions need already exist: 25 methods on
 `EvalContext` (24 `Function*` plus `WholeRowNullPresence`: RNG, clocks, UUID
 entropy, regex cache, output environments, literal-NULL checks). Since 2a they
-form the engine's `ExprContext` interface; `functions` still states them as
-generic constraints until F1.
+form the engine's `ExprContext` interface, which became `expr.Context` in 2b;
+`functions` still states them as generic constraints until F1.
 
 Engine-side authorization (~6k lines) is blocked the same way. Its main
 dependency is the catalog (381 references to `catalog.go` alone), so it cannot
@@ -337,7 +337,9 @@ uses aliases or direct `ids.` names. Done: 1d removed the aliases.
 - `BoundExpr` becomes `expr.Expr`, kept as a temporary alias in the engine.
 - `ExprProperties` becomes `expr.Properties`; `Volatility` and its constants
   move too.
-- `expressionInfo` becomes `expr.Info`, replacing `functions.Info[P]`.
+- `expressionInfo` becomes `expr.Info`, replacing `functions.Info[P]`. In 2b
+  `expr.Info` took the `functions.Info[P]` field names; the generic type
+  itself stays until F1, because its `P` reaches the context constraints.
 - `functions.RoutineReference` and `RoutineRecipeReference` move to `expr`.
   `expressionInfo.routineRecipe` holds the interface instead of
   `*relationDescriptor`.
@@ -663,8 +665,8 @@ protocols.
    grouped capabilities (core context, presentation environments, argument
    inspection, RNG and entropy, clocks, regex cache, conversion handlers). It
    satisfies every context constraint in `functions`. Because it names
-   `functions.RandomOwner` and `functions.IntrinsicPropertyRule`, both move to
-   `expr` in 2b.
+   `functions.RandomOwner` and `functions.IntrinsicPropertyRule`, both moved to
+   `expr` in 2b. Evaluation requires a non-nil `Context` (2b).
 3. **Descriptor representation after the move.** Exported fields (proposed)
    or accessors, and whether to regroup `relationDescriptor` fields in 5e or
    later.
@@ -682,7 +684,7 @@ package-specific scope. This section holds the rules every session follows.
 | Step | Prompt file | Needs | Status |
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
-| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a done; 2b next |
+| 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2b done; 2c next |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | not started |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a done; 4b next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |

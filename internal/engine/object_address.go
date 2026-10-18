@@ -177,7 +177,7 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 	return n, nil
 }
 func (n objectAddressExpression) validateStored() error {
-	if n.op > describeObject || !n.usage.Valid() {
+	if n.op > describeObject || !n.Usage.Valid() {
 		return fmt.Errorf("stuntgres: invalid object address operation")
 	}
 	ids, labels := n.op.signature()
@@ -204,13 +204,13 @@ func (n objectAddressExpression) validateStored() error {
 		return fmt.Errorf("stuntgres: invalid object address properties")
 	}
 	if n.op == describeObject {
-		if n.usage.Type.ID() != sqltype.Text {
+		if n.Usage.Type.ID() != sqltype.Text {
 			return fmt.Errorf("stuntgres: invalid object description result")
 		}
 		return nil
 	}
 	outLabels, types := n.op.fields()
-	shape := n.usage.Type
+	shape := n.Usage.Type
 	if !shape.IsComposite() || shape.CompositeLen() != len(outLabels) {
 		return fmt.Errorf("stuntgres: invalid object address record")
 	}
@@ -266,7 +266,7 @@ func (n objectAddressExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		null = null || value.IsNull()
 	}
 	if null {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	scope := c.liveScope()
 	if scope == nil || scope.commentCatalog.state == nil {
@@ -278,19 +278,19 @@ func (n objectAddressExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 		fields := make([]sqltype.Value, 3)
-		fields[0], err = sqltype.OIDValue(n.usage.Type.CompositeMember(0).Usage.Type, uint32(address.ClassID))
+		fields[0], err = sqltype.OIDValue(n.Usage.Type.CompositeMember(0).Usage.Type, uint32(address.ClassID))
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		fields[1], err = sqltype.OIDValue(n.usage.Type.CompositeMember(1).Usage.Type, uint32(address.ObjectID))
+		fields[1], err = sqltype.OIDValue(n.Usage.Type.CompositeMember(1).Usage.Type, uint32(address.ObjectID))
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		fields[2], err = sqltype.Integer(n.usage.Type.CompositeMember(2).Usage.Type, int64(address.SubID))
+		fields[2], err = sqltype.Integer(n.Usage.Type.CompositeMember(2).Usage.Type, int64(address.SubID))
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.OwnedCompositeValue(n.usage.Type, fields)
+		return sqltype.OwnedCompositeValue(n.Usage.Type, fields)
 	}
 	class, err := values[0].OID()
 	if err != nil {
@@ -306,7 +306,7 @@ func (n objectAddressExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	address := ids.ObjectAddress{ids.OID(class), ids.OID(object), int32(sub)}
 	if n.op == describeObject && class == 0 && object == 0 {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	identity, err := identifyAddress(scope.commentCatalog, scope.commentRoles, scope.deparsePath, address)
 	if err != nil {
@@ -314,32 +314,32 @@ func (n objectAddressExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	if n.op == describeObject {
 		if !identity.found {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
-		return sqltype.String(n.usage.Type, identity.description), nil
+		return sqltype.String(n.Usage.Type, identity.description), nil
 	}
-	fields := make([]sqltype.Value, n.usage.Type.CompositeLen())
+	fields := make([]sqltype.Value, n.Usage.Type.CompositeLen())
 	for i := range fields {
-		fields[i] = sqltype.Null(n.usage.Type.CompositeMember(i).Usage.Type)
+		fields[i] = sqltype.Null(n.Usage.Type.CompositeMember(i).Usage.Type)
 	}
-	fields[0] = sqltype.String(n.usage.Type.CompositeMember(0).Usage.Type, identity.kind)
+	fields[0] = sqltype.String(n.Usage.Type.CompositeMember(0).Usage.Type, identity.kind)
 	if identity.found {
 		if n.op == identifyObject {
 			for i, text := range []string{identity.schema, identity.name, identity.identity} {
 				if text != "" {
-					fields[i+1] = sqltype.String(n.usage.Type.CompositeMember(i+1).Usage.Type, text)
+					fields[i+1] = sqltype.String(n.Usage.Type.CompositeMember(i+1).Usage.Type, text)
 				}
 			}
 		} else {
-			fields[1], err = objectAddressTextArray(n.usage.Type.CompositeMember(1).Usage.Type, identity.names)
+			fields[1], err = objectAddressTextArray(n.Usage.Type.CompositeMember(1).Usage.Type, identity.names)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			fields[2], err = objectAddressTextArray(n.usage.Type.CompositeMember(2).Usage.Type, identity.args)
+			fields[2], err = objectAddressTextArray(n.Usage.Type.CompositeMember(2).Usage.Type, identity.args)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
 		}
 	}
-	return sqltype.OwnedCompositeValue(n.usage.Type, fields)
+	return sqltype.OwnedCompositeValue(n.Usage.Type, fields)
 }

@@ -200,7 +200,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ids.ObjectR
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
 		info := b.info(typ.Usage(), literal.Value.Pos, ExprProperties{})
 		if _, ok := auth.definitionRelation(ref.Address); ok {
-			info.regclassRef = ref
+			info.RegclassRef = ref
 		}
 		return literalExpression{info, sqltype.String(typ, text)}, ref, nil
 	}
@@ -413,7 +413,7 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	for i := range x.args {
 		if values[i].IsNull() {
-			return sqltype.Null(x.usage.Type), nil
+			return sqltype.Null(x.Usage.Type), nil
 		}
 	}
 	scope := c.liveScope()
@@ -577,12 +577,12 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 	}
 	if x.identity {
-		switch x.usage.Type.ID() {
+		switch x.Usage.Type.ID() {
 		case sqltype.Int2:
 			result = int64(int16(result))
 		case sqltype.Int4:
 			result = int64(int32(result))
 		}
 	}
-	return sqltype.Integer(x.usage.Type, result)
+	return sqltype.Integer(x.Usage.Type, result)
 }

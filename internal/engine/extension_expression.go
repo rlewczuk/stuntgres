@@ -20,13 +20,13 @@ type installedFunctionExpression struct {
 // Validate provider-specific captured authority without assuming a dictionary.
 func (n installedFunctionExpression) validProvider() bool {
 	p := n.procedure
-	if p == nil || n.arg == nil || n.usage.Type == nil || n.arg.ResultUsage().Type == nil || p.signature != unaccentTextSignature || n.arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.usage.Type.ID()) != p.result {
+	if p == nil || n.arg == nil || n.Usage.Type == nil || n.arg.ResultUsage().Type == nil || p.signature != unaccentTextSignature || n.arg.ResultUsage().Type.ID() != sqltype.Text || ids.OID(n.Usage.Type.ID()) != p.result {
 		return false
 	}
 	if p.fuzzy != nil {
-		return p.fuzzy == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == Immutable && p.strict && p.provider == nil && p.queryCodec == nil && p.conversion.Name() == "" && p.dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.usage.Type.IsArray() && n.usage.Type.Element() == n.arg.ResultUsage().Type
+		return p.fuzzy == stockFuzzystrmatch && p.name == "daitch_mokotoff" && p.result == 1009 && p.volatility == Immutable && p.strict && p.provider == nil && p.queryCodec == nil && p.conversion.Name() == "" && p.dictionary == (ids.ObjectAddress{}) && n.dictionary == nil && n.template == nil && n.Usage.Type.IsArray() && n.Usage.Type.Element() == n.arg.ResultUsage().Type
 	}
-	return p.provider == stockUnaccent && p.queryCodec == nil && p.conversion.Name() == "" && p.result == 25 && p.volatility == Stable && p.strict && n.usage.Type == n.arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.provider == n.dictionary.provider && n.dictionary.provider == n.template.provider
+	return p.provider == stockUnaccent && p.queryCodec == nil && p.conversion.Name() == "" && p.result == 25 && p.volatility == Stable && p.strict && n.Usage.Type == n.arg.ResultUsage().Type && n.dictionary != nil && n.template != nil && p.dictionary == n.dictionary.address && n.dictionary.template == n.template.address && p.provider == n.dictionary.provider && n.dictionary.provider == n.template.provider
 }
 
 func (n installedFunctionExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
@@ -42,7 +42,7 @@ func (n installedFunctionExpression) Eval(ctx ExprContext) (sqltype.Value, error
 		return sqltype.Value{}, err
 	}
 	if value.IsNull() {
-		return sqltype.Null(n.usage.Type), nil
+		return sqltype.Null(n.Usage.Type), nil
 	}
 	input, err := value.Text()
 	if err != nil {
@@ -54,19 +54,19 @@ func (n installedFunctionExpression) Eval(ctx ExprContext) (sqltype.Value, error
 			return sqltype.Value{}, err
 		}
 		if codes == nil {
-			return sqltype.Null(n.usage.Type), nil
+			return sqltype.Null(n.Usage.Type), nil
 		}
 		elements := make([]sqltype.Value, len(codes))
 		for i, code := range codes {
-			elements[i] = sqltype.String(n.usage.Type.Element(), code)
+			elements[i] = sqltype.String(n.Usage.Type.Element(), code)
 		}
-		return sqltype.OwnedArrayValue(n.usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(codes))}}, elements)
+		return sqltype.OwnedArrayValue(n.Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(codes))}}, elements)
 	}
 	result, err := n.dictionary.provider.matcher.Text(c.Context, input)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return sqltype.String(n.usage.Type, result), nil
+	return sqltype.String(n.Usage.Type, result), nil
 }
 
 func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (BoundExpr, error) {
@@ -151,7 +151,7 @@ func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (Bound
 	}
 	ref := b.engine.domain.Ref(auth.catalog.Epoch(), proc.address)
 	b.dependency(ref, proc.revision)
-	info.routineReference = proc
+	info.RoutineReference = proc
 	node := installedFunctionExpression{expressionInfo: info, arg: arg, procedure: proc, dictionary: dict, template: tmpl, ref: ref}
 	if !node.validProvider() {
 		return nil, fmt.Errorf("stuntgres: invalid installed function binding")

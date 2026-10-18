@@ -31,8 +31,8 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	// A restored fragment expression retains this character-to-container cast.
 	// Its consuming statement must supply input authority without rebinding it.
 	node := coercionExpression{
-		expressionInfo: expressionInfo{usage: pair.Usage()},
-		child:          literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: value},
+		expressionInfo: expressionInfo{Usage: pair.Usage()},
+		child:          literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: value},
 		plan:           plan,
 		mode:           sqltype.Explicit,
 	}

@@ -212,7 +212,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	}
 	ref := e.domain.Ref(view.Epoch(), sequence.address)
 	typeRef := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-	literal := literalExpression{expressionInfo: expressionInfo{usage: regclass.Usage(), regclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
+	literal := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
 	next := cloneCatalog(view.state)
 	next.epoch++
 	retained := CatalogRead{owner: e, state: next}
@@ -233,12 +233,12 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal("persistent consumer gained stale TEMP authority")
 	}
 	future := literal
-	future.regclassRef.Epoch = retained.Epoch() + 1
+	future.RegclassRef.Epoch = retained.Epoch() + 1
 	if _, err := renderer.sql(context.Background(), retained, future); err == nil {
 		t.Fatal("future regclass epoch admitted")
 	}
 	foreign := literal
-	foreign.regclassRef = New().domain.Ref(foreign.regclassRef.Epoch, foreign.regclassRef.Address)
+	foreign.RegclassRef = New().domain.Ref(foreign.RegclassRef.Epoch, foreign.RegclassRef.Address)
 	if _, err := renderer.sql(context.Background(), retained, foreign); err == nil {
 		t.Fatal("foreign-engine regclass admitted")
 	}
@@ -383,7 +383,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("missing actual bigint descriptor")
 	}
 	for _, change := range []func(*columnExpression){
-		func(n *columnExpression) { n.usage = int8.Usage() },
+		func(n *columnExpression) { n.Usage = int8.Usage() },
 		func(n *columnExpression) { n.origin.Address.SubID = 99 },
 		func(n *columnExpression) { n.slot = 0 },
 		func(n *columnExpression) { n.frame = 2 },

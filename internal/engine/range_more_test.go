@@ -19,8 +19,8 @@ func moreUnitExpression(t *testing.T, view CatalogRead) unnestExpression {
 		t.Fatal(err)
 	}
 	return unnestExpression{
-		expressionInfo: expressionInfo{usage: r.Usage(), pos: parser.Position{Offset: 7, Character: 8}, properties: ExprProperties{Volatility: Immutable, StageDependent: true}},
-		args:           []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: m.Usage()}, value: v}},
+		expressionInfo: expressionInfo{Usage: r.Usage(), Pos: parser.Position{Offset: 7, Character: 8}, Property: ExprProperties{Volatility: Immutable, StageDependent: true}},
+		args:           []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: m.Usage()}, value: v}},
 	}
 }
 
@@ -123,7 +123,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		arg := literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: value}
+		arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 		raw := nullCountRaw("multirange")
 		node, err := b.finishRangeInspect(raw, true, []functions.Argument[BoundExpr]{{Expression: arg, Usage: d.Usage()}})
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {

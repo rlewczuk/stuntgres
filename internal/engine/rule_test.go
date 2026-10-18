@@ -40,7 +40,7 @@ func ruleUnitInt(d *relationDescriptor, n int64) BoundExpr {
 	if err != nil {
 		panic(err)
 	}
-	return literalExpression{expressionInfo: expressionInfo{usage: d.columns[0].Usage, pos: parser.Position{Offset: -1}}, value: value}
+	return literalExpression{expressionInfo: expressionInfo{Usage: d.columns[0].Usage, Pos: parser.Position{Offset: -1}}, value: value}
 }
 func ruleUnitInsert(e *Engine, d *relationDescriptor, id, v int64) ruleAction {
 	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}}, binding: binding{relation: d, ref: ruleUnitRef(e, d), targets: []int{0, 1}, expressions: [][]BoundExpr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
@@ -72,7 +72,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		t.Fatal("mutated stored template")
 	}
 	condition := ruleDefinition{event: "INSERT", instead: true, condition: pseudo}
-	condition.condition = literalExpression{expressionInfo: expressionInfo{usage: func() sqltype.Usage { typ, _ := auth.catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, value: func() sqltype.Value { typ, _ := auth.catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
+	condition.condition = literalExpression{expressionInfo: expressionInfo{Usage: func() sqltype.Usage { typ, _ := auth.catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, value: func() sqltype.Value { typ, _ := auth.catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
 	residual, err := ruleResidual(auth, original, "INSERT", []ruleDefinition{condition})
 	if err != nil {
 		t.Fatal(err)
@@ -210,7 +210,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 	})
 	t.Run("domain_truth_barrier", func(t *testing.T) {
-		leaf := domainValueExpression{expressionInfo: expressionInfo{usage: src.columns[0].Usage, properties: ExprProperties{DomainDependent: true, RuntimeDomainConversion: true}}}
+		leaf := domainValueExpression{expressionInfo: expressionInfo{Usage: src.columns[0].Usage, Property: ExprProperties{DomainDependent: true, RuntimeDomainConversion: true}}}
 		properties := rewrittenIntrinsicProperties(leaf)
 		if !properties.DomainDependent || !properties.RuntimeDomainConversion {
 			t.Fatal("rewrite erased runtime domain authority")
@@ -218,7 +218,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		properties.ParameterDependent = true
 		mapped, _, err := mapBoundExpression(auth.catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
 			copy := expr.(domainValueExpression)
-			copy.properties = properties
+			copy.Property = properties
 			return copy, true, nil
 		})
 		if err != nil || mapped.Properties() != properties || leaf.Properties().ParameterDependent {
@@ -288,7 +288,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage[f.base.address], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage[f.base.address], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 		producer, err := makeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)
@@ -369,9 +369,9 @@ func TestRuleProgramAuthority(t *testing.T) {
 		f.base.rules = []ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}}
 		f.view.view.checkOption = viewCheckCascaded
 		project := f.view.view.query.Root.(*projectNode)
-		predicate := literalExpression{expressionInfo: expressionInfo{usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
+		predicate := literalExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
 		project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: predicate}
-		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 		mapped := original
 		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
 			t.Fatal(err)

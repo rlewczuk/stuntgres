@@ -70,13 +70,13 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		}
 	}
 	defaultC, err := b.collatedInfo(b.info(usage, parser.Position{}, ExprProperties{}), operand(100, 1), operand(950, 2))
-	if err != nil || defaultC.collationConflict || defaultC.usage.Collation.ID != 950 {
+	if err != nil || defaultC.CollationConflict || defaultC.Usage.Collation.ID != 950 {
 		t.Fatal(defaultC, err)
 	}
 	explicit := operand(950, 80).(literalExpression)
-	explicit.collationExplicit = parser.Position{Character: 80}
+	explicit.CollationExplicit = parser.Position{Character: 80}
 	overridden, err := b.collatedInfo(info, explicit)
-	if err != nil || overridden.collationConflict || overridden.collationLeft.ID != 0 || overridden.collationRight.ID != 0 || overridden.collationConflictPos != (parser.Position{}) || overridden.usage.Collation.ID != 950 {
+	if err != nil || overridden.CollationConflict || overridden.CollationLeft.ID != 0 || overridden.CollationRight.ID != 0 || overridden.CollationConflictPos != (parser.Position{}) || overridden.Usage.Collation.ID != 950 {
 		t.Fatal(overridden, err)
 	}
 	b.queryNamespace = &queryNamespace{}

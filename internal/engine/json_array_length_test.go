@@ -33,7 +33,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: u}), Plan: p, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{usage: d.Usage()}, value: v}}}
+			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: u}), Plan: p, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
 			got, err := expr.Eval(&EvalContext{Context: context.Background()})
 			if err != nil {
 				t.Fatal(err)
@@ -103,7 +103,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			arg := literalExpression{expressionInfo: expressionInfo{usage: typ.Usage()}, value: value}
+			arg := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
 			renderer := pgRenderer{view: view}
 			got, err := renderer.literal(context.Background(), arg)
 			if err != nil || got != tc.literal {
@@ -114,7 +114,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Plan: plan, Args: []BoundExpr{arg}}
+			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: usage}), Plan: plan, Args: []BoundExpr{arg}}
 			got, err = renderer.sql(context.Background(), expr, pgRenderParent{})
 			want := tc.name + "(" + tc.literal + ")"
 			if err != nil || got != want {

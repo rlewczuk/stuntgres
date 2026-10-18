@@ -29,7 +29,7 @@ func (e caseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.usage.Type == nil || !e.usage.Type.Concrete() || e.otherwise == nil {
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.otherwise == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid CASE expression")
 	}
 	var test sqltype.Value
@@ -84,7 +84,7 @@ func (e conditionalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.usage.Type == nil || !e.usage.Type.Concrete() || len(e.args) == 0 || e.kind > parser.Least || e.kind == parser.NullIf && len(e.args) != 2 {
+	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || len(e.args) == 0 || e.kind > parser.Least || e.kind == parser.NullIf && len(e.args) != 2 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid conditional expression")
 	}
 	if err := e.extremaError(); err != nil {
@@ -99,7 +99,7 @@ func (e conditionalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if left.Type() != e.usage.Type || right.Type() != e.args[1].ResultUsage().Type {
+		if left.Type() != e.Usage.Type || right.Type() != e.args[1].ResultUsage().Type {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
@@ -108,18 +108,18 @@ func (e conditionalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 				return sqltype.Value{}, err
 			}
 			if equal {
-				return sqltype.Null(e.usage.Type), nil
+				return sqltype.Null(e.Usage.Type), nil
 			}
 		}
 		return left, nil
 	}
-	best := sqltype.Null(e.usage.Type)
+	best := sqltype.Null(e.Usage.Type)
 	for _, arg := range e.args {
 		value, err := arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if value.Type() != e.usage.Type {
+		if value.Type() != e.Usage.Type {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid conditional argument value")
 		}
 		if value.IsNull() {
@@ -152,19 +152,7 @@ func (e conditionalExpression) extremaError() error {
 	if e.kind != parser.Greatest && e.kind != parser.Least {
 		return fmt.Errorf("stuntgres: invalid extrema capability")
 	}
-	return sqlError("42883", "could not identify a comparison function for type "+e.usage.Type.DiagnosticName())
-}
-
-func mergeExpressionProperties(a, b ExprProperties) ExprProperties {
-	if b.Volatility > a.Volatility {
-		a.Volatility = b.Volatility
-	}
-	a.RowDependent = a.RowDependent || b.RowDependent
-	a.ParameterDependent = a.ParameterDependent || b.ParameterDependent
-	a.StageDependent = a.StageDependent || b.StageDependent
-	a.DomainDependent = a.DomainDependent || b.DomainDependent
-	a.RuntimeDomainConversion = a.RuntimeDomainConversion || b.RuntimeDomainConversion
-	return a
+	return sqlError("42883", "could not identify a comparison function for type "+e.Usage.Type.DiagnosticName())
 }
 
 // commonExpressionUsage is also the VALUES authority. The caller supplies the
@@ -251,7 +239,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if node.ResultUsage().Type == target.Type {
 		return node, nil
 	}
-	if row, ok := node.(rowExpression); ok && row.usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
+	if row, ok := node.(rowExpression); ok && row.Usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
 		return b.assignCompositeMember(row, target.Type.Usage(), sqltype.Implicit, commonOperandStart(o))
 	}
 	input, annotations := domainCoercionInput(node, target.Type.Usage())
@@ -259,11 +247,11 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.usage, sqltype.Implicit)
+	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
 	if err != nil {
 		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
-	info.properties = coercionProperties(input, plan)
+	info.Property = coercionProperties(input, plan)
 	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false}), nil
 }
 func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (BoundExpr, BoundExpr, sqltype.Comparison, *procedureDescriptor, error) {
@@ -284,7 +272,7 @@ func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, po
 	if err != nil {
 		return nil, nil, sqltype.Comparison{}, nil, err
 	}
-	comparison, err := sqltype.BindComparison(l.ResultUsage().Type, r.ResultUsage().Type, input.usage.Collation, input.collationConflict)
+	comparison, err := sqltype.BindComparison(l.ResultUsage().Type, r.ResultUsage().Type, input.Usage.Collation, input.CollationConflict)
 	if err != nil {
 		return nil, nil, sqltype.Comparison{}, nil, err
 	}
@@ -370,10 +358,10 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 		return nil, err
 	}
 	if routine != nil {
-		info.routineReference = routine
+		info.RoutineReference = routine
 	}
 	if raw.Kind == parser.Greatest || raw.Kind == parser.Least {
-		comparison, missingOrdering, err = bindExtremaComparison(info.usage, info.collationConflict)
+		comparison, missingOrdering, err = bindExtremaComparison(info.Usage, info.CollationConflict)
 		if err != nil {
 			return nil, err
 		}
@@ -465,7 +453,7 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 		}
 	}
 	info := b.info(usage.Type.Usage(), raw.Pos, properties)
-	info.usage.Typmod = usage.Typmod
+	info.Usage.Typmod = usage.Typmod
 	for _, arm := range arms {
 		info, err = b.collatedInfo(info, arm.result)
 		if err != nil {

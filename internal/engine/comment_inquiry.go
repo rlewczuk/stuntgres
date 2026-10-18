@@ -136,7 +136,7 @@ func (e commentInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		null = null || v.IsNull()
 	}
 	if null {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
 	if err := admitInquiryBody(c, e); err != nil {
 		return sqltype.Value{}, err
@@ -195,7 +195,7 @@ func (e commentInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		}
 	}
 	if text == "" {
-		return sqltype.Null(e.usage.Type), nil
+		return sqltype.Null(e.Usage.Type), nil
 	}
-	return sqltype.String(e.usage.Type, text), nil
+	return sqltype.String(e.Usage.Type, text), nil
 }

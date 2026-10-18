@@ -45,8 +45,8 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 		{"arity", func(n *commentInquiryExpression) { n.args = n.args[:1] }},
 		{"missing-child", func(n *commentInquiryExpression) { n.args[0] = nil }},
 		{"argument-type", func(n *commentInquiryExpression) { n.args[0] = n.args[1] }},
-		{"result-type", func(n *commentInquiryExpression) { n.usage = intType.Usage() }},
-		{"properties", func(n *commentInquiryExpression) { n.properties.RowDependent = false }},
+		{"result-type", func(n *commentInquiryExpression) { n.Usage = intType.Usage() }},
+		{"properties", func(n *commentInquiryExpression) { n.Property.RowDependent = false }},
 		{"foreign-origin", func(n *commentInquiryExpression) {
 			column := n.args[0].(columnExpression)
 			column.origin.Epoch++

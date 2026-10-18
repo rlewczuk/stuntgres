@@ -48,14 +48,14 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				} else {
 					v = sqltype.String(d, tc.raw[i])
 				}
-				args[i] = mathObservedArgument{expressionInfo: expressionInfo{usage: d.Usage()}, value: v, order: &order, index: i}
+				args[i] = mathObservedArgument{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v, order: &order, index: i}
 			}
 			usage := types[tc.result].Usage()
 			plan, err := sqltype.BindBinary(tc.name, usage, usages...)
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{usage: usage}), Plan: plan, Args: args}
+			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: usage}), Plan: plan, Args: args}
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()

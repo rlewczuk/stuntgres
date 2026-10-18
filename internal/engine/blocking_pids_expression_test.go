@@ -77,7 +77,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		}
 		column := columnExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
 		n.arg = column
-		n.properties.RowDependent = true
+		n.Property.RowDependent = true
 		visited := 0
 		walkBoundExpression(n, func(child BoundExpr) {
 			if _, ok := child.(columnExpression); ok {
@@ -108,12 +108,12 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal("missing mandatory child accepted")
 		}
 		bad = n
-		bad.properties.Volatility = Stable
+		bad.Property.Volatility = Stable
 		if bad.validateStored() == nil {
 			t.Fatal("lost intrinsic volatility accepted")
 		}
 		bad = n
-		bad.usage = b.typ(sqltype.Int4).Usage()
+		bad.Usage = b.typ(sqltype.Int4).Usage()
 		if bad.validateStored() == nil {
 			t.Fatal("scalar result accepted")
 		}
