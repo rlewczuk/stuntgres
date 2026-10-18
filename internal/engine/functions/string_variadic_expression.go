@@ -252,3 +252,10 @@ func (e StringVariadic) PlanningFold() expr.Fold {
 }
 
 func (e StringVariadic) ValidateStoredProvider() error { return nil }
+
+// StringVariadic carries its quote-capture origin as an expr.Annotated value.
+func (e StringVariadic) Annotation() any { return e.Origin }
+func (e StringVariadic) WithAnnotation(origin any) expr.Expr {
+	e.Origin = origin
+	return e
+}

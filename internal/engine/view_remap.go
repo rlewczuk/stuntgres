@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -114,9 +115,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.leftConstructor = child(n.leftConstructor)
 		}
 		next = n
-	case functions.VersionInformation:
-		next = n
-	case domainValueExpression, identityExpression, functions.CurrentDateTime, functions.TransactionTime:
+	case domainValueExpression, identityExpression:
 		next = n
 	case literalExpression:
 		if ref == nil {
@@ -232,12 +231,6 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case coercionExpression:
 		n.child = child(n.child)
 		next = n
-	case functions.Timezone:
-		n.Value = child(n.Value)
-		if !n.Local {
-			n.Zone = child(n.Zone)
-		}
-		next = n
 	case bitwiseExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
@@ -249,12 +242,6 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		next = n
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
-		next = n
-	case functions.Regexp:
-		n.Args = args(n.Args)
-		next = n
-	case functions.RegexpSet:
-		n.Args = args(n.Args)
 		next = n
 	case seriesExpression:
 		n.args = args(n.args)
@@ -268,48 +255,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.ref = ref(n.ref)
 		}
 		next = n
-	case functions.JSONKeys:
-		n.Args = args(n.Args)
-		next = n
-	case functions.JSONBRecord:
-		n.Args = args(n.Args)
-		next = n
-	case functions.JSONBElements:
-		n.Args = args(n.Args)
-		next = n
-	case functions.JSONRecord:
-		n.Args = args(n.Args)
-		next = n
-	case functions.JSONEach:
-		n.Args = args(n.Args)
-		next = n
-	case functions.JSONElements:
-		n.Args = args(n.Args)
-		next = n
 	case likeExpression:
 		n.left, n.right = child(n.left), child(n.right)
-		next = n
-	case functions.LikeEscape:
-		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
-		next = n
-	case functions.Posix:
-		n.Left, n.Right = child(n.Left), child(n.Right)
-		next = n
-	case functions.Similar:
-		n.Left, n.Right = child(n.Left), child(n.Right)
-		next = n
-	case functions.SimilarEscape:
-		n.Pattern, n.Escape = child(n.Pattern), child(n.Escape)
-		next = n
-	case functions.PosixSubstring:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.SimilarSubstring:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
 		next = n
 	case rowComparisonExpression:
 		n.comparisons = append([]comparisonExpression(nil), n.comparisons...)
@@ -357,110 +304,6 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case conditionalExpression:
 		n.args = args(n.args)
 		next = n
-	case functions.Binary:
-		n.Args = args(n.Args)
-		next = n
-	case functions.DatetimeJustify:
-		n.Arg = child(n.Arg)
-		next = n
-	case functions.DatetimeExtract:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.DatetimeOverlaps:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.DatetimeBin:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.DatetimeTrunc:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.DatetimeZoneCalendar:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.DatetimeAgeFinite:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.JSONStripNulls:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.JSONExtract:
-		n.Args = args(n.Args)
-		next = n
-	case functions.JSONBPathQueryArray:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.JSONBPathExists:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.JSONBPathMatch:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.JSONBPathQueryFirst:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.JSONBPathQuery:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.JSONBSet:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.DatetimeMake:
-		for i := range n.Arguments() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.DatetimeFormatting:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.NumericFormatting:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.String:
-		n.Args = args(n.Args)
-		next = n
-	case functions.ArrayRandom:
-		n.Args = args(n.Args)
-		next = n
-	case functions.ArrayTransform:
-		n.Args = args(n.Args)
-		next = n
-	case functions.ArrayInspect:
-		n.Args = args(n.Args)
-		next = n
-	case functions.ArraySearch:
-		n.Args = args(n.Args)
-		next = n
 	case catalogUserNameExpression:
 		n.arg = child(n.arg)
 		next = n
@@ -475,28 +318,6 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		if n.arg != nil {
 			n.arg = child(n.arg)
 		}
-		next = n
-	case functions.UUIDExtract:
-		n.Arg = child(n.Arg)
-		next = n
-	case functions.NetworkFormat:
-		for i := range n.Kind.Arity() {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.RangeOperator:
-		for i := range n.Args {
-			n.Args[i] = child(n.Args[i])
-		}
-		next = n
-	case functions.RangeInspect:
-		n.Args = args(n.Args)
-		next = n
-	case functions.Enum:
-		n.Args = args(n.Args)
-		next = n
-	case functions.Math:
-		n.Args = args(n.Args)
 		next = n
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
@@ -542,9 +363,6 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		next = n
 	case commentInquiryExpression:
 		n.args = args(n.args)
-		next = n
-	case functions.NullCount:
-		n.Args = args(n.Args)
 		next = n
 	case installedSoundexFunctionExpression:
 		n.Args = args(n.Args)
@@ -601,34 +419,8 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 	case jsonPredicateExpression:
 		n.child = child(n.child)
 		next = n
-	case functions.JSONCreate:
-		n.Args = args(n.Args)
-		if err == nil {
-			n, err = n.Reconstruct(n.Info, n.Args)
-		}
-		next = n
-	case functions.StringVariadic:
-		n.Args = args(n.Args)
-		if ref != nil && quoteOriginOf(n).owner != (ids.ObjectRef{}) {
-			origin := quoteOriginOf(n)
-			origin.owner = ref(origin.owner)
-			n = n.WithOrigin(origin)
-		}
-		next = n
-	case functions.Format:
-		n.Args = args(n.Args)
-		next = n
-	case functions.Random:
-		n.Args = args(n.Args)
-		next = n
-	case functions.DatetimeSleep:
-		n.Arg = child(n.Arg)
-		next = n
 	case advisoryExpression:
 		n.args = args(n.args)
-		next = n
-	case functions.UUIDGeneration:
-		n.Args = args(n.Args)
 		next = n
 	case sequenceCallExpression:
 		if ref != nil {
@@ -643,6 +435,16 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.arms[i].condition, n.arms[i].result = child(n.arms[i].condition), child(n.arms[i].result)
 		}
 		next = n
+	case expr.Composite:
+		// Last, so the explicit engine wrappers above keep precedence. Remap
+		// copies the whole tree, so every child counts as replaced.
+		next, _, err = expr.Map(n, func(old BoundExpr) (BoundExpr, bool, error) {
+			next, failure := remapScalarExpression(old, ref, rowRef, slots, queryMapper)
+			return next, true, failure
+		})
+		if err == nil && ref != nil {
+			next = remapQuoteOwner(next, ref)
+		}
 	default:
 		return nil, fmt.Errorf("stuntgres: unpersistable scalar expression %T", node)
 	}
@@ -1418,4 +1220,19 @@ func (m *viewQueryRemapper) search(old *searchRecipe) (*searchRecipe, error) {
 		}
 	}
 	return &copy, nil
+}
+
+// remapQuoteOwner retargets the owner of a node's quote-capture origin, which
+// the node carries as an opaque annotation.
+func remapQuoteOwner(node BoundExpr, ref func(ids.ObjectRef) ids.ObjectRef) BoundExpr {
+	annotated, ok := node.(expr.Annotated)
+	if !ok {
+		return node
+	}
+	origin, _ := annotated.Annotation().(quoteOrigin)
+	if origin.owner == (ids.ObjectRef{}) {
+		return node
+	}
+	origin.owner = ref(origin.owner)
+	return annotated.WithAnnotation(origin)
 }

@@ -87,3 +87,10 @@ type Retag struct {
 type Retaggable interface {
 	Retag(info Info, children []Expr, changed bool, env Retag) (Expr, bool, error)
 }
+
+// Annotated nodes carry an opaque engine annotation that rebuilds keep. Only the
+// engine reads or replaces it; the node never interprets it.
+type Annotated interface {
+	Annotation() any
+	WithAnnotation(any) Expr
+}

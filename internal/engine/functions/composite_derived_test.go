@@ -158,3 +158,37 @@ func TestPlanningHooks(t *testing.T) {
 		}
 	}
 }
+
+// Retag reports a retained-descriptor change even when the engine saw none,
+// and keeps the node when nothing changed.
+func TestRetagReportsDerivedInputChanges(t *testing.T) {
+	d := temporalTestTypes()
+	text := temporalTestLiteral(sqltype.String(d[sqltype.Text], "%s"))
+	node := Format{Info: expr.Info{Usage: d[sqltype.Text].Usage()}, Args: []expr.Expr{text}, Int4: d[sqltype.Int4]}
+	identity := expr.Retag{Type: func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }}
+	if _, changed, err := node.Retag(node.Info, node.Args, false, identity); err != nil || changed {
+		t.Fatalf("identity retag changed=%v err=%v", changed, err)
+	}
+	retained := sqltype.Builtins()[0]
+	moved := expr.Retag{Type: func(t *sqltype.Descriptor) *sqltype.Descriptor {
+		if t == d[sqltype.Int4] {
+			return retained
+		}
+		return t
+	}}
+	got, changed, err := node.Retag(node.Info, node.Args, false, moved)
+	if err != nil || !changed || got.(Format).Int4 != retained || node.Int4 != d[sqltype.Int4] {
+		t.Fatalf("retained retag %#v changed=%v err=%v", got, changed, err)
+	}
+}
+
+// The quote-capture origin is opaque: rebuilds keep it and only the engine
+// replaces it.
+func TestStringVariadicAnnotationRoundTrip(t *testing.T) {
+	type origin struct{ owner int }
+	node := StringVariadic{Origin: origin{1}}
+	next := node.WithAnnotation(origin{2}).(StringVariadic)
+	if next.Annotation() != (origin{2}) || node.Annotation() != (origin{1}) {
+		t.Fatalf("annotation %v, source %v", next.Annotation(), node.Annotation())
+	}
+}
