@@ -345,7 +345,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	original := e.domain.Ref(view.Epoch(), source.address)
+	original := e.catalog.domain.Ref(view.Epoch(), source.address)
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	integer, _ := view.LookupType(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
@@ -367,7 +367,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		}
 		operatorCount, routineCount := 0, 0
 		for _, ref := range manifest {
-			if ref.Domain() != e.domain || ref.Epoch != view.Epoch() {
+			if ref.Domain() != e.catalog.domain || ref.Epoch != view.Epoch() {
 				t.Fatal("foreign stored lifetime", ref)
 			}
 			if ref.Address == operator {

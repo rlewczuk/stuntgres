@@ -71,7 +71,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 	e.foreignValidators = append([]ForeignValidatorDefinition(nil), validators...)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	install := func(name ForeignFunctionName, p *foreignProcedure, result ids.OID, signature procedureSignature) error {
-		namespace := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema}]
+		namespace := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema}]
 		if namespace == (ids.ObjectAddress{}) {
 			oid, err := e.allocateOIDLocked()
 			if err != nil {
@@ -79,15 +79,15 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 			}
 			namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}
 			ns := &namespaceDescriptor{address: namespace, name: name.Schema, revision: 1, owner: owner}
-			e.state.descriptors[namespace] = ns
-			e.state.names[descriptorNameKey(ns)] = namespace
+			e.catalog.state.descriptors[namespace] = ns
+			e.catalog.state.names[descriptorNameKey(ns)] = namespace
 			if e.foreignNamespaces == nil {
 				e.foreignNamespaces = make(map[ids.ObjectAddress]string)
 			}
 			e.foreignNamespaces[namespace] = name.Schema
 		}
 		key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: name.Name, Signature: string(signature)}
-		if e.state.names[key] != (ids.ObjectAddress{}) {
+		if e.catalog.state.names[key] != (ids.ObjectAddress{}) {
 			return RegistrationError("foreign procedure signature already installed")
 		}
 		oid, err := e.allocateOIDLocked()
@@ -95,8 +95,8 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 			return err
 		}
 		d := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, namespace: namespace, revision: 1, name: name.Name, signature: signature, owner: owner, routineKind: functionRoutine, result: result, strict: true, volatility: Volatile, foreign: p}
-		e.state.descriptors[d.address] = d
-		e.state.names[key] = d.address
+		e.catalog.state.descriptors[d.address] = d
+		e.catalog.state.names[key] = d.address
 		return nil
 	}
 	for _, def := range wrappers {

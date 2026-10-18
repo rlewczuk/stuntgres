@@ -9,7 +9,7 @@ import (
 
 func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	before := cloneCatalog(f.e.state)
+	before := cloneCatalog(f.e.catalog.state)
 	before.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 	for class := authorization.DefaultTables; class <= authorization.DefaultLargeObjects; class++ {
 		before.defaultACLs[defaultACLKey{creator: f.owner, class: class}] = &defaultACLRecord{acl: authorization.ACLValue{Explicit: true}}
@@ -25,7 +25,7 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	before.defaultACLs[baseline] = &defaultACLRecord{acl: acl}
 	untouched := defaultACLKey{creator: f.reader, class: authorization.DefaultTypes}
 	before.defaultACLs[untouched] = &defaultACLRecord{acl: authorization.ACLValue{Explicit: true}}
-	f.e.state = before
+	f.e.catalog.state = before
 	oldACL := append([]authorization.ACLEntry(nil), before.defaultACLs[baseline].acl.Entries...)
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	defer f.e.DiscardCatalogStage(stage)
@@ -41,16 +41,16 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	if err := defaultUnitPublish(t, f.e, stage); err != nil {
 		t.Fatal(err)
 	}
-	for key := range f.e.state.defaultACLs {
+	for key := range f.e.catalog.state.defaultACLs {
 		if key.creator == f.owner || key == baseline {
 			t.Fatal("selected creator or baseline policy survived", key)
 		}
 	}
-	empty := f.e.state.defaultACLs[retainedEmpty]
+	empty := f.e.catalog.state.defaultACLs[retainedEmpty]
 	if empty == nil || !empty.acl.Explicit || len(empty.acl.Entries) != 0 || empty == before.defaultACLs[retainedEmpty] {
 		t.Fatal("nonbaseline global empty policy was lost or mutated")
 	}
-	if f.e.state.defaultACLs[untouched] != before.defaultACLs[untouched] || len(before.defaultACLs) != 13 || !reflect.DeepEqual(before.defaultACLs[baseline].acl.Entries, oldACL) || len(before.defaultACLs[retainedEmpty].acl.Entries) != 1 {
+	if f.e.catalog.state.defaultACLs[untouched] != before.defaultACLs[untouched] || len(before.defaultACLs) != 13 || !reflect.DeepEqual(before.defaultACLs[baseline].acl.Entries, oldACL) || len(before.defaultACLs[retainedEmpty].acl.Entries) != 1 {
 		t.Fatal("cleanup changed retained records or unrelated pointer identity")
 	}
 }

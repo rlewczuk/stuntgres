@@ -34,8 +34,8 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"}]
-	return e, e.state.descriptors[address].(*extensionDescriptor)
+	address := e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"}]
+	return e, e.catalog.state.descriptors[address].(*extensionDescriptor)
 }
 
 func TestUUIDOsspProviderIdentity(t *testing.T) {
@@ -49,7 +49,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
 		t.Fatal(proc)
 	}
-	if err := e.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
+	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := collectPGDepend(context.Background(), view)
@@ -91,7 +91,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		bad := *proc
 		mutate(&bad)
 		view.state.descriptors[address] = &bad
-		failure := e.providers[ids.ProcedureClassID].Validate(view, &bad)
+		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifest := stockUUIDOssp.validate(view, ext)
 		view.state.descriptors[address] = proc
 		if failure == nil || manifest == nil {
@@ -130,7 +130,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		bad.uuidOssp = stockUUIDOssp
 		intaggView.state.descriptors[address] = &bad
 		manifestFailure := stockIntagg.validate(intaggView, intaggExt)
-		admissionFailure := intaggEngine.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
+		admissionFailure := intaggEngine.catalog.providers[ids.ProcedureClassID].Validate(intaggView, &bad)
 		intaggView.state.descriptors[address] = original
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
@@ -139,14 +139,14 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	builtin := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432}].(*procedureDescriptor)
 	mixed := *builtin
 	mixed.uuidOssp = stockUUIDOssp
-	if err := e.providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
+	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
 		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}
 }
 
 func TestUUIDOsspProviderCollision(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
-	before := e.state
+	before := e.catalog.state
 	member := ext.members[0]
 	procedure := before.descriptors[member]
 	descriptors, names := len(before.descriptors), len(before.names)
@@ -158,7 +158,7 @@ func TestUUIDOsspProviderCollision(t *testing.T) {
 	e.mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.
-	if err == nil || e.state != before || len(e.state.descriptors) != descriptors || len(e.state.names) != names || e.state.descriptors[member] != procedure || e.state.descriptors[ext.address] != ext || e.state.names[key] != member {
+	if err == nil || e.catalog.state != before || len(e.catalog.state.descriptors) != descriptors || len(e.catalog.state.names) != names || e.catalog.state.descriptors[member] != procedure || e.catalog.state.descriptors[ext.address] != ext || e.catalog.state.names[key] != member {
 		t.Fatal("procedure collision was not rejected atomically", err)
 	}
 	if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42723" {

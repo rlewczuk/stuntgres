@@ -48,7 +48,7 @@ func intaggUnitRecipes(t *testing.T) {
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
-			for _, badRef := range []ids.ObjectRef{{}, New().domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.address)} {
+			for _, badRef := range []ids.ObjectRef{{}, New().catalog.domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.address)} {
 				bad := *definition
 				bad.intaggRefs = map[viewLiteralPath]ids.ObjectRef{path: badRef}
 				if err := bad.validateLiterals(e.CatalogRead()); err == nil {
@@ -69,13 +69,13 @@ func intaggUnitRecipes(t *testing.T) {
 			for i, address := range ext.members {
 				mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(910001 + i)}
 			}
-			state := cloneCatalog(e.state)
+			state := cloneCatalog(e.catalog.state)
 			for address := range mapping {
-				delete(state.names, descriptorNameKey(e.state.descriptors[address]))
+				delete(state.names, descriptorNameKey(e.catalog.state.descriptors[address]))
 				delete(state.descriptors, address)
 			}
 			for address, destination := range mapping {
-				d := remapExtensionDescriptor(e.state.descriptors[address], mapping)
+				d := remapExtensionDescriptor(e.catalog.state.descriptors[address], mapping)
 				state.descriptors[destination], state.names[descriptorNameKey(d)] = d, destination
 			}
 			state.epoch++

@@ -15,13 +15,13 @@ func TestAlterNullabilityPeerCommitVisibility(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(a INT,b INT)")
 			sessionSQL(t, a, "INSERT INTO t VALUES(7,9)")
 			ref := roleTableRef(t, e, "t")
-			original := e.state.descriptors[ref.Address]
+			original := e.catalog.state.descriptors[ref.Address]
 			store := e.storage[ref.Address]
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(8,10)")
 			sessionSQL(t, a, "ALTER TABLE t DROP b, ALTER a SET NOT NULL")
 			private := e.privateCatalogLocked(a.transactions.catalog).state.descriptors[ref.Address].(*relationDescriptor)
-			if len(private.columns) != 1 || private.columns[0].Nullable || e.state.descriptors[ref.Address] != original || e.storage[ref.Address] != store {
+			if len(private.columns) != 1 || private.columns[0].Nullable || e.catalog.state.descriptors[ref.Address] != original || e.storage[ref.Address] != store {
 				t.Fatal("private descriptor published early")
 			}
 			done := make(chan struct {

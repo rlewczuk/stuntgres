@@ -72,7 +72,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal("prepared helper literal omitted real owner dependency")
 	}
 	source := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}].(*relationDescriptor)
-	ref := e.domain.Ref(view.Epoch(), source.address)
+	ref := e.catalog.domain.Ref(view.Epoch(), source.address)
 	rows, err := capturePGAggregate(context.Background(), view, ref, source)
 	if err != nil || len(rows.anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)
@@ -201,7 +201,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 	}
 	// The global allocator must skip metadata-only owned IDs just like actual
 	// definitions, even when their identities have been remapped out of order.
-	e.nextOID = original.helpers[0].id
+	e.catalog.nextOID = original.helpers[0].id
 	allocated, err := e.allocateOIDLocked()
 	if err != nil || allocated == original.helpers[0].id || allocated == original.helpers[1].id {
 		t.Fatal("allocator reused owned helper", allocated, err)
@@ -213,14 +213,14 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	ext := &extensionDescriptor{address: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, name: "intagg", version: "1.1", targetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, owner: e.authorizationDomain.Principal(10)}
-	e.nextOID = ^ids.OID(0) - 1 // aggregate and state can allocate; final helper cannot.
+	e.catalog.nextOID = ^ids.OID(0) - 1 // aggregate and state can allocate; final helper cannot.
 	if err := stockIntagg.stage(e, stage, ext, ext.owner, AuthorizationView{}); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
 	}
-	if e.state != before.state {
+	if e.catalog.state != before.state {
 		t.Fatal("failed provider published partial installation")
 	}
-	for _, d := range e.state.descriptors {
+	for _, d := range e.catalog.state.descriptors {
 		if p, ok := d.(*procedureDescriptor); ok && p.intagg != nil {
 			t.Fatal("failed provider leaked a callable/aggregate owner")
 		}
@@ -229,19 +229,19 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 
 func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	source, ext := intaggUnitInstalled(t)
-	proc := source.state.descriptors[ext.members[0]].(*procedureDescriptor)
+	proc := source.catalog.state.descriptors[ext.members[0]].(*procedureDescriptor)
 	original := *proc.aggregate
 	target := New()
-	target.state = cloneCatalog(target.state)
+	target.catalog.state = cloneCatalog(target.catalog.state)
 	namespace := &namespaceDescriptor{
 		address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: original.helpers[0].id},
 		name:    "pg_temp_pga_collision", revision: 1, owner: target.authorizationDomain.Principal(10),
-		temporary: target.domain.Session(99),
+		temporary: target.catalog.domain.Session(99),
 	}
-	target.state.descriptors[namespace.address] = namespace
-	target.state.names[descriptorNameKey(namespace)] = namespace.address
-	target.nextOID = 30000
-	next := cloneCatalog(source.state)
+	target.catalog.state.descriptors[namespace.address] = namespace
+	target.catalog.state.names[descriptorNameKey(namespace)] = namespace.address
+	target.catalog.nextOID = 30000
+	next := cloneCatalog(source.catalog.state)
 	target.mu.Lock()
 	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	target.mu.Unlock()

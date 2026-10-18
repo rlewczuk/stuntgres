@@ -57,7 +57,7 @@ func TestSequenceOwnerIdentityOperands(t *testing.T) {
 					if target == operand {
 						want, _ = e.Roles().Lookup("postgres")
 					}
-					if got := e.state.descriptors[ref.Address].(*relationDescriptor).owner; got != want.Ref {
+					if got := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).owner; got != want.Ref {
 						t.Fatalf("%s owner=%v want=%v", target, got, want.Ref)
 					}
 				}
@@ -83,8 +83,8 @@ func TestSequenceOwnerTransitionAuthority(t *testing.T) {
 				roleExecute(t, e, op, q)
 			}
 			ref := roleTableRef(t, e, "private.s")
-			old := e.state.descriptors[ref.Address].(*relationDescriptor)
-			ns := e.domain.Ref(ref.Epoch, old.namespace)
+			old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			ns := e.catalog.domain.Ref(ref.Epoch, old.namespace)
 			owner, _ := e.Roles().Lookup("seq_owner")
 			target, _ := e.Roles().Lookup("seq_target")
 			reader, _ := e.Roles().Lookup("seq_reader")
@@ -99,25 +99,25 @@ func TestSequenceOwnerTransitionAuthority(t *testing.T) {
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_owner")
 			r := roleExecute(t, e, op, "SELECT nextval('private.s')")
 			r.Rows.Close()
-			before := e.state.descriptors[ref.Address].(*relationDescriptor)
+			before := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			state := *e.sequences[ref.Address]
 			if err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_owner", prepared); err != nil {
 				t.Fatal("same-owner without CREATE", err)
 			}
-			after := e.state.descriptors[ref.Address].(*relationDescriptor)
+			after := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			if after.owner != owner.Ref || after.sequencePlanStamp != before.sequencePlanStamp || !reflect.DeepEqual(after.acl, before.acl) || *e.sequences[ref.Address] != state {
 				t.Fatal("same-owner changed owner, plan stamp, ACL or generator")
 			}
 			err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_target", prepared)
 			sequenceOwnerDiagnostic(t, err, "42501", `must be able to SET ROLE "seq_target"`, "")
-			if e.state.descriptors[ref.Address].(*relationDescriptor) != after || *e.sequences[ref.Address] != state {
+			if e.catalog.state.descriptors[ref.Address].(*relationDescriptor) != after || *e.sequences[ref.Address] != state {
 				t.Fatal("denied transfer mutated sequence")
 			}
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 			if err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_target", prepared); err != nil {
 				t.Fatal("superuser transfer without destination CREATE", err)
 			}
-			after = e.state.descriptors[ref.Address].(*relationDescriptor)
+			after = e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: target.Ref, Grantee: authorization.ACLGrantee{Role: target.Ref}, Privileges: authorization.UsagePrivilege}, {Grantor: target.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 			if after.owner != target.Ref || after.sequencePlanStamp == before.sequencePlanStamp || !reflect.DeepEqual(after.acl, wantACL) || *e.sequences[ref.Address] != state {
 				t.Fatalf("transfer owner/stamp/ACL/state: %#v", after)
@@ -144,8 +144,8 @@ func TestSequenceOwnerSuperuserWithoutDestinationCreate(t *testing.T) {
 				roleExecute(t, e, op, q)
 			}
 			ref := roleTableRef(t, e, "private.s")
-			before := e.state.descriptors[ref.Address].(*relationDescriptor)
-			ns := e.domain.Ref(ref.Epoch, before.namespace)
+			before := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			ns := e.catalog.domain.Ref(ref.Epoch, before.namespace)
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
 			}
@@ -153,7 +153,7 @@ func TestSequenceOwnerSuperuserWithoutDestinationCreate(t *testing.T) {
 			if err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_target", prepared); err != nil {
 				t.Fatal("superuser transfer without destination CREATE", err)
 			}
-			after := e.state.descriptors[ref.Address].(*relationDescriptor)
+			after := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			if after.owner != target.Ref || after.sequencePlanStamp == before.sequencePlanStamp {
 				t.Fatal("transfer failed to publish owner and plan stamp")
 			}

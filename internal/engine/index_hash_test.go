@@ -105,7 +105,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(root.buckets) != 0 {
 		t.Fatal(root)
 	}
-	parent := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	bad := *index.sqlIndex
 	bad.keys = append([]indexKey(nil), bad.keys...)
 	bad.keys[0].class, _ = sqltype.LookupHashIndexClass("int8_ops")
@@ -241,7 +241,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 		run(t, e, q)
 	}
 	index, old := hashRoot(t, e, "hn")
-	parent := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	store := e.storage[parent.address]
 	value, err := parent.columns[0].Usage.Type.Input(context.Background(), "3", -1)
 	if err != nil {
@@ -263,7 +263,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if rebuild {
 				intents = map[ids.ObjectAddress]*relationDescriptor{index.address: index}
 			}
-			roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage, e.catalog.state), e.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}

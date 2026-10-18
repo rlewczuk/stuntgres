@@ -18,7 +18,7 @@ func TestExclusionPublication(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"((n+1) WITH =))")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
-			parent := e.state.descriptors[roleTableRef(t, e, "public.t").Address].(*relationDescriptor)
+			parent := e.catalog.state.descriptors[roleTableRef(t, e, "public.t").Address].(*relationDescriptor)
 			store := e.storage[parent.address]
 			value, err := parent.columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
@@ -31,11 +31,11 @@ func TestExclusionPublication(t *testing.T) {
 				writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{value}}}
 				publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 				if materialize {
-					if err := e.prepareRowPublication(&publication, e.domain.Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
+					if err := e.prepareRowPublication(&publication, e.catalog.domain.Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), true); err != nil {
 						t.Fatal(err)
 					}
 				}
-				roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ids.ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+				roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage, e.catalog.state), e.indexRoots, map[ids.ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 				var diagnostic *sqlstate.Error
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" || diagnostic.Constraint != "ex" {
 					t.Fatal("publication omitted the actual exclusion integrity veto", materialize, roots, err)
@@ -68,10 +68,10 @@ func TestExclusionPublication(t *testing.T) {
 				row, version := e.nextRow, e.nextVersion
 				writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{overflow}}}
 				publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
-				if err := e.prepareRowPublication(&publication, e.domain.Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
+				if err := e.prepareRowPublication(&publication, e.catalog.domain.Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), true); err != nil {
 					t.Fatal(err)
 				}
-				roots, err := e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ids.ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+				roots, err := e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage, e.catalog.state), e.indexRoots, map[ids.ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 				if !called || roots != nil {
 					t.Fatal("derived failure did not veto outside-lock root preparation", called, roots, err)
 				}
@@ -97,7 +97,7 @@ func TestExclusionPublication(t *testing.T) {
 			sessionSQL(t, s, "CREATE SCHEMA exclusion_publication")
 			sessionSQL(t, s, "CREATE TABLE exclusion_publication.t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"(n WITH =))")
 			sessionSQL(t, s, "INSERT INTO exclusion_publication.t VALUES(1),(2)")
-			parent := e.state.descriptors[roleTableRef(t, e, "exclusion_publication.t").Address].(*relationDescriptor)
+			parent := e.catalog.state.descriptors[roleTableRef(t, e, "exclusion_publication.t").Address].(*relationDescriptor)
 			store := e.storage[parent.address]
 			value, err := parent.columns[0].Usage.Type.Input(context.Background(), "1", -1)
 			if err != nil {
@@ -111,11 +111,11 @@ func TestExclusionPublication(t *testing.T) {
 					writes := []rowVersion{{row: ids.RowID(row + 1), version: ids.VersionID(version + 1), values: []sqltype.Value{value}}}
 					publication := rowPublication{address: parent.address, relation: parent, originalRelation: parent, original: store, store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, singleSlot: -1}
 					if materialize {
-						if err := e.prepareRowPublication(&publication, e.domain.Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), true); err != nil {
+						if err := e.prepareRowPublication(&publication, e.catalog.domain.Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), true); err != nil {
 							t.Fatal(err)
 						}
 					}
-					roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.state, e.state, captureIndexStores(e.storage, e.state), e.indexRoots, map[ids.ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+					roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage, e.catalog.state), e.indexRoots, map[ids.ObjectAddress]bool{parent.address: false}, nil, []rowPublication{publication}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 					if roots != nil {
 						t.Fatal("integrity veto returned publication roots", roots)
 					}

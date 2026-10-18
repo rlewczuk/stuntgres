@@ -31,7 +31,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 		}
 	}
 	for _, ref := range g.targets {
-		if ref.Domain() != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() {
+		if ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
 		d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -147,7 +147,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	g := &indexMaintenanceGrant{descriptors: make(map[ids.ObjectAddress]*relationDescriptor)}
 	e.mu.Lock()
 	fail := func(err error) error { e.mu.Unlock(); return err }
-	if s.txRef.Epoch() != e.state.epoch {
+	if s.txRef.Epoch() != e.catalog.state.epoch {
 		return fail(ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
@@ -284,7 +284,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if err != nil {
 			return err
 		}
-		if s.txRef.Epoch() != e.state.epoch {
+		if s.txRef.Epoch() != e.catalog.state.epoch {
 			return ErrCatalogReplaced
 		}
 		if err := g.check(auth, stmt, false); err != nil {

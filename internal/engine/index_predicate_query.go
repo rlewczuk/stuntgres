@@ -34,7 +34,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 		return nil
 	}
 	data := view.read()
-	if data == nil || data.catalog.state != e.state || data.catalog.owner != e || leaf.ref.Domain() != e.domain || leaf.ref.Epoch != e.state.epoch {
+	if data == nil || data.catalog.state != e.catalog.state || data.catalog.owner != e || leaf.ref.Domain() != e.catalog.domain || leaf.ref.Epoch != e.catalog.state.epoch {
 		return nil
 	}
 	parent := leaf.ref.Address
@@ -49,11 +49,11 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if len(prefix) != 0 && &prefix[0] != &store.versions[0] {
 		return nil
 	}
-	current, ok := e.state.descriptors[parent].(*relationDescriptor)
+	current, ok := e.catalog.state.descriptors[parent].(*relationDescriptor)
 	if !ok || !sameRelationRowShape(current, leaf.relation) {
 		return nil
 	}
-	if e.state.descriptors[candidate.address] != candidate || candidate.sqlIndex.parent != parent {
+	if e.catalog.state.descriptors[candidate.address] != candidate || candidate.sqlIndex.parent != parent {
 		return nil
 	}
 	root := e.indexRoots[candidate.address]

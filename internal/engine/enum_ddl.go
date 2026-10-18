@@ -12,15 +12,15 @@ import (
 
 // Engine.mu owns allocation. Aborted reservations are never recycled.
 func (e *Engine) allocateEnumMemberLocked() (int64, error) {
-	if e.nextEnumMember > math.MaxUint32-2 {
+	if e.catalog.nextEnumMember > math.MaxUint32-2 {
 		return 0, fmt.Errorf("stuntgres: enum member identity exhausted")
 	}
-	if e.nextEnumMember == 0 {
-		e.nextEnumMember = 1
+	if e.catalog.nextEnumMember == 0 {
+		e.catalog.nextEnumMember = 1
 	} else {
-		e.nextEnumMember += 2
+		e.catalog.nextEnumMember += 2
 	}
-	return e.nextEnumMember, nil
+	return e.catalog.nextEnumMember, nil
 }
 
 // Members are an owned mutation copy. Renumber only when an interior midpoint
@@ -67,7 +67,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		if !ok {
 			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
 		}
-		ref := e.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 		if !d.typ.IsEnum() {
 			display := d.typ.DiagnosticName()
 			if d.typ.IsUserDefined() || d.typ.IsDomain() || d.typ.IsComposite() {
@@ -151,7 +151,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if ref != locked {
 			return Result{}, ErrCatalogReplaced
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
 		members := old.typ.EnumMembers()
 		oldIndex, newIndex := -1, -1
 		for i, m := range members {

@@ -27,7 +27,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				failure = sqlError("22012", "division by zero")
 			}
 			defer scope.Finish(context.Canceled)
-			base := e.state
+			base := e.catalog.state
 			e.mu.Lock()
 			var carried *namespaceDescriptor
 			if prior {
@@ -42,7 +42,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			}
 			id := temporaryNamespace(auth)
 			candidate := scope.catalog
-			if id == (ids.ObjectAddress{}) || len(path) != 2 || path[0] != id || candidate == nil || e.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) {
+			if id == (ids.ObjectAddress{}) || len(path) != 2 || path[0] != id || candidate == nil || e.catalog.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) {
 				e.mu.Unlock()
 				t.Fatal("private first-use candidate", id, path)
 			}
@@ -90,7 +90,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err := scope.Finish(failure); !errors.Is(err, failure) {
 				t.Fatal(err)
 			}
-			if e.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || s.transactions.catalog != nil {
+			if e.catalog.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || s.transactions.catalog != nil {
 				t.Fatal("Finish veto published namespace")
 			}
 		})
@@ -112,9 +112,9 @@ func TestNamespaceIdentityNoPendingFastPath(t *testing.T) {
 	defer scope.Finish(context.Canceled)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	base, next := e.state, e.nextOID
+	base, next := e.catalog.state, e.catalog.nextOID
 	_, path, err := scope.schemaInquiryPathLocked(e)
-	if err != nil || len(path) != 1 || scope.catalog != nil || e.state != base || e.nextOID != next {
+	if err != nil || len(path) != 1 || scope.catalog != nil || e.catalog.state != base || e.catalog.nextOID != next {
 		t.Fatal("no-pending path introduced catalog work", path, err)
 	}
 }

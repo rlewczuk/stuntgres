@@ -22,12 +22,12 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER reader")
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
-	ns := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	ns := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	catalog, roles := e.state, e.roles
+	catalog, roles := e.catalog.state, e.roles
 	for _, tc := range []struct{ query, code, message, position string }{
 		{"SELECT id FROM public.secret", "42501", "permission denied for schema public", "16"},
 		{"SELECT missing FROM public.secret", "42501", "permission denied for schema public", "21"},
@@ -55,7 +55,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatalf("prepare=%v %s: %#v", prepare, tc.query, err)
 			}
-			if e.state != catalog || e.roles != roles {
+			if e.catalog.state != catalog || e.roles != roles {
 				t.Fatal("failed lookup published state")
 			}
 		}
@@ -157,21 +157,21 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
 	ref := roleTableRef(t, e, "sentinel")
-	beforeCatalog, beforeRoles := e.state, e.roles
-	beforeOID, beforeRevision := e.nextOID, e.nextRevision
-	original := e.state.descriptors[ref.Address].(*relationDescriptor)
+	beforeCatalog, beforeRoles := e.catalog.state, e.roles
+	beforeOID, beforeRevision := e.catalog.nextOID, e.catalog.nextRevision
+	original := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	dependencies := descriptorReferences(original)
 	invalid := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.SelectPrivilege}}}
 	unchanged := func() {
 		t.Helper()
-		if e.state != beforeCatalog || e.roles != beforeRoles || e.nextOID != beforeOID || e.nextRevision != beforeRevision || !reflect.DeepEqual(descriptorReferences(e.state.descriptors[ref.Address]), dependencies) {
+		if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || !reflect.DeepEqual(descriptorReferences(e.catalog.state.descriptors[ref.Address]), dependencies) {
 			t.Fatal("invalid PUBLIC authority changed catalog/revisions/dependencies")
 		}
 		if got := tuples(roleExecute(t, e, op, "SELECT id FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
 			t.Fatal(got)
 		}
 	}
-	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	namespaceACL := invalid
 	namespaceACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 	namespaceACL.Entries[0].Privileges = authorization.UsagePrivilege
@@ -180,9 +180,9 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		t.Fatal("namespace mutation accepted PUBLIC grant options", err)
 	}
 	unchanged()
-	namespaceDescriptor := *e.state.descriptors[namespace.Address].(*namespaceDescriptor)
+	namespaceDescriptor := *e.catalog.state.descriptors[namespace.Address].(*namespaceDescriptor)
 	namespaceDescriptor.acl = namespaceACL
-	namespaceView := cloneCatalog(e.state)
+	namespaceView := cloneCatalog(e.catalog.state)
 	namespaceView.descriptors[namespace.Address] = &namespaceDescriptor
 	if _, err := e.ReplaceCatalog(ctx, CatalogRead{e, namespaceView}); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 		t.Fatal("namespace replacement accepted PUBLIC grant options", err)
@@ -203,14 +203,14 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		} else {
 			bad.acl = invalid
 		}
-		view := cloneCatalog(e.state)
+		view := cloneCatalog(e.catalog.state)
 		view.descriptors[ref.Address] = &bad
 		if _, err := e.ReplaceCatalog(ctx, CatalogRead{e, view}); err == nil || !strings.Contains(err.Error(), "PUBLIC grant options") {
 			t.Fatal("replacement accepted PUBLIC grant options", err)
 		}
 		unchanged()
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		bad.address.ObjectID = e.nextOID
+		bad.address.ObjectID = e.catalog.nextOID
 		bad.name = "invalid_stage"
 		if err := stage.Create(&bad); err != nil {
 			t.Fatal(err)
@@ -225,7 +225,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		sourceOp, sourceDone := roleOperation(t, source, "postgres")
 		roleExecute(t, source, sourceOp, "CREATE TABLE imported(id INT)")
 		foreignRef := roleTableRef(t, source, "imported")
-		foreign := *source.state.descriptors[foreignRef.Address].(*relationDescriptor)
+		foreign := *source.catalog.state.descriptors[foreignRef.Address].(*relationDescriptor)
 		foreignACL := invalid
 		foreignACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 		foreignACL.Entries[0].Grantor = source.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
@@ -234,7 +234,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		} else {
 			foreign.acl = foreignACL
 		}
-		foreignView := cloneCatalog(source.state)
+		foreignView := cloneCatalog(source.catalog.state)
 		foreignView.descriptors[foreignRef.Address] = &foreign
 		_, err := e.ReplaceCatalog(ctx, CatalogRead{source, foreignView})
 		sourceDone()
@@ -266,24 +266,24 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			})
 			roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-			roles, catalog := e.roles, e.state
+			roles, catalog := e.roles, e.catalog.state
 			beforeAuth, err := op.Authorization()
 			if err != nil {
 				t.Fatal(err)
 			}
-			beforeOID, beforeRevision, beforePrincipal := e.nextOID, e.nextRevision, e.nextPrincipal
+			beforeOID, beforeRevision, beforePrincipal := e.catalog.nextOID, e.catalog.nextRevision, e.nextPrincipal
 			if prepared {
 				if _, err := e.Describe(op, statement(t, "DROP ROLE endpoint,owner")); err != nil {
 					t.Fatal(err)
 				}
 			}
 			roleError(t, e, op, "DROP ROLE endpoint,owner", "2BP01", `role "owner" cannot be dropped because some objects depend on it`, "owner of table sentinel")
-			if e.roles != roles || e.state != catalog || !reflect.DeepEqual(e.Roles().Memberships(), expectedEdges) {
+			if e.roles != roles || e.catalog.state != catalog || !reflect.DeepEqual(e.Roles().Memberships(), expectedEdges) {
 				t.Fatal("later dependency changed state")
 			}
 			afterAuth, err := op.Authorization()
 			if err != nil || afterAuth.Stamp() != beforeAuth.Stamp() || afterAuth.state != beforeAuth.state ||
-				e.nextOID != beforeOID || e.nextRevision != beforeRevision || e.nextPrincipal != beforePrincipal {
+				e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || e.nextPrincipal != beforePrincipal {
 				t.Fatal("later dependency changed authority/counters", err)
 			}
 			for _, name := range []string{"endpoint", "member", "owner"} {
@@ -507,8 +507,8 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 				close(release)
 			}
 		}()
-		e.providers[ids.RelationClassID] = &publicationConflictProvider{
-			CatalogProvider: e.providers[ids.RelationClassID],
+		e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
+			CatalogProvider: e.catalog.providers[ids.RelationClassID],
 			publishWinner: func(Descriptor) {
 				close(entered)
 				<-release

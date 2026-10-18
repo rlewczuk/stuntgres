@@ -14,7 +14,7 @@ import (
 
 func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	return e.state.descriptors[a].(*relationDescriptor), e.domain.Ref(e.state.epoch, a)
+	return e.catalog.state.descriptors[a].(*relationDescriptor), e.catalog.domain.Ref(e.catalog.state.epoch, a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
@@ -51,8 +51,8 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
-		row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row}].(*typeDescriptor)
-		array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array}].(*typeDescriptor)
+		row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row}].(*typeDescriptor)
+		array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array}].(*typeDescriptor)
 		ownedArray, ok := e.CatalogRead().LookupArray(row.typ)
 		if !ok || ownedArray != array.typ || row.array != sqltype.ID(spec.array) || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
@@ -135,9 +135,9 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	availableUnitExpected(t, e, e.CatalogRead(), "1.1", true)
 	// Authentic installed descriptor, privately copied with only its version
 	// changed for projection. It is never validated/published as installation.
-	state := *e.state
-	state.descriptors = maps.Clone(e.state.descriptors)
-	state.names = maps.Clone(e.state.names)
+	state := *e.catalog.state
+	state.descriptors = maps.Clone(e.catalog.state.descriptors)
+	state.names = maps.Clone(e.catalog.state.names)
 	address := state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]
 	ext := *state.descriptors[address].(*extensionDescriptor)
 	ext.version = "available-unknown"

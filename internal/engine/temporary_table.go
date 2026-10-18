@@ -115,7 +115,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return Result{}, err
 	}
-	created := e.domain.Ref(base.Epoch(), stage.names[key])
+	created := e.catalog.domain.Ref(base.Epoch(), stage.names[key])
 	if temporary {
 		scope.owner.accessedTemporary = true
 		if len(stage.domainBases) != 0 {
@@ -147,8 +147,8 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 				return Result{}, authErr
 			}
 			resolved, resolveErr := e.creationNamespace(currentAuth, s.Name)
-			_, exists := e.state.names[key]
-			same := resolveErr == nil && resolved.Address == ns.Address && e.state.epoch == base.Epoch()
+			_, exists := e.catalog.state.names[key]
+			same := resolveErr == nil && resolved.Address == ns.Address && e.catalog.state.epoch == base.Epoch()
 			var accessErr error
 			if same && exists {
 				accessErr = currentAuth.CheckCreate(resolved)
@@ -181,7 +181,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 // immutable overlay. New stores use committed absence as their honest fence.
 func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage, changes *catalogChanges) error {
 	e.mu.Lock()
-	if scope.txRef.Epoch() != e.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
@@ -230,7 +230,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	e.mu.Lock()
 	scope.op.session.mu.Lock()
 	err = publicationOperationLocked(e, scope.op)
-	if err == nil && scope.txRef.Epoch() != e.state.epoch {
+	if err == nil && scope.txRef.Epoch() != e.catalog.state.epoch {
 		err = ErrCatalogReplaced
 	}
 	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.session || scope.op.session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).revision != stage.roleRevision) {

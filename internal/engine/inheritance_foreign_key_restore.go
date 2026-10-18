@@ -261,7 +261,7 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 	auth := declaration.auth
 	auth.catalog = view
 	auth.recaptureCatalog(view)
-	if receipt.source != declaration.child || receipt.source.Domain() != e.domain || receipt.target.Domain() != e.domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.roleRecord != e.roles || !partitionConstraintReplayImport(e, op, auth) {
+	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.domain || receipt.target.Domain() != e.catalog.domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.roleRecord != e.roles || !partitionConstraintReplayImport(e, op, auth) {
 		return ErrCatalogReplaced
 	}
 	source, _ := view.state.descriptors[receipt.source.Address].(*relationDescriptor)

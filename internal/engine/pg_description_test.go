@@ -14,11 +14,11 @@ import (
 func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2609}
-	d, ok := e.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing catalog descriptor")
 	}
-	return d, e.domain.Ref(e.state.epoch, address)
+	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
 }
 
 func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddress]string {
@@ -101,8 +101,8 @@ func TestPGDescriptionShape(t *testing.T) {
 			}
 		})
 	}
-	class := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ids.ObjectRef{}, class)
+	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,8 +128,8 @@ func TestPGDescriptionShape(t *testing.T) {
 func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	e := New()
 	source, ref := pgDescriptionUnitSource(t, e)
-	oldState := *e.state
-	oldState.descriptors = maps.Clone(e.state.descriptors)
+	oldState := *e.catalog.state
+	oldState.descriptors = maps.Clone(e.catalog.state.descriptors)
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	d := &relationDescriptor{address: relation, attributes: []int32{1, 3}, comment: "whole", columnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
@@ -172,7 +172,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	}
 	// Simulate a nested provider relocking after publication: opening the virtual
 	// source must use the statement frontier rather than the newly sampled state.
-	e.state = &newState
+	e.catalog.state = &newState
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions, commentCatalog: old}
@@ -188,7 +188,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	source, ref := pgDescriptionUnitSource(t, e)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, state := range []*catalogState{e.state, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
+	for _, state := range []*catalogState{e.catalog.state, {descriptors: map[ids.ObjectAddress]Descriptor{}}} {
 		captured, err := capturePGDescription(ctx, CatalogRead{owner: e, state: state}, ref, source)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)
@@ -229,7 +229,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 			t.Fatal("conversion hole or boundary", oid)
 		}
 	}
-	for _, descriptor := range e.state.descriptors {
+	for _, descriptor := range e.catalog.state.descriptors {
 		switch descriptor.(type) {
 		case *collationDescriptor, *conversionDescriptor:
 			if descriptorComment(descriptor, 0) != "" || catalogDescription(descriptor, 1) != "" {

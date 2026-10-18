@@ -112,7 +112,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := e.state.descriptors[ref.Address].(*relationDescriptor)
+	parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	index, _ := btreeRoot(t, e, "public.ui_index")
 	if !index.sqlIndex.unique || index.sqlIndex.nullsNotDistinct != nnd || len(index.sqlIndex.keys) != count {
 		t.Fatal("invalid unique fixture")
@@ -127,7 +127,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Clone(e.catalog.state.descriptors), names: maps.Clone(e.catalog.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -161,7 +161,7 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) ro
 
 func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	t.Helper()
-	if f.e.state != f.catalog || f.e.roles != f.roles || f.e.nextRow != f.nextRow || f.e.nextVersion != f.nextVersion || f.e.commitSeq != f.frontier || len(f.e.indexRoots) != len(f.roots) || len(f.e.storage) != len(f.stores) {
+	if f.e.catalog.state != f.catalog || f.e.roles != f.roles || f.e.nextRow != f.nextRow || f.e.nextVersion != f.nextVersion || f.e.commitSeq != f.frontier || len(f.e.indexRoots) != len(f.roots) || len(f.e.storage) != len(f.stores) {
 		t.Fatal("package preparation changed live publication state")
 	}
 	if !maps.Equal(f.catalog.descriptors, f.descriptors) || !maps.Equal(f.catalog.names, f.names) {
@@ -195,7 +195,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	parents := map[ids.ObjectAddress]bool{f.parent.address: rebuild}
 	publication := rowPublication{address: f.parent.address, relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.address], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}
 	if materialize {
-		if err := f.e.prepareRowPublication(&publication, f.e.domain.Tx(ids.SessionToken{}, 0, f.catalog.epoch, nil, 0), true); err != nil {
+		if err := f.e.prepareRowPublication(&publication, f.e.catalog.domain.Tx(ids.SessionToken{}, 0, f.catalog.epoch, nil, 0), true); err != nil {
 			t.Fatal(err)
 		}
 	}

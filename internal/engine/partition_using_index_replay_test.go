@@ -24,8 +24,8 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	index.columns[0].OriginAttribute = 1
 	child.hasIndexes = true
 	partitionAttachUnitInstall(t, e, parent, child, index)
-	child = e.state.descriptors[child.address].(*relationDescriptor)
-	index = e.state.descriptors[index.address].(*relationDescriptor)
+	child = e.catalog.state.descriptors[child.address].(*relationDescriptor)
+	index = e.catalog.state.descriptors[index.address].(*relationDescriptor)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.name}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUsingIndex, UsingIndex: &parser.UsingIndexConstraint{Name: parser.Identifier{Text: index.name}, Index: parser.Identifier{Text: index.name}}}}}
@@ -65,11 +65,11 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 		t.Fatal("public hierarchy ADD USING INDEX admitted")
 	}
 	op.restorePartitionUsingIndex = origin
-	next := cloneCatalog(e.state)
+	next := cloneCatalog(e.catalog.state)
 	changed := *index
 	changed.revision++
 	next.descriptors[index.address] = &changed
-	e.state = next
+	e.catalog.state = next
 	fresh, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)

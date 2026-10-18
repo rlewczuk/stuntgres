@@ -35,8 +35,8 @@ func intarrayUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor, *typeDe
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", ""))
-	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
-	return e, ext, e.state.descriptors[ext.members[0]].(*typeDescriptor)
+	ext := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+	return e, ext, e.catalog.state.descriptors[ext.members[0]].(*typeDescriptor)
 }
 
 func TestIntarrayProviderIdentity(t *testing.T) {
@@ -176,13 +176,13 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 			}
 		}
 		extensionUnitPublish(t, e, op, stage)
-		before := e.state
+		before := e.catalog.state
 		e.mu.Lock()
 		_, err = e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "intarray"}})
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: intarrayTypeContext}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.state != before {
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before {
 			t.Fatal("type conflict was not atomic/exact", diagnostic, err)
 		}
 	})
@@ -211,7 +211,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 				state.descriptors[address] = &array
 			},
 		} {
-			candidate := cloneCatalog(e.state)
+			candidate := cloneCatalog(e.catalog.state)
 			bad := *ext
 			bad.members = slices.Clone(ext.members)
 			candidate.descriptors[bad.address] = &bad
@@ -260,7 +260,7 @@ func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *nam
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	extensionUnitPublish(t, e, op, stage)
-	return e.state.descriptors[ref.Address].(*namespaceDescriptor)
+	return e.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
 }
 
 func TestIntarrayProviderControls(t *testing.T) {
@@ -269,8 +269,8 @@ func TestIntarrayProviderControls(t *testing.T) {
 		op, close := extensionTemporaryOperation(t, e, "postgres")
 		namespace := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", namespace.name))
-		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
-		base := e.state.descriptors[ext.members[0]].(*typeDescriptor)
+		ext := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		base := e.catalog.state.descriptors[ext.members[0]].(*typeDescriptor)
 		array := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}
 		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
@@ -279,11 +279,11 @@ func TestIntarrayProviderControls(t *testing.T) {
 		close()
 		assertTemporaryNamespacePair(t, e, namespace.temporary, namespace.address)
 		for _, address := range addresses {
-			if e.state.descriptors[address] != nil {
+			if e.catalog.state.descriptors[address] != nil {
 				t.Fatal("retired TEMP identity retained", address)
 			}
 		}
-		for key, address := range e.state.names {
+		for key, address := range e.catalog.state.names {
 			if slices.Contains(addresses, address) || key.Namespace == namespace.address {
 				t.Fatal("retired TEMP name retained", key)
 			}
@@ -300,20 +300,20 @@ func TestIntarrayProviderControls(t *testing.T) {
 		namespace := intarrayUnitTemporaryNamespace(t, target, owner)
 		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 		extensionUnitPublish(t, target, installer, intarrayUnitStage(t, target, installer, "unaccent", namespace.name))
-		unaccent := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]]
+		unaccent := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]]
 		closeInstaller()
 		if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		ext := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
-		imported := target.state.descriptors[ext.members[0]].(*typeDescriptor)
+		ext := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}]].(*extensionDescriptor)
+		imported := target.catalog.state.descriptors[ext.members[0]].(*typeDescriptor)
 		if imported.typ == base.typ || imported.typ.ID() == base.typ.ID() {
 			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")
 		}
 		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
-		if target.state.descriptors[namespace.address] != namespace || target.state.descriptors[unaccent.Address()] != unaccent {
+		if target.catalog.state.descriptors[namespace.address] != namespace || target.catalog.state.descriptors[unaccent.Address()] != unaccent {
 			t.Fatal("import changed live TEMP provider authority")
 		}
 		mapped, err := reownDomainDatum(value, imported.typ, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{base.typ: imported.typ}, nil)
@@ -334,7 +334,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		}
 		closeOwner()
 		assertTemporaryNamespacePair(t, target, namespace.temporary, namespace.address)
-		if target.state.descriptors[namespace.address] != namespace || target.state.descriptors[unaccent.Address()] != nil {
+		if target.catalog.state.descriptors[namespace.address] != namespace || target.catalog.state.descriptors[unaccent.Address()] != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
 		if err := (extensionCatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {

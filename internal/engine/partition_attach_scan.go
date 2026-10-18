@@ -50,7 +50,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 			}
 			childView := view
 			if lockChildren {
-				ref := s.op.session.Engine().domain.Ref(view.Epoch(), address)
+				ref := s.op.session.Engine().catalog.domain.Ref(view.Epoch(), address)
 				if err := s.acquirePartitionLock(ref, accessExclusive); err != nil {
 					return err
 				}
@@ -76,7 +76,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogStage, catalog CatalogRead, candidate *relationDescriptor, jobs []partitionAttachScan) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	capture := func(d *relationDescriptor) error {
@@ -101,7 +101,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 				return err
 			}
 		}
-		refs = append(refs, e.domain.Ref(catalog.Epoch(), job.leaf.address))
+		refs = append(refs, e.catalog.domain.Ref(catalog.Epoch(), job.leaf.address))
 	}
 	if len(refs) == 0 {
 		return nil
@@ -146,7 +146,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 				child = ancestor
 			}
 		}
-		ref := catalog.owner.domain.Ref(catalog.Epoch(), job.leaf.address)
+		ref := catalog.owner.catalog.domain.Ref(catalog.Epoch(), job.leaf.address)
 		source, err := captureQuerySource(ctx, scope.partitionValidationView, ref)
 		if err != nil {
 			return err

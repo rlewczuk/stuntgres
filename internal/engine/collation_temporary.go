@@ -51,7 +51,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	var maintenance *Session
 	for {
 		e.mu.Lock()
-		base := CatalogRead{e, e.state}
+		base := CatalogRead{e, e.catalog.state}
 		var namespaces []*namespaceDescriptor
 		for _, d := range base.state.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == source.token {
@@ -144,7 +144,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 	// table being removed must not also receive a replacement row shape.
 	e.mu.Lock()
 	for _, a := range children {
-		if err = stage.removeObjectLocked(e.domain.Ref(base.Epoch(), a), false); err != nil {
+		if err = stage.removeObjectLocked(e.catalog.domain.Ref(base.Epoch(), a), false); err != nil {
 			break
 		}
 	}
@@ -174,7 +174,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base Catalo
 		if i != 0 && a == relations[i-1] {
 			continue
 		}
-		if err = scope.acquireSequence(e.domain.Ref(base.Epoch(), a), accessExclusive, true); err != nil {
+		if err = scope.acquireSequence(e.catalog.domain.Ref(base.Epoch(), a), accessExclusive, true); err != nil {
 			return false, err
 		}
 	}

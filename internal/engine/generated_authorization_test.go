@@ -54,7 +54,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: view.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.domain.Ref(e.CatalogRead().Epoch(), d.address)
+	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
 	actor, actorDone := roleOperation(t, e, "generated_actor")
 	t.Cleanup(actorDone)
 	generatedAuthorizationGrant(t, e, admin, actor, ref, 1, authorization.InsertPrivilege|authorization.UpdatePrivilege)

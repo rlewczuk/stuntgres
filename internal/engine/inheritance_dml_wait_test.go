@@ -49,7 +49,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	old := e.domain.Ref(e.CatalogRead().Epoch(), c.address)
+	old := e.catalog.domain.Ref(e.CatalogRead().Epoch(), c.address)
 	if err = e.locks.Acquire(op.Context(), holder.ticket, lockResource{ObjectRef: old}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}

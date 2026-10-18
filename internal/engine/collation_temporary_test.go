@@ -130,9 +130,9 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	sessionSQL(t, owner, `CREATE TABLE coll_cleanup_exhausted_t(id INT,v TEXT COLLATE pg_temp.coll_cleanup_exhausted)`)
 	sessionSQL(t, owner, `INSERT INTO coll_cleanup_exhausted_t VALUES(7,'é')`)
 	e.mu.Lock()
-	state := cloneCatalog(e.state)
+	state := cloneCatalog(e.catalog.state)
 	state.namespaceGeneration = ^uint64(0)
-	e.state = state
+	e.catalog.state = state
 	e.mu.Unlock()
 	before := e.CatalogRead()
 	namespace := owner.temporaryNamespace

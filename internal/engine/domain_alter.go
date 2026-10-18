@@ -27,7 +27,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 			continue
 		}
 		d := auth.catalog.state.descriptors[found[0]].(*typeDescriptor)
-		ref := e.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 		diagnosticPath, err := e.referencePath(auth)
 		if err != nil {
 			return nil, ref, err
@@ -159,7 +159,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		fence, discoveryErr := domainUsesAt(auth.catalog, ref.Address, diagnosticPath)
 		if fence != nil {
 			for _, relation := range fence.reads {
-				if err := scope.acquireSequence(e.domain.Ref(ref.Epoch, relation.address), accessShare, true); err != nil {
+				if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, relation.address), accessShare, true); err != nil {
 					return Result{}, err
 				}
 			}
@@ -180,7 +180,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			return Result{}, discoveryErr
 		}
 		for _, use := range fence.uses {
-			if err := scope.acquireSequence(e.domain.Ref(ref.Epoch, use.relation.address), relationShare, true); err != nil {
+			if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, use.relation.address), relationShare, true); err != nil {
 				return Result{}, err
 			}
 		}

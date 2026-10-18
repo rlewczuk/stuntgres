@@ -257,7 +257,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 			return nil
 		}
 	}
-	ref := e.domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		schemaNotice(op, "00000", fmt.Sprintf("changing version from %s to %s", *d.version, *actual))
 		next.version = actual
 	case "rename":
-		if err = auth.CheckCreate(e.domain.Ref(ref.Epoch, d.Namespace())); err != nil {
+		if err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 			return err
 		}
 		next.name = s.Target.Text
@@ -330,7 +330,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 			}
 			return err
 		}
-		ref := e.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}

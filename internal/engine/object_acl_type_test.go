@@ -191,7 +191,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 							Privileges: authorization.UsagePrivilege,
 						})
 					}
-					ref := e.domain.Ref(oldView.Epoch(), old.Address())
+					ref := e.catalog.domain.Ref(oldView.Epoch(), old.Address())
 					if err := e.SetObjectACL(context.Background(), ref, want); err != nil {
 						t.Fatal("SetObjectACL", err)
 					}

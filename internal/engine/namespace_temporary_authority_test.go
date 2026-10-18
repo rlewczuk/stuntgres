@@ -14,7 +14,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	roleExecute(t, e, creator, "CREATE TEMP TABLE namespace_usage_object(i INT)")
 	namespace, token := creator.session.temporaryNamespace, creator.session.token
 	toast := assertTemporaryNamespacePair(t, e, token, namespace)
-	name := e.state.descriptors[namespace].Name()
+	name := e.catalog.state.descriptors[namespace].Name()
 	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: name}, {Text: "namespace_usage_object"}}}
 	peer, closePeer := roleOperation(t, e, "postgres")
 	defer closePeer()

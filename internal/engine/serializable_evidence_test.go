@@ -26,7 +26,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	return e.domain.Ref(e.state.epoch, address)
+	return e.catalog.domain.Ref(e.catalog.state.epoch, address)
 }
 func serializableUnitScope(node *serializableTransaction) *StatementScope {
 	return &StatementScope{owner: txOwnerOf(node.ref), txRef: node.ref}
@@ -150,12 +150,12 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	node := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	catalog := cloneCatalog(e.state)
+	catalog := cloneCatalog(e.catalog.state)
 	original := catalog.descriptors[ref.Address].(*relationDescriptor)
 	copy := *original
 	copy.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	catalog.descriptors[ref.Address] = &copy
-	e.state = catalog
+	e.catalog.state = catalog
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	if len(matches) != 1 {
 		t.Fatal("actual owner TEMP table missing", matches)
 	}
-	relation := e.domain.Ref(view.Epoch(), matches[0])
+	relation := e.catalog.domain.Ref(view.Epoch(), matches[0])
 	sessionSQL(t, session, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 	for _, query := range []string{
 		"SELECT last_value,is_called FROM persistent_s",
@@ -250,7 +250,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	}
 	e.mu.Lock()
 	node := e.serializable.nodes[session.transactions.ref]
-	namespace := e.state.descriptors[session.temporaryNamespace].(*namespaceDescriptor)
+	namespace := e.catalog.state.descriptors[session.temporaryNamespace].(*namespaceDescriptor)
 	if namespace.temporary != session.token {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
@@ -269,7 +269,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 		t.Fatal("temporary stored relation registered evidence")
 	}
 	var persistentGenerator, temporaryGenerator *sequenceGenerator
-	for address, descriptor := range e.state.descriptors {
+	for address, descriptor := range e.catalog.state.descriptors {
 		if d, ok := descriptor.(*relationDescriptor); ok && d.relationKind == sequenceRelation {
 			if d.name == "persistent_s" {
 				persistentGenerator = e.sequences[address]

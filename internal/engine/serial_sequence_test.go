@@ -99,12 +99,12 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	}
 	// Replacement of the engine's live map must not change a captured inquiry.
 	f := serialSequenceUnitFixture(t)
-	f.engine.state = cloneCatalog(f.view.state)
+	f.engine.catalog.state = cloneCatalog(f.view.state)
 	changed := *f.sequence
 	options := *changed.sequence
 	options.owned = ids.ObjectAddress{}
 	changed.sequence = &options
-	f.engine.state.descriptors[changed.address] = &changed
+	f.engine.catalog.state.descriptors[changed.address] = &changed
 	value, err := f.node.Eval(f.context)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestSerialSequenceOwnership(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	fresh := *f.context.statementScope
-	fresh.commentCatalog = CatalogRead{owner: f.engine, state: f.engine.state}
+	fresh.commentCatalog = CatalogRead{owner: f.engine, state: f.engine.catalog.state}
 	fresh.deparseAuth.catalog = fresh.commentCatalog
 	fresh.deparseAuth.pairedCatalog = fresh.deparseAuth.catalog
 	value, err = f.node.Eval(&EvalContext{Context: context.Background(), statementScope: &fresh})

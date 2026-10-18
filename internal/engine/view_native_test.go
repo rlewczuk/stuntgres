@@ -46,7 +46,7 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 			t.Fatal("view owner remap", name, descriptor.owner)
 		}
 		for _, leaf := range descriptor.view.sources {
-			if leaf.ref.Domain() != e.domain || leaf.ref.Epoch != e.state.epoch {
+			if leaf.ref.Domain() != e.catalog.domain || leaf.ref.Epoch != e.catalog.state.epoch {
 				t.Fatal("view identity remap", name, leaf.ref)
 			}
 		}
@@ -70,8 +70,8 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TEMPORARY SEQUENCE retained")
-	oldInt8 := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}].(*typeDescriptor).typ
-	oldBool := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}].(*typeDescriptor).typ
+	oldInt8 := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}].(*typeDescriptor).typ
+	oldBool := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}].(*typeDescriptor).typ
 	const script = "CREATE TABLE t(id BIGINT,flag BOOL); INSERT INTO t VALUES(7,true); CREATE VIEW v(k,flag) AS SELECT COALESCE(id,0),CASE WHEN flag THEN true ELSE false END FROM t WHERE flag ORDER BY id; CREATE VIEW w(k,n) AS SELECT k,COUNT(*) FROM v GROUP BY k HAVING COUNT(*)>0;"
 	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
 		t.Fatal(err)
@@ -80,12 +80,12 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 		t.Fatal(got)
 	}
 	ref := roleTableRef(t, e, "v")
-	definition := e.state.descriptors[ref.Address].(*relationDescriptor).view
+	definition := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).view
 	if definition.query.Root.Schema()[0].Usage.Type != oldInt8 || definition.query.Root.Schema()[1].Usage.Type != oldBool {
 		t.Fatal("view retained type generation")
 	}
 	for _, dependency := range definition.dependencies {
-		if dependency.ref.Domain() != e.domain || dependency.ref.Epoch != e.state.epoch {
+		if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != e.catalog.state.epoch {
 			t.Fatal("view dependency generation", dependency)
 		}
 	}

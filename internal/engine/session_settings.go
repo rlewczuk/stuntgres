@@ -431,7 +431,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if owner.ended {
 		return Result{}, errors.New("stuntgres: settings attachment ended")
 	}
-	typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
+	typ, _ := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(sqltype.Text)
 	if all {
 		if write {
 			if err := op.ctx.Err(); err != nil {

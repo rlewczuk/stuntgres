@@ -29,7 +29,7 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 	}
 	parent := after.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text}]
 	ref := created[parent]
-	if index.sqlIndex.parent != parent || ref.Address != parent || ref.Domain() != e.domain || ref.Epoch != after.Epoch() {
+	if index.sqlIndex.parent != parent || ref.Address != parent || ref.Domain() != e.catalog.domain || ref.Epoch != after.Epoch() {
 		return nil
 	}
 	return index

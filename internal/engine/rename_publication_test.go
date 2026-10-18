@@ -16,16 +16,16 @@ func TestAlterRenamePublication(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT)")
 			run(t, e, "INSERT INTO t VALUES(7)")
 			ref := roleTableRef(t, e, "t")
-			old := e.state.descriptors[ref.Address]
+			old := e.catalog.state.descriptors[ref.Address]
 			storage := e.storage[ref.Address]
-			frontier := e.nextRevision
+			frontier := e.catalog.nextRevision
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var once sync.Once
-			provider := e.providers[ids.RelationClassID]
-			e.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+			provider := e.catalog.providers[ids.RelationClassID]
+			e.catalog.providers[ids.RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
 				once.Do(func() {
-					e.providers[ids.RelationClassID] = provider
+					e.catalog.providers[ids.RelationClassID] = provider
 					switch kind {
 					case "collision":
 						run(t, e, "CREATE TABLE winner(a INT)")
@@ -58,10 +58,10 @@ func TestAlterRenamePublication(t *testing.T) {
 					t.Fatal("role revision fence absent")
 				}
 			}
-			if kind != "reset" && (e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage) {
+			if kind != "reset" && (e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage) {
 				t.Fatal("failed publication changed source")
 			}
-			if kind == "cancel" && e.nextRevision != frontier {
+			if kind == "cancel" && e.catalog.nextRevision != frontier {
 				t.Fatal("canceled publication consumed revision")
 			}
 		})

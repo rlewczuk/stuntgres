@@ -211,7 +211,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		if err = scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		ref := e.domain.Ref(stage.base.Epoch(), a)
+		ref := e.catalog.domain.Ref(stage.base.Epoch(), a)
 		if err = scope.acquireSequence(ref, accessExclusive, true); err != nil {
 			return Result{}, err
 		}
@@ -235,7 +235,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[foreign.wrapper])
 				}
 			case *namespaceDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipSuccessor(auth, target)
 				}
@@ -243,7 +243,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					err = ownershipDatabaseCreate(auth)
 				}
 			case *collationDescriptor, *conversionDescriptor, *operatorDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
-				err = auth.Check(AccessRequirement{Object: e.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
 				}
@@ -279,7 +279,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	} else {
 		for _, a := range roots {
-			if err = stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
+			if err = stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), a), a.ClassID == ids.NamespaceClassID); err != nil {
 				break
 			}
 		}

@@ -53,7 +53,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a INT UNIQUE,z INT,b INT)")
 	sessionSQL(t, s, "ALTER TABLE t DROP z")
 	original := alterConstraintDescriptor(t, e, "t")
-	before, store := e.state, e.storage[original.address]
+	before, store := e.catalog.state, e.storage[original.address]
 	op := alterConstraintOperation(t, s)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -80,7 +80,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.state != before || e.storage[original.address] != store || len(original.uniqueConstraints) != 1 {
+	if e.catalog.state != before || e.storage[original.address] != store || len(original.uniqueConstraints) != 1 {
 		t.Fatal("candidate changed borrowed catalog/storage")
 	}
 }
@@ -145,7 +145,7 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 	if len(candidate.foreignKeys) != 1 || candidate.foreignKeys[0].Index != candidate.uniqueConstraints[0].Index {
 		t.Fatal("FK did not bind completed real key", candidate)
 	}
-	foreignKeyHeldMode(t, e, e.domain.Ref(e.state.epoch, original.address), 0, scope.ticket, accessExclusive)
+	foreignKeyHeldMode(t, e, e.catalog.domain.Ref(e.catalog.state.epoch, original.address), 0, scope.ticket, accessExclusive)
 	if len(original.foreignKeys) != 0 || len(original.uniqueConstraints) != 0 {
 		t.Fatal("published before Finish")
 	}
@@ -166,7 +166,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID")
 	child, parent := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "p")
 	f := child.foreignKeys[0]
-	index := e.state.descriptors[f.Index].(*relationDescriptor)
+	index := e.catalog.state.descriptors[f.Index].(*relationDescriptor)
 	comparisons, err := bindForeignKeyComparison(e.CatalogRead(), child, parent, index, f)
 	if err != nil {
 		t.Fatal(err)
@@ -187,7 +187,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 		t.Fatal("ordinary UPDATE acquired historical provenance")
 	}
 	current := scope.stage.rows[child.address][0]
-	rows, err := scope.captureForeignKeyRows(e.domain.Ref(e.state.epoch, child.address), ids.ObjectAddress{})
+	rows, err := scope.captureForeignKeyRows(e.catalog.domain.Ref(e.catalog.state.epoch, child.address), ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a INT UNIQUE,b INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
 	original := alterConstraintDescriptor(t, e, "t")
-	before, store := e.state, e.storage[original.address]
+	before, store := e.catalog.state, e.storage[original.address]
 	root := e.indexRoots[original.uniqueConstraints[0].Index]
 	op := alterConstraintOperation(t, s)
 	auth, err := op.Authorization()
@@ -276,7 +276,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("no real private root validation", err)
 	}
-	if e.state != before || e.storage[original.address] != store || e.indexRoots[original.uniqueConstraints[0].Index] != root || len(original.uniqueConstraints) != 1 {
+	if e.catalog.state != before || e.storage[original.address] != store || e.indexRoots[original.uniqueConstraints[0].Index] != root || len(original.uniqueConstraints) != 1 {
 		t.Fatal("failed candidate changed catalog/roots")
 	}
 }
@@ -287,7 +287,7 @@ func TestAlterAddConstraintLocks(t *testing.T) {
 	sessionSQL(t, c, "CREATE TABLE p(id INT PRIMARY KEY)")
 	sessionSQL(t, c, "CREATE TABLE t(a INT)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	before := e.state
+	before := e.catalog.state
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 	ctx, cancel := context.WithCancel(context.Background())
@@ -312,7 +312,7 @@ func TestAlterAddConstraintLocks(t *testing.T) {
 	if !queued {
 		t.Fatal("ADD FK did not queue its exact child table SRE request")
 	}
-	if e.state != before {
+	if e.catalog.state != before {
 		t.Fatal("queued candidate published")
 	}
 	cancel()
@@ -346,7 +346,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 			t.Fatal("invalid constraint precedes actual ordinary row", name, text)
 		}
 	}
-	sourceState := e.state
+	sourceState := e.catalog.state
 	source := alterConstraintDescriptor(t, e, "t")
 	sourceStore := e.storage[source.address]
 	sourceNN, sourceCK, sourceFK := source.notNullConstraints[0].OID, source.checkConstraints[0].OID, source.foreignKeys[0].OID
@@ -367,7 +367,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	}
 	e.DiscardCatalogStage(malformed)
 	op.Done()
-	if source.foreignKeys[0].Index == source.address || e.state != sourceState || e.storage[source.address] != sourceStore {
+	if source.foreignKeys[0].Index == source.address || e.catalog.state != sourceState || e.storage[source.address] != sourceStore {
 		t.Fatal("malformed stage changed borrowed source")
 	}
 	target := New()
@@ -375,11 +375,11 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TABLE sentinel(a INT)")
 	sessionSQL(t, owner, "INSERT INTO sentinel VALUES(91)")
 	sentinel := alterConstraintDescriptor(t, target, "sentinel")
-	before, store, epoch := target.state, target.storage[sentinel.address], target.state.epoch
+	before, store, epoch := target.catalog.state, target.storage[sentinel.address], target.catalog.state.epoch
 	if err := target.Restore(context.Background(), strings.NewReader(text+"ALTER TABLE public.t ADD CONSTRAINT late FOREIGN KEY(pid) REFERENCES public.absent NOT VALID;")); err == nil {
 		t.Fatal("late missing provider silently accepted")
 	}
-	if target.state != before || target.storage[sentinel.address] != store || target.state.epoch != epoch {
+	if target.catalog.state != before || target.storage[sentinel.address] != store || target.catalog.state.epoch != epoch {
 		t.Fatal("failed import changed sentinel/incarnation")
 	}
 	if err := target.Restore(context.Background(), strings.NewReader(text)); err != nil {
@@ -396,7 +396,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	if again.String() != text {
 		t.Fatal("noncanonical invalid replay", text, again.String())
 	}
-	if e.state != sourceState || e.storage[source.address] != sourceStore || alterConstraintDescriptor(t, e, "t") != source || source.notNullConstraints[0].OID != sourceNN || source.checkConstraints[0].OID != sourceCK || source.foreignKeys[0].OID != sourceFK {
+	if e.catalog.state != sourceState || e.storage[source.address] != sourceStore || alterConstraintDescriptor(t, e, "t") != source || source.notNullConstraints[0].OID != sourceNN || source.checkConstraints[0].OID != sourceCK || source.foreignKeys[0].OID != sourceFK {
 		t.Fatal("target import mutated borrowed source state/storage/identities")
 	}
 }

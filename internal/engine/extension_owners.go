@@ -234,7 +234,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 		return fmt.Errorf("stuntgres: invalid extension owner import authority")
 	}
 	seen := map[ids.ObjectAddress]bool{}
-	candidate := cloneCatalog(e.state)
+	candidate := cloneCatalog(e.catalog.state)
 	roles := e.roleRead(CatalogRead{e, candidate}, e.roles)
 	ownersChanged := false
 	for _, record := range records {
@@ -324,6 +324,6 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 	if err := e.reownCatalogExpressions(candidate, nil, false); err != nil {
 		return err
 	}
-	e.state = candidate
+	e.catalog.state = candidate
 	return nil
 }

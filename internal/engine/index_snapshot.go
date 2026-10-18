@@ -32,10 +32,10 @@ func captureIndexSnapshotParents(ctx context.Context, catalog CatalogRead, stora
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || catalog.owner.state.epoch != catalog.Epoch() || frontier != catalog.owner.commitSeq {
+	if catalog.owner == nil || catalog.state == nil || catalog.owner.catalog.state.epoch != catalog.Epoch() || frontier != catalog.owner.commitSeq {
 		return nil, ErrCatalogReplaced
 	}
-	authority := catalog.owner.state
+	authority := catalog.owner.catalog.state
 	if private != nil {
 		authority = catalog.owner.privateCatalogLocked(private).state
 	}

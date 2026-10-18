@@ -23,7 +23,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		global := defaultACLKey{creator: target.owner, class: authorization.DefaultTables}
 		scoped := defaultACLKey{creator: target.owner, schema: source.schema, class: authorization.DefaultTypes}
 		for _, key := range []defaultACLKey{global, scoped} {
-			record := target.e.state.defaultACLs[key]
+			record := target.e.catalog.state.defaultACLs[key]
 			if record == nil {
 				t.Fatal("imported default missing", key)
 			}
@@ -55,7 +55,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		f.grant(t, "tables", "select", nil)
 		roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_projection_seed(v INT)")
 		f.schema = f.op.session.temporaryNamespace
-		namespace := f.e.state.descriptors[f.schema].(*namespaceDescriptor)
+		namespace := f.e.catalog.state.descriptors[f.schema].(*namespaceDescriptor)
 		assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
 		f.grant(t, "tables", "insert", []string{namespace.name})
 		stage := f.e.BeginCatalogStage(f.e.CatalogRead())
@@ -77,7 +77,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		rights := authorization.ACLRights(table.acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege|authorization.InsertPrivilege, false)
-		if f.e.state.descriptors[table.address] != table || f.e.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != f.op.session.token || f.e.state.defaultACLs[scoped] != nil || f.e.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
+		if f.e.catalog.state.descriptors[table.address] != table || f.e.catalog.state.descriptors[table.namespace].(*namespaceDescriptor).temporary != f.op.session.token || f.e.catalog.state.defaultACLs[scoped] != nil || f.e.catalog.state.defaultACLs[global] == nil || rights&(authorization.SelectPrivilege|authorization.InsertPrivilege) != authorization.SelectPrivilege|authorization.InsertPrivilege {
 			t.Fatal("self replacement confused materialized TEMP ACL with directive")
 		}
 		// Physical end removes directives tied to the retired namespace too.
@@ -93,10 +93,10 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
-		if f.e.state.descriptors[table.address] != nil {
+		if f.e.catalog.state.descriptors[table.address] != nil {
 			t.Fatal("physical end retained TEMP child")
 		}
-		if f.e.state.defaultACLs[tempKey] != nil || endSnapshot.state.defaultACLs[tempKey] == nil || f.e.state.defaultACLs[global] == nil {
+		if f.e.catalog.state.defaultACLs[tempKey] != nil || endSnapshot.state.defaultACLs[tempKey] == nil || f.e.catalog.state.defaultACLs[global] == nil {
 			t.Fatal("TEMP retirement leaked scoped defaults or changed retained source")
 		}
 	})
@@ -105,27 +105,27 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		source.grant(t, "tables", "select", []string{"default_schema"})
 		source.grant(t, "sequences", "usage", nil)
 		// Target has a live TEMP namespace at exactly the imported schema identity.
-		state := cloneCatalog(target.e.state)
+		state := cloneCatalog(target.e.catalog.state)
 		ns := *state.descriptors[target.schema].(*namespaceDescriptor)
 		ns.name = "pg_temp_collision"
 		ns.temporary = target.op.session.token
 		delete(state.names, descriptorNameKey(state.descriptors[target.schema]))
 		state.descriptors[target.schema] = &ns
 		state.names[descriptorNameKey(&ns)] = target.schema
-		target.e.state = state
+		target.e.catalog.state = state
 		target.op.session.temporaryNamespace = target.schema
 		if _, err := target.e.ReplaceCatalog(context.Background(), source.e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		imported := target.e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "default_schema"}]
-		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: imported, class: authorization.DefaultTables}] == nil || target.e.state.defaultACLs[defaultACLKey{creator: target.owner, schema: target.schema, class: authorization.DefaultTables}] != nil {
+		imported := target.e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "default_schema"}]
+		if imported == target.schema || imported == (ids.ObjectAddress{}) || target.e.catalog.state.defaultACLs[defaultACLKey{creator: target.owner, schema: imported, class: authorization.DefaultTables}] == nil || target.e.catalog.state.defaultACLs[defaultACLKey{creator: target.owner, schema: target.schema, class: authorization.DefaultTables}] != nil {
 			t.Fatal("namespace collision did not remap imported policy identity")
 		}
-		if target.e.state.defaultACLs[defaultACLKey{creator: target.owner, class: authorization.DefaultSequences}] == nil {
+		if target.e.catalog.state.defaultACLs[defaultACLKey{creator: target.owner, class: authorization.DefaultSequences}] == nil {
 			t.Fatal("foreign global policy lost")
 		}
 		// A source TEMP-only record is projected out even on a foreign import.
-		tempSource := cloneCatalog(source.e.state)
+		tempSource := cloneCatalog(source.e.catalog.state)
 		tempNS := *tempSource.descriptors[source.schema].(*namespaceDescriptor)
 		tempNS.name = "pg_temp_source"
 		tempNS.temporary = source.op.session.token
@@ -136,7 +136,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if _, err := fresh.e.ReplaceCatalog(context.Background(), CatalogRead{source.e, tempSource}); err != nil {
 			t.Fatal(err)
 		}
-		if len(fresh.e.state.defaultACLs) != 1 || fresh.e.state.defaultACLs[defaultACLKey{creator: fresh.owner, class: authorization.DefaultSequences}] == nil || tempSource.defaultACLs[defaultACLKey{creator: source.owner, schema: source.schema, class: authorization.DefaultTables}] == nil {
+		if len(fresh.e.catalog.state.defaultACLs) != 1 || fresh.e.catalog.state.defaultACLs[defaultACLKey{creator: fresh.owner, class: authorization.DefaultSequences}] == nil || tempSource.defaultACLs[defaultACLKey{creator: source.owner, schema: source.schema, class: authorization.DefaultTables}] == nil {
 			t.Fatal("foreign TEMP policy/source filtering")
 		}
 	})
@@ -169,13 +169,13 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 	roles := f.e.Roles()
 	edges := roles.Memberships()
 	err := f.e.Restore(context.Background(), strings.NewReader("CREATE TABLE before_reject(x INT); ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;"))
-	if err == nil || f.e.state != before.state || f.e.roles != rolesPublication {
+	if err == nil || f.e.catalog.state != before.state || f.e.roles != rolesPublication {
 		t.Fatal("Restore admitted defaults or changed original", err)
 	}
 	if err = f.e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.e.state.defaultACLs) != 0 || f.e.roles != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
+	if len(f.e.catalog.state.defaultACLs) != 0 || f.e.roles != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
 		t.Fatal("Reset default/role/edge boundary")
 	}
 	// Pristine dependent hardwired TYPE baselines must not make ordinary table

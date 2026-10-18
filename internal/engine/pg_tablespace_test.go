@@ -14,11 +14,11 @@ import (
 func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*relationDescriptor, *querySource) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1213}
-	d, ok := e.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_tablespace")
 	}
-	ref := e.domain.Ref(e.state.epoch, address)
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
 	source, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.Roles(), ref, d)
 	if err != nil {
 		t.Fatal(err)
@@ -86,21 +86,21 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
 		t.Fatal("public readonly ACL", d.acl)
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
+	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
 	if row.owningRelation != d.address || row.owner != d.owner {
 		t.Fatal("row identity link", row)
 	}
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
 	if array.owningRelation != d.address || array.owner != d.owner {
 		t.Fatal("array identity link", array)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	state, oid, revision := e.state, e.nextOID, e.nextRevision
+	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	if got, err := e.capturePGTablespace(ctx, e.CatalogRead(), e.Roles(), source.ref, d); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
-	if e.state != state || e.nextOID != oid || e.nextRevision != revision {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
 		t.Fatal("capture mutated state")
 	}
 }
@@ -121,11 +121,11 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	pgTablespaceUnitRows(t, renamed)
 	// Reset imports a fresh postgres-owned catalog. A renamed target without
 	// that source owner must reject replacement, not bypass name provenance.
-	state, oid, revision := e.state, e.nextOID, e.nextRevision
+	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	if err := e.Reset(context.Background()); err == nil {
 		t.Fatal("Reset bypassed missing replacement-owner provenance")
 	}
-	if e.state != state || e.roles != roles || e.nextOID != oid || e.nextRevision != revision {
+	if e.catalog.state != state || e.roles != roles || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
 		t.Fatal("rejected replacement changed target authority")
 	}
 	pgTablespaceUnitRows(t, retained)

@@ -57,7 +57,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				domainUnitTable(t, e, op, "CREATE TABLE public.peer(v public.d)")
 				done()
 			}
-			before, stores, roots := e.state, maps.Clone(e.storage), maps.Clone(e.indexRoots)
+			before, stores, roots := e.catalog.state, maps.Clone(e.storage), maps.Clone(e.indexRoots)
 			op, err := s.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -65,7 +65,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 			_, err = e.Execute(op, statement(t, "COMMIT"), 0, nil)
 			op.Done()
 			if latePeer {
-				if err == nil || e.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) {
+				if err == nil || e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) {
 					t.Fatal("promoted final fence lost", err)
 				}
 			} else {

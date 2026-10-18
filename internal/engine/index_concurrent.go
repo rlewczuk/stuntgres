@@ -73,15 +73,15 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	if err = scope.captureIdentityLocked(auth); err != nil {
 		return nil, nil, auth, err
 	}
-	index, ok := e.state.descriptors[address].(*relationDescriptor)
+	index, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok || index.sqlIndex == nil || index.sqlIndex.parent != scope.lockedRef.Address {
 		return nil, nil, auth, ErrCatalogReplaced
 	}
-	parent, ok := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent, ok := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	if !ok {
 		return nil, nil, auth, ErrCatalogReplaced
 	}
-	if err = auth.CheckCreate(e.domain.Ref(e.state.epoch, parent.namespace)); err != nil {
+	if err = auth.CheckCreate(e.catalog.domain.Ref(e.catalog.state.epoch, parent.namespace)); err != nil {
 		return nil, nil, auth, err
 	}
 	return index, parent, auth, nil

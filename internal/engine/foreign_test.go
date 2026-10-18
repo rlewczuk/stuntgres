@@ -95,7 +95,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		t.Fatal("mapping ownership is not mapped identity", mappedOwner, publicOwner)
 	}
 	e.mu.Lock()
-	auth := catalogAuthorization(e, CatalogRead{e, e.state})
+	auth := catalogAuthorization(e, CatalogRead{e, e.catalog.state})
 	e.mu.Unlock()
 	for _, d := range []*foreignDescriptor{wrapper, server} {
 		ref := foreignRef(auth, d)
@@ -216,12 +216,12 @@ func TestFDWRegistry(t *testing.T) {
 	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	address := e.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}]
-	procedure := e.state.descriptors[address].(*procedureDescriptor)
+	address := e.catalog.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}]
+	procedure := e.catalog.state.descriptors[address].(*procedureDescriptor)
 	if procedure.foreign.wrapper != w || procedure.result != 3115 || procedure.signature != foreignHandlerSignature {
 		t.Fatal("installed declaration lost executable identity", procedure)
 	}
-	if err = e.providers[ids.ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
+	if err = e.catalog.providers[ids.ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -234,12 +234,12 @@ func TestFDWProcedureIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}
-	oldAddress := e.state.names[key]
+	oldAddress := e.catalog.state.names[key]
 	wrapper := &foreignDescriptor{name: "wrapper", handler: oldAddress}
 	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.wrapper != w {
 		t.Fatal(token, err)
 	}
-	replacement := cloneCatalog(e.state)
+	replacement := cloneCatalog(e.catalog.state)
 	copy := *replacement.descriptors[oldAddress].(*procedureDescriptor)
 	delete(replacement.descriptors, oldAddress)
 	copy.address.ObjectID = 40010
@@ -251,7 +251,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("retired address retargeted by same SQL name or lost defensive diagnostic", err)
 	}
-	uncallable := cloneCatalog(e.state)
+	uncallable := cloneCatalog(e.catalog.state)
 	procedure := *uncallable.descriptors[oldAddress].(*procedureDescriptor)
 	procedure.foreign = nil
 	uncallable.descriptors[oldAddress] = &procedure
@@ -284,7 +284,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if count != 1 {
 				t.Fatal("registered procedure identity not unique", count)
 			}
-			ref := e.domain.Ref(base.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.id})
+			ref := e.catalog.domain.Ref(base.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.id})
 			original := base.state.descriptors[ref.Address].(*procedureDescriptor)
 			retained := catalogAuthorization(e, base)
 			retained.state.CurrentUser = retained.roles.LookupRef("pg_read_all_data")
@@ -315,7 +315,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if next == materialized || next.foreign != original.foreign || next.revision != original.revision || next.owner != original.owner || next.namespace != original.namespace || next.signature != original.signature {
 				t.Fatal("ACL publication replaced foreign capability or definition identity")
 			}
-			if err := e.providers[ids.ProcedureClassID].Validate(current, next); err != nil {
+			if err := e.catalog.providers[ids.ProcedureClassID].Validate(current, next); err != nil {
 				t.Fatal("ACL copy lost native payload eligibility", err)
 			}
 			fresh := catalogAuthorization(e, current)
@@ -331,8 +331,8 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
 				t.Fatal("publication mutated retained authority", rights, err)
 			}
-			stable, roles := e.state, e.roles
-			if err := applyObjectGrantUnit(e, op, request); err != nil || e.state != stable || e.roles != roles {
+			stable, roles := e.catalog.state, e.roles
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles != roles {
 				t.Fatal("explicit no-op republished foreign procedure", err)
 			}
 		})

@@ -79,7 +79,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 	var captures []capture
 	e := stage.owner
 	e.mu.Lock()
-	if e.state.epoch != stage.base.Epoch() {
+	if e.catalog.state.epoch != stage.base.Epoch() {
 		e.mu.Unlock()
 		return nil, false, ErrCatalogReplaced
 	}
@@ -117,7 +117,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			}
 			root = private
 		} else {
-			source, ok := e.state.descriptors[address].(*relationDescriptor)
+			source, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 			current := e.storage[parent.address]
 			for edge := &lineage; edge != nil; edge = edge.previous {
 				if ok && sameIndexKeySemantics(source, edge.source) {
@@ -271,7 +271,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(catalog *catalogState, changes *ca
 			continue
 		}
 		if _, captured := changes.originals[index.address]; !captured {
-			changes.originals[index.address] = e.state.descriptors[index.address]
+			changes.originals[index.address] = e.catalog.state.descriptors[index.address]
 		}
 	}
 }

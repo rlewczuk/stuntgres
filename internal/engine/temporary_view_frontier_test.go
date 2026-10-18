@@ -30,7 +30,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 	baseAddress := before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_base"}]
 	viewAddress := before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"}]
 	original := before.state.descriptors[viewAddress].(*relationDescriptor)
-	oldBase := e.domain.Ref(before.Epoch(), baseAddress)
+	oldBase := e.catalog.domain.Ref(before.Epoch(), baseAddress)
 	providers := make(map[ids.ObjectAddress]*relationDescriptor)
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
 		address := before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: name}]
@@ -63,7 +63,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 					}
 				}
 			}
-			use := e.domain.Ref(current.Epoch(), viewAddress)
+			use := e.catalog.domain.Ref(current.Epoch(), viewAddress)
 			auth := namespaceCapturedAuthorization(t, owner)
 			auth.recaptureCatalog(current)
 			e.mu.Lock()

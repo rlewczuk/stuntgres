@@ -19,7 +19,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 	}
 	e.mu.Lock()
 	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
-	stage := e.BeginCatalogStage(CatalogRead{e, e.state})
+	stage := e.BeginCatalogStage(CatalogRead{e, e.catalog.state})
 	if err == nil {
 		err = stage.Create(d)
 	}
@@ -174,7 +174,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			defer cancel()
 			sentinel := errors.New("definition provider veto")
 			if phase == "provider" {
-				e.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
+				e.catalog.providers[ids.RelationClassID] = queryCreateProbeProvider{CatalogProvider: e.catalog.providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
 				stage.initialTables[d.address].versions[0].values = nil
@@ -355,7 +355,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if outcome = scope.gate(&parser.Insert{}); outcome != nil {
 		t.Fatal(outcome)
 	}
-	ref := e.domain.Ref(e.state.epoch, ordinary.address)
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, ordinary.address)
 	if outcome = scope.stage.Apply(ref, [][]sqltype.Value{{value}}); outcome != nil {
 		t.Fatal(outcome)
 	}

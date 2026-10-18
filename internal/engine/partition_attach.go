@@ -62,7 +62,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	// can elide descendant admission; candidate descendants always receive AX.
 	var defaultScans []partitionAttachScan
 	if !bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-		ref := e.domain.Ref(auth.catalog.Epoch(), parent.partition.defaultChild)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.partition.defaultChild)
 		if err = scope.acquirePartitionLock(ref, accessExclusive); err != nil {
 			return Result{}, err
 		}
@@ -234,7 +234,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 	defer e.mu.Unlock()
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
+	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
 		return CatalogRead{}, nil, ErrCatalogReplaced
 	}
 	return catalog, d, nil
@@ -246,7 +246,7 @@ func (e *Engine) partitionAttachAuthorization(op *Operation, auth AuthorizationV
 	if !op.restorePartitionAttach {
 		return auth, nil
 	}
-	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.catalog.owner == nil || auth.catalog.owner.domain != e.domain || auth.catalog.state != e.state {
+	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.catalog.owner == nil || auth.catalog.owner.catalog.domain != e.catalog.domain || auth.catalog.state != e.catalog.state {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition attachment authority")
 	}
 	if err := e.validateOperation(op); err != nil {

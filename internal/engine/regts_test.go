@@ -34,7 +34,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
 		ns.name = name
 		if i == 3 {
-			ns.temporary = e.domain.Session(99)
+			ns.temporary = e.catalog.domain.Session(99)
 		}
 		view.state.descriptors[ns.address] = &ns
 		view.state.names[descriptorNameKey(&ns)] = ns.address
@@ -312,7 +312,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
 	extensionUnitError(t, err, "42501")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, ns.address), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
 		t.Fatal(err)
 	}
 	granted := capture()
@@ -336,7 +336,7 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	if dictionary == nil {
 		t.Fatal("real dictionary provider missing")
 	}
-	ref := e.domain.Ref(view.Epoch(), dictionary.address)
+	ref := e.catalog.domain.Ref(view.Epoch(), dictionary.address)
 	consumer := func(ref ids.ObjectRef) *relationDescriptor {
 		return &relationDescriptor{
 			address:          ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},

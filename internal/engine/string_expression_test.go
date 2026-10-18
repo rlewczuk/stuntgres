@@ -169,7 +169,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE deparse_args(v CHAR(4),s CHAR(4),e TEXT,CHECK(btrim(v,s)=e))")
 	ref := roleTableRef(t, e, "deparse_args")
-	relation := e.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.String)
 	args := append([]BoundExpr(nil), node.Args...)
 	plan := node.Plan
@@ -200,7 +200,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE trim_copies(v BYTEA,s BYTEA,e BYTEA,CHECK(TRIM(LEADING s FROM v)=e))")
 	ref := roleTableRef(t, e, "trim_copies")
-	relation := e.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.Binary)
 	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")

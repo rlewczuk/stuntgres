@@ -29,7 +29,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, childStage)
-	oldRef := e.domain.Ref(e.CatalogRead().Epoch(), c.address)
+	oldRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), c.address)
 	oldStorage := e.storage[c.address]
 	holderOp, holderDone, err := testOperation(e, context.Background())
 	if err != nil {
@@ -61,7 +61,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	parentRef := e.domain.Ref(e.CatalogRead().Epoch(), p.address)
+	parentRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {

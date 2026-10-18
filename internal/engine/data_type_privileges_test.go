@@ -25,7 +25,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog CatalogRead) A
 
 func dtpUnitCapture(ctx context.Context, catalog CatalogRead, auth AuthorizationView) (*querySource, error) {
 	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID}].(*relationDescriptor)
-	ref := catalog.owner.domain.Ref(catalog.Epoch(), source.address)
+	ref := catalog.owner.catalog.domain.Ref(catalog.Epoch(), source.address)
 	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
 }
 
@@ -67,7 +67,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		}
 	}
 	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID}].(*relationDescriptor)
-	ref := f.e.domain.Ref(catalog.Epoch(), source.address)
+	ref := f.e.catalog.domain.Ref(catalog.Epoch(), source.address)
 	stale := ref
 	stale.Epoch++
 	if rows, err := captureDataTypePrivileges(context.Background(), catalog, auth, "unit_database", stale, source); rows != nil || err == nil {
@@ -88,7 +88,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 	}
 	// A real staged user domain cannot inherit the seeded builtin exemption.
 	domainUnitPublish(t, f.e, domainUnitStage(t, f.e, f.op, "CREATE DOMAIN public.dtp_ownerless AS integer"))
-	state := cloneCatalog(f.e.state)
+	state := cloneCatalog(f.e.catalog.state)
 	domain := *domainUnitType(t, CatalogRead{f.e, state}, "dtp_ownerless")
 	domain.owner = authorization.PrincipalRef{}
 	state.descriptors[domain.Address()] = &domain
@@ -100,7 +100,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 
 func TestDataTypePrivilegesVisibility(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := cloneCatalog(f.e.state)
+	state := cloneCatalog(f.e.catalog.state)
 	typ, _ := (CatalogRead{f.e, state}).LookupType(sqltype.Int4)
 	relation := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20110}, namespace: f.schema, name: "dtp_unit", owner: f.owner, revision: 1, relationKind: tableRelation, acl: authorization.ACLValue{Explicit: true}, attributes: []int32{1, 3, 4}, columns: []ColumnDescriptor{{Name: "a", Usage: typ.Usage()}, {Name: "c", Usage: typ.Usage()}, {Name: "d", Usage: typ.Usage()}}, columnACL: map[int32]authorization.ACLValue{3: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}}
 	state.descriptors[relation.address] = relation

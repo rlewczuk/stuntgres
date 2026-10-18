@@ -56,7 +56,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	domainUnitPublish(t, e, stage)
 	ref := catalogRef(t, e, e.CatalogRead(), "affected")
 	other := catalogRef(t, e, e.CatalogRead(), "untouched")
-	oldCatalog := e.state
+	oldCatalog := e.catalog.state
 	oldRelation := oldCatalog.descriptors[ref.Address].(*relationDescriptor)
 	value, _ := mood.typ.Input(context.Background(), "q", -1)
 	oldStore := &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 3, keyChangedAt: 2, values: []sqltype.Value{value}}}, generation: 4}
@@ -98,7 +98,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); !errors.Is(err, context.Canceled) || e.state != oldCatalog || e.storage[ref.Address] != oldStore {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
 	if text, err := mood.typ.Output(context.Background(), oldStore.versions[0].values[0]); err != nil || text != "q" {

@@ -16,7 +16,7 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 			sessionSQL(t, owner, "CREATE TABLE t(v INT)")
 			sessionSQL(t, owner, "INSERT INTO t VALUES(1)")
 			table := catalogRef(t, e, e.CatalogRead(), "t")
-			catalog, store, frontier := e.state, e.storage[table.Address], e.commitSeq
+			catalog, store, frontier := e.catalog.state, e.storage[table.Address], e.commitSeq
 			m := batchUnitStart(t, owner, context.Background())
 			t.Cleanup(func() { _ = m.end(context.Canceled) })
 			if _, err := m.step(statement(t, "ALTER TABLE t ADD j INT DEFAULT 4")); err != nil {
@@ -58,7 +58,7 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			e.mu.Lock()
-			unchanged := e.state == catalog && e.storage[table.Address] == store && e.commitSeq == frontier && len(e.state.descriptors[table.Address].(*relationDescriptor).columns) == 1
+			unchanged := e.catalog.state == catalog && e.storage[table.Address] == store && e.commitSeq == frontier && len(e.catalog.state.descriptors[table.Address].(*relationDescriptor).columns) == 1
 			private := e.privateCatalogLocked(owner.transactions.catalog)
 			e.mu.Unlock()
 			if !unchanged || len(private.state.descriptors[table.Address].(*relationDescriptor).columns) != 2 || owner.transactions.catalog.storage[table.Address].replacement == store {
@@ -108,11 +108,11 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 				t.Fatal("released reader observed wrong schema/data disposition", r.result.Rows.Schema())
 			}
 			if commit {
-				if e.state == catalog || e.storage[table.Address] == store || e.commitSeq != frontier+1 {
+				if e.catalog.state == catalog || e.storage[table.Address] == store || e.commitSeq != frontier+1 {
 					t.Fatal("utility roots not installed together")
 				}
 			} else {
-				if e.state != catalog || e.storage[table.Address] != store || e.commitSeq != frontier {
+				if e.catalog.state != catalog || e.storage[table.Address] != store || e.commitSeq != frontier {
 					t.Fatal("failed utility roots changed")
 				}
 			}

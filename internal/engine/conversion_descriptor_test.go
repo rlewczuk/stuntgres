@@ -212,7 +212,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	}
 	for _, address := range []ids.ObjectAddress{{ClassID: ids.ConversionClassID, ObjectID: 4519}, {ClassID: ids.ProcedureClassID, ObjectID: 4375}} {
 		stage = e.BeginCatalogStage(before)
-		if err = stage.Remove(e.domain.Ref(before.Epoch(), address)); !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
+		if err = stage.Remove(e.catalog.domain.Ref(before.Epoch(), address)); !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
 			t.Fatal("real provider pin removed", address, err)
 		}
 		e.DiscardCatalogStage(stage)

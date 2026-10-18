@@ -112,15 +112,15 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	return nil
 }
 func (e *Engine) initializeOperators() {
-	e.state.operatorNames = seededOperatorNames
+	e.catalog.state.operatorNames = seededOperatorNames
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, row := range builtinOperators {
 		d := &operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, namespace: ns, revision: 1, name: row.name, left: row.left, right: row.right, owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
-		e.state.descriptors[d.address] = d
-		e.state.names[descriptorNameKey(d)] = d.address
+		e.catalog.state.descriptors[d.address] = d
+		e.catalog.state.names[descriptorNameKey(d)] = d.address
 	}
 	for _, row := range supportedOperatorMetadata {
-		d := e.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}].(*operatorDescriptor)
+		d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}].(*operatorDescriptor)
 		d.result, d.function = ids.OID(row.result), ids.OID(row.procedure)
 		d.commutator, d.negator = ids.OID(row.commutator), ids.OID(row.negator)
 		d.restriction, d.join = ids.OID(row.restriction), ids.OID(row.join)

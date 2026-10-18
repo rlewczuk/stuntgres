@@ -145,13 +145,13 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				shapedDefinition.predicate = &predicate
 			}
 			index.sqlIndex = &shapedDefinition
-			nextCatalog := *f.e.state
+			nextCatalog := *f.e.catalog.state
 			nextCatalog.descriptors = maps.Clone(nextCatalog.descriptors)
 			nextCatalog.descriptors[parent.address] = &parent
 			nextCatalog.descriptors[index.address] = &index
 			stores := maps.Clone(f.e.storage)
 			stores[parent.address] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.state, &nextCatalog, stores, f.e.indexRoots, map[ids.ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.indexRoots, map[ids.ObjectAddress]bool{parent.address: true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}

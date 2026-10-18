@@ -19,7 +19,7 @@ type remintedIndexStorage struct {
 }
 
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (remintedIndexStorage, error) {
-	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.state, baseRow: e.nextRow, baseVersion: e.nextVersion, frontier: e.commitSeq}
+	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.nextRow, baseVersion: e.nextVersion, frontier: e.commitSeq}
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, storage, snapshot)
 	if err == nil {
@@ -35,7 +35,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	retained := &catalogState{descriptors: make(map[ids.ObjectAddress]Descriptor)}
 	for address, descriptor := range next.descriptors {
 		namespace, temporary := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor)
-		if temporary && namespace.temporary != (ids.SessionToken{}) && descriptor == e.state.descriptors[address] {
+		if temporary && namespace.temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.descriptors[address] {
 			retained.descriptors[address] = descriptor
 			continue
 		}

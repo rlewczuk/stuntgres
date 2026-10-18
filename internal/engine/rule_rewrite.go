@@ -815,7 +815,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 			whole := address
 			whole.SubID = 0
 			if descriptor, ok := auth.catalog.state.descriptors[whole]; ok {
-				b.dependencies = append(b.dependencies, expressionDependency{ref: e.domain.Ref(auth.catalog.Epoch(), address), revision: descriptor.Revision()})
+				b.dependencies = append(b.dependencies, expressionDependency{ref: e.catalog.domain.Ref(auth.catalog.Epoch(), address), revision: descriptor.Revision()})
 			}
 		}
 		for _, action := range r.actions {
@@ -1137,7 +1137,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	var sources []queryLeaf
 	for i, source := range b.querySources {
 		current, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
-		if !ok || source.relation == nil || source.ref.Domain() != auth.engine.domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
+		if !ok || source.relation == nil || source.ref.Domain() != auth.engine.catalog.domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
 			return b, ErrCatalogReplaced
 		}
 		storage := auth.engine.authorizationStorageLocked(auth, source.ref.Address)

@@ -45,7 +45,7 @@ func TestSchemaNestedConditionalTables(t *testing.T) {
 			owner, _ := e.Roles().Lookup("nested_owner")
 			for _, table := range []string{"t", "clone"} {
 				ref := roleTableRef(t, e, "nc."+table)
-				d := e.state.descriptors[ref.Address].(*relationDescriptor)
+				d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				if d.owner != owner.Ref || len(d.columns) != 1 || d.columns[0].Name != "id" || d.columns[0].Usage.Type.DatabaseName() != "INT4" || d.columns[0].Nullable || !d.columns[0].NullabilityKnown || d.acl.Explicit || len(d.columnACL) != 0 || d.columns[0].OriginTable != uint32(ref.Address.ObjectID) || d.columns[0].OriginAttribute != 1 {
 					t.Fatal("conditional retained shape/owner/origin", table, d)
 				}

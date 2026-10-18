@@ -17,7 +17,7 @@ func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ids.
 	if !ok {
 		t.Fatal("missing pg_indexes")
 	}
-	return d, c.owner.domain.Ref(c.Epoch(), a)
+	return d, c.owner.catalog.domain.Ref(c.Epoch(), a)
 }
 func pgIndexesUnitCapture(t *testing.T, c CatalogRead, auth AuthorizationView) *querySource {
 	t.Helper()
@@ -237,7 +237,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	}
 	foreign := New()
 	bad := ref
-	bad = foreign.domain.Ref(bad.Epoch, bad.Address)
+	bad = foreign.catalog.domain.Ref(bad.Epoch, bad.Address)
 	for _, invalid := range []ids.ObjectRef{bad, ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, parent.Address)} {
 		if _, err := capturePGIndexes(context.Background(), old, auth, invalid, d); err == nil {
 			t.Fatal("invalid capture accepted", invalid)

@@ -11,7 +11,7 @@ import (
 
 func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error {
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || ref.Domain() != auth.engine.domain || ref.Epoch != auth.catalog.Epoch() {
+	if !ok || ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
 		return ErrCatalogReplaced
 	}
 	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != materializedViewRelation {
@@ -71,7 +71,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err == nil {
 		current, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	}
-	if err == nil && (s.txRef.Epoch() != e.state.epoch || !materializedRefreshCompatible(observed, current)) {
+	if err == nil && (s.txRef.Epoch() != e.catalog.state.epoch || !materializedRefreshCompatible(observed, current)) {
 		err = ErrCatalogReplaced
 	}
 	if err == nil {
@@ -284,7 +284,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil || s.materializedReplacement != nil || d == nil || d.relationKind != materializedViewRelation || d.view == nil || s.base.state.descriptors[d.address] != d || e.stageCatalogBaseLocked(s).descriptors[d.address] != d || previous == nil || e.stageStorageLocked(s, d.address) != previous || !populated && len(rows) != 0 {
 		return fmt.Errorf("stuntgres: invalid materialized replacement stage")
 	}
-	if s.base.Epoch() != e.state.epoch {
+	if s.base.Epoch() != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	if d.revision == ids.DefinitionRevision(^uint64(0)) || previous.generation == ^uint64(0) {

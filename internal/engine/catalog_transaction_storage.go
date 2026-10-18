@@ -54,11 +54,11 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 	if a == nil {
 		return nil
 	}
-	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).revision != a.roles || e.state.descriptors[a.ref.Address] != a.descriptor {
+	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).revision != a.roles || e.catalog.state.descriptors[a.ref.Address] != a.descriptor {
 		return CatalogConflict{}
 	}
 	if a.databasePredecessor != nil {
-		if e.state.descriptors[currentDatabaseAddress] != a.databasePredecessor {
+		if e.catalog.state.descriptors[currentDatabaseAddress] != a.databasePredecessor {
 			return CatalogConflict{}
 		}
 		if c != nil {
@@ -70,7 +70,7 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 	}
 	for _, observed := range a.observations {
 		address := observed.Address()
-		installed := e.state.descriptors[address]
+		installed := e.catalog.state.descriptors[address]
 		if installed == observed {
 			continue
 		}

@@ -20,7 +20,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 					sessionSQL(t, s, q)
 				}
 			}
-			entry := e.state
+			entry := e.catalog.state
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			message := batchUnitStart(t, s, ctx)
@@ -47,7 +47,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			table := catalogRef(t, e, view, "stored")
 			domain := domainUnitType(t, view, "d")
 			sequence := catalogRef(t, e, view, "calls")
-			if e.sequences[sequence.Address].last != 2 || domain.domainChecks[0].NotValid || e.state != entry {
+			if e.sequences[sequence.Address].last != 2 || domain.domainChecks[0].NotValid || e.catalog.state != entry {
 				t.Fatal("selected truth count or private publication", e.sequences[sequence.Address].last)
 			}
 			if kind == "private_create" && (changes.originals[domain.Address()] != nil || changes.storage[table.Address].original != nil) {
@@ -100,7 +100,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				e.storage[table.Address] = &store
 				fail = true
 			}
-			before, stores, roots, frontier := e.state, maps.Clone(e.storage), maps.Clone(e.indexRoots), e.commitSeq
+			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage), maps.Clone(e.indexRoots), e.commitSeq
 			var err error
 			if kind == "cancel_before" || kind == "cancel_after" {
 				barrier := &batchPublicationContext{Context: message.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -149,14 +149,14 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				err = message.end(nil)
 			}
 			if fail {
-				if err == nil || e.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || e.commitSeq != frontier {
+				if err == nil || e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || e.commitSeq != frontier {
 					t.Fatal("message veto installed partial roots", err)
 				}
 				if kind == "cancel_before" && !errors.Is(err, context.Canceled) {
 					t.Fatal("cancellation primary", err)
 				}
 			} else {
-				if err != nil || e.state == before {
+				if err != nil || e.catalog.state == before {
 					t.Fatal("message failed to publish", err)
 				}
 				current := domainUnitType(t, e.CatalogRead(), "d")
@@ -205,7 +205,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			parent := catalogRef(t, e, e.CatalogRead(), "stored").Address
 			index := catalogRef(t, e, e.CatalogRead(), "checked_idx").Address
 			sequence := catalogRef(t, e, e.CatalogRead(), "calls").Address
-			oldIndex := e.state.descriptors[index].(*relationDescriptor)
+			oldIndex := e.catalog.state.descriptors[index].(*relationDescriptor)
 			original := s.transactions.writes[parent][0]
 			output, ok := original.indexOutputs[index]
 			// Only actual executable conversions need frozen producer outputs;

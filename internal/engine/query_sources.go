@@ -129,7 +129,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 // revisions may refresh authority before binding, never an already bound layout.
 func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
 	current, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
-	if !ok || source.relation == nil || source.ref.Domain() != e.domain || source.ref.Epoch != e.state.epoch || source.ref.Address.SubID != 0 ||
+	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.domain || source.ref.Epoch != e.catalog.state.epoch || source.ref.Address.SubID != 0 ||
 		current.address != source.relation.address || current.namespace != source.relation.namespace || current.name != source.relation.name || current.relationKind != source.relation.relationKind ||
 		!sameRelationRowShape(current, source.relation) {
 		return nil, ErrCatalogReplaced

@@ -19,12 +19,12 @@ func TestIndexMaintenanceMalformedControlBeforeDeniedWait(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.state.descriptors[table.Address].(*relationDescriptor).owner
+	owner := e.catalog.state.descriptors[table.Address].(*relationDescriptor).owner
 	user, ok := e.Roles().Lookup("im_badcontrol")
 	if !ok {
 		t.Fatal("missing role fixture")
 	}
-	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}

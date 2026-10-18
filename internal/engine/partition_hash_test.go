@@ -41,7 +41,7 @@ func TestHashPartitionBounds(t *testing.T) {
 func hashPartitionUnitDescriptor(t *testing.T) (CatalogRead, *relationDescriptor, *relationDescriptor) {
 	t.Helper()
 	e := New()
-	catalog := cloneCatalog(e.state)
+	catalog := cloneCatalog(e.catalog.state)
 	var typ *sqltype.Descriptor
 	for _, candidate := range sqltype.Builtins() {
 		if candidate.ID() == sqltype.Int4 {

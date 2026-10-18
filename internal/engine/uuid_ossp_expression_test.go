@@ -215,7 +215,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(installedUUIDOsspFunctionExpression)
 	captured, err := expressionRoutineDescriptor(node)
-	if err != nil || captured != n.procedure || captured.address != ext.members[0] || captured.routineKind != functionRoutine || captured.result != 2950 || captured.signature != "" || !captured.strict || captured.volatility != Volatile || len(captured.body) != 0 || n.ref.Domain() != e.domain {
+	if err != nil || captured != n.procedure || captured.address != ext.members[0] || captured.routineKind != functionRoutine || captured.result != 2950 || captured.signature != "" || !captured.strict || captured.volatility != Volatile || len(captured.body) != 0 || n.ref.Domain() != e.catalog.domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.dependencies)
@@ -256,7 +256,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 					case "revision":
 						deps[i].revision++
 					case "foreign_ref":
-						deps[i].ref = other.domain.Ref(deps[i].ref.Epoch, deps[i].ref.Address)
+						deps[i].ref = other.catalog.domain.Ref(deps[i].ref.Epoch, deps[i].ref.Address)
 					}
 				}
 			}
@@ -344,7 +344,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	foreignView := other.CatalogRead()
 	foreignNode, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef {
-		ref = other.domain.Ref(foreignView.Epoch(), ref.Address)
+		ref = other.catalog.domain.Ref(foreignView.Epoch(), ref.Address)
 		return ref
 	}, nil)
 	if err != nil {
@@ -409,7 +409,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 			t.Fatal(err)
 		}
 		current := auth.catalog.state.descriptors[address].(*procedureDescriptor)
-		ref := e.domain.Ref(auth.catalog.Epoch(), address)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 		rights, err := auth.Effective(ref, false)
 		if err != nil || current.acl.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.acl, rights, err)

@@ -54,7 +54,7 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	}
 	source, err := standaloneComposite(auth.catalog, typ, path)
 	if err == nil {
-		err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), typ.Address()))
+		err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), typ.Address()))
 	}
 	if err != nil {
 		return nil, nil, nil, err
@@ -279,7 +279,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		if !ok {
 			continue
 		}
-		if err := scope.acquireSequence(stage.owner.domain.Ref(stage.base.Epoch(), typ.owningRelation), mode, true); err != nil {
+		if err := scope.acquireSequence(stage.owner.catalog.domain.Ref(stage.base.Epoch(), typ.owningRelation), mode, true); err != nil {
 			return err
 		}
 		// A wait may admit a different definition at the same address. Keep
@@ -287,7 +287,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		// neither a new generation nor a same-name source can be adopted.
 		e := stage.owner
 		e.mu.Lock()
-		valid := e.state.descriptors[source] == typ && e.state.descriptors[typ.owningRelation] == stage.base.state.descriptors[typ.owningRelation]
+		valid := e.catalog.state.descriptors[source] == typ && e.catalog.state.descriptors[typ.owningRelation] == stage.base.state.descriptors[typ.owningRelation]
 		e.mu.Unlock()
 		if !valid {
 			return CatalogConflict{}

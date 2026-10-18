@@ -153,7 +153,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 			if edge.automatic {
 				continue
 			}
-			ref := provider.owner.domain.Ref(provider.base.Epoch(), edge.relation.address)
+			ref := provider.owner.catalog.domain.Ref(provider.base.Epoch(), edge.relation.address)
 			if !slices.Contains(owners, ref) {
 				owners = append(owners, ref)
 			}
@@ -303,7 +303,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 				continue
 			}
 			for _, a := range []ids.ObjectAddress{child.address, f.Target} {
-				ref := e.domain.Ref(view.Epoch(), a)
+				ref := e.catalog.domain.Ref(view.Epoch(), a)
 				if !slices.Contains(refs, ref) {
 					refs = append(refs, ref)
 				}
@@ -350,11 +350,11 @@ func (s *StatementScope) validateAlterForeignKeys(view CatalogRead, address ids.
 			if err != nil {
 				return err
 			}
-			children, err := s.captureForeignKeyRows(e.domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
+			children, err := s.captureForeignKeyRows(e.catalog.domain.Ref(view.Epoch(), child.address), ids.ObjectAddress{})
 			if err != nil {
 				return err
 			}
-			parents, err := s.captureForeignKeyRows(e.domain.Ref(view.Epoch(), parent.address), f.Index)
+			parents, err := s.captureForeignKeyRows(e.catalog.domain.Ref(view.Epoch(), parent.address), f.Index)
 			if err != nil {
 				return err
 			}
@@ -385,7 +385,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if _, external := stage.base.state.descriptors[f.Target]; !external {
 				continue
 			}
-			ref := stage.owner.domain.Ref(stage.base.Epoch(), f.Target)
+			ref := stage.owner.catalog.domain.Ref(stage.base.Epoch(), f.Target)
 			if !slices.Contains(refs, ref) {
 				refs = append(refs, ref)
 			}

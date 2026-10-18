@@ -61,10 +61,10 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, node)
 	e.mu.Lock()
-	old := e.state
+	old := e.catalog.state
 	retained := scope.owner.sequenceCatalog
-	e.state = cloneCatalog(e.state)
-	e.state.epoch++
+	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state.epoch++
 	// Wake the candidate as an ordinary resolved safe candidate: admission
 	// must still reject its old epoch and discard the retained catalog pointer.
 	node.resolved = true

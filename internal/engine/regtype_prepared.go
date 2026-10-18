@@ -85,7 +85,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 	for _, constant := range cell.constants {
 		for _, operand := range constant.operands {
 			d := auth.catalog.state.descriptors[operand.ref.Address]
-			if d == nil || operand.ref.Domain() != e.domain || operand.ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.revision {
+			if d == nil || operand.ref.Domain() != e.catalog.domain || operand.ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.revision {
 				return false, nil
 			}
 		}
@@ -99,7 +99,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 				if ns == nil || ns.Name() != reference.namespaceName {
 					return false, nil
 				}
-				if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), reference.namespace)); err != nil {
+				if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), reference.namespace)); err != nil {
 					if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 						return false, nil
 					}
@@ -111,7 +111,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 			if auth.catalog.state.descriptors[namespace] == nil {
 				return false, nil
 			}
-			if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), namespace)); err != nil {
+			if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), namespace)); err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 					return false, nil
 				}

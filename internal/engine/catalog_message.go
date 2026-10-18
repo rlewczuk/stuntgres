@@ -19,7 +19,7 @@ func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalogState {
 	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
 		return e.privateCatalogLocked(s.authSession.transactions.catalog).state
 	}
-	return e.state
+	return e.catalog.state
 }
 func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *relationStorage {
 	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
@@ -29,7 +29,7 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *relat
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	for _, fence := range c.domainValidations {
-		if !fence.current(CatalogRead{e, e.state}, e.storage) {
+		if !fence.current(CatalogRead{e, e.catalog.state}, e.storage) {
 			return CatalogConflict{}
 		}
 	}
@@ -46,7 +46,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	}
 	for _, f := range c.indexFences {
 		count := 0
-		for a, d := range e.state.descriptors {
+		for a, d := range e.catalog.state.descriptors {
 			r, ok := d.(*relationDescriptor)
 			if ok && r.sqlIndex != nil && r.sqlIndex.parent == f.parent {
 				if !f.indexes[a] {
@@ -61,7 +61,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	}
 	for _, f := range c.namespaceFences {
 		count := 0
-		for a, d := range e.state.descriptors {
+		for a, d := range e.catalog.state.descriptors {
 			if d.Namespace() == f.namespace {
 				if f.members[a] != d {
 					return CatalogConflict{}
@@ -95,12 +95,12 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			return CatalogConflict{}
 		}
 		if _, ok := c.originals[a]; !ok {
-			c.originals[a] = e.state.descriptors[a]
+			c.originals[a] = e.catalog.state.descriptors[a]
 		}
 		return nil
 	}
 	if s.databasePredecessor != nil {
-		if current.descriptors[currentDatabaseAddress] != s.databaseAuthority || e.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
+		if current.descriptors[currentDatabaseAddress] != s.databaseAuthority || e.catalog.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
 			return ErrCatalogReplaced
 		}
 		if original, ok := c.originals[currentDatabaseAddress]; ok && original != s.databasePredecessor {
@@ -163,7 +163,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		if snapshot := s.materializedSourceView; snapshot != nil {
 			if relation, ok := source.(*relationDescriptor); ok && relation.relationKind == materializedViewRelation {
-				fence := materializedSourceFence{ref: e.domain.Ref(snapshot.catalog.Epoch(), relation.address), relation: relation, storage: snapshot.generationAt(relation.address)}
+				fence := materializedSourceFence{ref: e.catalog.domain.Ref(snapshot.catalog.Epoch(), relation.address), relation: relation, storage: snapshot.generationAt(relation.address)}
 				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.address] == nil {
 					c.materializedSources = append(c.materializedSources, fence)
 					continue
@@ -205,7 +205,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			return CatalogConflict{}
 		}
 		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.state.names[k]
+			c.names[k] = e.catalog.state.names[k]
 		}
 	}
 	for parent := range s.indexSets {
@@ -218,7 +218,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			}
 		}
 		f := catalogIndexFence{parent: parent, indexes: map[ids.ObjectAddress]bool{}}
-		for a, d := range e.state.descriptors {
+		for a, d := range e.catalog.state.descriptors {
 			r, ok := d.(*relationDescriptor)
 			if ok && r.sqlIndex != nil && r.sqlIndex.parent == parent {
 				f.indexes[a] = true
@@ -229,7 +229,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	for a := range s.removals {
 		if a.ClassID == ids.NamespaceClassID {
 			f := catalogNamespaceFence{namespace: a, members: map[ids.ObjectAddress]Descriptor{}}
-			for address, d := range e.state.descriptors {
+			for address, d := range e.catalog.state.descriptors {
 				if d.Namespace() == a {
 					f.members[address] = d
 				}

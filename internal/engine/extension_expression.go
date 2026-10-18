@@ -149,7 +149,7 @@ func (b *expressionBinder) bindInstalledFunction(raw parser.FunctionExpr) (Bound
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.domain.Ref(auth.catalog.Epoch(), proc.address)
+	ref := b.engine.catalog.domain.Ref(auth.catalog.Epoch(), proc.address)
 	b.dependency(ref, proc.revision)
 	info.RoutineReference = proc
 	node := installedFunctionExpression{expressionInfo: info, arg: arg, procedure: proc, dictionary: dict, template: tmpl, ref: ref}

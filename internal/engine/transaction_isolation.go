@@ -220,7 +220,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return err
 		}
-		if t.ref != s.txRef || t.ref.Epoch() != e.state.epoch {
+		if t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.epoch {
 			return ErrCatalogReplaced
 		}
 		return nil
@@ -240,12 +240,12 @@ func (s *StatementScope) snapshotDataPhase() error {
 		}
 		roots = make(map[ids.ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
-			if relation, ok := e.state.descriptors[address].(*relationDescriptor); ok {
+			if relation, ok := e.catalog.state.descriptors[address].(*relationDescriptor); ok {
 				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}
 			}
 		}
 		frontier = e.commitSeq
-		sequenceCatalog = e.state
+		sequenceCatalog = e.catalog.state
 	}
 	if !needsProjection(roots) {
 		t.roots, t.frontier = roots, frontier

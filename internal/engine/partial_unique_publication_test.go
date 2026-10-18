@@ -68,7 +68,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := e.state.descriptors[ref.Address].(*relationDescriptor)
+	parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	index, root := btreeRoot(t, e, "public.ui_index")
 	if index.sqlIndex.constraint != nil || len(parent.uniqueConstraints) != 0 || index.sqlIndex.predicate == nil {
 		t.Fatal("not real standalone partial")
@@ -79,7 +79,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if len(root.entries) != 2 || !maps.Equal(root.membership, map[ids.RowID]ids.VersionID{e.storage[ref.Address].versions[0].row: e.storage[ref.Address].versions[0].version, e.storage[ref.Address].versions[1].row: e.storage[ref.Address].versions[1].version}) {
 		t.Fatal("seed membership", root)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Clone(e.catalog.state.descriptors), names: maps.Clone(e.catalog.state.names), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
 	for a, s := range f.stores {
 		f.storeSnapshots[a] = uniquePublicationStore(s)
 	}

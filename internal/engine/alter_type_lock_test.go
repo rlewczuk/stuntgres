@@ -22,7 +22,7 @@ func TestAlterTypeGrantTimeLiveRows(t *testing.T) {
 			}
 			sessionSQL(t, a, "INSERT INTO t VALUES("+seed+")")
 			ref := roleTableRef(t, e, "t")
-			old, storage := e.state.descriptors[ref.Address], e.storage[ref.Address]
+			old, storage := e.catalog.state.descriptors[ref.Address], e.storage[ref.Address]
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			ctx, cancel := context.WithCancel(context.Background())
@@ -32,7 +32,7 @@ func TestAlterTypeGrantTimeLiveRows(t *testing.T) {
 			if kind == "cancel" {
 				cancel()
 				lockAwait(t, done, context.Canceled)
-				if e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
+				if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
 					t.Fatal("canceled waiter changed state")
 				}
 				transactionEnd(t, a, tx, false)
@@ -53,7 +53,7 @@ func TestAlterTypeGrantTimeLiveRows(t *testing.T) {
 					case <-time.After(5 * time.Second):
 						t.Fatal("TYPE did not terminate after AX grant")
 					}
-					if e.state.descriptors[ref.Address] != old {
+					if e.catalog.state.descriptors[ref.Address] != old {
 						t.Fatal("published invalid grant-time conversion")
 					}
 				} else {
@@ -81,7 +81,7 @@ func TestAlterTypeCancellationDuringConversion(t *testing.T) {
 	run(t, e, "CREATE TABLE t(c TEXT)")
 	run(t, e, "INSERT INTO t VALUES"+strings.TrimSuffix(strings.Repeat("('7'),", 128), ","))
 	ref := roleTableRef(t, e, "t")
-	old, storage := e.state.descriptors[ref.Address], e.storage[ref.Address]
+	old, storage := e.catalog.state.descriptors[ref.Address], e.storage[ref.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, cleanup, err := testOperation(e, ctx)
@@ -91,7 +91,7 @@ func TestAlterTypeCancellationDuringConversion(t *testing.T) {
 	defer cleanup()
 	op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER c TYPE INT USING c::int"), 0, nil)
-	if !errors.Is(err, context.Canceled) || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
+	if !errors.Is(err, context.Canceled) || e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
 		t.Fatal(err, "published partial rewrite")
 	}
 }

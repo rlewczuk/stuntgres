@@ -50,7 +50,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				beforeWrites := append([]rowVersion(nil), writer.transactions.writes[relation.Address]...)
 				beforeStorage := e.storage[relation.Address]
 				beforeFrontier, beforeRows, beforeVersions := e.commitSeq, e.nextRow, e.nextVersion
-				beforeCatalog := e.state
+				beforeCatalog := e.catalog.state
 				ctx, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
 				reader, node := serializableUnitAcquisition(t, e, ctx, true, true)
@@ -130,7 +130,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				if waiting || node.captured || node.ready != nil || len(node.possible) != 0 || reader.owner.snapshotSet || len(reader.owner.roots) != 0 {
 					t.Error("rejected utility acquired candidate/root/snapshot evidence")
 				}
-				if reader.owner.state != TxAborted || writerNode.ended || writerNode.committed || !reflect.DeepEqual(beforeWrites, writer.transactions.writes[relation.Address]) || e.state != beforeCatalog || e.storage[relation.Address] != beforeStorage || e.commitSeq != beforeFrontier || e.nextRow != beforeRows || e.nextVersion != beforeVersions {
+				if reader.owner.state != TxAborted || writerNode.ended || writerNode.committed || !reflect.DeepEqual(beforeWrites, writer.transactions.writes[relation.Address]) || e.catalog.state != beforeCatalog || e.storage[relation.Address] != beforeStorage || e.commitSeq != beforeFrontier || e.nextRow != beforeRows || e.nextVersion != beforeVersions {
 					t.Error("utility changed writer/source/publication state or did not abort its owner")
 				}
 				reader.op.Done()

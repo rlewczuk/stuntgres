@@ -102,7 +102,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		if dependencyType.IsUserDefined() {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(dependencyType.ID())}
-			if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), address)); err != nil {
+			if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), address)); err != nil {
 				return nil, nil, false, err
 			}
 			descriptor := auth.catalog.state.descriptors[address]
@@ -167,7 +167,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.address] != d || stage.base.state.descriptors[d.address] != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
-	if stage.base.Epoch() != e.state.epoch {
+	if stage.base.Epoch() != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	// A demanded producer can enroll reads even when every row is filtered out.

@@ -26,7 +26,7 @@ const unaccentTemplateContext = "SQL statement \"CREATE TEXT SEARCH TEMPLATE una
 // Registration is initialization-only and duplicate checked, like catalog
 // provider registration. It does not execute scripts or load external packages.
 func (e *Engine) registerExtension(name string, registration registeredExtension) error {
-	if e.state != nil {
+	if e.catalog.state != nil {
 		return fmt.Errorf("stuntgres: extension registry is closed")
 	}
 	if name == "" || registration.version == "" || registration.provider == nil {
@@ -158,7 +158,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		if !registration.trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
-		rights, err := auth.Effective(e.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress), false)
+		rights, err := auth.Effective(e.catalog.domain.Ref(auth.catalog.Epoch(), currentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}
@@ -239,7 +239,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	auth.catalog = e.stageRead(stage)
 	auth.recaptureCatalog(auth.catalog)
 	auth.state.CurrentUser = owner
-	if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ext.targetNamespace)); err != nil {
+	if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), ext.targetNamespace)); err != nil {
 		return err
 	}
 	// Extension scripts replace, rather than prefix, the caller's path. The

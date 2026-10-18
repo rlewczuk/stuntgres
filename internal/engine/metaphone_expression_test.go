@@ -62,7 +62,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	nonmember := *n.procedure
 	nonmember.address = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
-	foreignState := cloneCatalog(e.state)
+	foreignState := cloneCatalog(e.catalog.state)
 	foreignState.descriptors[nonmember.address] = &nonmember
 	if err := stockFuzzystrmatch.validateProcedure(CatalogRead{owner: e, state: foreignState}, &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
@@ -96,7 +96,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.fuzzy = &fuzzystrmatchProvider{version: "1.2"} },
 		func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
 	} {
-		state := cloneCatalog(e.state)
+		state := cloneCatalog(e.catalog.state)
 		bad := *n.procedure
 		mutate(&bad)
 		state.descriptors[n.ref.Address] = &bad
@@ -109,7 +109,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		stale := n
 		if foreign {
-			stale.ref = New().domain.Ref(stale.ref.Epoch, stale.ref.Address)
+			stale.ref = New().catalog.domain.Ref(stale.ref.Epoch, stale.ref.Address)
 		} else {
 			stale.ref.Epoch = e.CatalogRead().Epoch() + 1
 		}

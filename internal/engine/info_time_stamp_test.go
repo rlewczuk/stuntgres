@@ -55,7 +55,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 		t.Fatal(declaration, err)
 	}
 	remove := e.BeginCatalogStage(current)
-	if err := remove.removeObject(e.domain.Ref(current.Epoch(), d.Address()), false); err == nil {
+	if err := remove.removeObject(e.catalog.domain.Ref(current.Epoch(), d.Address()), false); err == nil {
 		t.Fatal("builtin removal admitted")
 	}
 	if !statementCatalogType(d.typ) {
@@ -102,7 +102,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if d.typ.SQLName() != "information_schema.time_stamp" || original.state.descriptors[d.Namespace()].Name() != "information_schema" {
 		t.Fatal("source generation mutated")
 	}
-	remapped, err := target.remapPreparedCatalog(cloneCatalog(source.state), source.Roles(), target.Roles(), nil)
+	remapped, err := target.remapPreparedCatalog(cloneCatalog(source.catalog.state), source.Roles(), target.Roles(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

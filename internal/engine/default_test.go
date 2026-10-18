@@ -41,16 +41,16 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for address, descriptor := range e.state.descriptors {
+	for address, descriptor := range e.catalog.state.descriptors {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
 			probe.expressionInfo = expressionInfo{Usage: old.columns[1].Usage}
 			next.defaults = map[int32]columnDefault{old.attributes[1]: {expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
-			state := cloneCatalog(e.state)
+			state := cloneCatalog(e.catalog.state)
 			state.descriptors[address] = &next
-			e.state = state
+			e.catalog.state = state
 			return
 		}
 	}

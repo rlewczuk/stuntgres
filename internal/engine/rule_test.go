@@ -25,15 +25,15 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 		return &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, index: map[string]int{"id": 0, "v": 1}, attributes: []int32{1, 2}, attributeHighWater: 2, relationKind: tableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
-	next := cloneCatalog(e.state)
+	next := cloneCatalog(e.catalog.state)
 	next.descriptors[src.address] = src
 	next.descriptors[sink.address] = sink
-	e.state = next
+	e.catalog.state = next
 	return e, AuthorizationView{engine: e, catalog: CatalogRead{owner: e, state: next}}, src, sink
 }
 
 func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
-	return e.domain.Ref(e.state.epoch, d.address)
+	return e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 }
 func ruleUnitInt(d *relationDescriptor, n int64) BoundExpr {
 	value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
@@ -524,7 +524,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 			a.SubID = old.Address.SubID
 			old.Address = a
 		}
-		old = e.domain.Ref(old.Epoch, old.Address)
+		old = e.catalog.domain.Ref(old.Epoch, old.Address)
 		old.Epoch = next.epoch
 		return old
 	}

@@ -131,7 +131,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		}
 		e.mu.Lock()
 		_, currentErr := e.authorizationLocked(scope.op)
-		if currentErr == nil && e.state.epoch != stage.base.Epoch() {
+		if currentErr == nil && e.catalog.state.epoch != stage.base.Epoch() {
 			currentErr = ErrCatalogReplaced
 		}
 		var validations []foreignValidation

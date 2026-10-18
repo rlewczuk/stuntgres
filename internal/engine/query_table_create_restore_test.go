@@ -100,7 +100,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 		t.Fatal(err)
 	}
 	target := New()
-	target.nextOID = anchor.address.ObjectID + 100
+	target.catalog.nextOID = anchor.address.ObjectID + 100
 	targetAnchorStage, targetAnchor := queryCreateStage(t, target, "anchor", 0)
 	queryCreatePublish(t, target, targetAnchorStage)
 	targetArray, ok := target.CatalogRead().LookupArray(testUsage(target, sqltype.Regclass).Type)

@@ -38,7 +38,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	}
 	for _, dependency := range check.dependencies {
 		provider, ok := view.Descriptor(dependency.ref.Address)
-		if !ok || dependency.ref.Domain() != e.domain || dependency.ref.Epoch != view.Epoch() || dependency.revision != provider.Revision() {
+		if !ok || dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != view.Epoch() || dependency.revision != provider.Revision() {
 			t.Fatal("captured recipe dependency", dependency)
 		}
 	}
@@ -54,7 +54,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 	if valueLeaves == 0 {
 		t.Fatal("recipe does not consume real VALUE")
 	}
-	if err := e.providers[ids.TypeClassID].Validate(view, d); err != nil {
+	if err := e.catalog.providers[ids.TypeClassID].Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateDefinitionOIDs(view); err != nil {

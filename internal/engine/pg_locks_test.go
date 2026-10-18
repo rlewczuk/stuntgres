@@ -16,7 +16,7 @@ import (
 
 func pgLocksUnitCapture(t *testing.T, e *Engine) []pgLockRecord {
 	t.Helper()
-	records, err := e.locks.PGLocks(e.state.epoch)
+	records, err := e.locks.PGLocks(e.catalog.state.epoch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *relationTicket) uint32 {
 func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	d := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLocksOID}].(*relationDescriptor)
+	d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLocksOID}].(*relationDescriptor)
 	if !d.virtualView || d.relationKind != catalogRelation || d.rowType != 12075 {
 		t.Fatal("view identity", d)
 	}
@@ -266,15 +266,15 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	})
 	t.Run("public_backend_boundary", func(t *testing.T) {
 		e := New()
-		ref := e.domain.Tx(e.domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
-		if _, _, err := lock.PublicOwner(e.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
+		ref := e.catalog.domain.Tx(e.catalog.domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
+		if _, _, err := lock.PublicOwner(e.catalog.domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
 			t.Fatal("PID overflow", err)
 		}
-		if owner, ok, err := lock.PublicOwner(e.domain, ref, true); err != nil || !ok || !owner.Prepared {
+		if owner, ok, err := lock.PublicOwner(e.catalog.domain, ref, true); err != nil || !ok || !owner.Prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
-		ref = withTxSession(ref, e.domain.PrivateSession(&Session{}))
-		if _, ok, err := lock.PublicOwner(e.domain, ref, false); err != nil || ok {
+		ref = withTxSession(ref, e.catalog.domain.PrivateSession(&Session{}))
+		if _, ok, err := lock.PublicOwner(e.catalog.domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
 	})
@@ -303,7 +303,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.attachTransactionLocked()
 	scope.owner.mu.Unlock()
 	scope.worked = true
-	ref := e.domain.Ref(e.state.epoch, d.address)
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 	store := e.storage[d.address]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID

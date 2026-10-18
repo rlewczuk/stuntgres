@@ -16,21 +16,21 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	sessionSQL(t, worker, "INSERT INTO t VALUES(1),(2),(2)")
 	ref := roleTableRef(t, e, "t")
 	seq := roleTableRef(t, e, "s")
-	old := e.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	storage := e.storage[ref.Address]
 	generator := e.sequences[seq.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	original := e.providers[ids.RelationClassID]
+	original := e.catalog.providers[ids.RelationClassID]
 	calls := 0
-	e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
+	e.catalog.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		calls++
 		if !e.mu.TryLock() {
 			t.Error("ADD called real provider under Engine.mu")
 		} else {
 			e.mu.Unlock()
 		}
-		if generator.last != 6 || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
+		if generator.last != 6 || e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
 			t.Error("provider did not see fully demanded unpublished ADD", generator.last)
 		}
 		cancel()
@@ -41,8 +41,8 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ADD b BIGINT DEFAULT nextval('s') CHECK(nextval('s')>0)"), 0, nil)
 	op.Done()
-	e.providers[ids.RelationClassID] = original
-	if !errors.Is(err, context.Canceled) || calls != 1 || generator.last != 6 || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
+	e.catalog.providers[ids.RelationClassID] = original
+	if !errors.Is(err, context.Canceled) || calls != 1 || generator.last != 6 || e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
 		t.Fatal("final provider veto published candidate or rewound effects", err, calls, generator.last)
 	}
 	lockEmpty(t, e)

@@ -79,7 +79,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	temporary := make(map[ids.ObjectAddress]Descriptor)
-	for a, d := range e.state.descriptors {
+	for a, d := range e.catalog.state.descriptors {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			temporary[a] = d
 		}
@@ -88,12 +88,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for address := range temporary {
 		namespaces[address] = true
 	}
-	children, err := namespaceChildren(CatalogRead{owner: e, state: e.state}, namespaces)
+	children, err := namespaceChildren(CatalogRead{owner: e, state: e.catalog.state}, namespaces)
 	if err != nil {
 		return err
 	}
 	for _, address := range children {
-		descriptor := e.state.descriptors[address]
+		descriptor := e.catalog.state.descriptors[address]
 		if extension, ok := descriptor.(*extensionDescriptor); ok {
 			if imported, exists := next.names[descriptorNameKey(extension)]; exists && next.descriptors[imported] != extension {
 				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.name)
@@ -117,7 +117,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					if _, retained := temporary[leaf.ref.Address]; retained {
 						continue
 					}
-					if next.descriptors[leaf.ref.Address] != e.state.descriptors[leaf.ref.Address] {
+					if next.descriptors[leaf.ref.Address] != e.catalog.state.descriptors[leaf.ref.Address] {
 						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
 					}
 				}
@@ -127,7 +127,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					if _, retained := temporary[address]; retained {
 						continue
 					}
-					if next.descriptors[address] != e.state.descriptors[address] {
+					if next.descriptors[address] != e.catalog.state.descriptors[address] {
 						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
 					}
 				}
@@ -138,7 +138,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			if !typ.BaseType().IsArray() || !arrayDomainDependency(typ) {
 				continue
 			}
-			if !retainedArrayDependencies(e.state, next, typ) {
+			if !retainedArrayDependencies(e.catalog.state, next, typ) {
 				return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported")
 			}
 		}
@@ -154,7 +154,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 		retained[typ.ID()] = true
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
-		source, ok := e.state.descriptors[address].(*typeDescriptor)
+		source, ok := e.catalog.state.descriptors[address].(*typeDescriptor)
 		if !ok || source.typ != typ {
 			return
 		}
@@ -168,7 +168,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			retainBuiltin(typ.Element())
 		}
 		if source.array != 0 {
-			if array, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.array)}].(*typeDescriptor); ok {
+			if array, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.array)}].(*typeDescriptor); ok {
 				retainBuiltin(array.typ)
 			}
 		}
@@ -241,11 +241,11 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				for ref, captured := range definition.references {
 					address := ref.Address
 					address.SubID = 0
-					switch provider := e.state.descriptors[address].(type) {
+					switch provider := e.catalog.state.descriptors[address].(type) {
 					case *typeDescriptor:
 						retainBuiltin(provider.typ)
 					case *relationDescriptor:
-						if ref.Address.SubID != 0 || provider != captured || provider.relationKind != catalogRelation || !pgDependPinned(CatalogRead{e, e.state}, address) {
+						if ref.Address.SubID != 0 || provider != captured || provider.relationKind != catalogRelation || !pgDependPinned(CatalogRead{e, e.catalog.state}, address) {
 							continue
 						}
 						// The exact immutable catalog provider includes unused columns.
@@ -347,7 +347,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			switch r := d.(type) {
 			case *namespaceDescriptor:
-				if target == a && d == e.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.state}, a) {
+				if target == a && d == e.catalog.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.catalog.state}, a) {
 					// Preflight retained this exact immutable namespace authority.
 					break
 				}
@@ -397,7 +397,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					d = &n
 				}
 			case *relationDescriptor:
-				if target == a && r.relationKind == catalogRelation && d == e.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.state}, a) {
+				if target == a && r.relationKind == catalogRelation && d == e.catalog.state.descriptors[a] && pgDependPinned(CatalogRead{e, e.catalog.state}, a) {
 					if _, moved := mapping[r.namespace]; !moved {
 						// Remapping unrelated imported identities must not copy
 						// the exact provider certified for retained TEMP consumers.
@@ -522,7 +522,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			sequences[a] = g
 		}
 	}
-	next.epoch = e.state.epoch + 1
+	next.epoch = e.catalog.state.epoch + 1
 	if err := e.remapCatalogExpressions(next, mapping); err != nil {
 		return err
 	}
@@ -617,10 +617,10 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	defer e.sessionMu.Unlock()
 	for _, s := range e.sessions {
 		for a := range s.sequences {
-			r, ok := e.state.descriptors[a].(*relationDescriptor)
+			r, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
 			keep := false
 			if ok {
-				ns, ok := e.state.descriptors[r.namespace].(*namespaceDescriptor)
+				ns, ok := e.catalog.state.descriptors[r.namespace].(*namespaceDescriptor)
 				keep = ok && ns.temporary == s.token
 			}
 			if !keep {
@@ -749,7 +749,7 @@ func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descri
 // Retain the predecessor itself, after checking the candidate's full provider
 // shape and namespace/ACL authority; a compatible-looking user table is not it.
 func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporary map[ids.ObjectAddress]Descriptor) error {
-	catalog := CatalogRead{e, e.state}
+	catalog := CatalogRead{e, e.catalog.state}
 	for _, descriptor := range temporary {
 		consumer, ok := descriptor.(*relationDescriptor)
 		if !ok || consumer.view == nil {
@@ -758,7 +758,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 		for ref, captured := range consumer.view.references {
 			address := ref.Address
 			address.SubID = 0
-			old, ok := e.state.descriptors[address].(*relationDescriptor)
+			old, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 			if !ok {
 				continue
 			}
@@ -790,7 +790,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 					return fail()
 				}
 			}
-			namespace, ok := e.state.descriptors[old.namespace].(*namespaceDescriptor)
+			namespace, ok := e.catalog.state.descriptors[old.namespace].(*namespaceDescriptor)
 			other, candidateOK := next.descriptors[old.namespace].(*namespaceDescriptor)
 			if !ok || !candidateOK || !pgDependPinned(catalog, old.namespace) || namespace.name != other.name || namespace.owner != other.owner || namespace.temporary != other.temporary || namespace.temporaryToast != other.temporaryToast || namespace.acl.Explicit != other.acl.Explicit || !slices.Equal(namespace.acl.Entries, other.acl.Entries) {
 				return fail()

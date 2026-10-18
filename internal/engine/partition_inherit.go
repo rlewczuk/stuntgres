@@ -27,7 +27,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	for _, column := range parent.columns {
 		typ := column.Usage.Type
 		if typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
-			ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+			ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 			if err := auth.CanUse(ref); err != nil {
 				return nil, err
 			}
@@ -138,7 +138,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				if attribute != 0 {
 					old.Address.SubID = d.attributes[parent.indexForAttribute(attribute)]
 				}
-				old = e.domain.Ref(old.Epoch, old.Address)
+				old = e.catalog.domain.Ref(old.Epoch, old.Address)
 				old.Epoch = auth.catalog.Epoch()
 			}
 			return old

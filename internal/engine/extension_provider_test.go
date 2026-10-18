@@ -42,8 +42,8 @@ func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *extensionDescri
 	t.Cleanup(done)
 	stage := extensionUnitStage(t, e, op)
 	extensionUnitPublish(t, e, op, stage)
-	a := e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]
-	return e, op, e.state.descriptors[a].(*extensionDescriptor)
+	a := e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]
+	return e, op, e.catalog.state.descriptors[a].(*extensionDescriptor)
 }
 func TestExtensionProviderIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
@@ -79,7 +79,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		seen[a] = true
 		d := view.state.descriptors[a]
-		if err := e.providers[a.ClassID].Validate(view, d); err != nil {
+		if err := e.catalog.providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 		if d.Namespace() != ext.targetNamespace || extensionMembership(d) != ext.address {
@@ -220,7 +220,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 			}
 			extensionUnitPublish(t, e, op, loose)
-			before := e.state
+			before := e.catalog.state
 			e.mu.Lock()
 			_, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
 			e.mu.Unlock()
@@ -245,7 +245,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 					t.Fatal("helper diagnostics", diagnostic)
 				}
 			}
-			if e.state != before || e.state.descriptors[conflict.Address()] != conflict || e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
+			if e.catalog.state != before || e.catalog.state.descriptors[conflict.Address()] != conflict || e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("partial failed installation")
 			}
 		})
@@ -267,7 +267,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			if e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
+			if e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}] != (ids.ObjectAddress{}) {
 				t.Fatal("private installation leaked")
 			}
 			if reason == "competing" {
@@ -283,24 +283,24 @@ func TestExtensionProviderPublication(t *testing.T) {
 			e.mu.Lock()
 			switch reason {
 			case "epoch":
-				e.state = cloneCatalog(e.state)
-				e.state.epoch++
+				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state.epoch++
 			case "roles":
 				e.roles = advanceRoleRevision(e.roles)
 			case "database":
-				next := *e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+				next := *e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 				next.revision++
-				e.state = cloneCatalog(e.state)
-				e.state.descriptors[currentDatabaseAddress] = &next
+				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state.descriptors[currentDatabaseAddress] = &next
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-				next := *e.state.descriptors[a].(*namespaceDescriptor)
+				next := *e.catalog.state.descriptors[a].(*namespaceDescriptor)
 				next.revision++
-				e.state = cloneCatalog(e.state)
-				e.state.descriptors[a] = &next
+				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state.descriptors[a] = &next
 			}
 			e.mu.Unlock()
-			committed := e.state
+			committed := e.catalog.state
 			failure := scope.Finish(nil)
 			if failure == nil {
 				t.Fatal("stale installation published")
@@ -308,7 +308,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 			if reason == "competing" {
 				extensionUnitError(t, failure, "23505")
 			}
-			if e.state != committed {
+			if e.catalog.state != committed {
 				t.Fatal("failed installation changed the committed catalog")
 			}
 		})

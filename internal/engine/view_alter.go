@@ -293,7 +293,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-		if !ok || ref.Domain() != e.domain {
+		if !ok || ref.Domain() != e.catalog.domain {
 			e.mu.Unlock()
 			return Result{}, ErrCatalogReplaced
 		}

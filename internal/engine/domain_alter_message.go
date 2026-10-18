@@ -18,7 +18,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		if !fence.current(CatalogRead{e, current}, stores) {
 			return CatalogConflict{}
 		}
-		committed, err := domainUsesAt(CatalogRead{e, e.state}, fence.target, fence.path)
+		committed, err := domainUsesAt(CatalogRead{e, e.catalog.state}, fence.target, fence.path)
 		if committed == nil {
 			return err
 		}

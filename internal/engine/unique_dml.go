@@ -14,7 +14,7 @@ func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*relationDescriptor, C
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return nil, CatalogRead{}, ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(s.owner.catalog)
@@ -411,7 +411,7 @@ retry:
 			return uniqueConflict{}, err
 		}
 		e.mu.Lock()
-		if ref.Epoch != e.state.epoch {
+		if ref.Epoch != e.catalog.state.epoch {
 			e.mu.Unlock()
 			return uniqueConflict{}, ErrCatalogReplaced
 		}

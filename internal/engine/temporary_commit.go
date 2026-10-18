@@ -10,7 +10,7 @@ import (
 // transaction/savepoint roots remain untouched until the ordinary final install.
 func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]rowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
 	e.mu.Lock()
-	if ref.Epoch() != e.state.epoch {
+	if ref.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return nil, nil, nil, ErrCatalogReplaced
 	}
@@ -91,7 +91,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			return nil
 		}
 		for _, a := range dropped {
-			if err := stage.Remove(e.domain.Ref(base.Epoch(), a)); err != nil {
+			if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), a)); err != nil {
 				return nil, nil, nil, err
 			}
 		}
@@ -109,7 +109,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 				if !observed {
 					original = base.state.descriptors[a]
 				}
-				if e.state.descriptors[a] != original {
+				if e.catalog.state.descriptors[a] != original {
 					err = CatalogConflict{}
 					break
 				}
@@ -119,7 +119,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 				if !observed {
 					original = base.state.descriptors[a]
 				}
-				if e.state.descriptors[a] != original {
+				if e.catalog.state.descriptors[a] != original {
 					err = CatalogConflict{}
 					break
 				}

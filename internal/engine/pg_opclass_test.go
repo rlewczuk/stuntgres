@@ -14,11 +14,11 @@ import (
 func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2616}
-	d, ok := e.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}
-	return d, e.domain.Ref(e.state.epoch, a)
+	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgOpclassUnitBag(t *testing.T, rows *querySource, d *relationDescriptor) map[uint32][]any {
@@ -87,12 +87,12 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	descriptors, names := maps.Clone(e.state.descriptors), maps.Clone(e.state.names)
+	descriptors, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, e.state.descriptors) || !maps.Equal(names, e.state.names) {
+	if rows.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
 		t.Fatal("capture changed catalog/ref")
 	}
 	bag := pgOpclassUnitBag(t, rows, d)
@@ -179,7 +179,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		}
 		parent := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, namespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, name: "identity_parent", relationKind: tableRelation, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, index: map[string]int{"k": 0}}
 		index := &relationDescriptor{address: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, namespace: parent.namespace, name: "identity_index", relationKind: indexRelation, columns: parent.columns, attributes: []int32{1}, sqlIndex: &indexDefinition{parent: parent.address, method: tc.method, keys: []indexKey{{attribute: 1, class: class, explicitClass: true}}, ready: true, valid: true, live: true}}
-		e.state.descriptors[parent.address], e.state.descriptors[index.address] = parent, index
+		e.catalog.state.descriptors[parent.address], e.catalog.state.descriptors[index.address] = parent, index
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -189,7 +189,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal("real root", tc, root, err)
 		}
 		catalog := e.CatalogRead()
-		m, _, err := projectIndexMetadata(context.Background(), catalog, e.domain.Ref(catalog.Epoch(), index.address))
+		m, _, err := projectIndexMetadata(context.Background(), catalog, e.catalog.domain.Ref(catalog.Epoch(), index.address))
 		if err != nil || !reflect.DeepEqual(m.IndClass, []ids.OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}

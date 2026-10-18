@@ -74,15 +74,15 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if catalog {
 					changes = newCatalogChanges()
 				}
-				original, frontier, root := e.state, e.commitSeq, receiver.notifications.state
+				original, frontier, root := e.catalog.state, e.commitSeq, receiver.notifications.state
 				switch failure {
 				case "cancel":
 					cancel()
 				case "epoch":
-					next := *e.state
+					next := *e.catalog.state
 					next.epoch++
-					e.state = &next
-					original = e.state
+					e.catalog.state = &next
+					original = e.catalog.state
 				case "xid":
 					e.assignedXID = ^uint64(0)
 				}
@@ -91,7 +91,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					if err == nil {
 						t.Fatal("failed preflight published")
 					}
-					if receiver.notifications.state != root || e.state != original || e.commitSeq != frontier {
+					if receiver.notifications.state != root || e.catalog.state != original || e.commitSeq != frontier {
 						t.Fatal("partial catalog/notification installation")
 					}
 					return
@@ -374,7 +374,7 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 	notificationUnitNotify(t, origin, "live")
 	op := transactionOperation(t, origin)
 	defer op.Done()
-	for _, ref := range []ids.TxRef{old, e.domain.Tx(other.token, live.ID(), 0, other.transactions, 0)} {
+	for _, ref := range []ids.TxRef{old, e.catalog.domain.Tx(other.token, live.ID(), 0, other.transactions, 0)} {
 		actions, events, err := notificationEffects(op, ref, nil, nil)
 		if err == nil || len(actions) != 0 || len(events) != 0 {
 			t.Fatal("foreign or stale transaction exposed live effects", err, actions, events)

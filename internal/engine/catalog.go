@@ -19,7 +19,7 @@ func domainOf(e *Engine) *ids.Domain {
 	if e == nil {
 		return nil
 	}
-	return e.domain
+	return e.catalog.domain
 }
 
 // One immutable physical head per logical row, plus immutable end markers.
@@ -818,14 +818,14 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *foreignDescriptor:
-		if err := provider.owner.providers[ref.Address.ClassID].Validate(provider.base, d); err != nil {
+		if err := provider.owner.catalog.providers[ref.Address.ClassID].Validate(provider.base, d); err != nil {
 			return err
 		}
 	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
 		if procedure, ok := d.(*procedureDescriptor); ok && procedure.seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
-		objectProvider := provider.owner.providers[ref.Address.ClassID]
+		objectProvider := provider.owner.catalog.providers[ref.Address.ClassID]
 		if objectProvider == nil {
 			return fmt.Errorf("stuntgres: missing installed object provider")
 		}
@@ -857,7 +857,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	}
 	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsComposite() {
 		if backing, ok := provider.retirementDescriptor(typ.owningRelation).(*relationDescriptor); ok && backing.relationKind == compositeRelation {
-			if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), backing.address), false); err != nil {
+			if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), backing.address), false); err != nil {
 				return err
 			}
 		}
@@ -875,7 +875,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		provider.removedRowType(row.Address())
 		for _, id := range []sqltype.ID{r.rowType, row.array} {
 			if id != 0 {
-				if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
+				if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}), false); err != nil {
 					return err
 				}
 			}
@@ -997,7 +997,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		}
 	}
 	for _, d := range s.descriptors {
-		p := e.providers[d.Address().ClassID]
+		p := e.catalog.providers[d.Address().ClassID]
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 		}
@@ -1048,7 +1048,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
-		current := e.state
+		current := e.catalog.state
 		if err := s.defaultPreflight(current); err != nil {
 			e.mu.Unlock()
 			return ChangeSet{}, err
@@ -1163,7 +1163,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.removals {
 			observed := removal.descriptor
 			d := current.descriptors[a]
-			if removal.ref.Domain() != e.domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
+			if removal.ref.Domain() != e.catalog.domain || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -1397,7 +1397,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if op != nil {
 			op.session.mu.Lock()
 		}
-		if e.state != current {
+		if e.catalog.state != current {
 			if op != nil {
 				op.session.mu.Unlock()
 			}
@@ -1428,7 +1428,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		if r := s.materializedReplacement; r != nil {
-			if err := s.materializedReplacementCurrent(e.state, e.storage[r.original.address]); err != nil {
+			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage[r.original.address]); err != nil {
 				if op != nil {
 					op.session.mu.Unlock()
 				}
@@ -1440,14 +1440,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil && !e.domainIndexRootsCurrent(s) {
 			err = CatalogConflict{}
 		}
-		if err == nil && s.domainValidation != nil && !s.domainValidation.current(CatalogRead{e, e.state}, e.storage) {
+		if err == nil && s.domainValidation != nil && !s.domainValidation.current(CatalogRead{e, e.catalog.state}, e.storage) {
 			err = CatalogConflict{}
 		}
-		if err == nil && s.databasePredecessor != nil && e.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
+		if err == nil && s.databasePredecessor != nil && e.catalog.state.descriptors[currentDatabaseAddress] != s.databasePredecessor {
 			err = ErrCatalogReplaced
 		}
 		if err == nil {
-			err = catalogDependencyPreflight(e.state, next, s.identityDependencies, s.identityOriginals)
+			err = catalogDependencyPreflight(e.catalog.state, next, s.identityDependencies, s.identityOriginals)
 		}
 		if err == nil {
 			err = s.validateRoleCandidate(e.roles)
@@ -1483,8 +1483,8 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, e.state}, roleRecord: e.roles, catalog: CatalogRead{e, e.state}, roles: e.roleRead(CatalogRead{e, e.state}, e.roles), state: s.authSession.authorization.state}
-			err = auth.Check(AccessRequirement{Object: e.domain.Ref(e.state.epoch, s.materializedReplacement.original.address), Privileges: authorization.MaintainPrivilege})
+			auth := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, e.catalog.state}, roleRecord: e.roles, catalog: CatalogRead{e, e.catalog.state}, roles: e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), state: s.authSession.authorization.state}
+			err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(e.catalog.state.epoch, s.materializedReplacement.original.address), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1520,7 +1520,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil {
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
-			nextRevision := e.nextRevision
+			nextRevision := e.catalog.nextRevision
 			for _, d := range s.descriptors {
 				if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 					nextRevision = revision
@@ -1555,7 +1555,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if s.initialTx != (ids.TxRef{}) {
 				e.serializableCommittedLocked(s.initialTx, e.commitSeq)
 			}
-			e.state = next
+			e.catalog.state = next
 			e.storage = storage
 			preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.indexRoots)
 			e.indexRoots = indexRoots
@@ -1565,7 +1565,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			for a, generator := range s.generators {
 				e.sequences[a] = generator
 			}
-			e.nextRevision = nextRevision
+			e.catalog.nextRevision = nextRevision
 			if s.roleCandidate != nil {
 				e.roles = s.roleCandidate
 			}
@@ -1598,13 +1598,13 @@ func (e *Engine) ValidateObjectRef(view CatalogRead, ref ids.ObjectRef) error {
 // validateObjectRefLocked preserves live epoch and provenance checks without
 // reacquiring synchronization when called from catalog mutation preflight.
 func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ids.ObjectRef) error {
-	if e.domain == nil || view.owner != e || view.state == nil {
+	if e.catalog.domain == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if ref.Domain() == nil || ref.Domain() != e.domain {
+	if ref.Domain() == nil || ref.Domain() != e.catalog.domain {
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
-	if view.state.epoch != e.state.epoch || ref.Epoch != e.state.epoch {
+	if view.state.epoch != e.catalog.state.epoch || ref.Epoch != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID}]
@@ -1656,7 +1656,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		return ChangeSet{}, err
 	}
 	for _, d := range replacement.state.descriptors {
-		p := e.providers[d.Address().ClassID]
+		p := e.catalog.providers[d.Address().ClassID]
 		if p == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 		}
@@ -1713,7 +1713,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 			return ChangeSet{}, err
 		}
-		if replacement.Epoch() != e.state.epoch {
+		if replacement.Epoch() != e.catalog.state.epoch {
 			return ChangeSet{}, ErrCatalogReplaced
 		}
 		next = cloneCatalog(replacement.state)
@@ -1731,7 +1731,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
 			return ChangeSet{}, err
 		}
-		nextRevision := e.nextRevision
+		nextRevision := e.catalog.nextRevision
 		for _, d := range next.descriptors {
 			if err := validateACL(e.roleRead(CatalogRead{e, next}, e.roles), d); err != nil {
 				return ChangeSet{}, err
@@ -1743,7 +1743,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 				}
 			}
 		}
-		if e.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
+		if e.catalog.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 		}
 		var imported uint64
@@ -1779,21 +1779,21 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		e.nextRow, e.nextVersion = nextRow, nextVersion
 		e.indexRoots = roots
 		e.commitSeq++
-		next.epoch = e.state.epoch + 1
-		e.state = next
+		next.epoch = e.catalog.state.epoch + 1
+		e.catalog.state = next
 		e.storage = storage
 		e.exclusionPending = nil
 		e.exclusionGeneration++
 		e.sequences = sequences
 		e.clearPersistentSequenceMemoryLocked()
-		e.nextRevision = nextRevision
+		e.catalog.nextRevision = nextRevision
 		e.fenceSerializableLocked()
 		e.retireCommitTimestampsLocked()
 		installed = next.epoch
 		return ChangeSet{Replacement: true}, nil
 	}
 	replacement.owner.mu.Lock()
-	if replacement.Epoch() != replacement.owner.state.epoch {
+	if replacement.Epoch() != replacement.owner.catalog.state.epoch {
 		replacement.owner.mu.Unlock()
 		return ChangeSet{}, ErrCatalogReplaced
 	}
@@ -1824,7 +1824,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return ChangeSet{}, err
 	}
-	if e.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
+	if e.catalog.state.epoch == ids.CatalogEpoch(math.MaxUint64) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 	}
 	if imported > ^uint64(0)-e.nextRow {
@@ -1848,7 +1848,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 	if err := validateDefaultACLs(e.roleRead(CatalogRead{e, next}, e.roles), CatalogRead{e, next}); err != nil {
 		return ChangeSet{}, err
 	}
-	nextRevision := e.nextRevision
+	nextRevision := e.catalog.nextRevision
 	for _, d := range next.descriptors {
 		if err := validateACL(e.roleRead(CatalogRead{e, next}, e.roles), d); err != nil {
 			return ChangeSet{}, err
@@ -1878,7 +1878,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
 func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
-	if prepared.catalog != next || prepared.baseCatalog != e.state || prepared.baseRow != e.nextRow || prepared.baseVersion != e.nextVersion || prepared.frontier != e.commitSeq {
+	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.nextRow || prepared.baseVersion != e.nextVersion || prepared.frontier != e.commitSeq {
 		return ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
@@ -1887,14 +1887,14 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 	e.nextRow, e.nextVersion = prepared.nextRow, prepared.nextVersion
 	e.indexRoots = prepared.roots
 	e.commitSeq++
-	next.epoch = e.state.epoch + 1
-	e.state = next
+	next.epoch = e.catalog.state.epoch + 1
+	e.catalog.state = next
 	e.storage = storage
 	e.exclusionPending = nil
 	e.exclusionGeneration++
 	e.sequences = sequences
 	e.clearPersistentSequenceMemoryLocked()
-	e.nextRevision = nextRevision
+	e.catalog.nextRevision = nextRevision
 	e.fenceSerializableLocked()
 	e.retireCommitTimestampsLocked()
 	return nil
@@ -1940,16 +1940,16 @@ func (e *Engine) RegisterCatalogProvider(p CatalogProvider) error {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.state != nil {
+	if e.catalog.state != nil {
 		return fmt.Errorf("stuntgres: catalog providers are already initialized")
 	}
-	if e.providers == nil {
+	if e.catalog.providers == nil {
 		return fmt.Errorf("stuntgres: engine is not initialized")
 	}
-	if _, ok := e.providers[id]; ok {
+	if _, ok := e.catalog.providers[id]; ok {
 		return fmt.Errorf("stuntgres: duplicate catalog class")
 	}
-	e.providers[id] = p
+	e.catalog.providers[id] = p
 	return nil
 }
 

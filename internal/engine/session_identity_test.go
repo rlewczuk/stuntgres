@@ -248,7 +248,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	before := op.RoleState()
-	revision, roles, catalog := op.session.authorization.revision, e.roles, e.state
+	revision, roles, catalog := op.session.authorization.revision, e.roles, e.catalog.state
 	ctx, cancel := context.WithCancel(op.Context())
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: op.session, cancel: cancel}
@@ -257,7 +257,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	if !boundary.observed || ctx.Err() != context.Canceled || !errors.Is(err, context.Canceled) {
 		t.Fatal(boundary.observed, err)
 	}
-	if op.RoleState() != before || op.session.authorization.revision != revision || e.roles != roles || e.state != catalog {
+	if op.RoleState() != before || op.session.authorization.revision != revision || e.roles != roles || e.catalog.state != catalog {
 		t.Fatal("canceled role selection published state")
 	}
 }

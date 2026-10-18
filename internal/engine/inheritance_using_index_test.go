@@ -67,7 +67,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 				for _, query := range []string{"CREATE TABLE p(a INT)", "CREATE TABLE c() INHERITS(p)", "CREATE UNIQUE INDEX original ON p(a)", "CREATE TABLE collision(x INT)", "INSERT INTO p VALUES(1)", "INSERT INTO c VALUES(2)"} {
 					ownershipUnitExec(t, e, query)
 				}
-				before := e.state
+				before := e.catalog.state
 				parent, index := retiredUnitTable(t, e, "p"), retiredUnitTable(t, e, "original")
 				parentStore, indexRoot := e.storage[parent.address], e.indexRoots[index.address]
 				waiter := sessionStart(t, e, nil)
@@ -128,7 +128,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 						t.Fatal("provider notice/error ordering changed", notices, expected)
 					}
 				}
-				if e.state != before || e.storage[parent.address] != parentStore || e.indexRoots[index.address] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
+				if e.catalog.state != before || e.storage[parent.address] != parentStore || e.indexRoots[index.address] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
 					t.Fatal("failed/canceled prepared attachment published metadata or rows")
 				}
 				lockEmpty(t, e)

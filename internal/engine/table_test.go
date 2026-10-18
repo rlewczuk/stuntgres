@@ -128,8 +128,8 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			var winner CatalogRead
 			var winnerRef ids.ObjectRef
 			var loser ids.ObjectAddress
-			e.providers[ids.RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.providers[ids.RelationClassID],
+			e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
+				CatalogProvider: e.catalog.providers[ids.RelationClassID],
 				publishWinner: func(d Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE "+tc.identifier+"(id INT NOT NULL)")

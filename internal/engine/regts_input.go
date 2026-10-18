@@ -73,7 +73,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 			ns = r.temporary
 		}
 		if ns != (ids.ObjectAddress{}) {
-			if err := r.auth.CanUse(r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
+			if err := r.auth.CanUse(r.auth.engine.catalog.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 				return 0, err
 			}
 			if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
@@ -87,7 +87,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 		address := r.auth.catalog.state.names[ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text}]
 		if d, ok := r.auth.catalog.state.descriptors[address].(*tsDictionaryDescriptor); ok {
 			if r.resolved != nil {
-				ref := r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), d.address)
+				ref := r.auth.engine.catalog.domain.Ref(r.auth.catalog.Epoch(), d.address)
 				*r.resolved = append(*r.resolved, expressionDependency{ref: ref, revision: d.revision})
 			}
 			return uint32(d.address.ObjectID), nil

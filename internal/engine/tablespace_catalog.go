@@ -49,8 +49,8 @@ func (e *Engine) initializeTablespaces() {
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 	for _, builtin := range builtinTablespaces {
 		d := &tablespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}, revision: 1, name: builtin.name, owner: owner}
-		e.state.descriptors[d.address] = d
-		e.state.names[descriptorNameKey(d)] = d.address
+		e.catalog.state.descriptors[d.address] = d
+		e.catalog.state.names[descriptorNameKey(d)] = d.address
 	}
 }
 
@@ -59,5 +59,5 @@ func resolveGrantTablespace(v AuthorizationView, name string) (ids.ObjectRef, er
 	if address == (ids.ObjectAddress{}) {
 		return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
 	}
-	return v.engine.domain.Ref(v.catalog.Epoch(), address), nil
+	return v.engine.catalog.domain.Ref(v.catalog.Epoch(), address), nil
 }

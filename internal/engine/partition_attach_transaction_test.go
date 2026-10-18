@@ -42,7 +42,7 @@ func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ids
 	t.Helper()
 	scope, op := partitionAttachUnitScope(t, e, session)
 	rows := make([][]sqltype.Value, len(values))
-	d := e.state.descriptors[ref.Address].(*relationDescriptor)
+	d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	for i, n := range values {
 		value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
 		if err != nil {
@@ -83,7 +83,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		child := inheritanceUnitRelation(e, "attach_rr_child", 46200, "k")
 		child.relationKind = tableRelation
 		partitionAttachUnitInstall(t, e, child)
-		ref := e.domain.Ref(e.state.epoch, child.address)
+		ref := e.catalog.domain.Ref(e.catalog.state.epoch, child.address)
 		writer, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
 		partitionAttachUnitWrite(t, e, writer, ref, 1)
 		partitionAttachUnitBegin(t, e, owner, RepeatableRead)
@@ -164,11 +164,11 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			child := inheritanceUnitRelation(e, "attach_tx_child", 46211, "k")
 			child.relationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
-			parent = e.state.descriptors[parent.address].(*relationDescriptor)
-			child = e.state.descriptors[child.address].(*relationDescriptor)
+			parent = e.catalog.state.descriptors[parent.address].(*relationDescriptor)
+			child = e.catalog.state.descriptors[child.address].(*relationDescriptor)
 			owner := sessionStart(t, e, nil)
 			tx := partitionAttachUnitBegin(t, e, owner, ReadCommitted)
-			parentRef := e.domain.Ref(e.state.epoch, parent.address)
+			parentRef := e.catalog.domain.Ref(e.catalog.state.epoch, parent.address)
 			childRef := parentRef
 			childRef.Address = child.address
 			before, beforeOp := partitionAttachUnitScope(t, e, owner)
@@ -199,7 +199,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			}
 			attachOp.Done()
 			private := e.privateCatalogLocked(owner.transactions.catalog)
-			if private.state.descriptors[child.address].(*relationDescriptor).membership == nil || e.state.descriptors[child.address] != child || len(parent.partition.children) != 0 {
+			if private.state.descriptors[child.address].(*relationDescriptor).membership == nil || e.catalog.state.descriptors[child.address] != child || len(parent.partition.children) != 0 {
 				t.Fatal("overlay was not private and reciprocal")
 			}
 			if end == "savepoint" {
@@ -236,7 +236,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			attached := e.state.descriptors[child.address].(*relationDescriptor).membership != nil
+			attached := e.catalog.state.descriptors[child.address].(*relationDescriptor).membership != nil
 			if attached != (end == "commit") {
 				t.Fatal("transaction end published wrong topology", attached)
 			}

@@ -23,9 +23,9 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			localDefinition := *local.sqlIndex
 			localDefinition.unique = false
 			local.sqlIndex = &localDefinition
-			current := cloneCatalog(f.e.state)
+			current := cloneCatalog(f.e.catalog.state)
 			current.descriptors[local.address] = &local
-			f.e.state = current
+			f.e.catalog.state = current
 			mapped, err := mapPartitionIndex(context.Background(), CatalogRead{owner: f.e, state: current}, f.root, f.leaf, f.parent.sqlIndex)
 			if err != nil {
 				t.Fatal(err)
@@ -71,10 +71,10 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.address: oldRoot}
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.entries)
-			beforeCatalog, beforeRoots := f.e.state, maps.Clone(f.e.indexRoots)
+			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.indexRoots)
 			captured := captureIndexStores(f.e.storage, next)
 			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, current, next, captured, f.e.indexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
-			if f.e.state != beforeCatalog || !maps.Equal(f.e.indexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.entries, beforeEntries) {
+			if f.e.catalog.state != beforeCatalog || !maps.Equal(f.e.indexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}
 			if duplicate {
@@ -82,7 +82,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Message != `could not create unique index "attach_built_unique"` || diagnostic.Constraint != backing.name {
 					t.Fatal("duplicate build returned partial roots or wrong failure", roots, err)
 				}
-				if f.e.state.descriptors[backing.address] != nil {
+				if f.e.catalog.state.descriptors[backing.address] != nil {
 					t.Fatal("failed backing escaped into live catalog")
 				}
 				return

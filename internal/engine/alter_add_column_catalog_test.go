@@ -151,7 +151,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil || integer != 7 {
 		t.Fatal("imported default changed", integer, err)
 	}
-	if err := destination.providers[ids.RelationClassID].Validate(view, imported); err != nil {
+	if err := destination.catalog.providers[ids.RelationClassID].Validate(view, imported); err != nil {
 		t.Fatal("invalid imported definition/provider manifest", err)
 	}
 }

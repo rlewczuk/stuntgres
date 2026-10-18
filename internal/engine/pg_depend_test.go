@@ -66,7 +66,7 @@ func TestPGDependShape(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, source); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.domain.Ref(catalog.state.epoch, address)
+	ref := e.catalog.domain.Ref(catalog.state.epoch, address)
 	rows, err := capturePGDepend(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +80,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	tableAddress := pgDependUnitAddress(1259, 41001, 0)
 	column := tableAddress
 	column.SubID = 2
-	ref := e.domain.Ref(catalog.state.epoch, column)
+	ref := e.catalog.domain.Ref(catalog.state.epoch, column)
 	variable := columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, origin: ref}
 	repeated := functions.Binary{Info: expressionInfo{Usage: integer.Usage()}, Args: []BoundExpr{variable, variable}}
 	constant := literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}}

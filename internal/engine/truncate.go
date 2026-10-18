@@ -68,7 +68,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		var store *relationStorage
 		otherTemporary := false
 		if err == nil {
-			if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || s.txRef.Epoch() != ref.Epoch {
+			if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch {
 				err = ErrCatalogReplaced
 			} else {
 				before, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -126,7 +126,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil {
 			d, _ = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
-			if ref.Epoch != e.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
+			if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != ref.Epoch || d == nil || before.namespace != d.namespace || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
 				err = ErrCatalogReplaced
 			} else if name != nil {
 				err = e.truncateNameCurrent(auth, *name)
@@ -191,7 +191,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var ref ids.ObjectRef
 		observation := truncateName{name: target.Name}
-		if err == nil && s.txRef.Epoch() != e.state.epoch {
+		if err == nil && s.txRef.Epoch() != e.catalog.state.epoch {
 			err = ErrCatalogReplaced
 		}
 		if err == nil {
@@ -229,7 +229,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 			return truncateForeignKeyError(inbound[0].parent.name, inbound[0].relation.name)
 		}
 		for _, candidate := range inbound {
-			ref := e.domain.Ref(s.txRef.Epoch(), candidate.relation.address)
+			ref := e.catalog.domain.Ref(s.txRef.Epoch(), candidate.relation.address)
 			if err := open(ref, nil, true, false, false, true); err != nil {
 				return err
 			}

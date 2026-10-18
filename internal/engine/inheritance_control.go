@@ -12,21 +12,21 @@ const temporaryInheritanceReplacementError = "stuntgres: catalog replacement wit
 // Called under Engine.mu at preallocation and final replacement admission.
 // Retained TEMP relations cannot substitute persistent inheritance or OF sources.
 func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
-	for _, descriptor := range e.state.descriptors {
+	for _, descriptor := range e.catalog.state.descriptors {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.inheritance == nil {
 			continue
 		}
-		namespace := e.state.descriptors[table.namespace].(*namespaceDescriptor)
+		namespace := e.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
 		if namespace.temporary == (ids.SessionToken{}) {
 			continue
 		}
 		for _, parent := range table.inheritance.parents {
-			source, ok := e.state.descriptors[parent].(*relationDescriptor)
+			source, ok := e.catalog.state.descriptors[parent].(*relationDescriptor)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing inheritance parent")
 			}
-			if e.state.descriptors[source.namespace].(*namespaceDescriptor).temporary == (ids.SessionToken{}) {
+			if e.catalog.state.descriptors[source.namespace].(*namespaceDescriptor).temporary == (ids.SessionToken{}) {
 				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
 			}
 		}

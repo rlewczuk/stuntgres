@@ -57,8 +57,8 @@ func (e *Engine) initializeBuiltinRoutines() {
 			routineKind: declaration.kind, builtin: declaration, owner: owner,
 			result: declaration.result, volatility: declaration.volatility, strict: declaration.strict,
 		}
-		e.state.descriptors[d.address] = d
-		e.state.names[descriptorNameKey(d)] = d.address
+		e.catalog.state.descriptors[d.address] = d
+		e.catalog.state.names[descriptorNameKey(d)] = d.address
 	}
 	e.initializeBuiltinRoutineBodies()
 }
@@ -115,7 +115,7 @@ func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtin
 	if !ok || d.builtin != declaration {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.identity.name)
 	}
-	ref := view.owner.domain.Ref(view.Epoch(), address)
+	ref := view.owner.catalog.domain.Ref(view.Epoch(), address)
 	b.dependency(ref, d.revision)
 	if err := b.captureRoutineBody(d); err != nil {
 		return nil, ids.ObjectRef{}, err

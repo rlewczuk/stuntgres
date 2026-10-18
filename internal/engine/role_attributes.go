@@ -36,7 +36,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	op := scope.op
 	e.mu.Lock()
 	_, _, target, o, err := e.validateRoleAttributesLocked(op, stmt)
-	typ, _ := (CatalogRead{e, e.state}).LookupType(sqltype.Timestamptz)
+	typ, _ := (CatalogRead{e, e.catalog.state}).LookupType(sqltype.Timestamptz)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err

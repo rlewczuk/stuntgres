@@ -20,7 +20,7 @@ func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *relationTicket) {
 }
 
 func blockingUnitResource(e *Engine) lockResource {
-	return lockResource{ObjectRef: e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
+	return lockResource{ObjectRef: e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
 }
 
 func blockingUnitType(e *Engine) *sqltype.Descriptor {
@@ -120,16 +120,16 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if value, err := planned.Eval(evaluation); err != nil || value.IsNull() || value.ArrayLen() != 0 {
 		t.Fatal("undemanded branch evaluated", value, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), New().domain.Session(7), false, e.domain); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), New().catalog.domain.Session(7), false, e.catalog.domain); err != nil || len(values) != 0 {
 		t.Fatal("foreign owner exposed", values, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), e.domain.PrivateSession(s), false, e.domain); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), e.catalog.domain.PrivateSession(s), false, e.catalog.domain); err != nil || len(values) != 0 {
 		t.Fatal("private owner exposed", values, err)
 	}
-	if _, err := appendBlockingPid(nil, blockingUnitType(e), e.domain.Session(math.MaxInt32+1), false, e.domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+	if _, err := appendBlockingPid(nil, blockingUnitType(e), e.catalog.domain.Session(math.MaxInt32+1), false, e.catalog.domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 		t.Fatal("unchecked PID projection", err)
 	}
-	zeros, err := appendBlockingPid(nil, blockingUnitType(e), e.domain.Session(math.MaxInt32+1), true, e.domain)
+	zeros, err := appendBlockingPid(nil, blockingUnitType(e), e.catalog.domain.Session(math.MaxInt32+1), true, e.catalog.domain)
 	if err != nil || len(zeros) != 1 {
 		t.Fatal("prepared projection used physical ID", zeros, err)
 	}

@@ -51,7 +51,7 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 	}
 	for _, leaf := range frozen.sources {
 		source, ok := view.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-		if !ok || leaf.ref.Domain() != view.owner.domain || leaf.ref.Address.SubID != 0 {
+		if !ok || leaf.ref.Domain() != view.owner.catalog.domain || leaf.ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid policy source identity")
 		}
 		for _, attribute := range leaf.reads {
@@ -65,7 +65,7 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 		whole := a
 		whole.SubID = 0
 		provider, ok := view.Descriptor(whole)
-		if !ok || dep.ref.Domain() != view.owner.domain {
+		if !ok || dep.ref.Domain() != view.owner.catalog.domain {
 			return fmt.Errorf("stuntgres: invalid policy provider identity")
 		}
 		if a.SubID != 0 {

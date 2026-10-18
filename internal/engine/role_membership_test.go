@@ -197,7 +197,7 @@ func TestMembershipCancelledCandidate(t *testing.T) {
 	cancel()
 	// Closure is also used inside planning; cancellation cannot return a prefix.
 	old := e.roles
-	refs, err := (e.roleRead(CatalogRead{e, e.state}, e.roles)).RoleClosure(ctx, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), false)
+	refs, err := (e.roleRead(CatalogRead{e, e.catalog.state}, e.roles)).RoleClosure(ctx, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), false)
 	if err != context.Canceled || refs != nil || !reflect.DeepEqual(e.roles, old) {
 		t.Fatal(fmt.Sprint(refs), err)
 	}
@@ -269,13 +269,13 @@ func TestMembershipOrderedCandidateFailureFences(t *testing.T) {
 			retainedPublication := e.roles
 			retained := e.Roles()
 			edges := retained.Memberships()
-			catalog := e.state
+			catalog := e.catalog.state
 			_, err := e.Execute(op, statement(t, tc.query), 0, nil)
 			state(t, err, tc.code)
 			if notices := op.DetachNotices(); len(notices) != 0 {
 				t.Fatal("unreached mutation notice", notices)
 			}
-			if e.roles != retainedPublication || e.state != catalog || !reflect.DeepEqual(edges, retained.Memberships()) || !reflect.DeepEqual(edges, e.Roles().Memberships()) {
+			if e.roles != retainedPublication || e.catalog.state != catalog || !reflect.DeepEqual(edges, retained.Memberships()) || !reflect.DeepEqual(edges, e.Roles().Memberships()) {
 				t.Fatal("failed ordered candidate changed authority", err)
 			}
 		})
@@ -333,7 +333,7 @@ func TestMembershipRevokeEntryAuthority(t *testing.T) {
 	retainedPublication := e.roles
 	retained := e.Roles()
 	original := retained.Memberships()
-	catalog := e.state
+	catalog := e.catalog.state
 	roleExecute(t, e, op, "REVOKE p,q FROM a GRANTED BY g")
 	notices := op.DetachNotices()
 	if len(notices) != 1 || notices[0].Code != "01000" || notices[0].Message != `role "a" has not been granted membership in role "q" by role "g"` {
@@ -346,7 +346,7 @@ func TestMembershipRevokeEntryAuthority(t *testing.T) {
 		}
 		want = append(want, edge)
 	}
-	if len(want) != len(original)-1 || !reflect.DeepEqual(want, e.Roles().Memberships()) || !reflect.DeepEqual(original, retained.Memberships()) || e.roles.revision != retainedPublication.revision+1 || e.state != catalog {
+	if len(want) != len(original)-1 || !reflect.DeepEqual(want, e.Roles().Memberships()) || !reflect.DeepEqual(original, retained.Memberships()) || e.roles.revision != retainedPublication.revision+1 || e.catalog.state != catalog {
 		t.Fatal("entry batch publication", original, e.Roles().Memberships())
 	}
 	published := e.roles

@@ -37,22 +37,22 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					sessionSQL(t, s, "INSERT INTO t VALUES(7,9)")
 					sessionSQL(t, s, "CREATE SEQUENCE owned OWNED BY t.b")
 					ref := roleTableRef(t, e, "t")
-					oldDescriptor, oldStorage := e.state.descriptors[ref.Address], e.storage[ref.Address]
+					oldDescriptor, oldStorage := e.catalog.state.descriptors[ref.Address], e.storage[ref.Address]
 					sequence := roleTableRef(t, e, "owned")
-					oldSequence, oldGenerator := e.state.descriptors[sequence.Address], e.sequences[sequence.Address]
+					oldSequence, oldGenerator := e.catalog.state.descriptors[sequence.Address], e.sequences[sequence.Address]
 					var tx ids.TxRef
 					if explicit {
 						tx = transactionBegin(t, s)
 					}
-					original := e.providers[ids.RelationClassID]
+					original := e.catalog.providers[ids.RelationClassID]
 					calls := 0
 					entered := make(chan struct{})
-					e.providers[ids.RelationClassID] = alterDropProvider{original, func() {
+					e.catalog.providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						calls++
 						if calls != at {
 							return
 						}
-						e.providers[ids.RelationClassID] = original
+						e.catalog.providers[ids.RelationClassID] = original
 						close(entered)
 						var err error
 						if restore {
@@ -107,11 +107,11 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					case <-time.After(3 * time.Second):
 						t.Fatal("owned-sequence ALTER retained replacement read lock over provider callback")
 					}
-					if calls != at || e.state.descriptors[ref.Address] == oldDescriptor || e.storage[ref.Address] == oldStorage {
+					if calls != at || e.catalog.state.descriptors[ref.Address] == oldDescriptor || e.storage[ref.Address] == oldStorage {
 						t.Fatal("stale owned sequence/list installed", calls)
 					}
 					lockEmpty(t, e)
-					if e.state.descriptors[sequence.Address] == oldSequence || e.sequences[sequence.Address] == oldGenerator {
+					if e.catalog.state.descriptors[sequence.Address] == oldSequence || e.sequences[sequence.Address] == oldGenerator {
 						t.Fatal("stale owned sequence resurrected")
 					}
 					if !e.replacementMu.TryLock() {

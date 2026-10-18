@@ -124,11 +124,11 @@ func TestRestoreInheritedForeignKeyBoundary(t *testing.T) {
 	} {
 		t.Run(trial, func(t *testing.T) {
 			e, op, created := inheritedForeignKeyImportFixture(t)
-			before := e.state
+			before := e.catalog.state
 			raw := statement(t, trial).(*parser.AlterTable)
 			_, admitted, err := e.captureInheritedForeignKey(op, raw, created)
 			state(t, err, "0A000")
-			if admitted || e.state != before {
+			if admitted || e.catalog.state != before {
 				t.Fatal("unpaired public/general valid FK import gained authority", admitted, err)
 			}
 		})
@@ -139,10 +139,10 @@ func TestRestoreInheritedForeignKeyBoundary(t *testing.T) {
 		e, op, created := inheritedForeignKeyImportFixture(t)
 		raw := statement(t, canonical).(*parser.AlterTable)
 		raw.IfExists = true
-		before := e.state
+		before := e.catalog.state
 		_, admitted, err := e.captureInheritedForeignKey(op, raw, created)
 		state(t, err, "0A000")
-		if admitted || e.state != before {
+		if admitted || e.catalog.state != before {
 			t.Fatal("IF EXISTS gained import authority", admitted, err)
 		}
 	})
@@ -181,8 +181,8 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 				t.Fatal("genuine source/target/provider preparation rejected", admitted, err)
 			}
 			roleExecute(t, e, op, mutation)
-			before := e.state
-			if err := e.bindRestoredForeignKeys(context.Background(), op, []restoredForeignKeys{pending}); !errors.Is(err, ErrCatalogReplaced) || e.state != before {
+			before := e.catalog.state
+			if err := e.bindRestoredForeignKeys(context.Background(), op, []restoredForeignKeys{pending}); !errors.Is(err, ErrCatalogReplaced) || e.catalog.state != before {
 				t.Fatal("stale source/key/provider receipt rebound or published", err)
 			}
 		})
@@ -196,8 +196,8 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		before := e.state
-		if err := e.bindRestoredForeignKeys(ctx, op, []restoredForeignKeys{pending}); !errors.Is(err, context.Canceled) || e.state != before {
+		before := e.catalog.state
+		if err := e.bindRestoredForeignKeys(ctx, op, []restoredForeignKeys{pending}); !errors.Is(err, context.Canceled) || e.catalog.state != before {
 			t.Fatal("canceled post-data validation published staged metadata", err)
 		}
 	})
@@ -208,7 +208,7 @@ func TestRestoreInheritedForeignKeyAtomicity(t *testing.T) {
 	ownershipUnitExec(t, e, "CREATE ROLE fk_receipt_owner")
 	run(t, e, "CREATE TABLE sentinel(a INT)")
 	run(t, e, "INSERT INTO sentinel VALUES(91)")
-	before, oid, revision := e.state, e.nextOID, e.nextRevision
+	before, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	sentinel := roleTableRef(t, e, "sentinel")
 	storage := e.storage[sentinel.Address]
 	const declarations = "CREATE TABLE public.support(k INT UNIQUE);CREATE TABLE public.p(a INT,CONSTRAINT ordinary_fk FOREIGN KEY(a) REFERENCES public.support(k));CREATE TABLE public.c(k INT UNIQUE) INHERITS(public.p);INSERT INTO public.support VALUES(2);INSERT INTO public.p VALUES(2);INSERT INTO public.c(a,k) VALUES(NULL,1);"
@@ -231,7 +231,7 @@ func TestRestoreInheritedForeignKeyAtomicity(t *testing.T) {
 	if err := e.Restore(ctx, strings.NewReader(declarations+foreign)); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.state != before || e.nextOID != oid || e.nextRevision != revision || e.storage[sentinel.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT a FROM sentinel")), [][]driver.Value{{int64(91)}}) {
+	if e.catalog.state != before || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[sentinel.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT a FROM sentinel")), [][]driver.Value{{int64(91)}}) {
 		t.Fatal("failed/canceled isolated FK replay changed the published target")
 	}
 }

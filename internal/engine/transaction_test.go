@@ -255,7 +255,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, TxOptions{}); err == nil {
 		t.Fatal("nested begin")
 	}
-	for _, bad := range []ids.TxRef{{}, New().domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
+	for _, bad := range []ids.TxRef{{}, New().catalog.domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.catalog.domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
 		if _, err := e.Commit(op, bad); err == nil {
 			t.Fatal("foreign ref")
 		}
@@ -376,8 +376,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			spare := roots[0][len(roots[0]):cap(roots[0])]
 			suffix := append([]rowVersion(nil), spare...)
 			frontier := e.commitSeq
-			retainedFrontier, retainedEpoch := frontier, e.state.epoch
-			retainedCatalog := e.state
+			retainedFrontier, retainedEpoch := frontier, e.catalog.state.epoch
+			retainedCatalog := e.catalog.state
 			ref := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
@@ -447,9 +447,9 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				// Isolate epoch rejection from replacement's own storage/frontier
 				// effects; the mixed roots remain installed as the no-write witness.
 				e.mu.Lock()
-				next := *e.state
+				next := *e.catalog.state
 				next.epoch++
-				e.state = &next
+				e.catalog.state = &next
 				e.mu.Unlock()
 				outcome, err = e.Commit(op, ref)
 			case "counter_before":

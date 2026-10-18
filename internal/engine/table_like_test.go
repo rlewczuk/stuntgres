@@ -52,7 +52,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
 	source := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, attributes: []int32{1, 3}}
 	destination := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, attributes: []int32{1, 2, 3, 4}}
-	ref := e.domain.Ref(e.CatalogRead().Epoch(), source.address)
+	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), source.address)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := mapped.(columnExpression)
-	if got.origin.Domain() != e.domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
+	if got.origin.Domain() != e.catalog.domain || got.origin.Epoch != current.Epoch || got.origin.Address.ObjectID != destination.address.ObjectID || got.origin.Address.SubID != 3 || got.slot != 2 || column.origin != columnRef || column.slot != 1 {
 		t.Fatal(got, column)
 	}
 	owner := tableOIDExpression{expressionInfo: expressionInfo{Usage: testUsage(e, sqltype.Oid)}, owner: ref}
@@ -76,7 +76,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(tableOIDExpression).owner.Domain() != e.domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.address || owner.owner != ref {
+	if mapped.(tableOIDExpression).owner.Domain() != e.catalog.domain || mapped.(tableOIDExpression).owner.Epoch != current.Epoch || mapped.(tableOIDExpression).owner.Address != destination.address || owner.owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)
@@ -112,7 +112,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.state != before.state || destination.address == source.address || destination.rowType == source.rowType || destination.defaults[3].OID == source.defaults[2].OID || destination.generations[5].OID == source.generations[4].OID || destination.checkConstraints[0].OID == source.checkConstraints[0].OID {
+	if e.catalog.state != before.state || destination.address == source.address || destination.rowType == source.rowType || destination.defaults[3].OID == source.defaults[2].OID || destination.generations[5].OID == source.generations[4].OID || destination.checkConstraints[0].OID == source.checkConstraints[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
 	if !destination.checkConstraints[0].NoInherit || destination.checkConstraints[0].Name != "positive" || destination.columnComments[3] != "exact" || len(source.columns) != 3 || len(destination.columns) != 5 {
@@ -161,7 +161,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 			t.Fatal("invalid candidate accepted")
 		}
 		e.DiscardCatalogStage(stage)
-		if e.state != before.state || len(e.storage) != stores || len(e.sequences) != generators {
+		if e.catalog.state != before.state || len(e.storage) != stores || len(e.sequences) != generators {
 			t.Fatal("failed candidate leaked publication")
 		}
 	}
@@ -176,7 +176,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.state != before.state || len(e.storage) != stores || len(e.sequences) != generators {
+	if e.catalog.state != before.state || len(e.storage) != stores || len(e.sequences) != generators {
 		t.Fatal("canceled candidate leaked publication")
 	}
 }
@@ -213,7 +213,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("stale source silently retargeted", err)
 	}
-	if e.state != incumbent.state {
+	if e.catalog.state != incumbent.state {
 		t.Fatal("stale candidate partially published")
 	}
 }

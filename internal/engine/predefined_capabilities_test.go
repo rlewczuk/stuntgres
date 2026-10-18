@@ -35,13 +35,13 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100007}, name: "catalog", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: catalogRelation}, authorization.SelectPrivilege},
 		{&relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 100008}, name: "provider", owner: owner, acl: authorization.ACLValue{Explicit: true}, relationKind: viewRelation, virtualView: true}, authorization.SelectPrivilege},
 	}
-	state := cloneCatalog(e.state)
+	state := cloneCatalog(e.catalog.state)
 	for _, tc := range descriptors {
 		state.descriptors[tc.d.Address()] = tc.d
 	}
 	v := AuthorizationView{engine: e, pairedCatalog: CatalogRead{e, state}, roleRecord: e.roles, catalog: CatalogRead{e, state}, roles: e.roleRead(CatalogRead{e, state}, e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
-		ref := e.domain.Ref(state.epoch, tc.d.Address())
+		ref := e.catalog.domain.Ref(state.epoch, tc.d.Address())
 		got, err := v.Effective(ref, false)
 		if err != nil || got != tc.want {
 			t.Fatal(tc.d.Name(), got, tc.want, err)
@@ -58,7 +58,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	if predefinedPrivileges(typ, []authorization.PrincipalRef{e.authorizationDomain.Principal(6181), e.authorizationDomain.Principal(6182), e.authorizationDomain.Principal(6337)}) != 0 {
 		t.Fatal("data capability leaked onto type")
 	}
-	column := e.domain.Ref(state.epoch, descriptors[1].d.Address())
+	column := e.catalog.domain.Ref(state.epoch, descriptors[1].d.Address())
 	column.Address.SubID = 1
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege {
 		t.Fatal("column mask", got, err)
@@ -86,26 +86,26 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	fresh := v
 	fresh.roleRecord = e.roles
 	fresh.roles = e.roleRead(fresh.catalog, e.roles)
-	if got, err := fresh.Effective(e.domain.Ref(state.epoch, table.address), false); err != nil || got != 0 {
+	if got, err := fresh.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
-	if got, err := v.Effective(e.domain.Ref(state.epoch, table.address), false); err != nil || got != descriptors[1].want {
+	if got, err := v.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err != nil || got != descriptors[1].want {
 		t.Fatal("retained authority changed", got, err)
 	}
-	for _, ref := range []ids.ObjectRef{New().domain.Ref(state.epoch, table.address), e.domain.Ref(state.epoch+1, table.address), e.domain.Ref(state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})} {
+	for _, ref := range []ids.ObjectRef{New().catalog.domain.Ref(state.epoch, table.address), e.catalog.domain.Ref(state.epoch+1, table.address), e.catalog.domain.Ref(state.epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})} {
 		if _, err := v.Effective(ref, false); err == nil {
 			t.Fatal("capability accepted invalid object", ref)
 		}
 	}
 	fresh.state.CurrentUser = New().authorizationDomain.Principal(reader.Ref.ID())
-	if _, err := fresh.Effective(e.domain.Ref(state.epoch, table.address), false); err == nil {
+	if _, err := fresh.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err == nil {
 		t.Fatal("capability accepted foreign actor")
 	}
 	roleAttributeApply(t, e, op, &parser.DropRole{Names: []string{reader.Name}})
 	fresh.roles = e.Roles()
 	fresh.roleRecord = e.roles
 	fresh.state.CurrentUser = reader.Ref
-	if _, err := fresh.Effective(e.domain.Ref(state.epoch, table.address), false); err == nil {
+	if _, err := fresh.Effective(e.catalog.domain.Ref(state.epoch, table.address), false); err == nil {
 		t.Fatal("capability accepted retired actor")
 	}
 }
@@ -121,8 +121,8 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	actor := roleAttributeCreate(t, e, op, "rebuilder", true, parser.RoleOptions{})
 	roleAttributeApply(t, e, op, &parser.CreateTable{Name: predefinedObjectName("maintained"), Elements: []parser.TableElement{{Column: &parser.Column{Name: "n", TypeName: parser.TypeName{Name: "integer"}}}}})
 	roleAttributeApply(t, e, op, &parser.CreateIndex{Name: parser.Identifier{Text: "maintained_index"}, Table: predefinedObjectName("maintained"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}})
-	address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "maintained_index"}]
-	index := e.state.descriptors[address].(*relationDescriptor)
+	address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "maintained_index"}]
+	index := e.catalog.state.descriptors[address].(*relationDescriptor)
 	root, storage := e.indexRoots[address], e.storage[index.sqlIndex.parent]
 	if root == nil || storage == nil {
 		t.Fatal("missing real index or parent storage")
@@ -138,7 +138,7 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeApply(t, e, op, utility)
 	next := e.indexRoots[address]
-	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.state.descriptors[address] != index || e.storage[index.sqlIndex.parent] != storage {
+	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.descriptors[address] != index || e.storage[index.sqlIndex.parent] != storage {
 		t.Fatal("MAINTAIN did not rebuild real isolated root")
 	}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Default: true})
@@ -195,7 +195,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 		if e.roles != roles || len(e.Roles().Memberships()) != 2 {
 			t.Fatal("control reseeded shared graph")
 		}
-		public := e.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
+		public := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
 		if public.owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
 			t.Fatal("public owner or ACL baseline", public)
 		}
@@ -209,7 +209,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	public := target.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
+	public := target.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
 	if public.owner != (target.authorizationDomain.Principal(6171)) {
 		t.Fatal("foreign public owner escaped remapping", public.owner)
 	}
@@ -229,7 +229,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	op.DetachNotices()
 	for _, columns := range [][]parser.Identifier{nil, {{Text: "n"}}} {
-		beforeCatalog, beforeRoles := e.state, e.roles
+		beforeCatalog, beforeRoles := e.catalog.state, e.roles
 		roleAttributeApply(t, e, op, &parser.ObjectGrant{
 			Relations:   []parser.ObjectName{predefinedObjectName("grant_target")},
 			Privileges:  []parser.GrantPrivilege{{Name: "select", Columns: columns}},
@@ -244,12 +244,12 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 		if notices := op.DetachNotices(); !reflect.DeepEqual(notices, want) {
 			t.Fatal("use-only grant warning", notices, want)
 		}
-		if e.state != beforeCatalog || e.roles != beforeRoles {
+		if e.catalog.state != beforeCatalog || e.roles != beforeRoles {
 			t.Fatal("use-only capability published a grant")
 		}
 	}
-	address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "grant_target"}]
-	ref := e.domain.Ref(e.state.epoch, address)
+	address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "grant_target"}]
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
 	view, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)

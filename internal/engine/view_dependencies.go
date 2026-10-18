@@ -449,7 +449,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		if provider.removed(d.address) {
 			continue
 		}
-		if err := provider.removeObjectLocked(provider.owner.domain.Ref(provider.base.Epoch(), d.address), false); err != nil {
+		if err := provider.removeObjectLocked(provider.owner.catalog.domain.Ref(provider.base.Epoch(), d.address), false); err != nil {
 			return err
 		}
 		activeEdges = append(activeEdges, edge)

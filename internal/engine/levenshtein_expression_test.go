@@ -43,7 +43,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	}
 	nonmember := *n.procedure
 	nonmember.address = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
-	foreignState := cloneCatalog(e.state)
+	foreignState := cloneCatalog(e.catalog.state)
 	foreignState.descriptors[nonmember.address] = &nonmember
 	if err := stockFuzzystrmatch.validateProcedure(CatalogRead{owner: e, state: foreignState}, &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
@@ -83,7 +83,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.fuzzy = &fuzzystrmatchProvider{version: "1.2"} },
 		func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
 	} {
-		state := cloneCatalog(e.state)
+		state := cloneCatalog(e.catalog.state)
 		bad := *n.procedure
 		mutate(&bad)
 		state.descriptors[n.ref.Address] = &bad

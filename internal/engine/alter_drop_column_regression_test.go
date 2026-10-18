@@ -21,11 +21,11 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT,b TEXT,c BIGINT)")
 			run(t, e, "INSERT INTO t VALUES(1,'gone',9)")
 			ref := roleTableRef(t, e, "t")
-			beforeDropRevision := e.state.descriptors[ref.Address].Revision()
+			beforeDropRevision := e.catalog.state.descriptors[ref.Address].Revision()
 			entered, release := make(chan struct{}), make(chan struct{})
 			var first, unblock sync.Once
 			t.Cleanup(func() { unblock.Do(func() { close(release) }) })
-			e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
+			e.catalog.providers[ids.RelationClassID] = alterDropProvider{e.catalog.providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
 			dropping := lockAsync(e, sessionStart(t, e, nil), context.Background(), "ALTER TABLE t DROP b", false)
 			select {
 			case <-entered:
@@ -84,7 +84,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 				if !reflect.DeepEqual(got.notices, want) {
 					t.Fatal(got.notices, want)
 				}
-				descriptor := e.state.descriptors[ref.Address]
+				descriptor := e.catalog.state.descriptors[ref.Address]
 				storage := e.storage[ref.Address]
 				if descriptor.Revision() != beforeDropRevision+1 || len(storage.versions) != 1 || len(storage.versions[0].values) != 2 {
 					t.Fatal(descriptor, storage)
@@ -92,7 +92,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 				if _, err := e.Execute(op, stmt, 0, nil); err != nil {
 					t.Fatal(err)
 				}
-				if !reflect.DeepEqual(op.DetachNotices(), want) || e.state.descriptors[ref.Address] != descriptor || e.storage[ref.Address] != storage {
+				if !reflect.DeepEqual(op.DetachNotices(), want) || e.catalog.state.descriptors[ref.Address] != descriptor || e.storage[ref.Address] != storage {
 					t.Fatal("repeated skip changed descriptor/storage or notices")
 				}
 			}
@@ -109,7 +109,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	var unblock sync.Once
 	t.Cleanup(func() { unblock.Do(func() { close(release) }) })
 	var gated atomic.Bool
-	e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() {
+	e.catalog.providers[ids.RelationClassID] = alterDropProvider{e.catalog.providers[ids.RelationClassID], func() {
 		if !gated.CompareAndSwap(false, true) {
 			return
 		}
@@ -130,7 +130,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	lockAwait(t, queued, ErrCatalogReplaced)
 	unblock.Do(func() { close(release) })
 	lockAwait(t, dropping, ErrCatalogReplaced)
-	e.providers[ids.RelationClassID] = relationProvider{}
+	e.catalog.providers[ids.RelationClassID] = relationProvider{}
 	run(t, e, "CREATE TABLE t(replacement INT)")
 	result := run(t, e, "SELECT * FROM t")
 	if result.Count != 0 || result.Rows.Schema()[0].Name != "replacement" {
@@ -232,7 +232,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 						transactionEnd(t, early, earlyTx, false)
 					}
 				}()
-				lateDescriptor, earlyDescriptor := e.state.descriptors[lateRef.Address], e.state.descriptors[earlyRef.Address]
+				lateDescriptor, earlyDescriptor := e.catalog.state.descriptors[lateRef.Address], e.catalog.state.descriptors[earlyRef.Address]
 				lateStorage, earlyStorage := e.storage[lateRef.Address], e.storage[earlyRef.Address]
 				var before bytes.Buffer
 				if err := e.Dump(context.Background(), &before); err != nil {
@@ -249,7 +249,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("native ALTER did not reject shadow while early AX held")
 				}
-				if e.state.descriptors[lateRef.Address] != lateDescriptor || e.state.descriptors[earlyRef.Address] != earlyDescriptor || e.storage[lateRef.Address] != lateStorage || e.storage[earlyRef.Address] != earlyStorage {
+				if e.catalog.state.descriptors[lateRef.Address] != lateDescriptor || e.catalog.state.descriptors[earlyRef.Address] != earlyDescriptor || e.storage[lateRef.Address] != lateStorage || e.storage[earlyRef.Address] != earlyStorage {
 					t.Error("shadow ALTER changed descriptor or storage")
 				}
 				var after bytes.Buffer

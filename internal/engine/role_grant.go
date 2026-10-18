@@ -89,7 +89,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if addr == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Text))
 		}
-		ref := e.domain.Ref(v.catalog.Epoch(), addr)
+		ref := e.catalog.domain.Ref(v.catalog.Epoch(), addr)
 		if err := v.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege}); err != nil {
 			return nil, err
 		}
@@ -452,7 +452,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		}
 		op.session.transactions.catalog = changes
 	} else {
-		e.state = candidate
+		e.catalog.state = candidate
 	}
 	e.installOperationRolesLocked(op, roles)
 	return Result{}, nil

@@ -61,7 +61,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 		}
 		return old, capture, nil
 	}
-	ref := e.domain.Ref(provider.base.Epoch(), identity.sequence)
+	ref := e.catalog.domain.Ref(provider.base.Epoch(), identity.sequence)
 	// Do not capture the sequence definition before its actual operation grant:
 	// the incumbent refresh selects this provider at grant time, not by name.
 	if err := provider.scope.acquireSequence(ref, accessExclusive, false); err != nil {
@@ -73,8 +73,8 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 		err = e.refreshIdentitySequenceLocked(provider.scope, provider.stage, old, attribute, identity.sequence)
 		if err == nil {
 			provider.base = provider.stage.base
-			capture = identityDropCapture{sequence: ref, original: e.state.descriptors[identity.sequence]}
-			provider.stage.identityDependencies = append(provider.stage.identityDependencies, catalogDependencyObservation{e.state, []ids.ObjectAddress{identity.sequence}})
+			capture = identityDropCapture{sequence: ref, original: e.catalog.state.descriptors[identity.sequence]}
+			provider.stage.identityDependencies = append(provider.stage.identityDependencies, catalogDependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.sequence}})
 		}
 	} else {
 		capture, err = e.captureIdentityDropDefinitionLocked(provider, old, attribute, ref)
@@ -127,8 +127,8 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	provider.base = fresh.catalog
 	provider.prepared.discovery = fresh.catalog
 	provider.identitySource = sequence
-	provider.prepared.recordEffect(dropEffect{identityRoots: []ids.ObjectAddress{ref.Address}, identityState: e.state})
-	return identityDropCapture{sequence: ref, original: e.state.descriptors[ref.Address]}, nil
+	provider.prepared.recordEffect(dropEffect{identityRoots: []ids.ObjectAddress{ref.Address}, identityState: e.catalog.state})
+	return identityDropCapture{sequence: ref, original: e.catalog.state.descriptors[ref.Address]}, nil
 }
 
 func applyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) {
@@ -142,7 +142,7 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
-	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{})
+	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{})
 	if old != nil {
 		ref.Address = old.address
 	}
@@ -174,7 +174,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 	e := scope.op.session.Engine()
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
 		e.mu.Lock()
-		unchanged := e.state.descriptors[prepared.sequence.Address] == prepared.original
+		unchanged := e.catalog.state.descriptors[prepared.sequence.Address] == prepared.original
 		e.mu.Unlock()
 		if !unchanged {
 			return nil, ErrCatalogReplaced

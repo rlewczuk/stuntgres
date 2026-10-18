@@ -16,7 +16,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
-			beforeCatalog, beforeRoles, frontier := e.state, e.roles, e.commitSeq
+			beforeCatalog, beforeRoles, frontier := e.catalog.state, e.roles, e.commitSeq
 			original, revision := a.authorization.state, a.authorization.revision
 			m := batchUnitStart(t, a, context.Background())
 			defer m.end(context.Canceled)
@@ -55,7 +55,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if changes.storage[table].original != nil || len(changes.uniqueRoots[index].entries) != 0 || len(a.transactions.writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
-			if e.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || e.storage[table] != nil || e.indexRoots[index] != nil {
+			if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || e.storage[table] != nil || e.indexRoots[index] != nil {
 				t.Fatal("candidate escaped before message end")
 			}
 			if _, ok := e.Roles().Lookup("batch_member"); ok {
@@ -68,7 +68,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if _, ok := e.Roles().Lookup("batch_member"); !ok {
 					t.Fatal("role root not installed with catalog")
 				}
-				if e.state == beforeCatalog || e.roles == beforeRoles || len(e.storage[table].versions) != 2 || len(e.indexRoots[index].entries) != 2 {
+				if e.catalog.state == beforeCatalog || e.roles == beforeRoles || len(e.storage[table].versions) != 2 || len(e.indexRoots[index].entries) != 2 {
 					t.Fatal("incomplete atomic installation")
 				}
 				sessionSQL(t, a, "RESET ROLE")
@@ -82,7 +82,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("primary error replaced", end, err)
 				}
-				if e.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || a.authorization.state != original || a.authorization.revision <= revision || a.transactions.identityCaptured {
+				if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || a.authorization.state != original || a.authorization.revision <= revision || a.transactions.identityCaptured {
 					t.Fatal("joint rollback or identity revision")
 				}
 			}
@@ -153,7 +153,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "entry_authority")
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	before := e.state
+	before := e.catalog.state
 	old := before.descriptors[ref.Address].(*relationDescriptor)
 	stage := e.BeginCatalogStage(CatalogRead{e, before})
 	defer e.DiscardCatalogStage(stage)
@@ -169,7 +169,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {
 		t.Fatal("proposed replacement mistaken for entry predecessor", err)
 	}
-	if candidate.originals[ref.Address] != old || e.state != before || e.state.descriptors[ref.Address] != old {
+	if candidate.originals[ref.Address] != old || e.catalog.state != before || e.catalog.state.descriptors[ref.Address] != old {
 		t.Fatal("capture rewrote committed predecessor or published candidate")
 	}
 	peer := cloneCatalog(before)
@@ -189,7 +189,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	definition := statement(t, "CREATE TEMP TABLE namespace_entry(v INT)").(*parser.CreateTable)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	before := e.state
+	before := e.catalog.state
 	auth, err := e.authorizationLocked(m.op)
 	if err != nil {
 		t.Fatal(err)
@@ -218,7 +218,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if original, exists := candidate.names[key]; !exists || original != (ids.ObjectAddress{}) {
 		t.Fatal("namespace creation lost its name absence fence")
 	}
-	if e.state != before || before.descriptors[ns.Address] != nil {
+	if e.catalog.state != before || before.descriptors[ns.Address] != nil {
 		t.Fatal("namespace intent published during capture")
 	}
 	if err := e.catalogPreflightLocked(candidate); err != nil {
@@ -260,8 +260,8 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	}
 	// Even the exact same namespace appearing in the committed root conflicts
 	// with the original absence stamp; entry admission cannot bypass publication.
-	e.state = e.privateCatalogLocked(candidate).state
-	defer func() { e.state = before }()
+	e.catalog.state = e.privateCatalogLocked(candidate).state
+	defer func() { e.catalog.state = before }()
 	if err := e.catalogPreflightLocked(candidate); err == nil {
 		t.Fatal("committed namespace defeated original absence fence")
 	}
@@ -272,7 +272,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			before := e.state
+			before := e.catalog.state
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			for _, command := range []struct {
@@ -314,7 +314,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 			table := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "u"}]
 			copyTable := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "c"}]
 			index := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "bi"}]
-			unpublished := e.state == before && e.storage[table] == nil && e.storage[copyTable] == nil && e.indexRoots[index] == nil
+			unpublished := e.catalog.state == before && e.storage[table] == nil && e.storage[copyTable] == nil && e.indexRoots[index] == nil
 			e.mu.Unlock()
 			if !unpublished {
 				t.Fatal("composition published catalog, storage or index before message disposition")
@@ -339,7 +339,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("composition rollback replaced primary error", end)
 				}
-				if e.state != before || e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"}] != (ids.ObjectAddress{}) {
+				if e.catalog.state != before || e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"}] != (ids.ObjectAddress{}) {
 					t.Fatal("failed composition published catalog prefix")
 				}
 			}

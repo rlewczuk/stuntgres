@@ -37,7 +37,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	}
 	ownershipUnitPublish(t, e, setup)
 	e.DiscardCatalogStage(setup)
-	committed := e.state.descriptors[currentDatabaseAddress]
+	committed := e.catalog.state.descriptors[currentDatabaseAddress]
 	var changes *catalogChanges
 	if private {
 		// Honest predecessor plus a different selected private descriptor. This
@@ -91,19 +91,19 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
 					t.Fatal("selected DB owner did not authorize actual partition", err)
 				}
-				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.state.epoch
+				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.epoch
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
 				rows := append([]rowVersion(nil), e.storage[leaf].versions...)
 				for i := range rows {
 					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
 				}
-				if len(rows) != 1 || len(table.uniqueConstraints) != 1 || len(e.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 2 {
+				if len(rows) != 1 || len(table.uniqueConstraints) != 1 || len(e.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 2 {
 					t.Fatal("fixture lacks actual rows or recursive/local keys")
 				}
 				rootKey := table.uniqueConstraints[0]
 				selected := map[ids.ObjectAddress]bool{rootKey.Index: true}
-				for _, key := range e.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints {
+				for _, key := range e.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints {
 					if key.Parent == rootKey.OID {
 						selected[key.Index] = true
 					}
@@ -113,7 +113,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				}
 				replaceDatabase := func() {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+					database := *e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 					if private {
 						database.owner = actor.Ref
 					} else {
@@ -125,11 +125,11 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.state.epoch != epoch {
+					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.epoch != epoch {
 						t.Fatal("DB-only replacement changed unrelated authority")
 					}
 					for address, descriptor := range before.catalog.descriptors {
-						if address != currentDatabaseAddress && e.state.descriptors[address] != descriptor {
+						if address != currentDatabaseAddress && e.catalog.state.descriptors[address] != descriptor {
 							t.Fatal("DB-only replacement changed target or associated identities")
 						}
 					}
@@ -171,7 +171,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if err != nil {
 						t.Fatal("unchanged committed predecessor rejected selected authority", err)
 					}
-					if len(e.state.descriptors[root.Address].(*relationDescriptor).uniqueConstraints) != 0 || len(e.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 1 || !reflect.DeepEqual(e.storage[leaf].versions, rows) {
+					if len(e.catalog.state.descriptors[root.Address].(*relationDescriptor).uniqueConstraints) != 0 || len(e.catalog.state.descriptors[leaf].(*relationDescriptor).uniqueConstraints) != 1 || !reflect.DeepEqual(e.storage[leaf].versions, rows) {
 						t.Fatal("healthy drop changed rows or retained selected keys")
 					}
 					for address, descriptor := range before.catalog.descriptors {
@@ -180,10 +180,10 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 							continue
 						}
 						if selected[address] {
-							if e.state.descriptors[address] != nil {
+							if e.catalog.state.descriptors[address] != nil {
 								t.Fatal("healthy drop retained actual selected backing index")
 							}
-						} else if e.state.descriptors[address] != descriptor {
+						} else if e.catalog.state.descriptors[address] != descriptor {
 							t.Fatal("healthy drop changed independent index identity")
 						}
 					}

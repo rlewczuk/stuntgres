@@ -86,7 +86,7 @@ func (e *Engine) checkOperatorArgumentUsage(auth AuthorizationView, id ids.OID) 
 	if id == 0 {
 		return nil
 	}
-	return auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
+	return auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
 }
 
 func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
@@ -157,7 +157,7 @@ func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName,
 	if d.routineKind != 'f' {
 		return nil, sqlError("42809", objectNameText(name)+" is not a function")
 	}
-	if err = auth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), d.address), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), d.address), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -228,7 +228,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
 		}
 		result = d.result
-		if err = auth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), d.address), Privileges: authorization.ExecutePrivilege}); err != nil {
+		if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), d.address), Privileges: authorization.ExecutePrivilege}); err != nil {
 			return 0, err
 		}
 		builtin = d.seeded()
@@ -538,7 +538,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	} else if peer.address != d.address {
 		peerAuth := auth
 		peerAuth.recaptureCatalog(view)
-		if err = peerAuth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), peer.address), OwnerOnly: true}); err != nil {
+		if err = peerAuth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), peer.address), OwnerOnly: true}); err != nil {
 			return nil, err
 		}
 	}
@@ -675,7 +675,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if err != nil {
 		return err
 	}
-	if err = auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: routine.result})); err != nil {
+	if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: routine.result})); err != nil {
 		return err
 	}
 	symbol := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -697,7 +697,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 		if old.function != 0 {
 			return sqlError("42723", "operator "+symbol+" already exists")
 		}
-		if err = auth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), old.address), OwnerOnly: true}); err != nil {
+		if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), old.address), OwnerOnly: true}); err != nil {
 			return err
 		}
 		next.address = old.address
@@ -767,7 +767,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		}
 		next.namespace = ns.Address
 	}
-	if err = auth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), d.address), OwnerOnly: true}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), d.address), OwnerOnly: true}); err != nil {
 		return err
 	}
 	if d.seeded() {
@@ -851,9 +851,9 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 			}
 			return err
 		}
-		namespaceOwner := auth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), d.namespace), OwnerOnly: true}) == nil
+		namespaceOwner := auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), d.namespace), OwnerOnly: true}) == nil
 		if !namespaceOwner {
-			if err = auth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), d.address), OwnerOnly: true}); err != nil {
+			if err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), d.address), OwnerOnly: true}); err != nil {
 				if diag, ok := err.(*sqlstate.Error); ok && diag.Code == "42501" {
 					return sqlError("42501", "must be owner of operator "+objectNameText(sig.Name))
 				}

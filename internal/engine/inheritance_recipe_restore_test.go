@@ -54,7 +54,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*restoredGenerationRecipe){
 		"epoch":     func(r *restoredGenerationRecipe) { r.ref.Epoch++ },
-		"owner":     func(r *restoredGenerationRecipe) { r.ref = New().domain.Ref(r.ref.Epoch, r.ref.Address) },
+		"owner":     func(r *restoredGenerationRecipe) { r.ref = New().catalog.domain.Ref(r.ref.Epoch, r.ref.Address) },
 		"attribute": func(r *restoredGenerationRecipe) { r.attribute++ },
 		"identity":  func(r *restoredGenerationRecipe) { r.generation++ },
 		"kind":      func(r *restoredGenerationRecipe) { r.kind = generationStored },
@@ -65,8 +65,8 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 			record := bad[key]
 			mutate(&record)
 			bad[key] = record
-			before := e.state
-			if err := e.pairRestoredGeneration(op, raw, bad); err == nil || e.state != before {
+			before := e.catalog.state
+			if err := e.pairRestoredGeneration(op, raw, bad); err == nil || e.catalog.state != before {
 				t.Fatal("mismatched generation gained authority", err)
 			}
 		})
@@ -105,8 +105,8 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	} {
 		candidate := statement(t, admitted).(*parser.AlterTable)
 		test.change(candidate)
-		before := e.state
-		if err := e.restoreInheritedCheck(op, candidate, []restoredGenerationRecipe{repair}); err == nil || e.state != before {
+		before := e.catalog.state
+		if err := e.restoreInheritedCheck(op, candidate, []restoredGenerationRecipe{repair}); err == nil || e.catalog.state != before {
 			t.Fatal("unpaired CHECK shape admitted", test.name, err)
 		}
 	}
@@ -123,18 +123,18 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 		}
 	}
 	// Real inherited origins, not mere graph connectivity, remain mandatory.
-	before := e.state
+	before := e.catalog.state
 	child := *before.descriptors[refs["c"].Address].(*relationDescriptor)
 	child.inheritance = cloneInheritance(child.inheritance)
 	child.inheritance.columns[2] = inheritedColumn{origins: []inheritanceOrigin{{parent: refs["q"].Address, attribute: 1}}}
 	changed := cloneCatalog(before)
 	changed.descriptors[child.address] = &child
-	e.state = changed
+	e.catalog.state = changed
 	childRaw := statement(t, "ALTER TABLE ONLY public.c ALTER g SET EXPRESSION AS(a+1)").(*parser.AlterTable)
-	if err := e.pairRestoredGeneration(op, childRaw, origins); err == nil || e.state != changed {
+	if err := e.pairRestoredGeneration(op, childRaw, origins); err == nil || e.catalog.state != changed {
 		t.Fatal("forged generation origin accepted", err)
 	}
-	e.state = before
+	e.catalog.state = before
 	targets := e.importTargets
 	e.importTargets = nil
 	if err := e.restoreInheritedCheck(op, check, []restoredGenerationRecipe{repair}); err == nil {
@@ -182,8 +182,8 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 		"ALTER TABLE c OWNER TO captured_owner",
 		"ALTER TABLE public.c OWNER TO CURRENT_USER",
 	} {
-		before := e.state
-		if err := e.restoreInheritedOwner(op, statement(t, sql).(*parser.AlterOwner), pair); err == nil || e.state != before {
+		before := e.catalog.state
+		if err := e.restoreInheritedOwner(op, statement(t, sql).(*parser.AlterOwner), pair); err == nil || e.catalog.state != before {
 			t.Fatal("foreign owner target accepted", sql, err)
 		}
 	}
@@ -196,8 +196,8 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			candidate := pair
 			mutate(&candidate)
-			before := e.state
-			if err := e.restoreInheritedOwner(op, raw, candidate); err == nil || e.state != before {
+			before := e.catalog.state
+			if err := e.restoreInheritedOwner(op, raw, candidate); err == nil || e.catalog.state != before {
 				t.Fatal("mismatched owner identity admitted", err)
 			}
 		})

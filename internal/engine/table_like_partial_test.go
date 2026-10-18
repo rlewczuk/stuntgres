@@ -21,7 +21,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "CREATE INDEX source_expression ON src((10/n)) WHERE active")
 	source := e.CatalogRead().state.descriptors[roleTableRef(t, e, "src").Address].(*relationDescriptor)
 	external := roleTableRef(t, e, "anchor")
-	externalType := e.domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
+	externalType := e.catalog.domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
 	ordinary := e.CatalogRead().state.descriptors[roleTableRef(t, e, "source_partial").Address].(*relationDescriptor)
 	expression := e.CatalogRead().state.descriptors[roleTableRef(t, e, "source_expression").Address].(*relationDescriptor)
 	sourcePredicate := ordinary.sqlIndex.predicate
@@ -35,7 +35,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	local := e.domain.Ref(stage.base.Epoch(), destination.address)
+	local := e.catalog.domain.Ref(stage.base.Epoch(), destination.address)
 	local.Address.SubID = 4
 	var copied []*relationDescriptor
 	for _, descriptor := range stage.descriptors {
@@ -98,9 +98,9 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			if index.sqlIndex.keys[0].attribute != 3 || !reflect.DeepEqual(index.sqlIndex.include, []int32{2}) || !slices.Contains(predicate.dependencies, external) {
 				t.Fatal("key/include/external identity lost", index.sqlIndex)
 			}
-			booleanType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
-			regclassType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-			regtypeType := e.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
+			booleanType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
+			regclassType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+			regtypeType := e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
 			if !slices.Equal(predicate.dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
 				t.Fatal("analyzed predicate dependency manifest", predicate.dependencies)
 			}

@@ -70,7 +70,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 						case "missing":
 							continue
 						case "foreign":
-							dep.ref = foreign.domain.Ref(dep.ref.Epoch, dep.ref.Address)
+							dep.ref = foreign.catalog.domain.Ref(dep.ref.Epoch, dep.ref.Address)
 						case "stale":
 							dep.revision++
 						}

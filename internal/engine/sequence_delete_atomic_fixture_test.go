@@ -33,7 +33,7 @@ type sequenceDeletePublicationSnapshot struct {
 
 func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
 	p := sequenceDeletePublicationSnapshot{
-		state: e.state, catalog: *e.state,
+		state: e.catalog.state, catalog: *e.catalog.state,
 		descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
 		storageID:       uintptr(reflect.ValueOf(e.storage).UnsafePointer()),
 		generatorsID:    uintptr(reflect.ValueOf(e.sequences).UnsafePointer()),
@@ -45,10 +45,10 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		memoryID: uintptr(reflect.ValueOf(s.sequences).UnsafePointer()),
 		memory:   make(map[ids.ObjectAddress]*sequenceMemory), memoryValues: make(map[ids.ObjectAddress]sequenceMemory),
 	}
-	for a, d := range e.state.descriptors {
+	for a, d := range e.catalog.state.descriptors {
 		p.descriptors[a] = d
 	}
-	for k, a := range e.state.names {
+	for k, a := range e.catalog.state.names {
 		p.names[k] = a
 	}
 	for a, store := range e.storage {
@@ -76,7 +76,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 
 func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engine, s *Session) {
 	t.Helper()
-	if e.state != p.state || !reflect.DeepEqual(*e.state, p.catalog) || !reflect.DeepEqual(e.state.descriptors, p.descriptors) || !reflect.DeepEqual(e.state.names, p.names) {
+	if e.catalog.state != p.state || !reflect.DeepEqual(*e.catalog.state, p.catalog) || !reflect.DeepEqual(e.catalog.state.descriptors, p.descriptors) || !reflect.DeepEqual(e.catalog.state.names, p.names) {
 		t.Fatal("failed combined publication changed catalog authority, descriptor/name bindings or namespace generation")
 	}
 	if uintptr(reflect.ValueOf(e.storage).UnsafePointer()) != p.storageID || uintptr(reflect.ValueOf(e.sequences).UnsafePointer()) != p.generatorsID || len(e.storage) != len(p.stores) || len(e.sequences) != len(p.generators) {
@@ -126,7 +126,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 		for a, d := range tx.catalog.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {
 				namespaces++
-				if tx.catalog.originals[a] != nil || s.Engine().state.descriptors[a] != nil {
+				if tx.catalog.originals[a] != nil || s.Engine().catalog.state.descriptors[a] != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}

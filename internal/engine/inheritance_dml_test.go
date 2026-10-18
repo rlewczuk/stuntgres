@@ -28,7 +28,7 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx con
 		done()
 		t.Fatal(err)
 	}
-	s.lockedRef = e.domain.Ref(e.CatalogRead().Epoch(), p.address)
+	s.lockedRef = e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	s.lockedDescriptor = p
 	s.lockedStorage = e.storage[p.address]
 	if err = e.locks.Acquire(ctx, s.ticket, lockResource{ObjectRef: s.lockedRef}, rowExclusive); err != nil {
@@ -84,7 +84,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := func(d *relationDescriptor) ids.ObjectRef {
-		return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
+		return e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
 	}
 	old := rowVersion{row: 7, version: 11, base: 5, born: 3, values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
 	physical := queryPhysicalRow{leaf: queryLeaf{ref: ref(c), relation: c, storage: &relationStorage{}}, version: old, hint: 6, segment: &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}}
@@ -141,8 +141,8 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 	next := *c
 	next.revision++
 	next.name = "renamed"
-	e.state = cloneCatalog(e.state)
-	e.state.descriptors[c.address] = &next
+	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state.descriptors[c.address] = &next
 	if err := s.acquireInheritedMutationTargets(&parser.Update{}); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("changed descendant silently rebound", err)
 	}

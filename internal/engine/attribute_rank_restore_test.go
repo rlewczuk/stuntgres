@@ -102,12 +102,12 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	ordinary := New()
 	foreign, closeForeign := roleOperation(t, ordinary, "postgres")
 	defer closeForeign()
-	beforeAuthority := e.state
-	if err := e.restoreAttributeRank(foreign, parse("a")); err == nil || e.state != beforeAuthority {
+	beforeAuthority := e.catalog.state
+	if err := e.restoreAttributeRank(foreign, parse("a")); err == nil || e.catalog.state != beforeAuthority {
 		t.Fatal("foreign operation admitted", err)
 	}
-	ordinaryState := ordinary.state
-	if err := ordinary.restoreAttributeRank(foreign, parse("a")); err == nil || ordinary.state != ordinaryState {
+	ordinaryState := ordinary.catalog.state
+	if err := ordinary.restoreAttributeRank(foreign, parse("a")); err == nil || ordinary.catalog.state != ordinaryState {
 		t.Fatal("ordinary engine admitted private repair", err)
 	}
 	if err := e.restoreAttributeRank(op, parse("a")); err != nil {
@@ -117,17 +117,17 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	if current.columns[0].DeclaredDimensions != 3 || old.columns[0].DeclaredDimensions != 2 || current.revision != old.revision+1 || current.columns[0].Usage != old.columns[0].Usage || current.columns[0].Name != old.columns[0].Name || len(current.droppedAttributes) != 1 {
 		t.Fatal("rank repair changed authority or old root", old, current)
 	}
-	before := e.state
+	before := e.catalog.state
 	for _, name := range []string{"b", "........pg.dropped.2........"} {
 		var diagnostic *sqlstate.Error
 		err := e.restoreAttributeRank(op, parse(name))
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.state != before {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.catalog.state != before {
 			t.Fatal("missing/dropped repair published", name, err)
 		}
 	}
 	var diagnostic *sqlstate.Error
 	err = e.restoreAttributeRank(op, parse("scalar"))
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.state != before {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.catalog.state != before {
 		t.Fatal("scalar rank repair published", err)
 	}
 }

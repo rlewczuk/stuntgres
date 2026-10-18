@@ -21,18 +21,13 @@ type Engine struct {
 	notifications map[ids.SessionToken]*sessionNotifications // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
 	replacementMu        replacementAdmission
-	domain               *ids.Domain
-	state                *catalogState
-	providers            map[ids.OID]CatalogProvider
+	catalog              catalogStore
 	extensions           map[string]registeredExtension
 	databaseName         string
 	databaseNameError    error
 	storage              map[ids.ObjectAddress]*relationStorage
 	sequences            map[ids.ObjectAddress]*sequenceGenerator
 	indexRoots           map[ids.ObjectAddress]*logicalIndexRoot
-	nextOID              ids.OID
-	nextRevision         ids.DefinitionRevision
-	nextEnumMember       int64
 	sessionMu            sync.Mutex
 	sessions             map[ids.SessionToken]*Session
 	settingsDefinitions  map[string]SettingDefinition
@@ -176,10 +171,10 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{domain: &ids.Domain{}, providers: map[ids.OID]CatalogProvider{}, storage: map[ids.ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
+	e := &Engine{catalog: catalogStore{domain: &ids.Domain{}, providers: map[ids.OID]CatalogProvider{}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
-	e.locks = lock.New(e.domain)
+	e.locks = lock.New(e.catalog.domain)
 	e.sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
@@ -249,7 +244,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.registerExtension("uuid-ossp", registeredExtension{version: "1.1", trusted: true, superuser: true, relocatable: true, comment: &comment, provider: stockUUIDOssp}); err != nil {
 		return nil, err
 	}
-	e.state = &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
+	e.catalog.state = &catalogState{epoch: 1, descriptors: map[ids.ObjectAddress]Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}}
 	for _, ns := range []struct {
 		oid  ids.OID
 		name string
@@ -266,8 +261,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 			}}
 		}
 		d.comment = namespaceCommentBaseline(ns.oid)
-		e.state.descriptors[d.address] = d
-		e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}] = d.address
+		e.catalog.state.descriptors[d.address] = d
+		e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.name}] = d.address
 	}
 	for _, typ := range sqltype.Builtins() {
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray(), owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
@@ -277,15 +272,15 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		if typ.NamespaceName() == "information_schema" {
 			d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
 		}
-		e.state.descriptors[d.Address()] = d
-		e.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.descriptors[d.Address()] = d
+		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
 	}
 	for i := range builtinCollations {
 		d := new(collationDescriptor)
 		*d = builtinCollations[i]
 		d.owner = e.authorizationDomain.Principal(10)
-		e.state.descriptors[d.Address()] = d
-		e.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.descriptors[d.Address()] = d
+		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
 	}
 	e.initializeConversionRoutines()
 	e.initializeBuiltinRoutines()
@@ -296,8 +291,8 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		d.owner = e.authorizationDomain.Principal(10)
 		d.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.revision = 1
-		e.state.descriptors[d.Address()] = d
-		e.state.names[descriptorNameKey(d)] = d.Address()
+		e.catalog.state.descriptors[d.Address()] = d
+		e.catalog.state.names[descriptorNameKey(d)] = d.Address()
 	}
 	e.initializeOperators()
 	e.initializeDatabase(database)
@@ -307,9 +302,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}
-	view := CatalogRead{owner: e, state: e.state}
-	for _, d := range e.state.descriptors {
-		p := e.providers[d.Address().ClassID]
+	view := CatalogRead{owner: e, state: e.catalog.state}
+	for _, d := range e.catalog.state.descriptors {
+		p := e.catalog.providers[d.Address().ClassID]
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
 		}
@@ -322,30 +317,30 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 func (e *Engine) CatalogRead() CatalogRead {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return CatalogRead{owner: e, state: e.state}
+	return CatalogRead{owner: e, state: e.catalog.state}
 }
 func (e *Engine) allocateOIDLocked() (ids.OID, error) {
-	for e.nextOID != 0 {
-		n := e.nextOID
+	for e.catalog.nextOID != 0 {
+		n := e.catalog.nextOID
 		if n == ^ids.OID(0) {
-			e.nextOID = 0
+			e.catalog.nextOID = 0
 		} else {
-			e.nextOID++
+			e.catalog.nextOID++
 		}
 		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
 			continue
 		}
-		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}]; ok {
+		if _, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}]; ok {
 			continue
 		}
-		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}]; ok {
+		if _, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}]; ok {
 			continue
 		}
-		if _, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}]; ok {
+		if _, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}]; ok {
 			continue
 		}
 		usedRule := false
-		for _, descriptor := range e.state.descriptors {
+		for _, descriptor := range e.catalog.state.descriptors {
 			if definitionOIDUsed(descriptor, n) {
 				usedRule = true
 				break
@@ -359,11 +354,11 @@ func (e *Engine) allocateOIDLocked() (ids.OID, error) {
 	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")
 }
 func (e *Engine) revisionLocked() (ids.DefinitionRevision, error) {
-	if e.nextRevision == ids.DefinitionRevision(^uint64(0)) {
+	if e.catalog.nextRevision == ids.DefinitionRevision(^uint64(0)) {
 		return 0, fmt.Errorf("stuntgres: catalog definition revision exhausted")
 	}
-	r := e.nextRevision
-	e.nextRevision++
+	r := e.catalog.nextRevision
+	e.catalog.nextRevision++
 	return r, nil
 }
 
@@ -438,7 +433,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		defer e.mu.Unlock()
 		op.session.settings.mu.Lock()
 		defer op.session.settings.mu.Unlock()
-		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
+		typ, _ := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(sqltype.Text)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
@@ -451,7 +446,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		binding, err := e.describeSettingCall(op.ctx, s, &scope.input, op)
-		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
+		typ, _ := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
 		return StatementDescription{Parameters: binding.parameters, Results: columns}, err
@@ -700,7 +695,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				}
 				var sourceType *typeDescriptor
 				if source.relationKind == compositeRelation {
-					typeRef := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
+					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
 					var ok bool
 					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
 					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
@@ -910,10 +905,10 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 
 // Resolution helpers run under e.mu, using the supplied coherent view.
 func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
-	if e.domain == nil || view.owner != e || view.state == nil {
+	if e.catalog.domain == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if view.Epoch() != e.state.epoch {
+	if view.Epoch() != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	return nil
@@ -989,7 +984,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			auth.session.transactions.accessedTemporary = true
 		}
 	}
-	return e.domain.Ref(view.Epoch(), a), nil
+	return e.catalog.domain.Ref(view.Epoch(), a), nil
 }
 
 func insertError(code, message string, pos parser.Position) error {

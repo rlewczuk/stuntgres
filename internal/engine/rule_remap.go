@@ -266,7 +266,7 @@ func remapRules(view CatalogRead, d *relationDescriptor, mapping map[ids.ObjectA
 			if old == (ids.ObjectRef{}) {
 				return old
 			}
-			old = view.owner.domain.Ref(old.Epoch, old.Address)
+			old = view.owner.catalog.domain.Ref(old.Epoch, old.Address)
 			old.Epoch = view.Epoch()
 			return old
 		}
@@ -398,13 +398,13 @@ func remapRuleConstraintIdentities(view CatalogRead, d *relationDescriptor, mapp
 }
 
 func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
-	view := CatalogRead{owner: e, state: e.state}
-	for _, descriptor := range e.state.descriptors {
+	view := CatalogRead{owner: e, state: e.catalog.state}
+	for _, descriptor := range e.catalog.state.descriptors {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || len(d.rules) == 0 {
 			continue
 		}
-		ns, ok := e.state.descriptors[d.namespace].(*namespaceDescriptor)
+		ns, ok := e.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
 		if !ok || ns.temporary == (ids.SessionToken{}) {
 			continue
 		}
@@ -414,7 +414,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 				if pgDependPinned(view, address) {
 					continue
 				}
-				provider := e.state.descriptors[address]
+				provider := e.catalog.state.descriptors[address]
 				if address.ClassID == 2606 {
 					parent := constraintParent(view, address)
 					if parent == nil {
@@ -425,7 +425,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 				if provider == nil {
 					return ErrCatalogReplaced
 				}
-				providerNS, ok := e.state.descriptors[provider.Namespace()].(*namespaceDescriptor)
+				providerNS, ok := e.catalog.state.descriptors[provider.Namespace()].(*namespaceDescriptor)
 				if !ok || providerNS.temporary != ns.temporary {
 					return fmt.Errorf("stuntgres: catalog replacement cannot preserve temporary rule %q dependencies", rule.Name)
 				}

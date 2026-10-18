@@ -68,7 +68,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 					t.Fatal("enforcement ignored Ready boundary", len(binding.keys), wantedRules)
 				}
 				e.mu.Lock()
-				parent := e.state.descriptors[ref.Address].(*relationDescriptor)
+				parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				old := e.storage[ref.Address].versions[0].values
 				e.mu.Unlock()
 				next := append([]sqltype.Value(nil), old...)

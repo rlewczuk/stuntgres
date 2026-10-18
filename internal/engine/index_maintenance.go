@@ -13,7 +13,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	e.mu.Lock()
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	if scope.txRef.Epoch() != e.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.epoch {
 		return fail(ErrCatalogReplaced)
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)

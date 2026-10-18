@@ -18,7 +18,7 @@ func daitchUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ""))
-	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	return e, e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 }
 
 func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFunctionExpression {
@@ -88,7 +88,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },
 		func(p *procedureDescriptor) { p.dictionary = ext.address }, func(p *procedureDescriptor) { p.revision = 0 },
 	} {
-		state := cloneCatalog(e.state)
+		state := cloneCatalog(e.catalog.state)
 		bad := *proc
 		mutate(&bad)
 		state.descriptors[proc.address] = &bad
@@ -148,14 +148,14 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		e := New()
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
-		before := e.state
+		before := e.catalog.state
 		stage := intarrayUnitStage(t, e, op, "fuzzystrmatch", "")
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled validation", err)
 		}
-		if e.state != before {
+		if e.catalog.state != before {
 			t.Fatal("canceled stage published")
 		}
 	})
@@ -165,17 +165,17 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		defer closeOwner()
 		ns := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.name))
-		ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+		ext := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 		if err := stockFuzzystrmatch.validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
 		member := ext.members[0]
 		closeOwner()
-		if e.state.descriptors[ext.address] != nil || e.state.descriptors[member] != nil {
+		if e.catalog.state.descriptors[ext.address] != nil || e.catalog.state.descriptors[member] != nil {
 			t.Fatal("TEMP provider survived owner retirement")
 		}
 		for _, address := range ext.members {
-			if e.state.descriptors[address] != nil {
+			if e.catalog.state.descriptors[address] != nil {
 				t.Fatal("TEMP selected member survived owner retirement", address)
 			}
 		}
@@ -229,7 +229,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err := validateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("procedure subobject generation dependency admitted")
 	}
-	state := cloneCatalog(e.state)
+	state := cloneCatalog(e.catalog.state)
 	badProcedure := *n.procedure
 	badProcedure.result = 25
 	state.descriptors[n.ref.Address] = &badProcedure
@@ -304,12 +304,12 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	imported := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
 	mapped, err := remapBoundExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == ext.members[0] {
 			ref.Address = imported.members[0]
 		}
-		ref = target.domain.Ref(ref.Epoch, ref.Address)
+		ref = target.catalog.domain.Ref(ref.Epoch, ref.Address)
 		ref.Epoch = target.CatalogRead().Epoch()
 		return ref
 	}, nil)
@@ -330,7 +330,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	v, err := n.Eval(&EvalContext{Context: context.Background()})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
-	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.procedure != target.state.descriptors[imported.members[0]] || n.dictionary != nil || n.template != nil {
+	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.procedure != target.catalog.state.descriptors[imported.members[0]] || n.dictionary != nil || n.template != nil {
 		t.Fatal("remapped provider/generations", v, err)
 	}
 	// Foreign import can share immutable builtin TEXT/text[] descriptors.
@@ -338,10 +338,10 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	// between the two catalogs' immutable builtin descriptors.
 	currentSourceArray, _ := source.CatalogRead().LookupType(1009)
 	currentSourceText, _ := source.CatalogRead().LookupType(sqltype.Text)
-	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.state.descriptors[sourceRef.Address] != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
+	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.descriptors[sourceRef.Address] != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
-	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.Domain() != target.domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.Domain() != target.catalog.domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
 		t.Fatal("remapped installed authority still belongs to source")
 	}
 	retainedText, err := sourceArray.Output(context.Background(), oldValue)

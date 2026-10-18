@@ -86,7 +86,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(path, analysis.path)
 	for _, constant := range analysis.constants {
 		ref := constant.ref
-		if ref.Domain() != e.domain {
+		if ref.Domain() != e.catalog.domain {
 			return false, ErrCatalogReplaced
 		}
 		if constant.temporary != (ids.SessionToken{}) && constant.temporary != auth.session.token {

@@ -99,14 +99,14 @@ func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs [
 }
 
 func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef, latest bool) (*VisibilityView, error) {
-	if s.txRef.Epoch() != e.state.epoch {
+	if s.txRef.Epoch() != e.catalog.state.epoch {
 		return nil, ErrCatalogReplaced
 	}
 	for _, ref := range refs {
-		if ref.Domain() != e.domain {
+		if ref.Domain() != e.catalog.domain {
 			return nil, errors.New("stuntgres: foreign catalog reference")
 		}
-		if ref.Epoch != e.state.epoch {
+		if ref.Epoch != e.catalog.state.epoch {
 			return nil, ErrCatalogReplaced
 		}
 		if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
@@ -172,7 +172,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		if !latest && stableIsolation(s.owner.isolation) && !rewrite.rewritten {
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
-				current, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
+				current, ok := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				live := e.storage[ref.Address]
 				if !ok || !sameRelationRowShape(root.relation, current) {
 					return nil, ErrCatalogReplaced

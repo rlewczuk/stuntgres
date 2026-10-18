@@ -49,7 +49,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 	if len(raw) == 0 {
 		return nil
 	}
-	ref := e.domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
 	columns := make([]queryColumn, len(d.columns))
 	for i, c := range d.columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
@@ -93,7 +93,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		binder.querySources = []queryLeaf{{ref: ref, relation: d}}
 		if altering {
 			e.mu.Lock()
-			if auth.catalog.Epoch() != e.state.epoch {
+			if auth.catalog.Epoch() != e.catalog.state.epoch {
 				e.mu.Unlock()
 				return ErrCatalogReplaced
 			}
@@ -248,7 +248,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if _, incumbent := stage.base.state.descriptors[address]; !incumbent {
 			// Newly created providers belong to the private atomic candidate.
 			provider, staged := stage.descriptors[address].(*relationDescriptor)
-			if !staged || provider.address != address || ref.Domain() != stage.owner.domain || ref.Epoch != stage.base.Epoch() {
+			if !staged || provider.address != address || ref.Domain() != stage.owner.catalog.domain || ref.Epoch != stage.base.Epoch() {
 				return fmt.Errorf("stuntgres: invalid staged definition provider")
 			}
 			return nil
@@ -281,7 +281,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		return nil
 	}
 	for _, descriptor := range stage.likeSources {
-		ref := stage.owner.domain.Ref(stage.base.Epoch(), descriptor.Address())
+		ref := stage.owner.catalog.domain.Ref(stage.base.Epoch(), descriptor.Address())
 		if err := add(ref, nil); err != nil {
 			return err
 		}
@@ -370,7 +370,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if err == nil {
 			provider, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			original, existed := stage.base.state.descriptors[ref.Address].(*relationDescriptor)
-			if !ok || !existed || ref.Domain() != e.domain || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
+			if !ok || !existed || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}

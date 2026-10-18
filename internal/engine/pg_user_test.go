@@ -15,11 +15,11 @@ import (
 func pgUserUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12014}
-	d, ok := e.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_user")
 	}
-	return d, e.domain.Ref(e.state.epoch, address)
+	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
 }
 
 func pgUserUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Value {
@@ -86,8 +86,8 @@ func TestPGUserDescriptor(t *testing.T) {
 	if d.rowType != 12016 {
 		t.Fatal("existing row identity not reused")
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016}].(*typeDescriptor)
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12015}].(*typeDescriptor)
+	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016}].(*typeDescriptor)
+	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12015}].(*typeDescriptor)
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12015 || row.typ.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
@@ -117,7 +117,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 	role.ValidUntil = 123456789
 	role.ConnectionLimit = 0
 	putFixtureRole(state, role)
-	source, err := capturePGUser(context.Background(), e.roleRead(CatalogRead{e, e.state}, state), ref, d)
+	source, err := capturePGUser(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 		t.Fatal("detached expiry changed")
 	}
 	retireFixtureRole(updated, low)
-	fresh, err := capturePGUser(context.Background(), e.roleRead(CatalogRead{e, e.state}, updated), ref, d)
+	fresh, err := capturePGUser(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, updated), ref, d)
 	if err != nil || pgUserUnitRows(t, fresh)[20000] != nil {
 		t.Fatal("high identity resurrected removed low", err)
 	}
@@ -215,10 +215,10 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		view.name = name
 		view.relationKind = viewRelation
 		view.virtualView = false
-		viewRef := e.domain.Ref(e.state.epoch, view.address)
+		viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
 		attrs := append([]int32(nil), d.attributes...)
 		view.view = &viewDefinition{query: &BoundQuery{Root: &sourceNode{querySchema: querySchema(d.columns), ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: attrs, reads: attrs}}}
-		e.state.descriptors[view.address] = &view
+		e.catalog.state.descriptors[view.address] = &view
 		return viewRef
 	}
 	inner := addView(20010, "pg_user_inner", ref)
@@ -258,7 +258,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	pgUserUnitRole(e, state, 20001, "second")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []authorization.Read{e.roleRead(CatalogRead{e, e.state}, emptyRoleFixture(e)), e.roleRead(CatalogRead{e, e.state}, state)} {
+	for _, roles := range []authorization.Read{e.roleRead(CatalogRead{e, e.catalog.state}, emptyRoleFixture(e)), e.roleRead(CatalogRead{e, e.catalog.state}, state)} {
 		source, err := capturePGUser(canceled, roles, ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
@@ -266,7 +266,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	}
 	for _, at := range []int{2, 3, 5} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := capturePGUser(ctx, e.roleRead(CatalogRead{e, e.state}, state), ref, d)
+		source, err := capturePGUser(ctx, e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -274,17 +274,17 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	invalid := *d
 	invalid.columns = append([]ColumnDescriptor(nil), d.columns...)
 	invalid.columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := capturePGUser(context.Background(), e.roleRead(CatalogRead{e, e.state}, state), ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGUser(context.Background(), e.roleRead(CatalogRead{e, e.catalog.state}, state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
 	unknown.address = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20020}
-	e.state.descriptors[unknown.address] = &unknown
+	e.catalog.state.descriptors[unknown.address] = &unknown
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.domain.Ref(e.state.epoch, unknown.address), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	source, err := e.openRelationSourceLocked(scope, e.catalog.domain.Ref(e.catalog.state.epoch, unknown.address), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

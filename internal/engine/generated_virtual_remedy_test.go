@@ -66,7 +66,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	seven, _ := sqltype.Integer(typ, 7)
 	negative, _ := sqltype.Integer(typ, -9)
-	origin := e.domain.Ref(catalog.Epoch(), source.address)
+	origin := e.catalog.domain.Ref(catalog.Epoch(), source.address)
 	origin.Address.SubID = 2
 	old := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 1, slot: 1, virtual: literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: seven}, rowWidth: 2, queryOccurrence: 1}
 	ordinary := *source
@@ -118,7 +118,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	e, catalog, d := generatedUnitDescriptor(t)
 	catalog.state = cloneCatalog(catalog.state)
 	catalog.state.descriptors[d.address] = d
-	ref := e.domain.Ref(catalog.Epoch(), d.address)
+	ref := e.catalog.domain.Ref(catalog.Epoch(), d.address)
 	origin := ref
 	origin.Address.SubID = 2
 	typ := d.columns[0].Usage.Type

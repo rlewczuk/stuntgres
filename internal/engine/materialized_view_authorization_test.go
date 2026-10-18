@@ -39,8 +39,8 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 	d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}
 	auth.catalog, auth.state.CurrentUser = e.stageRead(stage), reader
 	auth.recaptureCatalog(auth.catalog)
-	baseRef := e.domain.Ref(auth.catalog.Epoch(), base.address)
-	mvRef := e.domain.Ref(auth.catalog.Epoch(), d.address)
+	baseRef := e.catalog.domain.Ref(auth.catalog.Epoch(), base.address)
+	mvRef := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
 	d.view.sources = []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1}}}
 	mvSources := []queryLeaf{{ref: mvRef, relation: d, uses: []int{0}}}
 	if err := auth.checkQuerySources(mvSources); err != nil {

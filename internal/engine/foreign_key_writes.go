@@ -67,7 +67,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return foreignKeyRows{}, ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
@@ -125,7 +125,7 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	changes := s.owner.catalog
@@ -269,8 +269,8 @@ func (s *StatementScope) checkForeignKeys() error {
 		if admission := s.foreignActionAdmissions[job.parent.address]; admission != nil && admission.mutated {
 			parentAuth = foreignActionOwner(auth, admission.relation.owner)
 		}
-		childRef := e.domain.Ref(auth.catalog.Epoch(), job.child.address)
-		parentRef := e.domain.Ref(auth.catalog.Epoch(), f.Target)
+		childRef := e.catalog.domain.Ref(auth.catalog.Epoch(), job.child.address)
+		parentRef := e.catalog.domain.Ref(auth.catalog.Epoch(), f.Target)
 		parentRows, err := s.captureForeignKeyRows(parentRef, f.Index)
 		if err != nil {
 			return err
@@ -407,7 +407,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	changes := s.owner.catalog

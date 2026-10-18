@@ -16,7 +16,7 @@ type pgSequencesSource struct {
 }
 
 func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
-	base := e.state
+	base := e.catalog.state
 	if scope.owner.sequenceCatalog != nil {
 		base = scope.owner.sequenceCatalog
 	}
@@ -69,7 +69,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		}
 		row[10] = sqltype.Null(source.columns[10].Usage.Type)
 		rows = append(rows, row)
-		provider.refs = append(provider.refs, e.domain.Ref(base.epoch, relation.address))
+		provider.refs = append(provider.refs, e.catalog.domain.Ref(base.epoch, relation.address))
 		return nil
 	}
 	for address, descriptor := range base.descriptors {
@@ -105,7 +105,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	auth, err := e.authorizationLocked(p.scope.op)

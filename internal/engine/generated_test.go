@@ -32,7 +32,7 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescr
 
 func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
-	ref := e.domain.Ref(view.Epoch(), d.address)
+	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
 	ref.Address.SubID = 1
 	node := columnExpression{expressionInfo: expressionInfo{Usage: d.columns[0].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: node, planned: node}}
@@ -66,7 +66,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored}}
-	ref := e.domain.Ref(view.Epoch(), d.address)
+	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
 	columns := []queryColumn{{descriptor: d.columns[0], slot: 0, leaf: 0, physical: 0}, {descriptor: d.columns[1], slot: 1, leaf: 0, physical: 1}}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: "g", original: "g", schema: "public", ref: ref, columns: columns}}, frame: d.columns}
 	auth := AuthorizationView{catalog: view}
@@ -96,7 +96,7 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
-	ref := e.domain.Ref(view.Epoch(), d.address)
+	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
 	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
 	volatile := functions.Random{Info: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "random"}
 	if generationImmutable(volatile) {
@@ -125,7 +125,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	e, view, parent := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
-	owner := e.domain.Ref(view.Epoch(), parent.address)
+	owner := e.catalog.domain.Ref(view.Epoch(), parent.address)
 	original := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, owner}
 	child := *parent
 	child.address.ObjectID++
@@ -143,7 +143,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	}
 	mapped := left.(tableOIDExpression)
 	for _, change := range []func(*tableOIDExpression){
-		func(n *tableOIDExpression) { n.owner = New().domain.Ref(n.owner.Epoch, n.owner.Address) },
+		func(n *tableOIDExpression) { n.owner = New().catalog.domain.Ref(n.owner.Epoch, n.owner.Address) },
 		func(n *tableOIDExpression) { n.owner.Epoch++ },
 		func(n *tableOIDExpression) { n.owner.Address.ObjectID++ },
 		func(n *tableOIDExpression) { n.owner.Address.SubID++ },
@@ -211,7 +211,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	oldAddress := d.address
 	d.address.ObjectID = 26000
 	d.columns[1].Usage = oid.Usage()
-	ref := e.domain.Ref(view.Epoch()+1, d.address)
+	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
 	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	base, _ := sqltype.Integer(d.columns[0].Usage.Type, 2)

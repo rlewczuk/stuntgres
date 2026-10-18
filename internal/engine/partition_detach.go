@@ -37,14 +37,14 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	defaultAddress := parent.partition.defaultChild
 	if defaultAddress != (ids.ObjectAddress{}) {
-		ref := e.domain.Ref(auth.catalog.Epoch(), defaultAddress)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.observePartitionRelationLocked(e, ref); err != nil {
 			return fail(err)
 		}
 	}
 	e.mu.Unlock()
 	if defaultAddress != (ids.ObjectAddress{}) {
-		ref := e.domain.Ref(auth.catalog.Epoch(), defaultAddress)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), defaultAddress)
 		if err := scope.acquirePartitionLock(ref, accessExclusive); err != nil {
 			return Result{}, err
 		}

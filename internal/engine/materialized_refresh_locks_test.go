@@ -47,7 +47,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			d := refreshUnitRelation(t, e)
 			stage, source := queryCreateStage(t, e, "refresh_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.domain.Ref(e.state.epoch, source.address)
+			sourceRef := e.catalog.domain.Ref(e.catalog.state.epoch, source.address)
 			definition := *d.view
 			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.attributes, reads: source.attributes}}
 			d.view = &definition
@@ -153,7 +153,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			}
 			execute(a, first)
 			afterA := e.storage[d.address]
-			descriptorA := e.state.descriptors[d.address].(*relationDescriptor)
+			descriptorA := e.catalog.state.descriptors[d.address].(*relationDescriptor)
 			firstCount := 1
 			if noData {
 				firstCount = 0
@@ -173,7 +173,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if err := b.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			final := e.state.descriptors[d.address].(*relationDescriptor)
+			final := e.catalog.state.descriptors[d.address].(*relationDescriptor)
 			if e.commitSeq != before+2 || e.storage[d.address] == afterA || len(e.storage[d.address].versions) != 1 || len(afterA.versions) != firstCount || !final.populated || final.address != d.address || final.view != d.view || final.rowType != d.rowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}

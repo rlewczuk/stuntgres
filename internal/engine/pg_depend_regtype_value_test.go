@@ -68,7 +68,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 			}
 			var addresses []ids.ObjectAddress
 			for _, ref := range captured {
-				if ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
+				if ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 					t.Fatal("lost identity provenance", ref)
 				}
 				addresses = append(addresses, ref.Address)
@@ -132,7 +132,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	var addresses []ids.ObjectAddress
 	for _, ref := range captured {
-		if ref.Domain() != e.domain || ref.Epoch != catalog.Epoch() {
+		if ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() {
 			t.Fatal("lost recursive identity provenance", ref)
 		}
 		addresses = append(addresses, ref.Address)

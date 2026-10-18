@@ -17,7 +17,7 @@ func TestTimezoneReviewViewAtCaptured(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	ref := roleTableRef(t, e, "tz_at")
-	definition := e.state.descriptors[ref.Address].(*relationDescriptor).view
+	definition := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).view
 	for _, name := range []string{"tz_at", "tz_at_nested"} {
 		ast := statement(t, "SELECT explicit,local_value FROM "+name)
 		description, err := e.Describe(op, ast)
@@ -46,7 +46,7 @@ func TestTimezoneReviewViewAtCaptured(t *testing.T) {
 			}
 		}
 	}
-	if e.state.descriptors[ref.Address].(*relationDescriptor).view != definition {
+	if e.catalog.state.descriptors[ref.Address].(*relationDescriptor).view != definition {
 		t.Fatal("execution mutated stored definition")
 	}
 }
@@ -57,7 +57,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 		run(t, source, q)
 	}
 	ref := roleTableRef(t, source, "tz_at")
-	definition := source.state.descriptors[ref.Address].(*relationDescriptor).view
+	definition := source.catalog.state.descriptors[ref.Address].(*relationDescriptor).view
 	project := definition.query.Root.(*projectNode)
 	for _, expression := range project.expressions {
 		original := expression.(functions.Timezone)
@@ -95,7 +95,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{"2004-07-01 12:00:00", "2004-07-01 12:00:00"}}) {
 		t.Fatal(got)
 	}
-	if source.state.descriptors[ref.Address].(*relationDescriptor).view != definition {
+	if source.catalog.state.descriptors[ref.Address].(*relationDescriptor).view != definition {
 		t.Fatal("catalog import mutated source definition")
 	}
 }
@@ -106,7 +106,7 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 		run(t, e, q)
 	}
 	ref := roleTableRef(t, e, "tz_at")
-	definition := e.state.descriptors[ref.Address].(*relationDescriptor).view
+	definition := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).view
 	if err := definition.validateLiterals(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}

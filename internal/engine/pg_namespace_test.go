@@ -19,7 +19,7 @@ func namespaceUnitSource(t *testing.T, e *Engine, c CatalogRead) (*relationDescr
 	if !ok {
 		t.Fatal("missing namespace source")
 	}
-	return d, e.domain.Ref(c.Epoch(), a)
+	return d, e.catalog.domain.Ref(c.Epoch(), a)
 }
 func namespaceUnitCapture(t *testing.T, e *Engine, c CatalogRead) *querySource {
 	t.Helper()
@@ -90,7 +90,7 @@ func TestPGNamespaceShape(t *testing.T) {
 func TestPGNamespaceCapture(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
-	oid, revision := e.nextOID, e.nextRevision
+	oid, revision := e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Clone(c.state.descriptors), maps.Clone(c.state.names)
 	old := namespaceUnitCapture(t, e, c)
 	if old.count() != 4 {
@@ -111,7 +111,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 			t.Fatal("builtin owner/ACL", id, owner, row[3], err)
 		}
 	}
-	if e.state != c.state || e.nextOID != oid || e.nextRevision != revision || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
+	if e.catalog.state != c.state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
 		t.Fatal("capture mutated authority/frontiers")
 	}
 	stage := e.BeginCatalogStage(c)
@@ -134,7 +134,7 @@ func TestPGNamespaceCapture(t *testing.T) {
 			t.Fatal("captured root changed", got, err)
 		}
 	}
-	if e.state != c.state || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
+	if e.catalog.state != c.state || !maps.Equal(descriptors, c.state.descriptors) || !maps.Equal(names, c.state.names) {
 		t.Fatal("private capture published")
 	}
 }
@@ -241,7 +241,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(foreign.CatalogRead(), e.Roles(), ref, d)
 	reject(c, foreign.Roles(), ref, d)
 	forged := ref
-	forged = foreign.domain.Ref(forged.Epoch, forged.Address)
+	forged = foreign.catalog.domain.Ref(forged.Epoch, forged.Address)
 	reject(c, e.Roles(), forged, d)
 	forged = ref
 	forged.Epoch++
@@ -287,7 +287,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject(CatalogRead{e, next}, e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
 	invalid = *ns
-	invalid.temporary = foreign.domain.Session(1)
+	invalid.temporary = foreign.catalog.domain.Session(1)
 	next.descriptors[ns.address] = &invalid
 	reject(CatalogRead{e, next}, e.Roles(), ref, d)
 	next = cloneCatalog(c.state)
@@ -317,7 +317,7 @@ func TestPGNamespaceCancellation(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	d, ref := namespaceUnitSource(t, e, c)
-	oid, revision := e.nextOID, e.nextRevision
+	oid, revision := e.catalog.nextOID, e.catalog.nextRevision
 	roles := e.Roles()
 	for _, at := range []int{1, 3, 6} {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -326,7 +326,7 @@ func TestPGNamespaceCancellation(t *testing.T) {
 		rows, err := e.capturePGNamespace(controlled, c, roles, ref, d)
 		e.mu.Unlock()
 		cancel()
-		if !errors.Is(err, context.Canceled) || rows != nil || e.state != c.state || e.nextOID != oid || e.nextRevision != revision {
+		if !errors.Is(err, context.Canceled) || rows != nil || e.catalog.state != c.state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
 			t.Fatal("cancellation published partial capture", at, rows, err)
 		}
 	}

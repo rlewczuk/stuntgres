@@ -327,7 +327,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e := New()
 	e.nextRow = 100
 	e.nextVersion = 200
-	e.state = catalog
+	e.catalog.state = catalog
 	e.storage[parent.address] = source
 	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.address: original}
 	e.commitSeq = 1
@@ -601,7 +601,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				}
 				dependent := false
 				for _, dependency := range key.derived.dependencies {
-					if dependency.Address == (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.domain && dependency.Epoch == view.Epoch() {
+					if dependency.Address == (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.catalog.domain && dependency.Epoch == view.Epoch() {
 						dependent = true
 					}
 				}

@@ -88,7 +88,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	e.mu.Lock()
 	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.state), sourceRoles, targetRoles, nil)
 	if err == nil {
-		nextRevision := e.nextRevision
+		nextRevision := e.catalog.nextRevision
 		for _, descriptor := range next.descriptors {
 			if err = validateACL(e.roleRead(CatalogRead{e, next}, e.roles), descriptor); err != nil {
 				break
@@ -105,7 +105,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			}
 		}
 	}
-	epoch := e.state.epoch
+	epoch := e.catalog.state.epoch
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
