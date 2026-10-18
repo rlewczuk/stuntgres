@@ -147,7 +147,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":
-		return b.bindBinaryFunction(raw, visible)
+		return bindBinaryFunction(b, raw, visible)
 	case "pg_size_bytes", "pg_size_pretty":
 		return b.bindSize(raw, visible)
 	case "random", "random_normal", "setseed":

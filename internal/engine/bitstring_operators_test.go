@@ -209,7 +209,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		source := literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: value}
 		operands := []functions.Argument{{Expression: source, Usage: usage}, {Expression: source, Usage: usage}}
 		var types functions.BinaryTypes
-		node, err := b.finishBinary("||", sqltype.VarBit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
+		node, err := finishBinary(b, "||", sqltype.VarBit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
 		if err != nil {
 			t.Fatal(id, err)
 		}

@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindBinaryFunction(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var operands []functions.Argument
 	if len(raw.Args) <= 100 {
@@ -22,13 +23,13 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	access := name == "get_bit" || name == "set_bit"
-	if b.defaultConsumer && !access && !functions.BinaryDefaultAllowed(name, len(raw.Args)) && !functions.BinaryBitCandidate(name, raw.Variadic, operands) {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+	if b.DefaultConsumer() && !access && !functions.BinaryDefaultAllowed(name, len(raw.Args)) && !functions.BinaryBitCandidate(name, raw.Variadic, operands) {
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
-	prepared := functions.PrepareBinary(name, visible, raw.Variadic, b.defaultConsumer, operands)
+	prepared := functions.PrepareBinary(name, visible, raw.Variadic, b.DefaultConsumer(), operands)
 	var types functions.BinaryTypes
 	functions.SupplyBinaryTypes(b, prepared.Demand, &types)
 	selection := functions.ResolveBinary(prepared, name, operands, &types)
@@ -41,16 +42,16 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 			}
 		}
 		if selection.Resolution == functions.Ambiguous {
-			return nil, functionResolutionErrorForTypes(raw.Name, raw.Pos, names, true)
+			return nil, functions.ResolutionError(raw.Name, raw.Pos, names, true)
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	if b.defaultConsumer && access && selection.Family != sqltype.Bit {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+	if b.DefaultConsumer() && access && selection.Family != sqltype.Bit {
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	switch selection.Route {
 	case functions.BinaryFunctionsUnsupported:
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	case functions.BinaryPosixSubstring:
 		return functions.BindPosixSubstring(b, raw, operands)
 	case functions.BinarySimilarSubstring:
@@ -58,45 +59,41 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	case functions.BinaryTextSubstring:
 		return functions.FinishString(b, raw, visible, operands)
 	case functions.BinaryTextUnsupported:
-		return nil, expressionError("0A000", "text overloads of "+name+" are unsupported", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "text overloads of "+name+" are unsupported", raw.Pos)
 	}
-	return b.finishBinary(name, selection.Family, raw.Pos, operands, raw.Syntax, &types)
+	return finishBinary(b, name, selection.Family, raw.Pos, operands, raw.Syntax, &types)
 }
 
-func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (BoundExpr, error) {
+func finishBinary(b functions.Binder, name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (expr.Expr, error) {
 	functions.SupplyBinaryTypes(b, functions.BinaryArgumentDemand(name, family, operands, false), types)
 	args, err := functions.CoerceBinaryArguments(b, name, family, operands, types)
 	if err != nil {
 		return nil, err
 	}
-	properties := ExprProperties{Volatility: Immutable}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	if functions.BinaryIntrinsicStable(name) {
-		properties.Volatility = Stable
+		properties.Volatility = expr.Stable
 	}
 	for _, arg := range args {
-		p := arg.Properties()
-		properties.Volatility = max(properties.Volatility, p.Volatility)
-		properties.RowDependent = properties.RowDependent || p.RowDependent
-		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
-		properties.StageDependent = properties.StageDependent || p.StageDependent
-		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
-		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	functions.SupplyBinaryTypes(b, functions.BinaryResultDemand(name, family), types)
 	id := functions.BinaryResultID(name, family)
 	usage := types.Usage(id)
-	info := b.info(usage, pos, properties)
+	info := b.Info(usage, pos, properties)
 	if functions.BinaryIntrinsicStable(name) {
 		demand := true
 		for _, arg := range args {
-			if randomLiteralNull(arg) {
+			if b.LiteralNull(arg) {
 				demand = false
 				break
 			}
 		}
-		b.visibilitySnapshot = b.visibilitySnapshot || demand
+		if demand {
+			b.NoteVisibilitySnapshot()
+		}
 	}
-	inputInfo, err := b.collatedInfo(b.info(types.Text, pos, properties), args...)
+	inputInfo, err := b.CollatedInfo(b.Info(types.Text, pos, properties), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -112,9 +109,9 @@ func (b *expressionBinder) finishBinary(name string, family sqltype.ID, pos pars
 		formal[i] = functions.BinaryArgumentID(name, i, family)
 	}
 	if name == "||" {
-		info, err = b.builtinOperatorRoutineInfo(info, name, formal[0], formal[1])
+		info, err = b.BuiltinOperatorRoutineInfo(info, name, formal[0], formal[1])
 	} else {
-		info, err = b.builtinRoutineInfo(info, binaryRoutineProvider, name, formal[:len(args)]...)
+		info, err = b.BuiltinRoutineInfo(info, functions.BinaryRoutineProvider, name, formal[:len(args)]...)
 	}
 	if err != nil {
 		return nil, err
