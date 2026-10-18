@@ -200,7 +200,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindStringFunction(raw, visible && name == "parse_ident")
 	}
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)
 	}
 	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
@@ -234,8 +234,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindTextObjectFunction(raw, name, visible)
 	case "enum_first", "enum_last", "enum_range":
 		return b.bindEnumFunction(raw, visible)
-	case "uuidv4", "uuidv7":
-		return bindUUIDGeneration(b, raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
 	case "extract", "date_part":

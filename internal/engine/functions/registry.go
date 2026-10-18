@@ -24,7 +24,7 @@ type Definition struct {
 	// OwnsLabels exempts the definition from the shared label gate; Bind then
 	// owns every argument-label diagnostic. It requires SharedGates.
 	OwnsLabels bool
-	Bind        func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
+	Bind       func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
 }
 
 // The static table is the registry: no init() registration. Names must not
@@ -32,6 +32,8 @@ type Definition struct {
 var definitions = [...]Definition{
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath},
+	{Names: []string{"uuidv4"}, ExactSpelling: true, SharedGates: true, Bind: bindUUIDGeneration},
+	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

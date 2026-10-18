@@ -123,7 +123,7 @@ func (b *expressionBinder) bindInstalledCrypto(raw parser.FunctionExpr) (BoundEx
 		// The implicit catalog precedes ordinary paths; explicit ordering can
 		// instead select the actual installed wrapper and its dependency.
 		if name == "gen_random_uuid" && namespace.ObjectID == ids.PGCatalogNamespaceOID {
-			return bindUUIDGeneration(b, raw, true)
+			return functions.BindUUIDGeneration(b, raw, true)
 		}
 		proc = procedureInNamespaces(auth.catalog, namespaceSelection{qualified: namespace}, name, signature)
 		if proc != nil {

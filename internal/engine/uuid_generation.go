@@ -6,10 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // Session-owned, nontransactional clock. Only the clock update holds mu;
@@ -35,66 +32,6 @@ func (c *EvalContext) FunctionUUIDReady() error {
 }
 func (c *EvalContext) FunctionUUIDTime() int64                { return c.liveScope().op.session.uuid.now() }
 func (c *EvalContext) FunctionUUIDEntropy(bytes []byte) error { _, err := rand.Read(bytes); return err }
-
-func bindUUIDGeneration(b functions.Binder, raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	args, unknown, err := functions.AnalyzeDirectArguments(b, raw.Args)
-	if err != nil {
-		return nil, err
-	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	signature := func() (BoundExpr, error) {
-		types := make([]string, len(args))
-		for i, arg := range args {
-			typ := "unknown"
-			if !unknown[i] && arg.ResultUsage().Type != nil {
-				typ = arg.ResultUsage().Type.DiagnosticName()
-			}
-			types[i] = functions.NamedArgumentType(raw, i, typ)
-		}
-		return nil, b.SignatureError(raw.Name, raw.Pos, types)
-	}
-	if err := functions.CallLabelError(raw); err != nil {
-		return nil, err
-	}
-	if !functions.UUIDGenerationShape(raw, visible) {
-		return signature()
-	}
-	properties := expr.Properties{Volatility: expr.Volatile}
-	var timestamp *sqltype.Descriptor
-	if len(args) != 0 {
-		target := b.Type(sqltype.Interval).Usage()
-		argument := functions.Argument{Expression: args[0], Raw: raw.Args[0]}
-		if !unknown[0] {
-			argument.Usage = args[0].ResultUsage()
-		}
-		if !functions.UUIDShiftCompatible(argument.Usage, target) {
-			return signature()
-		}
-		args[0], err = functions.CoerceUUIDShift(b, argument, target)
-		if err != nil {
-			return nil, err
-		}
-		properties = expr.MergeProperties(properties, args[0].Properties())
-		timestamp = b.Type(sqltype.Timestamptz)
-	}
-	node, err := functions.NewUUIDGeneration(expr.Info{}, name, args, timestamp)
-	if err != nil {
-		return nil, err
-	}
-	var formal [1]sqltype.ID
-	if len(args) != 0 {
-		formal[0] = sqltype.Interval
-	}
-	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(sqltype.UUID).Usage(), raw.Pos, properties), functions.UUIDRoutineProvider, name, formal[:len(args)]...)
-	if err != nil {
-		return nil, err
-	}
-	node.Info = info
-	return node, nil
-}
 
 // Only selected UUID leaves may introduce volatility into a closed DEFAULT.
 // Shift arguments themselves must be closed Immutable/Stable trees. This does

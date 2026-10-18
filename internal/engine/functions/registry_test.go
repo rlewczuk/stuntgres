@@ -20,7 +20,15 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"", "uuid_extract", "uuid_extract_versions", "uuidv7", "ABS", "Width_Bucket", "random", "absolute"} {
+	// UUID generation sat in the final switch; uuidv7 kept its shift label
+	// past the shared label gate.
+	for _, name := range []string{"uuidv4", "uuidv7"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates || definition.OwnsLabels != (name == "uuidv7") {
+			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
+		}
+	}
+	for _, name := range []string{"", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}
