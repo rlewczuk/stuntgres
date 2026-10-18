@@ -196,3 +196,36 @@ func validateIntaggIdentity(v CatalogRead, proc *procedureDescriptor, ref ids.Ob
 	}
 	return stockIntagg.validateProcedure(v, proc)
 }
+
+// intaggIdentity records the installed intagg routine as a dependency, as
+// the engine binder always appended it, and returns its reference.
+func (r installedExtensionRoutine) intaggIdentity() (*procedureDescriptor, ids.ObjectRef, error) {
+	p := r.procedure
+	if p.intagg != stockIntagg {
+		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
+	}
+	ref := r.binder.engine.catalog.domain.Ref(r.catalog.Epoch(), p.address)
+	r.binder.dependencies = append(r.binder.dependencies, expressionDependency{ref: ref, revision: p.revision})
+	return p, ref, nil
+}
+
+// attachIntaggEnumeration admits int_array_enum where a set-returning call
+// may appear and lifts it as the engine's set-returning unnest node.
+func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.IntaggEnumeration) (BoundExpr, error) {
+	b := r.binder
+	if b.executeParameters {
+		return nil, expressionError("0A000", "set-returning functions are not allowed in EXECUTE parameters", call.Pos)
+	}
+	if b.policyConsumer && b.queryFrame == 0 {
+		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
+	}
+	if err := b.AdmitSetReturning(call.Pos); err != nil {
+		return nil, err
+	}
+	proc, ref, err := r.intaggIdentity()
+	if err != nil {
+		return nil, err
+	}
+	call.RoutineReference = proc
+	return unnestExpression{expressionInfo: call.Info, args: []BoundExpr{call.Arg}, procedure: proc, ref: ref}, nil
+}

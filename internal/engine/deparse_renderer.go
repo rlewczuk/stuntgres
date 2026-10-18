@@ -462,12 +462,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	case literalExpression:
 		return r.literal(ctx, n)
 	case functions.CurrentDateTime:
-		text, err := currentDateTimeSQL(n)
+		text, err := functions.CurrentDateTimeSQL(n)
 		return strings.ToUpper(text), err
 	case functions.VersionInformation:
 		return versionInformationSQL(n)
 	case functions.TransactionTime:
-		return transactionTimeSQL(n)
+		return functions.TransactionTimeSQL(n)
 	case identityExpression:
 		if err := validateDeparseIdentity(n); err != nil {
 			return "", err

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strconv"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -23,15 +22,4 @@ func (b *expressionBinder) bindCurrentDateTime(raw parser.CurrentDateTimeExpr) (
 	}
 	info := b.info(usage, raw.Pos, expr.IntrinsicProperties(functions.CurrentDateTimeIntrinsicRule()))
 	return functions.CurrentDateTime{Info: info, Kind: raw.Kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}, nil
-}
-
-func currentDateTimeSQL(e functions.CurrentDateTime) (string, error) {
-	if err := e.Validate(expr.PropertiesMatch(e.Property, functions.CurrentDateTimeIntrinsicRule())); err != nil {
-		return "", err
-	}
-	name := e.Kind.Name()
-	if e.HasPrecision {
-		name += "(" + strconv.FormatInt(int64(e.Precision), 10) + ")"
-	}
-	return name, nil
 }

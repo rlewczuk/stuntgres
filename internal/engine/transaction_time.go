@@ -27,12 +27,6 @@ func (c *EvalContext) FunctionWallTime() time.Time {
 func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
 	return c.Input.Zone
 }
-func transactionTimeSQL(e functions.TransactionTime) (string, error) {
-	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
-		return "", err
-	}
-	return e.Kind.Name() + "()", nil
-}
 func (b *expressionBinder) bindTransactionTime(raw parser.FunctionExpr) (BoundExpr, error) {
 	kind := functions.TransactionTimeKindForName(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	var names []string

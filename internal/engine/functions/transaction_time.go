@@ -72,6 +72,14 @@ func (e TransactionTime) Validate(intrinsicMatch bool) error {
 	}
 	return nil
 }
+// TransactionTimeSQL renders a stored call for the engine's deparse and
+// DEFAULT switches, until step 3 F2 gives the node a render hook.
+func TransactionTimeSQL(e TransactionTime) (string, error) {
+	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
+		return "", err
+	}
+	return e.Kind.Name() + "()", nil
+}
 func (e TransactionTime) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
