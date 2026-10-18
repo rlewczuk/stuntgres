@@ -18,6 +18,11 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	// Registered families are name-disjoint from the chain below.
 	if definition, ok := functions.Lookup(name); ok {
+		if definition.SharedGates {
+			if err := b.sharedCallGates(raw); err != nil {
+				return nil, err
+			}
+		}
 		return definition.Bind(b, raw)
 	}
 	if parser.CatalogRelationFunctionName(name) {
@@ -279,12 +284,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindBinaryFunction(raw, visible)
 	case "pg_size_bytes", "pg_size_pretty":
 		return b.bindSize(raw, visible)
-	case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
-		return b.bindMath(raw, visible)
-	case "sinh", "cosh", "tanh", "asinh", "acosh", "atanh":
-		return b.bindMath(raw, visible)
-	case "cbrt", "degrees", "radians", "pi", "erf", "erfc", "gamma", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor", "gcd", "lcm", "acos", "acosd", "asin", "asind", "atan", "atand", "atan2", "atan2d", "cos", "cosd", "cot", "cotd", "sin", "sind", "tan", "tand":
-		return b.bindMath(raw, visible)
 	case "random", "random_normal", "setseed":
 		return b.bindRandom(raw, visible)
 	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared", "pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared":
@@ -421,6 +420,18 @@ func (e currentSchemasExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	return results[0], nil
 }
 
+// sharedCallGates applies, for a registered family, the label and
+// ResolutionOnly gates that the name chain applies before its final switch.
+func (b *expressionBinder) sharedCallGates(raw parser.FunctionExpr) error {
+	if len(raw.ArgNames) != 0 {
+		return b.functionSignatureError(raw)
+	}
+	if raw.ResolutionOnly {
+		return b.formatDiagnosticSignatureError(raw)
+	}
+	return nil
+}
+
 // The admitted format failure paths follow argument transformation, global
 // syntax limit, namespace resolution, then missing-signature diagnostics.
 func (b *expressionBinder) formatDiagnosticSignatureError(raw parser.FunctionExpr) error {
@@ -522,15 +533,8 @@ func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectNam
 	return err
 }
 
-func functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
-	code, ending, hint := "42883", "does not exist", functionCastHint
-	if ambiguous {
-		code, ending, hint = "42725", "is not unique", "Could not choose a best candidate function. You might need to add explicit type casts."
-	}
-	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", objectNameText(name), strings.Join(names, ", "), ending), pos).(*sqlstate.Error)
-	d.Hint = hint
-	return d
-}
+// Temporary alias: the pure builder moved to functions (F4/F5 math).
+var functionResolutionErrorForTypes = functions.ResolutionError
 
 func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExpr, error) {
 	visible, err := b.builtinVisible(raw.Name, functionLookup)

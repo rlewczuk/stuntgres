@@ -15,17 +15,6 @@ func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
 	return &c.liveScope().op.session.random, nil
 }
 
-func (b *expressionBinder) randomSignature(raw parser.FunctionExpr, args []BoundExpr, unknown []bool, ambiguous bool) error {
-	types := make([]string, len(args))
-	for i, arg := range args {
-		types[i] = "unknown"
-		if !unknown[i] && arg.ResultUsage().Type != nil {
-			types[i] = arg.ResultUsage().Type.DiagnosticName()
-		}
-	}
-	return b.functionResolutionErrorForTypes(raw.Name, raw.Pos, types, ambiguous)
-}
-
 func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	if b.defaultConsumer {
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
@@ -54,7 +43,7 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 	}
 	selected, resolution := functions.SelectRandom(prepared, args, unknown, types)
 	if resolution != functions.Resolved {
-		return nil, b.randomSignature(raw, args, unknown, resolution == functions.Ambiguous)
+		return nil, functions.DirectResolutionError(b, raw, args, unknown, resolution == functions.Ambiguous)
 	}
 	if err := functions.CoerceRandomArguments(b, raw.Args, args, unknown, selected); err != nil {
 		return nil, err

@@ -3027,7 +3027,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	return node, nil
 }
 
-const functionCastHint = "No function matches the given name and argument types. You might need to add explicit type casts."
+// Temporary alias: the hint moved to functions (F4/F5 math).
+const functionCastHint = functions.SignatureHint
 
 func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error {
 	code, ending, hint := "42883", "does not exist", functionCastHint
@@ -3685,6 +3686,8 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 	switch request.Intent {
 	case functions.ComparisonArgument:
 		operand, err = b.comparisonOperand(raw)
+	case functions.ThresholdArrayArgument:
+		operand, err = b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext, thresholdArrayInput: true})
 	case functions.StringTextArgument, functions.StringOtherArgument:
 		operand, err = b.stringOperand(raw, request.Intent == functions.StringTextArgument)
 	case functions.StringProjectionArgument, functions.ProjectionArgument:

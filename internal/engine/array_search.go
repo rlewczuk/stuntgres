@@ -22,7 +22,7 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	for i, o := range operands {
 		names[i] = "unknown"
 		if d := o.Usage.Type; d != nil {
-			names[i] = b.arraySearchTypeName(d)
+			names[i] = functions.ArrayTypeName(b, d)
 		}
 		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
@@ -103,20 +103,11 @@ func (b *expressionBinder) bindArraySearch(raw parser.FunctionExpr, visible bool
 	return b.newArraySearch(name, raw.Name, raw.Pos, result, args)
 }
 
-// Array signatures display the visible leaf name, not the internal array
-// descriptor's frozen qualified declaration. Scalar naming remains catalog-owned.
-func (b *expressionBinder) arraySearchTypeName(d *sqltype.Descriptor) string {
-	if d != nil && d.IsArray() {
-		return b.diagnosticTypeName(d.Element()) + "[]"
-	}
-	return b.diagnosticTypeName(d)
-}
-
 func (b *expressionBinder) arrayMembershipError(left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
 	err := b.comparisonError(sqlError("42883", "operator does not exist"), left, right, raw)
 	if d, ok := err.(*sqlstate.Error); ok {
 		copy := *d
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", b.arraySearchTypeName(left), objectNameText(raw.Name), b.arraySearchTypeName(right))
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", functions.ArrayTypeName(b, left), objectNameText(raw.Name), functions.ArrayTypeName(b, right))
 		return &copy
 	}
 	return err

@@ -21,7 +21,7 @@ func (e Math) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if !selectedLogPower(e.Plan.Name()) {
+	if !SelectedLogPower(e.Plan.Name()) {
 		for _, arg := range e.Args {
 			if c.FunctionLiteralNull(arg) {
 				return sqltype.Null(e.Usage.Type), nil
@@ -85,7 +85,10 @@ func bindMathProvider(name string, result sqltype.Usage, args []sqltype.Usage, r
 	return sqltype.BindMath(name, result, args...)
 }
 
-func selectedLogPower(name string) bool {
+// SelectedLogPower reports the math names admitted in column DEFAULT
+// expressions; they also keep strict literal-NULL folding out of the
+// conditional planner.
+func SelectedLogPower(name string) bool {
 	switch name {
 	case "lgamma", "ln", "log", "log10", "power", "sqrt", "width_bucket":
 		return true
@@ -296,7 +299,7 @@ func CoerceMathArguments(b ArgumentCoercer, name string, raw []parser.Expr, args
 			argument.Usage = arg.ResultUsage()
 		}
 		intent := DirectFormalArgument
-		if _, parameter := raw[i].(parser.ParameterExpr); parameter && unknown[i] && selectedLogPower(name) {
+		if _, parameter := raw[i].(parser.ParameterExpr); parameter && unknown[i] && SelectedLogPower(name) {
 			// Occurrence-sensitive inference uses the existing parameter owner.
 			// Literals and already typed arguments keep ordinary formal coercion.
 			intent = FinalizeArgument

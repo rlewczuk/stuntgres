@@ -32,6 +32,9 @@ const (
 	StringOtherArgument
 	StringProjectionArgument
 	ProjectionArgument
+	// ThresholdArrayArgument is a comparison operand whose unknown-NULL
+	// annotation may name an enum array, as width_bucket's thresholds may.
+	ThresholdArrayArgument
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }

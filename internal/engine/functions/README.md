@@ -45,6 +45,27 @@ engine's `expressionBinder` implements it with thin adapters
   files analyze FILTER this way): analyzes and discards a scalar call's FILTER
   so its errors precede the decoration rejection.
 
+Added for the math family (F4/F5); each is reused by glue still in the engine:
+
+- `DefaultConsumer`: whether a column DEFAULT is being bound. It is analyzer
+  context set by the engine's DEFAULT binder and carried through recursive
+  binding; most families reject themselves there with 0A000 (random, binary,
+  string, SIMILAR, regexp and JSON aggregates read the same flag). A later
+  DEFAULT-admission hook (F2) may replace it.
+- `ArrayType`: the array type of an element type, read from the binding
+  catalog or the statement's definition stage (catalog state; ~8 glue files).
+- `CommonUsage`: PostgreSQL's nonthrowing common-type probe
+  (`select_common_type` with no error label) over typed operand usages. The
+  engine owns the algorithm shared with CASE, VALUES and IN; if its usage-only
+  core moves to `sqltype`, this becomes a plain function.
+- `ComparisonInfo`: comparison input collation derivation, recording the
+  operands' diagnostic type inputs as dependencies (array search/comparison
+  and LIKE use the same service).
+
+Argument analysis intents are values, not methods: `ThresholdArrayArgument`
+is the comparison operand whose unknown-NULL annotation may name an enum
+array, as `width_bucket`'s threshold array may.
+
 Prefer passing values to adding methods. A new method needs a reason here:
 either a genuine analyzer capability or a leak that a later step removes.
 
@@ -57,9 +78,26 @@ visibility, argument analysis and every diagnostic. The engine's
 `bindFunctionProvider` consults `Lookup` before its remaining name chain, so a
 registered name must not overlap any family the chain still dispatches.
 
+Two fields reproduce where a family sat in that chain:
+
+- `ExactSpelling`: claim only the exact, parser-folded names (lowercase), as
+  the chain's final `switch name` did. Other spellings, such as a quoted
+  `"ABS"`, keep the chain's missing-function path.
+- `SharedGates`: the engine applies the chain's shared gates before `Bind`:
+  argument labels get the missing-signature error, then `ResolutionOnly`
+  calls get the format diagnostics. `Bind` then checks builtin visibility
+  itself, preserving the old gate, visibility, bind order.
+
+Math (`math_bind.go`) is registered with both; UUID extraction with neither.
+
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
 (FILTER analysis, the 100-argument limit, labels), `CallDecorationError`
 (DISTINCT/ORDER BY/FILTER/OVER on a scalar) and `NamedArgumentType`.
+`resolution_error.go` holds `ResolutionError` (the pure 42883/42725 builder;
+it notes nothing, so missing signatures still go through `SignatureError`),
+`DirectResolutionError` (overload failure over `AnalyzeDirectArguments`
+results; random and deparse inquiry use it too) and `ArrayTypeName` (array
+signature spelling by leaf name).
 
 To add or port a builtin family:
 
@@ -71,8 +109,11 @@ To add or port a builtin family:
    switches.
 3. The chain applies shared gates after some branches: argument labels are
    rejected for most names, and `ResolutionOnly` calls get format diagnostics.
-   A family whose engine branch sat after those gates must reproduce them in
-   `Bind`, because `Lookup` runs first.
+   A family whose engine branch sat after those gates sets `SharedGates`
+   (and `ExactSpelling` if it sat in the final switch), because `Lookup` runs
+   first. Check that no earlier chain predicate claims its names.
+4. Helpers that engine switches still call (retag, conditional planning) are
+   exported until F2 converts those switches.
 
 ## Node protocol
 
@@ -199,6 +240,15 @@ Node protocol on function nodes:
 
 ```sh
 make check RUN='^TestComposite(SliceArguments|ArityLimitedArguments|CountedArgumentsKeepTrailingSlots|NamedArguments)$'
+```
+
+Math family (registry, kernels; the engine's `TestMath*` cover analyzer
+switches; reference tests in both modes):
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestMath|TestRandomBinder)'
+make check RUN='^TestReferenceMath'
+make check REFERENCE=1 RUN='^TestReferenceMath'
 ```
 
 Focused private state/demand examples:

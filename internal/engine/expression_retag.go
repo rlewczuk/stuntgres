@@ -1148,7 +1148,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		n, err = n.Reconstruct(info, n.Args, ref, conflict)
 		if err == nil {
-			n.WrapperContext = mathWrapperContext(n.Plan.Name(), n.Args)
+			n.WrapperContext = functions.MathWrapperContext(n.Plan.Name(), n.Args)
 		}
 		rebound = n
 	case visibilityInquiryExpression:

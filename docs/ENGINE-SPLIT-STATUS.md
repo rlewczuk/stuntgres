@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `081ea0328`.
+Last verified against `master` at `85de31810`.
 
 ## Next ready sub-steps
 
@@ -60,7 +60,8 @@ must not run alongside each other or another broad rewrite or alias removal
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
   - [ ] F4/F5 Tier A — port in place, then move
-    - [ ] math
+    - [x] math (`3078b889f`, `d5dc34c59`, `0f3c7e5a2`, docs `96e11f662`)
+      *(racecheck skipped at user request)*
     - [ ] string
     - [ ] LIKE/SIMILAR/regex
     - [ ] datetime
