@@ -1267,7 +1267,7 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 		rule := view.view.rule
 		if reserved[rule]&(descriptorOID|claimedOID) != 0 {
 			for {
-				candidate, err := e.allocateOIDLocked()
+				candidate, err := e.catalog.allocateOIDLocked()
 				if err != nil {
 					return err
 				}

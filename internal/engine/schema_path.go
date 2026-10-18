@@ -93,7 +93,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 	}
 	var result []ids.ObjectAddress
 	if auth.pathPrefix != (ids.ObjectAddress{}) && !auth.materializedPopulation {
-		ref := e.domain.Ref(auth.catalog.Epoch(), auth.pathPrefix)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), auth.pathPrefix)
 		if err := auth.CanUse(ref); err != nil {
 			return nil, false, err
 		}
@@ -144,7 +144,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 		if duplicate {
 			continue
 		}
-		rights, err := auth.Effective(e.domain.Ref(auth.catalog.Epoch(), a), false)
+		rights, err := auth.Effective(e.catalog.domain.Ref(auth.catalog.Epoch(), a), false)
 		if err != nil {
 			return nil, false, err
 		}
@@ -275,7 +275,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		}
 		return namespaceSelection{}, expressionError("42501", fmt.Sprintf("permission denied for schema %s", ns.name), n.Pos)
 	}
-	if err := auth.CanUse(e.domain.Ref(auth.catalog.Epoch(), a)); err != nil {
+	if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), a)); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {
 			copy := *diagnostic
 			copy.Position = strconv.Itoa(n.Pos.Character)
@@ -355,5 +355,5 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 	if !system && a.ObjectID == ids.PGCatalogNamespaceOID {
 		return ids.ObjectRef{}, false, sqlError("0A000", "system schema creation is unsupported")
 	}
-	return e.domain.Ref(auth.catalog.Epoch(), a), false, nil
+	return e.catalog.domain.Ref(auth.catalog.Epoch(), a), false, nil
 }

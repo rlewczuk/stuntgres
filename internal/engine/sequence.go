@@ -115,14 +115,14 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode relationLockMod
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref)
 	return nil
 }
 func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
-	view := CatalogRead{e, e.state}
+	view := CatalogRead{e, e.catalog.state}
 	i, _ := view.LookupType(sqltype.Int8)
 	b, _ := view.LookupType(sqltype.Bool)
 	return []ColumnDescriptor{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}
@@ -250,12 +250,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 		}
 		options.persistence = persistence
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -352,7 +352,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			return Result{}, err
 		}
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return Result{}, err
 		}
@@ -406,7 +406,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				}
 				targetAuth := auth
 				targetAuth.state.CurrentUser = target
-				if err = targetAuth.CheckCreate(e.domain.Ref(ref.Epoch, d.namespace)); err != nil {
+				if err = targetAuth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, d.namespace)); err != nil {
 					return Result{}, err
 				}
 			}
@@ -469,7 +469,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				m.remaining = 0
 			}
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
 		scope.catalog = changes
 		return Result{}, nil
 	case *parser.DropSequence:
@@ -552,7 +552,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if auth.catalog.Epoch() != e.state.epoch {
+	if auth.catalog.Epoch() != e.catalog.state.epoch {
 		return Result{}, ErrCatalogReplaced
 	}
 	for address := range checkStage.descriptors {
@@ -560,7 +560,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if original, private := changes.originals[address]; private {
 			expected = original
 		}
-		if e.state.descriptors[address] != expected {
+		if e.catalog.state.descriptors[address] != expected {
 			return Result{}, CatalogConflict{}
 		}
 	}
@@ -569,7 +569,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if original, private := changes.originals[address]; private {
 			expected = original
 		}
-		if e.state.descriptors[address] != expected {
+		if e.catalog.state.descriptors[address] != expected {
 			return Result{}, CatalogConflict{}
 		}
 	}

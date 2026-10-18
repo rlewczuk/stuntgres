@@ -134,7 +134,7 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 	if reset.ResetRole != (authorization.PrincipalRef{}) {
 		reset.CurrentUser = reset.ResetRole
 	}
-	roles := e.roleRead(CatalogRead{e, e.state}, e.roles)
+	roles := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles)
 	for _, principal := range []authorization.PrincipalRef{reset.Authenticated, reset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return authorization.RoleState{}, err
@@ -152,7 +152,7 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 	if err := roleRevisionHeadroom(op.session.authorization, 3); err != nil {
 		return err
 	}
-	roles := e.roleRead(CatalogRead{e, e.state}, e.roles)
+	roles := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles)
 	for _, principal := range []authorization.PrincipalRef{op.discardRoleReset.Authenticated, op.discardRoleReset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return err
@@ -225,7 +225,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	// Exclude every owned target before projecting surviving dependents, exactly
 	// as physical collation cleanup does, but retain the namespace descriptor.
 	for _, address := range children {
-		if err = stage.removeObjectLocked(e.domain.Ref(base.Epoch(), address), false); err != nil {
+		if err = stage.removeObjectLocked(e.catalog.domain.Ref(base.Epoch(), address), false); err != nil {
 			break
 		}
 	}
@@ -269,7 +269,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		if i != 0 && address == relations[i-1] {
 			continue
 		}
-		if err = s.acquireSequence(e.domain.Ref(base.Epoch(), address), accessExclusive, true); err != nil {
+		if err = s.acquireSequence(e.catalog.domain.Ref(base.Epoch(), address), accessExclusive, true); err != nil {
 			return err
 		}
 	}
@@ -296,7 +296,7 @@ func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address id
 			continue
 		}
 		for _, leaf := range cursor.leaves {
-			if leaf.ref.Domain() != catalog.owner.domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
+			if leaf.ref.Domain() != catalog.owner.catalog.domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
 				continue
 			}
 			relation, ok := catalog.state.descriptors[address].(*relationDescriptor)

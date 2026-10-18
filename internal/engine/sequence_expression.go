@@ -295,7 +295,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
+		return e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
@@ -378,7 +378,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			if namespace.temporary != (ids.SessionToken{}) && namespace.temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
 			}
-			if err := r.auth.CanUse(r.auth.engine.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
+			if err := r.auth.CanUse(r.auth.engine.catalog.domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
 				return 0, err
 			}
 			path = []ids.ObjectAddress{ns}
@@ -430,11 +430,11 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		ref = e.domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
+		ref = e.catalog.domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
 	}
 	if x.name == "lastval" {
 		e.mu.Lock()
-		ref = e.domain.Ref(e.state.epoch, scope.op.session.lastSequence)
+		ref = e.catalog.domain.Ref(e.catalog.state.epoch, scope.op.session.lastSequence)
 		e.mu.Unlock()
 		if ref.Address == (ids.ObjectAddress{}) {
 			return sqltype.Value{}, sqlError("55000", "lastval is not yet defined in this session")
@@ -449,7 +449,7 @@ func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
 		ref.Epoch = before.catalog.Epoch()
 	}
-	if beforeErr == nil && (ref.Domain() != e.domain || ref.Epoch != before.catalog.Epoch()) {
+	if beforeErr == nil && (ref.Domain() != e.catalog.domain || ref.Epoch != before.catalog.Epoch()) {
 		beforeErr = ErrCatalogReplaced
 	}
 	if beforeErr == nil {

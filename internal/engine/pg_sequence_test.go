@@ -15,11 +15,11 @@ import (
 func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2224}
-	d, ok := e.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_sequence")
 	}
-	return d, e.domain.Ref(e.state.epoch, a)
+	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
 }
 func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 	t.Helper()
@@ -109,8 +109,8 @@ func TestPGSequenceShape(t *testing.T) {
 	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	class := e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.state}, e.roles), ids.ObjectRef{}, class)
+	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,8 +136,8 @@ func TestPGSequenceShape(t *testing.T) {
 func TestPGSequenceProjection(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
-	state := *e.state
-	state.descriptors = maps.Clone(e.state.descriptors)
+	state := *e.catalog.state
+	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	options := &sequenceOptions{typ: sqltype.Int4, start: 15, increment: 7, max: 200, min: -20, cache: 9223372036854775807, cycle: true}
 	d := &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: options}
@@ -160,8 +160,8 @@ func TestPGSequenceProjection(t *testing.T) {
 func TestPGSequenceEmptySource(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
-	base := *e.state
-	base.descriptors = maps.Clone(e.state.descriptors)
+	base := *e.catalog.state
+	base.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	base.descriptors[a] = &relationDescriptor{address: a, relationKind: sequenceRelation, sequence: &sequenceOptions{typ: sqltype.Int8, start: 1, increment: 1, max: 9223372036854775807, min: 1, cache: 1}}
 	own := newCatalogChanges()
@@ -171,7 +171,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 		base *catalogState
 		own  *catalogChanges
 	}{
-		{"no definitions", e.state, nil},
+		{"no definitions", e.catalog.state, nil},
 		{"private drop", &base, own},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -188,8 +188,8 @@ func TestPGSequenceEmptySource(t *testing.T) {
 func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	e := New()
 	source, ref := pgSequenceUnitSource(t, e)
-	base := *e.state
-	base.descriptors = maps.Clone(e.state.descriptors)
+	base := *e.catalog.state
+	base.descriptors = maps.Clone(e.catalog.state.descriptors)
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	dropped := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 	added := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
@@ -216,7 +216,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	own.descriptors[added] = &addition
 	want := map[uint32][]any{20000: {uint32(20000), uint32(21), int64(-4), int64(-3), int64(-1), int64(-32768), int64(1), false}, 20002: {uint32(20002), uint32(21), int64(-1), int64(-3), int64(-1), int64(-32768), int64(1), false}}
 	// Latest publication has none of the retained base's sequence definitions.
-	e.state = cloneCatalog(e.state)
+	e.catalog.state = cloneCatalog(e.catalog.state)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	owner := op.session.transactions
@@ -252,7 +252,7 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			}
 			owner := op.session.transactions
 			scope := &StatementScope{op: op, owner: owner, txRef: ref}
-			base := e.state
+			base := e.catalog.state
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
@@ -266,7 +266,7 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 				t.Fatal("savepoint discarded transaction snapshot")
 			}
 			e.mu.Lock()
-			e.state = cloneCatalog(e.state)
+			e.catalog.state = cloneCatalog(e.catalog.state)
 			e.mu.Unlock()
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
@@ -303,7 +303,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 			join := serializableUnitCaptureWorker(t, scope)
 			serializableUnitAwaitCandidate(t, e, node)
 			e.mu.Lock()
-			old := e.state
+			old := e.catalog.state
 			captured := scope.owner.sequenceCatalog
 			e.mu.Unlock()
 			if captured != old {
@@ -311,8 +311,8 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 			}
 			if unsafe {
 				e.mu.Lock()
-				e.state = cloneCatalog(e.state)
-				next := e.state
+				e.catalog.state = cloneCatalog(e.catalog.state)
+				next := e.catalog.state
 				e.commitSeq++
 				e.serializableCommittedLocked(writer.ref, e.commitSeq)
 				e.endSerializableLocked(writer.ref, true)

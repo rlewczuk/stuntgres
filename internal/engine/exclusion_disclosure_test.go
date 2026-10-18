@@ -56,7 +56,7 @@ func TestExclusionDisclosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				parent := e.state.descriptors[ref.Address].(*relationDescriptor)
+				parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				index, root := btreeRoot(t, e, "public.ex")
 				previous := root.entries[0]
 				current := previous

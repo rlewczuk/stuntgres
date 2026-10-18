@@ -122,21 +122,21 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 // Caller holds Engine.mu and the session's statement admission.
 func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	if c == nil {
-		return CatalogRead{e, e.state}
+		return CatalogRead{e, e.catalog.state}
 	}
-	if c.cachedBase == e.state && c.cached.state != nil {
+	if c.cachedBase == e.catalog.state && c.cached.state != nil {
 		return c.cached
 	}
 	if len(c.descriptors) == 0 && len(c.defaultACLs) == 0 {
-		c.cachedBase = e.state
-		c.cached = CatalogRead{e, e.state}
+		c.cachedBase = e.catalog.state
+		c.cached = CatalogRead{e, e.catalog.state}
 		return c.cached
 	}
-	n := cloneCatalog(e.state)
-	n.defaultACLs = overlayDefaultACLs(e.state.defaultACLs, c.defaultACLs)
-	operators := operatorIndexEdit{index: e.state.operatorNames}
+	n := cloneCatalog(e.catalog.state)
+	n.defaultACLs = overlayDefaultACLs(e.catalog.state.defaultACLs, c.defaultACLs)
+	operators := operatorIndexEdit{index: e.catalog.state.operatorNames}
 	for a, d := range c.descriptors {
-		operators.replace(e.state.descriptors[a], d)
+		operators.replace(e.catalog.state.descriptors[a], d)
 		if old := n.descriptors[a]; old != nil {
 			delete(n.names, descriptorNameKey(old))
 		}
@@ -153,23 +153,23 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 		}
 	}
 	n.operatorNames = operators.index
-	c.cachedBase, c.cached = e.state, CatalogRead{e, n}
+	c.cachedBase, c.cached = e.catalog.state, CatalogRead{e, n}
 	return c.cached
 }
 func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d Descriptor) {
 	if _, ok := c.originals[a]; !ok {
-		c.originals[a] = e.state.descriptors[a]
+		c.originals[a] = e.catalog.state.descriptors[a]
 	}
 	if original := c.originals[a]; original != nil {
 		k := descriptorNameKey(original)
 		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.state.names[k]
+			c.names[k] = e.catalog.state.names[k]
 		}
 	}
 	if d != nil {
 		k := descriptorNameKey(d)
 		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.state.names[k]
+			c.names[k] = e.catalog.state.names[k]
 		}
 	}
 	c.descriptors[a] = d
@@ -203,12 +203,12 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	e.mu.Lock()
 	// Bind the overlay only to its owning incarnation. Replacement types must
 	// never validate old descriptors before the publication epoch fence.
-	if e.state.epoch != epoch {
+	if e.catalog.state.epoch != epoch {
 		e.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
 	view := e.privateCatalogLocked(c)
-	if err := catalogDependencyPreflight(e.state, view.state, c.dependencies, c.originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.state, view.state, c.dependencies, c.originals); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 		if d == nil {
 			continue
 		}
-		p := e.providers[a.ClassID]
+		p := e.catalog.provider(a.ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class")
 		}
@@ -235,7 +235,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if c.rolesBase != nil && e.roles != c.rolesBase {
 		return CatalogConflict{}
 	}
-	if !defaultRecordsUnchanged(e.state, c.defaultOriginals) || !defaultRecordsUnchanged(e.state, c.defaultReads) {
+	if !defaultRecordsUnchanged(e.catalog.state, c.defaultOriginals) || !defaultRecordsUnchanged(e.catalog.state, c.defaultReads) {
 		return CatalogConflict{}
 	}
 	roles := e.roles
@@ -256,19 +256,19 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	// the central publication-conflict contract.
 	if len(c.extensionAuthority) != 0 {
 		for key, original := range c.names {
-			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.state.names[key] != original {
+			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.catalog.state.names[key] != original {
 				return extensionNameConflict(key.Name)
 			}
 		}
 	}
 	for _, observation := range c.extensionAuthority {
 		if e.roles.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
-			e.state.descriptors[observation.namespace.Address()] != observation.namespace ||
-			e.state.descriptors[observation.database.Address()] != observation.database {
+			e.catalog.state.descriptors[observation.namespace.Address()] != observation.namespace ||
+			e.catalog.state.descriptors[observation.database.Address()] != observation.database {
 			return CatalogConflict{}
 		}
 	}
-	if err := catalogDependencyPreflight(e.state, catalog.state, c.dependencies, c.originals); err != nil {
+	if err := catalogDependencyPreflight(e.catalog.state, catalog.state, c.dependencies, c.originals); err != nil {
 		return err
 	}
 	if err := e.truncateGraphPreflightLocked(c); err != nil {
@@ -286,12 +286,12 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		}
 	}
 	for a, original := range c.originals {
-		if e.state.descriptors[a] != original {
+		if e.catalog.state.descriptors[a] != original {
 			return CatalogConflict{}
 		}
 	}
 	for k, a := range c.names {
-		if e.state.names[k] != a {
+		if e.catalog.state.names[k] != a {
 			return CatalogConflict{}
 		}
 	}

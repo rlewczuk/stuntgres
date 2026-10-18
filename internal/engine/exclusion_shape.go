@@ -69,7 +69,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *relationDescrip
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if catalog.Epoch() != e.state.epoch {
+	if catalog.Epoch() != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)

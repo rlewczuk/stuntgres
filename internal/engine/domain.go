@@ -61,16 +61,16 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
+	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 	stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 	if err = auth.CanUse(ref); err != nil {
 		return err
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	acl, synthetic := stage.creationTypeACL(auth.state.CurrentUser, ns.Address)
-	arrayOID, err := e.allocateOIDLocked()
+	arrayOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 		if !target.typ.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
-		ref := e.domain.Ref(auth.catalog.Epoch(), target.Address())
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), target.Address())
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}

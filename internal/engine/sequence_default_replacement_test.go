@@ -18,7 +18,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 			sequenceScalar(t, s, "SELECT nextval('kept')", 30)
 			_, description := sequencePreparedDescription(t, e, s, "SELECT nextval('kept')")
 			tempRef := description.sequences.constants[0].ref
-			temp := e.state.descriptors[tempRef.Address]
+			temp := e.catalog.state.descriptors[tempRef.Address]
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(7 AS BIGINT),b BOOL DEFAULT (CAST(1 AS BIGINT)=CAST(1 AS BIGINT)))"
 			var source *Engine
 			var sourceDefinition *relationDescriptor
@@ -31,7 +31,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 				peer := sessionStart(t, source, nil)
 				sessionSQL(t, peer, script)
 				ref := catalogRef(t, source, source.CatalogRead(), "imported")
-				sourceDefinition = source.state.descriptors[ref.Address].(*relationDescriptor)
+				sourceDefinition = source.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				if _, err := e.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
@@ -50,7 +50,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 			}
 			if source != nil {
 				ref := catalogRef(t, source, source.CatalogRead(), "imported")
-				if source.state.descriptors[ref.Address] != sourceDefinition {
+				if source.catalog.state.descriptors[ref.Address] != sourceDefinition {
 					t.Fatal("normalization mutated source descriptor")
 				}
 				for _, definition := range sourceDefinition.defaults {
@@ -59,7 +59,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 					}
 				}
 			}
-			if e.state.descriptors[tempRef.Address] != temp {
+			if e.catalog.state.descriptors[tempRef.Address] != temp {
 				t.Fatal("normalization replaced retained TEMP descriptor")
 			}
 			if result := sessionSQL(t, s, "INSERT INTO imported DEFAULT VALUES"); result.Count != 1 {

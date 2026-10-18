@@ -16,7 +16,7 @@ func captureDeniedQuerySource(view *VisibilityView, ref ids.ObjectRef) (*querySo
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	data := pin.read()
-	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.domain || ref.Epoch != data.catalog.Epoch() || data.catalog.state.descriptors[ref.Address] == nil {
+	if data.catalog.owner == nil || ref.Domain() != data.catalog.owner.catalog.domain || ref.Epoch != data.catalog.Epoch() || data.catalog.state.descriptors[ref.Address] == nil {
 		pin.Release()
 		return nil, fmt.Errorf("stuntgres: invalid visibility target")
 	}

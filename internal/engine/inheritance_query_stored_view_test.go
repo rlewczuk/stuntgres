@@ -53,7 +53,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 			}
 			ref := func(d *relationDescriptor) ids.ObjectRef {
-				return e.domain.Ref(e.CatalogRead().Epoch(), d.address)
+				return e.catalog.domain.Ref(e.CatalogRead().Epoch(), d.address)
 			}
 			parentRef, parentStorage := ref(parent), e.storage[parent.address]
 			ctx, cancelScan := context.WithCancel(context.Background())
@@ -87,7 +87,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				var oid ids.OID
 				if bindErr == nil {
-					oid, bindErr = e.allocateOIDLocked()
+					oid, bindErr = e.catalog.allocateOIDLocked()
 				}
 				if bindErr != nil {
 					e.mu.Unlock()

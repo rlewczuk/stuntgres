@@ -15,7 +15,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			sequenceScalar(t, session, "SELECT nextval('kept')", 30)
 			_, description := sequencePreparedDescription(t, target, session, "SELECT nextval('kept')")
 			tempRef := description.sequences.constants[0].ref
-			temp := target.state.descriptors[tempRef.Address]
+			temp := target.catalog.state.descriptors[tempRef.Address]
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(1 AS BIGINT),b BOOL DEFAULT TRUE,CONSTRAINT c CHECK(n=CAST(1 AS BIGINT) AND b))"
 			if mode == "Restore" {
 				if err := target.Restore(context.Background(), strings.NewReader(script)); err != nil {
@@ -26,11 +26,11 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 				peer := sessionStart(t, source, nil)
 				sessionSQL(t, peer, script)
 				ref := catalogRef(t, source, source.CatalogRead(), "imported")
-				old := source.state.descriptors[ref.Address]
+				old := source.catalog.state.descriptors[ref.Address]
 				if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
-				if source.state.descriptors[ref.Address] != old {
+				if source.catalog.state.descriptors[ref.Address] != old {
 					t.Fatal("replacement mutated source")
 				}
 			}
@@ -40,7 +40,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			if err := validateChecks(view, descriptor, map[string]bool{}); err != nil {
 				t.Fatal(err)
 			}
-			if target.state.descriptors[tempRef.Address] != temp {
+			if target.catalog.state.descriptors[tempRef.Address] != temp {
 				t.Fatal("replacement changed pinned TEMP descriptor")
 			}
 			sessionSQL(t, session, "INSERT INTO imported DEFAULT VALUES")

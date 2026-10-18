@@ -25,8 +25,8 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"}]
-	return e, e.state.descriptors[address].(*extensionDescriptor)
+	address := e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"}]
+	return e, e.catalog.state.descriptors[address].(*extensionDescriptor)
 }
 
 func TestPgcryptoProviderIdentity(t *testing.T) {
@@ -57,7 +57,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal(proc)
 		}
 		seen[address] = true
-		if err := e.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
+		if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -95,7 +95,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		bad := *original.(*procedureDescriptor)
 		mutate(&bad)
 		view.state.descriptors[ext.members[0]] = &bad
-		failure := e.providers[ids.ProcedureClassID].Validate(view, &bad)
+		failure := e.catalog.providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifestFailure := stockPgcrypto.validate(view, ext)
 		view.state.descriptors[ext.members[0]] = original
 		if failure == nil {

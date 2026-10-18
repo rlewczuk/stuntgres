@@ -77,7 +77,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return err
 		}

@@ -128,7 +128,7 @@ func TestTruncateGraph(t *testing.T) {
 			if kind == "inheritance" {
 				sessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
 				c := roleTableRef(t, e, "c")
-				inheritance = e.state.descriptors[c.Address].(*relationDescriptor).inheritance
+				inheritance = e.catalog.state.descriptors[c.Address].(*relationDescriptor).inheritance
 				truncateUnitReplace(t, e, c, func(d *relationDescriptor) { d.inheritance = nil })
 			} else {
 				sessionSQL(t, s, "CREATE TABLE c(id INT)")
@@ -167,7 +167,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	if ownAddress == (ids.ObjectAddress{}) || peerAddress == (ids.ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
 	}
-	peerRef := e.domain.Ref(catalog.Epoch(), peerAddress)
+	peerRef := e.catalog.domain.Ref(catalog.Epoch(), peerAddress)
 	oldPeer := e.storage[peerAddress]
 	oldVersions, oldEnds, oldGeneration := oldPeer.versions, oldPeer.ends, oldPeer.generation
 	scope := truncateUnitStage(t, e, owner, "p")
@@ -178,7 +178,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	excluded = excluded && !journaledPeer && lockState.Resources[lockResource{ObjectRef: peerRef}] == nil
 	admitted := true
 	for _, address := range []ids.ObjectAddress{parent.Address, ownAddress, persistent.Address} {
-		ref := e.domain.Ref(catalog.Epoch(), address)
+		ref := e.catalog.domain.Ref(catalog.Epoch(), address)
 		entry := lockState.Resources[lockResource{ObjectRef: ref}]
 		if entry == nil {
 			admitted = false
@@ -288,7 +288,7 @@ func TestTruncateAdmission(t *testing.T) {
 			sessionSQL(t, holder, "CREATE TABLE c(extra INT) INHERITS(p)")
 			sessionSQL(t, holder, "INSERT INTO c(id,extra) VALUES(1,9)")
 			child := roleTableRef(t, e, "c")
-			inheritance := e.state.descriptors[child.Address].(*relationDescriptor).inheritance
+			inheritance := e.catalog.state.descriptors[child.Address].(*relationDescriptor).inheritance
 			truncateUnitReplace(t, e, child, func(d *relationDescriptor) { d.inheritance = nil })
 			waiter := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)

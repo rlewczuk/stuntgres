@@ -36,7 +36,7 @@ func (databaseProvider) Validate(v CatalogRead, d Descriptor) error {
 	return nil
 }
 func (e *Engine) initializeDatabase(name string) {
-	typ, _ := (CatalogRead{e, e.state}).LookupType(sqltype.Name)
+	typ, _ := (CatalogRead{e, e.catalog.state}).LookupType(sqltype.Name)
 	value, err := typ.Input(context.Background(), name, -1)
 	// Opaque host keys may be invalid NAME inputs. Preserve connector creation;
 	// reject physical session admission with the original typed input error.
@@ -46,8 +46,8 @@ func (e *Engine) initializeDatabase(name string) {
 	}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	db := &databaseDescriptor{address: currentDatabaseAddress, revision: 1, name: e.databaseName, owner: owner}
-	e.state.descriptors[db.address] = db
-	e.state.names[descriptorNameKey(db)] = db.address
+	e.catalog.state.descriptors[db.address] = db
+	e.catalog.state.names[descriptorNameKey(db)] = db.address
 }
 
 // Attachment identity and ACLs belong to the destination, not portable state.
@@ -56,7 +56,7 @@ func (e *Engine) retainDatabaseLocked(next *catalogState) {
 	if old := next.descriptors[currentDatabaseAddress]; old != nil {
 		delete(next.names, descriptorNameKey(old))
 	}
-	database := e.state.descriptors[currentDatabaseAddress]
+	database := e.catalog.state.descriptors[currentDatabaseAddress]
 	next.descriptors[currentDatabaseAddress] = database
 	next.names[descriptorNameKey(database)] = currentDatabaseAddress
 }
@@ -143,7 +143,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	}
 	next := *db
 	next.acl = acl
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return Result{}, err
 	}
@@ -153,6 +153,6 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	e.catalogChangeLocked(changes, db.address, &next)
 	scope.catalog = changes
-	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.address}, e.state.descriptors[db.address])
+	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: db.address}, e.catalog.state.descriptors[db.address])
 	return Result{}, nil
 }

@@ -514,7 +514,7 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 	if err := s.validateLockedRelation(e); err != nil {
 		return rowVersion{}, false, err
 	}
-	if ref.Epoch != e.state.epoch || s.txRef.Epoch() != e.state.epoch {
+	if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
 		return rowVersion{}, false, ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)

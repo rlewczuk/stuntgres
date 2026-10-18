@@ -80,11 +80,11 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
 		writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
 		mark := cloneCatalogChanges(c)
-		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.state.epoch, nil, 0), writes, nil, c)
+		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.epoch, nil, 0), writes, nil, c)
 		if err != nil {
 			t.Fatal(action, err)
 		}
-		if e.state.descriptors[table.address] != nil || e.storage[table.address] != nil || len(writes[table.address]) != 1 || c.descriptors[table.address] != table || mark.descriptors[table.address] != table {
+		if e.catalog.state.descriptors[table.address] != nil || e.storage[table.address] != nil || len(writes[table.address]) != 1 || c.descriptors[table.address] != table || mark.descriptors[table.address] != table {
 			t.Fatal("commit preparation mutated reachable predecessor")
 		}
 		switch action {
@@ -107,7 +107,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	e, op, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
 	view := e.privateCatalogLocked(c)
-	old := e.domain.Ref(view.Epoch(), table.address)
+	old := e.catalog.domain.Ref(view.Epoch(), table.address)
 	advanced := cloneCatalog(view.state)
 	advanced.epoch++
 	retained := CatalogRead{e, advanced}
@@ -115,7 +115,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("exact retained owner rejected")
 	}
 	bad := old
-	bad = New().domain.Ref(bad.Epoch, bad.Address)
+	bad = New().catalog.domain.Ref(bad.Epoch, bad.Address)
 	if storedReferenceEpochValid(retained, table, bad) {
 		t.Fatal("foreign engine accepted")
 	}
@@ -130,7 +130,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("future incarnation accepted")
 	}
 	foreign := *advanced.descriptors[table.namespace].(*namespaceDescriptor)
-	foreign.temporary = e.domain.Session(op.session.token.ID() + 1)
+	foreign.temporary = e.catalog.domain.Session(op.session.token.ID() + 1)
 	consumer := *table
 	consumer.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
 	advanced.descriptors[consumer.namespace] = &namespaceDescriptor{address: consumer.namespace, temporary: op.session.token}
@@ -159,11 +159,11 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	ctx, cancel := context.WithCancel(op.Context())
 	cancel()
 	op.ctx = ctx
-	original := e.state
+	original := e.catalog.state
 	writes := map[ids.ObjectAddress][]rowVersion{table.address: {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.columns[0].Usage.Type)}}}}
 	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.state != original || e.storage[table.address] != nil || c.descriptors[table.address] != table || len(writes[table.address]) != 1 {
+	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage[table.address] != nil || c.descriptors[table.address] != table || len(writes[table.address]) != 1 {
 		t.Fatal("canceled final commit changed catalog/action/write roots", err)
 	}
 }
@@ -210,8 +210,8 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	if !ok {
 		t.Fatal("missing builtin regclass")
 	}
-	ref := e.domain.Ref(view.Epoch(), sequence.address)
-	typeRef := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+	ref := e.catalog.domain.Ref(view.Epoch(), sequence.address)
+	typeRef := e.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
 	literal := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref}, value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.address.ObjectID), 10))}
 	next := cloneCatalog(view.state)
 	next.epoch++
@@ -238,7 +238,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal("future regclass epoch admitted")
 	}
 	foreign := literal
-	foreign.RegclassRef = New().domain.Ref(foreign.RegclassRef.Epoch, foreign.RegclassRef.Address)
+	foreign.RegclassRef = New().catalog.domain.Ref(foreign.RegclassRef.Epoch, foreign.RegclassRef.Address)
 	if _, err := renderer.sql(context.Background(), retained, foreign); err == nil {
 		t.Fatal("foreign-engine regclass admitted")
 	}
@@ -323,7 +323,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		}
 	}
 	for _, target := range []*relationDescriptor{provider, providerIndex} {
-		ref := e.domain.Ref(before.Epoch(), target.address)
+		ref := e.catalog.domain.Ref(before.Epoch(), target.address)
 		if !storedReferenceEpochValid(retained, consumer, ref) {
 			t.Fatal("actual same-owner relation rejected", target.name)
 		}
@@ -334,11 +334,11 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 			t.Fatal("non-sequence gained sequence runtime authority")
 		}
 		for _, bad := range []ids.ObjectRef{
-			New().domain.Ref(ref.Epoch, ref.Address),
-			e.domain.Ref(retained.Epoch()+1, ref.Address),
-			e.domain.Ref(0, ref.Address),
-			e.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID, SubID: 99}),
-			e.domain.Ref(ref.Epoch, foreign.address),
+			New().catalog.domain.Ref(ref.Epoch, ref.Address),
+			e.catalog.domain.Ref(retained.Epoch()+1, ref.Address),
+			e.catalog.domain.Ref(0, ref.Address),
+			e.catalog.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID, SubID: 99}),
+			e.catalog.domain.Ref(ref.Epoch, foreign.address),
 		} {
 			if storedReferenceEpochValid(retained, consumer, bad) {
 				t.Fatal("invalid contextual reference accepted", bad)
@@ -351,12 +351,12 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	sessionSQL(t, owner, "CREATE DOMAIN public.live_domain AS INT")
 	domainView := e.CatalogRead()
 	domain := domainUnitType(t, domainView, "live_domain")
-	domainRef := e.domain.Ref(domainView.Epoch(), domain.Address())
+	domainRef := e.catalog.domain.Ref(domainView.Epoch(), domain.Address())
 	array, ok := domainView.LookupArray(domain.typ)
 	if !ok {
 		t.Fatal("missing actual domain array")
 	}
-	arrayRef := e.domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
+	arrayRef := e.catalog.domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
 	if _, err := e.ReplaceCatalog(context.Background(), domainView); err != nil {
 		t.Fatal(err)
 	}
@@ -394,10 +394,10 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 			t.Fatal("invalid concrete row authority admitted", bad)
 		}
 	}
-	captured := e.domain.Ref(before.Epoch(), provider.address)
-	capturedIndex := e.domain.Ref(before.Epoch(), providerIndex.address)
+	captured := e.catalog.domain.Ref(before.Epoch(), provider.address)
+	capturedIndex := e.catalog.domain.Ref(before.Epoch(), providerIndex.address)
 	preflight := e.BeginCatalogStage(retained)
-	if err := preflight.Remove(e.domain.Ref(retained.Epoch(), providerIndex.address)); err != nil {
+	if err := preflight.Remove(e.catalog.domain.Ref(retained.Epoch(), providerIndex.address)); err != nil {
 		t.Fatal(err)
 	}
 	edges, err := domainDependencyClosure(context.Background(), preflight, []ids.ObjectAddress{provider.address})

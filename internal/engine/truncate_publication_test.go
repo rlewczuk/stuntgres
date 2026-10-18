@@ -172,7 +172,7 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	truncateUnitPublish(t, e, stage)
 	transactionEnd(t, holder, tx, false)
 	lockAwait(t, done, ErrCatalogReplaced)
-	if e.storage[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 || e.state.descriptors[p.Address].Namespace() != destination {
+	if e.storage[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 || e.catalog.state.descriptors[p.Address].Namespace() != destination {
 		t.Fatal("queued name followed another namespace or undid real control publication")
 	}
 	transactionRows(t, waiter, "SELECT id FROM other.p ORDER BY id", 1, 2)

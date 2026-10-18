@@ -23,11 +23,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if !needed {
 		return ctx.Err()
 	}
-	catalog, roles, frontier := e.state, e.roles, e.commitSeq
+	catalog, roles, frontier := e.catalog.state, e.roles, e.commitSeq
 	e.mu.Unlock()
 	defer func() {
 		e.mu.Lock()
-		if result == nil && (e.state != catalog || e.roles != roles || e.commitSeq != frontier) {
+		if result == nil && (e.catalog.state != catalog || e.roles != roles || e.commitSeq != frontier) {
 			result = ErrCatalogReplaced
 		}
 	}()
@@ -39,16 +39,16 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	candidate := cloneCatalog(next)
 	stage.mu.Lock()
-	_, err := stage.remapPreparedCatalog(candidate, e.roleRead(CatalogRead{e, next}, roles), stage.roleRead(CatalogRead{stage, stage.state}, stage.roles), nil)
+	_, err := stage.remapPreparedCatalog(candidate, e.roleRead(CatalogRead{e, next}, roles), stage.roleRead(CatalogRead{stage, stage.catalog.state}, stage.roles), nil)
 	if err == nil {
 		// remapCatalogExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
-		stage.state = cloneCatalog(stage.state)
-		stage.state.epoch = candidate.epoch - 1
+		stage.catalog.state = cloneCatalog(stage.catalog.state)
+		stage.catalog.state.epoch = candidate.epoch - 1
 		err = stage.remapCatalogExpressions(candidate, nil)
 	}
 	if err == nil {
-		stage.state = candidate
+		stage.catalog.state = candidate
 		stage.storage = storage
 		stage.sequences = sequences
 	}

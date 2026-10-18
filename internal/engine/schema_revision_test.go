@@ -57,7 +57,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				r := *next.descriptors[addr].(*relationDescriptor)
 				r.revision = 200
 				next.descriptors[addr] = &r
-				e.nextRevision = frontier
+				e.catalog.nextRevision = frontier
 				if _, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next}); err != nil {
 					t.Fatal(err)
 				}
@@ -114,8 +114,8 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if e.nextRevision != maximum {
-				t.Fatal("Reset rewound exhausted frontier", e.nextRevision)
+			if e.catalog.nextRevision != maximum {
+				t.Fatal("Reset rewound exhausted frontier", e.catalog.nextRevision)
 			}
 		})
 	}
@@ -128,11 +128,11 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		n := *next.descriptors[addr].(*namespaceDescriptor)
 		n.revision = 1000
 		next.descriptors[addr] = &n
-		frontier, before := e.nextRevision, e.CatalogRead()
+		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		_, err := e.ReplaceCatalog(ctx, CatalogRead{owner: source, state: next})
-		if !errors.Is(err, context.Canceled) || e.nextRevision != frontier || e.CatalogRead().state != before.state {
+		if !errors.Is(err, context.Canceled) || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
 			t.Fatal("canceled import advanced allocator/catalog", err)
 		}
 	})
@@ -146,9 +146,9 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		n := *next.descriptors[addr].(*namespaceDescriptor)
 		n.revision = 1000
 		next.descriptors[addr] = &n
-		frontier, before := e.nextRevision, e.CatalogRead()
+		frontier, before := e.catalog.nextRevision, e.CatalogRead()
 		_, err := e.ReplaceCatalog(context.Background(), CatalogRead{owner: source, state: next})
-		if err == nil || e.nextRevision != frontier || e.CatalogRead().state != before.state {
+		if err == nil || e.catalog.nextRevision != frontier || e.CatalogRead().state != before.state {
 			t.Fatal("failed principal remap advanced allocator/catalog", err)
 		}
 	})

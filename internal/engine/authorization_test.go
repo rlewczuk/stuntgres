@@ -27,7 +27,7 @@ func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	ref, err := e.resolveReference(catalogAuthorization(e, CatalogRead{e, e.state}), statement(t, "SELECT * FROM "+name).(*parser.Select).From.(*parser.TableReference).Name)
+	ref, err := e.resolveReference(catalogAuthorization(e, CatalogRead{e, e.catalog.state}), statement(t, "SELECT * FROM "+name).(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err == nil {
 		t.Fatal("nonowner authority")
 	}
-	for _, req := range []AccessRequirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: New().domain.Ref(ref.Epoch, ref.Address), Privileges: authorization.SelectPrivilege}} {
+	for _, req := range []AccessRequirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: New().catalog.domain.Ref(ref.Epoch, ref.Address), Privileges: authorization.SelectPrivilege}} {
 		if err := view.Check(req); err == nil {
 			t.Fatal("invalid requirement", req)
 		}
@@ -115,7 +115,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("explicit ACL dump loss", err, dump.String())
 	}
-	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege
 	entry.Grantor = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
@@ -152,7 +152,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	}
 	targetRef := roleTableRef(t, target, "secret")
 	target.mu.Lock()
-	d := target.state.descriptors[targetRef.Address].(*relationDescriptor)
+	d := target.catalog.state.descriptors[targetRef.Address].(*relationDescriptor)
 	target.mu.Unlock()
 	for _, ref := range descriptorReferences(d) {
 		if target.Roles().ValidatePrincipal(ref) != nil {
@@ -168,11 +168,11 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	roleExecute(t, target, b, "RESET SESSION AUTHORIZATION")
 	roleError(t, target, b, "DROP ROLE reader", "2BP01", `role "reader" cannot be dropped because some objects depend on it`, "privileges for table secret")
 	unknown := New()
-	before := unknown.state
+	before := unknown.catalog.state
 	if _, err := unknown.ReplaceCatalog(context.Background(), source.CatalogRead()); err == nil {
 		t.Fatal("unknown owner import")
 	}
-	if unknown.state != before {
+	if unknown.catalog.state != before {
 		t.Fatal("failed import changed target")
 	}
 }
@@ -209,7 +209,7 @@ func TestAuthorizationRestoreRejectsRecreatedOwnerDuringIO(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER owner")
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
-	before := e.state
+	before := e.catalog.state
 	gate := &roleBlockingReader{entered: make(chan struct{}), release: make(chan struct{}),
 		text: "SET SESSION AUTHORIZATION 'owner'; CREATE TABLE imported(id INT);"}
 	result := make(chan error, 1)
@@ -246,7 +246,7 @@ func TestAuthorizationRestoreRejectsRecreatedOwnerDuringIO(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("restore worker did not finish")
 	}
-	if e.state != before {
+	if e.catalog.state != before {
 		t.Fatal("restore failure changed catalog")
 	}
 }
@@ -325,7 +325,7 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			roleExecute(t, e, op, "CREATE ROLE retained")
-			beforeRoles, beforeCatalog, beforePrincipal := e.roles, e.state, e.nextPrincipal
+			beforeRoles, beforeCatalog, beforePrincipal := e.roles, e.catalog.state, e.nextPrincipal
 			beforeIdentity := op.RoleState()
 			beforeRevision := op.session.authorization.revision
 			original := op.ctx
@@ -336,7 +336,7 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 			if !errors.Is(err, context.Canceled) || ctx.checks < 3 {
 				t.Fatal("final cancellation checkpoint", ctx.checks, err)
 			}
-			if e.roles != beforeRoles || e.state != beforeCatalog || e.nextPrincipal != beforePrincipal ||
+			if e.roles != beforeRoles || e.catalog.state != beforeCatalog || e.nextPrincipal != beforePrincipal ||
 				op.RoleState() != beforeIdentity || op.session.authorization.revision != beforeRevision {
 				t.Fatal("canceled install published a partial change")
 			}
@@ -443,8 +443,8 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
-	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	original := e.state.descriptors[namespace.Address].(*namespaceDescriptor).acl
+	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	original := e.catalog.state.descriptors[namespace.Address].(*namespaceDescriptor).acl
 	// Same grantors/grantees/effective rights, split and reordered entries.
 	equivalent := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.CreatePrivilege},
@@ -469,7 +469,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal("restored sentinel behavior", got)
 	}
 	ref := roleTableRef(t, restored, "sentinel")
-	if restored.state.descriptors[ref.Address].(*relationDescriptor).owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if restored.catalog.state.descriptors[ref.Address].(*relationDescriptor).owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
@@ -479,12 +479,12 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), namespace, changed); err != nil {
 		t.Fatal(err)
 	}
-	before := e.state
+	before := e.catalog.state
 	dump.Reset()
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("changed namespace ACL silently lost", err, dump.String())
 	}
-	if e.state != before {
+	if e.catalog.state != before {
 		t.Fatal("dump mutated namespace")
 	}
 	if err := e.SetObjectACL(context.Background(), namespace, original); err != nil {
@@ -495,7 +495,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	// genuinely unrepresentable. Normal ALTER OWNER's canonical transform is
 	// accepted and roundtripped by TestSchemaPublicLifecycleControls.
 	owner, _ := e.Roles().Lookup("namespace_owner")
-	replacement := cloneCatalog(e.state)
+	replacement := cloneCatalog(e.catalog.state)
 	ns := *replacement.descriptors[namespace.Address].(*namespaceDescriptor)
 	ns.owner = owner.Ref
 	replacement.descriptors[namespace.Address] = &ns
@@ -540,19 +540,19 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.InsertPrivilege},
 	} {
-		before := e.state
+		before := e.catalog.state
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{invalid}}); err == nil {
 			t.Fatal("invalid ACL published", invalid)
 		}
-		if e.state != before {
+		if e.catalog.state != before {
 			t.Fatal("invalid ACL changed catalog")
 		}
 	}
-	before := e.state
+	before := e.catalog.state
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Entries: []authorization.ACLEntry{valid}}); err == nil {
 		t.Fatal("absent ACL carried entries")
 	}
-	if e.state != before {
+	if e.catalog.state != before {
 		t.Fatal("absent ACL changed catalog")
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
@@ -599,7 +599,7 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	}
 	roleError(t, e, op, "SELECT c0,c64 FROM wide", "42501", "permission denied for table wide", "")
 	roleError(t, e, op, "INSERT INTO wide(c64) VALUES(9)", "42501", "permission denied for table wide", "")
-	before := e.state
+	before := e.catalog.state
 	for _, subID := range []int32{-1, 66} {
 		invalid := column
 		invalid.Address.SubID = subID
@@ -610,7 +610,7 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}); err == nil {
 		t.Fatal("entries in absent column ACL")
 	}
-	if e.state != before {
+	if e.catalog.state != before {
 		t.Fatal("invalid ACL publication")
 	}
 	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{}); err != nil {

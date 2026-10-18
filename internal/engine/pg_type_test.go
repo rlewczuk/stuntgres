@@ -14,11 +14,11 @@ import (
 func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1247}
-	d, ok := e.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing type source")
 	}
-	return d, e.domain.Ref(e.state.epoch, address)
+	return d, e.catalog.domain.Ref(e.catalog.state.epoch, address)
 }
 func pgTypeUnitBag(t *testing.T, source *querySource, d *relationDescriptor) map[uint32][]sqltype.Value {
 	t.Helper()
@@ -119,7 +119,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 			t.Fatal("attribute usage", i, c)
 		}
 	}
-	descriptors, names := maps.Clone(e.state.descriptors), maps.Clone(e.state.names)
+	descriptors, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
 	capture := func() *querySource {
 		t.Helper()
 		s, err := e.capturePGType(t.Context(), catalog, roles, ref, d)
@@ -130,7 +130,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	first, second := capture(), capture()
 	bag := pgTypeUnitBag(t, second, d)
-	if first.ref != ref || !maps.Equal(descriptors, e.state.descriptors) || !maps.Equal(names, e.state.names) {
+	if first.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
 		t.Fatal("capture mutated authority")
 	}
 	first.anonymous[0][0] = sqltype.Null(d.columns[0].Usage.Type)
@@ -165,7 +165,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
 	ordinary(s, err)
 	badRef = ref
-	badRef = other.domain.Ref(badRef.Epoch, badRef.Address)
+	badRef = other.catalog.domain.Ref(badRef.Epoch, badRef.Address)
 	s, err = e.capturePGType(t.Context(), catalog, roles, badRef, d)
 	ordinary(s, err)
 	badRef = ref

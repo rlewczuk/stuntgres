@@ -161,7 +161,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				if scope.view != nil {
 					t.Error("UPDATE captured source before preflight/current ACL")
 				}
-				if scope.lockedRef.Domain() != e.domain || scope.lockedDescriptor == nil {
+				if scope.lockedRef.Domain() != e.catalog.domain || scope.lockedDescriptor == nil {
 					t.Error("lost exact locked relation")
 				}
 				switch mode {
@@ -177,7 +177,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					restore = func() { e.storage[address] = original }
 				case "attribute", "type", "width", "comment", "acl":
 					address := scope.lockedRef.Address
-					original := e.state.descriptors[address]
+					original := e.catalog.state.descriptors[address]
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
 					replacement.revision++
 					switch mode {
@@ -195,12 +195,12 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					case "acl":
 						replacement.acl = authorization.ACLValue{Explicit: true}
 					}
-					e.state.descriptors[address] = &replacement
-					restore = func() { e.state.descriptors[address] = original }
+					e.catalog.state.descriptors[address] = &replacement
+					restore = func() { e.catalog.state.descriptors[address] = original }
 				case "epoch":
-					original := e.state.epoch
-					e.state.epoch++
-					restore = func() { e.state.epoch = original }
+					original := e.catalog.state.epoch
+					e.catalog.state.epoch++
+					restore = func() { e.catalog.state.epoch = original }
 				case "deadline":
 					ctx.Context = deadline
 				case "teardown":

@@ -30,7 +30,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.ref.Address != ext.members[8+i] || n.procedure != e.state.descriptors[n.ref.Address] || plannedVolatility(n) != Immutable || !generationImmutable(n) {
+			if n.ref.Address != ext.members[8+i] || n.procedure != e.catalog.state.descriptors[n.ref.Address] || plannedVolatility(n) != Immutable || !generationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -63,7 +63,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				func(p *procedureDescriptor) { p.fuzzy = &fuzzystrmatchProvider{version: "1.2"} },
 				func(p *procedureDescriptor) { p.crypto = stockPgcrypto },
 			} {
-				state := cloneCatalog(e.state)
+				state := cloneCatalog(e.catalog.state)
 				bad := *n.procedure
 				mutate(&bad)
 				state.descriptors[n.ref.Address] = &bad
@@ -73,7 +73,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			}
 			for _, foreign := range []bool{false, true} {
 				stale := n
-				if foreign { stale.ref = New().domain.Ref(stale.ref.Epoch, stale.ref.Address) } else { stale.ref.Epoch++ }
+				if foreign { stale.ref = New().catalog.domain.Ref(stale.ref.Epoch, stale.ref.Address) } else { stale.ref.Epoch++ }
 				if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil { t.Fatal("foreign/stale reference") }
 			}
 			retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })

@@ -16,7 +16,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 		t.Run(end, func(t *testing.T) {
 			f := partitionDetachUnitTree(t, false)
 			owner := sessionStart(t, f.e, nil)
-			ref := f.e.domain.Ref(f.e.state.epoch, f.child.address)
+			ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.child.address)
 			parentRef := ref
 			parentRef.Address = f.parent.address
 			partitionAttachUnitWrite(t, f.e, owner, ref, 1)
@@ -49,7 +49,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			}
 			op.Done()
 			private := f.e.privateCatalogLocked(owner.transactions.catalog)
-			if private.state.descriptors[ref.Address].(*relationDescriptor).membership != nil || f.e.state.descriptors[ref.Address] != f.child {
+			if private.state.descriptors[ref.Address].(*relationDescriptor).membership != nil || f.e.catalog.state.descriptors[ref.Address] != f.child {
 				t.Fatal("detach overlay did not remain private")
 			}
 			if !reflect.DeepEqual(beforeRows, owner.transactions.roots) {
@@ -91,7 +91,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			standalone := f.e.state.descriptors[ref.Address].(*relationDescriptor).membership == nil
+			standalone := f.e.catalog.state.descriptors[ref.Address].(*relationDescriptor).membership == nil
 			if standalone != (end == "commit") {
 				t.Fatal("wrong end graph")
 			}
@@ -136,7 +136,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				case "descendant":
 					victim = f.leaf
 				}
-				ref := f.e.domain.Ref(f.e.state.epoch, victim.address)
+				ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, victim.address)
 				// A real explicit holder retains relation locks without retaining
 				// implicit row-work replacement admission.
 				holderSession := sessionStart(t, f.e, nil)
@@ -166,7 +166,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				if err := worker.snapshotPhase(raw); err != nil {
 					t.Fatal(err)
 				}
-				before := f.e.state
+				before := f.e.catalog.state
 				join := partitionAttachUnitWorker(t, worker, func() error {
 					if err := worker.acquireRelation(raw, true); err != nil {
 						return err
@@ -190,14 +190,14 @@ func TestPartitionDetachLockFences(t *testing.T) {
 					}
 				case "revision":
 					f.e.mu.Lock()
-					next := cloneCatalog(f.e.state)
+					next := cloneCatalog(f.e.catalog.state)
 					changed := *victim
 					changed.revision++
 					changed.name += "_new"
 					delete(next.names, descriptorNameKey(victim))
 					next.names[descriptorNameKey(&changed)] = changed.address
 					next.descriptors[changed.address] = &changed
-					f.e.state = next
+					f.e.catalog.state = next
 					f.e.mu.Unlock()
 					if err := holder.Finish(nil); err != nil {
 						t.Fatal(err)
@@ -215,10 +215,10 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				}
 				_ = worker.Finish(err)
 				op.Done()
-				if veto == "cancel" && f.e.state != before {
+				if veto == "cancel" && f.e.catalog.state != before {
 					t.Fatal("canceled late admission changed catalog")
 				}
-				if veto != "epoch" && f.e.state.descriptors[f.child.address].(*relationDescriptor).membership == nil {
+				if veto != "epoch" && f.e.catalog.state.descriptors[f.child.address].(*relationDescriptor).membership == nil {
 					t.Fatal("wait failure partially detached")
 				}
 				_ = holder.Finish(nil)

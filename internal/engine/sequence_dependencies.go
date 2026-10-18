@@ -82,7 +82,7 @@ func (provider *dropProvider) ownedSequences(targets []ids.ObjectAddress, prepar
 		if !remove {
 			continue
 		}
-		ref := provider.owner.domain.Ref(provider.base.Epoch(), a)
+		ref := provider.owner.catalog.domain.Ref(provider.base.Epoch(), a)
 		if err := prepare(ref); err != nil {
 			return err
 		}

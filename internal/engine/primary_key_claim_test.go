@@ -23,7 +23,7 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 	for _, name := range []string{"ordinary_unique", "standalone_unique"} {
 		index := primaryKeyUnitRelation(t, e, name)
 		view := e.CatalogRead()
-		metadata, _, err := projectIndexMetadata(context.Background(), view, e.domain.Ref(view.Epoch(), index.address))
+		metadata, _, err := projectIndexMetadata(context.Background(), view, e.catalog.domain.Ref(view.Epoch(), index.address))
 		if err != nil || !metadata.IndIsUnique || metadata.IndIsPrimary || !metadata.IndImmediate {
 			t.Fatal("ordinary unique provider became primary", name, metadata, err)
 		}
@@ -46,7 +46,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
 	constraint := parent.uniqueConstraints[0]
-	index := e.state.descriptors[constraint.Index].(*relationDescriptor)
+	index := e.catalog.state.descriptors[constraint.Index].(*relationDescriptor)
 	if !constraint.Primary || !index.sqlIndex.constraint.Primary {
 		t.Fatal("claim fixture lacks real primary attachment")
 	}
@@ -82,7 +82,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ref := e.domain.Ref(e.state.epoch, index.address)
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, index.address)
 	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)

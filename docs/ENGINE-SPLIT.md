@@ -553,7 +553,9 @@ DDL. DDL commands stay in the engine until their feature waves.
 
 **5a — State ownership in place.** Group `Engine.state`, `providers`,
 `nextOID`, `nextRevision` and `nextEnumMember` with the owner domain into one
-`catalogStore`. `Engine` methods that only touch it become its methods.
+`catalogStore`. `Engine` methods that only touch it become its methods. The
+domain turned out to be engine-wide (it also mints session and transaction
+references); the store owns it as the engine's single provenance domain.
 
 **5b — Typed read API.**
 
@@ -702,7 +704,7 @@ package-specific scope. This section holds the rules every session follows.
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2c done; 2d next |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3 done; F2 and F4/F5 next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | not started |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a done; 5b next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1 done; B0 waits for step 5 |

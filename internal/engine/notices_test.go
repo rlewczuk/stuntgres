@@ -116,7 +116,7 @@ func TestNoticesCommands(t *testing.T) {
 func TestNoticesPublicationConflict(t *testing.T) {
 	e := New()
 	var winner CatalogRead
-	e.providers[ids.RelationClassID] = &publicationConflictProvider{CatalogProvider: e.providers[ids.RelationClassID], publishWinner: func(d Descriptor) {
+	e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{CatalogProvider: e.catalog.providers[ids.RelationClassID], publishWinner: func(d Descriptor) {
 		run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
 		run(t, e, "INSERT INTO conflict_rows VALUES('winner')")
 		winner = e.CatalogRead()
@@ -151,8 +151,8 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 			defer cancel()
 			var loser ids.ObjectAddress
 			var winner CatalogRead
-			e.providers[ids.RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.providers[ids.RelationClassID],
+			e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
+				CatalogProvider: e.catalog.providers[ids.RelationClassID],
 				publishWinner: func(d Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
@@ -227,8 +227,8 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	op.ctx = wrapped
 	var loser ids.ObjectAddress
 	var winner CatalogRead
-	e.providers[ids.RelationClassID] = &publicationConflictProvider{
-		CatalogProvider: e.providers[ids.RelationClassID],
+	e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
+		CatalogProvider: e.catalog.providers[ids.RelationClassID],
 		publishWinner: func(d Descriptor) {
 			loser = d.Address()
 			run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
@@ -345,7 +345,7 @@ func TestNoticesCapturedDefaults(t *testing.T) {
 
 func TestNoticesPublicationReplacement(t *testing.T) {
 	e := New()
-	e.providers[ids.RelationClassID] = &publicationConflictProvider{CatalogProvider: e.providers[ids.RelationClassID], publishWinner: func(d Descriptor) {
+	e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{CatalogProvider: e.catalog.providers[ids.RelationClassID], publishWinner: func(d Descriptor) {
 		if err := e.Reset(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -402,7 +402,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatal("switch reset notice filter", got)
 	}
-	namespace := e.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -449,13 +449,13 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 				t.Fatal(err)
 			}
 			var winner CatalogRead
-			e.providers[ids.RelationClassID] = &publicationConflictProvider{
-				CatalogProvider: e.providers[ids.RelationClassID],
+			e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
+				CatalogProvider: e.catalog.providers[ids.RelationClassID],
 				publishWinner: func(Descriptor) {
 					roleExecute(t, e, admin, "CREATE TABLE contested_notice(id INT)")
 					roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
 					view := e.CatalogRead()
-					namespace := e.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+					namespace := e.catalog.domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 					acl := authorization.ACLValue{Explicit: true}
 					if usage {
 						acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}

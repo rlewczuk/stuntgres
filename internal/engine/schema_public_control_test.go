@@ -139,11 +139,11 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					run(t, e, "CREATE SCHEMA spent")
 					run(t, e, "DROP SCHEMA spent")
 				}
-				counter := e.nextOID
+				counter := e.catalog.nextOID
 				if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
-				if e.nextOID != counter {
+				if e.catalog.nextOID != counter {
 					t.Fatal("Restore changed destination nonreuse counter")
 				}
 				before := e.CatalogRead()

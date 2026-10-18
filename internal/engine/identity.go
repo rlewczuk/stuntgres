@@ -158,11 +158,11 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 	if namespace.(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
 		options.persistence = "temporary"
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	rev, err := e.revisionLocked()
+	rev, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

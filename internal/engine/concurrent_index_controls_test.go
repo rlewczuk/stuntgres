@@ -248,11 +248,11 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 	sessionSQL(t, b, "CREATE TABLE sentinel(n INT)")
 	sessionSQL(t, b, "INSERT INTO sentinel VALUES(9)")
 	sourceState, targetState := source.CatalogRead().state, target.CatalogRead().state
-	oldOID, oldRevision, oldRow, oldVersion := target.nextOID, target.nextRevision, target.nextRow, target.nextVersion
+	oldOID, oldRevision, oldRow, oldVersion := target.catalog.nextOID, target.catalog.nextRevision, target.nextRow, target.nextVersion
 	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err == nil {
 		t.Fatal("invalid source was imported/healed")
 	}
-	if target.CatalogRead().state != targetState || source.CatalogRead().state != sourceState || target.nextOID != oldOID || target.nextRevision != oldRevision || target.nextRow != oldRow || target.nextVersion != oldVersion {
+	if target.CatalogRead().state != targetState || source.CatalogRead().state != sourceState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision || target.nextRow != oldRow || target.nextVersion != oldVersion {
 		t.Fatal("failed replacement changed source or destination authority")
 	}
 	for _, stream := range []string{
@@ -263,7 +263,7 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 		if err := target.Restore(context.Background(), strings.NewReader(stream)); err == nil {
 			t.Fatal("invalid isolated stream succeeded", stream)
 		}
-		if target.CatalogRead().state != targetState || target.nextOID != oldOID || target.nextRevision != oldRevision {
+		if target.CatalogRead().state != targetState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision {
 			t.Fatal("isolated failed stream mutated destination", stream)
 		}
 	}
@@ -286,9 +286,9 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	concurrentUnitError(t, s, "CREATE UNIQUE INDEX CONCURRENTLY retained_ci_temp_index ON retained_ci_temp(n)", "23505")
 	var original *relationDescriptor
 	e.mu.Lock()
-	for _, descriptor := range e.state.descriptors {
+	for _, descriptor := range e.catalog.state.descriptors {
 		if index, ok := descriptor.(*relationDescriptor); ok && index.name == "retained_ci_temp_index" {
-			namespace := e.state.descriptors[index.namespace].(*namespaceDescriptor)
+			namespace := e.catalog.state.descriptors[index.namespace].(*namespaceDescriptor)
 			if namespace.temporary == s.token {
 				original = index
 			}
@@ -302,7 +302,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	retained := e.state.descriptors[original.address] == original && e.indexRoots[original.address] == nil
+	retained := e.catalog.state.descriptors[original.address] == original && e.indexRoots[original.address] == nil
 	e.mu.Unlock()
 	if !retained {
 		t.Fatal("replacement healed or replaced retained not-ready TEMP descriptor")
@@ -325,7 +325,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			original, _ := concurrentUnitIndex(t, e, "ui", false, false)
 			base := e.CatalogRead()
 			e.mu.Lock()
-			parent := e.state.descriptors[original.sqlIndex.parent].(*relationDescriptor)
+			parent := e.catalog.state.descriptors[original.sqlIndex.parent].(*relationDescriptor)
 			store := e.storage[parent.address]
 			snapshot := *store
 			e.mu.Unlock()

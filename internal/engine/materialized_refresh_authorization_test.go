@@ -25,7 +25,7 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	d := refreshUnitRelation(t, e)
 	owner, caller := refreshUnitPrincipals(e)
 	d.owner = owner
-	ref := e.domain.Ref(e.state.epoch, d.address)
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 	auth := AuthorizationView{engine: e, pairedCatalog: e.CatalogRead(), roleRecord: e.roles, catalog: e.CatalogRead(), roles: e.Roles(), state: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
 		d.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
@@ -144,7 +144,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		definition.query = &BoundQuery{Root: &projectNode{querySchema: d.columns, child: &singletonNode{}, expressions: []BoundExpr{converted}}}
 		d.view = &definition
 		e.mu.Lock()
-		rows, err := e.materializedRefreshRowsLocked(scope, e.domain.Ref(e.state.epoch, d.address), d)
+		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.domain.Ref(e.catalog.state.epoch, d.address), d)
 		if fail {
 			if !errors.Is(err, sentinel) || rows != nil {
 				t.Fatal(rows, err)

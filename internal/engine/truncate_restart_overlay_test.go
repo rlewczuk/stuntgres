@@ -10,7 +10,7 @@ import (
 func TestTruncateRestartSavepoints(t *testing.T) {
 	e, s, p, _, ps, _ := truncateRestartUnitFixture(t)
 	peer := sessionStart(t, e, nil)
-	original, descriptor := e.sequences[ps.Address], e.state.descriptors[ps.Address]
+	original, descriptor := e.sequences[ps.Address], e.catalog.state.descriptors[ps.Address]
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "INSERT INTO p VALUES(9)")
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
@@ -23,7 +23,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 		t.Fatal("replacement mutated original counter")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before_reset")
-	if s.transactions.catalog != catalog || !sameVersionRoot(s.transactions.writes[p.Address], writes) || e.state.descriptors[ps.Address] != descriptor || s.sequences[ps.Address].value != 1 || !s.sequences[ps.Address].valid || s.lastSequence != ps.Address {
+	if s.transactions.catalog != catalog || !sameVersionRoot(s.transactions.writes[p.Address], writes) || e.catalog.state.descriptors[ps.Address] != descriptor || s.sequences[ps.Address].value != 1 || !s.sequences[ps.Address].valid || s.lastSequence != ps.Address {
 		t.Fatal("savepoint failed binding/root/memory separation")
 	}
 	lockState := e.locks.Inspect()
@@ -119,7 +119,7 @@ func TestTruncateRestartCache(t *testing.T) {
 			callerAST, caller := sequencePreparedDescription(t, e, s, query)
 			peerAST, other := sequencePreparedDescription(t, e, peer, query)
 			ref := caller.sequences.constants[0].ref
-			original := e.state.descriptors[ref.Address].(*relationDescriptor)
+			original := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 			sessionSQL(t, s, "CREATE SEQUENCE a.other START 200")
 			tx := transactionBegin(t, s)
@@ -138,7 +138,7 @@ func TestTruncateRestartCache(t *testing.T) {
 				sessionSQL(t, s, "DISCARD SEQUENCES")
 			}
 			memory := s.sequences[ref.Address]
-			if memory == nil || memory.analysisStamp <= original.sequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.lastSequence != (ids.ObjectAddress{}) || peer.sequences[ref.Address] != nil || e.state.descriptors[ref.Address] != original {
+			if memory == nil || memory.analysisStamp <= original.sequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.lastSequence != (ids.ObjectAddress{}) || peer.sequences[ref.Address] != nil || e.catalog.state.descriptors[ref.Address] != original {
 				t.Fatal("local source event minted an observation, touched peer, mutated descriptor, or was undone")
 			}
 			e.mu.Lock()
@@ -225,7 +225,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 			t.Fatal("TEMP ownership not isolated")
 		}
 		lockState := e.locks.Inspect(scope.ticket)
-		foreignRef := e.domain.Ref(catalog.Epoch(), foreign)
+		foreignRef := e.catalog.domain.Ref(catalog.Epoch(), foreign)
 		_, journaled := lockState.Journals[scope.ticket][lockResource{ObjectRef: foreignRef}]
 		excluded := lockState.Resources[lockResource{ObjectRef: foreignRef}] == nil && !journaled
 		if !excluded {
@@ -248,7 +248,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")
 		sessionSQL(t, s, "CREATE SEQUENCE later START 90 OWNED BY p.id")
 		transactionEnd(t, s, tx, true)
-		if e.sequences[ps.Address] != replacement || e.state.descriptors[ps.Address].(*relationDescriptor).sequence.owned != (ids.ObjectAddress{}) {
+		if e.sequences[ps.Address] != replacement || e.catalog.state.descriptors[ps.Address].(*relationDescriptor).sequence.owned != (ids.ObjectAddress{}) {
 			t.Fatal("legitimate own later DDL rejected or reset discarded")
 		}
 		sequenceScalar(t, s, "SELECT nextval('later')", 90)

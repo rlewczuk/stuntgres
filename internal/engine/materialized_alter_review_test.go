@@ -23,10 +23,10 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			roleExecute(t, e, admin, "CREATE TABLE queue_source(i INT,s TEXT)")
 			roleExecute(t, e, admin, "INSERT INTO queue_source VALUES(1,'a'),(2,NULL)")
 			roleExecute(t, e, admin, "CREATE MATERIALIZED VIEW queued AS SELECT i,s FROM queue_source")
-			address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "queued"}]
-			d := e.state.descriptors[address].(*relationDescriptor)
+			address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "queued"}]
+			d := e.catalog.state.descriptors[address].(*relationDescriptor)
 			index := materializedAlterIndex(t, e, admin, d)
-			d = e.state.descriptors[address].(*relationDescriptor)
+			d = e.catalog.state.descriptors[address].(*relationDescriptor)
 			store, root := e.storage[address], e.indexRoots[index.address]
 			entries := slices.Clone(root.entries)
 			firstSuffix := "RENAME COLUMN s TO label"
@@ -43,7 +43,7 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			case "schema":
 				firstSuffix = "SET SCHEMA queue_destination"
 				wantSecond = "s"
-				wantNamespace = e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "queue_destination"}]
+				wantNamespace = e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "queue_destination"}]
 			}
 			holder, firstWorker, secondWorker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
@@ -98,8 +98,8 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal(ctx.Err())
 			}
-			current := e.state.descriptors[address].(*relationDescriptor)
-			attached := e.state.descriptors[index.address].(*relationDescriptor)
+			current := e.catalog.state.descriptors[address].(*relationDescriptor)
+			attached := e.catalog.state.descriptors[index.address].(*relationDescriptor)
 			if current == d || current.name != wantName || current.namespace != wantNamespace || current.owner != wantOwner || current.columns[0].Name != "i" || current.columns[1].Name != wantSecond || !reflect.DeepEqual(current.attributes, d.attributes) || current.view != d.view || current.rowType != d.rowType || e.storage[address] != store || e.indexRoots[index.address] != root || !reflect.DeepEqual(root.entries, entries) || attached.owner != wantOwner || attached.namespace != wantNamespace || attached.sqlIndex != index.sqlIndex {
 				t.Fatal("rejected queued ALTER changed first publication or stored/index authority")
 			}
@@ -118,10 +118,10 @@ func TestMaterializedAlterIndexColumnLabel(t *testing.T) {
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW label_parent AS SELECT 1 AS i,'a'::text AS s")
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX label_index ON label_parent(i) INCLUDE(s)")
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	parentAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_parent"}]
-	indexAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_index"}]
-	parent := e.state.descriptors[parentAddress].(*relationDescriptor)
-	captured := e.state.descriptors[indexAddress].(*relationDescriptor)
+	parentAddress := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_parent"}]
+	indexAddress := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_index"}]
+	parent := e.catalog.state.descriptors[parentAddress].(*relationDescriptor)
+	captured := e.catalog.state.descriptors[indexAddress].(*relationDescriptor)
 	store, root := e.storage[parentAddress], e.indexRoots[indexAddress]
 	entries := slices.Clone(root.entries)
 	definition := captured.sqlIndex
@@ -129,18 +129,18 @@ func TestMaterializedAlterIndexColumnLabel(t *testing.T) {
 		t.Fatal("fixture lacks genuine parent/key/include/root")
 	}
 	for _, transition := range []struct{ from, to string }{{"i", "key"}, {"key", "i"}} {
-		before := e.state.descriptors[indexAddress].(*relationDescriptor)
+		before := e.catalog.state.descriptors[indexAddress].(*relationDescriptor)
 		if err := extensionUnitExecute(t, e, op, statement(t, "ALTER MATERIALIZED VIEW label_index RENAME COLUMN "+transition.from+" TO "+transition.to)); err != nil {
 			t.Fatal(err)
 		}
-		current := e.state.descriptors[indexAddress].(*relationDescriptor)
+		current := e.catalog.state.descriptors[indexAddress].(*relationDescriptor)
 		if current == before || current.columns[0].Name != transition.to || current.columns[1].Name != "s" || !reflect.DeepEqual(current.index, map[string]int{transition.to: 0, "s": 1}) || before.columns[0].Name != transition.from || before.index[transition.from] != 0 {
 			t.Fatal("selected index column action did not immutably relabel descriptor")
 		}
 		if _, exists := before.index[transition.to]; exists {
 			t.Fatal("captured index name-to-slot map mutated")
 		}
-		if current.sqlIndex != definition || !reflect.DeepEqual(current.attributes, captured.attributes) || e.state.descriptors[parentAddress] != parent || parent.columns[0].Name != "i" || parent.columns[1].Name != "s" || e.storage[parentAddress] != store || e.indexRoots[indexAddress] != root || !reflect.DeepEqual(root.entries, entries) {
+		if current.sqlIndex != definition || !reflect.DeepEqual(current.attributes, captured.attributes) || e.catalog.state.descriptors[parentAddress] != parent || parent.columns[0].Name != "i" || parent.columns[1].Name != "s" || e.storage[parentAddress] != store || e.indexRoots[indexAddress] != root || !reflect.DeepEqual(root.entries, entries) {
 			t.Fatal("descriptor relabel retargeted parent/key/include/root/storage")
 		}
 	}
@@ -159,10 +159,10 @@ func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 			roleExecute(t, e, op, "CREATE TABLE refresh_queue_source(i INT,s TEXT)")
 			roleExecute(t, e, op, "INSERT INTO refresh_queue_source VALUES(1,'old')")
 			roleExecute(t, e, op, "CREATE MATERIALIZED VIEW refreshed AS SELECT i,s FROM refresh_queue_source")
-			address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "refreshed"}]
-			parent := e.state.descriptors[address].(*relationDescriptor)
+			address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "refreshed"}]
+			parent := e.catalog.state.descriptors[address].(*relationDescriptor)
 			index := materializedAlterIndex(t, e, op, parent)
-			parent = e.state.descriptors[address].(*relationDescriptor)
+			parent = e.catalog.state.descriptors[address].(*relationDescriptor)
 			store, root := e.storage[address], e.indexRoots[index.address]
 			roleExecute(t, e, op, "INSERT INTO refresh_queue_source VALUES(2,'new')")
 			holder, firstWorker, secondWorker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -222,12 +222,12 @@ func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal(ctx.Err())
 			}
-			current := e.state.descriptors[address].(*relationDescriptor)
+			current := e.catalog.state.descriptors[address].(*relationDescriptor)
 			wantCount := 2
 			if noData {
 				wantCount = 0
 			}
-			if current.columns[0].Name != "key" || current.columns[1].Name != "s" || current.populated == noData || current.view != parent.view || current.rowType != parent.rowType || current.owner != parent.owner || !reflect.DeepEqual(current.attributes, parent.attributes) || e.storage[address] == store || len(e.storage[address].versions) != wantCount || e.indexRoots[index.address] == root || len(e.indexRoots[index.address].entries) != wantCount || e.state.descriptors[index.address].(*relationDescriptor).sqlIndex != index.sqlIndex {
+			if current.columns[0].Name != "key" || current.columns[1].Name != "s" || current.populated == noData || current.view != parent.view || current.rowType != parent.rowType || current.owner != parent.owner || !reflect.DeepEqual(current.attributes, parent.attributes) || e.storage[address] == store || len(e.storage[address].versions) != wantCount || e.indexRoots[index.address] == root || len(e.indexRoots[index.address].entries) != wantCount || e.catalog.state.descriptors[index.address].(*relationDescriptor).sqlIndex != index.sqlIndex {
 				t.Fatal("queued metadata operation overwrote compatible refresh publication")
 			}
 			if parent.columns[0].Name != "i" || !parent.populated || len(store.versions) != 1 || len(root.entries) != 1 {
@@ -269,10 +269,10 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	defer done()
 	d := refreshUnitRelation(t, e)
 	index := materializedAlterIndex(t, e, op, d)
-	d = e.state.descriptors[d.address].(*relationDescriptor)
+	d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
 	store, root := e.storage[d.address], e.indexRoots[index.address]
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW producer_fixture AS SELECT 9 AS i")
-	producer := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "producer_fixture"}]].(*relationDescriptor)
+	producer := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "producer_fixture"}]].(*relationDescriptor)
 	holder, worker := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	tx := transactionBegin(t, holder)
 	released, joined := false, false
@@ -325,7 +325,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	current := e.state.descriptors[d.address].(*relationDescriptor)
+	current := e.catalog.state.descriptors[d.address].(*relationDescriptor)
 	if current.view != &definition || current.columns[0].Name != "i" || current.rowType != d.rowType || !reflect.DeepEqual(current.attributes, d.attributes) || e.storage[d.address] != store || e.indexRoots[index.address] != root || current.view.query != producer.view.query || current.view.rule != d.view.rule {
 		t.Fatal("rejected queued ALTER changed validated producer predecessor")
 	}
@@ -355,7 +355,7 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	defer done()
 	d := refreshUnitRelation(t, e)
 	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW authority_fixture AS SELECT 9 AS other")
-	other := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "authority_fixture"}]].(*relationDescriptor)
+	other := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: "authority_fixture"}]].(*relationDescriptor)
 	if d.view == other.view || d.rowType == other.rowType || &d.columns[0] == &other.columns[0] || &d.attributes[0] == &other.attributes[0] {
 		t.Fatal("fixture lacks distinct genuine defining authorities")
 	}
@@ -389,9 +389,9 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	imported := target.state.descriptors[target.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}]].(*relationDescriptor)
-	row := target.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.rowType)}].(*typeDescriptor)
-	if row.owningRelation != imported.address || len(imported.attributes) != 1 || imported.attributes[0] != d.attributes[0] || len(target.storage[imported.address].versions) != 3 || e.state.descriptors[d.address] != d {
+	imported := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}]].(*relationDescriptor)
+	row := target.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.rowType)}].(*typeDescriptor)
+	if row.owningRelation != imported.address || len(imported.attributes) != 1 || imported.attributes[0] != d.attributes[0] || len(target.storage[imported.address].versions) != 3 || e.catalog.state.descriptors[d.address] != d {
 		t.Fatal("real replacement lost coherent rowtype/attributes/stored authority")
 	}
 }

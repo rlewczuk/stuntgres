@@ -231,11 +231,11 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if err = collationVersionWarning(op, &d, auth.catalog, actual); err != nil {
 		return err
 	}
-	d.oid, err = e.allocateOIDLocked()
+	d.oid, err = e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	d.revision, err = e.revisionLocked()
+	d.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 			return nil
 		}
 	}
-	ref := e.domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		schemaNotice(op, "00000", fmt.Sprintf("changing version from %s to %s", *d.version, *actual))
 		next.version = actual
 	case "rename":
-		if err = auth.CheckCreate(e.domain.Ref(ref.Epoch, d.Namespace())); err != nil {
+		if err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 			return err
 		}
 		next.name = s.Target.Text
@@ -312,7 +312,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	if a := stage.lookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
 	}
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -330,7 +330,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 			}
 			return err
 		}
-		ref := e.domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}

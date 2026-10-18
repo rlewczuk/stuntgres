@@ -32,7 +32,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error
 		return nil, err
 	}
 	e.mu.Lock()
-	if ref.Epoch() != e.state.epoch {
+	if ref.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		e.endLockOwner(ticket)
 		return nil, ErrCatalogReplaced
@@ -49,7 +49,7 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error
 }
 
 func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
@@ -69,7 +69,7 @@ func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
 }
 
 func (e *Engine) visibilitySnapshotLocked(ref ids.TxRef, safeBuilder bool) (uint64, error) {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.state.epoch {
+	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.epoch {
 		return 0, ErrCatalogReplaced
 	}
 	v := e.visibility[ref]
@@ -137,7 +137,7 @@ func (e *Engine) resetVisibilityPhaseLocked(ref ids.TxRef) {
 func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAddress) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	if s.txRef.Epoch() != e.state.epoch {
+	if s.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}

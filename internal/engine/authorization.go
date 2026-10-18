@@ -11,7 +11,7 @@ import (
 func (e *Engine) Roles() authorization.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.roleRead(CatalogRead{e, e.state}, e.roles)
+	return e.roleRead(CatalogRead{e, e.catalog.state}, e.roles)
 }
 func (e *Engine) ResolveLogin(name string) (authorization.PrincipalRef, error) {
 	d, ok := e.Roles().Lookup(name)
@@ -33,7 +33,7 @@ func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []a
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, ref := range refs {
-		if _, err := (e.roleRead(CatalogRead{e, e.state}, e.roles)).Descriptor(ref); err != nil {
+		if _, err := (e.roleRead(CatalogRead{e, e.catalog.state}, e.roles)).Descriptor(ref); err != nil {
 			return err
 		}
 	}
@@ -217,7 +217,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	if a == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: missing authorization")
 	}
-	view := CatalogRead{e, e.state}
+	view := CatalogRead{e, e.catalog.state}
 	if s.transactions != nil {
 		view = e.privateCatalogLocked(s.transactions.catalog)
 	}
@@ -239,7 +239,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = op.materializedOwner
 	}
-	authorization := AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.operationRolesLocked(op), catalog: view, definition: op.definition, roles: r, databasePredecessor: e.state.descriptors[currentDatabaseAddress], state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
+	authorization := AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.operationRolesLocked(op), catalog: view, definition: op.definition, roles: r, databasePredecessor: e.catalog.state.descriptors[currentDatabaseAddress], state: identity, sessionRoleState: a.state, revision: a.revision, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.missingCurrent = identity.CurrentUser
 	}
@@ -316,7 +316,7 @@ func classPrivileges(d Descriptor) authorization.Privileges {
 	return authorization.TableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ids.ObjectRef) (Descriptor, error) {
-	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner || ref.Domain() != v.engine.domain || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.owner != v.engine || v.catalog.state == nil || !v.roles.BelongsTo(&v.engine.authorizationDomain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor).owner || ref.Domain() != v.engine.catalog.domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -786,12 +786,12 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
 		return fmt.Errorf("stuntgres: foreign or stale ACL object")
 	}
 	addr := ref.Address
 	addr.SubID = 0
-	d, ok := e.state.descriptors[addr]
+	d, ok := e.catalog.state.descriptors[addr]
 	if !ok {
 		return fmt.Errorf("stuntgres: missing ACL object")
 	}
@@ -866,13 +866,13 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	default:
 		return fmt.Errorf("stuntgres: unsupported ACL object")
 	}
-	if err := validateACL(e.roleRead(CatalogRead{e, e.state}, e.roles), next); err != nil {
+	if err := validateACL(e.roleRead(CatalogRead{e, e.catalog.state}, e.roles), next); err != nil {
 		return err
 	}
 	if e.roles.revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	state := cloneCatalog(e.state)
+	state := cloneCatalog(e.catalog.state)
 	if parameter, ok := next.(*parameterDescriptor); ok {
 		installParameterGrant(state, parameter)
 	} else {
@@ -883,7 +883,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		return err
 	}
 	if n, ok := next.(*relationDescriptor); ok && n.relationKind == sequenceRelation && ref.Address.SubID == 0 {
-		stamp, err := e.revisionLocked()
+		stamp, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
@@ -894,7 +894,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 			return err
 		}
 	}
-	e.state = state
+	e.catalog.state = state
 	e.roles = roles
 	return nil
 }

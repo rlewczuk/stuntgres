@@ -102,7 +102,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	_, description := sequencePreparedDescription(t, target, session, "SELECT nextval('retained')")
 	temporary := description.sequences.constants[0].ref.Address
 	sequenceScalar(t, session, "SELECT nextval('retained')", 40)
-	descriptor := target.state.descriptors[temporary]
+	descriptor := target.catalog.state.descriptors[temporary]
 	generator, memory := target.sequences[temporary], session.sequences[temporary]
 	generatorState, memoryState := *generator, *memory
 	for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(2),(2),(NULL)", "CREATE INDEX ix ON t((10/n),(n+1),(10/n))"} {
@@ -128,7 +128,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if target.state.descriptors[temporary] != descriptor || target.sequences[temporary] != generator || session.sequences[temporary] != memory || *generator != generatorState || *memory != memoryState {
+	if target.catalog.state.descriptors[temporary] != descriptor || target.sequences[temporary] != generator || session.sequences[temporary] != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("derived replacement changed retained TEMP descriptor/cache")
 	}
 	sequenceScalar(t, session, "SELECT nextval('retained')", 41)
@@ -160,7 +160,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 		}
 		parentDependency := false
 		for _, dependency := range key.derived.dependencies {
-			if dependency.Domain() != target.domain || dependency.Epoch != target.CatalogRead().Epoch() {
+			if dependency.Domain() != target.catalog.domain || dependency.Epoch != target.CatalogRead().Epoch() {
 				t.Fatal("replacement retained source dependency authority", dependency)
 			}
 			if dependency.Address.ClassID == ids.RelationClassID && dependency.Address.ObjectID == index.sqlIndex.parent.ObjectID {

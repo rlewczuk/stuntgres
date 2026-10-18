@@ -50,7 +50,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				next.typ, err = sqltype.Domain(d.typ.ID(), d.Name(), d.typ.SQLName(), d.typ.DomainBase(), true)
 			}
 			if err == nil {
-				next.revision, err = e.revisionLocked()
+				next.revision, err = e.catalog.revisionLocked()
 			}
 			if err == nil {
 				err = stage.Replace(&next)
@@ -82,8 +82,8 @@ func domainAlterGenerationIndexes(t *testing.T) {
 					t.Fatal("physical version identity/order changed")
 				}
 			}
-			currentIndex := e.state.descriptors[index].(*relationDescriptor)
-			currentParent := e.state.descriptors[parent].(*relationDescriptor)
+			currentIndex := e.catalog.state.descriptors[index].(*relationDescriptor)
+			currentParent := e.catalog.state.descriptors[parent].(*relationDescriptor)
 			sameKey := func(old, current sqltype.Value, position int) {
 				t.Helper()
 				before, err := old.BaseValue()

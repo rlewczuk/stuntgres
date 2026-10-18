@@ -65,7 +65,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	auth.session.transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
-		return e.domain.Ref(e.state.epoch, a), nil
+		return e.catalog.domain.Ref(e.catalog.state.epoch, a), nil
 	}
 	rights, err := databaseRights(context.Background(), auth.catalog, auth.roles, auth.state.CurrentUser)
 	if err != nil {
@@ -75,19 +75,19 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		db := auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.name))
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	rev, err := e.revisionLocked()
+	rev, err := e.catalog.revisionLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	toastOID, err := e.allocateOIDLocked()
+	toastOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	toastRevision, err := e.revisionLocked()
+	toastRevision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
@@ -101,7 +101,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	}
 	e.catalogChangeLocked(c, ns.address, ns)
 	e.catalogChangeLocked(c, toast.address, toast)
-	return e.domain.Ref(e.state.epoch, ns.address), nil
+	return e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), nil
 }
 
 // Creation permission precedes persistence adjustment, including for SET SCHEMA.
@@ -145,7 +145,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 	}
 	for {
 		e.mu.Lock()
-		base := CatalogRead{e, e.state}
+		base := CatalogRead{e, e.catalog.state}
 		for _, d := range base.state.descriptors {
 			if _, ok := d.(*collationDescriptor); !ok {
 				continue
@@ -178,7 +178,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		stage := e.BeginCatalogStage(base)
 		stage.terminalCleanup = true
 		for _, a := range targets {
-			if err = stage.Remove(e.domain.Ref(base.Epoch(), a)); err != nil {
+			if err = stage.Remove(e.catalog.domain.Ref(base.Epoch(), a)); err != nil {
 				break
 			}
 		}
@@ -220,7 +220,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySessionIndexes) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.state != stage.base.state {
+	if e.catalog.state != stage.base.state {
 		return true
 	}
 	for address, shape := range stage.rowShapes {
@@ -248,11 +248,11 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 // dependents. Row-only commits need not change that root: copy their current
 // storage/generator/index maps at this final publication, not at preparation.
 func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogStage, namespaces []ids.ObjectAddress, indexes *temporarySessionIndexes) (bool, error) {
-	if e.state != stage.base.state {
+	if e.catalog.state != stage.base.state {
 		return false, nil
 	}
 	for _, address := range namespaces {
-		namespace, ok := e.state.descriptors[address].(*namespaceDescriptor)
+		namespace, ok := e.catalog.state.descriptors[address].(*namespaceDescriptor)
 		if !ok || namespace.temporary != s.token {
 			return false, nil
 		}
@@ -302,7 +302,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		delete(roots, a)
 	}
 	pruneNamespaceDefaults(stage.base.state, next, namespaces)
-	nextRevision := e.nextRevision
+	nextRevision := e.catalog.nextRevision
 	for _, descriptor := range stage.descriptors {
 		if revision := descriptorRevisionFrontier(descriptor); revision >= nextRevision {
 			nextRevision = revision
@@ -311,9 +311,9 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			}
 		}
 	}
-	e.state, e.sequences, e.storage, e.indexRoots = next, sequences, storage, roots
+	e.catalog.state, e.sequences, e.storage, e.indexRoots = next, sequences, storage, roots
 	stage.lifecycle = catalogPublished
-	e.nextRevision = nextRevision
+	e.catalog.nextRevision = nextRevision
 	s.sequences = nil
 	s.lastSequence = ids.ObjectAddress{}
 	s.temporaryNamespace = ids.ObjectAddress{}
@@ -329,7 +329,7 @@ type temporarySessionIndexes struct {
 // terminal install. Unrelated root changes are not fenced or overwritten.
 func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporarySessionIndexes, error) {
 	e.mu.Lock()
-	if e.state != stage.base.state {
+	if e.catalog.state != stage.base.state {
 		e.mu.Unlock()
 		return nil, CatalogConflict{}
 	}

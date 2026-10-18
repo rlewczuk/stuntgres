@@ -24,15 +24,15 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *
 		if err != nil {
 			return nil, nil, err
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, nil, err
 		}
-		rule, err := e.allocateOIDLocked()
+		rule, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, nil, err
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return nil, nil, err
 		}

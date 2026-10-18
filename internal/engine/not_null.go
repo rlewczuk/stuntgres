@@ -119,7 +119,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err := validateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
 		e.mu.Unlock()
 		return Result{}, nil
 	}
@@ -164,11 +164,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	versions, ends, frontier := store.versions, store.ends, e.commitSeq
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
-	grantCatalog := e.state
+	grantCatalog := e.catalog.state
 	schema := auth.catalog.state.descriptors[old.namespace].Name()
 	var stage *CatalogStage
 	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
 	}
 	e.mu.Unlock()
 	defer func() {
@@ -466,7 +466,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// generator. This statement overlay is discarded on failure, never installed
 	// in the owner before Finish. Keep the exact generator pointers through merge.
 	e.mu.Lock()
-	if ref.Epoch != e.state.epoch {
+	if ref.Epoch != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
@@ -480,7 +480,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if captured, identity := stage.identityOriginals[address]; identity {
 				original = captured
 			}
-			if e.state.descriptors[address] != original {
+			if e.catalog.state.descriptors[address] != original {
 				e.mu.Unlock()
 				return Result{}, CatalogConflict{}
 			}
@@ -496,7 +496,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if captured, identity := stage.identityOriginals[address]; identity {
 				original = captured
 			}
-			if e.state.descriptors[address] != original {
+			if e.catalog.state.descriptors[address] != original {
 				e.mu.Unlock()
 				return Result{}, CatalogConflict{}
 			}
@@ -536,7 +536,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// Complete TYPE provider rebinding before adding queued FK definitions.
 	// Their selected supporting keys now have the final private key shape.
 	e.mu.Lock()
-	if ref.Epoch != e.state.epoch {
+	if ref.Epoch != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
@@ -814,13 +814,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()
-	if ref.Epoch != e.state.epoch {
+	if ref.Epoch != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
 	if hasAttachments || len(addedIndexes) != 0 {
 		for name := range stage.touched {
-			if e.state.names[name] != grantCatalog.names[name] {
+			if e.catalog.state.names[name] != grantCatalog.names[name] {
 				e.mu.Unlock()
 				return Result{}, CatalogConflict{}
 			}
@@ -831,7 +831,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
 		}
-		if e.state.descriptors[a] != original {
+		if e.catalog.state.descriptors[a] != original {
 			e.mu.Unlock()
 			return Result{}, CatalogConflict{}
 		}
@@ -842,7 +842,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
 		}
-		if e.state.descriptors[a] != original {
+		if e.catalog.state.descriptors[a] != original {
 			e.mu.Unlock()
 			return Result{}, CatalogConflict{}
 		}

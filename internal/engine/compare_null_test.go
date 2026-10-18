@@ -343,7 +343,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		}
 		seen := map[int32]bool{}
 		for _, d := range b.dependencies {
-			if d.ref.Domain() != e.domain || d.revision == 0 {
+			if d.ref.Domain() != e.catalog.domain || d.revision == 0 {
 				t.Fatal(d)
 			}
 			if d.ref.Address.ClassID == ids.RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {

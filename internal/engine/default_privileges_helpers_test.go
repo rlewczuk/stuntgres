@@ -32,11 +32,11 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
 	e.roles = roles
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
-	next := cloneCatalog(e.state)
+	next := cloneCatalog(e.catalog.state)
 	namespace := &namespaceDescriptor{address: schema, name: "default_schema", revision: 2, owner: refs[0]}
 	next.descriptors[schema] = namespace
 	next.names[descriptorNameKey(namespace)] = schema
-	e.state = next
+	e.catalog.state = next
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	return defaultUnitFixture{e: e, op: op, owner: refs[0], reader: refs[1], member: refs[2], schema: schema}

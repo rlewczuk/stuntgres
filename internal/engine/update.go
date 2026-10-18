@@ -206,7 +206,7 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.domain || ref.Epoch != e.state.epoch {
+	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	return nil
@@ -225,7 +225,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	if err := s.validateLockedRelation(e); err != nil {
 		return rowVersion{}, false, err
 	}
-	if ref.Epoch != e.state.epoch || s.txRef.Epoch() != e.state.epoch {
+	if ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
 		return rowVersion{}, false, ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)

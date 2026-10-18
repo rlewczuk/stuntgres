@@ -36,12 +36,12 @@ func databaseAdmissionFixture() (*Engine, authorization.PrincipalRef) {
 }
 
 func databaseAdmissionPolicyLocked(e *Engine, acl authorization.ACLValue) {
-	candidate := cloneCatalog(e.state)
+	candidate := cloneCatalog(e.catalog.state)
 	db := *candidate.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	db.revision++
 	db.acl = acl
 	candidate.descriptors[currentDatabaseAddress] = &db
-	e.state = candidate
+	e.catalog.state = candidate
 }
 
 func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {

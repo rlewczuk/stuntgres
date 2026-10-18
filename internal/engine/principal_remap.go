@@ -45,7 +45,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		if _, err := targetSnapshot.Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
-		if _, err := e.roleRead(CatalogRead{e, e.state}, e.roles).Descriptor(target); err != nil {
+		if _, err := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles).Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
 		return target, nil
@@ -259,7 +259,7 @@ func (e *Engine) replacementPrincipalMapper(source, targetSnapshot authorization
 		if !ok {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
 		}
-		if _, err := e.roleRead(CatalogRead{e, e.state}, e.roles).Descriptor(target.Ref); err != nil {
+		if _, err := e.roleRead(CatalogRead{e, e.catalog.state}, e.roles).Descriptor(target.Ref); err != nil {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
 		}
 		if expected != nil && expected[ref] != target.Ref {
@@ -275,7 +275,7 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
-	database := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
@@ -293,7 +293,7 @@ func (e *Engine) restoreStage() *Engine {
 			entry.Grantee.Role = stage.authorizationDomain.Principal(entry.Grantee.Role.ID())
 		}
 	}
-	stage.state.descriptors[currentDatabaseAddress] = &retainedDatabase
+	stage.catalog.state.descriptors[currentDatabaseAddress] = &retainedDatabase
 	stage.roles = &roleCatalog{root: roles, revision: sourceRoles.revision}
 	stage.nextPrincipal = nextPrincipal
 	return stage

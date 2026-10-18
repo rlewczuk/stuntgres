@@ -66,7 +66,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 				}
 				checkReader(auth, false)
-				oldRoles, oldCatalog := e.roles, e.state
+				oldRoles, oldCatalog := e.roles, e.catalog.state
 				sessionRevision, epoch := session.authorization.revision, oldCatalog.epoch
 				oldACL := authorization.ACLValue{Explicit: table.acl.Explicit, Entries: append([]authorization.ACLEntry(nil), table.acl.Entries...)}
 				oldKeys := append([]uniqueConstraint(nil), table.uniqueConstraints...)
@@ -101,14 +101,14 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 						found = true
 					}
 				}
-				if !found || e.state != oldCatalog || e.roles != oldRoles || !reflect.DeepEqual(table.acl, oldACL) {
+				if !found || e.catalog.state != oldCatalog || e.roles != oldRoles || !reflect.DeepEqual(table.acl, oldACL) {
 					t.Fatal("staging lost the grant or published/mutated a prefix")
 				}
 				checkReader(retained, true)
 				pendingRoles, pendingDB := retained.roleRecord, retained.catalog.state.descriptors[currentDatabaseAddress]
 				if outcome == "database" {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+					database := *e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 					if private {
 						database.owner = actor.Ref
 					} else {
@@ -121,7 +121,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
 					for address, descriptor := range oldCatalog.descriptors {
-						if address != currentDatabaseAddress && e.state.descriptors[address] != descriptor {
+						if address != currentDatabaseAddress && e.catalog.state.descriptors[address] != descriptor {
 							t.Fatal("DB-only replacement changed object/associated identities")
 						}
 					}
@@ -129,7 +129,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				} else if outcome == "cancel" {
 					cancel()
 				}
-				if e.roles != oldRoles || e.state.epoch != epoch || session.authorization.revision != sessionRevision {
+				if e.roles != oldRoles || e.catalog.state.epoch != epoch || session.authorization.revision != sessionRevision {
 					t.Fatal("replacement changed role/session/epoch authority")
 				}
 				err = message.end(nil)
@@ -139,7 +139,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 					current := catalogAuthorization(e, e.CatalogRead())
 					checkReader(current, true)
-					if e.state.descriptors[root.Address] != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(pending.uniqueConstraints, oldKeys) {
+					if e.catalog.state.descriptors[root.Address] != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || !reflect.DeepEqual(pending.uniqueConstraints, oldKeys) {
 						t.Fatal("healthy grant lost candidate or changed data/constraints")
 					}
 					for address, index := range before.roots {

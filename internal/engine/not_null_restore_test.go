@@ -129,20 +129,20 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	old = e.CatalogRead().state.descriptors[old.address].(*relationDescriptor)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	origin := restoredNotNull{ref: e.domain.Ref(e.CatalogRead().Epoch(), old.address), attribute: 1, constraint: old.notNullConstraints[0].OID}
+	origin := restoredNotNull{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), old.address), attribute: 1, constraint: old.notNullConstraints[0].OID}
 	raw := restoreNNRaw("public.p", "a", "captured")
 	for name, mutate := range map[string]func(*restoredNotNull){"epoch": func(r *restoredNotNull) { r.ref.Epoch++ }, "attribute": func(r *restoredNotNull) { r.attribute++ }, "constraint": func(r *restoredNotNull) { r.constraint++ }, "missing_pair": func(r *restoredNotNull) { *r = restoredNotNull{} }} {
 		t.Run(name, func(t *testing.T) {
 			candidate := origin
 			mutate(&candidate)
-			before := e.state
-			if err := e.restoreNoInheritNotNull(op, raw, candidate); err == nil || e.state != before {
+			before := e.catalog.state
+			if err := e.restoreNoInheritNotNull(op, raw, candidate); err == nil || e.catalog.state != before {
 				t.Fatal("foreign pairing published", err)
 			}
 		})
 	}
 	for _, kind := range []string{"invalid", "nullable", "inherited", "primary"} {
-		before := e.state
+		before := e.catalog.state
 		altered := *old
 		altered.columns = append([]ColumnDescriptor(nil), old.columns...)
 		altered.notNullConstraints = append([]notNullConstraint(nil), old.notNullConstraints...)
@@ -158,23 +158,23 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		}
 		candidate := cloneCatalog(before)
 		candidate.descriptors[old.address] = &altered
-		e.state = candidate
-		if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.state != candidate {
+		e.catalog.state = candidate
+		if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.state != candidate {
 			t.Fatal("ineligible NN fact published", kind, err)
 		}
-		e.state = before
+		e.catalog.state = before
 	}
 	targets := e.importTargets
 	e.importTargets = nil
-	before := e.state
-	if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.state != before {
+	before := e.catalog.state
+	if err := e.restoreNoInheritNotNull(op, raw, origin); err == nil || e.catalog.state != before {
 		t.Fatal("ordinary engine gained importer authority", err)
 	}
 	e.importTargets = targets
 	foreign := New()
 	foreignOp, foreignDone := roleOperation(t, foreign, "postgres")
 	defer foreignDone()
-	if err := e.restoreNoInheritNotNull(foreignOp, raw, origin); err == nil || e.state != before {
+	if err := e.restoreNoInheritNotNull(foreignOp, raw, origin); err == nil || e.catalog.state != before {
 		t.Fatal("foreign operation gained importer authority", err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
@@ -185,7 +185,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	}
 	defer cancelDone()
 	cancel()
-	if err := e.restoreNoInheritNotNull(cancelOp, raw, origin); !errors.Is(err, context.Canceled) || e.state != before {
+	if err := e.restoreNoInheritNotNull(cancelOp, raw, origin); !errors.Is(err, context.Canceled) || e.catalog.state != before {
 		t.Fatal("canceled repair published", err)
 	}
 	if err := e.restoreNoInheritNotNull(op, raw, origin); err != nil {

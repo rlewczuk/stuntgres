@@ -43,9 +43,9 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				outer.name = "outer_view"
 				outer.view = &viewDefinition{invoker: shape == "invoker_over_definer", sources: []viewLeaf{{ref: ruleUnitRef(e, inner), reads: []int32{1}, attributes: []int32{1, 2}}}}
 				outer.view.query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(inner.columns), ref: ruleUnitRef(e, inner)}}
-				next := cloneCatalog(e.state)
+				next := cloneCatalog(e.catalog.state)
 				next.descriptors[outer.address] = &outer
-				e.state = next
+				e.catalog.state = next
 				root = &outer
 			}
 			// A nested invoker retains the ORIGINAL source invoker even below
@@ -56,7 +56,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				reader, other = actor.Ref, owner.Ref
 			}
 			base.acl = grant(reader)
-			auth.recaptureCatalog(CatalogRead{owner: e, state: e.state})
+			auth.recaptureCatalog(CatalogRead{owner: e, state: e.catalog.state})
 			auth.state.CurrentUser = owner.Ref
 			leaf := queryLeaf{ref: ruleUnitRef(e, root), relation: root, principal: actor.Ref}
 			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...queryLeaf) ([]ids.ObjectRef, error) {
@@ -94,7 +94,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			// that snapshot, while an already paired snapshot remains unchanged.
 			revoked := *base
 			revoked.acl = grant(other)
-			next := cloneCatalog(e.state)
+			next := cloneCatalog(e.catalog.state)
 			next.descriptors[base.address] = &revoked
 			current := auth
 			current.recaptureCatalog(CatalogRead{owner: e, state: next})

@@ -65,14 +65,14 @@ func TestTruncateGeneration(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
 			originalP, originalQ := e.storage[p.Address], e.storage[q.Address]
 			versions, ends, generation := originalP.versions, originalP.ends, originalP.generation
-			descriptor, frontier := e.state.descriptors[p.Address], e.commitSeq
+			descriptor, frontier := e.catalog.state.descriptors[p.Address], e.commitSeq
 			scope := truncateUnitStage(t, e, s, "p", "q")
 			for _, ref := range []ids.ObjectRef{p, q} {
 				shape := scope.catalog.storage[ref.Address]
 				if shape.original != e.storage[ref.Address] || len(shape.replacement.versions) != 0 || shape.replacement.ends != nil || !shape.truncated || !shape.rewritten || shape.replacement.generation != shape.original.generation+1 {
 					t.Fatal("not an empty generation replacement", shape)
 				}
-				if shape.relation != e.state.descriptors[ref.Address] {
+				if shape.relation != e.catalog.state.descriptors[ref.Address] {
 					t.Fatal("descriptor copied/reminted")
 				}
 			}
@@ -86,7 +86,7 @@ func TestTruncateGeneration(t *testing.T) {
 			if got := scope.Finish(err); !errors.Is(got, err) {
 				t.Fatal(got, err)
 			}
-			if !sameVersionRoot(originalP.versions, versions) || originalP.ends != ends || originalP.generation != generation || e.state.descriptors[p.Address] != descriptor {
+			if !sameVersionRoot(originalP.versions, versions) || originalP.ends != ends || originalP.generation != generation || e.catalog.state.descriptors[p.Address] != descriptor {
 				t.Fatal("retained predecessor/definition changed")
 			}
 			if commit {

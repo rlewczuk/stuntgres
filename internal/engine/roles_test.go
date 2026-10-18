@@ -317,7 +317,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	owners := make(map[string]authorization.PrincipalRef, 2)
 	for _, name := range []string{"first", "second"} {
 		ref := roleTableRef(t, e, name)
-		d := e.state.descriptors[ref.Address].(*relationDescriptor)
+		d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if e.Roles().ValidatePrincipal(d.owner) != nil {
 			t.Fatal("foreign owner after restore")
 		}
@@ -333,25 +333,25 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 			t.Fatal("isolated reset changed live role authority", query)
 		}
 		marker := roleTableRef(t, e, "reset_owner_marker")
-		if e.state.descriptors[marker.Address].(*relationDescriptor).owner != e.authorizationDomain.Principal(10) {
+		if e.catalog.state.descriptors[marker.Address].(*relationDescriptor).owner != e.authorizationDomain.Principal(10) {
 			t.Fatal("reset did not restore isolated authenticated owner", query)
 		}
 		for name, owner := range owners {
 			ref := roleTableRef(t, e, name)
-			d := e.state.descriptors[ref.Address].(*relationDescriptor)
+			d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			if d.owner != owner || d.acl.Explicit || len(d.columnACL) != 0 {
 				t.Fatal("reset changed restored table authority", name, query)
 			}
 		}
 	}
-	before := e.state
+	before := e.catalog.state
 	for _, query := range []string{"SET AUTHORIZATION 'postgres'", "CREATE ROLE forbidden_restore_role", `ALTER ROLE "a'quote" NOLOGIN`, `DROP ROLE "b\slash"`} {
 		err := e.Restore(context.Background(), strings.NewReader(dump.String()+"SET SESSION AUTHORIZATION DEFAULT; CREATE TABLE unpublished(id INT); "+query+";"))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal("restore accepted forbidden owner mutation", query, err)
 		}
-		if e.state != before || e.roles != roles || admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer {
+		if e.catalog.state != before || e.roles != roles || admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer {
 			t.Fatal("rejected directive changed catalog or role authority")
 		}
 	}

@@ -126,7 +126,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	defer e.mu.Unlock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	current, ok := catalog.state.descriptors[w.ref.Address].(*relationDescriptor)
-	if !ok || w.ref.Domain() != e.domain || w.ref.Epoch != e.state.epoch || !sameRelationRowShape(current, w.base) {
+	if !ok || w.ref.Domain() != e.catalog.domain || w.ref.Epoch != e.catalog.state.epoch || !sameRelationRowShape(current, w.base) {
 		return ErrCatalogReplaced
 	}
 	for _, layer := range w.layers {

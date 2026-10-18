@@ -27,14 +27,14 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.state.descriptors[d.address].(*relationDescriptor)
+			d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.domain.Ref(e.state.epoch, source.address)
+			sourceRef := e.catalog.domain.Ref(e.catalog.state.epoch, source.address)
 			definition := *d.view
 			definition.sources = []viewLeaf{{ref: sourceRef, attributes: source.attributes, reads: source.attributes}}
 			d.view = &definition
-			targetRef := e.domain.Ref(e.state.epoch, d.address)
+			targetRef := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			heldRef := sourceRef
@@ -130,7 +130,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.state.descriptors[d.address].(*relationDescriptor)
+	d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
 	old := e.storage[d.address]
 	frontier := e.commitSeq
 	stage := e.BeginCatalogStage(e.CatalogRead())

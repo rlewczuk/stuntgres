@@ -27,7 +27,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ns, name: "base", revision: 1, owner: owner, relationKind: tableRelation, attributes: []int32{7, 11, 19}, columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, index: map[string]int{"id": 0, "a": 1, "hidden": 2}, attributeHighWater: 19}
-	baseRef := e.domain.Ref(e.state.epoch, base.address)
+	baseRef := e.catalog.domain.Ref(e.catalog.state.epoch, base.address)
 	column := func(slot int) BoundExpr {
 		ref := baseRef
 		ref.Address.SubID = base.attributes[slot]
@@ -37,11 +37,11 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &projectNode{querySchema: querySchema(view.columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.columns), ref: baseRef, occurrence: 0}, expressions: []BoundExpr{column(1), column(0)}}
 	view.view = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
-	viewRef := e.domain.Ref(e.state.epoch, view.address)
-	e.state.descriptors[base.address] = base
-	e.state.descriptors[view.address] = view
-	e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.name}] = base.address
-	e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.name}] = view.address
+	viewRef := e.catalog.domain.Ref(e.catalog.state.epoch, view.address)
+	e.catalog.state.descriptors[base.address] = base
+	e.catalog.state.descriptors[view.address] = view
+	e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.name}] = base.address
+	e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.name}] = view.address
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -167,7 +167,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
-	f.e.state.descriptors[indexAddress] = &relationDescriptor{
+	f.e.catalog.state.descriptors[indexAddress] = &relationDescriptor{
 		address:  indexAddress,
 		sqlIndex: &indexDefinition{parent: f.base.address, unique: true, live: true, ready: true, valid: true},
 	}

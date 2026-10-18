@@ -62,7 +62,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	boolean, _ := view.LookupType(sqltype.Bool)
 	floating, _ := view.LookupType(sqltype.Float8)
 	d.columns[1].Usage = oid.Usage()
-	ref := e.domain.Ref(view.Epoch()+1, d.address)
+	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
 	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
@@ -102,9 +102,9 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	temp.address, temp.namespace, temp.name = tempAddress, tempNamespace, "retained"
 	temp.generations, temp.checkConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
-	e.state = cloneCatalog(e.state)
-	e.state.descriptors[tempNamespace] = &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: e.domain.Session(99)}
-	e.state.descriptors[tempAddress] = &temp
+	e.catalog.state = cloneCatalog(e.catalog.state)
+	e.catalog.state.descriptors[tempNamespace] = &namespaceDescriptor{address: tempNamespace, name: "pg_temp_1", owner: d.owner, revision: 1, temporary: e.catalog.domain.Session(99)}
+	e.catalog.state.descriptors[tempAddress] = &temp
 	e.storage[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
 	stage := e.restoreStage()
 	session, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
@@ -143,7 +143,7 @@ func (f *generatedRepairFixture) run(ctx context.Context) <-chan error {
 			var prepared remintedIndexStorage
 			prepared, err = f.target.prepareForeignIndexStorage(ctx, f.next, f.storage, &indexSnapshot{})
 			if err == nil {
-				err = f.target.installForeignCatalogLocked(ctx, f.next, f.storage, f.sequences, f.target.nextRevision, prepared)
+				err = f.target.installForeignCatalogLocked(ctx, f.next, f.storage, f.sequences, f.target.catalog.nextRevision, prepared)
 			}
 		}
 		result <- err
@@ -185,30 +185,30 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			f.target.mu.Lock() // actual Eval must not retain the target mutex
 			switch change {
 			case "Catalog":
-				f.target.state = cloneCatalog(f.target.state)
-				f.target.state.epoch++
-				f.target.state.namespaceGeneration++
+				f.target.catalog.state = cloneCatalog(f.target.catalog.state)
+				f.target.catalog.state.epoch++
+				f.target.catalog.state.namespaceGeneration++
 			case "Roles":
 				roles := *f.target.roles
 				roles.revision++
 				f.target.roles = &roles
 			case "Temporary":
-				next := cloneCatalog(f.target.state)
+				next := cloneCatalog(f.target.catalog.state)
 				copy := *next.descriptors[f.temp].(*relationDescriptor)
 				copy.address.ObjectID++
 				copy.name = "concurrent_temp"
 				next.descriptors[copy.address] = &copy
 				f.target.storage[copy.address] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
 				next.epoch++
-				f.target.state = next
+				f.target.catalog.state = next
 			case "CommitFrontier":
 				f.target.commitSeq++
 				f.target.storage[f.temp] = &relationStorage{versions: append(append([]rowVersion(nil), f.target.storage[f.temp].versions...), rowVersion{values: append([]sqltype.Value(nil), f.tempValues...)})}
 			}
-			expectedState, expectedRoles, expectedFrontier := f.target.state, f.target.roles, f.target.commitSeq
+			expectedState, expectedRoles, expectedFrontier := f.target.catalog.state, f.target.roles, f.target.commitSeq
 			expectedStorage := cloneGeneratedRepairStorage(f.target.storage)
 			expectedSequences, expectedIndexes := f.target.sequences, f.target.indexRoots
-			nextRow, nextVersion, nextRevision := f.target.nextRow, f.target.nextVersion, f.target.nextRevision
+			nextRow, nextVersion, nextRevision := f.target.nextRow, f.target.nextVersion, f.target.catalog.nextRevision
 			f.target.mu.Unlock()
 			release.Do(func() { close(f.gate.release) })
 			if err := <-result; !errors.Is(err, ErrCatalogReplaced) {
@@ -217,10 +217,10 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			if f.gate.calls != 1 {
 				t.Fatal("repair retried provider", f.gate.calls)
 			}
-			if f.target.state != expectedState || f.target.roles != expectedRoles || f.target.commitSeq != expectedFrontier || !reflect.DeepEqual(f.target.storage, expectedStorage) || !reflect.DeepEqual(f.target.sequences, expectedSequences) || !reflect.DeepEqual(f.target.indexRoots, expectedIndexes) || f.target.nextRow != nextRow || f.target.nextVersion != nextVersion || f.target.nextRevision != nextRevision {
+			if f.target.catalog.state != expectedState || f.target.roles != expectedRoles || f.target.commitSeq != expectedFrontier || !reflect.DeepEqual(f.target.storage, expectedStorage) || !reflect.DeepEqual(f.target.sequences, expectedSequences) || !reflect.DeepEqual(f.target.indexRoots, expectedIndexes) || f.target.nextRow != nextRow || f.target.nextVersion != nextVersion || f.target.catalog.nextRevision != nextRevision {
 				t.Fatal("repair installed candidate or erased concurrent target change")
 			}
-			if _, exists := f.target.state.descriptors[f.imported]; exists {
+			if _, exists := f.target.catalog.state.descriptors[f.imported]; exists {
 				t.Fatal("imported catalog descriptor published")
 			}
 			if got, _ := f.source[1].OID(); got != 25000 {
@@ -265,10 +265,10 @@ func TestGeneratedReplacementLateCancellation(t *testing.T) {
 			if point == "CompletedCheck" {
 				f.gate.onReturn = cancel
 			}
-			state, roles, frontier := f.target.state, f.target.roles, f.target.commitSeq
+			state, roles, frontier := f.target.catalog.state, f.target.roles, f.target.commitSeq
 			storage := cloneGeneratedRepairStorage(f.target.storage)
 			sequences, indexes := f.target.sequences, f.target.indexRoots
-			nextRow, nextVersion, nextRevision := f.target.nextRow, f.target.nextVersion, f.target.nextRevision
+			nextRow, nextVersion, nextRevision := f.target.nextRow, f.target.nextVersion, f.target.catalog.nextRevision
 			result := f.run(ctx)
 			var release sync.Once
 			t.Cleanup(func() { release.Do(func() { close(f.gate.release) }) })
@@ -280,7 +280,7 @@ func TestGeneratedReplacementLateCancellation(t *testing.T) {
 			if err := <-result; !errors.Is(err, context.Canceled) {
 				t.Fatal("late cancellation accepted", err)
 			}
-			if f.gate.calls != 1 || f.target.state != state || f.target.roles != roles || f.target.commitSeq != frontier || !reflect.DeepEqual(f.target.storage, storage) || !reflect.DeepEqual(f.target.sequences, sequences) || !reflect.DeepEqual(f.target.indexRoots, indexes) || f.target.nextRow != nextRow || f.target.nextVersion != nextVersion || f.target.nextRevision != nextRevision {
+			if f.gate.calls != 1 || f.target.catalog.state != state || f.target.roles != roles || f.target.commitSeq != frontier || !reflect.DeepEqual(f.target.storage, storage) || !reflect.DeepEqual(f.target.sequences, sequences) || !reflect.DeepEqual(f.target.indexRoots, indexes) || f.target.nextRow != nextRow || f.target.nextVersion != nextVersion || f.target.catalog.nextRevision != nextRevision {
 				t.Fatal("canceled repair published catalog/storage/index/sequence state")
 			}
 			if got, _ := f.source[1].OID(); got != 25000 {

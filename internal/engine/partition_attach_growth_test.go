@@ -99,12 +99,12 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
 			candidate.relationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
-			parent = e.state.descriptors[parent.address].(*relationDescriptor)
-			old = e.state.descriptors[old.address].(*relationDescriptor)
-			candidate = e.state.descriptors[candidate.address].(*relationDescriptor)
+			parent = e.catalog.state.descriptors[parent.address].(*relationDescriptor)
+			old = e.catalog.state.descriptors[old.address].(*relationDescriptor)
+			candidate = e.catalog.state.descriptors[candidate.address].(*relationDescriptor)
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			ref := e.domain.Ref(e.state.epoch, old.address)
+			ref := e.catalog.domain.Ref(e.catalog.state.epoch, old.address)
 			partitionAttachUnitGrant(t, holder, ref, accessExclusive)
 			parentRef := ref
 			parentRef.Address = parent.address
@@ -135,19 +135,19 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			current := e.state.descriptors[parent.address].(*relationDescriptor)
+			current := e.catalog.state.descriptors[parent.address].(*relationDescriptor)
 			if !partitionAppendCompatible(parent, current) {
 				t.Fatal("same-authority append rejected")
 			}
 			if replacement {
-				next := cloneCatalog(e.state)
+				next := cloneCatalog(e.catalog.state)
 				changed := *old
 				changed.name = "replacement_identity"
 				changed.revision++
 				delete(next.names, descriptorNameKey(old))
 				next.names[descriptorNameKey(&changed)] = changed.address
 				next.descriptors[old.address] = &changed
-				e.state = next
+				e.catalog.state = next
 				// The exact descendant authority was admitted before the wait.
 				reader.partitionRelations[old.address] = old
 			}
@@ -176,7 +176,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal("admitted/fresh branch manifests", admitted, fresh)
 			}
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: e.domain.Ref(ref.Epoch, candidate.address)}]
+			entry := lockState.Resources[lockResource{ObjectRef: e.catalog.domain.Ref(ref.Epoch, candidate.address)}]
 			newHold := entry != nil && entry.Holders[reader.ticket].Mode != 0
 			if newHold {
 				t.Fatal("waiting reader admitted a newly attached branch")
@@ -198,7 +198,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			target.partition.defaultChild = leaf.address
 			view := inheritanceUnitView(e, parent, target, leaf)
 			usage, boolean := target.columns[0].Usage, testUsage(e, sqltype.Bool)
-			ref := e.domain.Ref(view.Epoch(), target.address)
+			ref := e.catalog.domain.Ref(view.Epoch(), target.address)
 			ref.Address.SubID = 1
 			key := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 			cmp := func(op string, n int64) BoundExpr {
@@ -239,11 +239,11 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				target.checkConstraints = []checkConstraint{check}
 			}
 			partitionAttachUnitInstall(t, e, parent, target, leaf)
-			parent = e.state.descriptors[parent.address].(*relationDescriptor)
-			target = e.state.descriptors[target.address].(*relationDescriptor)
+			parent = e.catalog.state.descriptors[parent.address].(*relationDescriptor)
+			target = e.catalog.state.descriptors[target.address].(*relationDescriptor)
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			leafRef := e.domain.Ref(e.state.epoch, leaf.address)
+			leafRef := e.catalog.domain.Ref(e.catalog.state.epoch, leaf.address)
 			targetRef := leafRef
 			targetRef.Address = target.address
 			partitionAttachUnitGrant(t, holder, leafRef, accessShare)

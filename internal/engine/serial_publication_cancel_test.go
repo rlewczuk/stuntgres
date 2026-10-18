@@ -19,13 +19,13 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 				e := New()
 				run(t,e,`CREATE SEQUENCE q`)
 				if alter { run(t,e,`CREATE TABLE consumer(id SERIAL)`); run(t,e,`INSERT INTO consumer VALUES(40)`) }
-				before := e.state
+				before := e.catalog.state
 				ctx,cancel := context.WithCancel(context.Background()); defer cancel()
 				reset := make(chan error,1)
 				var once sync.Once
-				provider := e.providers[ids.RelationClassID]
-				e.providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
-					e.providers[ids.RelationClassID] = provider
+				provider := e.catalog.providers[ids.RelationClassID]
+				e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
+					e.catalog.providers[ids.RelationClassID] = provider
 					if replacement {
 						go func(){ reset <- e.Reset(context.Background()) }()
 						deadline := time.Now().Add(5*time.Second)
@@ -40,7 +40,7 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 							}
 							runtime.Gosched()
 						}
-						if e.state!=before { t.Fatal("queued replacement changed catalog before publication released its hold") }
+						if e.catalog.state!=before { t.Fatal("queued replacement changed catalog before publication released its hold") }
 					}
 					cancel()
 				}) }}
@@ -53,9 +53,9 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 					case <-time.After(5*time.Second):
 						t.Fatal("canceled definition did not release replacement admission")
 					}
-					if e.state.epoch==before.epoch { t.Fatal("released replacement did not fence the old definition epoch") }
+					if e.catalog.state.epoch==before.epoch { t.Fatal("released replacement did not fence the old definition epoch") }
 				}
-				if !replacement && e.state != before { t.Fatal("canceled default publication changed catalog") }
+				if !replacement && e.catalog.state != before { t.Fatal("canceled default publication changed catalog") }
 				lockEmpty(t,e)
 				checkReviewDependencyValid(t,e)
 				deleteReplacementAdmissionEmpty(t,e)

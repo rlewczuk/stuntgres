@@ -13,11 +13,11 @@ type uuidOsspProvider struct{ version string }
 var stockUUIDOssp = &uuidOsspProvider{version: "1.1"}
 
 func (p *uuidOsspProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

@@ -564,7 +564,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			}
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.name), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
 		}
-		ns := e.domain.Ref(auth.catalog.Epoch(), parent.namespace)
+		ns := e.catalog.domain.Ref(auth.catalog.Epoch(), parent.namespace)
 		if err = auth.CheckCreate(ns); err != nil {
 			denied, ok := err.(*sqlstate.Error)
 			if !scope.op.restoreTableDestination || !ok || denied.Code != "42501" {
@@ -643,11 +643,11 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if len(s.Options) != 0 {
 			return fail(indexCapability("index storage parameters are unsupported", s.WithPos))
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return fail(err)
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return fail(err)
 		}

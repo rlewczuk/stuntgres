@@ -16,7 +16,7 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 	temporaryConsumer := kind == viewRelation && temporary
 	if rule == 0 {
 		var err error
-		rule, err = e.allocateOIDLocked()
+		rule, err = e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +70,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			address.ClassID = ids.OperatorClassID
 		}
 		if d, exists := auth.catalog.state.descriptors[address]; exists {
-			definition.dependencies = append(definition.dependencies, expressionDependency{ref: e.domain.Ref(auth.catalog.Epoch(), address), revision: d.Revision()})
+			definition.dependencies = append(definition.dependencies, expressionDependency{ref: e.catalog.domain.Ref(auth.catalog.Epoch(), address), revision: d.Revision()})
 		}
 	}
 	definition.sources = make([]viewLeaf, len(b.querySources))

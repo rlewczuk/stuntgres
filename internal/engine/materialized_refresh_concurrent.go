@@ -297,10 +297,10 @@ type materializedSourceFence struct {
 }
 
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
-	if f.ref.Domain() != e.domain || f.ref.Epoch != e.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.address || f.relation.relationKind != materializedViewRelation {
+	if f.ref.Domain() != e.catalog.domain || f.ref.Epoch != e.catalog.state.epoch || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.address || f.relation.relationKind != materializedViewRelation {
 		return false
 	}
-	current, _ := e.state.descriptors[f.ref.Address].(*relationDescriptor)
+	current, _ := e.catalog.state.descriptors[f.ref.Address].(*relationDescriptor)
 	store := e.storage[f.ref.Address]
 	return current == f.relation && store == f.storage || sameMaterializedLineage(f.relation, current, f.storage, store)
 }

@@ -13,7 +13,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	e := New()
 	run(t, e, `CREATE TABLE provider(a INT)`)
 	run(t, e, `CREATE TABLE consumer(b BOOL DEFAULT ('provider'::regclass IS NOT NULL), n INT DEFAULT CASE WHEN 'provider'::regclass IS NOT NULL THEN 1 ELSE 0 END, s SERIAL)`)
-	d := e.state.descriptors[roleTableRef(t, e, "consumer").Address].(*relationDescriptor)
+	d := e.catalog.state.descriptors[roleTableRef(t, e, "consumer").Address].(*relationDescriptor)
 	for _, attribute := range d.attributes {
 		definition := d.defaults[attribute]
 		if !defaultReplayDeferrable(definition) {

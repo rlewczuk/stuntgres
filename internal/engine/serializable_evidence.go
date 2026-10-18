@@ -16,13 +16,13 @@ func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, catalog *catalogC
 }
 
 func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {
-	if ref.Domain() != e.domain || ref.Address.SubID != 0 {
+	if ref.Domain() != e.catalog.domain || ref.Address.SubID != 0 {
 		return errors.New("stuntgres: foreign SSI relation")
 	}
-	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
-	if s.txRef.Domain() != e.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
+	if s.txRef.Domain() != e.catalog.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
 	node := e.serializable.nodes[s.txRef]
@@ -56,10 +56,10 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 }
 
 func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []serializableWrite) error {
-	if ref.Domain() != e.domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
+	if ref.Domain() != e.catalog.domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
-	if ref.Epoch != e.state.epoch || ref.Epoch != s.txRef.Epoch() {
+	if ref.Epoch != e.catalog.state.epoch || ref.Epoch != s.txRef.Epoch() {
 		return ErrCatalogReplaced
 	}
 	for _, event := range events {

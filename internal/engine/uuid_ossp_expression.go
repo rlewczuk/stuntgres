@@ -84,7 +84,7 @@ func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (Bound
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.domain.Ref(auth.catalog.Epoch(), proc.address)
+	ref := b.engine.catalog.domain.Ref(auth.catalog.Epoch(), proc.address)
 	b.dependency(ref, proc.revision)
 	return installedUUIDOsspFunctionExpression{UUIDGeneration: call, procedure: proc, ref: ref}, nil
 }

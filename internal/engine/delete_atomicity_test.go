@@ -306,8 +306,8 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
 			case "stale_epoch":
-				e.state = cloneCatalog(e.state)
-				e.state.epoch++
+				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state.epoch++
 			}
 			op := transactionOperation(t, a)
 			_, err := e.Commit(op, ref)

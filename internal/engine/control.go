@@ -74,7 +74,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		e.mu.Unlock()
 		return err
 	}
-	for _, descriptor := range e.state.descriptors {
+	for _, descriptor := range e.catalog.state.descriptors {
 		_, foreign := descriptor.(*foreignDescriptor)
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.foreign != nil {
 			foreign = true
@@ -84,22 +84,22 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return fmt.Errorf("stuntgres: dump cannot serialize SQL/MED foreign metadata")
 		}
 	}
-	if len(e.state.defaultACLs) != 0 {
+	if len(e.catalog.state.defaultACLs) != 0 {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: dump cannot serialize default privileges")
 	}
 	var invalid *relationDescriptor
 	var invalidSchema string
-	for _, descriptor := range e.state.descriptors {
+	for _, descriptor := range e.catalog.state.descriptors {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
 			continue
 		}
-		namespace := e.state.descriptors[index.namespace].(*namespaceDescriptor)
+		namespace := e.catalog.state.descriptors[index.namespace].(*namespaceDescriptor)
 		if namespace.temporary != (ids.SessionToken{}) || index.sqlIndex.ready && index.sqlIndex.valid && index.sqlIndex.live {
 			continue
 		}
-		parent, ok := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 		if ok && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live {
 			continue
 		}
@@ -112,7 +112,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", quoteIdentifier(invalidSchema), quoteIdentifier(invalid.name))
 	}
 	tables := make([]dumpRelation, 0)
-	catalog := CatalogRead{owner: e, state: e.state}
+	catalog := CatalogRead{owner: e, state: e.catalog.state}
 	originalCatalog := catalog
 	originalRoles := e.roleRead(originalCatalog, e.roles)
 	recipePlan, err := capturedGenerationReplayPlan(originalCatalog)
@@ -166,7 +166,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// authority; ACLs are reproduced by normal owner-transfer semantics.
 	var preamble []string
 	for address, name := range e.foreignNamespaces {
-		ns, ok := e.state.descriptors[address].(*namespaceDescriptor)
+		ns, ok := e.catalog.state.descriptors[address].(*namespaceDescriptor)
 		if !ok || ns.name != name {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
@@ -181,7 +181,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		oid  ids.OID
 		name string
 	}{{ids.PublicNamespaceOID, "public"}, {ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {13229, "information_schema"}} {
-		d, exists := e.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: b.oid}]
+		d, exists := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: b.oid}]
 		if !exists {
 			preamble = append(preamble, "DROP SCHEMA "+quoteIdentifier(b.name)+";\n")
 			continue
@@ -238,7 +238,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			var temporary string
 			for suffix := 0; ; suffix++ {
 				candidate := fmt.Sprintf("stuntgres_restore_namespace_%d_%d", i, suffix)
-				if _, exists := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: candidate}]; !exists {
+				if _, exists := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: candidate}]; !exists {
 					temporary = candidate
 					break
 				}
@@ -253,8 +253,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.name)+" OWNER TO "+quoteIdentifier(b.owner)+";\n")
 		}
 	}
-	for a, d := range e.state.descriptors {
-		if ns, ok := e.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
+	for a, d := range e.catalog.state.descriptors {
+		if ns, ok := e.catalog.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		r, ok := d.(*relationDescriptor)
@@ -443,7 +443,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if r.relationKind == catalogRelation {
 			continue
 		}
-		ns, ok := e.state.descriptors[r.namespace].(*namespaceDescriptor)
+		ns, ok := e.catalog.state.descriptors[r.namespace].(*namespaceDescriptor)
 		if !ok {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation namespace is missing")
@@ -566,7 +566,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			// references depend on their parent relation, not its column OID.
 			predecessors := make(map[ids.OID]bool)
 			addPredecessor := func(address ids.ObjectAddress) error {
-				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, address, r.address)
+				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.catalog.state}, address, r.address)
 				if err != nil {
 					return err
 				}
@@ -576,7 +576,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return nil
 			}
 			for _, address := range r.autoExtensions {
-				extension, ok := e.state.descriptors[address].(*extensionDescriptor)
+				extension, ok := e.catalog.state.descriptors[address].(*extensionDescriptor)
 				if !ok {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: missing materialized extension dump provider")
@@ -600,7 +600,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 			for _, literal := range r.view.literals {
-				if err := regclassReplayReferences(CatalogRead{owner: e, state: e.state}, literal, addPredecessor); err != nil {
+				if err := regclassReplayReferences(CatalogRead{owner: e, state: e.catalog.state}, literal, addPredecessor); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -625,12 +625,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if owned := r.sequence.owned; owned != (ids.ObjectAddress{}) {
 				tableAddress := owned
 				tableAddress.SubID = 0
-				table, ok := e.state.descriptors[tableAddress].(*relationDescriptor)
+				table, ok := e.catalog.state.descriptors[tableAddress].(*relationDescriptor)
 				if !ok {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: sequence ownership target missing")
 				}
-				tableSchema := e.state.descriptors[table.namespace].Name()
+				tableSchema := e.catalog.state.descriptors[table.namespace].Name()
 				sequence.ownedTable = quoteIdentifier(tableSchema) + "." + quoteIdentifier(table.name)
 				for i, sub := range table.attributes {
 					if sub == owned.SubID {
@@ -765,7 +765,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tableIndices[oid] = len(tables)
 		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.identities))
 		for _, identity := range r.identities {
-			sequence := e.state.descriptors[identity.sequence].(*relationDescriptor)
+			sequence := e.catalog.state.descriptors[identity.sequence].(*relationDescriptor)
 			linked[identity.sequence] = dumpSequence{owner: principal.Name, schema: ns.name, name: sequence.name, options: *sequence.sequence, state: *e.sequences[identity.sequence], comment: sequence.comment}
 		}
 		var versions []rowVersion

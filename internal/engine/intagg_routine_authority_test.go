@@ -105,7 +105,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.state.descriptors[captured.extension].(*extensionDescriptor)
-			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.state.descriptors[ref.Address] != captured || ref.Domain() != e.domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.name != expectedName || captured.signature != procedureSignature(tc.signature) || captured.routineKind != tc.kind || captured.result != tc.result || captured.strict != tc.strict || captured.volatility != Immutable || captured.intagg != stockIntagg || captured.builtin != nil || captured.revision == 0 || len(captured.body) != 0 || ext.name != "intagg" || ext.version != "1.1" || len(ext.members) != 2 || captured.namespace != ext.targetNamespace || evaluation.catalog.state.descriptors[ref.Address] != captured || ref.Domain() != e.catalog.domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -166,7 +166,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 							case "revision":
 								deps[i].revision++
 							case "foreign_ref":
-								deps[i].ref = other.domain.Ref(deps[i].ref.Epoch, deps[i].ref.Address)
+								deps[i].ref = other.catalog.domain.Ref(deps[i].ref.Epoch, deps[i].ref.Address)
 							}
 						}
 					}
@@ -227,7 +227,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("structural parameter rewrite lost original authority", err)
 					}
 					foreignEnum := node.(unnestExpression)
-					foreignEnum.ref = other.domain.Ref(foreignEnum.ref.Epoch, foreignEnum.ref.Address)
+					foreignEnum.ref = other.catalog.domain.Ref(foreignEnum.ref.Epoch, foreignEnum.ref.Address)
 					foreignEnum.ref.Epoch = foreign.catalog.Epoch()
 					foreignNode, _, err := retagBoundTypes(foreign.catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
@@ -312,7 +312,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("transferred original authority", err)
 					}
 					foreignNode, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef {
-						r = other.domain.Ref(r.Epoch, r.Address)
+						r = other.catalog.domain.Ref(r.Epoch, r.Address)
 						r.Epoch = foreign.catalog.Epoch()
 						return r
 					}, nil)
@@ -361,8 +361,8 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, stage)
-	transferred := e.state.descriptors[member.address].(*procedureDescriptor)
-	if transferred.owner != source.Ref || transferred == member || e.state.descriptors[ext.address] != ext || e.state.descriptors[ext.members[1]] != sibling {
+	transferred := e.catalog.state.descriptors[member.address].(*procedureDescriptor)
+	if transferred.owner != source.Ref || transferred == member || e.catalog.state.descriptors[ext.address] != ext || e.catalog.state.descriptors[ext.members[1]] != sibling {
 		t.Fatal("single-member ownership was not independent COW")
 	}
 	if err := stockIntagg.validate(e.CatalogRead(), ext); err != nil {
@@ -395,7 +395,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if err := imported.importExtensionOwners(context.Background(), importOp, []extensionOwnerRecord{record}); err != nil {
 		t.Fatal("independent owner import", err)
 	}
-	installed := imported.state.descriptors[imported.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	installed := imported.catalog.state.descriptors[imported.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
 	if err := stockIntagg.validate(imported.CatalogRead(), installed); err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +406,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	foreign := New()
 	foreignOwner := foreign.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
-		state := cloneCatalog(e.state)
+		state := cloneCatalog(e.catalog.state)
 		for _, a := range ext.members {
 			bad := *state.descriptors[a].(*procedureDescriptor)
 			bad.owner = owner
@@ -416,14 +416,14 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}
-	if err := stockIntagg.validate(CatalogRead{state: e.state}, ext); err == nil {
+	if err := stockIntagg.validate(CatalogRead{state: e.catalog.state}, ext); err == nil {
 		t.Fatal("missing owning engine accepted")
 	}
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 		t.Fatal("member reassignment", result, err)
 	}
-	reassigned := e.state.descriptors[member.address].(*procedureDescriptor)
-	if reassigned.owner != target.Ref || transferred.owner != source.Ref || member.owner != ext.owner || e.state.descriptors[ext.members[1]] != sibling || original.state.descriptors[member.address] != member {
+	reassigned := e.catalog.state.descriptors[member.address].(*procedureDescriptor)
+	if reassigned.owner != target.Ref || transferred.owner != source.Ref || member.owner != ext.owner || e.catalog.state.descriptors[ext.members[1]] != sibling || original.state.descriptors[member.address] != member {
 		t.Fatal("ownership generations mutated")
 	}
 	if err := stockIntagg.validate(e.CatalogRead(), ext); err != nil {

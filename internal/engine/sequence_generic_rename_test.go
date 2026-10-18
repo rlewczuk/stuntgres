@@ -17,7 +17,7 @@ func TestSequenceGenericRelationRenameAuthority(t *testing.T) {
 			sessionSQL(t, s, "CREATE SEQUENCE s START 14 CACHE 1")
 			ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 			ref := description.sequences.constants[0].ref
-			before := e.state.descriptors[ref.Address].(*relationDescriptor)
+			before := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			generator := e.sequences[ref.Address]
 			state := *generator
 			utility := statement(t, "ALTER TABLE s RENAME TO identity")
@@ -33,7 +33,7 @@ func TestSequenceGenericRelationRenameAuthority(t *testing.T) {
 			if r.Rows != nil {
 				t.Fatal("utility unexpectedly returned rows")
 			}
-			after := e.state.descriptors[ref.Address].(*relationDescriptor)
+			after := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			if after.address != before.address || after.owner != before.owner || after.namespace != before.namespace || !reflect.DeepEqual(after.sequence, before.sequence) || !reflect.DeepEqual(after.columns, before.columns) {
 				t.Fatal("rename changed identity/owner/options/shape")
 			}
@@ -68,12 +68,12 @@ func TestSequenceGenericColumnRenameAuthority(t *testing.T) {
 					defer done()
 					roleExecute(t, e, op, "CREATE SEQUENCE s START 14 CACHE 1")
 					ref := roleTableRef(t, e, "s")
-					before := e.state.descriptors[ref.Address]
+					before := e.catalog.state.descriptors[ref.Address]
 					generator := e.sequences[ref.Address]
 					state := *generator
 					err := sequenceOwnerCommand(t, e, op, q, prepared)
 					sequenceOwnerDiagnostic(t, err, "42809", `cannot rename columns of relation "s"`, "This operation is not supported for sequences.")
-					if e.state.descriptors[ref.Address] != before || e.sequences[ref.Address] != generator || *generator != state {
+					if e.catalog.state.descriptors[ref.Address] != before || e.sequences[ref.Address] != generator || *generator != state {
 						t.Fatal("rejected rename changed descriptor or generator")
 					}
 					r := roleExecute(t, e, op, "SELECT nextval('s')")
@@ -101,14 +101,14 @@ func TestSequenceGenericRenamePreservesCacheAndDependencies(t *testing.T) {
 				}
 			}
 			ref := roleTableRef(t, e, "s")
-			before := e.state.descriptors[ref.Address].(*relationDescriptor)
+			before := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			dependencies := descriptorReferences(before)
 			generator := e.sequences[ref.Address]
 			state := *generator
 			if err := sequenceOwnerCommand(t, e, op, "ALTER TABLE s RENAME TO identity", prepared); err != nil {
 				t.Fatal(err)
 			}
-			after := e.state.descriptors[ref.Address].(*relationDescriptor)
+			after := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			if after.address != before.address || after.owner != before.owner || !reflect.DeepEqual(after.sequence, before.sequence) || !reflect.DeepEqual(descriptorReferences(after), dependencies) || e.sequences[ref.Address] != generator || *generator != state {
 				t.Fatal("rename changed ownership/dependencies/generator")
 			}
@@ -139,15 +139,15 @@ func TestSequenceGenericRenameStampExhaustion(t *testing.T) {
 			defer done()
 			roleExecute(t, e, op, "CREATE SEQUENCE s START 14 CACHE 1")
 			ref := roleTableRef(t, e, "s")
-			before := e.state.descriptors[ref.Address]
+			before := e.catalog.state.descriptors[ref.Address]
 			generator := e.sequences[ref.Address]
 			state := *generator
-			e.nextRevision = ids.DefinitionRevision(^uint64(0))
+			e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
 			err := sequenceOwnerCommand(t, e, op, "ALTER TABLE s RENAME TO identity", prepared)
 			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
 				t.Fatalf("stamp exhaustion error=%v", err)
 			}
-			if e.state.descriptors[ref.Address] != before || e.sequences[ref.Address] != generator || *generator != state {
+			if e.catalog.state.descriptors[ref.Address] != before || e.sequences[ref.Address] != generator || *generator != state {
 				t.Fatal("exhausted rename published descriptor or generator")
 			}
 			if got := roleTableRef(t, e, "s"); got != ref {

@@ -38,7 +38,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 		t.Helper()
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
-		current := e.state.descriptors[d.address].(*relationDescriptor)
+		current := e.catalog.state.descriptors[d.address].(*relationDescriptor)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

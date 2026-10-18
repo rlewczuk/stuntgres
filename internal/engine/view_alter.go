@@ -157,7 +157,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
 	}
 	if changed {
-		next.revision, err = e.revisionLocked()
+		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return fail(err)
 		}
@@ -293,7 +293,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-		if !ok || ref.Domain() != e.domain {
+		if !ok || ref.Domain() != e.catalog.domain {
 			e.mu.Unlock()
 			return Result{}, ErrCatalogReplaced
 		}

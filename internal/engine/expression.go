@@ -2152,7 +2152,7 @@ func (b *expressionBinder) bindingCatalog() CatalogRead {
 	if b.queryAuth != nil {
 		return b.queryAuth.catalog
 	}
-	return CatalogRead{owner: b.engine, state: b.engine.state}
+	return CatalogRead{owner: b.engine, state: b.engine.catalog.state}
 }
 
 func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProperties) expressionInfo {
@@ -2162,11 +2162,11 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProp
 	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
-	b.dependency(b.engine.domain.Ref(view.Epoch(), address), revision)
+	b.dependency(b.engine.catalog.domain.Ref(view.Epoch(), address), revision)
 	if u.Collation.ID != 0 {
 		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}
 		if d, ok := b.definitionDescriptor(address); ok {
-			b.dependency(b.engine.domain.Ref(view.Epoch(), address), d.Revision())
+			b.dependency(b.engine.catalog.domain.Ref(view.Epoch(), address), d.Revision())
 		}
 	}
 	return expressionInfo{Usage: u, Pos: pos, Property: p}
@@ -2830,7 +2830,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 				if descriptor, exists := auth.catalog.Descriptor(address); exists {
-					b.dependency(b.engine.domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
+					b.dependency(b.engine.catalog.domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:

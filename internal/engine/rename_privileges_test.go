@@ -21,7 +21,7 @@ func TestAlterRenamePrivileges(t *testing.T) {
 	schemaOwner, _ := e.Roles().Lookup("rename_schema_owner")
 	view := e.CatalogRead()
 	address := view.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"}]
-	ns := e.domain.Ref(view.Epoch(), address)
+	ns := e.catalog.domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
 		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
@@ -74,15 +74,15 @@ func TestAlterRenameDependencies(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), column, acl); err != nil {
 		t.Fatal(err)
 	}
-	old := e.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	roleExecute(t, e, op, "ALTER TABLE t RENAME c TO renamed")
 	roleExecute(t, e, op, "ALTER TABLE t RENAME TO newtable")
-	next := e.state.descriptors[ref.Address].(*relationDescriptor)
+	next := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !reflect.DeepEqual(next.columnACL, old.columnACL) || !reflect.DeepEqual(next.notNullConstraints, old.notNullConstraints) || len(next.notNullConstraints) != 1 || next.notNullConstraints[0].Name != "nn" || next.notNullConstraints[0].Attribute != 3 || next.notNullConstraints[0].OID == 0 || next.columnComments[3] != "keep" {
 		t.Fatal(next)
 	}
 	roleExecute(t, e, op, "COMMENT ON COLUMN newtable.renamed IS 'updated'")
-	if e.state.descriptors[ref.Address].(*relationDescriptor).columnComments[3] != "updated" || old.columnComments[3] != "keep" {
+	if e.catalog.state.descriptors[ref.Address].(*relationDescriptor).columnComments[3] != "updated" || old.columnComments[3] != "keep" {
 		t.Fatal("comment identity")
 	}
 	_, err := e.Execute(op, statement(t, "DROP ROLE rename_reader"), 0, nil)

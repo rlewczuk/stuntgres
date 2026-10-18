@@ -62,7 +62,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer result.Rows.Close()
-			state, frontier := e.state, e.commitSeq
+			state, frontier := e.catalog.state, e.commitSeq
 			switch boundary {
 			case "cancel_before", "cancel_after":
 				barrier := &batchPublicationContext{Context: m.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -81,7 +81,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("final publication boundary not reached")
 				}
-				if e.state != state || e.commitSeq != frontier || len(store.versions) != 0 {
+				if e.catalog.state != state || e.commitSeq != frontier || len(store.versions) != 0 {
 					t.Fatal("prefix escaped before publication")
 				}
 				if boundary == "cancel_before" {
@@ -96,10 +96,10 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				<-done
 			case "epoch_before":
 				e.mu.Lock()
-				next := *e.state
+				next := *e.catalog.state
 				next.epoch++
-				e.state = &next
-				state = e.state
+				e.catalog.state = &next
+				state = e.catalog.state
 				e.mu.Unlock()
 				err = m.end(nil)
 			case "counter_before":
@@ -135,7 +135,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 					t.Fatal("complete publication lost", err)
 				}
 			} else {
-				if err == nil || e.commitSeq != frontier || len(store.versions) != 0 || e.state != state {
+				if err == nil || e.commitSeq != frontier || len(store.versions) != 0 || e.catalog.state != state {
 					t.Fatal("rejected publication changed roots", err)
 				}
 				if boundary == "cancel_before" && !errors.Is(err, context.Canceled) {
@@ -167,7 +167,7 @@ func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
 			if !roleChange {
 				sessionSQL(t, s, "CREATE ROLE pending LOGIN")
 			}
-			state := e.state
+			state := e.catalog.state
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			if roleChange {
@@ -189,7 +189,7 @@ func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
 			if err := m.end(nil); err == nil {
 				t.Fatal("role authority conflict committed")
 			}
-			if e.state != state || e.roles != roles || e.commitSeq != frontier {
+			if e.catalog.state != state || e.roles != roles || e.commitSeq != frontier {
 				t.Fatal("private ACL or stale role root overwrote peer")
 			}
 			if _, ok := e.Roles().Lookup("peer"); !ok {

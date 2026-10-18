@@ -113,7 +113,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 	// Genuine private initial-invalid index metadata; history depends on
 	// publication, not readiness or a successful physical build.
 	e.mu.Lock()
-	id, err := e.allocateOIDLocked()
+	id, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

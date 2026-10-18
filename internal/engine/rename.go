@@ -73,7 +73,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 			return fail(err)
 		}
 	} else {
-		if err = auth.CheckCreate(e.domain.Ref(ref.Epoch, old.namespace)); err != nil {
+		if err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, old.namespace)); err != nil {
 			return fail(err)
 		}
 		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: destination}]; exists {
@@ -92,7 +92,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if old.relationKind == sequenceRelation {
 			// Relation rename invalidates analyzed sequence source without
 			// making every descriptor revision a sequence-plan event.
-			next.sequencePlanStamp, err = e.revisionLocked()
+			next.sequencePlanStamp, err = e.catalog.revisionLocked()
 			if err != nil {
 				return fail(err)
 			}

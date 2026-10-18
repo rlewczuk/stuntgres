@@ -86,7 +86,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			e.mu.Lock()
 			op.session.mu.Lock()
 			err := publicationOperationLocked(e, op)
-			if err == nil && ref.Epoch() != e.state.epoch {
+			if err == nil && ref.Epoch() != e.catalog.state.epoch {
 				err = ErrCatalogReplaced
 			}
 			if err == nil {
@@ -142,11 +142,11 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		}
 		prepared := make([]rowPublication, 0, len(writes)+len(deletes))
 		e.mu.Lock()
-		if ref.Epoch() != e.state.epoch {
+		if ref.Epoch() != e.catalog.state.epoch {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
 		}
-		current, frontier := e.state, e.commitSeq
+		current, frontier := e.catalog.state, e.commitSeq
 		var indexStores map[ids.ObjectAddress]*relationStorage
 		if len(e.indexRoots) != 0 || c != nil {
 			captureCatalog := current
@@ -194,7 +194,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		capture := func(a ids.ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
 			original := e.storage[a]
 			store := e.privateStorageLocked(c, a)
-			originalRelation, live := e.state.descriptors[a].(*relationDescriptor)
+			originalRelation, live := e.catalog.state.descriptors[a].(*relationDescriptor)
 			relation := originalRelation
 			if c != nil {
 				relation, live = nextCatalog.descriptors[a].(*relationDescriptor)
@@ -327,22 +327,22 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		e.mu.Lock()
 		session.mu.Lock()
 		err = publicationOperationLocked(e, op)
-		if err == nil && ref.Epoch() != e.state.epoch {
+		if err == nil && ref.Epoch() != e.catalog.state.epoch {
 			err = ErrCatalogReplaced
 		}
 		if err == nil && e.commitSeq == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage[p.address] != p.original || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
 					changed = true
 					break
 				}
-				current, ok := e.state.descriptors[p.address].(*relationDescriptor)
+				current, ok := e.catalog.state.descriptors[p.address].(*relationDescriptor)
 				if p.originalRelation == nil {
-					if e.state.descriptors[p.address] != nil {
+					if e.catalog.state.descriptors[p.address] != nil {
 						err = ErrCatalogReplaced
 						break
 					}
@@ -381,7 +381,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			e.mu.Unlock()
 			continue
 		}
-		nextRevision := e.nextRevision
+		nextRevision := e.catalog.nextRevision
 		if c != nil && materialize {
 			for _, d := range c.descriptors {
 				if d != nil {
@@ -451,8 +451,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 			e.sequences = nextSequences
 			e.storage = nextStorage
-			e.state = nextCatalog
-			e.nextRevision = nextRevision
+			e.catalog.state = nextCatalog
+			e.catalog.nextRevision = nextRevision
 			if c.roles != nil {
 				e.roles = c.roles
 			}

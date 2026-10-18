@@ -19,7 +19,7 @@ func pgAttributeUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relat
 	if !ok {
 		t.Fatal("missing pg_attribute")
 	}
-	return d, e.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
 }
 
 func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
@@ -90,7 +90,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
-	before, descriptors := e.state, maps.Clone(e.state.descriptors)
+	before, descriptors := e.catalog.state, maps.Clone(e.catalog.state.descriptors)
 	rows := pgAttributeUnitCapture(t, e, catalog)
 	for _, row := range rows.anonymous {
 		if len(row) != 25 {
@@ -137,7 +137,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	if got, err := e.capturePGAttribute(context.Background(), CatalogRead{owner: e, state: privateState}, e.Roles(), ref, &modified); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)
 	}
-	if e.state != before || !maps.Equal(descriptors, e.state.descriptors) {
+	if e.catalog.state != before || !maps.Equal(descriptors, e.catalog.state.descriptors) {
 		t.Fatal("capture mutated catalog")
 	}
 	for _, n := range []int{32768, -32769} {
@@ -242,7 +242,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	ref := e.domain.Ref(base.Epoch(), old.address)
+	ref := e.catalog.domain.Ref(base.Epoch(), old.address)
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}, Mode: parser.DropRestrict}
 	next, err := dropColumnCandidate(context.Background(), stage, old, ref, action, scope, newCatalogChanges(), nil)
 	if err != nil {

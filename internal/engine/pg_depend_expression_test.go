@@ -45,7 +45,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 		t.Fatal("regclass array")
 	}
 	ref := func(a ids.ObjectAddress) ids.ObjectRef {
-		return e.domain.Ref(catalog.state.epoch, a)
+		return e.catalog.domain.Ref(catalog.state.epoch, a)
 	}
 	variable := columnExpression{expressionInfo: expressionInfo{Usage: domain.Usage()}, origin: ref(column)}
 	scalar := literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage(), RegclassRef: ref(provider)}}
@@ -104,7 +104,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	column := table
 	column.SubID = 4
 	catalog.state.descriptors[table] = &relationDescriptor{address: table, relationKind: tableRelation, attributes: []int32{4}, columns: []ColumnDescriptor{{Usage: integer.Usage()}}}
-	ref := e.domain.Ref(catalog.state.epoch, table)
+	ref := e.catalog.domain.Ref(catalog.state.epoch, table)
 	source := &sourceNode{ref: ref}
 	relationOnly := &BoundQuery{Root: source}
 	got, err := pgDependQueryRefs(context.Background(), catalog, relationOnly)

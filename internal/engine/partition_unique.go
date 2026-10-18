@@ -337,11 +337,11 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		}
 	}
 	name := generatedConstraintName(child.name, addition, suffix, used)
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -352,7 +352,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		index.index[index.columns[i].Name] = i
 	}
 	if backing := parentIndex.sqlIndex.constraint; backing != nil {
-		cid, err := e.allocateOIDLocked()
+		cid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}

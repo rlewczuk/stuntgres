@@ -21,7 +21,7 @@ func (e *Engine) initializeDataTypePrivileges() error {
 		if i == 3 {
 			id = sqltype.VarChar
 		}
-		typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(id)
+		typ, ok := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(id)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing data type privilege carrier")
 		}

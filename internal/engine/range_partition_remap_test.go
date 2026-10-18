@@ -38,7 +38,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	}
 	tempAddress := tempDescription.sequences.constants[0].ref.Address
 	tempNamespace, tempToken := op.session.temporaryNamespace, op.session.token
-	tempDescriptor, tempNamespaceDescriptor := e.state.descriptors[tempAddress], e.state.descriptors[tempNamespace]
+	tempDescriptor, tempNamespaceDescriptor := e.catalog.state.descriptors[tempAddress], e.catalog.state.descriptors[tempNamespace]
 	tempDemand := func(want int64) {
 		t.Helper()
 		scope, err := e.StartStatement(op)
@@ -66,12 +66,12 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	roleExecute(t, e, op, "CREATE INDEX retained_table_expression ON retained_table((k+0)) WHERE payload>0")
 	roleExecute(t, e, op, "INSERT INTO retained_table(k) VALUES(1)")
 	tempGeneratorState, tempMemoryState := *tempGenerator, *tempMemory
-	tempTableAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table"}]
-	tempIndexAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_key"}]
-	tempTableDescriptor, tempIndexDescriptor := e.state.descriptors[tempTableAddress], e.state.descriptors[tempIndexAddress]
+	tempTableAddress := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table"}]
+	tempIndexAddress := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_key"}]
+	tempTableDescriptor, tempIndexDescriptor := e.catalog.state.descriptors[tempTableAddress], e.catalog.state.descriptors[tempIndexAddress]
 	tempTableStore, tempIndexRoot := e.storage[tempTableAddress], e.indexRoots[tempIndexAddress]
-	tempExpressionAddress := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_expression"}]
-	tempExpressionDescriptor, tempExpressionRoot := e.state.descriptors[tempExpressionAddress], e.indexRoots[tempExpressionAddress]
+	tempExpressionAddress := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_expression"}]
+	tempExpressionDescriptor, tempExpressionRoot := e.catalog.state.descriptors[tempExpressionAddress], e.indexRoots[tempExpressionAddress]
 	tempVersions := slices.Clone(tempTableStore.versions)
 	tempTableCursor := roleExecute(t, e, op, "SELECT k,payload FROM retained_table")
 	retained := e.CatalogRead()
@@ -95,14 +95,14 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if err != nil || !changes.Replacement || e.CatalogRead().Epoch() != retained.Epoch()+1 {
 		t.Fatal(changes, err)
 	}
-	if op.session.token != tempToken || op.session.temporaryNamespace != tempNamespace || e.state.descriptors[tempAddress] != tempDescriptor || e.state.descriptors[tempNamespace] != tempNamespaceDescriptor || e.sequences[tempAddress] != tempGenerator || op.session.sequences[tempAddress] != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
+	if op.session.token != tempToken || op.session.temporaryNamespace != tempNamespace || e.catalog.state.descriptors[tempAddress] != tempDescriptor || e.catalog.state.descriptors[tempNamespace] != tempNamespaceDescriptor || e.sequences[tempAddress] != tempGenerator || op.session.sequences[tempAddress] != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
 		t.Fatal("hierarchy self remap changed exact live TEMP identity/cache")
 	}
 	tempDemand(3)
-	if e.state.descriptors[tempTableAddress] != tempTableDescriptor || e.state.descriptors[tempIndexAddress] != tempIndexDescriptor || e.storage[tempTableAddress] != tempTableStore || e.indexRoots[tempIndexAddress] != tempIndexRoot || !reflect.DeepEqual(tempTableStore.versions, tempVersions) {
+	if e.catalog.state.descriptors[tempTableAddress] != tempTableDescriptor || e.catalog.state.descriptors[tempIndexAddress] != tempIndexDescriptor || e.storage[tempTableAddress] != tempTableStore || e.indexRoots[tempIndexAddress] != tempIndexRoot || !reflect.DeepEqual(tempTableStore.versions, tempVersions) {
 		t.Fatal("hierarchy replacement reminted retained TEMP table definitions/storage/index")
 	}
-	if e.state.descriptors[tempExpressionAddress] != tempExpressionDescriptor || e.indexRoots[tempExpressionAddress] != tempExpressionRoot {
+	if e.catalog.state.descriptors[tempExpressionAddress] != tempExpressionDescriptor || e.indexRoots[tempExpressionAddress] != tempExpressionRoot {
 		t.Fatal("hierarchy replacement reminted retained TEMP expression/predicate index")
 	}
 	if !reflect.DeepEqual(tuples(tempTableCursor), [][]driver.Value{{int64(1), int64(2)}}) {

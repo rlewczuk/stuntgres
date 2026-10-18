@@ -75,7 +75,7 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	defer done()
 	// Real catalog fixture, never permission to expose system table creation SQL.
 	e.mu.Lock()
-	auth := catalogAuthorization(e, CatalogRead{e, e.state})
+	auth := catalogAuthorization(e, CatalogRead{e, e.catalog.state})
 	stage := e.BeginCatalogStage(auth.catalog)
 	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
@@ -130,9 +130,9 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 		op, done := roleOperation(t, e, "postgres")
 		before := e.CatalogRead()
 		if revision {
-			e.nextRevision = ids.DefinitionRevision(^uint64(0))
+			e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
 		} else {
-			e.nextOID = 0
+			e.catalog.nextOID = 0
 		}
 		_, err := e.Execute(op, statement(t, "CREATE SCHEMA exhausted CREATE TABLE t(id INT)"), 0, nil)
 		if err == nil || e.CatalogRead().state != before.state {

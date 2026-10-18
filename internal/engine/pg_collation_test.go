@@ -18,7 +18,7 @@ func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relat
 	if !ok {
 		t.Fatal("missing pg_collation")
 	}
-	return d, e.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
 }
 
 func TestPGCollationShapeAndOwnership(t *testing.T) {
@@ -62,7 +62,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
 	t.Helper()
 	d, ref := pgCollationUnitSource(t, e, catalog)
-	state, oid, revision := e.state, e.nextOID, e.nextRevision
+	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
 	capturedDescriptors, capturedNames := maps.Clone(catalog.state.descriptors), maps.Clone(catalog.state.names)
 	e.mu.Lock()
@@ -128,7 +128,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 		}
 	}
 	unchanged := func() {
-		if e.state != state || e.nextOID != oid || e.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) || !maps.Equal(capturedDescriptors, catalog.state.descriptors) || !maps.Equal(capturedNames, catalog.state.names) {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) || !maps.Equal(capturedDescriptors, catalog.state.descriptors) || !maps.Equal(capturedNames, catalog.state.names) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}

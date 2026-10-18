@@ -121,9 +121,9 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			// All stored values and bound operators use the same descriptor
 			// authority; mixing a fresh Builtins set with engine-owned values
 			// would fail equality before reaching collection validation.
-			e.state = cloneCatalog(e.state)
-			e.state.descriptors[parent.address] = parent
-			e.state.descriptors[index.address] = index
+			e.catalog.state = cloneCatalog(e.catalog.state)
+			e.catalog.state.descriptors[parent.address] = parent
+			e.catalog.state.descriptors[index.address] = index
 			store := &relationStorage{versions: []rowVersion{
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
@@ -143,7 +143,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			rootBefore := *root
 			// The candidate extends the same typed private fixture, not a
 			// separately initialized SQL catalog.
-			captured := captureIndexStores(e.storage, e.state)
+			captured := captureIndexStores(e.storage, e.catalog.state)
 			candidate := captured[parent.address]
 			candidate.versions = append(append([]rowVersion(nil), candidate.versions...), row(3, "10.0.0.1", "[3,7)"))
 			candidateBefore := uniquePublicationStore(candidate)
@@ -151,7 +151,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			// row delta: validation must inspect rebuilt A/empty/C membership.
 			roots, err := e.prepareIndexPublication(
 				&EvalContext{Context: context.Background(), Scope: 1, Frame: 1},
-				e.state, e.state, captured, e.indexRoots,
+				e.catalog.state, e.catalog.state, captured, e.indexRoots,
 				map[ids.ObjectAddress]bool{parent.address: true}, nil, nil,
 				materialize, sqltype.OutputEnvironment{}, nil, nil, nil,
 			)

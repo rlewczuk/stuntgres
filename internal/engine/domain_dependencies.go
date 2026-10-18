@@ -527,7 +527,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	}
 	for _, edge := range edges {
 		if scope != nil && edge.relation != nil && edge.address == edge.relation.address && hierarchyRelation(edge.relation) {
-			if err := scope.acquirePartitionDropLocks(provider.owner.domain.Ref(provider.base.Epoch(), edge.address)); err != nil {
+			if err := scope.acquirePartitionDropLocks(provider.owner.catalog.domain.Ref(provider.base.Epoch(), edge.address)); err != nil {
 				return err
 			}
 		}
@@ -555,7 +555,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		}
 		sort.Slice(lockRelations, func(i, j int) bool { return lockRelations[i].address.ObjectID < lockRelations[j].address.ObjectID })
 		for _, r := range lockRelations {
-			ref := e.domain.Ref(provider.base.Epoch(), r.address)
+			ref := e.catalog.domain.Ref(provider.base.Epoch(), r.address)
 			if err := provider.acquire(ref, true); err != nil {
 				return err
 			}
@@ -568,7 +568,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	// after surviving column candidates have finished binding against them.
 	for _, target := range targets[len(roots):] {
 		if target.ClassID == ids.RelationClassID && target.SubID == 0 {
-			if err = provider.remove(e.domain.Ref(provider.base.Epoch(), target)); err != nil {
+			if err = provider.remove(e.catalog.domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}
 		}
@@ -592,7 +592,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 		if slices.Contains(targets, old.address) {
 			continue
 		}
-		ref := e.domain.Ref(provider.base.Epoch(), old.address)
+		ref := e.catalog.domain.Ref(provider.base.Epoch(), old.address)
 		next := old
 		consumed := false
 		for _, edge := range edges {
@@ -648,7 +648,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	}
 	for _, target := range targets {
 		if foreignCatalogClass(target.ClassID) || target.ClassID == ids.OperatorClassID || target.ClassID == ids.TypeClassID || target.ClassID == ids.CollationClassID || target.ClassID == ids.ConversionClassID || target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ProcedureClassID || target.ClassID == ids.TSTemplateClassID || target.ClassID == ids.TSDictionaryClassID {
-			if err = provider.remove(e.domain.Ref(provider.base.Epoch(), target)); err != nil {
+			if err = provider.remove(e.catalog.domain.Ref(provider.base.Epoch(), target)); err != nil {
 				break
 			}
 		}
@@ -682,7 +682,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		if extension, ok := d.(*extensionDescriptor); ok {
 			for _, member := range extension.members {
 				stage.domainTargets = append(stage.domainTargets, member)
-				if err := stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), member), false); err != nil {
+				if err := stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), member), false); err != nil {
 					return err
 				}
 			}
@@ -692,7 +692,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	sort.Slice(stage.domainTargets, func(i, j int) bool { return stage.domainTargets[i].ObjectID < stage.domainTargets[j].ObjectID })
 	stage.dependencyPath, _ = e.referencePath(auth)
 	for _, d := range contained {
-		if err := stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), d.Address()), false); err != nil {
+		if err := stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
 	}
@@ -728,7 +728,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	}
 	for _, d := range schemas {
-		if err = stage.removeObjectLocked(e.domain.Ref(stage.base.Epoch(), d.address), true); err != nil {
+		if err = stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), d.address), true); err != nil {
 			return err
 		}
 	}

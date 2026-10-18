@@ -13,7 +13,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
 	child.inheritance = &tableInheritance{parents: []ids.ObjectAddress{parent.address}}
-	e.state = inheritanceUnitView(e, parent).state
+	e.catalog.state = inheritanceUnitView(e, parent).state
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()
 	holder, err := e.StartStatement(holderOp)
@@ -24,7 +24,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if err := holder.gate(&parser.CreateTable{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.domain.Ref(e.CatalogRead().Epoch(), parent.address)
+	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), parent.address)
 	if err := holder.acquireSequence(ref, accessExclusive, true); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if !exact {
 		t.Fatal("parent admission did not queue exact SUE")
 	}
-	if e.state.descriptors[child.address] != nil || stage.likeSources[0] != parent {
+	if e.catalog.state.descriptors[child.address] != nil || stage.likeSources[0] != parent {
 		t.Fatal("canceled admission published or changed parent capture")
 	}
 }
@@ -80,11 +80,11 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	before := e.state
+	before := e.catalog.state
 	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.state != before {
+	if e.catalog.state != before {
 		t.Fatal("canceled validation changed catalog")
 	}
 }

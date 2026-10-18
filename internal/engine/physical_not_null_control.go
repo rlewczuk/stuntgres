@@ -81,7 +81,7 @@ func (e *Engine) remapPhysicalNotNull(next *catalogState, previous map[ids.Objec
 			}
 			cause := *proof.cause
 			cause.self = &cause
-			cause.ref = e.domain.Ref(next.epoch, table.address)
+			cause.ref = e.catalog.domain.Ref(next.epoch, table.address)
 			proof.cause = &cause
 			proof.usage = table.columns[slot].Usage
 			if support := proof.support; support != nil {

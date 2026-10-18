@@ -64,7 +64,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if auth.catalog.Epoch() != e.state.epoch {
+	if auth.catalog.Epoch() != e.catalog.state.epoch {
 		return fail(ErrCatalogReplaced)
 	}
 	var usage sqltype.Usage

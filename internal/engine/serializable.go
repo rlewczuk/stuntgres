@@ -59,7 +59,7 @@ func serializableError(detail string) error {
 }
 
 func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation Isolation) {
-	if ref.ID() == 0 || ref.Epoch() != e.state.epoch {
+	if ref.ID() == 0 || ref.Epoch() != e.catalog.state.epoch {
 		return
 	}
 	node := e.serializable.nodes[ref]

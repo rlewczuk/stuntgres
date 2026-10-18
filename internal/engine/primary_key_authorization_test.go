@@ -37,7 +37,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					view := e.CatalogRead()
 					address := parent.address
 					address.SubID = attribute
-					ref := e.domain.Ref(view.Epoch(), address)
+					ref := e.catalog.domain.Ref(view.Epoch(), address)
 					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
 					if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 						t.Fatal(err)
@@ -59,11 +59,11 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				allowed, err := uniqueKeyDetailAllowed(auth, e.domain.Ref(view.Epoch(), parent.address), index.sqlIndex.keys)
+				allowed, err := uniqueKeyDetailAllowed(auth, e.catalog.domain.Ref(view.Epoch(), parent.address), index.sqlIndex.keys)
 				if err != nil || allowed != (mode == "keys" || mode == "table") {
 					t.Fatal("actual current key disclosure authority", allowed, err)
 				}
-				before, store, root := e.state, e.storage[parent.address], e.indexRoots[index.address]
+				before, store, root := e.catalog.state, e.storage[parent.address], e.indexRoots[index.address]
 				execute := func(ast parser.Statement, held *StatementDescription) (Result, error) {
 					if !prepared {
 						return e.Execute(owner, ast, 0, nil)
@@ -92,7 +92,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					detail = "Key (a, b)=(0, protected) is duplicated."
 				}
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "pk"`, Detail: detail, Schema: "public", Table: "t", Constraint: "pk"})
-				if result.Count != 0 || result.Rows != nil || e.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root || e.state.descriptors[parent.address] != current {
+				if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage[parent.address] != store || e.indexRoots[index.address] != root || e.catalog.state.descriptors[parent.address] != current {
 					t.Fatal("failed runtime/TYPE disclosed or published protected state", result)
 				}
 				lockEmpty(t, e)

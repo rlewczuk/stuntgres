@@ -30,7 +30,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	if request, err := acquire(b.transactions.ticket, other); request != nil || err != nil {
 		t.Fatal("duplicate-valued row conflicted", request, err)
 	}
-	for _, invalid := range []lockResource{{ObjectRef: ref}, {ObjectRef: New().domain.Ref(ref.Epoch, ref.Address), Row: versions[0].row}} {
+	for _, invalid := range []lockResource{{ObjectRef: ref}, {ObjectRef: New().catalog.domain.Ref(ref.Epoch, ref.Address), Row: versions[0].row}} {
 		if request, err := acquire(b.transactions.ticket, invalid); request != nil || err == nil {
 			t.Fatal("invalid resource admitted", request, err)
 		}

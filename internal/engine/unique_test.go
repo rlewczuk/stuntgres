@@ -14,7 +14,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v TEXT)")
 	ref := roleTableRef(t, e, "t")
-	parent := e.state.descriptors[ref.Address].(*relationDescriptor)
+	parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if len(parent.uniqueConstraints) != 1 {
 		t.Fatal(parent.uniqueConstraints)
 	}
@@ -45,11 +45,11 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 		t.Fatal("retained root mutated")
 	}
 	run(t, e, "ALTER TABLE t ALTER k TYPE BIGINT")
-	next := e.state.descriptors[ref.Address].(*relationDescriptor)
+	next := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if next.address != parent.address || next.uniqueConstraints[0].OID == c.OID || next.uniqueConstraints[0].Index == c.Index {
 		t.Fatal("TYPE identity contract")
 	}
-	if _, ok := e.state.descriptors[c.Index]; ok {
+	if _, ok := e.catalog.state.descriptors[c.Index]; ok {
 		t.Fatal("retained old backing object")
 	}
 	btreeWantKeys(t, e, "u", "1", "NULL", "NULL")
@@ -79,8 +79,8 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	index, _ := btreeRoot(t, e, "u")
-	ref := e.domain.Ref(e.state.epoch, index.address)
-	parent := e.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, index.address)
+	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
 	ordering, err := bindIndexOrdering(parent, index.sqlIndex)
 	if err != nil {
 		t.Fatal(err)

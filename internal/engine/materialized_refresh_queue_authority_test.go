@@ -24,10 +24,10 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			}
 			oldStorage := e.storage[d.address]
-			originalEpoch := e.state.epoch
+			originalEpoch := e.catalog.state.epoch
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
-			ref := e.domain.Ref(originalEpoch, d.address)
+			ref := e.catalog.domain.Ref(originalEpoch, d.address)
 			mode := accessShare
 			if concurrent {
 				mode = relationExclusive
@@ -48,7 +48,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			defer func() {
 				cancel()
 				e.mu.Lock()
-				e.state.epoch = originalEpoch
+				e.catalog.state.epoch = originalEpoch
 				e.mu.Unlock()
 				e.endLockOwner(holder.transactions.ticket)
 				if !joined {
@@ -63,9 +63,9 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			// Mutate authoritative immutable catalog roots while the actual request
 			// is pending. These are package fixtures, not added SQL ALTER capabilities.
 			e.mu.Lock()
-			nextState := *e.state
-			nextState.descriptors = maps.Clone(e.state.descriptors)
-			nextState.names = maps.Clone(e.state.names)
+			nextState := *e.catalog.state
+			nextState.descriptors = maps.Clone(e.catalog.state.descriptors)
+			nextState.names = maps.Clone(e.catalog.state.names)
 			next := *d
 			next.revision++
 			expectedAddress := d.address
@@ -104,7 +104,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				nextState.epoch++
 			}
 			nextState.descriptors[expectedAddress] = &next
-			e.state = &nextState
+			e.catalog.state = &nextState
 			before, rowCounter, versionCounter := e.commitSeq, e.nextRow, e.nextVersion
 			e.mu.Unlock()
 			e.endLockOwner(holder.transactions.ticket)
@@ -121,12 +121,12 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
-			if e.state.descriptors[expectedAddress] != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.populated {
+			if e.catalog.state.descriptors[expectedAddress] != &next || e.storage[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.nextRow != rowCounter || e.nextVersion != versionCounter || !next.populated {
 				t.Fatal("rejected queue changed current metadata/store/frontier/counters")
 			}
 			// Restore only the fixture epoch before normal session/transaction cleanup.
 			e.mu.Lock()
-			e.state.epoch = originalEpoch
+			e.catalog.state.epoch = originalEpoch
 			e.mu.Unlock()
 			scope.Finish(err)
 			transactionEnd(t, holder, tx, false)

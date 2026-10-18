@@ -35,7 +35,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 			// UNIQUE can create the parent and its indexes in this same candidate.
 			stage.descriptors[address] = &next
 		} else {
-			revision, err := e.revisionLocked()
+			revision, err := e.catalog.revisionLocked()
 			if err != nil {
 				return err
 			}

@@ -37,7 +37,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 				continue
 			}
 			s.truncateSequences = append(s.truncateSequences, truncateSequence{
-				ref:      e.domain.Ref(s.txRef.Epoch(), a),
+				ref:      e.catalog.domain.Ref(s.txRef.Epoch(), a),
 				relation: d, generator: e.sequenceGeneratorLocked(s, a), committed: e.sequences[a],
 			})
 		}
@@ -100,7 +100,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}

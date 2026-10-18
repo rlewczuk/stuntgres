@@ -157,7 +157,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		}
 		op.session.transactions.catalog = changes
 	} else {
-		e.state = &candidate
+		e.catalog.state = &candidate
 	}
 	e.installOperationRolesLocked(op, nextRoles)
 	return Result{}, nil

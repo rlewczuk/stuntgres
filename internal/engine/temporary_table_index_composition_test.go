@@ -24,7 +24,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				sessionSQL(t, owner, q)
 			}
 			var provider, survivor, index *relationDescriptor
-			for _, descriptor := range e.state.descriptors {
+			for _, descriptor := range e.catalog.state.descriptors {
 				if d, ok := descriptor.(*relationDescriptor); ok {
 					switch d.name {
 					case "composition_owner":
@@ -39,7 +39,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if provider == nil || survivor == nil || index == nil {
 				t.Fatal("missing genuine composition fixture")
 			}
-			originalCatalog := e.state
+			originalCatalog := e.catalog.state
 			originalIndex := index
 			if mode != "Ordinary" {
 				maximum := *index
@@ -48,9 +48,9 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 					maximum.revision--
 				}
 				index = &maximum
-				e.state = cloneCatalog(e.state)
-				e.state.descriptors[index.address] = index
-				t.Cleanup(func() { e.state = originalCatalog })
+				e.catalog.state = cloneCatalog(e.catalog.state)
+				e.catalog.state.descriptors[index.address] = index
+				t.Cleanup(func() { e.catalog.state = originalCatalog })
 			}
 			before := e.storage[survivor.address]
 			oldRows := before.versions
@@ -63,7 +63,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				_, _, _, err := stagePrivateColumnShape(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: stage.base}, stage, changes, old, next, nil, nil, transactionRoot{}, false, false)
 				return err
 			}
-			providerRef := e.domain.Ref(stage.base.Epoch(), provider.address)
+			providerRef := e.catalog.domain.Ref(stage.base.Epoch(), provider.address)
 			if err := stage.Remove(providerRef); err != nil {
 				t.Fatal(err)
 			}

@@ -97,7 +97,7 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 }
 
 func (e *Engine) generationNamespace(auth AuthorizationView, d *relationDescriptor) queryNamespace {
-	ref := e.domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
 	columns := make([]queryColumn, len(d.columns))
 	for i, c := range d.columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
@@ -113,7 +113,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *relati
 	b.noParameters = true
 	b.queryAuth = &auth
 	b.queryNamespace = ns
-	ref := e.domain.Ref(auth.catalog.Epoch(), d.address)
+	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.address)
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	column := d.columns[slot]
 	kind := d.generations[d.attributes[slot]].kind

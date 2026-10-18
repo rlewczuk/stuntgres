@@ -19,7 +19,7 @@ func pgDatabaseUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relati
 	if !ok {
 		t.Fatal("missing pg_database")
 	}
-	return source, e.domain.Ref(catalog.Epoch(), address)
+	return source, e.catalog.domain.Ref(catalog.Epoch(), address)
 }
 
 func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *querySource {
@@ -71,7 +71,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	d, ref := pgDatabaseUnitSource(t, e, catalog)
-	state, oid, revision := e.state, e.nextOID, e.nextRevision
+	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
 	rows := pgDatabaseUnitCapture(t, e, catalog)
 	row := rows.anonymous[0]
@@ -102,7 +102,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		t.Fatal("absent database ACL baseline", row[17], database.acl)
 	}
 	unchanged := func() {
-		if e.state != state || e.nextOID != oid || e.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}
@@ -118,7 +118,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		catalog CatalogRead
 		roles   authorization.Read
 		ref     ids.ObjectRef
-	}{{foreign.CatalogRead(), e.Roles(), ref}, {catalog, foreign.Roles(), ref}, {catalog, e.Roles(), foreign.domain.Ref(ref.Epoch, ref.Address)}} {
+	}{{foreign.CatalogRead(), e.Roles(), ref}, {catalog, foreign.Roles(), ref}, {catalog, e.Roles(), foreign.catalog.domain.Ref(ref.Epoch, ref.Address)}} {
 		if got, err := e.capturePGDatabase(context.Background(), tc.catalog, tc.roles, tc.ref, d); got != nil || err == nil {
 			t.Fatal("foreign capture admitted", got, err)
 		}

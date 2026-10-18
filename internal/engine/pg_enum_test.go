@@ -16,19 +16,19 @@ import (
 func TestPGEnumAllocatorBounds(t *testing.T) {
 	e := New()
 	for _, want := range []int64{1, 3} {
-		got, err := e.allocateEnumMemberLocked()
+		got, err := e.catalog.allocateEnumMemberLocked()
 		if err != nil || got != want {
 			t.Fatal("initial allocation", got, want, err)
 		}
 	}
-	e.nextEnumMember = math.MaxUint32 - 2
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != math.MaxUint32 {
+	e.catalog.nextEnumMember = math.MaxUint32 - 2
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != math.MaxUint32 {
 		t.Fatal("last OID", got, err)
 	}
 	for range 2 {
-		got, err := e.allocateEnumMemberLocked()
-		if got != 0 || err == nil || err.Error() != "stuntgres: enum member identity exhausted" || e.nextEnumMember != math.MaxUint32 {
-			t.Fatal("exhaustion wrapped/aliased", got, err, e.nextEnumMember)
+		got, err := e.catalog.allocateEnumMemberLocked()
+		if got != 0 || err == nil || err.Error() != "stuntgres: enum member identity exhausted" || e.catalog.nextEnumMember != math.MaxUint32 {
+			t.Fatal("exhaustion wrapped/aliased", got, err, e.catalog.nextEnumMember)
 		}
 	}
 	// Discard an actual CREATE candidate: rollback cannot recycle reservations.
@@ -37,13 +37,13 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 	stage := domainUnitStage(t, e, op, "CREATE TYPE abandoned AS ENUM ('a','b')")
 	e.DiscardCatalogStage(stage)
 	done()
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != 5 {
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != 5 {
 		t.Fatal("discard recycled reservation", got, err)
 	}
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != 7 {
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != 7 {
 		t.Fatal("Reset recycled reservation", got, err)
 	}
 	op, done = roleOperation(t, e, "postgres")
@@ -53,15 +53,15 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err != nil {
 		t.Fatal(err)
 	}
-	frontier := e.nextEnumMember
+	frontier := e.catalog.nextEnumMember
 	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	if e.nextEnumMember <= frontier {
-		t.Fatal("Restore reused reservations", frontier, e.nextEnumMember)
+	if e.catalog.nextEnumMember <= frontier {
+		t.Fatal("Restore reused reservations", frontier, e.catalog.nextEnumMember)
 	}
-	last := e.nextEnumMember
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != last+2 {
+	last := e.catalog.nextEnumMember
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != last+2 {
 		t.Fatal("post-Restore frontier", got, last, err)
 	}
 }
@@ -100,11 +100,11 @@ func TestPGEnumSortInsertion(t *testing.T) {
 func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3501}
-	d, ok := e.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_enum")
 	}
-	return d, e.domain.Ref(e.state.epoch, a)
+	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
 }
 
 func TestPGEnumShapeAndCapture(t *testing.T) {
@@ -124,8 +124,8 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 			t.Fatal("source column", i, c)
 		}
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045}].(*typeDescriptor)
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044}].(*typeDescriptor)
+	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045}].(*typeDescriptor)
+	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044}].(*typeDescriptor)
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 10044 || row.owner != d.owner || array.owner != d.owner {
 		t.Fatal("row/array ownership", row, array)
 	}
@@ -227,9 +227,9 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if rows, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 		t.Fatal("invalid shape", rows, err)
 	}
-	invalidOwner := *e.state
-	invalidOwner.descriptors = make(map[ids.ObjectAddress]Descriptor, len(e.state.descriptors))
-	for address, descriptor := range e.state.descriptors {
+	invalidOwner := *e.catalog.state
+	invalidOwner.descriptors = make(map[ids.ObjectAddress]Descriptor, len(e.catalog.state.descriptors))
+	for address, descriptor := range e.catalog.state.descriptors {
 		invalidOwner.descriptors[address] = descriptor
 	}
 	delete(invalidOwner.descriptors, mood.Address())
@@ -244,7 +244,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if rows, err := capturePGEnum(canceled, e.CatalogRead(), ref, d); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("canceled capture", rows, err)
 	}
-	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: len(e.state.descriptors) + 2}
+	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: len(e.catalog.state.descriptors) + 2}
 	if rows, err := capturePGEnum(during, e.CatalogRead(), ref, d); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("traversal cancellation", rows, err)
 	}

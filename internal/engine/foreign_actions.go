@@ -111,14 +111,14 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			}
 			jobs = append(jobs, foreignKeyJob{child: child, parent: parent, index: index, definition: f})
 			for _, a := range []ids.ObjectAddress{child.address, parent.address} {
-				ref := e.domain.Ref(auth.catalog.Epoch(), a)
+				ref := e.catalog.domain.Ref(auth.catalog.Epoch(), a)
 				if modes[ref] == 0 {
 					modes[ref] = relationRowShare
 				}
 			}
 			d := directions[f.Target]
 			if d&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade || d&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
-				modes[e.domain.Ref(auth.catalog.Epoch(), child.address)] = rowExclusive
+				modes[e.catalog.domain.Ref(auth.catalog.Epoch(), child.address)] = rowExclusive
 			}
 		}
 	}
@@ -192,7 +192,7 @@ func (s *StatementScope) settleForeignActions() error {
 	e := s.op.session.Engine()
 	// Borrow the initiating predecessor/successor images before any action merge.
 	for a, rows := range s.stage.rows {
-		ref := e.domain.Ref(auth.catalog.Epoch(), a)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), a)
 		image, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
@@ -213,7 +213,7 @@ func (s *StatementScope) settleForeignActions() error {
 		if root == nil {
 			continue
 		}
-		ref := e.domain.Ref(auth.catalog.Epoch(), a)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), a)
 		image, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err

@@ -14,7 +14,7 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, err
 	}
 	e.mu.Lock()
-	catalog := CatalogRead{owner: e, state: e.state}
+	catalog := CatalogRead{owner: e, state: e.catalog.state}
 	namespace, ok := catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema}]
 	if !ok {
 		e.mu.Unlock()
@@ -32,7 +32,7 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 	}
 	ready, valid, live := index.sqlIndex.publicationState()
 	wait, admitted := e.indexBuildWaits[address]
-	admitted = admitted && wait.owner.Domain() == e.domain && wait.owner.Epoch() == e.state.epoch && live && !valid
+	admitted = admitted && wait.owner.Domain() == e.catalog.domain && wait.owner.Epoch() == e.catalog.state.epoch && live && !valid
 	older := admitted && ready && wait.kind == indexWaitOlderSnapshots
 	writers := admitted && wait.kind == indexWaitWriters
 	e.mu.Unlock()

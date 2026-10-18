@@ -51,13 +51,13 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, install); err != nil {
 		t.Fatal("trusted explicit schema requires neither USAGE nor CREATE", err)
 	}
-	ext := e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
+	ext := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]].(*extensionDescriptor)
 	if ext.owner != actor.Ref {
 		t.Fatal("extension owner")
 	}
 	for _, a := range ext.members {
 		if a.ClassID != ids.TSTemplateClassID {
-			owner, _, _ := descriptorACL(e.state.descriptors[a])
+			owner, _, _ := descriptorACL(e.catalog.state.descriptors[a])
 			if owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 				t.Fatal("trusted member owner")
 			}
@@ -86,7 +86,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	_, err = binder.bindInstalledFunction(raw)
 	extensionUnitError(t, err, "42883")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.domain.Ref(e.state.epoch, ns.address), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.catalog.domain.Ref(e.catalog.state.epoch, ns.address), acl); err != nil {
 		t.Fatal(err)
 	}
 	binder = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
@@ -114,7 +114,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if err := extensionUnitExecute(t, e, admin, grant); err != nil {
 		t.Fatal(err)
 	}
-	db := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	if authorization.ACLRights(db.acl, db.owner, []authorization.PrincipalRef{actor.Ref}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege {
 		t.Fatal("grant option missing")
 	}
@@ -123,7 +123,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, delegated); err != nil {
 		t.Fatal(err)
 	}
-	db = e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db = e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	found := false
 	for _, entry := range db.acl.Entries {
 		if entry.Grantee.Public && entry.Grantor == actor.Ref && entry.Privileges&authorization.CreatePrivilege != 0 {
@@ -149,7 +149,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if _, err := e.replaceCatalog(context.Background(), replacement.CatalogRead(), admin); err != nil {
 		t.Fatal(err)
 	}
-	retained := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	retained := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	if retained != db || retained.name != "ext_authority" {
 		t.Fatal("replacement overwrote destination database")
 	}

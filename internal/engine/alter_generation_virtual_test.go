@@ -24,7 +24,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "g")
-	old := e.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	capture := func() *querySource {
 		t.Helper()
 		scope, err := e.StartStatement(admin)

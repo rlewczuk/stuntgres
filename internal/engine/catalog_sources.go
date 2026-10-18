@@ -259,7 +259,7 @@ func (e *Engine) initializeCatalogSources() error {
 		}
 		d.virtualView = spec.oid == pgLocksOID || spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
-			typ, ok := (CatalogRead{owner: e, state: e.state}).LookupType(column.typ)
+			typ, ok := (CatalogRead{owner: e, state: e.catalog.state}).LookupType(column.typ)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
@@ -378,17 +378,17 @@ func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddres
 
 func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	initializeCatalogAttributes(d)
-	if address, ok := e.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
-		row := e.state.descriptors[address].(*typeDescriptor)
+	if address, ok := e.catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
+		row := e.catalog.state.descriptors[address].(*typeDescriptor)
 		row.owningRelation, row.owner = d.address, d.owner
 		d.rowType = row.typ.ID()
 		if row.array != 0 {
-			array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+			array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
 			array.owningRelation, array.owner = d.address, d.owner
 		}
 	}
-	e.state.descriptors[d.address] = d
-	e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
+	e.catalog.state.descriptors[d.address] = d
+	e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.namespace, Name: d.name}] = d.address
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, roles authorization.Read, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {

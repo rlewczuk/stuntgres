@@ -35,7 +35,7 @@ func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key defaultACLKey, re
 		c.defaultACLs = make(map[defaultACLKey]*defaultACLRecord)
 	}
 	if _, exists := c.defaultOriginals[key]; !exists {
-		c.defaultOriginals[key] = e.state.defaultACLs[key]
+		c.defaultOriginals[key] = e.catalog.state.defaultACLs[key]
 	}
 	c.defaultACLs[key] = record
 	c.cachedBase = nil
@@ -145,7 +145,7 @@ func (e *Engine) creationACLChangesLocked(c *catalogChanges, view CatalogRead, o
 				c.defaultReads = make(map[defaultACLKey]*defaultACLRecord)
 			}
 			if _, exists := c.defaultReads[key]; !exists {
-				c.defaultReads[key] = e.state.defaultACLs[key]
+				c.defaultReads[key] = e.catalog.state.defaultACLs[key]
 			}
 		}
 		if schema == (ids.ObjectAddress{}) {

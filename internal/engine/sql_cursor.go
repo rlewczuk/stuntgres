@@ -273,7 +273,7 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 	if err := s.owner.validate(s.txRef); err != nil {
 		return err
 	}
-	if s.txRef.Epoch() != e.state.epoch {
+	if s.txRef.Epoch() != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
 	if err := s.validateLockedRelation(e); err != nil {

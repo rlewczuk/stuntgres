@@ -53,23 +53,23 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			next = &clone
 		}
 		c := &next.uniqueConstraints[i]
-		ref := e.domain.Ref(stage.base.Epoch(), old.Index)
+		ref := e.catalog.domain.Ref(stage.base.Epoch(), old.Index)
 		if err := stage.removeObjectLocked(ref, false); err != nil {
 			return nil, err
 		}
 		var err error
-		c.OID, err = e.allocateOIDLocked()
+		c.OID, err = e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
-		id, err := e.allocateOIDLocked()
+		id, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		clone := *index
 		clone.address = c.Index
-		clone.revision, err = e.revisionLocked()
+		clone.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}

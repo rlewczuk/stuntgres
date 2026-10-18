@@ -43,7 +43,7 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	}
 	partitionAttachUnitInstall(t, e, relations...)
 	get := func(d *relationDescriptor) *relationDescriptor {
-		return e.state.descriptors[d.address].(*relationDescriptor)
+		return e.catalog.state.descriptors[d.address].(*relationDescriptor)
 	}
 	return partitionDetachUnit{e, get(parent), get(child), get(def), get(leaf)}
 }
@@ -56,7 +56,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if kind == "default" {
 				child = f.def
 			}
-			before := f.e.state
+			before := f.e.catalog.state
 			stores := maps.Clone(f.e.storage)
 			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defer f.e.DiscardCatalogStage(stage)
@@ -78,7 +78,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if (p.partition.defaultChild == (ids.ObjectAddress{})) != (kind == "default") {
 				t.Fatal("wrong DEFAULT pointer")
 			}
-			if f.e.state != before || !maps.Equal(f.e.storage, stores) || len(f.parent.partition.children) != 2 || child.membership == nil {
+			if f.e.catalog.state != before || !maps.Equal(f.e.storage, stores) || len(f.parent.partition.children) != 2 || child.membership == nil {
 				t.Fatal("private stage mutated published graph/store")
 			}
 			if kind == "nested" && view.state.descriptors[f.leaf.address] != f.leaf {
@@ -182,13 +182,13 @@ func TestPartitionDetachPublication(t *testing.T) {
 				authority.mu.Unlock()
 			}
 			if veto == "revision" {
-				next := cloneCatalog(f.e.state)
+				next := cloneCatalog(f.e.catalog.state)
 				p := *f.parent
 				p.revision++
 				next.descriptors[p.address] = &p
-				f.e.state = next
+				f.e.catalog.state = next
 			}
-			before := f.e.state
+			before := f.e.catalog.state
 			stores, roots := maps.Clone(f.e.storage), maps.Clone(f.e.indexRoots)
 			if veto == "cancel" {
 				cancel()
@@ -199,7 +199,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				cancel()
-				if f.e.state.descriptors[f.child.address].(*relationDescriptor).membership != nil || !maps.Equal(stores, f.e.storage) {
+				if f.e.catalog.state.descriptors[f.child.address].(*relationDescriptor).membership != nil || !maps.Equal(stores, f.e.storage) {
 					t.Fatal("completed metadata publication lost store or attachment removal")
 				}
 				return
@@ -210,7 +210,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			if veto == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if f.e.state != before || !maps.Equal(stores, f.e.storage) || !maps.Equal(roots, f.e.indexRoots) {
+			if f.e.catalog.state != before || !maps.Equal(stores, f.e.storage) || !maps.Equal(roots, f.e.indexRoots) {
 				t.Fatal("veto partially published")
 			}
 		})

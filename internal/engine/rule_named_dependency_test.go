@@ -109,7 +109,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 			for _, cascade := range []bool{false, true} {
 				t.Run(fmt.Sprintf("modifier=%v/inferred=%v/cascade=%v", modifier, inferred, cascade), func(t *testing.T) {
 					e, session, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
-					before := e.state
+					before := e.catalog.state
 					op := alterConstraintOperation(t, session)
 					auth, err := op.Authorization()
 					if err != nil {
@@ -153,7 +153,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
-					if e.state != before || len(event.rules) != 2 || len(parent.uniqueConstraints) != 1 {
+					if e.catalog.state != before || len(event.rules) != 2 || len(parent.uniqueConstraints) != 1 {
 						t.Fatal("private retirement mutated published catalog")
 					}
 				})
@@ -227,7 +227,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			e, _, event, parent := ruleNamedDependencyFixture(t, modifier, false)
 			oldRule, oldConflict := ruleNamedDependencyAction(t, event, modifier)
 			oldConstraint := oldConflict.constraint
-			unchanged := cloneCatalog(e.state)
+			unchanged := cloneCatalog(e.catalog.state)
 			e.mu.Lock()
 			err := e.remapDefinitionOIDsLocked(unchanged)
 			e.mu.Unlock()
@@ -242,7 +242,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}); allocations != 0 {
 				t.Fatal("no-change constraint visitor allocated", allocations)
 			}
-			next := cloneCatalog(e.state)
+			next := cloneCatalog(e.catalog.state)
 			// Model an imported attached definition colliding with a descriptor
 			// identity. The real analyzed rule/provider graphs remain intact;
 			// the canonical import remint pass must propagate its chosen OID.

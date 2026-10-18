@@ -11,7 +11,7 @@ import (
 
 func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, stmt parser.Statement) error {
 	add := func(index *relationDescriptor) {
-		ref := auth.engine.domain.Ref(auth.catalog.Epoch(), index.address)
+		ref := auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), index.address)
 		if !slices.Contains(g.indexes, ref) {
 			g.indexes = append(g.indexes, ref)
 		}
@@ -120,7 +120,7 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *relationDes
 			return err
 		}
 	}
-	return stage.Remove(e.domain.Ref(stage.base.Epoch(), index.address))
+	return stage.Remove(e.catalog.domain.Ref(stage.base.Epoch(), index.address))
 }
 
 func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {

@@ -17,11 +17,11 @@ import (
 func pgOperatorUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2617}
-	d, ok := e.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
 	if !ok {
 		t.Fatal("missing pg_operator")
 	}
-	return d, e.domain.Ref(e.state.epoch, a)
+	return d, e.catalog.domain.Ref(e.catalog.state.epoch, a)
 }
 
 func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
@@ -125,12 +125,12 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(catalog, d); err != nil {
 		t.Fatal(err)
 	}
-	descriptors, names := maps.Clone(e.state.descriptors), maps.Clone(e.state.names)
+	descriptors, names := maps.Clone(e.catalog.state.descriptors), maps.Clone(e.catalog.state.names)
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, e.state.descriptors) || !maps.Equal(names, e.state.names) {
+	if rows.ref != ref || !maps.Equal(descriptors, e.catalog.state.descriptors) || !maps.Equal(names, e.catalog.state.names) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	bag := pgOperatorUnitBag(t, rows, d)

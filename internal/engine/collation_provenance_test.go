@@ -22,13 +22,13 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref := e.domain.Ref(before.Epoch(), address)
+	ref := e.catalog.domain.Ref(before.Epoch(), address)
 	expiredAddress := before.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "expired_provider"}]
 	expiredCapability, err := before.state.descriptors[expiredAddress].(*collationDescriptor).usage()
 	if err != nil {
 		t.Fatal(err)
 	}
-	expiredRef := e.domain.Ref(before.Epoch(), expiredAddress)
+	expiredRef := e.catalog.domain.Ref(before.Epoch(), expiredAddress)
 	sessionSQL(t, owner, `DROP COLLATION pg_temp.expired_provider`)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedRef := e.domain.Ref(before.Epoch(), seedAddress)
+	seedRef := e.catalog.domain.Ref(before.Epoch(), seedAddress)
 	if !storedCollationReferenceValid(view, consumer, seedRef, seedCapability) {
 		t.Fatal("lawful retained actual pinned seed rejected")
 	}
@@ -73,15 +73,15 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		ref        ids.ObjectRef
 		capability sqltype.CollationRef
 	}{
-		{"foreign engine", consumer, New().domain.Ref(ref.Epoch, address), capability},
-		{"zero epoch", consumer, e.domain.Ref(0, address), capability},
-		{"future epoch", consumer, e.domain.Ref(view.Epoch()+1, address), capability},
-		{"missing identity", consumer, e.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID + 100000}), capability},
-		{"wrong class", consumer, e.domain.Ref(ref.Epoch, consumer.Address()), capability},
-		{"wrong subid", consumer, e.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID, SubID: 1}), capability},
-		{"other physical owner", consumer, e.domain.Ref(ref.Epoch, foreignAddress), foreignCapability},
+		{"foreign engine", consumer, New().catalog.domain.Ref(ref.Epoch, address), capability},
+		{"zero epoch", consumer, e.catalog.domain.Ref(0, address), capability},
+		{"future epoch", consumer, e.catalog.domain.Ref(view.Epoch()+1, address), capability},
+		{"missing identity", consumer, e.catalog.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID + 100000}), capability},
+		{"wrong class", consumer, e.catalog.domain.Ref(ref.Epoch, consumer.Address()), capability},
+		{"wrong subid", consumer, e.catalog.domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: address.ObjectID, SubID: 1}), capability},
+		{"other physical owner", consumer, e.catalog.domain.Ref(ref.Epoch, foreignAddress), foreignCapability},
 		{"persistent consumer", permanent, ref, capability},
-		{"persistent dynamic target", consumer, e.domain.Ref(ref.Epoch, permanentAddress), permanentCapability},
+		{"persistent dynamic target", consumer, e.catalog.domain.Ref(ref.Epoch, permanentAddress), permanentCapability},
 		{"incompatible capability", consumer, ref, incompatible},
 		{"invalid capability", consumer, ref, sqltype.CollationRef{ID: uint32(address.ObjectID)}},
 	}

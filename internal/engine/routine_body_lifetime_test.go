@@ -139,7 +139,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	sourceOwner, sourceRevision := sourceCall.owner, sourceCall.revision
 	target := New()
 	retired := target.CatalogRead()
-	retiredRef := target.domain.Ref(retired.Epoch(), sourceCall.address)
+	retiredRef := target.catalog.domain.Ref(retired.Epoch(), sourceCall.address)
 	change, err := target.ReplaceCatalog(ctx, before)
 	if err != nil || !change.Replacement {
 		t.Fatal("replace genuine stored catalog", change, err)
@@ -178,7 +178,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			var selected ids.ObjectRef
 			if i == 0 {
 				for _, ref := range item.refs {
-					if ref.Domain() != target.domain || ref.Epoch != current.Epoch() {
+					if ref.Domain() != target.catalog.domain || ref.Epoch != current.Epoch() {
 						t.Fatal("DEFAULT manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {
@@ -192,7 +192,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 				probe.routineChecks = []expressionDependency{}
 				for _, dependency := range item.checks {
 					ref := dependency.ref
-					if ref.Domain() != target.domain || ref.Epoch != current.Epoch() {
+					if ref.Domain() != target.catalog.domain || ref.Epoch != current.Epoch() {
 						t.Fatal("view manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {

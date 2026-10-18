@@ -18,12 +18,12 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	// reconstructing the default graph would produce different authority.
 	setFixtureEdges(graph, append(fixtureEdges(graph)[1:], authorization.Membership{Role: source.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true, Inherit: false, Set: true}))
 	e.roles = graph
-	current := cloneCatalog(e.state)
+	current := cloneCatalog(e.catalog.state)
 	database := *current.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	database.owner = source.Ref
 	database.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}, {Grantor: member.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
 	current.descriptors[currentDatabaseAddress] = &database
-	e.state = current
+	e.catalog.state = current
 	edges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
 	entries := append([]authorization.ACLEntry(nil), database.acl.Entries...)
 	stage := e.restoreStage()
@@ -38,7 +38,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 			t.Fatal("restore membership provenance/options", fixtureEdges(stage.roles)[i], expected)
 		}
 	}
-	imported := stage.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	imported := stage.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	if imported.owner != (stage.authorizationDomain.Principal(source.Ref.ID())) || imported.acl.Explicit != database.acl.Explicit || len(imported.acl.Entries) != len(entries) {
 		t.Fatal("restore isolated database authority")
 	}
@@ -61,7 +61,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	if allowed, err := stage.Roles().InheritsRole(stage.authorizationDomain.Principal(member.Ref.ID()), sourceRead.Ref); err != nil || allowed {
 		t.Fatal("restore invented INHERIT", allowed, err)
 	}
-	if !reflect.DeepEqual(edges, fixtureEdges(graph)) || !reflect.DeepEqual(entries, database.acl.Entries) || e.state != current {
+	if !reflect.DeepEqual(edges, fixtureEdges(graph)) || !reflect.DeepEqual(entries, database.acl.Entries) || e.catalog.state != current {
 		t.Fatal("restore changed source shared state")
 	}
 	changedEdges := fixtureEdges(stage.roles)

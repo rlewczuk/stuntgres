@@ -124,8 +124,8 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	}
 	int4 := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}]
 	want := []expressionDependency{
-		{ref: e.domain.Ref(e.CatalogRead().Epoch(), typ.Address()), revision: typ.Revision()},
-		{ref: e.domain.Ref(e.CatalogRead().Epoch(), int4.Address()), revision: int4.Revision()},
+		{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), typ.Address()), revision: typ.Revision()},
+		{ref: e.catalog.domain.Ref(e.CatalogRead().Epoch(), int4.Address()), revision: int4.Revision()},
 	}
 	if !reflect.DeepEqual(c.operands, want) || !slices.Contains(c.qualified, ns) {
 		t.Fatal("mixed owner lost exact operand stamps or qualified authority", c)

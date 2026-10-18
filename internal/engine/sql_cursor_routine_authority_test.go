@@ -47,7 +47,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					case "missing":
 						c.routineDependencies = append(c.routineDependencies[:selected], c.routineDependencies[selected+1:]...)
 					case "foreign":
-						c.routineDependencies[selected].ref = New().domain.Ref(c.routineDependencies[selected].ref.Epoch, c.routineDependencies[selected].ref.Address)
+						c.routineDependencies[selected].ref = New().catalog.domain.Ref(c.routineDependencies[selected].ref.Epoch, c.routineDependencies[selected].ref.Address)
 					case "epoch":
 						c.routineDependencies[selected].ref.Epoch++
 					case "revision":

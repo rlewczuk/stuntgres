@@ -44,7 +44,7 @@ type serializablePublicationSnapshot struct {
 }
 
 func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot {
-	s := serializablePublicationSnapshot{catalog: e.state, descriptors: maps.Clone(e.state.descriptors), names: maps.Clone(e.state.names), namespaceGeneration: e.state.namespaceGeneration, revision: e.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.sequences), generators: make(map[ids.ObjectAddress]sequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
+	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Clone(e.catalog.state.descriptors), names: maps.Clone(e.catalog.state.names), namespaceGeneration: e.catalog.state.namespaceGeneration, revision: e.catalog.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.sequences), generators: make(map[ids.ObjectAddress]sequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
 	for address, store := range e.storage {
 		rows := append([]rowVersion(nil), store.versions[:cap(store.versions)]...)
 		for i := range rows {
@@ -66,7 +66,7 @@ func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot 
 	for address, generator := range e.sequences {
 		s.generators[address] = *generator
 	}
-	for class, provider := range e.providers {
+	for class, provider := range e.catalog.providers {
 		s.providers[class] = reflect.TypeOf(provider)
 	}
 	return s
@@ -74,7 +74,7 @@ func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot 
 func serializableRequirePublicationUnchanged(t *testing.T, e *Engine, before serializablePublicationSnapshot) {
 	t.Helper()
 	after := serializableSnapshotPublication(e)
-	if e.state != before.catalog || !maps.Equal(e.sequences, before.sequences) {
+	if e.catalog.state != before.catalog || !maps.Equal(e.sequences, before.sequences) {
 		t.Fatal("failed publication replaced catalog/generator identities")
 	}
 	for address, store := range before.storage {
@@ -113,7 +113,7 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	sessionSQL(t, setup, "INSERT INTO indexed VALUES(0)")
 	sessionSQL(t, setup, "CREATE SEQUENCE existing_s")
 	var validations atomic.Int32
-	e.providers[ids.RelationClassID] = alterDropProvider{e.providers[ids.RelationClassID], func() { validations.Add(1) }}
+	e.catalog.providers[ids.RelationClassID] = alterDropProvider{e.catalog.providers[ids.RelationClassID], func() { validations.Add(1) }}
 	sessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 	sessionSQL(t, a, "INSERT INTO indexed VALUES(7),(8)")
 	sessionSQL(t, a, "ALTER TABLE indexed ADD COLUMN marker INT DEFAULT 7")

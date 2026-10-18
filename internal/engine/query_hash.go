@@ -20,7 +20,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		return nil
 	}
 	data := source.view.read()
-	if data.catalog.state != e.state {
+	if data.catalog.state != e.catalog.state {
 		return nil
 	}
 	a := leaf.ref.Address
@@ -38,7 +38,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		if !index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live {
 			continue
 		}
-		live, ok := e.state.descriptors[address].(*relationDescriptor)
+		live, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 		if !ok || !sameIndexKeySemantics(index, live) {
 			continue
 		}

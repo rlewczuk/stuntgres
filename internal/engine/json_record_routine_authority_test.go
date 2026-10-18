@@ -106,7 +106,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.ref.Address == address {
 					selected++
-					if dependency.ref.Domain() != e.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
+					if dependency.ref.Domain() != e.catalog.domain || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.revision != captured.revision {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {

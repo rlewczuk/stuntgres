@@ -164,6 +164,6 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 	if structuralNull(definition.expression) {
 		return columnDefault{}, nil
 	}
-	definition.OID, err = e.allocateOIDLocked()
+	definition.OID, err = e.catalog.allocateOIDLocked()
 	return definition, err
 }

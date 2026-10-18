@@ -219,7 +219,7 @@ func (n transactionIdentityExpression) Eval(ctx ExprContext) (sqltype.Value, err
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.epoch {
 		return sqltype.Value{}, ErrCatalogReplaced
 	}
 	switch n.kind {

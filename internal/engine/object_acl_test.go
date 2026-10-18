@@ -99,7 +99,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 			t.Fatal(err)
 		}
 		domainUnitPublish(t, engine, stage)
-		ref := engine.domain.Ref(engine.CatalogRead().Epoch(), sequence.address)
+		ref := engine.catalog.domain.Ref(engine.CatalogRead().Epoch(), sequence.address)
 		want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 			objectACLUnitEntry(principal, principal, authorization.SelectPrivilege|authorization.UpdatePrivilege|authorization.UsagePrivilege, 0),
 			{Grantor: principal, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},

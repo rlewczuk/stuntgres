@@ -38,7 +38,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	if !ok || array.Name() != "_collision_1" || array.DatabaseName() != "_COLLISION_1" || array.Element() != domain.typ || array.ID() == domain.typ.ID() {
 		t.Fatal("collision association", array)
 	}
-	associated := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}].(*typeDescriptor)
+	associated := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}].(*typeDescriptor)
 	if associated.owner != domain.owner || associated.Namespace() != domain.Namespace() || associated.Revision() != domain.Revision() {
 		t.Fatal("association ownership", associated, domain)
 	}
@@ -96,7 +96,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	}
 	forged := *associated
 	forged.typ = foreignArray
-	broken = cloneCatalog(e.state)
+	broken = cloneCatalog(e.catalog.state)
 	broken.descriptors[associated.Address()] = &forged
 	if err := (typeProvider{}).Validate(CatalogRead{owner: e, state: broken}, &forged); err == nil {
 		t.Fatal("foreign array element accepted")
@@ -210,13 +210,13 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	}
 	original := &relationStorage{generation: 2, versions: []rowVersion{{row: 42, version: 99, born: 1, values: []sqltype.Value{value}}}}
 	storage := map[ids.ObjectAddress]*relationStorage{table.address: original}
-	next := cloneCatalog(e.state)
+	next := cloneCatalog(e.catalog.state)
 	fresh := New()
 	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
 	// Replace only the builtin scalar generation, retaining this catalog's
 	// principal authority; a foreign descriptor would invalidate its array owner.
 	reboundRegclass := *next.descriptors[regclassAddress].(*typeDescriptor)
-	reboundRegclass.typ = fresh.state.descriptors[regclassAddress].(*typeDescriptor).typ
+	reboundRegclass.typ = fresh.catalog.state.descriptors[regclassAddress].(*typeDescriptor).typ
 	next.descriptors[regclassAddress] = &reboundRegclass
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.address: {ClassID: ids.RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.typ, rcArray, whole.typ, wholeArray, nested.typ, nestedArray} {
@@ -297,17 +297,17 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *relationDescriptor) *relationDescriptor {
 	t.Helper()
 	e.mu.Lock()
-	nsOID, err := e.allocateOIDLocked()
+	nsOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	tableOID, err := e.allocateOIDLocked()
+	tableOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -415,7 +415,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		}
 	}
 	for _, descriptor := range current.state.descriptors {
-		if err := e.providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
+		if err := e.catalog.providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
 			t.Fatal("invalid retained provider", descriptor.Address(), descriptor.Name(), err)
 		}
 	}
@@ -491,8 +491,8 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	}
 	before := e.CatalogRead()
 	oldStore := e.storage[table.address]
-	frontier := e.nextOID
-	revision := e.nextRevision
+	frontier := e.catalog.nextOID
+	revision := e.catalog.nextRevision
 	unrelated := New()
 	actor, finish := roleOperation(t, unrelated, "postgres")
 	domainUnitPublish(t, unrelated, domainUnitStage(t, unrelated, actor, "CREATE DOMAIN public.array_temp_di AS INT"))
@@ -509,7 +509,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		if err == nil || errors.As(err, &diagnostic) || err.Error() != "stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported" {
 			t.Fatal("ordinary boundary", err)
 		}
-		if e.CatalogRead().state != before.state || e.storage[table.address] != oldStore || e.nextOID != frontier || e.nextRevision != revision || before.state.descriptors[table.address] != table || held.Schema()[0].Usage.Type != typ {
+		if e.CatalogRead().state != before.state || e.storage[table.address] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.state.descriptors[table.address] != table || held.Schema()[0].Usage.Type != typ {
 			t.Fatal("rejected replacement changed target state")
 		}
 		domain, _ := before.LookupType(typ.Element().ID())

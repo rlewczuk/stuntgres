@@ -15,7 +15,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE INDEX refresh_source_idx ON refresh_source(v)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
 					sessionSQL(t, s, q)
 				}
-				base, frontier := e.state, e.commitSeq
+				base, frontier := e.catalog.state, e.commitSeq
 				source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 				index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
 				indexRoot := e.indexRoots[index.Address]
@@ -33,7 +33,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				e.mu.Unlock()
 				target := catalogRef(t, e, view, name)
 				original := e.storage[target.Address]
-				originalDescriptor := e.state.descriptors[target.Address]
+				originalDescriptor := e.catalog.state.descriptors[target.Address]
 				var root []rowVersion
 				var ends *deletionRoot
 				var generation uint64
@@ -70,7 +70,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 							t.Fatal("replacement row born before true end", row)
 						}
 					}
-					if e.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.state.descriptors[target.Address] != originalDescriptor || e.indexRoots[index.Address] != indexRoot {
+					if e.catalog.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.catalog.state.descriptors[target.Address] != originalDescriptor || e.indexRoots[index.Address] != indexRoot {
 						t.Fatal("replacement/source index escaped before message end")
 					}
 					previous = shape.replacement
@@ -93,7 +93,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err == nil || m.end(err) != err {
 						t.Fatal("late failure disposition", err)
 					}
-					if e.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.indexRoots[index.Address] != indexRoot || len(e.storage[source.Address].versions) != 1 {
+					if e.catalog.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.indexRoots[index.Address] != indexRoot || len(e.storage[source.Address].versions) != 1 {
 						t.Fatal("late failure published replacement/source/index")
 					}
 					for _, row := range latest.versions {
@@ -141,9 +141,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "epoch":
-				next := cloneCatalog(e.state)
+				next := cloneCatalog(e.catalog.state)
 				next.epoch++
-				e.state = next
+				e.catalog.state = next
 			case "ref":
 				stale := s.transactions.ref
 				stale = withTxID(stale, stale.ID()+1)
@@ -159,11 +159,11 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				copy := *original
 				e.storage[target.Address] = &copy
 			case "descriptor":
-				next := cloneCatalog(e.state)
+				next := cloneCatalog(e.catalog.state)
 				copy := *next.descriptors[target.Address].(*relationDescriptor)
 				copy.revision++
 				next.descriptors[target.Address] = &copy
-				e.state = next
+				e.catalog.state = next
 			case "roles":
 				copy := *e.roles
 				copy.revision++
@@ -171,9 +171,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "source_index_generation":
 				e.storage[source.Address].generation++
 			}
-			state, store, frontier := e.state, e.storage[target.Address], e.commitSeq
+			state, store, frontier := e.catalog.state, e.storage[target.Address], e.commitSeq
 			err = m.end(err)
-			if err == nil || e.state != state || e.storage[target.Address] != store || e.commitSeq != frontier || e.indexRoots[index.Address] != indexRoot || e.indexRoots[pending.Address] != nil || len(e.storage[source.Address].versions) != 1 {
+			if err == nil || e.catalog.state != state || e.storage[target.Address] != store || e.commitSeq != frontier || e.indexRoots[index.Address] != indexRoot || e.indexRoots[pending.Address] != nil || len(e.storage[source.Address].versions) != 1 {
 				t.Fatal("rejected replacement published rows/catalog/index", err)
 			}
 			if fence == "cancel" && !errors.Is(err, context.Canceled) || fence == "epoch" && !errors.Is(err, ErrCatalogReplaced) {

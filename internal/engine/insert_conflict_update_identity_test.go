@@ -120,9 +120,9 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			check := func(name string, mutate func(), want error) {
 				t.Helper()
 				e.mu.Lock()
-				catalog, storage := e.state, e.storage[ref.Address]
+				catalog, storage := e.catalog.state, e.storage[ref.Address]
 				defer func() {
-					e.state = catalog
+					e.catalog.state = catalog
 					e.storage[ref.Address] = storage
 					e.mu.Unlock()
 				}()
@@ -132,14 +132,14 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				}
 			}
 			replacement := func(shapeChange bool) {
-				catalog := cloneCatalog(e.state)
+				catalog := cloneCatalog(e.catalog.state)
 				relation := *catalog.descriptors[ref.Address].(*relationDescriptor)
 				if shapeChange {
 					relation.columns = relation.columns[:1]
 					relation.attributes = relation.attributes[:1]
 				}
 				catalog.descriptors[ref.Address] = &relation
-				e.state = catalog
+				e.catalog.state = catalog
 			}
 			// AuthorizationAfterWait supplies the real SQL REVOKE witness.
 			// Here distinguish its shape-preserving descriptor replacement
@@ -157,9 +157,9 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				}, ErrCatalogReplaced)
 			}
 			check("catalog epoch replacement", func() {
-				catalog := cloneCatalog(e.state)
+				catalog := cloneCatalog(e.catalog.state)
 				catalog.epoch++
-				e.state = catalog
+				e.catalog.state = catalog
 			}, ErrCatalogReplaced)
 			if err := scope.Finish(rollback); err != rollback {
 				t.Fatal(err)

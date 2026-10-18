@@ -91,11 +91,11 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				sequenceScalar(t, peer, "SELECT nextval('kept')", 30)
 				_, description := sequencePreparedDescription(t, target, peer, "SELECT nextval('kept')")
 				tempRef := description.sequences.constants[0].ref
-				temp := target.state.descriptors[tempRef.Address]
+				temp := target.catalog.state.descriptors[tempRef.Address]
 				if _, err := target.ReplaceCatalog(ctx, before); err != nil {
 					t.Fatal(err)
 				}
-				if target.state.descriptors[tempRef.Address] != temp {
+				if target.catalog.state.descriptors[tempRef.Address] != temp {
 					t.Fatal("replacement changed retained TEMP descriptor")
 				}
 				sessionSQL(t, peer, "UPDATE t SET a=0")

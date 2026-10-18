@@ -50,7 +50,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		t.Fatal(project.Schema())
 	}
 	column := project.expressions[1].(columnExpression)
-	if column.origin.Domain() != e.domain || column.origin.Address.SubID != 2 || column.slot != 1 || column.scope == 0 || column.frame == 0 || column.SourcePosition().Character != 11 {
+	if column.origin.Domain() != e.catalog.domain || column.origin.Address.SubID != 2 || column.slot != 1 || column.scope == 0 || column.frame == 0 || column.SourcePosition().Character != 11 {
 		t.Fatal(column)
 	}
 	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != Immutable || !project.expressions[0].Properties().ParameterDependent {
@@ -58,7 +58,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	refs := map[ids.ObjectRef]bool{}
 	for _, d := range b.dependencies {
-		if refs[d.ref] || d.ref.Domain() != e.domain || d.revision == 0 {
+		if refs[d.ref] || d.ref.Domain() != e.catalog.domain || d.revision == 0 {
 			t.Fatal(d)
 		}
 		refs[d.ref] = true
@@ -206,13 +206,13 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 		}
 		r.Rows.Close()
 	}
-	before := e.state
+	before := e.catalog.state
 	for _, q := range []string{"SELECT id FROM secret", "SELECT 7 FROM secret WHERE f", "SELECT 7 FROM secret ORDER BY id", "SELECT v FROM secret WHERE id=1", "SELECT id+v FROM secret", "SELECT v+1 FROM secret WHERE id+1=2"} {
 		if _, err := e.Describe(op, statement(t, q)); err != nil {
 			t.Fatal("ACL moved into Prepare", err)
 		}
 		roleError(t, e, op, q, "42501", "permission denied for table secret", "")
-		if e.state != before {
+		if e.catalog.state != before {
 			t.Fatal("denial mutated catalog")
 		}
 	}

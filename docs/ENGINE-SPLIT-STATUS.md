@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `2ae77489b`.
+Last verified against `master` at `081ea0328`.
 
 ## Next ready sub-steps
 
@@ -15,10 +15,12 @@ Last verified against `master` at `2ae77489b`.
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
 - **F4/F5** — port Tier A, Tier B and aggregate families one at a time
   (needs F3 ✓).
-- **5a** — `catalogStore` state ownership (needs 1 ✓, 2b ✓).
+- **5b** — typed read API, map reads migrated, writes confined, cut 1
+  (needs 5a ✓) *(broad rewrite)*.
 
-They may run in parallel on separate branches, except that 2d, 4c and F2 must
-not run alongside each other or another broad rewrite or alias removal (§8).
+They may run in parallel on separate branches, except that 2d, 4c, F2 and 5b
+must not run alongside each other or another broad rewrite or alias removal
+(§8).
 
 ## Task tree
 
@@ -91,7 +93,9 @@ not run alongside each other or another broad rewrite or alias removal (§8).
   - [ ] 4c — Aliases removed
 - [ ] **Step 5 — `catalog`** ([prompt](ENGINE-SPLIT-catalog.md); needs 1,
   2b)
-  - [ ] 5a — `catalogStore` state ownership
+  - [x] 5a — `catalogStore` state ownership (`41d5fbda9`, `9a0e50246`,
+    then the docs commit) *(full racecheck skipped at user request; targeted
+    RACE=1 runs passed)*
   - [ ] 5b — Typed read API, map reads migrated, writes confined, cut 1
     *(broad rewrite)*
   - [ ] 5c — View, rule, policy, extension-provider and expression payload

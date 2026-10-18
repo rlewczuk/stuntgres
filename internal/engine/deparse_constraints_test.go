@@ -301,11 +301,11 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	if _, err := (pgRenderer{view: current}).sql(context.Background(), node, pgRenderParent{}); err == nil {
 		t.Fatal("Var accepted with zero relation")
 	}
-	before := e.nextOID
+	before := e.catalog.nextOID
 	if _, err := testDescribe(e, statement(t, "SELECT pg_get_expr($1,$2,$3)")); err != nil {
 		t.Fatal(err)
 	}
-	if e.nextOID != before {
+	if e.catalog.nextOID != before {
 		t.Fatal("Describe allocated definition identities")
 	}
 }
@@ -371,8 +371,8 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
 	for _, id := range []ids.OID{d.defaults[1].OID, d.notNullConstraints[0].OID, d.checkConstraints[0].OID} {
 		e.mu.Lock()
-		e.nextOID = id
-		next, err := e.allocateOIDLocked()
+		e.catalog.nextOID = id
+		next, err := e.catalog.allocateOIDLocked()
 		e.mu.Unlock()
 		if err != nil || next == id || definitionOIDUsed(d, next) {
 			t.Fatal(id, next, err)

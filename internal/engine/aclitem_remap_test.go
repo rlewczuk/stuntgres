@@ -74,7 +74,7 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 		t.Fatal("foreign coincident IDs imported")
 	}
 	// The literal retagger must apply ACL import even without type changes.
-	next := cloneCatalog(source.state)
+	next := cloneCatalog(source.catalog.state)
 	next.aclItemImport = importer
 	literal := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
 	rebound, changed, err := retagBoundTypes(CatalogRead{target, next}, literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
@@ -145,23 +145,23 @@ func TestACLItemRestoreFence(t *testing.T) {
 	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource.CatalogRead(), nil); err != nil {
 		t.Fatal(err)
 	}
-	if freshTarget.state.aclItemImport != nil || freshSource.state.aclItemImport != nil {
+	if freshTarget.catalog.state.aclItemImport != nil || freshSource.catalog.state.aclItemImport != nil {
 		t.Fatal("import callback published")
 	}
 	aclUnitRoles(freshSource, "acl_missing_target")
 	freshSource.mu.Lock()
-	public := freshSource.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
+	public := freshSource.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}].(*namespaceDescriptor)
 	copy := *public
-	role, _ := freshSource.roleRead(CatalogRead{freshSource, freshSource.state}, freshSource.roles).Lookup("acl_missing_target")
+	role, _ := freshSource.roleRead(CatalogRead{freshSource, freshSource.catalog.state}, freshSource.roles).Lookup("acl_missing_target")
 	copy.owner = role.Ref
-	freshSource.state = cloneCatalog(freshSource.state)
-	freshSource.state.descriptors[copy.address] = &copy
+	freshSource.catalog.state = cloneCatalog(freshSource.catalog.state)
+	freshSource.catalog.state.descriptors[copy.address] = &copy
 	freshSource.mu.Unlock()
-	before := freshTarget.state
+	before := freshTarget.catalog.state
 	if _, err := freshTarget.replaceCatalog(context.Background(), freshSource.CatalogRead(), nil); err == nil {
 		t.Fatal("missing target principal admitted")
 	}
-	if freshTarget.state != before || freshTarget.state.aclItemImport != nil || freshSource.state.aclItemImport != nil {
+	if freshTarget.catalog.state != before || freshTarget.catalog.state.aclItemImport != nil || freshSource.catalog.state.aclItemImport != nil {
 		t.Fatal("failure published state/import callback")
 	}
 }

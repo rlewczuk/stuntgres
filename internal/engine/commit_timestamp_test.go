@@ -13,7 +13,7 @@ import (
 )
 
 func commitTimeUnitRef(e *Engine, id ids.TxID) ids.TxRef {
-	return e.domain.Tx(ids.SessionToken{}, id, e.state.epoch, nil, 0)
+	return e.catalog.domain.Tx(ids.SessionToken{}, id, e.catalog.state.epoch, nil, 0)
 }
 
 func TestCommitTimeAssignment(t *testing.T) {
@@ -129,7 +129,7 @@ func TestCommitTimePublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				xid := e.visibility[ref].assignedXID
-				old := e.state
+				old := e.catalog.state
 				var prepared *PreparedCatalogPublication
 				var writes map[ids.ObjectAddress][]rowVersion
 				var rowStore *relationStorage
@@ -150,12 +150,12 @@ func TestCommitTimePublication(t *testing.T) {
 						if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: old.epoch}); err != nil {
 							t.Fatal(err)
 						}
-						old = e.state
+						old = e.catalog.state
 						value, err := sqltype.Integer(d.columns[0].Usage.Type, 7)
 						if err != nil {
 							t.Fatal(err)
 						}
-						versions, err := e.allocateRowVersionsLocked([][]sqltype.Value{{value}}, e.state)
+						versions, err := e.allocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.state)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -213,7 +213,7 @@ func TestCommitTimePublication(t *testing.T) {
 				observed := make(chan [3]bool, 1)
 				go func() {
 					e.mu.Lock()
-					snapshot := [3]bool{e.state != old, rowStore != nil && len(rowStore.versions) != 0, e.lastCommittedXID == xid && e.commitTimestamps[uint64(xid)].present}
+					snapshot := [3]bool{e.catalog.state != old, rowStore != nil && len(rowStore.versions) != 0, e.lastCommittedXID == xid && e.commitTimestamps[uint64(xid)].present}
 					e.mu.Unlock()
 					observed <- snapshot
 				}()
@@ -237,7 +237,7 @@ func TestCommitTimePublication(t *testing.T) {
 					t.Fatal("publication observer did not finish")
 				}
 				if !committed {
-					if !errors.Is(err, context.Canceled) || e.lastCommittedXID != 0 || e.commitTimestamps[uint64(xid)].present || e.state != old {
+					if !errors.Is(err, context.Canceled) || e.lastCommittedXID != 0 || e.commitTimestamps[uint64(xid)].present || e.catalog.state != old {
 						t.Fatal("failed publication leaked a commit", err)
 					}
 				} else {

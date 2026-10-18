@@ -13,7 +13,7 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", ""))
-	return e, e.state.descriptors[e.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
+	return e, e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}]].(*extensionDescriptor)
 }
 
 func TestIntaggProviderManifest(t *testing.T) {
@@ -51,7 +51,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			func(p *procedureDescriptor) { p.provider = stockUnaccent }, func(p *procedureDescriptor) { p.queryCodec = stockIntarray },
 			func(p *procedureDescriptor) { p.intagg = &intaggProvider{version: "1.1"} },
 		} {
-			state := cloneCatalog(e.state)
+			state := cloneCatalog(e.catalog.state)
 			bad := *proc
 			mutate(&bad)
 			state.descriptors[address] = &bad
@@ -93,10 +93,10 @@ func TestIntaggProviderManifest(t *testing.T) {
 			op, done := roleOperation(t, other, "postgres")
 			defer done()
 			extensionUnitPublish(t, other, op, intarrayUnitStage(t, other, op, name, ""))
-			installed := other.state.descriptors[other.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}]].(*extensionDescriptor)
+			installed := other.catalog.state.descriptors[other.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}]].(*extensionDescriptor)
 			var member *procedureDescriptor
 			for _, address := range installed.members {
-				if proc, ok := other.state.descriptors[address].(*procedureDescriptor); ok {
+				if proc, ok := other.catalog.state.descriptors[address].(*procedureDescriptor); ok {
 					member = proc
 					break
 				}
@@ -104,7 +104,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			if member == nil {
 				t.Fatal("missing procedure fixture")
 			}
-			state := cloneCatalog(other.state)
+			state := cloneCatalog(other.catalog.state)
 			bad := *member
 			bad.intagg = stockIntagg
 			state.descriptors[member.address] = &bad

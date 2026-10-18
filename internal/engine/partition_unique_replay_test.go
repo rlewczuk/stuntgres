@@ -48,8 +48,8 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *relationDe
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.address, true)
 	li := index(leaf, 47205, "unique_replay_leaf_plain", mi.address, true)
 	partitionAttachUnitInstall(t, e, root, mid, leaf, ri, mi, li)
-	mid = e.state.descriptors[mid.address].(*relationDescriptor)
-	leaf = e.state.descriptors[leaf.address].(*relationDescriptor)
+	mid = e.catalog.state.descriptors[mid.address].(*relationDescriptor)
+	leaf = e.catalog.state.descriptors[leaf.address].(*relationDescriptor)
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: mid.name}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUnique, Unique: &parser.UniqueConstraint{Name: parser.Identifier{Text: "__stuntgres_partition_key_1"}, Columns: []parser.Identifier{{Text: "k"}}, Primary: primary}}}}
 	return e, mid, leaf, raw
 }
@@ -83,11 +83,11 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	raw.Actions[0].Unique.Columns[0].Text = "k"
 	changed := *leaf
 	changed.revision++
-	e.state.descriptors[leaf.address] = &changed
+	e.catalog.state.descriptors[leaf.address] = &changed
 	if partitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed subtree authorized")
 	}
-	e.state.descriptors[leaf.address] = leaf
+	e.catalog.state.descriptors[leaf.address] = leaf
 	op.restorePartitionUnique = nil
 	if partitionConsumerBoundary(op, auth, raw, mid) == nil {
 		t.Fatal("public hierarchy ADD widened")
@@ -106,7 +106,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err := scope.acquireRelation(raw, true); err != nil {
 					t.Fatal(err)
 				}
-				before := e.state
+				before := e.catalog.state
 				e.mu.Lock()
 				auth, err := e.statementAuthorizationLocked(op, raw)
 				if err != nil {
@@ -117,7 +117,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.state != before {
+				if e.catalog.state != before {
 					t.Fatal("private staging published before Finish")
 				}
 				if cancel {
@@ -126,7 +126,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				err = scope.Finish(nil)
 				op.Done()
 				if cancel {
-					if err == nil || e.state != before {
+					if err == nil || e.catalog.state != before {
 						t.Fatal("canceled origin published", err)
 					}
 					return
@@ -134,17 +134,17 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				current := e.state.descriptors[mid.address].(*relationDescriptor)
-				child := e.state.descriptors[leaf.address].(*relationDescriptor)
+				current := e.catalog.state.descriptors[mid.address].(*relationDescriptor)
+				child := e.catalog.state.descriptors[leaf.address].(*relationDescriptor)
 				if len(current.uniqueConstraints) != 1 || len(child.uniqueConstraints) != 1 || child.uniqueConstraints[0].Parent != current.uniqueConstraints[0].OID {
 					t.Fatal("missing real constraint ancestry")
 				}
-				rootIndex := e.state.descriptors[current.uniqueConstraints[0].Index].(*relationDescriptor)
-				childIndex := e.state.descriptors[child.uniqueConstraints[0].Index].(*relationDescriptor)
+				rootIndex := e.catalog.state.descriptors[current.uniqueConstraints[0].Index].(*relationDescriptor)
+				childIndex := e.catalog.state.descriptors[child.uniqueConstraints[0].Index].(*relationDescriptor)
 				if !rootIndex.sqlIndex.valid || childIndex.sqlIndex.partitionParent != rootIndex.address || childIndex.sqlIndex.constraint.Index != child.uniqueConstraints[0].Index || childIndex.sqlIndex.constraint.Primary != primary {
 					t.Fatal("wrong local backing tree")
 				}
-				if e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}] != before.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}] || e.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}] != before.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}] {
+				if e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}] != before.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}] || e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}] != before.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}] {
 					t.Fatal("attached plain tree consumed")
 				}
 				if len(child.notNullConstraints) != len(leaf.notNullConstraints) || len(current.notNullConstraints) != len(mid.notNullConstraints) {

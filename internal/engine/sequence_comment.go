@@ -43,7 +43,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 		return Result{}, ErrCatalogReplaced
 	}
 	next := *old
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return Result{}, err
 	}
@@ -53,7 +53,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	e.catalogChangeLocked(changes, ref.Address, &next)
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.state.descriptors[ref.Address])
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
 	scope.catalog = changes
 	return Result{}, nil
 }

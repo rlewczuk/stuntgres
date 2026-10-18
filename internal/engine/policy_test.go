@@ -135,7 +135,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	next := *d
 	next.revision++
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	next := *d
 	next.revision++
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err = validatePolicies(view, copied); err != nil {
 		t.Fatal(err)
 	}
-	if p.using == expression || expression.presentation.sources[0].ref.Domain() != e.domain {
+	if p.using == expression || expression.presentation.sources[0].ref.Domain() != e.catalog.domain {
 		t.Fatal("remap mutated original expression")
 	}
 	originalSQL, err := policyExpressionSQL(context.Background(), e.CatalogRead(), expression)
@@ -246,7 +246,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			oid, err := e.allocateOIDLocked()
+			oid, err := e.catalog.allocateOIDLocked()
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

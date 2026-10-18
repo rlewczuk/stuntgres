@@ -207,7 +207,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if err := s.validateLockedRelation(e); err != nil {
 		return rowVersion{}, nil, "", false, err
 	}
-	if ref.Epoch != e.state.epoch {
+	if ref.Epoch != e.catalog.state.epoch {
 		return rowVersion{}, nil, "", false, ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)

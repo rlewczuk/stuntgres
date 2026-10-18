@@ -32,7 +32,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "b", "a")
 	parent.attributes = []int32{2, 7}
 	child := inheritanceUnitRelation(e, "c", 22001, "a", "b", "local")
-	ref := e.domain.Ref(e.CatalogRead().Epoch(), parent.address)
+	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), parent.address)
 	ref.Address.SubID = 7
 	node := columnExpression{expressionInfo: expressionInfo{Usage: testUsage(e, sqltype.Int4)}, origin: ref, scope: 1, frame: 1, slot: 1}
 	mapper := createLikeInput{source: parent, targetSlots: []int{1, 0}}
@@ -208,7 +208,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 	p.columns[1].Usage = testUsage(e, sqltype.Text)
 	q := inheritanceUnitRelation(e, "q", 22001, "y", "a")
 	q.columns[0].Usage = testUsage(e, sqltype.Bool)
-	e.state = inheritanceUnitView(e, p, q).state
+	e.catalog.state = inheritanceUnitView(e, p, q).state
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	auth, err := op.Authorization()
@@ -247,7 +247,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	e := New()
 	d := inheritanceUnitRelation(e, "retained", 22000, "a")
 	v := e.CatalogRead()
-	oldRef := e.domain.Ref(v.Epoch(), d.address)
+	oldRef := e.catalog.domain.Ref(v.Epoch(), d.address)
 	oldRef.Address.SubID = 1
 	old := columnExpression{expressionInfo: expressionInfo{Usage: testUsage(e, sqltype.Int4)}, origin: oldRef, scope: 1, frame: 1, slot: 0}
 	state := cloneCatalog(v.state)

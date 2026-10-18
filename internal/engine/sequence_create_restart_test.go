@@ -106,7 +106,7 @@ func TestSequenceCreateRestart(t *testing.T) {
 					t.Fatal("CREATE", err, notices)
 				}
 				ref := catalogRef(t, e, e.CatalogRead(), "s")
-				d := e.state.descriptors[ref.Address].(*relationDescriptor)
+				d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				options := d.sequence
 				want := sequenceOptions{typ: tc.typ, increment: tc.increment, min: tc.min, max: tc.max, start: tc.start, cache: 1, persistence: "logged"}
 				if !reflect.DeepEqual(*options, want) || e.sequences[ref.Address].last != tc.initial || e.sequences[ref.Address].called || e.sequences[ref.Address].generation == 0 {
@@ -136,7 +136,7 @@ func TestSequenceCreateRestart(t *testing.T) {
 				}
 				sequenceCreateRestartRow(t, e, s, "s", tc.start, false)
 				sequenceScalar(t, s, "SELECT nextval('s')", tc.start)
-				if !reflect.DeepEqual(*options, want) || !reflect.DeepEqual(*e.state.descriptors[ref.Address].(*relationDescriptor).sequence, want) {
+				if !reflect.DeepEqual(*options, want) || !reflect.DeepEqual(*e.catalog.state.descriptors[ref.Address].(*relationDescriptor).sequence, want) {
 					t.Fatal("bare ALTER adopted initial restart as configured START")
 				}
 			})
@@ -179,7 +179,7 @@ func TestSequenceCreateRestartCache(t *testing.T) {
 					t.Fatal("first prepared demand", got)
 				}
 				ref := held.sequences.constants[0].ref
-				options := e.state.descriptors[ref.Address].(*relationDescriptor).sequence
+				options := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).sequence
 				want := sequenceOptions{typ: sqltype.Int8, increment: 1, min: 1, max: math.MaxInt64, start: 5, cache: 3, persistence: persistence.catalog}
 				if !reflect.DeepEqual(*options, want) {
 					t.Fatal("persistence/configured options", options, want)
@@ -351,14 +351,14 @@ func TestSequenceCreateRestartConstructorFailure(t *testing.T) {
 				want := "stuntgres: catalog object identity exhausted"
 				switch failure {
 				case "OID":
-					e.nextOID = 0
+					e.catalog.nextOID = 0
 				case "Revision":
-					e.nextRevision = ids.DefinitionRevision(^uint64(0))
+					e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
 					want = "stuntgres: catalog definition revision exhausted"
 				case "Namespace":
-					state := cloneCatalog(e.state)
+					state := cloneCatalog(e.catalog.state)
 					state.namespaceGeneration = ^uint64(0)
-					e.state = state
+					e.catalog.state = state
 					query = "CREATE TEMP SEQUENCE failed START 5 RESTART 9"
 					want = "stuntgres: namespace invalidation generation exhausted"
 				}

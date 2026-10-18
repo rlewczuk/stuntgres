@@ -98,7 +98,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	owner, _ := f.e.Roles().Lookup("postgres")
 	f.parent.owner = owner.Ref
 	f.index.owner = owner.Ref
-	ref := f.e.domain.Ref(f.e.state.epoch, f.parent.address)
+	ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address)
 	acl := func(privileges authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
 	}

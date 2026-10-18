@@ -378,7 +378,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		}
 	}
 	e.mu.Lock()
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err == nil {
 		err = e.assignDefinitionOIDsLocked(&next)
 	}

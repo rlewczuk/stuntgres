@@ -70,7 +70,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
-	db := e.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
 	roles := e.roleRead(e.CatalogRead(), e.roles)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
@@ -152,14 +152,14 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.state.CurrentUser = reader
-	base, oid, revision := e.state, e.nextOID, e.nextRevision
+	base, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	changes := cloneCatalogChanges(s.transactions.catalog)
 	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)
 	e.mu.Unlock()
 	if err == nil || ref != (ids.ObjectRef{}) {
 		t.Fatal("lazy TEMP denial allocated namespace", ref, err)
 	}
-	if e.state != base || e.nextOID != oid || e.nextRevision != revision || len(changes.descriptors) != 0 || len(changes.names) != 0 || s.temporaryNamespace != (ids.ObjectAddress{}) {
+	if e.catalog.state != base || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || len(changes.descriptors) != 0 || len(changes.names) != 0 || s.temporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("TEMP denial consumed catalog identity or staged objects")
 	}
 }

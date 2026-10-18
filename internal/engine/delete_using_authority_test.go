@@ -109,7 +109,7 @@ func TestDeleteUsingReferenceKindDoesNotConferSourceLocks(t *testing.T) {
 	})
 	ref := catalogRef(t, e, e.CatalogRead(), "seq")
 	e.mu.Lock()
-	relation := e.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	err = e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{ref: ref, relation: relation, deleteReference: true}})
 	e.mu.Unlock()
 	waitsDiagnostic(t, err, "42809", `cannot lock rows in sequence "seq"`)

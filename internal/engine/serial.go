@@ -41,11 +41,11 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 		name := ownedSequenceName(table.name, table.columns[slot].Name, func(name string) bool {
 			return name == table.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: name})) != 0
 		})
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

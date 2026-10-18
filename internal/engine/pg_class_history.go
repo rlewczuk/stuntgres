@@ -54,7 +54,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 				stage.descriptors[address] = &next
 				return nil
 			}
-			revision, err := e.revisionLocked()
+			revision, err := e.catalog.revisionLocked()
 			if err != nil {
 				return err
 			}

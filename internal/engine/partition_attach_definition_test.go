@@ -111,7 +111,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	}
 	parent.partition = &partitionDefinition{keys: []partitionKeyEntry{{attribute: 1, usage: usage, class: class, comparison: ordering, label: "k"}}}
 	view := inheritanceUnitView(e, parent, child)
-	ref := e.domain.Ref(view.Epoch(), child.address)
+	ref := e.catalog.domain.Ref(view.Epoch(), child.address)
 	ref.Address.SubID = 1
 	key := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
 	boolean := testUsage(e, sqltype.Bool)

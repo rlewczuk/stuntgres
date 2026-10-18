@@ -51,15 +51,15 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	e := New()
 	old := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, old, "unit_u", "i", "")
-	old = e.state.descriptors[old.address].(*relationDescriptor)
+	old = e.catalog.state.descriptors[old.address].(*relationDescriptor)
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
 	storage := e.storage[old.address]
 	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.address: storage.versions}, singleGeneration: storage}
-	fence := materializedSourceFence{ref: e.domain.Ref(catalog.Epoch(), old.address), relation: old, storage: storage}
+	fence := materializedSourceFence{ref: e.catalog.domain.Ref(catalog.Epoch(), old.address), relation: old, storage: storage}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
-	if !materializedSourceCurrent(snapshot, old, e.state, e.storage[old.address]) || !e.materializedSourceFenceCurrent(fence) {
+	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.address]) || !e.materializedSourceFenceCurrent(fence) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := newCatalogChanges()
@@ -74,15 +74,15 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	}
 	changed := *current
 	changed.name = "renamed"
-	e.state.descriptors[current.address] = &changed
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.state, e.storage[old.address]) {
+	e.catalog.state.descriptors[current.address] = &changed
+	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[old.address]) {
 		t.Fatal("source definition retargeted")
 	}
-	e.state.descriptors[current.address] = current
+	e.catalog.state.descriptors[current.address] = current
 	e.mu.Unlock()
 	current = concurrentUnitReplace(t, e, current, refreshUnitRows(t, current, 3), false, true)
 	e.mu.Lock()
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.state, e.storage[current.address]) {
+	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage[current.address]) {
 		t.Fatal("plain rewrite bridged active source snapshot")
 	}
 	e.mu.Unlock()

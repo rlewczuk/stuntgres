@@ -156,7 +156,7 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 			_, await := indexMaintenanceAsync(t, e, utility, "REINDEX INDEX ix")
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			parent := e.domain.Ref(tx.Epoch(), index.sqlIndex.parent)
+			parent := e.catalog.domain.Ref(tx.Epoch(), index.sqlIndex.parent)
 			request := lockState.Resources[lockResource{ObjectRef: parent}].Pending[0]
 			share := request.Mode == relationShare
 			if !share {
@@ -195,15 +195,15 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if remove {
-		if err := stage.Remove(e.domain.Ref(base.Epoch(), old.address)); err != nil {
+		if err := stage.Remove(e.catalog.domain.Ref(base.Epoch(), old.address)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	var revision ids.DefinitionRevision
 	if err == nil {
-		revision, err = e.revisionLocked()
+		revision, err = e.catalog.revisionLocked()
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -280,7 +280,7 @@ func TestIndexMaintenanceMaintainRevokedDuringWait(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.state.descriptors[table.Address].(*relationDescriptor).owner
+	owner := e.catalog.state.descriptors[table.Address].(*relationDescriptor).owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
@@ -314,12 +314,12 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.state.descriptors[table.Address].(*relationDescriptor).owner
+	owner := e.catalog.state.descriptors[table.Address].(*relationDescriptor).owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
 	}
-	namespace := e.domain.Ref(e.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.catalog.domain.Ref(e.catalog.state.epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if err := await(); err != nil {
 				t.Fatal("same-incarnation compatible revision was rejected", err)
 			}
-			if e.state.descriptors[ref.Address] != &next || e.indexRoots[index.address] == oldRoot {
+			if e.catalog.state.descriptors[ref.Address] != &next || e.indexRoots[index.address] == oldRoot {
 				t.Fatal("grant did not retain the current descriptor and publish a real fresh root")
 			}
 			btreeWantKeys(t, e, "ix", "1", "2")

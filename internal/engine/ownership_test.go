@@ -167,7 +167,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	if err := stageOwnership(stage, ns, target); err == nil {
 		t.Fatal("metadata overflow accepted")
 	}
-	if len(stage.descriptors) != 0 || e.state.descriptors[ns.address] != ns {
+	if len(stage.descriptors) != 0 || e.catalog.state.descriptors[ns.address] != ns {
 		t.Fatal("overflow changed private/live descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -184,9 +184,9 @@ func TestRoleOwnershipEffectFreeDescription(t *testing.T) {
 	}
 	defer done()
 	for _, stmt := range []parser.Statement{&parser.AlterOwner{Kind: "table", Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent"}}}, Target: parser.RoleSpec{Name: "absent"}}, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "absent"}}, Target: parser.RoleSpec{Name: "absent"}}, &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "absent"}}}} {
-		before, roles := e.state, e.roles
+		before, roles := e.catalog.state, e.roles
 		description, err := e.Describe(op, stmt)
-		if err != nil || description.Parameters.Count != 0 || len(description.Parameters.Types) != 0 || len(description.Results) != 0 || e.state != before || e.roles != roles {
+		if err != nil || description.Parameters.Count != 0 || len(description.Parameters.Types) != 0 || len(description.Results) != 0 || e.catalog.state != before || e.roles != roles {
 			t.Fatal("description resolves or mutates ownership", description, err)
 		}
 	}
@@ -198,11 +198,11 @@ func TestRoleOwnershipDirectProviderProtection(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	for _, name := range []string{"pg_catalog.pg_class", "ownership_guard_idx", "ownership_guard_c"} {
-		before, roles := e.state, e.roles
+		before, roles := e.catalog.state, e.roles
 		if _, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE "+name+" OWNER TO ownership_target"), nil); err == nil {
 			t.Fatal("direct provider/backing ownership accepted", name)
 		}
-		if e.state != before || e.roles != roles {
+		if e.catalog.state != before || e.roles != roles {
 			t.Fatal("direct provider/backing mutation", name)
 		}
 	}

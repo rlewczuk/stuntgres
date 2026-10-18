@@ -30,7 +30,7 @@ func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*re
 	if !ok {
 		t.Fatal("missing pg_parameter_acl")
 	}
-	return d, e.domain.Ref(catalog.Epoch(), address)
+	return d, e.catalog.domain.Ref(catalog.Epoch(), address)
 }
 
 func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog CatalogRead, roles authorization.Read) *querySource {
@@ -144,7 +144,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	catalog, roles := e.CatalogRead(), e.Roles()
-	state, nextOID, revision := e.state, e.nextOID, e.nextRevision
+	state, nextOID, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Clone(state.descriptors), maps.Clone(state.names)
 	rows := pgParameterACLUnitCapture(t, e, catalog, roles)
 	if rows.count() != 2 {
@@ -168,7 +168,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 		}
 		pgParameterACLUnitEntries(t, e, row[2], want)
 	}
-	if e.state != state || e.nextOID != nextOID || e.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
+	if e.catalog.state != state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != revision || !maps.Equal(descriptors, state.descriptors) || !maps.Equal(names, state.names) {
 		t.Fatal("capture mutated owner roots/frontiers")
 	}
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
@@ -197,7 +197,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, seed); err != nil {
 		t.Fatal(err)
 	}
-	emptyAddress := e.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.empty"}]
+	emptyAddress := e.catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.empty"}]
 	seed.Revoke = true
 	seed.Privileges = []parser.GrantPrivilege{{All: true}}
 	seed.Grantees = []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "postgres"}}}
@@ -228,7 +228,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, seed); err != nil {
 		t.Fatal(err)
 	}
-	if _, exists := e.state.descriptors[emptyAddress]; exists {
+	if _, exists := e.catalog.state.descriptors[emptyAddress]; exists {
 		t.Fatal("baseline not removed")
 	}
 	implicit, err := e.pgClassACL(roles, d.columns[2].Usage.Type, authorization.ACLValue{})
@@ -271,7 +271,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if e.state == before.state || e.roles == scope.deparseAuth.roleRecord {
+	if e.catalog.state == before.state || e.roles == scope.deparseAuth.roleRecord {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.mu.Lock()
@@ -324,7 +324,7 @@ func TestPGParameterACLCancellation(t *testing.T) {
 	}
 	catalog, roles := e.CatalogRead(), e.Roles()
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
-	state, oid, revision := e.state, e.nextOID, e.nextRevision
+	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	for _, after := range []int{0, 3, len(catalog.state.descriptors)} {
 		ctx, cancel := context.WithCancel(context.Background())
 		if after == 0 {
@@ -336,7 +336,7 @@ func TestPGParameterACLCancellation(t *testing.T) {
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial/canceled capture", after, rows, err)
 		}
-		if e.state != state || e.nextOID != oid || e.nextRevision != revision {
+		if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
 			t.Fatal("cancellation mutated roots")
 		}
 	}

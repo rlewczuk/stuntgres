@@ -17,7 +17,7 @@ import (
 func catalogUnitOID(t *testing.T, e *Engine) ids.OID {
 	t.Helper()
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -160,8 +160,8 @@ func (testProvider) Validate(CatalogRead, Descriptor) error { return nil }
 
 func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 	e := New()
-	e.nextOID = ids.PGCatalogNamespaceOID
-	if n, err := e.allocateOIDLocked(); err != nil || n != ids.PGCatalogNamespaceOID+1 {
+	e.catalog.nextOID = ids.PGCatalogNamespaceOID
+	if n, err := e.catalog.allocateOIDLocked(); err != nil || n != ids.PGCatalogNamespaceOID+1 {
 		t.Fatalf("reserved OID skip: %d %v", n, err)
 	}
 	for _, class := range []ids.OID{ids.NamespaceClassID, ids.RelationClassID} {
@@ -171,28 +171,28 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			address := ids.ObjectAddress{ClassID: class, ObjectID: last}
 			// Exercise terminal occupancy through the allocator's actual catalog
 			// seam; exhaustion must not wrap, reuse or publish anything.
-			e.state = cloneCatalog(e.state)
+			e.catalog.state = cloneCatalog(e.catalog.state)
 			if class == ids.NamespaceClassID {
-				e.state.descriptors[address] = &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+				e.catalog.state.descriptors[address] = &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 			} else {
-				e.state.descriptors[address] = &relationDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
+				e.catalog.state.descriptors[address] = &relationDescriptor{address: address, name: "last", revision: 1, owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 			}
-			before := e.state
-			e.nextOID = last
-			if _, err := e.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.nextOID != 0 || e.state != before {
+			before := e.catalog.state
+			e.catalog.nextOID = last
+			if _, err := e.catalog.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.catalog.nextOID != 0 || e.catalog.state != before {
 				t.Fatal("occupied terminal OID did not exhaust without publication", err)
 			}
-			if _, err := e.allocateOIDLocked(); err == nil || e.nextOID != 0 || e.state != before {
+			if _, err := e.catalog.allocateOIDLocked(); err == nil || e.catalog.nextOID != 0 || e.catalog.state != before {
 				t.Fatal("exhausted allocator reused identity", err)
 			}
 		})
 	}
-	e.nextOID = 0
-	if _, err := e.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
+	e.catalog.nextOID = 0
+	if _, err := e.catalog.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
 		t.Fatalf("OID exhaustion: %v", err)
 	}
-	e.nextRevision = ids.DefinitionRevision(^uint64(0))
-	if _, err := e.revisionLocked(); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
+	e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
+	if _, err := e.catalog.revisionLocked(); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
 		t.Fatalf("revision exhaustion: %v", err)
 	}
 	if err := e.RegisterCatalogProvider(nil); err == nil {
@@ -259,11 +259,11 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	}
 	setEpoch := func(epoch ids.CatalogEpoch) {
 		e.mu.Lock()
-		next := cloneCatalog(e.state)
+		next := cloneCatalog(e.catalog.state)
 		next.epoch = epoch
 		err := e.reownCatalogExpressions(next, nil, false)
 		if err == nil {
-			e.state = next
+			e.catalog.state = next
 		}
 		e.mu.Unlock()
 		if err != nil {
@@ -621,7 +621,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	creation, creationErr := e.creationNamespace(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "new"}}})
 	e.mu.Unlock()
 	state(t, err, "42P01")
-	if creationErr != nil || creation.Domain() != e.domain || creation.Epoch != base.Epoch() {
+	if creationErr != nil || creation.Domain() != e.catalog.domain || creation.Epoch != base.Epoch() {
 		t.Fatalf("retained creation view: %#v, %v", creation, creationErr)
 	}
 	stage := e.BeginCatalogStage(base)
@@ -665,9 +665,9 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	run(t, target, "INSERT INTO public.t VALUES (11)")
 	sourceView, old := source.CatalogRead(), target.CatalogRead()
 	sourceRef, oldRef := catalogRef(t, source, sourceView, "t"), catalogRef(t, target, old, "t")
-	owner := target.domain
+	owner := target.catalog.domain
 	changes, err := target.ReplaceCatalog(context.Background(), sourceView)
-	if err != nil || !changes.Replacement || target.domain != owner || target.CatalogRead().Epoch() != old.Epoch()+1 {
+	if err != nil || !changes.Replacement || target.catalog.domain != owner || target.CatalogRead().Epoch() != old.Epoch()+1 {
 		t.Fatalf("replacement ownership: %#v, %v", changes, err)
 	}
 	newRef := catalogRef(t, target, target.CatalogRead(), "t")
@@ -693,7 +693,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if err := target.Restore(context.Background(), strings.NewReader("nonsense")); err == nil {
 		t.Fatal("bad restore accepted")
 	}
-	if target.domain != owner || target.CatalogRead().state != before.state {
+	if target.catalog.domain != owner || target.CatalogRead().state != before.state {
 		t.Fatal("failed restore changed authority")
 	}
 	if err := target.ValidateObjectRef(before, newRef); err != nil {
@@ -706,7 +706,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if _, err := target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatalf("failed restore fenced eligible stage: %v", err)
 	}
-	if err := target.Reset(context.Background()); err != nil || target.domain != owner {
+	if err := target.Reset(context.Background()); err != nil || target.catalog.domain != owner {
 		t.Fatalf("reset ownership: %v", err)
 	}
 	if err := source.Reset(context.Background()); err != nil {
@@ -811,7 +811,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	run(t, e, "INSERT INTO public.t VALUES (11)")
 	before := e.CatalogRead()
 	ref := catalogRef(t, e, before, "t")
-	owner := e.domain
+	owner := e.catalog.domain
 	storage := e.storage[ref.Address]
 	stage := e.BeginCatalogStage(before)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -824,7 +824,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 		t.Fatalf("canceled self-replacement: changes=%#v error=%v", changes, err)
 	}
-	if e.domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
+	if e.catalog.domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
 		t.Fatal("canceled self-replacement changed owner/state/epoch/storage")
 	}
 	if err := e.ValidateObjectRef(before, ref); err != nil {
@@ -869,13 +869,13 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			before := e.CatalogRead()
 			sentinel := catalogRef(t, e, before, "sentinel")
-			owner := e.domain
+			owner := e.catalog.domain
 			sentinelStorage := e.storage[sentinel.Address]
 			publishedStorage := e.storage[d.address]
 			storageCount := len(e.storage)
 			assertUnchanged := func() {
 				t.Helper()
-				if e.domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage) != storageCount || e.storage[sentinel.Address] != sentinelStorage || e.storage[d.address] != publishedStorage {
+				if e.catalog.domain != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage) != storageCount || e.storage[sentinel.Address] != sentinelStorage || e.storage[d.address] != publishedStorage {
 					t.Fatal("lifecycle operation changed committed authority/storage")
 				}
 				rows := tuples(run(t, e, "SELECT id FROM public.sentinel"))

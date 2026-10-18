@@ -62,7 +62,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	}
 	for _, d := range view.state.descriptors {
 		if d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
-			if err := e.providers[d.Address().ClassID].Validate(view, d); err != nil {
+			if err := e.catalog.providers[d.Address().ClassID].Validate(view, d); err != nil {
 				t.Fatal(err)
 			}
 		}

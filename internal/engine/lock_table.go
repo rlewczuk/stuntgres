@@ -72,7 +72,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var ref ids.ObjectRef
-		if err == nil && s.txRef.Epoch() != e.state.epoch {
+		if err == nil && s.txRef.Epoch() != e.catalog.state.epoch {
 			err = ErrCatalogReplaced
 		}
 		if err == nil {
@@ -100,7 +100,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	}
 	e := s.op.session.Engine()
 	inspect := func() (*relationDescriptor, error) {
-		if ref.Domain() != e.domain || ref.Epoch != e.state.epoch || s.txRef.Epoch() != e.state.epoch {
+		if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || s.txRef.Epoch() != e.catalog.state.epoch {
 			return nil, ErrCatalogReplaced
 		}
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)

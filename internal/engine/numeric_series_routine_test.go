@@ -55,7 +55,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.ref.Address == address {
 					found = true
-					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.Domain() != e.domain {
+					if dependency.revision != captured.revision || dependency.ref.Epoch != evaluation.catalog.Epoch() || dependency.ref.Domain() != e.catalog.domain {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.ref.Address.ClassID == ids.ProcedureClassID {

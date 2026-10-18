@@ -26,11 +26,11 @@ var intaggMembers = [...]struct {
 func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.members = make([]ids.ObjectAddress, len(intaggMembers))
 	for i, member := range intaggMembers {
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
@@ -38,11 +38,11 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		ext.members[i] = address
 		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: Immutable, strict: member.strict, intagg: p}
 		if i == 0 {
-			state, err := e.allocateOIDLocked()
+			state, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
-			final, err := e.allocateOIDLocked()
+			final, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}

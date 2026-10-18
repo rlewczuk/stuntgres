@@ -578,7 +578,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				if scope.view != nil {
 					t.Error("INSERT captured data before planning/revalidation")
 				}
-				if scope.lockedRef.Domain() != e.domain || scope.lockedDescriptor == nil {
+				if scope.lockedRef.Domain() != e.catalog.domain || scope.lockedDescriptor == nil {
 					t.Error("INSERT lost locked relation identity")
 				}
 				switch mode {
@@ -590,7 +590,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					op.session.RequestEnd(CleanClose)
 				case "descriptor", "shape":
 					address := scope.lockedRef.Address
-					original := e.state.descriptors[address]
+					original := e.catalog.state.descriptors[address]
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
 					replacement.revision++
 					if mode == "shape" {
@@ -599,12 +599,12 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					} else {
 						replacement.comment = "compatible metadata revision"
 					}
-					e.state.descriptors[address] = &replacement
-					restore = func() { e.state.descriptors[address] = original }
+					e.catalog.state.descriptors[address] = &replacement
+					restore = func() { e.catalog.state.descriptors[address] = original }
 				case "epoch":
-					original := e.state.epoch
-					e.state.epoch++
-					restore = func() { e.state.epoch = original }
+					original := e.catalog.state.epoch
+					e.catalog.state.epoch++
+					restore = func() { e.catalog.state.epoch = original }
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "INSERT INTO t VALUES(CASE WHEN TRUE THEN 1+2 ELSE CAST(CAST($1 AS TEXT) AS INTEGER) END)"), 1, func(c context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {

@@ -24,7 +24,7 @@ func pgSequencesRows(t *testing.T, s *Session, query string, want [][]driver.Val
 func TestPGSequencesDescriptors(t *testing.T) {
 	e := New()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048}
-	d := e.state.descriptors[address].(*relationDescriptor)
+	d := e.catalog.state.descriptors[address].(*relationDescriptor)
 	if !d.virtualView || d.rowType != 12050 || len(d.columns) != 11 {
 		t.Fatal(d)
 	}
@@ -38,8 +38,8 @@ func TestPGSequencesDescriptors(t *testing.T) {
 			t.Fatal("NAME collation", column)
 		}
 	}
-	row := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12050}].(*typeDescriptor)
-	array := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12049}].(*typeDescriptor)
+	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12050}].(*typeDescriptor)
+	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12049}].(*typeDescriptor)
 	if row.owningRelation != address || row.array != 12049 || array.owningRelation != address || array.typ.Element() != row.typ {
 		t.Fatal(row, array)
 	}
@@ -105,7 +105,7 @@ func TestPGSequencesACL(t *testing.T) {
 	sequenceScalar(t, a, "SELECT setval('s',42)", 42)
 	sessionSQL(t, a, "CREATE ROLE reader")
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
-	owner := e.state.descriptors[ref.Address].(*relationDescriptor).owner
+	owner := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).owner
 	sessionSQL(t, a, "SET SESSION AUTHORIZATION reader")
 	for _, mask := range []authorization.Privileges{0, authorization.UpdatePrivilege, authorization.UsagePrivilege, authorization.SelectPrivilege, authorization.UsagePrivilege | authorization.UpdatePrivilege} {
 		acl := authorization.ACLValue{Explicit: true}

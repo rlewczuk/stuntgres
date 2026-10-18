@@ -15,7 +15,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 	for _, insertion := range permutations {
 		t.Run(fmt.Sprint(insertion), func(t *testing.T) {
 			e := New()
-			state := cloneCatalog(e.state)
+			state := cloneCatalog(e.catalog.state)
 			one := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, name: "a"}
 			two := &namespaceDescriptor{address: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, name: "a.b"}
 			state.descriptors[one.address], state.descriptors[two.address] = one, two

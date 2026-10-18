@@ -50,7 +50,7 @@ func findForeign(catalog CatalogRead, class ids.OID, name string) (*foreignDescr
 	return nil, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, foreignLabel(class), name))
 }
 func foreignRef(auth AuthorizationView, d Descriptor) ids.ObjectRef {
-	return auth.engine.domain.Ref(auth.catalog.Epoch(), d.Address())
+	return auth.engine.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 }
 
 func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.ObjectName, signature procedureSignature) (*procedureDescriptor, error) {
@@ -295,13 +295,13 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		}
 		next = *old
 	} else {
-		oid, er := e.allocateOIDLocked()
+		oid, er := e.catalog.allocateOIDLocked()
 		if er != nil {
 			return nil, nil, er
 		}
 		next = foreignDescriptor{address: ids.ObjectAddress{ClassID: class, ObjectID: oid}, name: name, owner: auth.state.CurrentUser}
 	}
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return nil, nil, err
 	}

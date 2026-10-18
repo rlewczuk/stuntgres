@@ -45,8 +45,8 @@ func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *
 // The constructor uses the same VALUE binder and dependency cooking as user
 // domains, without a session, SQL execution or a separately allocated type.
 func (e *Engine) initializeBuiltinDomainChecks() error {
-	view := CatalogRead{owner: e, state: e.state}
-	d := e.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}].(*typeDescriptor)
+	view := CatalogRead{owner: e, state: e.catalog.state}
+	d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}].(*typeDescriptor)
 	raw, err := parser.Parse(`CREATE DOMAIN information_schema.yes_or_no AS character varying(3) COLLATE "C" CONSTRAINT yes_or_no_check CHECK (VALUE IN ('YES','NO'))`)
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		if _, err := (scalarRenderer{domainValue: &base, dependencies: &refs}).sql(ctx, auth.catalog, node); err != nil {
 			return err
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
@@ -378,7 +378,7 @@ func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) er
 			address := dependency.ref.Address
 			address.SubID = 0
 			provider, exists := view.Descriptor(address)
-			if !exists || dependency.ref.Domain() != view.owner.domain || dependency.ref.Epoch != view.Epoch() || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.RelationObject {
+			if !exists || dependency.ref.Domain() != view.owner.catalog.domain || dependency.ref.Epoch != view.Epoch() || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.ProcedureObject && provider.Kind() != ids.RelationObject {
 				return fmt.Errorf("stuntgres: invalid domain CHECK provider")
 			}
 		}

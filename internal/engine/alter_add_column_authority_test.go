@@ -21,7 +21,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			sessionSQL(t, holder, "INSERT INTO t VALUES(1),(2),(2)")
 			ref := roleTableRef(t, e, "t")
 			seq := roleTableRef(t, e, "s")
-			old, storage := e.state.descriptors[ref.Address], e.storage[ref.Address]
+			old, storage := e.catalog.state.descriptors[ref.Address], e.storage[ref.Address]
 			generator := e.sequences[seq.Address]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "DROP SEQUENCE s")
@@ -40,7 +40,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 				t.Fatal("ADD did not queue AS against exact provider")
 			}
 			e.mu.Lock()
-			untouched := !generator.called && e.state.descriptors[ref.Address] == old && e.storage[ref.Address] == storage
+			untouched := !generator.called && e.catalog.state.descriptors[ref.Address] == old && e.storage[ref.Address] == storage
 			e.mu.Unlock()
 			if !untouched {
 				t.Fatal("ADD demanded or published before provider admission")
@@ -49,7 +49,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			lockAwait(t, waiting, context.Canceled)
 			transactionEnd(t, holder, tx, false)
 			lockEmpty(t, e)
-			if generator.called || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
+			if generator.called || e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
 				t.Fatal("canceled admission changed original candidate/root")
 			}
 			sessionSQL(t, worker, q)
@@ -85,7 +85,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				sessionSQL(t, worker, "INSERT INTO t VALUES(1),(2),(3)")
 				ref := roleTableRef(t, e, "t")
 				seq := roleTableRef(t, e, "s")
-				old := e.state.descriptors[ref.Address].(*relationDescriptor)
+				old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				storage := e.storage[ref.Address]
 				generator := e.sequences[seq.Address]
 				var tx ids.TxRef
@@ -121,7 +121,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if candidate == old || candidate.attributeHighWater != old.attributeHighWater+1 || len(candidate.columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.last != 6 {
 					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.last)
 				}
-				if e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
+				if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || old.attributeHighWater != 1 {
 					t.Fatal("Execute published private ADD")
 				}
 				for _, row := range storage.versions {
@@ -175,7 +175,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					if injectedStorage != nil {
 						wantStorage = injectedStorage
 					}
-					if e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != wantStorage || old.attributeHighWater != 1 || len(old.columns) != 1 || generator.last != 6 {
+					if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != wantStorage || old.attributeHighWater != 1 || len(old.columns) != 1 || generator.last != 6 {
 						t.Fatal("veto published ADD or rewound sequence")
 					}
 					if explicit && (!sameVersionRoot(worker.transactions.writes[ref.Address], priorWrites) || worker.transactions.deletes[ref.Address] != priorDeletes || worker.transactions.catalog != priorCatalog) {
@@ -183,7 +183,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					}
 				} else {
 					transactionRows(t, sessionStart(t, e, nil), "SELECT v FROM sentinel", 91)
-					if e.state.descriptors[ref.Address] == old || e.storage[ref.Address] == storage {
+					if e.catalog.state.descriptors[ref.Address] == old || e.storage[ref.Address] == storage {
 						t.Fatal("old incarnation resurrected")
 					}
 				}

@@ -249,7 +249,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.domain.Ref(set.catalog.Epoch(), d.address)
+	ref := b.engine.catalog.domain.Ref(set.catalog.Epoch(), d.address)
 	b.dependency(ref, d.revision)
 	info := boundExpressionInfo(provider)
 	info.Pos = raw.Pos

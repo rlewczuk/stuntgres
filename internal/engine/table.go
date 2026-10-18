@@ -84,7 +84,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		tableErr := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		if tableErr != nil {
 			descriptor := auth.catalog.state.descriptors[ref.Address]
-			nsref := e.domain.Ref(ref.Epoch, descriptor.Namespace())
+			nsref := e.catalog.domain.Ref(ref.Epoch, descriptor.Namespace())
 			if err := auth.Check(AccessRequirement{Object: nsref, OwnerOnly: true}); err != nil {
 				e.mu.Unlock()
 				return Result{}, tableErr

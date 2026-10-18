@@ -84,7 +84,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
+	if catalog.owner != e || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.state.epoch || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
 	if !roles.BelongsTo(&e.authorizationDomain) {

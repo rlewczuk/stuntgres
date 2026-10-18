@@ -48,11 +48,11 @@ func pgcryptoLookup(name string, signature procedureSignature) (pgcryptoMember, 
 func (p *pgcryptoProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.members = make([]ids.ObjectAddress, len(pgcryptoMembers))
 	for i, member := range pgcryptoMembers {
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

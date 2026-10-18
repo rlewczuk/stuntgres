@@ -51,12 +51,12 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		}
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 		original := d.sequences.constants[0].ref
-		oldStamp := e.state.descriptors[original.Address].(*relationDescriptor).sequencePlanStamp
+		oldStamp := e.catalog.state.descriptors[original.Address].(*relationDescriptor).sequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 		if err := e.SetObjectACL(context.Background(), original, authorization.ACLValue{}); err != nil {
 			t.Fatal(err)
 		}
-		if e.state.descriptors[original.Address].(*relationDescriptor).sequencePlanStamp == oldStamp {
+		if e.catalog.state.descriptors[original.Address].(*relationDescriptor).sequencePlanStamp == oldStamp {
 			t.Fatal("ACL publication did not invalidate relation plan stamp")
 		}
 		r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -80,7 +80,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		path := &cell.path.namespaces[0]
 		key := s.sequencePath.key
 		ref := cell.constants[0].ref
-		stamp := e.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp
+		stamp := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 		for _, want := range []int64{10, 11, 12} {
 			r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -98,7 +98,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		}
 		for _, q := range []string{"ALTER SEQUENCE b.s OWNED BY NONE", "ALTER SEQUENCE b.s OWNER TO postgres", "ALTER SEQUENCE b.s SET LOGGED"} {
 			sessionSQL(t, s, q)
-			if e.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp != stamp {
+			if e.catalog.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp != stamp {
 				t.Fatal("source-grounded no-op invalidated", q)
 			}
 		}
@@ -129,7 +129,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 			t.Fatal("unchanged sequence cache validation allocated", allocations)
 		}
 		sessionSQL(t, s, "ALTER SEQUENCE b.s START 10")
-		if e.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp == stamp {
+		if e.catalog.state.descriptors[ref.Address].(*relationDescriptor).sequencePlanStamp == stamp {
 			t.Fatal("unchanged START failed to invalidate")
 		}
 		sequenceScalar(t, s, "SELECT nextval('b.s')", 13)
@@ -236,8 +236,8 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		var ref ids.ObjectRef
-		if a, ok := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]; ok {
-			ref = e.domain.Ref(e.state.epoch, a)
+		if a, ok := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]; ok {
+			ref = e.catalog.domain.Ref(e.catalog.state.epoch, a)
 		} else {
 			ref = roleTableRef(t, e, name)
 		}
@@ -293,18 +293,18 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	stamp := od.sequences.constants[0].stamp
 	sessionSQL(t, s, "ALTER SEQUENCE b.s OWNER TO reader")
 	result(shadow, &sd, 500)
-	if e.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp == stamp {
+	if e.catalog.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp == stamp {
 		t.Fatal("real owner change retained plan stamp")
 	}
 	result(owned, &od, 10)
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET UNLOGGED")
-	stamp = e.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp
+	stamp = e.catalog.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET UNLOGGED")
-	if e.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp != stamp {
+	if e.catalog.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp != stamp {
 		t.Fatal("same unlogged persistence invalidated")
 	}
 	sessionSQL(t, s, "ALTER SEQUENCE b.s SET LOGGED")
-	if e.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp == stamp {
+	if e.catalog.state.descriptors[od.sequences.constants[0].ref.Address].(*relationDescriptor).sequencePlanStamp == stamp {
 		t.Fatal("real logged persistence transition did not invalidate")
 	}
 }
@@ -315,8 +315,8 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 	sessionSQL(t, s, "CREATE TEMP SEQUENCE s")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.sequences.constants[0].ref
-	descriptor := e.state.descriptors[ref.Address].(*relationDescriptor)
-	namespace := e.state.descriptors[descriptor.namespace].(*namespaceDescriptor)
+	descriptor := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	namespace := e.catalog.state.descriptors[descriptor.namespace].(*namespaceDescriptor)
 	for _, action := range []string{"LOGGED", "UNLOGGED"} {
 		op, err := s.Acquire(context.Background())
 		if err != nil {
@@ -329,7 +329,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatalf("got=%#v want=%#v", diagnostic, want)
 		}
-		if e.state.descriptors[ref.Address] != descriptor {
+		if e.catalog.state.descriptors[ref.Address] != descriptor {
 			t.Fatal("rejected persistence published descriptor/stamp")
 		}
 	}
@@ -436,22 +436,22 @@ func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 	sessionSQL(t, s, "CREATE SEQUENCE s")
 	_, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.sequences.constants[0].ref
-	original := e.state
+	original := e.catalog.state
 	roles := e.roles
-	frontier := e.nextRevision
+	frontier := e.catalog.nextRevision
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := e.SetObjectACL(ctx, ref, authorization.ACLValue{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.state != original || e.roles != roles || e.nextRevision != frontier {
+	if e.catalog.state != original || e.roles != roles || e.catalog.nextRevision != frontier {
 		t.Fatal("canceled ACL update published authority")
 	}
-	e.nextRevision = ids.DefinitionRevision(^uint64(0))
+	e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err == nil {
 		t.Fatal("exhausted stamp allocator accepted ACL publication")
 	}
-	if e.state != original || e.roles != roles {
+	if e.catalog.state != original || e.roles != roles {
 		t.Fatal("exhausted ACL update published descriptor/stamp/roles")
 	}
 }
@@ -463,14 +463,14 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		sessionSQL(t, s, "CREATE SCHEMA a")
 		ref := schemaRef(t, e, "a")
 		// Namespace ACLs do not need a new descriptor definition token.
-		e.nextRevision = ids.DefinitionRevision(^uint64(0))
+		e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal("descriptor exhaustion rejected namespace ACL", err)
 		}
 		// Fail the independent namespace authority without publishing ACL/roles.
-		state := cloneCatalog(e.state)
+		state := cloneCatalog(e.catalog.state)
 		state.namespaceGeneration = ^uint64(0)
-		e.state = state
+		e.catalog.state = state
 		roles := e.roles
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -481,7 +481,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 			t.Fatal("namespace exhaustion accepted ACL publication", err)
 		}
-		if e.state != state || e.roles != roles {
+		if e.catalog.state != state || e.roles != roles {
 			t.Fatal("failed namespace ACL published catalog or authorization")
 		}
 		d, _ := e.CatalogRead().Descriptor(ref.Address)
@@ -497,9 +497,9 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 			sessionSQL(t, s, query)
 		}
 		ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('a.s')")
-		state := cloneCatalog(e.state)
+		state := cloneCatalog(e.catalog.state)
 		state.namespaceGeneration = ^uint64(0)
-		e.state = state
+		e.catalog.state = state
 		op, err := s.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -509,7 +509,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 			t.Fatal("namespace exhaustion accepted schema closure", err)
 		}
-		if e.state != state {
+		if e.catalog.state != state {
 			t.Fatal("failed schema closure published partial removals")
 		}
 		r, err := sequencePreparedExecute(e, s, ast, &description)

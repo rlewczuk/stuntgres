@@ -13,7 +13,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}
 	source := catalog.state.descriptors[address].(*relationDescriptor)
-	ref := e.domain.Ref(catalog.Epoch(), address)
+	ref := e.catalog.domain.Ref(catalog.Epoch(), address)
 	if source.rowType != 10027 || source.virtualView || !source.hasIndexes || len(source.columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
@@ -22,7 +22,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if row.owningRelation != address || array.owningRelation != address || row.array != 10026 || array.typ.Element() != row.typ || row.owner != source.owner || array.owner != source.owner {
 		t.Fatal("aggregate row/array ownership")
 	}
-	nextOID, nextRevision := e.nextOID, e.nextRevision
+	nextOID, nextRevision := e.catalog.nextOID, e.catalog.nextRevision
 	captured, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if captured.anonymous[0][0].IsNull() || captured.anonymous[1][1].IsNull() || second.anonymous[0][1].IsNull() {
 		t.Fatal("aggregate row slots alias")
 	}
-	if e.state != catalog.state || e.nextOID != nextOID || e.nextRevision != nextRevision {
+	if e.catalog.state != catalog.state || e.catalog.nextOID != nextOID || e.catalog.nextRevision != nextRevision {
 		t.Fatal("catalog observation changed frontiers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -98,7 +98,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if got, err := capturePGAggregate(context.Background(), fresh, ref, source); got != nil || err == nil {
 		t.Fatal("retired source admitted", err)
 	}
-	newRef := e.domain.Ref(fresh.Epoch(), address)
+	newRef := e.catalog.domain.Ref(fresh.Epoch(), address)
 	if got, err := capturePGAggregate(context.Background(), fresh, newRef, newSource); err != nil || len(got.anonymous) != 144 {
 		t.Fatal("Reset lost builtin definitions", err)
 	}
@@ -137,7 +137,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}].(*relationDescriptor)
-	ref := e.domain.Ref(catalog.Epoch(), source.address)
+	ref := e.catalog.domain.Ref(catalog.Epoch(), source.address)
 	got, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {
 		t.Fatal(err)

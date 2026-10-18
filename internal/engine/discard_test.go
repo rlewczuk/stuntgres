@@ -57,12 +57,12 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			cursor := &sqlCursor{root: &projectNode{}, authority: &queryAuthority{}}
 			cursor.tx = tx
 			a.cursors.entries["c"] = cursor
-			resources, serial, ticket, catalog, roles := a.resources, a.serial, a.advisory.ticket, e.state, e.roles
+			resources, serial, ticket, catalog, roles := a.resources, a.serial, a.advisory.ticket, e.catalog.state, e.roles
 			discardUnitApply(t, a, category)
 			if a.resources != resources || a.serial != serial || a.advisory.ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
-			if e.state != catalog || e.roles != roles || b.preparedSQL.entries["p"] != entry || b.sequences[address].value != 8 || b.lastSequence != address || b.discardPlansGeneration != 0 {
+			if e.catalog.state != catalog || e.roles != roles || b.preparedSQL.entries["p"] != entry || b.sequences[address].value != 8 || b.lastSequence != address || b.discardPlansGeneration != 0 {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {
@@ -128,7 +128,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 		e := New()
 		s := sessionStart(t, e, nil)
 		sessionSQL(t, s, "CREATE TEMP TABLE discard_cancel(v int)")
-		catalog := e.state
+		catalog := e.catalog.state
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, scope := discardUnitScope(t, s, ctx, parser.DiscardTemp)
@@ -139,7 +139,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 		cancel()
-		if err := scope.Finish(nil); !errors.Is(err, context.Canceled) || e.state != catalog {
+		if err := scope.Finish(nil); !errors.Is(err, context.Canceled) || e.catalog.state != catalog {
 			t.Fatal("canceled TEMP partially published", err)
 		}
 	})
@@ -289,7 +289,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO discard_overlay VALUES(7)")
 	namespace := s.temporaryNamespace
 	var relation *relationDescriptor
-	for _, d := range e.state.descriptors {
+	for _, d := range e.catalog.state.descriptors {
 		if r, ok := d.(*relationDescriptor); ok && r.name == "discard_overlay" {
 			relation = r
 		}
@@ -328,11 +328,11 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if e.state.descriptors[relation.address] != relation || s.transactions.catalog == nil || s.temporaryNamespace != namespace {
+	if e.catalog.state.descriptors[relation.address] != relation || s.transactions.catalog == nil || s.temporaryNamespace != namespace {
 		t.Fatal("private deletion leaked to shared catalog or retired namespace")
 	}
 	sessionSQL(t, s, "ROLLBACK")
-	if e.state.descriptors[relation.address] != relation || e.storage[relation.address] != storage || s.transactions.catalog != nil {
+	if e.catalog.state.descriptors[relation.address] != relation || e.storage[relation.address] != storage || s.transactions.catalog != nil {
 		t.Fatal("rollback failed to release private deletion")
 	}
 	t.Run("CollationDependentProjection", func(t *testing.T) {
@@ -343,7 +343,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		sessionSQL(t, s, `INSERT INTO discard_survivor VALUES(7,'a')`)
 		namespace := s.temporaryNamespace
 		var survivor *relationDescriptor
-		for _, d := range e.state.descriptors {
+		for _, d := range e.catalog.state.descriptors {
 			if r, ok := d.(*relationDescriptor); ok && r.name == "discard_survivor" {
 				survivor = r
 			}
@@ -353,14 +353,14 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		}
 		durableRows := e.storage[survivor.address].versions
 		discardUnitApply(t, s, parser.DiscardTemp)
-		next := e.state.descriptors[survivor.address].(*relationDescriptor)
+		next := e.catalog.state.descriptors[survivor.address].(*relationDescriptor)
 		if next == survivor || len(next.columns) != 1 || len(e.storage[survivor.address].versions[0].values) != 1 || len(durableRows[0].values) != 2 {
 			t.Fatal("CASCADE failed provider-owned durable projection or mutated old rows")
 		}
-		if e.state.descriptors[namespace] == nil || s.temporaryNamespace != namespace {
+		if e.catalog.state.descriptors[namespace] == nil || s.temporaryNamespace != namespace {
 			t.Fatal("SQL TEMP retired its namespace")
 		}
-		for _, d := range e.state.descriptors {
+		for _, d := range e.catalog.state.descriptors {
 			if d.Namespace() == namespace {
 				t.Fatal("owned TEMP collation child survived", d.Name())
 			}
@@ -377,7 +377,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				sessionSQL(t, s, "CREATE INDEX discard_private_index ON discard_private_survivor(v)")
 				var survivor *relationDescriptor
 				var providerAddress, indexAddress ids.ObjectAddress
-				for a, d := range e.state.descriptors {
+				for a, d := range e.catalog.state.descriptors {
 					switch d.Name() {
 					case "discard_private_survivor":
 						// The associated composite type has the same name; it must
@@ -391,7 +391,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 						indexAddress = a
 					}
 				}
-				provider, index := e.state.descriptors[providerAddress], e.state.descriptors[indexAddress]
+				provider, index := e.catalog.state.descriptors[providerAddress], e.catalog.state.descriptors[indexAddress]
 				if survivor == nil || provider == nil || index == nil {
 					t.Fatal("missing real dependent closure fixture")
 				}
@@ -419,7 +419,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				op.Done()
 				private := e.privateCatalogLocked(s.transactions.catalog)
 				projected := private.state.descriptors[survivor.address].(*relationDescriptor)
-				if projected == survivor || len(projected.columns) != 1 || private.state.descriptors[providerAddress] != nil || private.state.descriptors[indexAddress] != nil || e.state.descriptors[survivor.address] != survivor || e.storage[survivor.address] != storage || len(storage.versions[0].values) != 2 {
+				if projected == survivor || len(projected.columns) != 1 || private.state.descriptors[providerAddress] != nil || private.state.descriptors[indexAddress] != nil || e.catalog.state.descriptors[survivor.address] != survivor || e.storage[survivor.address] != storage || len(storage.versions[0].values) != 2 {
 					t.Fatal("private projection leaked into committed descriptor/data or missed closure")
 				}
 				switch boundary {
@@ -432,13 +432,13 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					sessionSQL(t, s, "COMMIT")
 				}
 				if boundary == "commit" {
-					if len(e.state.descriptors[survivor.address].(*relationDescriptor).columns) != 1 || len(e.storage[survivor.address].versions[0].values) != 1 || e.state.descriptors[providerAddress] != nil || e.state.descriptors[indexAddress] != nil {
+					if len(e.catalog.state.descriptors[survivor.address].(*relationDescriptor).columns) != 1 || len(e.storage[survivor.address].versions[0].values) != 1 || e.catalog.state.descriptors[providerAddress] != nil || e.catalog.state.descriptors[indexAddress] != nil {
 						t.Fatal("commit lost projected durable consumer or retained provider/index")
 					}
-				} else if e.state.descriptors[survivor.address] != survivor || e.state.descriptors[providerAddress] != provider || e.state.descriptors[indexAddress] != index || e.storage[survivor.address] != storage || len(storage.versions[0].values) != 2 {
+				} else if e.catalog.state.descriptors[survivor.address] != survivor || e.catalog.state.descriptors[providerAddress] != provider || e.catalog.state.descriptors[indexAddress] != index || e.storage[survivor.address] != storage || len(storage.versions[0].values) != 2 {
 					t.Fatal("rollback did not restore exact durable descriptor/data/provider/index")
 				}
-				if s.temporaryNamespace != namespace || e.state.descriptors[namespace] == nil {
+				if s.temporaryNamespace != namespace || e.catalog.state.descriptors[namespace] == nil {
 					t.Fatal("projection retired TEMP namespace")
 				}
 			})
@@ -460,10 +460,10 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 			if cursor.root == nil || len(cursor.leaves) == 0 {
 				t.Fatal("missing actual retained source manifest")
 			}
-			catalog, namespace := e.state, s.temporaryNamespace
+			catalog, namespace := e.catalog.state, s.temporaryNamespace
 			op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
 			_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardTemp}, 0)
-			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.catalog != nil || scope.projectedRoots || e.state != catalog || s.temporaryNamespace != namespace || cursor.root == nil {
+			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.catalog != nil || scope.projectedRoots || e.catalog.state != catalog || s.temporaryNamespace != namespace || cursor.root == nil {
 				scope.Finish(err)
 				op.Done()
 				t.Fatal("live cursor preflight installed effects or lost source", err)

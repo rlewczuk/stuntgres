@@ -14,16 +14,16 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			before, frontier := e.state, e.commitSeq
-			original := e.providers[ids.RelationClassID]
-			defer func() { e.providers[ids.RelationClassID] = original }()
+			before, frontier := e.catalog.state, e.commitSeq
+			original := e.catalog.providers[ids.RelationClassID]
+			defer func() { e.catalog.providers[ids.RelationClassID] = original }()
 			calls := 0
-			e.providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate CatalogRead) {
+			e.catalog.providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate CatalogRead) {
 				calls++
 				if !e.mu.TryLock() {
 					t.Error("catalog provider under Engine.mu")
 				} else {
-					if e.state != before || e.commitSeq != frontier {
+					if e.catalog.state != before || e.commitSeq != frontier {
 						t.Error("utility escaped before final publication")
 					}
 					e.mu.Unlock()
@@ -80,7 +80,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			if !absence {
 				t.Fatal("new-index committed source-absence fence omitted")
 			}
-			if e.state != before || e.commitSeq != frontier || e.storage[ct] != nil || e.storage[mv] != nil || e.sequences[seq] != nil {
+			if e.catalog.state != before || e.commitSeq != frontier || e.storage[ct] != nil || e.storage[mv] != nil || e.sequences[seq] != nil {
 				t.Fatal("initial data or generators published before end")
 			}
 			if commit {
@@ -96,7 +96,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 					t.Fatal(end)
 				}
 			}
-			e.providers[ids.RelationClassID] = original
+			e.catalog.providers[ids.RelationClassID] = original
 			if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(5), int64(4)}}) {
 				t.Fatal("private initial rows and row-shape result", got)
 			}
@@ -107,7 +107,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				transactionRows(t, s, "SELECT x FROM ct", 5)
 				transactionRows(t, s, "SELECT x FROM mv", 5)
 			} else {
-				if e.state != before || e.commitSeq != frontier || e.storage[ct] != nil || e.storage[mv] != nil || e.sequences[seq] != nil || e.indexRoots[index] != nil {
+				if e.catalog.state != before || e.commitSeq != frontier || e.storage[ct] != nil || e.storage[mv] != nil || e.sequences[seq] != nil || e.indexRoots[index] != nil {
 					t.Fatal("initial table or provider result escaped rollback")
 				}
 			}

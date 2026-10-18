@@ -57,8 +57,8 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	e := New()
 	var loser ids.ObjectAddress
 	var winnerView CatalogRead
-	e.providers[ids.RelationClassID] = &publicationConflictProvider{
-		CatalogProvider: e.providers[ids.RelationClassID],
+	e.catalog.providers[ids.RelationClassID] = &publicationConflictProvider{
+		CatalogProvider: e.catalog.providers[ids.RelationClassID],
 		publishWinner: func(d Descriptor) {
 			loser = d.Address()
 			// Validation runs outside the engine lock. Publish a competing real

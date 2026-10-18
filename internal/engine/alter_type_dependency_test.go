@@ -29,8 +29,8 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			run(t, e, "CREATE VIEW template AS SELECT c FROM t")
 			table := roleTableRef(t, e, "t")
 			view := roleTableRef(t, e, "template")
-			old, store := e.state.descriptors[table.Address], e.storage[table.Address]
-			originalView := e.state.descriptors[view.Address].(*relationDescriptor)
+			old, store := e.catalog.state.descriptors[table.Address], e.storage[table.Address]
+			originalView := e.catalog.state.descriptors[view.Address].(*relationDescriptor)
 			removeView := func(ref ids.ObjectRef) {
 				t.Helper()
 				stage := e.BeginCatalogStage(e.CatalogRead())
@@ -47,22 +47,22 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 			}
 			removeView(view)
-			provider := e.providers[ids.RelationClassID]
+			provider := e.catalog.providers[ids.RelationClassID]
 			var added ids.ObjectAddress
-			e.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.providers[ids.RelationClassID] = provider
+			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.catalog.providers[ids.RelationClassID] = provider
 				e.mu.Lock()
-				oid, allocationErr := e.allocateOIDLocked()
+				oid, allocationErr := e.catalog.allocateOIDLocked()
 				if allocationErr != nil {
 					e.mu.Unlock()
 					t.Fatal(allocationErr)
 				}
-				rule, allocationErr := e.allocateOIDLocked()
+				rule, allocationErr := e.catalog.allocateOIDLocked()
 				if allocationErr != nil {
 					e.mu.Unlock()
 					t.Fatal(allocationErr)
 				}
-				revision, allocationErr := e.revisionLocked()
+				revision, allocationErr := e.catalog.revisionLocked()
 				e.mu.Unlock()
 				if allocationErr != nil {
 					t.Fatal(allocationErr)
@@ -102,7 +102,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			if !errors.As(err, &conflict) {
 				t.Fatal("expected dependency publication conflict", err)
 			}
-			if added == (ids.ObjectAddress{}) || e.state.descriptors[added] == nil || e.state.descriptors[table.Address] != old || e.storage[table.Address] != store {
+			if added == (ids.ObjectAddress{}) || e.catalog.state.descriptors[added] == nil || e.catalog.state.descriptors[table.Address] != old || e.storage[table.Address] != store {
 				t.Fatal("failed TYPE published a prefix", err)
 			}
 			if got := tuples(run(t, e, "SELECT * FROM late_view")); !reflect.DeepEqual(got, [][]driver.Value{{tc.value}}) {

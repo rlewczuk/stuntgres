@@ -31,7 +31,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	}
 	destination := New()
 	destination.mu.Lock()
-	_, err = destination.allocateOIDLocked()
+	_, err = destination.catalog.allocateOIDLocked()
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

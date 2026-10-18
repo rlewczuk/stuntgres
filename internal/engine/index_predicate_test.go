@@ -23,7 +23,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name: "t", revision: 1, relationKind: tableRelation, attributes: []int32{10, 20}, attributeHighWater: 20, columns: []ColumnDescriptor{{Name: "k", Usage: integer.Usage()}, {Name: "active", Usage: boolean.Usage()}}, index: map[string]int{"k": 0, "active": 1}}
-	ref := e.domain.Ref(e.state.epoch, parent.address)
+	ref := e.catalog.domain.Ref(e.catalog.state.epoch, parent.address)
 	ref.Address.SubID = 20
 	column := columnExpression{expressionInfo: expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 1, origin: ref}
 	predicate := &indexPredicate{definition: column, execution: column, attributes: parent.attributes, dependencies: []ids.ObjectRef{ref}}
@@ -41,7 +41,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 		}
 		store.versions = append(store.versions, rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), values: []sqltype.Value{value, active}})
 	}
-	e.state.descriptors[parent.address], e.state.descriptors[index.address] = parent, index
+	e.catalog.state.descriptors[parent.address], e.catalog.state.descriptors[index.address] = parent, index
 	e.storage[parent.address] = store
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.sqlIndex, store, nil)
 	if err != nil {
@@ -179,7 +179,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	scope := &StatementScope{op: op, txRef: (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, f.e.state.epoch, nil, 0)}
+	scope := &StatementScope{op: op, txRef: (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, f.e.catalog.state.epoch, nil, 0)}
 	calls := 0
 	failure := errors.New("qualifying key")
 	key := partialEvaluationWitness{expressionInfo: expressionInfo{Usage: f.parent.columns[0].Usage}, calls: &calls, failure: failure}
@@ -187,7 +187,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	def.keys = []indexKey{{class: f.index.sqlIndex.keys[0].class, derived: &derivedIndexKey{definition: key, execution: key}}}
 	idx := *f.index
 	idx.sqlIndex = &def
-	f.e.state.descriptors[idx.address] = &idx
+	f.e.catalog.state.descriptors[idx.address] = &idx
 	scope.stage.rows = map[ids.ObjectAddress][]rowVersion{f.parent.address: {f.store.versions[1], f.store.versions[2]}}
 	if err := scope.validatePrivateIndexExpressions(nil, nil); err != nil || calls != 0 {
 		t.Fatal("excluded keys evaluated", calls, err)
@@ -352,7 +352,7 @@ func TestPartialIndexImplication(t *testing.T) {
 func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, queryLeaf, *VisibilityView) {
 	f := newPartialIndexFixture(t)
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
-	leaf := queryLeaf{ref: f.e.domain.Ref(f.e.state.epoch, f.parent.address), relation: f.parent, storage: f.store, partialCandidate: f.index}
+	leaf := queryLeaf{ref: f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address), relation: f.parent, storage: f.store, partialCandidate: f.index}
 	data := &visibilityData{catalog: f.e.CatalogRead(), frontier: f.e.commitSeq, committed: map[ids.ObjectAddress][]rowVersion{f.parent.address: f.store.versions}, singleGeneration: f.store}
 	view := newVisibilityView(data)
 	t.Cleanup(view.Release)
@@ -438,9 +438,9 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 				f.store.ends = &deletionRoot{}
 			case "definition":
 				copy := *f.index
-				f.e.state.descriptors[f.index.address] = &copy
+				f.e.catalog.state.descriptors[f.index.address] = &copy
 			case "catalog snapshot":
-				data.catalog.state = cloneCatalog(f.e.state)
+				data.catalog.state = cloneCatalog(f.e.catalog.state)
 			case "missing root":
 				delete(f.e.indexRoots, f.index.address)
 			case "epoch":
@@ -448,7 +448,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "shape":
 				copy := *f.parent
 				copy.attributes = []int32{11, 20}
-				f.e.state.descriptors[a] = &copy
+				f.e.catalog.state.descriptors[a] = &copy
 			case "locking":
 				scope.queryLocks = &queryLockContext{}
 			case "occurrence locking":
@@ -470,7 +470,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 	auth := AuthorizationView{catalog: f.e.CatalogRead()}
 	b := expressionBinder{queryAuth: &auth}
 	param := parameterExpression{expressionInfo: expressionInfo{Usage: f.predicate.Usage, Property: ExprProperties{ParameterDependent: true}}, number: 1}
-	ref := f.e.domain.Ref(f.e.state.epoch, f.parent.address)
+	ref := f.e.catalog.domain.Ref(f.e.catalog.state.epoch, f.parent.address)
 	if b.partialIndexCandidate(ref, param) != nil {
 		t.Fatal("unresolved parameter selected root")
 	}
@@ -524,7 +524,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.state, map[ids.ObjectAddress]*relationStorage{f.parent.address: destination}, snapshot)
+	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.catalog.state, map[ids.ObjectAddress]*relationStorage{f.parent.address: destination}, snapshot)
 	if err != nil || rows != 105 || versions != 205 {
 		t.Fatal(rows, versions, err)
 	}
@@ -534,8 +534,8 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 		t.Fatal("replacement transplanted/mutated source")
 	}
 	target := New()
-	next := cloneCatalog(f.e.state)
-	next.epoch = target.state.epoch + 1
+	next := cloneCatalog(f.e.catalog.state)
+	next.epoch = target.catalog.state.epoch + 1
 	if err := target.remapCatalogExpressions(next, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -545,11 +545,11 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	}
 	for _, node := range []BoundExpr{remapped.definition, remapped.execution} {
 		origin := node.(columnExpression).origin
-		if origin.Domain() != target.domain || origin.Epoch != target.state.epoch+1 {
+		if origin.Domain() != target.catalog.domain || origin.Epoch != target.catalog.state.epoch+1 {
 			t.Fatal("foreign origin retained", origin)
 		}
 	}
-	if remapped.dependencies[0].Domain() != target.domain || remapped.dependencies[0].Epoch != target.state.epoch+1 || f.index.sqlIndex.predicate.dependencies[0].Domain() != f.e.domain {
+	if remapped.dependencies[0].Domain() != target.catalog.domain || remapped.dependencies[0].Epoch != target.catalog.state.epoch+1 || f.index.sqlIndex.predicate.dependencies[0].Domain() != f.e.catalog.domain {
 		t.Fatal("dependency authority was transplanted or source mutated")
 	}
 }

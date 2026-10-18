@@ -13,7 +13,7 @@ type catalogOverlayIndex struct {
 // build diagnostics, rather than incorrectly delaying errors until COMMIT.
 func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *CatalogStage, c *catalogChanges) error {
 	e.mu.Lock()
-	if scope.txRef.Epoch() != e.state.epoch {
+	if scope.txRef.Epoch() != e.catalog.state.epoch {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}

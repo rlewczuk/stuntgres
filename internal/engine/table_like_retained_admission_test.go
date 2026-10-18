@@ -26,8 +26,8 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			run(t, e, "CREATE TABLE barrier(v INT)")
-			current := e.domain.Ref(e.CatalogRead().Epoch(), provider.address)
-			old := e.domain.Ref(manifest[0].Epoch, provider.address)
+			current := e.catalog.domain.Ref(e.CatalogRead().Epoch(), provider.address)
+			old := e.catalog.domain.Ref(manifest[0].Epoch, provider.address)
 			for _, ref := range manifest {
 				if ref.Address == provider.address {
 					old = ref
@@ -132,7 +132,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			}
 			if outcome == "delete" || outcome == "recreate" {
 				change := e.BeginCatalogStage(e.CatalogRead())
-				if err := change.Remove(e.domain.Ref(current.Epoch, source.address)); err != nil {
+				if err := change.Remove(e.catalog.domain.Ref(current.Epoch, source.address)); err != nil {
 					t.Fatal(err)
 				}
 				if err := change.Remove(current); err != nil {
@@ -142,7 +142,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				if outcome == "recreate" {
 					replacement := *provider
 					e.mu.Lock()
-					oid, allocationErr := e.allocateOIDLocked()
+					oid, allocationErr := e.catalog.allocateOIDLocked()
 					e.mu.Unlock()
 					if allocationErr != nil {
 						t.Fatal(allocationErr)

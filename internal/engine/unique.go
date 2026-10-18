@@ -178,16 +178,16 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 		}
 		used[c.Name] = true
 		var err error
-		c.OID, err = e.allocateOIDLocked()
+		c.OID, err = e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		id, err := e.allocateOIDLocked()
+		id, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
@@ -433,7 +433,7 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 	if cmp == 0 {
 		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
 		if auth != nil && auth.engine != nil {
-			ref := auth.catalog.owner.domain.Ref(auth.catalog.Epoch(), parent.address)
+			ref := auth.catalog.owner.catalog.domain.Ref(auth.catalog.Epoch(), parent.address)
 			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.keys)
 			if err != nil {
 				return err

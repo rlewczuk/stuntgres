@@ -370,7 +370,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 				case "frontier_exhaustion":
 					target.commitSeq = ids.CommitSeq(^uint64(0))
 				}
-				state, frontier, rowCounter, versionCounter := target.state, target.commitSeq, target.nextRow, target.nextVersion
+				state, frontier, rowCounter, versionCounter := target.catalog.state, target.commitSeq, target.nextRow, target.nextVersion
 				oldStorage := target.storage
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -385,7 +385,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 					if failure == "canceled" && !errors.Is(err, context.Canceled) {
 						t.Fatal(err)
 					}
-					if target.state != state || target.commitSeq != frontier || target.nextRow != rowCounter || target.nextVersion != versionCounter {
+					if target.catalog.state != state || target.commitSeq != frontier || target.nextRow != rowCounter || target.nextVersion != versionCounter {
 						t.Fatal("failed import consumed state/identities")
 					}
 					for address, store := range oldStorage {
@@ -464,7 +464,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			store := e.storage[ref.Address]
 			root := store.versions
-			ends, frontier, epoch := store.ends, e.commitSeq, e.state.epoch
+			ends, frontier, epoch := store.ends, e.commitSeq, e.catalog.state.epoch
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11 WHERE id=1")
 			sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
@@ -487,7 +487,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err == nil || e.state.epoch != epoch || e.commitSeq != frontier || e.storage[ref.Address] != store || store.ends != ends || &store.versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.transactions.ticket != ticket || owner.transactions.deletes[ref.Address] != deletes || &owner.transactions.writes[ref.Address][0] != &writes[0] {
+			if err == nil || e.catalog.state.epoch != epoch || e.commitSeq != frontier || e.storage[ref.Address] != store || store.ends != ends || &store.versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.transactions.ticket != ticket || owner.transactions.deletes[ref.Address] != deletes || &owner.transactions.writes[ref.Address][0] != &writes[0] {
 				t.Fatal("failed replacement changed mixed authority", err)
 			}
 			transactionRows(t, owner, "SELECT v FROM t", 11)

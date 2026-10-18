@@ -120,18 +120,18 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			name := generatedRelationName(destination.name, strings.Join(labels, "_"), label, func(name string) bool {
 				return constraints[name] || name == destination.name || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.namespace, Name: name})) != 0
 			})
-			oid, err := e.allocateOIDLocked()
+			oid, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
-			revision, err := e.revisionLocked()
+			revision, err := e.catalog.revisionLocked()
 			if err != nil {
 				return err
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 			if old.constraint != nil && old.constraint.kind == uniqueBackingKind {
 				c := uniqueConstraint{Name: name, IsLocal: true, Primary: old.constraint.Primary, NullsNotDistinct: old.nullsNotDistinct, Index: address, Attributes: make([]int32, len(old.keys))}
-				c.OID, err = e.allocateOIDLocked()
+				c.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return err
 				}
@@ -161,7 +161,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 					return err
 				}
 				c.Operators = definition.exclusion
-				c.OID, err = e.allocateOIDLocked()
+				c.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return err
 				}

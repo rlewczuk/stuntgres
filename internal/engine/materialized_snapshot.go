@@ -202,9 +202,9 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return fmt.Errorf("stuntgres: unpopulated snapshot contains rows")
 		}
 		e.mu.Lock()
-		namespace := e.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema}]
-		address := e.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name}]
-		d, ok := e.state.descriptors[address].(*relationDescriptor)
+		namespace := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema}]
+		address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name}]
+		d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
 		valid := ok && d.relationKind == materializedViewRelation && !d.populated && !seen[address]
 		e.mu.Unlock()
 		if !valid {
@@ -239,7 +239,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 				}
 			}
 			e.mu.Lock()
-			b, err := e.describe(ctx, s, auth, e.domain.Ref(auth.catalog.Epoch(), address), input, op, nil, nil)
+			b, err := e.describe(ctx, s, auth, e.catalog.domain.Ref(auth.catalog.Epoch(), address), input, op, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				return err
@@ -278,7 +278,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	next := cloneCatalog(e.state)
+	next := cloneCatalog(e.catalog.state)
 	for _, item := range imports {
 		versions, err := e.allocateRowVersionsLocked(item.rows, nil)
 		if err != nil {
@@ -288,7 +288,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			versions[i].born = e.commitSeq
 		}
 		d := *item.descriptor
-		d.revision, err = e.revisionLocked()
+		d.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
@@ -296,6 +296,6 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		next.descriptors[d.address] = &d
 		e.storage[d.address] = &relationStorage{versions: versions}
 	}
-	e.state = next
+	e.catalog.state = next
 	return nil
 }

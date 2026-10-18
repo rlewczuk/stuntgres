@@ -158,7 +158,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.state.epoch || e.privateCatalogLocked(s.owner.catalog).state != binding.catalog {
+	if ref.Epoch != e.catalog.state.epoch || e.privateCatalogLocked(s.owner.catalog).state != binding.catalog {
 		return rowVersion{}, ErrCatalogReplaced
 	}
 	s.beginExclusionProjectionLocked(e)
@@ -275,7 +275,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.catalog)
-	if ref.Epoch != e.state.epoch || view.state != binding.catalog {
+	if ref.Epoch != e.catalog.state.epoch || view.state != binding.catalog {
 		return exclusionScan{}, ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)

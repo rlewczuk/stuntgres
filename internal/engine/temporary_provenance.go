@@ -9,7 +9,7 @@ import (
 // replacement. This is contextual authority, never general ObjectRef validity.
 // Object addresses are nonreused; physical namespace tokens cannot be revived.
 func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
-	if view.owner == nil || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
+	if view.owner == nil || ref.Domain() != view.owner.catalog.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
 	if ref.Epoch == view.Epoch() {
@@ -70,7 +70,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 // Old epochs belong only to the immutable manifest of this exact retained view.
 // The ordinary ObjectRef validator and every unrelated statement stay strict.
 func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef) bool {
-	if catalog.owner == nil || ref.Domain() != catalog.owner.domain || ref.Epoch == 0 || ref.Epoch > catalog.Epoch() {
+	if catalog.owner == nil || ref.Domain() != catalog.owner.catalog.domain || ref.Epoch == 0 || ref.Epoch > catalog.Epoch() {
 		return false
 	}
 	address := ref.Address
@@ -139,7 +139,7 @@ func storedViewUseReference(catalog CatalogRead, consumer *relationDescriptor, r
 
 func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, ref ids.ObjectRef, token ids.SessionToken) bool {
 	if ref.Epoch == view.Epoch() {
-		return ref.Domain() == view.owner.domain
+		return ref.Domain() == view.owner.catalog.domain
 	}
 	if !storedReferenceEpochValid(view, consumer, ref) {
 		return false
@@ -148,7 +148,7 @@ func storedSequenceEpochValid(view CatalogRead, consumer *relationDescriptor, re
 }
 
 func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token ids.SessionToken) bool {
-	if token == (ids.SessionToken{}) || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
+	if token == (ids.SessionToken{}) || ref.Domain() != view.owner.catalog.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
 		return false
 	}
 	sequence, ok := view.state.descriptors[ref.Address].(*relationDescriptor)

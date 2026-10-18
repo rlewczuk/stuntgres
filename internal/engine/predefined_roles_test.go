@@ -134,7 +134,7 @@ func TestPredefinedImplicitDatabaseOwner(t *testing.T) {
 	d.Superuser = false // Exercise the implicit rule, not the independent SU bypass.
 	putFixtureRole(n, d)
 	setFixtureEdges(n, nil)
-	r := e.roleRead(CatalogRead{e, e.state}, n)
+	r := e.roleRead(CatalogRead{e, e.catalog.state}, n)
 	for _, inherit := range []bool{false, true} {
 		got, err := r.RoleClosure(context.Background(), bootstrap, inherit)
 		if err != nil || !reflect.DeepEqual(got, []authorization.PrincipalRef{bootstrap, owner}) {

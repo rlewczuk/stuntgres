@@ -14,7 +14,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		e.mu.Lock()
 		s.op.session.mu.Lock()
 		err := publicationOperationLocked(e, s.op)
-		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.state.epoch) {
+		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.epoch) {
 			err = ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()
@@ -36,12 +36,12 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		node.ready = nil
 		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
-			if relation, ok := e.state.descriptors[address].(*relationDescriptor); ok {
+			if relation, ok := e.catalog.state.descriptors[address].(*relationDescriptor); ok {
 				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}
 			}
 		}
 		t.roots, t.frontier = roots, e.commitSeq
-		t.sequenceCatalog = e.state
+		t.sequenceCatalog = e.catalog.state
 		if node.readOnly {
 			for _, writer := range e.serializable.nodes {
 				if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.Epoch() == node.ref.Epoch() {
@@ -80,7 +80,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		e.mu.Lock()
 		s.op.session.mu.Lock()
 		err = publicationOperationLocked(e, s.op)
-		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.state.epoch || node.aborted || node.ended) {
+		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.epoch || node.aborted || node.ended) {
 			err = ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()

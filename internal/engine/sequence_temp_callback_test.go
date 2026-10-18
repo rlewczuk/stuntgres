@@ -19,9 +19,9 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				sessionSQL(t, a, q)
 			}
 			if scenario == "Exhaustion" {
-				state := cloneCatalog(e.state)
+				state := cloneCatalog(e.catalog.state)
 				state.namespaceGeneration = ^uint64(0)
-				e.state = state
+				e.catalog.state = state
 			}
 			ast, description := sequencePreparedDescription(t, e, a, "SELECT nextval('s')")
 			held := func(want int64) {
@@ -39,7 +39,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 			held(10)
 			sessionSQL(t, a, "CREATE SEQUENCE a.s START 100 CACHE 1")
 			held(11)
-			before := e.state
+			before := e.catalog.state
 			sessionSQL(t, b, "BEGIN")
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE unrelated_temp")
 			e.mu.Lock()
@@ -58,7 +58,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 					t.Fatal("exhausted namespace accepted combined publication", err)
 				}
-				if e.state != before || b.temporaryNamespace != (ids.ObjectAddress{}) {
+				if e.catalog.state != before || b.temporaryNamespace != (ids.ObjectAddress{}) {
 					t.Fatal("failed commit published catalog/session namespace")
 				}
 				if got := tuples(sessionSQL(t, a, "SELECT v FROM public.sentinel")); len(got) != 0 {
@@ -100,10 +100,10 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	}
 	sessionSQL(t, b, "CREATE TEMP SEQUENCE owned_temp START 30")
 	sessionSQL(t, c, "CREATE TEMP SEQUENCE peer_temp START 40")
-	state := cloneCatalog(e.state)
+	state := cloneCatalog(e.catalog.state)
 	state.namespaceGeneration = ^uint64(0)
 	state.epoch = ids.CatalogEpoch(^uint64(0))
-	e.state = state
+	e.catalog.state = state
 	_, bd := sequencePreparedDescription(t, e, b, "SELECT nextval('owned_temp')")
 	owned := bd.sequences.constants[0].ref.Address
 	namespace := b.temporaryNamespace
@@ -130,11 +130,11 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	if err := b.WaitEnd(context.Background()); err != nil {
 		t.Fatal("terminal authority prevented physical cleanup", err)
 	}
-	if e.state.epoch != state.epoch || e.state.namespaceGeneration != state.namespaceGeneration {
+	if e.catalog.state.epoch != state.epoch || e.catalog.state.namespaceGeneration != state.namespaceGeneration {
 		t.Fatal("logical retirement changed global callback or epoch authority")
 	}
 	assertTemporaryNamespacePair(t, e, b.token, namespace)
-	if _, ok := e.state.descriptors[owned]; ok || e.sequences[owned] != nil || e.storage[owned] != nil {
+	if _, ok := e.catalog.state.descriptors[owned]; ok || e.sequences[owned] != nil || e.storage[owned] != nil {
 		t.Fatal("ended session leaked temporary relation or generator")
 	}
 	if _, ok := retained.Descriptor(owned); !ok || generators[owned] == nil || len(storage) != len(e.storage) {

@@ -52,7 +52,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			return ids.ObjectRef{}, diagnostic
 		}
 	}
-	return e.domain.Ref(v.catalog.Epoch(), address), nil
+	return e.catalog.domain.Ref(v.catalog.Epoch(), address), nil
 }
 
 // Nonrelation classes share the same source selection, ACL mutation and final

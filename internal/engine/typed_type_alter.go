@@ -31,13 +31,13 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: e.domain.Ref(auth.catalog.Epoch(), source.address), OwnerOnly: true})
+		err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(auth.catalog.Epoch(), source.address), OwnerOnly: true})
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.acquireSequence(e.domain.Ref(auth.catalog.Epoch(), source.address), accessExclusive, true); err != nil {
+	if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), source.address), accessExclusive, true); err != nil {
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -62,13 +62,13 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	// independently parent-before-child for multiple-parent inheritance.
 	addresses := typedSortedAddresses(targets)
 	for _, address := range addresses {
-		if err := scope.acquireSequence(e.domain.Ref(auth.catalog.Epoch(), address), accessExclusive, true); err != nil {
+		if err := scope.acquireSequence(e.catalog.domain.Ref(auth.catalog.Epoch(), address), accessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
 	e.mu.Lock()
-	current := CatalogRead{owner: e, state: e.state}
-	valid := e.state.epoch == auth.catalog.Epoch() && e.state.descriptors[source.address] == source && e.state.descriptors[typ.Address()] == typ && typedObservationValid(stage, current)
+	current := CatalogRead{owner: e, state: e.catalog.state}
+	valid := e.catalog.state.epoch == auth.catalog.Epoch() && e.catalog.state.descriptors[source.address] == source && e.catalog.state.descriptors[typ.Address()] == typ && typedObservationValid(stage, current)
 	e.mu.Unlock()
 	if !valid {
 		return Result{}, CatalogConflict{}
@@ -114,7 +114,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			continue
 		}
 		usage := sourceMutation.next.columns[slot].Usage
-		ref := e.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
 		}

@@ -89,7 +89,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		if index >= 0 {
 			return fail(policyDuplicate(name, old))
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return fail(err)
 		}
@@ -126,7 +126,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		next.policies = append(next.policies[:index], next.policies[index+1:]...)
 	}
 	slices.SortFunc(next.policies, func(a, b policyDefinition) int { return strings.Compare(a.Name, b.Name) })
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)
 	}

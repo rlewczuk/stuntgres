@@ -25,13 +25,13 @@ func TestIdentityAlterSequenceGrantFreshness(t *testing.T) {
 			transactionEnd(t, a, tx, true)
 			lockAwait(t, done, nil)
 			if action == `ALTER TABLE i ALTER id DROP IDENTITY` {
-				table := e.state.descriptors[catalogRef(t, e, e.CatalogRead(), "i").Address].(*relationDescriptor)
-				if len(table.identities) != 0 || e.state.descriptors[ref.Address] != nil {
+				table := e.catalog.state.descriptors[catalogRef(t, e, e.CatalogRead(), "i").Address].(*relationDescriptor)
+				if len(table.identities) != 0 || e.catalog.state.descriptors[ref.Address] != nil {
 					t.Fatal("drop lost exact linked identity")
 				}
 				sessionSQL(t, b, `INSERT INTO i VALUES(55)`)
 			} else {
-				d := e.state.descriptors[ref.Address].(*relationDescriptor)
+				d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 				if d.sequence.increment != 3 {
 					t.Fatal("stale option overwrite", d.sequence.increment)
 				}
@@ -60,7 +60,7 @@ func TestIdentityAlterCanceledPublication(t *testing.T) {
 			sessionSQL(t, a, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 			tableRef := catalogRef(t, e, e.CatalogRead(), "i")
 			sequenceRef := catalogRef(t, e, e.CatalogRead(), "i_id_seq")
-			state, storage := e.state, e.storage[tableRef.Address]
+			state, storage := e.catalog.state, e.storage[tableRef.Address]
 			generator := *e.sequences[sequenceRef.Address]
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, `ALTER SEQUENCE i_id_seq RESTART WITH 10`)
@@ -74,7 +74,7 @@ func TestIdentityAlterCanceledPublication(t *testing.T) {
 			ownedLockQueued(t, e, sequenceRef, mode, done)
 			cancel()
 			lockAwait(t, done, context.Canceled)
-			if e.state != state || e.storage[tableRef.Address] != storage || *e.sequences[sequenceRef.Address] != generator {
+			if e.catalog.state != state || e.storage[tableRef.Address] != storage || *e.sequences[sequenceRef.Address] != generator {
 				t.Fatal("canceled exact linked wait published its private prefix")
 			}
 			transactionEnd(t, a, tx, false)

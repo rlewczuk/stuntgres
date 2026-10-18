@@ -52,11 +52,11 @@ func TestExpressionArithmeticDeleteAuthorization(t *testing.T) {
 				}
 				denied := func() {
 					t.Helper()
-					before := e.state
+					before := e.catalog.state
 					result, err := execute()
 					var diagnostic *sqlstate.Error
 					want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table t"}
-					if result.Count != 0 || result.Rows != nil || !errors.As(err, &diagnostic) || *diagnostic != want || e.state != before {
+					if result.Count != 0 || result.Rows != nil || !errors.As(err, &diagnostic) || *diagnostic != want || e.catalog.state != before {
 						t.Fatal(result, err, diagnostic)
 					}
 				}

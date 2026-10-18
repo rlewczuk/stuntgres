@@ -66,8 +66,8 @@ var builtinRoutineBodyEdges = [...]struct {
 func (e *Engine) initializeBuiltinRoutineBodies() {
 	storage := make([]routineBodyEdge, len(builtinRoutineBodyEdges))
 	for i, edge := range builtinRoutineBodyEdges {
-		outer, ok := e.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.outer}].(*procedureDescriptor)
-		inner, found := e.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.inner}].(*procedureDescriptor)
+		outer, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.outer}].(*procedureDescriptor)
+		inner, found := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: edge.inner}].(*procedureDescriptor)
 		if !ok || !found {
 			panic("stuntgres: missing genuine SQL body declaration")
 		}

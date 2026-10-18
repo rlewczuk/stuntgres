@@ -8,10 +8,10 @@ import (
 func TestSerialCoherentCreateCandidate(t *testing.T) {
 	e := New()
 	s := sessionStart(t,e,nil)
-	before := e.state
+	before := e.catalog.state
 	_,err := testExecute(e,context.Background(),statement(t,`CREATE TABLE bad(id SERIAL,v INT DEFAULT missing_column)`),nil)
 	state(t,err,"0A000")
-	if e.state != before || len(e.sequences) != 0 { t.Fatal("default cooking failure leaked serial candidate") }
+	if e.catalog.state != before || len(e.sequences) != 0 { t.Fatal("default cooking failure leaked serial candidate") }
 	sessionSQL(t,s,`CREATE TABLE t(id SERIAL,CHECK(nextval('t_id_seq')>0))`)
 	sequence := roleTableRef(t,e,"t_id_seq").Address
 	if e.sequences[sequence].called { t.Fatal("CHECK/default binding evaluated candidate") }
@@ -19,5 +19,5 @@ func TestSerialCoherentCreateCandidate(t *testing.T) {
 	sequenceScalar(t,s,`SELECT id FROM t`,1)
 	sequenceScalar(t,s,`SELECT currval('t_id_seq')`,2)
 	sessionSQL(t,s,`DROP TABLE t RESTRICT`)
-	if e.state.descriptors[sequence] != nil { t.Fatal("AUTO/NORMAL/CHECK cycle blocked owned cleanup") }
+	if e.catalog.state.descriptors[sequence] != nil { t.Fatal("AUTO/NORMAL/CHECK cycle blocked owned cleanup") }
 }

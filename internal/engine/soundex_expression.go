@@ -116,7 +116,7 @@ func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundE
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.domain.Ref(auth.catalog.Epoch(), proc.address)
+	ref := b.engine.catalog.domain.Ref(auth.catalog.Epoch(), proc.address)
 	b.dependencies = append(b.dependencies, expressionDependency{ref: ref, revision: proc.revision})
 	return installedSoundexFunctionExpression{Soundex: call, procedure: proc, ref: ref}, nil
 }

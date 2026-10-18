@@ -313,7 +313,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		old = auth.catalog.state.descriptors[address].(*relationDescriptor)
-		ref := e.domain.Ref(auth.catalog.Epoch(), address)
+		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 		if ref != scope.lockedRef {
 			e.mu.Unlock()
 			return Result{}, ErrCatalogReplaced
@@ -408,16 +408,16 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if old != nil {
 		oid, rule = old.address.ObjectID, old.view.rule
 	} else {
-		oid, err = e.allocateOIDLocked()
+		oid, err = e.catalog.allocateOIDLocked()
 		if err == nil {
-			rule, err = e.allocateOIDLocked()
+			rule, err = e.catalog.allocateOIDLocked()
 		}
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

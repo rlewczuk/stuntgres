@@ -37,7 +37,7 @@ func databaseRights(ctx context.Context, catalog CatalogRead, roles authorizatio
 // checkDatabaseConnectLocked is used only at physical session publication.
 // Identity switches and already admitted operations do not call it.
 func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated authorization.PrincipalRef) error {
-	catalog := CatalogRead{e, e.state}
+	catalog := CatalogRead{e, e.catalog.state}
 	rights, err := databaseRights(ctx, catalog, e.roleRead(catalog, e.roles), authenticated)
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
@@ -51,7 +51,7 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 // Own TEMP namespaces remain usable after revocation, but CREATE is contingent
 // on the current effective role's database TEMP privilege, not authentication.
 func (v AuthorizationView) ownTemporaryPrivileges() (authorization.Privileges, error) {
-	rights, err := v.Effective(v.engine.domain.Ref(v.catalog.Epoch(), currentDatabaseAddress), false)
+	rights, err := v.Effective(v.engine.catalog.domain.Ref(v.catalog.Epoch(), currentDatabaseAddress), false)
 	if err != nil {
 		return 0, err
 	}

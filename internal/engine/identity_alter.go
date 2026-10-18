@@ -49,7 +49,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	if !exists {
 		return old, sqlError("55000", message+" is not an identity column")
 	}
-	ref := e.domain.Ref(stage.base.Epoch(), identity.sequence)
+	ref := e.catalog.domain.Ref(stage.base.Epoch(), identity.sequence)
 	definition := action.Identity
 	if len(definition.Options) != 0 {
 		for _, option := range definition.Options {
@@ -111,7 +111,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if err != nil {
 		return err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 }
 
 func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
-	ref := e.domain.Ref(stage.base.Epoch(), address)
+	ref := e.catalog.domain.Ref(stage.base.Epoch(), address)
 	if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 		stage.identityOriginals = make(map[ids.ObjectAddress]Descriptor)
 	}
 	if _, captured := stage.identityOriginals[address]; !captured {
-		stage.identityOriginals[address] = e.state.descriptors[address]
+		stage.identityOriginals[address] = e.catalog.state.descriptors[address]
 	}
 	stage.base = fresh.catalog
 	return nil
