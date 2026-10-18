@@ -42,9 +42,11 @@ func TestReferenceLevenshteinCosts(t *testing.T) {
 			{[]any{"abc", "xyz", 0, 0, 0}, int64(0)},
 			{[]any{"a", "b", 1, 1, -4}, int64(-4)},
 			{[]any{"a", "a", -1, -1, 1}, int64(-2)},
-			{[]any{"", "aa", 2147483647, 1, 1}, int64(-2)},
-			{[]any{"aa", "", 1, 2147483647, 1}, int64(-2)},
-			{[]any{"a", "b", 2147483647, 1, 1}, int64(-2147483648)},
+			// PostgreSQL 18.6 computes in int64 and rejects a distance outside
+			// int4 (18.0 wrapped it).
+			{[]any{"", "aa", 2147483647, 1, 1}, levenshteinOutOfRange},
+			{[]any{"aa", "", 1, 2147483647, 1}, levenshteinOutOfRange},
+			{[]any{"a", "b", 2147483647, 1, 1}, int64(1)},
 			{[]any{"a", "aa", 1, -10, 1}, int64(-8)},
 		})
 	})
@@ -92,26 +94,23 @@ func TestReferenceLevenshteinBounds(t *testing.T) {
 			{[]any{"kitten", "sitting", 1, 1, 1, 3}, int64(3)},
 			{[]any{"kitten", "sitting", 1, nil, 1, 3}, nil},
 		})
-		t.Run("ReleaseBoundedInt32", func(t *testing.T) {
-			// REL_18_0 int arithmetic, independently traced before oracle execution.
-			// These are exact release quirks, not mathematical bound guarantees.
+		t.Run("ReleaseBoundedInt64", func(t *testing.T) {
+			// REL_18_6 int64 arithmetic: costs near the int4 limits no longer
+			// wrap (18.0 did), so a zero bound reports bound+1, and only a final
+			// distance outside int4 fails.
 			levenshteinFrames(t, p, b, c, "levenshtein_less_equal", []struct {
 				args []any
 				want any
 			}{
-				// MAX+1 wraps MIN: substitution reduces to MIN, disabling pruning.
-				{[]any{"a", "b", 2147483647, 1, 1, 0}, int64(-2147483648)},
-				// Two required gaps wrap the minimum to -2. Pruning stays active;
-				// wrapped residuals slide the band without crossing its final cell.
-				{[]any{"a", "aaa", 2147483647, 1, 1, 0}, int64(-2)},
-				{[]any{"aaa", "a", 1, 2147483647, 1, 0}, int64(-2)},
-				// MIN+(MIN+1) wraps +1; stop starts at1, then extends/slides.
-				{[]any{"a", "b", -2147483648, -2147483647, 2, 0}, int64(-2147483647)},
-				// The theoretical maximum 2*2^30 wraps MIN, disabling pruning.
-				{[]any{"aa", "bb", 1073741824, 0, 1073741824, 0}, int64(-2147483648)},
-				// A two-row active band: MAX+(-2147483646)=1, initial stop1;
-				// both rows extend it and wrapped residuals advance start.
-				{[]any{"aa", "bb", 2147483647, -2147483646, 1, 0}, int64(-2147483648)},
+				{[]any{"a", "b", 2147483647, 1, 1, 0}, int64(1)},
+				{[]any{"a", "aaa", 2147483647, 1, 1, 0}, int64(1)},
+				{[]any{"aaa", "a", 1, 2147483647, 1, 0}, int64(1)},
+				{[]any{"a", "b", -2147483648, -2147483647, 2, 0}, levenshteinOutOfRange},
+				{[]any{"aa", "bb", 1073741824, 0, 1073741824, 0}, int64(1)},
+				{[]any{"aa", "bb", 2147483647, -2147483646, 1, 0}, int64(1)},
+				// PostgreSQL 18.6's regression case: a theoretical maximum of
+				// 2*2^30 no longer wraps.
+				{[]any{"aaa", "aaaaa", 1073741824, 0, 1073741824, 10}, int64(11)},
 			})
 		})
 		q := "SELECT levenshtein_less_equal($1,$2,$3,$4,$5,$6)"

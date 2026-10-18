@@ -38,7 +38,15 @@ func levenshteinCase(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.
 	}
 }
 
+// levenshteinOutOfRange is PostgreSQL 18.6's error for a distance outside int4.
+var levenshteinOutOfRange = fixture.Diagnostic{Code: "22003", Message: "levenshtein distance out of range"}
+
 func levenshteinSelect(q, name string, value any, args ...any) fixture.Step {
+	if d, ok := value.(fixture.Diagnostic); ok {
+		s := fixture.ImplicitError(q, d, args...)
+		s.SelectRows, s.ErrorStage = true, "execute"
+		return s
+	}
 	s := fixture.Select(q, []string{name}, []string{"INT4"}, [][]any{{value}}, args...)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 		t.Helper()

@@ -1234,11 +1234,11 @@ grapheme segmentation. Two nonempty operands exceeding255 characters fail22023
 or target returns the corresponding weighted insertion/deletion length before
 limit or bound checks, so an empty/256-character pair is accepted.
 
-Release compatibility follows the pinned PostgreSQL18.0 int32 arithmetic:
-signed costs, including negative values, are accepted and intermediate additions
-and products wrap. Bounded pruning remains release-specific with pathological
-costs; these are not recommended mathematical distance metrics. No newer-devel
-overflow22003 guard is substituted. Strict NULL retains INT4 metadata, while
+Release compatibility follows the pinned PostgreSQL 18.6 arithmetic: signed
+costs, including negative values, are accepted, intermediates are int64 and do
+not wrap, and a final distance outside INT4 fails 22003 `levenshtein distance
+out of range` (18.0 wrapped it). Bounded pruning remains release-specific with
+pathological costs; these are not recommended mathematical distance metrics. Strict NULL retains INT4 metadata, while
 required sibling errors still execute. Genuine installed identities and all
 arguments survive stored rendering, generated/default/CHECK/view consumers and
 native Dump/Reset/Restore; no always-on builtin aliases are installed.

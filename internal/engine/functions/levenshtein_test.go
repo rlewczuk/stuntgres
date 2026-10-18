@@ -119,15 +119,24 @@ func TestLevenshteinBounds(t *testing.T) {
 	}
 }
 
-func TestLevenshteinReleaseInt32(t *testing.T) {
+func TestLevenshteinReleaseInt64(t *testing.T) {
+	// REL_18_6 computes in int64 and range-checks only the final distance.
 	for _, tc := range []struct {
-		source, target      string
-		ins, del, sub, want int32
+		source, target string
+		ins, del, sub  int32
+		want           int32
+		overflow       bool
 	}{
-		{"", "aa", 2147483647, 1, 1, -2}, {"aa", "", 1, 2147483647, 1, -2},
-		{"a", "b", 2147483647, 1, 1, -2147483648},
+		{"", "aa", 2147483647, 1, 1, 0, true}, {"aa", "", 1, 2147483647, 1, 0, true},
+		{"a", "b", 2147483647, 1, 1, 1, false}, {"a", "b", -2147483648, -2147483647, 2, 0, true},
 	} {
 		got, err := LevenshteinDistance(context.Background(), tc.source, tc.target, tc.ins, tc.del, tc.sub, -1)
+		if tc.overflow {
+			if err == nil || err.Error() != "stuntgres: levenshtein distance out of range" {
+				t.Fatal(tc, got, err)
+			}
+			continue
+		}
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}

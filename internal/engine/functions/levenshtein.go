@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"math"
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/expr"
@@ -152,10 +153,11 @@ func (e Levenshtein) Eval(c expr.Context) (sqltype.Value, error) {
 	return sqltype.Integer(e.Usage.Type, int64(result))
 }
 
-// LevenshteinDistance follows PostgreSQL REL_18_0 utils/adt/levenshtein.c,
-// including its band slides and signed int32 intermediates (-fwrapv). In
-// particular, negative costs cannot be replaced by a mathematical full-DP
-// fallback: the release's nonnegative-bound pruning remains observable.
+// LevenshteinDistance follows PostgreSQL REL_18_6 utils/adt/levenshtein.c,
+// including its band slides and int64 intermediates: a result outside int32
+// is 22003 rather than 18.0's wrapped value. Negative costs cannot be replaced
+// by a mathematical full-DP fallback: the release's nonnegative-bound pruning
+// remains observable.
 // Copyright (c) 2001-2025, PostgreSQL Global Development Group.
 // Permission to use, copy, modify, and distribute this software and its
 // documentation for any purpose, without fee, and without a written agreement
@@ -173,44 +175,42 @@ func (e Levenshtein) Eval(c expr.Context) (sqltype.Value, error) {
 // AND FITNESS FOR A PARTICULAR PURPOSE. THE SOFTWARE PROVIDED HEREUNDER IS
 // ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
 // PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
-func LevenshteinDistance(ctx context.Context, source, target string, ins, del, sub, bound int32) (int32, error) {
+func LevenshteinDistance(ctx context.Context, source, target string, insCost, delCost, subCost, maxDistance int32) (int32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+	ins, del, sub, bound := int64(insCost), int64(delCost), int64(subCost), int64(maxDistance)
 	m, n := utf8.RuneCountInString(source), utf8.RuneCountInString(target)
 	// Release order: empty operands bypass both the limit and the bound.
 	if m == 0 {
-		return int32(n) * ins, nil
+		return levenshteinResult(int64(n) * ins)
 	}
 	if n == 0 {
-		return int32(m) * del, nil
+		return levenshteinResult(int64(m) * del)
 	}
 	if m > 255 || n > 255 {
 		return 0, sqlError("22023", "levenshtein argument exceeds maximum length of 255 characters")
 	}
 	start, stop := 0, m+1
 	if bound >= 0 {
-		net := int32(n - m)
+		net := int64(n - m)
 		minimum := net * ins
 		if net < 0 {
 			minimum = -net * del
 		}
 		if minimum > bound {
-			return bound + 1, nil
+			return levenshteinResult(bound + 1)
 		}
 		sub = min(sub, ins+del)
-		maximum := minimum + sub*int32(min(m, n))
+		maximum := minimum + sub*int64(min(m, n))
 		if bound >= maximum {
 			bound = -1
 		} else if ins+del > 0 {
-			best := int32(0)
+			best := int64(0)
 			if net < 0 {
 				best = -net
 			}
-			stop = int(best + (bound-minimum)/(ins+del) + 1)
-			if stop > m {
-				stop = m + 1
-			}
+			stop = int(min(best+(bound-minimum)/(ins+del)+1, int64(m+1)))
 		}
 	}
 	var sourceRunes, targetRunes [255]rune
@@ -224,10 +224,10 @@ func LevenshteinDistance(ctx context.Context, source, target string, ins, del, s
 		targetRunes[i] = r
 		i++
 	}
-	var rows [2][256]int32
+	var rows [2][256]int64
 	prev, curr := &rows[0], &rows[1]
 	for i := start; i < stop; i++ {
-		prev[i] = int32(i) * del
+		prev[i] = int64(i) * del
 	}
 	for j := 1; j <= n; j++ {
 		if err := ctx.Err(); err != nil {
@@ -239,7 +239,7 @@ func LevenshteinDistance(ctx context.Context, source, target string, ins, del, s
 		}
 		i := start
 		if start == 0 {
-			curr[0] = int32(j) * ins
+			curr[0] = int64(j) * ins
 			i = 1
 		}
 		for ; i < stop; i++ {
@@ -252,8 +252,8 @@ func LevenshteinDistance(ctx context.Context, source, target string, ins, del, s
 		prev, curr = curr, prev
 		if bound >= 0 {
 			zero := j - (n - m)
-			residual := func(column int) int32 {
-				net := int32(column - zero)
+			residual := func(column int) int64 {
+				net := int64(column - zero)
 				if net > 0 {
 					return net * ins
 				}
@@ -267,9 +267,17 @@ func LevenshteinDistance(ctx context.Context, source, target string, ins, del, s
 				start++
 			}
 			if start >= stop {
-				return bound + 1, nil
+				return levenshteinResult(bound + 1)
 			}
 		}
 	}
-	return prev[m], nil
+	return levenshteinResult(prev[m])
+}
+
+// levenshteinResult is REL_18_6's int32 range check of a final distance.
+func levenshteinResult(distance int64) (int32, error) {
+	if distance < math.MinInt32 || distance > math.MaxInt32 {
+		return 0, sqlError("22003", "levenshtein distance out of range")
+	}
+	return int32(distance), nil
 }
