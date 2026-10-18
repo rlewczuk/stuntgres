@@ -77,7 +77,7 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 			for _, clause := range []struct {
 				name string
 				expr *policyExpression
-			}{{"USING", policy.using}, {"WITH CHECK", policy.check}} {
+			}{{"USING", policyExpressionOf(policy.using)}, {"WITH CHECK", policyExpressionOf(policy.check)}} {
 				if clause.expr == nil {
 					continue
 				}

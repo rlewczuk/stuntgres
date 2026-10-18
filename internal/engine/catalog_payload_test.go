@@ -45,4 +45,18 @@ func TestCatalogPayloadAccessors(t *testing.T) {
 	if viewDepends(&relationDescriptor{}, source) {
 		t.Fatal("absent view has dependencies")
 	}
+
+	if policyExpressionOf(nil) != nil || policyPayloadOf(nil) != nil {
+		t.Fatal("absent policy payload")
+	}
+	condition := &policyExpression{presentation: definition}
+	policy := policyDefinition{using: policyPayloadOf(condition)}
+	if policyExpressionOf(policy.using) != condition || policy.check != nil {
+		t.Fatal("policy payload identity")
+	}
+	for target, want := range map[ids.ObjectAddress]bool{source: true, column: true, other: false} {
+		if policy.using.DependsOn(target) != want || policyDepends(policy, target) != want {
+			t.Fatal("policy dependency", target, want)
+		}
+	}
 }

@@ -97,7 +97,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		s := stmt.(*parser.CreatePolicy)
 		next.policies = append(next.policies, policyDefinition{
 			OID: oid, Name: name, permissive: s.Permissive, command: policyCommand(s.Command),
-			roles: roles, using: using, check: check,
+			roles: roles, using: policyPayloadOf(using), check: policyPayloadOf(check),
 		})
 	} else if alter {
 		s := stmt.(*parser.AlterPolicy)
@@ -118,10 +118,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 			p.roles = roles
 		}
 		if rawUsing != nil {
-			p.using = using
+			p.using = policyPayloadOf(using)
 		}
 		if rawCheck != nil {
-			p.check = check
+			p.check = policyPayloadOf(check)
 		}
 	} else {
 		next.policies = append(next.policies[:index], next.policies[index+1:]...)
@@ -134,7 +134,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	for _, p := range next.policies {
-		for _, expression := range []*policyExpression{p.using, p.check} {
+		for _, expression := range []*policyExpression{policyExpressionOf(p.using), policyExpressionOf(p.check)} {
 			if expression == nil {
 				continue
 			}

@@ -46,7 +46,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	check("direct bypass", bypass, policySelect, false, rlsUnrestricted)
 	check("attribute not inherited", member, policySelect, false, rlsDefaultDeny)
 	check("direct superuser", d.owner, policySelect, false, rlsUnrestricted)
-	next.policies = []policyDefinition{{permissive: false, command: policyAll, roles: []policyRole{{public: true}}, using: using}}
+	next.policies = []policyDefinition{{permissive: false, command: policyAll, roles: []policyRole{{public: true}}, using: policyPayloadOf(using)}}
 	check("restrictive only", member, policySelect, false, rlsDefaultDeny)
 	next.policies[0].permissive = true
 	next.policies[0].roles = []policyRole{{ref: owner}}
@@ -64,7 +64,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	next.policies[0].using = nil
 	check("omitted using", member, policySelect, false, rlsDefaultDeny)
 	next.policies[0].command = policyInsert
-	next.policies[0].check = using
+	next.policies[0].check = policyPayloadOf(using)
 	check("explicit check", member, policyInsert, true, rlsNeedsExpressions)
 	got, err = rowSecurityGroups(auth, &next, member, policyInsert, true, true)
 	if err != nil || got != rlsDefaultDeny {
@@ -164,13 +164,13 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := *d
-	old.policies = []policyDefinition{{OID: oid, Name: "retained", permissive: true, command: policyAll, roles: []policyRole{{ref: d.owner}}, using: expression, check: expression}}
+	old.policies = []policyDefinition{{OID: oid, Name: "retained", permissive: true, command: policyAll, roles: []policyRole{{ref: d.owner}}, using: policyPayloadOf(expression), check: policyPayloadOf(expression)}}
 	actions := []parser.AlterTableAction{{Action: parser.EnableRowSecurity}, {Action: parser.ForceRowSecurity}, {Action: parser.DisableRowSecurity}}
 	next := rowSecurityFlags(&old, actions)
 	if next == &old || next.rlsEnabled || !next.rlsForced || old.rlsEnabled || old.rlsForced {
 		t.Fatal("independent flags/old snapshot")
 	}
-	if &next.policies[0] != &old.policies[0] || next.policies[0].using != expression || next.policies[0].check != expression || next.policies[0].OID != oid {
+	if &next.policies[0] != &old.policies[0] || policyExpressionOf(next.policies[0].using) != expression || policyExpressionOf(next.policies[0].check) != expression || next.policies[0].OID != oid {
 		t.Fatal("flag action copied or changed immutable policy payload")
 	}
 	if rowSecurityFlags(next, []parser.AlterTableAction{{Action: parser.DisableRowSecurity}, {Action: parser.ForceRowSecurity}}) != next {
@@ -197,7 +197,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	for _, descriptor := range imported.CatalogRead().Descriptors() {
 		copy, ok := descriptor.(*relationDescriptor)
 		if ok && copy.name == "t" {
-			if copy.rlsEnabled || !copy.rlsForced || len(copy.policies) != 1 || copy.policies[0].using == expression {
+			if copy.rlsEnabled || !copy.rlsForced || len(copy.policies) != 1 || policyExpressionOf(copy.policies[0].using) == expression {
 				t.Fatal("remap lost flags/policy or shared original expression")
 			}
 			return

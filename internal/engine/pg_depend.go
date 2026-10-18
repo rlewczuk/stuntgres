@@ -154,7 +154,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 			for _, policy := range d.policies {
 				owner := ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}
 				add(owner, d.address, 'a')
-				for _, condition := range []*policyExpression{policy.using, policy.check} {
+				for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
 					if condition != nil {
 						if err := expression(owner, condition.expression, d.address, 'n'); err != nil {
 							return nil, err

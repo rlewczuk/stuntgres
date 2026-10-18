@@ -966,7 +966,7 @@ func catalogExpressionTypesChanged(d *relationDescriptor, typ func(*sqltype.Desc
 		expression(constraint.expression)
 	}
 	for _, policy := range d.policies {
-		for _, condition := range []*policyExpression{policy.using, policy.check} {
+		for _, condition := range []*policyExpression{policyExpressionOf(policy.using), policyExpressionOf(policy.check)} {
 			if condition != nil {
 				expression(condition.expression)
 				changed = changed || queryDescriptorsChanged(condition.presentation.query.Root, typ)

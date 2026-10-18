@@ -13,11 +13,11 @@ func remapPolicies(view CatalogRead, d *relationDescriptor, mapping map[ids.Obje
 	copy.policies = append([]policyDefinition(nil), d.policies...)
 	for i := range copy.policies {
 		p := &copy.policies[i]
-		for _, slot := range []**policyExpression{&p.using, &p.check} {
+		for _, slot := range []*policyPayload{&p.using, &p.check} {
 			if *slot == nil {
 				continue
 			}
-			expression := **slot
+			expression := *policyExpressionOf(*slot)
 			frozen, err := remapFrozenPresentation(view, expression.presentation, mapping, ref, typ, collation)
 			if err != nil {
 				return nil, err

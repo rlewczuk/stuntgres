@@ -138,11 +138,11 @@ func rowSecurityDecision(auth AuthorizationView, d *relationDescriptor, principa
 		if !policy.permissive || policy.command != policyAll && policy.command != command {
 			continue
 		}
-		expression := policy.using
+		expression := policyExpressionOf(policy.using)
 		if proposed && command != policySelect {
-			expression = policy.check
+			expression = policyExpressionOf(policy.check)
 			if expression == nil && (policy.command == policyAll || policy.command == policyUpdate) {
-				expression = policy.using
+				expression = policyExpressionOf(policy.using)
 			}
 		}
 		if expression == nil {
