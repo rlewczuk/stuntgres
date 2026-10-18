@@ -25,7 +25,7 @@ func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFuncti
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "daitch_mokotoff"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}}}
-	node, err := b.bindInstalledFunction(raw)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +269,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("foreign generation evaluated")
 	}
 	calls := 0
-	n.arg = daitchCountingArgument{expressionInfo: expressionInfo{Usage: n.arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.arg.ResultUsage().Type)}
+	n.Arg = daitchCountingArgument{expressionInfo: expressionInfo{Usage: n.Arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
 	v, err := n.Eval(ctx)
 	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || plannedVolatility(n) != Volatile || generationImmutable(n) {
 		t.Fatal("strict single eval/child volatility", calls, v, err)
@@ -281,7 +281,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	}
 	unaccent, _, _ := extensionUnitInstalled(t)
 	b := newTestExpressionBinder(t, ctx.Context, unaccent, sqltype.InputEnvironment{}, nil)
-	u, err := b.bindInstalledFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
+	u, err := b.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
 	if err != nil || plannedVolatility(u) != Stable || generationImmutable(u) {
 		t.Fatal("unaccent remains stable", u, err)
 	}

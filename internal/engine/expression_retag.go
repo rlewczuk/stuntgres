@@ -285,7 +285,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		rebound = n
 	case installedFunctionExpression:
-		n.arg = child(n.arg)
+		n.Arg = child(n.Arg)
 		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 		proc, ok := descriptor.(*procedureDescriptor)
 		if !ok {
@@ -307,7 +307,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || n.procedure != proc || n.dictionary != dict || n.template != tmpl
 		n.procedure, n.dictionary, n.template = proc, dict, tmpl
-		n.expressionInfo = info
+		n.Info = info
 		if !n.validProvider() {
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
 		}

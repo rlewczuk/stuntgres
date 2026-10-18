@@ -128,7 +128,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", fmt.Errorf("stuntgres: missing stored function namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []BoundExpr{n.arg})
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []BoundExpr{n.Arg})
 	case functions.UUIDGeneration:
 		if u.Type.ID() != sqltype.UUID || (n.Name != "uuidv7" && n.Name != "uuidv4" && n.Name != "gen_random_uuid") || len(n.Args) > 1 || len(n.Args) != 0 && n.Name != "uuidv7" {
 			return "", fmt.Errorf("stuntgres: invalid stored UUID generation signature")

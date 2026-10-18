@@ -620,7 +620,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(installedFunctionExpression); ok {
-			return children(r.Args, []BoundExpr{n.arg})
+			return children(r.Args, []BoundExpr{n.Arg})
 		}
 		if n, ok := bound.(fieldExpression); ok && len(r.Args) == 1 {
 			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})

@@ -272,7 +272,7 @@ func generationImmutable(node BoundExpr) bool {
 	case installedCryptoFunctionExpression:
 		return n.procedure != nil && n.procedure.volatility == Immutable && args(n.Args)
 	case installedFunctionExpression:
-		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.arg})
+		return n.procedure != nil && n.procedure.volatility == Immutable && args([]BoundExpr{n.Arg})
 	case sqlJSONExpression:
 		return n.Property.Volatility == Immutable && args(n.args)
 	case jsonPredicateExpression:
@@ -486,7 +486,7 @@ func generationHasTableOID(node BoundExpr) bool {
 	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:
-		return args([]BoundExpr{n.arg})
+		return args([]BoundExpr{n.Arg})
 	case sqlJSONExpression:
 		return args(n.args)
 	case jsonPredicateExpression:
@@ -829,7 +829,7 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:
-		return args([]BoundExpr{n.arg})
+		return args([]BoundExpr{n.Arg})
 	case sqlJSONExpression:
 		return args(n.args)
 	case jsonPredicateExpression:

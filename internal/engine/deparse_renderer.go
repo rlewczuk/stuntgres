@@ -1237,7 +1237,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
-		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []BoundExpr{n.arg}, true)
+		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), []BoundExpr{n.Arg}, true)
 	case sqlJSONExpression:
 		return r.sqlJSON(ctx, n, sqltype.Usage{})
 	case jsonPredicateExpression:

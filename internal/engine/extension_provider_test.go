@@ -130,7 +130,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
-	node, err := b.bindInstalledFunction(raw)
+	node, err := b.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal("procedure dependency", refs, err)
 	}
-	n.arg = literalExpression{expressionInfo: expressionInfo{Usage: node.ResultUsage()}, value: sqltype.Null(node.ResultUsage().Type)}
+	n.Arg = literalExpression{expressionInfo: expressionInfo{Usage: node.ResultUsage()}, value: sqltype.Null(node.ResultUsage().Type)}
 	value, err = n.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type {
 		t.Fatal("strict typed NULL", value, err)

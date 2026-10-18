@@ -24,7 +24,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		{"gen_salt", []parser.Expr{literal("bf")}, Volatile},
 	} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: v.name}}}, Args: v.args}
-		node, err := binder.bindInstalledCrypto(raw)
+		node, err := binder.bindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}

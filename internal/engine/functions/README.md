@@ -79,8 +79,13 @@ Added for UUID generation, `format` and uuid-ossp (F4/F5):
   result is an opaque handle (`installed_routine.go`): `Validate` checks the
   installation manifest, and `Attach` completes the call's routine identity,
   records the dependency and returns the engine's identity-carrying wrapper.
-  Extension installation and procedure identity stay in the engine; pgcrypto,
-  fuzzystrmatch, unaccent, intarray and intagg can reuse this capability.
+  Extension installation and procedure identity stay in the engine. The
+  pgcrypto, fuzzystrmatch and unaccent ports added their `Extension` values
+  and share one engine handle with uuid-ossp; a procedure installed by another
+  provider is not the extension's routine. pgcrypto's lookup walks the path
+  namespace by namespace and returns `CatalogBuiltin` when `pg_catalog` comes
+  before the installed `gen_random_uuid`, so the call binds as the core
+  builtin. intarray and intagg can reuse this capability.
 
 Added for the array and range families (F4/F5), which also use
 `CollatedInfo` and `NoteCatalogText` (array_to_string over catalog-identifier
@@ -225,6 +230,9 @@ Registered families:
 | `regexp_*` | `regexp_bind.go` | `regexpNames` | `ExactSpelling` (checks its own labels) |
 | `to_number` | `numeric_formatting_bind.go` | `to_number` | `ExactSpelling`, `SharedGates` |
 | Binary data | `binary_bind.go` | `binaryNames` | `ExactSpelling`, `SharedGates` |
+| pgcrypto | `pgcrypto_bind.go` | `pgcryptoNames` | none |
+| fuzzystrmatch | `fuzzystrmatch_bind.go` | `fuzzystrmatchNames` | none |
+| unaccent, `daitch_mokotoff` | `unaccent_bind.go` | `unaccent`, `daitch_mokotoff` | none |
 
 `datetimeNames` covers extract/date_part, date_trunc, date_bin,
 timezone/date_add/date_subtract, justify_* and to_char/to_date/to_timestamp.
@@ -350,10 +358,11 @@ expansion, name/catalog/ACL and dependency resolution, parameter/result contract
 retag/remap and stored SQL presentation. The capabilities supply existing
 authority without copying rows or the full evaluation context. Installed
 extension routines keep their engine wrapper nodes (for example
-`installedUUIDOsspFunctionExpression`), manifest validation and stored
-identity; registered bind code reaches them only through `InstalledRoutine`.
-UUID DEFAULT admission (`closedUUIDDefault`) stays with the engine's DEFAULT
-binder. Binary call deparse (`renderBinaryCall` in `binary_render.go`) stays
+`installedUUIDOsspFunctionExpression`, `installedCryptoFunctionExpression` and
+`installedFunctionExpression` for unaccent and `daitch_mokotoff`), manifest
+validation and stored identity; registered bind code reaches them only through
+`InstalledRoutine`. UUID and pgcrypto DEFAULT admission (`closedUUIDDefault`,
+`closedPgcryptoDefault`) stay with the engine's DEFAULT binder. Binary call deparse (`renderBinaryCall` in `binary_render.go`) stays
 with the engine's renderers until F2.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
@@ -382,12 +391,26 @@ protocol.
 UTF8/Latin1 scanner and correlated digit-prefix state machine. Codes retain
 completion/padding order and all alternatives; no-encodable input returns nil
 for the engine's typed SQL NULL. State and result buffers are evaluation-local,
-with incremental cancellation during scans/lookahead/expansion. Installed
-fuzzystrmatch identity, strictness, immutable binding, owned text[] construction,
-generated consumers and control remapping remain engine responsibilities.
+with incremental cancellation during scans/lookahead/expansion.
+`InstalledText` evaluates `daitch_mokotoff` into an owned text[] and
+`unaccent` through the installed dictionary's rules. It is not a protocol
+node: the engine wrapper that embeds it keeps its own switch cases. Installed
+fuzzystrmatch identity, strictness, generated consumers and control remapping
+remain engine responsibilities. `unaccent.rules` (PostgreSQL REL_18_0) is
+embedded here and compiled once into `StockUnaccent`, which the engine's
+installed unaccent provider uses.
+
+`bindInstalledText` keeps the order of the old engine binder:
+- unaccent rejects decorations as a missing signature; `daitch_mokotoff`
+  reports them with 42809 after argument finalization.
+- No implicit coercion to TEXT has a cast routine, so the operand's TEXT
+  coercion carries no routine identity.
 
 Installed pgcrypto calls reuse this package's SQL-usage overload selection,
-formal coercion hooks and reconstructible `Pgcrypto` carrier. The engine separately
+formal coercion hooks and reconstructible `Pgcrypto` carrier. `PgcryptoMembers`
+is the 1.4 manifest as plain data. The engine stages and validates
+installations from it, and `bindPgcrypto` reads the selected member's result
+and volatility from it, which installed procedures never change. The engine separately
 owns installed procedure address, namespace/ACL, intrinsic volatility, dependency,
 replay identity and narrow strong-entropy/actual-FIPS context capabilities.
 `internal/sqltype/pgcrypto.go` owns admitted signature/result plans, raw digest/HMAC,
@@ -414,6 +437,11 @@ Closed volatile pgcrypto DEFAULT recipes use the same provider-identity and clos
 admission at binding and serialization; unrelated volatile producers and
 row/parameter/stage-dependent recipes remain excluded. This does not weaken
 the separate generated-column/expression-index immutability rules.
+
+`bindFuzzystrmatch` binds Levenshtein, Metaphone and Soundex calls through
+one kernel table. The table is selected by the folded name, as the engine's
+chain did, and each kernel sees the lowercased spelling. The call records its
+dependency without deduplication, exactly as the three old engine binders did.
 
 Installed fuzzystrmatch Levenshtein calls reuse shared SQL-usage analysis and
 formal coercion: TEXT,TEXT followed by INT4 costs/bound, with INT4 results.
@@ -557,6 +585,18 @@ make check RUN='^TestLevenshtein(ExpressionIdentity|Remap)$'
 make check RUN='^TestMetaphone(Signatures|Codes|Boundaries|StrictDemand|Cancellation|ExpressionIdentity|Remap|ParserAdmission)$'
 make check RUN='^TestDoubleMetaphone(Codes|Boundaries|Cancellation|Allocations)$'
 make check RUN='^TestSoundex(Kernel|Expression|ExpressionIdentity|ExpressionRemap|ExpressionProperties)$'
+```
+
+pgcrypto, fuzzystrmatch and unaccent registration (registry here; the
+engine's `TestPgcrypto*`, `TestLevenshtein*`, `TestMetaphone*`,
+`TestSoundex*`, `TestDaitchMokotoff*` and `TestExtension*` bind through
+`bindFunctionProvider` and cover the wrappers' switches; add `REFERENCE=1`
+for the PostgreSQL run):
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestExtensionRules)$'
+make check RUN='^TestReference(Pgcrypto|Levenshtein|Metaphone|Soundex|DaitchMokotoff)'
+make check RUN='^TestReference(Extension|AvailableExtensions|MaterializedAlterExtension|ObjectGrant(Levenshtein|Metaphone|Soundex|PGCrypto|UUIDOssp))'
 ```
 
 Array inspect, random, transform and search bind over comparison-analyzed

@@ -122,12 +122,24 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
 		}
 	}
+	// Installed pgcrypto, fuzzystrmatch and unaccent calls sat before the
+	// shared gates and matched every folded spelling; the installed lookup
+	// owns exact resolution.
+	for _, name := range []string{"digest", "HMAC", "crypt", "Gen_Salt", "encrypt", "decrypt", "encrypt_iv", "DECRYPT_IV", "gen_random_bytes", "gen_random_uuid", "fips_mode",
+		"levenshtein", "Levenshtein_Less_Equal", "metaphone", "DMETAPHONE", "dmetaphone_alt", "soundex", "\u017foundex", "Difference",
+		"unaccent", "UNACCENT", "daitch_mokotoff", "daitch_mo\u212aotoff"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || definition.ExactSpelling || definition.SharedGates || definition.Claims != nil {
+			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
+		}
+	}
 	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "random", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
 		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
 		"Date_Trunc", "MAKE_DATE", "age", "isfinite", "overlaps", "pg_sleep", "now", "TO_NUMBER",
 		"LIKE_ESCAPE", "REGEXP_MATCH", "regexp", "similar_to_escape", "similar_escape",
 		"LEFT", "Trim", "String_To_Table",
-		"SUBSTRING", "Substr", "Encode", "sha1", "get_bits", "convert_to_text", "pg_size_bytes"} {
+		"SUBSTRING", "Substr", "Encode", "sha1", "get_bits", "convert_to_text", "pg_size_bytes",
+		"digests", "gen_random_bytea", "pgp_sym_encrypt", "armor", "levenshtein_x", "metaphones", "soundex_code", "unaccent_init", "unaccent_lexize", "daitch"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}

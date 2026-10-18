@@ -175,8 +175,9 @@ Tier C has a refined plan.
   [x] binary (`6e15eb725` seam, `8e4f3177b` port, `0d43b5592` move, then
   the docs commit) [x] numeric formatting (`b6dc6c486` move; regexp and variadic
   string registration: `2dbf3742f` seam, `7c8508c0b`, `528ac1aeb`; then the
-  docs commit) [ ] pgcrypto [ ] fuzzystrmatch
-  [ ] unaccent [ ] intarray [ ] intagg [x] uuid-ossp (UUID, format and
+  docs commit) [x] pgcrypto [x] fuzzystrmatch
+  [x] unaccent (`a4e02ba94` seam, `c037c89d9` port, `56271aa34` move,
+  then the docs commit) [ ] intarray [ ] intagg [x] uuid-ossp (UUID, format and
   uuid-ossp: `e29efd342` seam, `6bcd3fb43` port, `0a04835ae` UUID move,
   `36411c4fd` format move, `0a80f30a0` uuid-ossp move, then the docs commit)
 - [ ] F4/F5 Tier B: [ ] random [ ] current time and clocks [ ] sleep
@@ -194,8 +195,8 @@ generation, format, uuid-ossp); `BuiltinOperatorRoutineInfo` and
 `AdmitSetReturning` and `CaptureTypeInput` (JSON calls); `ConstantValue`
 (datetime), `BuiltinOperatorVisible` and `CallSignatureError` (pattern) and
 `FinishBinary` (string, a leak the binary port removed); `LiteralNull` and
-`NoteVisibilitySnapshot` (binary). Reasons for every method are in the
-`functions` README.
+`NoteVisibilitySnapshot` (binary). The pgcrypto, fuzzystrmatch and unaccent
+port added none. Reasons for every method are in the `functions` README.
 
 Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
 `functions/routine_provider.go`; the engine keeps `routineProvider` and
@@ -731,6 +732,101 @@ Notes for later steps (binary):
   mixed-case EXTRACT fields in deparse) and
   `TestReferenceDatetimeFormattingReviewCollationDemand` (XX000 "cache
   lookup failed for collation 0" instead of 42P22).
+
+F4/F5 pgcrypto, fuzzystrmatch and unaccent record, measured at its start on
+`d27303cc6`:
+
+- Scope. The task also named numeric formatting, but that was already done:
+  `to_number` moved in `b6dc6c486`, numeric `to_char` binds through the
+  datetime family, and only F2 switch cases remain.
+- Ported binders (each matched `EqualFold` and sat before the shared gates):
+  - `bindInstalledCrypto`.
+  - The three near-identical `bindInstalled{Levenshtein,Metaphone,Soundex}`,
+    now one table-driven `bindFuzzystrmatch`.
+  - `bindInstalledFunction` (unaccent and `daitch_mokotoff`), now
+    `bindInstalledText`.
+
+  They register case-insensitively with neither `ExactSpelling` nor
+  `SharedGates`. A throwaway check confirmed that no earlier chain predicate
+  or registered definition claims the 20 names.
+- No `Binder` method was added; `InstalledRoutine` covered every lookup:
+  - New `Extension` values: `PgcryptoExtension`, `FuzzystrmatchExtension`,
+    `UnaccentExtension`. One engine handle (`installed_routine.go`) replaces
+    uuid-ossp's own. A procedure from another provider yields nil. This is
+    exact, because no other creator makes procedures with these names and
+    signatures.
+  - pgcrypto's lookup keeps its per-namespace walk. It returns the
+    `functions.CatalogBuiltin` value when `pg_catalog` precedes the installed
+    `gen_random_uuid`, as the arrays/ranges notes asked.
+  - The pgcrypto 1.4 manifest table moved to `functions` as plain data
+    (`PgcryptoMembers`, `PgcryptoLookup`). Bind code reads results and
+    volatility from it, because procedure descriptors are never mutated after
+    staging; the engine's stage, validate, owner-import and DEFAULT-closure
+    code read the same table.
+- unaccent:
+  - Evaluation moved to the new `functions.InstalledText`. The engine's
+    `installedFunctionExpression` now embeds it.
+  - Its switch cases changed only field names (`arg` → `Arg`,
+    `expressionInfo` → `Info`). `InstalledText` is not an `expr.Composite`,
+    so the wrapper cannot fall into protocol branches.
+  - `unaccent.rules` and its embed moved to `functions` (`StockUnaccent`).
+    `Attach` captures the dictionary and template and sets the rules from
+    the installed dictionary's provider, as evaluation read them before.
+  - A probe showed that implicit coercion to TEXT admits no type with a cast
+    routine (bool, inet and cidr need explicit or assignment casts). So the
+    planned `DirectFormalArgument` coercion builds the same node as the old
+    inline coercion, and no new request flag was needed.
+- Parity details kept on purpose:
+  - Levenshtein, Metaphone and Soundex append their dependency without
+    deduplication, while pgcrypto, unaccent and `daitch_mokotoff` use the
+    deduplicating `dependency`; `Attach` keeps both.
+  - unaccent rejects decorations as a missing signature, while
+    `daitch_mokotoff` reports 42809 after finalization.
+- Internal-error ordering: the "missing installed unaccent dictionary/template"
+  errors now come after `CollatedInfo` instead of before. Both are
+  corrupted-catalog invariants.
+
+Tests: `TestLookupClaimsRegisteredNames` gained the 20 claims (folded,
+upper-case, `ſ` and Kelvin-sign spellings) and near-miss non-claims
+(`unaccent_init`, `unaccent_lexize`, `pgp_sym_encrypt`, ...). It failed before
+registration. `TestExtensionRules` reads the embedded `StockUnaccent` rather
+than the old file path. Engine tests that called the deleted binder methods
+now bind through `bindFunctionProvider`:
+- `extension_authority_test.go`, `extension_owners_test.go`,
+  `extension_provider_test.go`, `extension_temporary_test.go`;
+- `fuzzystrmatch_provider_test.go`, `levenshtein_expression_test.go`,
+  `metaphone_expression_test.go`, `soundex_expression_test.go`;
+- `pgcrypto_provider_test.go`, `pgcrypto_password_test.go`.
+
+Two tests use the renamed wrapper field. No test moved or was deleted.
+
+Verification: `make quickcheck` passed (44 packages); `make deps` lists
+only module paths; `functions` imports no engine state packages. Quick mode
+passed for:
+- `^TestReference(Pgcrypto|Levenshtein|Metaphone|Soundex|DaitchMokotoff)`;
+- `^TestReference(Extension|AvailableExtensions|MaterializedAlterExtension)`;
+- `^TestReference(ObjectGrant(Levenshtein|Metaphone|Soundex|PGCrypto|UUIDOssp)|UUIDGeneration|SearchPath|RegProc|RoleOwnership|QueryInt|DomainCheck)`.
+
+With `REFERENCE=1`, every stuntgres subtest passed. The only failures are
+`/postgres` subtests, which fail identically on master:
+- the three known `UUIDGeneration` drift tests below;
+- new drift, `TestReferenceLevenshteinCosts` and
+  `TestReferenceLevenshteinBounds`. 18.6 added a levenshtein int32 overflow
+  guard ("levenshtein distance out of range", 22003, or saturated results)
+  where the 18.0 oracle expects wrapped values. Like the other drift, this
+  needs a separate compatibility task.
+
+Bench median 1.53 ms/op with 7,769 allocs/op (allocations unchanged; the
+unaccent rules compile at `functions` package init instead of the engine's;
+still above the 1 ms target as on master). Racecheck skipped at the user's
+request.
+
+Notes for later steps:
+
+- intarray and intagg can reuse `installedExtensionRoutine` by adding an
+  `Extension` value and an `Attach` case.
+- `Lookup` now scans 27 definitions with 245 names, plus the JSON and
+  variadic string predicates.
 
 F2 session 1 record, measured at its start on `604ee2be6`:
 

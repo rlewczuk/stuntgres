@@ -406,7 +406,7 @@ func remapScalarExpression(node BoundExpr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		next = n
 	case installedFunctionExpression:
-		n.arg = child(n.arg)
+		n.Arg = child(n.Arg)
 		if ref != nil {
 			n.ref = ref(n.ref)
 		}

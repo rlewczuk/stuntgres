@@ -3,24 +3,11 @@ package functions
 import (
 	"context"
 	"errors"
-	"os"
-	"sync"
 	"testing"
 )
 
-var unaccentUnitRules = sync.OnceValues(func() (*UnaccentMatcher, error) {
-	data, err := os.ReadFile("../unaccent.rules")
-	if err != nil {
-		return nil, err
-	}
-	return CompileUnaccent(string(data)), nil
-})
-
 func TestExtensionRules(t *testing.T) {
-	stockUnaccent, err := unaccentUnitRules()
-	if err != nil {
-		t.Fatal(err)
-	}
+	stockUnaccent := StockUnaccent
 	ctx := context.Background()
 	for _, tc := range []struct{ input, want string }{{"Hôtel", "Hotel"}, {"Æsir Straße Œuf ﬃ", "AEsir Strasse OEuf ffi"}, {"À", "A"}, {"1½", "1 1/2"}, {"℃℉", "°C°F"}, {"℗", "(P)"}, {"ёлка", "елка"}, {"ЁЖИК", "ЕЖИК"}, {"ℌ", "H"}, {"〝", "\""}, {"東京🙂", "東京🙂"}, {"foobar", "foobar"}, {"", ""}} {
 		got, err := stockUnaccent.Text(ctx, tc.input)
