@@ -7,9 +7,9 @@ import (
 	"stuntgres/internal/engine/expr"
 )
 
-// The stored-SQL renderers and MapJSONExtractChildren serve the engine's
-// deparse, retag, remap and conditional-planning switches. They stay exported
-// until step 3 F2 gives these nodes protocol render and rebuild hooks.
+// The stored-SQL renderers serve the engine's stored scalar SQL switch and
+// MapJSONExtractChildren its preflight switch. They stay exported until those
+// switches adopt the node protocol (deparse uses expr.Renderable).
 
 // JSONStripNullsSQL renders a stored json_strip_nulls call in written order.
 func JSONStripNullsSQL(e JSONStripNulls, name string, render func(expr.Expr) (string, error), identifier func(string) string) (string, error) {

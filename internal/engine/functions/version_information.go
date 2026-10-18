@@ -109,5 +109,5 @@ func (e VersionInformation) Render() (expr.Rendering, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule())); err != nil {
 		return expr.Rendering{}, err
 	}
-	return expr.Rendering{Tree: fmt.Sprintf("VersionInformation kind %d", e.Kind)}, nil
+	return expr.Rendering{Tree: fmt.Sprintf("VersionInformation kind %d", e.Kind), Form: expr.FormLeaf, Text: e.Kind.Name() + "()"}, nil
 }

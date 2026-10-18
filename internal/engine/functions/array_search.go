@@ -164,5 +164,11 @@ var _ expr.Renderable = ArraySearch{}
 
 // Render implements expr.Renderable.
 func (e ArraySearch) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "ArraySearch " + e.Plan.Name() + " namespace " + e.Namespace, Inputs: e.Args}, nil
+	spec := callRendering("ArraySearch "+e.Plan.Name()+" namespace "+e.Namespace, e.Args, e.Plan.Name(), e.Args)
+	if e.Plan.Membership() {
+		spec.Form, spec.Namespace, spec.Grouping = expr.FormInfix, e.Namespace, expr.GroupNested
+		return spec, nil
+	}
+	spec.SimpleCast = true
+	return spec, nil
 }

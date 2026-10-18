@@ -92,5 +92,5 @@ var _ expr.Renderable = NumericFormatting{}
 
 // Render implements expr.Renderable.
 func (e NumericFormatting) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "NumericFormatting " + e.Plan.Name(), Inputs: e.Args[:]}, nil
+	return callRendering("NumericFormatting "+e.Plan.Name(), e.Args[:], e.Plan.Name(), e.Args[:]), nil
 }

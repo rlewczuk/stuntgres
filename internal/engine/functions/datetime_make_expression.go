@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -189,5 +191,12 @@ var _ expr.Renderable = DatetimeMake{}
 
 // Render implements expr.Renderable.
 func (e DatetimeMake) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime constructor " + e.Plan.Name(), Inputs: e.Args[:e.Count]}, nil
+	if e.Count < 1 || e.Count > 7 || e.WrittenCount < 0 || e.WrittenCount > e.Count {
+		return expr.Rendering{}, fmt.Errorf("invalid stored datetime constructor")
+	}
+	args, err := writtenArgs(e.Args[:], e.WrittenSlots[:e.WrittenCount], e.Labels[:], e.Count, false, "invalid stored constructor argument")
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	return writtenCall("Datetime constructor "+e.Plan.Name(), e.Args[:e.Count], e.Plan.Name(), args, false), nil
 }

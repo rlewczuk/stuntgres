@@ -259,5 +259,5 @@ var _ expr.Renderable = DatetimeZoneCalendar{}
 
 // Render implements expr.Renderable.
 func (e DatetimeZoneCalendar) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime " + e.Name, Inputs: e.Arguments()}, nil
+	return callRendering("Datetime "+e.Name, e.Arguments(), e.Name, e.Arguments()), nil
 }

@@ -241,5 +241,5 @@ var _ expr.Renderable = Random{}
 
 // Render implements expr.Renderable.
 func (e Random) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Random " + e.Name, Inputs: e.Args}, nil
+	return callRendering("Random "+e.Name, e.Args, e.Name, e.Args), nil
 }

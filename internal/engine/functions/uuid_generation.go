@@ -223,5 +223,5 @@ var _ expr.Renderable = UUIDGeneration{}
 
 // Render implements expr.Renderable.
 func (e UUIDGeneration) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "UUIDGeneration " + e.Name, Inputs: e.Args}, nil
+	return callRendering("UUIDGeneration "+e.Name, e.Args, e.Name, e.Args), nil
 }

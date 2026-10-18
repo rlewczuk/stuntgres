@@ -130,5 +130,6 @@ var _ expr.Renderable = UUIDExtract{}
 
 // Render implements expr.Renderable.
 func (e UUIDExtract) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "UUIDExtract " + e.Kind.Name(), Inputs: []expr.Expr{e.Arg}}, nil
+	args := []expr.Expr{e.Arg}
+	return callRendering("UUIDExtract "+e.Kind.Name(), args, e.Kind.Name(), args), nil
 }

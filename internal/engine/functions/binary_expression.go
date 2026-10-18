@@ -543,9 +543,31 @@ func (e Binary) Render() (expr.Rendering, error) {
 	if err := e.ValidateSyntax(); err != nil {
 		return expr.Rendering{}, err
 	}
-	tree := "Binary " + e.Plan.Name()
-	if e.Syntax == parser.SQLFunctionSyntax && (e.Plan.Name() == "btrim" || e.Plan.Name() == "ltrim" || e.Plan.Name() == "rtrim") {
+	name := e.Plan.Name()
+	tree := "Binary " + name
+	if e.Syntax == parser.SQLFunctionSyntax && (name == "btrim" || name == "ltrim" || name == "rtrim") {
 		tree += " syntax TRIM"
 	}
-	return expr.Rendering{Tree: tree, Inputs: e.Args}, nil
+	if e.Operator() {
+		return infixRendering(tree, e.Args, "", name, e.Args[0], e.Args[1]), nil
+	}
+	if e.Syntax == parser.SQLFunctionSyntax {
+		pieces, err := syntaxPieces(name, len(e.Args))
+		if err != nil {
+			return expr.Rendering{}, err
+		}
+		return expr.Rendering{Tree: tree, Inputs: e.Args, Form: expr.FormTemplate, Args: hiddenArgs(e.Args...), Pieces: pieces}, nil
+	}
+	spec := callRendering(tree, e.Args, name, e.Args)
+	spec.Quote = expr.QuoteIdentifier
+	return spec, nil
+}
+
+// Operator reports whether the call displays as an infix operator.
+func (e Binary) Operator() bool {
+	switch e.Plan.Name() {
+	case "||", "-", "#-", "@>", "<@", "?", "?|", "?&", "->", "->>", "#>", "#>>":
+		return true
+	}
+	return false
 }

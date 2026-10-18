@@ -191,5 +191,5 @@ var _ expr.Renderable = DatetimeTrunc{}
 
 // Render implements expr.Renderable.
 func (e DatetimeTrunc) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime truncation", Inputs: e.Arguments()}, nil
+	return callRendering("Datetime truncation", e.Arguments(), "date_trunc", e.Arguments()), nil
 }

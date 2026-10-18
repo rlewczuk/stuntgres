@@ -70,5 +70,7 @@ var _ expr.Renderable = RangeOperator{}
 
 // Render implements expr.Renderable.
 func (e RangeOperator) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "RangeOperator " + e.Plan.Name() + " namespace " + e.Namespace, Inputs: e.Args[:]}, nil
+	spec := callRendering("RangeOperator "+e.Plan.Name()+" namespace "+e.Namespace, e.Args[:], e.Plan.Name(), e.Args[:])
+	spec.Form, spec.Namespace = expr.FormInfix, e.Namespace
+	return spec, nil
 }

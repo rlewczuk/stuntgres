@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"strings"
+
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/expr"
@@ -65,8 +67,8 @@ func (e CurrentDateTime) Validate(intrinsicMatch bool) error {
 }
 func CurrentDateTimeIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 
-// CurrentDateTimeSQL renders the SQL value function for the engine's deparse
-// and DEFAULT switches, until step 3 F2 gives the node a render hook.
+// CurrentDateTimeSQL renders the SQL value function for Render and the engine's
+// stored scalar SQL switch.
 func CurrentDateTimeSQL(e CurrentDateTime) (string, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, CurrentDateTimeIntrinsicRule())); err != nil {
 		return "", err
@@ -101,8 +103,9 @@ var _ expr.Renderable = CurrentDateTime{}
 
 // Render implements expr.Renderable.
 func (e CurrentDateTime) Render() (expr.Rendering, error) {
-	if err := e.Validate(expr.PropertiesMatch(e.Property, CurrentDateTimeIntrinsicRule())); err != nil {
+	text, err := CurrentDateTimeSQL(e)
+	if err != nil {
 		return expr.Rendering{}, err
 	}
-	return expr.Rendering{Tree: fmt.Sprintf("CurrentDateTime kind %d hasPrecision %t precision %d", e.Kind, e.HasPrecision, e.Precision)}, nil
+	return expr.Rendering{Tree: fmt.Sprintf("CurrentDateTime kind %d hasPrecision %t precision %d", e.Kind, e.HasPrecision, e.Precision), Form: expr.FormLeaf, Text: strings.ToUpper(text)}, nil
 }

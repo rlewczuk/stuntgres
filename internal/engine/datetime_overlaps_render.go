@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -30,25 +29,4 @@ func renderOverlapsCall[T any](syntax parser.FunctionSyntax, args []T, ordinary 
 
 func datetimeOverlapsLogicalSQL(e functions.DatetimeOverlaps, child func(expr.Expr) (string, error)) (string, error) {
 	return renderOverlapsCall(e.Syntax, e.Args[:], "pg_catalog.overlaps", func(_ int, arg expr.Expr) (string, error) { return child(arg) })
-}
-
-func datetimeOverlapsPublicSQL(e functions.DatetimeOverlaps, ctx context.Context, r pgRenderer, child func(expr.Expr) (string, error)) (string, error) {
-	local := e.Plan.LocalClock()
-	return renderOverlapsCall(e.Syntax, e.Args[:], quoteIdentifier("overlaps"), func(i int, arg expr.Expr) (string, error) {
-		if e.Syntax == parser.SQLFunctionSyntax {
-			return child(arg)
-		}
-		argRenderer := r
-		argRenderer.showImplicit = true
-		text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
-		if err != nil {
-			return "", err
-		}
-		if local[i] {
-			_, column := arg.(columnExpression)
-			_, literal := arg.(literalExpression)
-			return r.cast(text, e.Plan.SignatureType(i).Usage(), column || literal)
-		}
-		return text, nil
-	})
 }

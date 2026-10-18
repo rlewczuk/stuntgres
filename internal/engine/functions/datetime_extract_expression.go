@@ -199,5 +199,11 @@ var _ expr.Renderable = DatetimeExtract{}
 
 // Render implements expr.Renderable.
 func (e DatetimeExtract) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime extraction " + e.Plan.Name(), Inputs: e.Arguments()}, nil
+	spec := callRendering("Datetime extraction "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments())
+	if e.Syntax == parser.SQLFunctionSyntax {
+		// The field displays as written, like PostgreSQL's ruleutils.
+		spec.Form, spec.Args = expr.FormTemplate, hiddenArgs(e.Args[1])
+		spec.Pieces = []expr.Piece{expr.TextPiece("EXTRACT(" + e.Field + " FROM "), expr.ArgPiece(0), expr.TextPiece(")")}
+	}
+	return spec, nil
 }

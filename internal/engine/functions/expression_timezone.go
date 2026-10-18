@@ -97,10 +97,11 @@ var _ expr.Renderable = Timezone{}
 // Render implements expr.Renderable.
 func (e Timezone) Render() (expr.Rendering, error) {
 	if e.Function {
-		return expr.Rendering{Tree: "Datetime timezone", Inputs: e.Arguments()}, nil
+		return callRendering("Datetime timezone", e.Arguments(), "timezone", e.Arguments()), nil
 	}
+	text, arg := expr.TextPiece, expr.ArgPiece
 	if e.Local {
-		return expr.Rendering{Tree: "AtLocal", Inputs: []expr.Expr{e.Value}}, nil
+		return expr.Rendering{Tree: "AtLocal", Inputs: []expr.Expr{e.Value}, Form: expr.FormTemplate, Args: hiddenArgs(e.Value), Pieces: []expr.Piece{text("("), arg(0), text(" AT LOCAL)")}}, nil
 	}
-	return expr.Rendering{Tree: "AtTimeZone", Inputs: []expr.Expr{e.Value, e.Zone}}, nil
+	return expr.Rendering{Tree: "AtTimeZone", Inputs: []expr.Expr{e.Value, e.Zone}, Form: expr.FormTemplate, Args: hiddenArgs(e.Value, e.Zone), Pieces: []expr.Piece{text("("), arg(0), text(" AT TIME ZONE "), arg(1), text(")")}}, nil
 }

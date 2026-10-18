@@ -377,5 +377,11 @@ var _ expr.Renderable = Math{}
 
 // Render implements expr.Renderable.
 func (e Math) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Math " + e.Plan.Name(), Inputs: e.Args}, nil
+	spec := callRendering("Math "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args)
+	if e.Plan.Name() == "pg_size_pretty" {
+		// PostgreSQL displays the selected bigint or numeric overload.
+		spec.Quote, spec.Args = expr.QuoteVerbatim, hiddenArgs(e.Args[0])
+		spec.Args[0].Cast = e.Args[0].ResultUsage()
+	}
+	return spec, nil
 }

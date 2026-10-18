@@ -127,5 +127,5 @@ var _ expr.Renderable = RangeInspect{}
 
 // Render implements expr.Renderable.
 func (e RangeInspect) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "RangeInspect " + e.Plan.Name(), Inputs: e.Args}, nil
+	return callRendering("RangeInspect "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args), nil
 }

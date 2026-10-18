@@ -226,26 +226,34 @@ var _ expr.Renderable = JSONKeys{}
 
 // Render implements expr.Renderable.
 func (e JSONKeys) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONKeys " + e.Plan.Name(), Inputs: e.Args}, nil
+	spec := callRendering("JSONKeys "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
 }
 
 var _ expr.Renderable = JSONBElements{}
 
 // Render implements expr.Renderable.
 func (e JSONBElements) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONBElements " + e.Plan.Name(), Inputs: e.Args}, nil
+	spec := callRendering("JSONBElements "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
 }
 
 var _ expr.Renderable = JSONEach{}
 
 // Render implements expr.Renderable.
 func (e JSONEach) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONEach " + e.Plan.Name(), Inputs: e.Args}, nil
+	spec := callRendering("JSONEach "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
 }
 
 var _ expr.Renderable = JSONElements{}
 
 // Render implements expr.Renderable.
 func (e JSONElements) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONElements " + e.Plan.Name(), Inputs: e.Args}, nil
+	spec := callRendering("JSONElements "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args[:1])
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
 }

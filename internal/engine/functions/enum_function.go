@@ -135,5 +135,5 @@ var _ expr.Renderable = Enum{}
 
 // Render implements expr.Renderable.
 func (e Enum) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Enum " + e.Plan.Name(), Inputs: e.Args}, nil
+	return callRendering("Enum "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args), nil
 }

@@ -83,5 +83,5 @@ var _ expr.Renderable = DatetimeJustify{}
 
 // Render implements expr.Renderable.
 func (e DatetimeJustify) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime " + e.Plan.Name(), Inputs: e.Arguments()}, nil
+	return callRendering("Datetime "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments()), nil
 }

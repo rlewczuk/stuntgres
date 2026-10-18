@@ -161,5 +161,5 @@ var _ expr.Renderable = DatetimeBin{}
 
 // Render implements expr.Renderable.
 func (e DatetimeBin) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime binning", Inputs: e.Arguments()}, nil
+	return callRendering("Datetime binning", e.Arguments(), "date_bin", e.Arguments()), nil
 }

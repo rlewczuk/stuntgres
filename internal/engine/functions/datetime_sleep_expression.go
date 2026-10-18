@@ -265,5 +265,11 @@ var _ expr.Renderable = DatetimeSleep{}
 
 // Render implements expr.Renderable.
 func (e DatetimeSleep) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "DatetimeSleep " + e.Kind.Name(), Inputs: []expr.Expr{e.Arg}}, nil
+	if !e.Validate(expr.PropertiesMatch(e.Property, DatetimeSleepIntrinsicRule()), e.Arg != nil) {
+		return expr.Rendering{}, fmt.Errorf("stuntgres: invalid datetime sleep signature")
+	}
+	args := []expr.Expr{e.Arg}
+	spec := callRendering("DatetimeSleep "+e.Kind.Name(), args, e.Kind.Name(), args)
+	spec.SimpleCast = true
+	return spec, nil
 }

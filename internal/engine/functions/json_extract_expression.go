@@ -94,5 +94,14 @@ var _ expr.Renderable = JSONExtract{}
 
 // Render implements expr.Renderable.
 func (e JSONExtract) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSON extraction " + e.Plan.Name(), Inputs: e.Arguments()}, nil
+	if err := e.Validate(); err != nil {
+		return expr.Rendering{}, err
+	}
+	spec := writtenCall("JSON extraction "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), renderArgs(e.Args), e.Variadic)
+	if len(e.Labels) > 0 {
+		for i := range spec.Args {
+			spec.Args[i].Label = e.Labels[i]
+		}
+	}
+	return spec, nil
 }

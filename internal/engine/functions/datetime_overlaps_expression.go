@@ -351,5 +351,19 @@ var _ expr.Renderable = DatetimeOverlaps{}
 
 // Render implements expr.Renderable.
 func (e DatetimeOverlaps) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime overlaps", Inputs: e.Arguments()}, nil
+	spec := expr.Rendering{Tree: "Datetime overlaps", Inputs: e.Arguments()}
+	if e.Syntax == parser.SQLFunctionSyntax {
+		text, arg := expr.TextPiece, expr.ArgPiece
+		spec.Form, spec.Args = expr.FormTemplate, hiddenArgs(e.Args[:]...)
+		spec.Pieces = []expr.Piece{text("(("), arg(0), text(", "), arg(1), text(") OVERLAPS ("), arg(2), text(", "), arg(3), text("))")}
+		return spec, nil
+	}
+	spec.Form, spec.Name, spec.Quote, spec.Args = expr.FormCall, `"overlaps"`, expr.QuoteVerbatim, listedArgs(e.Args[:])
+	// Local-clock operands display the conversion to the selected signature.
+	for i, local := range e.Plan.LocalClock() {
+		if local {
+			spec.Args[i].Cast, spec.Args[i].CastForm = e.Plan.SignatureType(i).Usage(), expr.CastLeaf
+		}
+	}
+	return spec, nil
 }

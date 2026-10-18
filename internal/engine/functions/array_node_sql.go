@@ -6,8 +6,8 @@ import (
 	"stuntgres/internal/engine/expr"
 )
 
-// The engine's remap, simplification and deparse switches reach the array
-// function nodes through these helpers until the node protocol replaces them.
+// The engine's preflight and stored scalar SQL switches reach the array
+// function nodes through these helpers until they adopt the node protocol.
 
 func MapArrayInspectChildren(e ArrayInspect, child func(expr.Expr) (expr.Expr, bool, error)) (ArrayInspect, bool, error) {
 	var args []expr.Expr

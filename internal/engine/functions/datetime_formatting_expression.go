@@ -138,5 +138,5 @@ var _ expr.Renderable = DatetimeFormatting{}
 
 // Render implements expr.Renderable.
 func (e DatetimeFormatting) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "Datetime " + e.Plan.Name(), Inputs: e.Args[:]}, nil
+	return callRendering("Datetime "+e.Plan.Name(), e.Args[:], e.Plan.Name(), e.Args[:]), nil
 }

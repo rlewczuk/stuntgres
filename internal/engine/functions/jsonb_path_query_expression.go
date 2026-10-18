@@ -250,26 +250,37 @@ var _ expr.Renderable = JSONBPathExists{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathExists) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_exists")
 }
 
 var _ expr.Renderable = JSONBPathMatch{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathMatch) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_match")
 }
 
 var _ expr.Renderable = JSONBPathQueryFirst{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathQueryFirst) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_query_first")
 }
 
 var _ expr.Renderable = JSONBPathQuery{}
 
 // Render implements expr.Renderable.
 func (e JSONBPathQuery) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONPath query", Inputs: e.Args[:]}, nil
+	return jsonbPathQueryRendering(e.Args, e.WrittenCount, e.WrittenSlots, e.Labels, e.Variadic, "jsonb_path_query")
+}
+
+func jsonbPathQueryRendering(args [4]expr.Expr, count int, slots [4]uint8, labels [4]string, variadic bool, name string) (expr.Rendering, error) {
+	if count < 2 || count > 4 {
+		return expr.Rendering{}, fmt.Errorf("invalid stored JSONPath query")
+	}
+	written, err := writtenArgs(args[:], slots[:count], labels[:], 4, true, "invalid stored JSONPath query argument")
+	if err != nil {
+		return expr.Rendering{}, err
+	}
+	return writtenCall("JSONPath query", args[:], name, written, variadic), nil
 }

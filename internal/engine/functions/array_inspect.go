@@ -180,5 +180,7 @@ var _ expr.Renderable = ArrayInspect{}
 
 // Render implements expr.Renderable.
 func (e ArrayInspect) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "ArrayInspect " + e.Kind.Name() + " namespace " + e.Namespace, Inputs: e.Args}, nil
+	spec := callRendering("ArrayInspect "+e.Kind.Name()+" namespace "+e.Namespace, e.Args, e.Kind.Name(), e.Args)
+	spec.SimpleCast = true
+	return spec, nil
 }

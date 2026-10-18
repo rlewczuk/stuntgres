@@ -133,5 +133,10 @@ var _ expr.Renderable = Format{}
 
 // Render implements expr.Renderable.
 func (e Format) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: fmt.Sprintf("Format variadic %t", e.Variadic), Inputs: e.Args}, nil
+	spec := variadicRendering(fmt.Sprintf("Format variadic %t", e.Variadic), "format", e.Args, e.Variadic)
+	spec.UnknownTexts = true
+	for i := range spec.Args {
+		spec.Args[i].UnknownText = e.RawUnknown[i/64]&(uint64(1)<<uint(i%64)) != 0
+	}
+	return spec, nil
 }

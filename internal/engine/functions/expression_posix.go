@@ -175,12 +175,12 @@ var _ expr.Renderable = Posix{}
 
 // Render implements expr.Renderable.
 func (e Posix) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: fmt.Sprintf("Posix %s namespace %q", e.Operator, e.Namespace), Inputs: []expr.Expr{e.Left, e.Right}}, nil
+	return infixRendering(fmt.Sprintf("Posix %s namespace %q", e.Operator, e.Namespace), []expr.Expr{e.Left, e.Right}, e.Namespace, e.Operator, e.Left, e.Right), nil
 }
 
 var _ expr.Renderable = PosixSubstring{}
 
 // Render implements expr.Renderable.
 func (e PosixSubstring) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: fmt.Sprintf("PosixSubstring syntax %d", e.Syntax), Inputs: e.Args[:]}, nil
+	return expr.Rendering{Tree: fmt.Sprintf("PosixSubstring syntax %d", e.Syntax), Inputs: e.Args[:], Form: expr.FormCall, Name: `"substring"`, Quote: expr.QuoteVerbatim, Args: hiddenArgs(e.Args[0], e.Args[1])}, nil
 }

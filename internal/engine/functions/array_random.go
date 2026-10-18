@@ -220,5 +220,7 @@ var _ expr.Renderable = ArrayRandom{}
 
 // Render implements expr.Renderable.
 func (e ArrayRandom) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "ArrayRandom " + e.Kind.Name() + " namespace " + e.Namespace, Inputs: e.Args}, nil
+	spec := callRendering("ArrayRandom "+e.Kind.Name()+" namespace "+e.Namespace, e.Args, e.Kind.Name(), e.Args)
+	spec.SimpleCast = true
+	return spec, nil
 }

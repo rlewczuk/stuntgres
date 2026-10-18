@@ -77,5 +77,10 @@ var _ expr.Renderable = JSONRecord{}
 
 // Render implements expr.Renderable.
 func (e JSONRecord) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONRecord " + e.Plan.Name(), Inputs: e.Args}, nil
+	spec := callRendering("JSONRecord "+e.Plan.Name(), e.Args, e.Plan.Name(), e.Args)
+	spec.Quote, spec.LabelQuote = expr.QuoteWhenNeeded, expr.QuoteVerbatim
+	if e.Plan.BaseIndex() == 1 {
+		spec.Args[0].Label, spec.Args[1].Label = "from_json", "base"
+	}
+	return spec, nil
 }

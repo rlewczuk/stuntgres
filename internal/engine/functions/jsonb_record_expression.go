@@ -226,5 +226,7 @@ var _ expr.Renderable = JSONBRecord{}
 
 // Render implements expr.Renderable.
 func (e JSONBRecord) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "JSONBRecord " + e.Name, Inputs: e.Args}, nil
+	spec := callRendering("JSONBRecord "+e.Name, e.Args, e.Name, e.Args)
+	spec.Quote = expr.QuoteWhenNeeded
+	return spec, nil
 }

@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -452,22 +451,10 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return text
 	}
-	operator := func(namespace, spelling string) string {
-		if namespace == "" || namespace == "pg_catalog" {
-			return spelling
-		}
-		return "OPERATOR(" + r.identifier(namespace) + "." + spelling + ")"
-	}
+	operator := r.operatorSpelling
 	switch n := node.(type) {
 	case literalExpression:
 		return r.literal(ctx, n)
-	case functions.CurrentDateTime:
-		text, err := functions.CurrentDateTimeSQL(n)
-		return strings.ToUpper(text), err
-	case functions.VersionInformation:
-		return versionInformationSQL(n)
-	case functions.TransactionTime:
-		return functions.TransactionTimeSQL(n)
 	case identityExpression:
 		if err := validateDeparseIdentity(n); err != nil {
 			return "", err
@@ -613,17 +600,9 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		_, simpleLiteral := n.child.(literalExpression)
 		_, castChild := n.child.(coercionExpression)
 		simpleFunctionCall := false
-		switch call := n.child.(type) {
-		case functions.DatetimeSleep:
-			simpleFunctionCall = true
-		case functions.ArrayRandom:
-			simpleFunctionCall = true
-		case functions.ArrayTransform:
-			simpleFunctionCall = !call.Operator
-		case functions.ArrayInspect:
-			simpleFunctionCall = true
-		case functions.ArraySearch:
-			simpleFunctionCall = !call.Plan.Membership()
+		if call, ok := n.child.(expr.Renderable); ok {
+			spec, err := call.Render()
+			simpleFunctionCall = err == nil && spec.SimpleCast
 		}
 		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
 	case selectedOperatorExpression:
@@ -685,62 +664,8 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return text, err
 		}
 		return binary(n.left, n.right, op, 5, parent)
-	case functions.Posix:
-		return binary(n.Left, n.Right, operator(n.Namespace, n.Operator), 5, parent)
 	case likeExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
-	case functions.LikeEscape:
-		pattern, err := child(n.Pattern)
-		if err != nil {
-			return "", err
-		}
-		escape, err := child(n.Escape)
-		if err != nil {
-			return "", err
-		}
-		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
-	case functions.Similar:
-		return binary(n.Left, n.Right, n.Operator, 5, parent)
-	case functions.SimilarEscape:
-		pattern, err := child(n.Pattern)
-		if err != nil {
-			return "", err
-		}
-		if n.Omitted {
-			return "similar_to_escape(" + pattern + ")", nil
-		}
-		escape, err := child(n.Escape)
-		if err != nil {
-			return "", err
-		}
-		return "similar_to_escape(" + pattern + ", " + escape + ")", nil
-	case functions.PosixSubstring:
-		source, err := child(n.Args[0])
-		if err != nil {
-			return "", err
-		}
-		pattern, err := child(n.Args[1])
-		if err != nil {
-			return "", err
-		}
-		return `"substring"(` + source + ", " + pattern + ")", nil
-	case functions.SimilarSubstring:
-		source, err := child(n.Args[0])
-		if err != nil {
-			return "", err
-		}
-		pattern, err := child(n.Args[1])
-		if err != nil {
-			return "", err
-		}
-		escape, err := child(n.Args[2])
-		if err != nil {
-			return "", err
-		}
-		if n.Syntax == parser.SQLFunctionSyntax {
-			return "SUBSTRING(" + source + " SIMILAR " + pattern + " ESCAPE " + escape + ")", nil
-		}
-		return `"substring"(` + source + ", " + pattern + ", " + escape + ")", nil
 	case rowComparisonExpression:
 		spelling := n.operator
 		if !n.distinct() {
@@ -750,18 +675,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			spelling = operator(n.comparisons[0].namespace, n.operator)
 		}
 		return renderRowComparison(n, child, spelling)
-	case functions.Regexp:
-		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.RegexpSet:
-		return regexpSQL(n.RegexpCall, n.Plan.Name(), func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
 	case scalarArrayComparisonExpression:
 		return renderScalarArrayComparison(n, child, r.identifier)
 	case seriesExpression:
@@ -807,65 +720,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			name = pgIdentifier(namespace.name) + "." + pgIdentifier(n.procedure.name)
 		}
 		return name + "(" + arg + ")", nil
-	case functions.JSONKeys:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
-		if err != nil {
-			return "", err
-		}
-		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
-	case functions.JSONBRecord:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		args := make([]string, len(n.Args))
-		for i, arg := range n.Args {
-			var err error
-			args[i], err = argRenderer.sql(ctx, arg, pgRenderParent{})
-			if err != nil {
-				return "", err
-			}
-		}
-		return pgIdentifier(n.Name) + "(" + strings.Join(args, ", ") + ")", nil
-	case functions.JSONBElements:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
-		if err != nil {
-			return "", err
-		}
-		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
-	case functions.JSONRecord:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		parts := make([]string, len(n.Args))
-		for i, arg := range n.Args {
-			text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
-			if err != nil {
-				return "", err
-			}
-			parts[i] = text
-		}
-		if n.Plan.BaseIndex() == 1 {
-			parts[0], parts[1] = "from_json => "+parts[0], "base => "+parts[1]
-		}
-		return pgIdentifier(n.Plan.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.JSONEach:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
-		if err != nil {
-			return "", err
-		}
-		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
-	case functions.JSONElements:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		arg, err := argRenderer.sql(ctx, n.Args[0], pgRenderParent{})
-		if err != nil {
-			return "", err
-		}
-		return pgIdentifier(n.Plan.Name()) + "(" + arg + ")", nil
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:
@@ -948,36 +802,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
-	case functions.ArrayRandom:
-		return function(n.Kind.Name(), n.Args, true)
-	case functions.ArrayTransform:
-		inputRenderer := r
-		inputRenderer.showImplicit = true
-		return functions.ArrayTransformSQL(n, func(child expr.Expr) (string, error) {
-			return inputRenderer.sql(ctx, child, pgRenderParent{functionArgument: true})
-		}, operator)
-	case functions.ArrayInspect:
-		return function(n.Kind.Name(), n.Args, true)
-	case functions.ArraySearch:
-		if n.Plan.Membership() {
-			inputRenderer := r
-			inputRenderer.showImplicit = true
-			left, err := inputRenderer.sql(ctx, n.Args[0], pgRenderParent{})
-			if err != nil {
-				return "", err
-			}
-			inputRenderer.showImplicit = true
-			right, err := inputRenderer.sql(ctx, n.Args[1], pgRenderParent{})
-			if err != nil {
-				return "", err
-			}
-			text := left + " " + operator(n.Namespace, n.Plan.Name()) + " " + right
-			if pgOperatorGrouped(n.Plan.Name(), true, parent) {
-				text = "(" + text + ")"
-			}
-			return text, nil
-		}
-		return function(n.Plan.Name(), n.Args, true)
 	case catalogUserNameExpression:
 		args := [1]expr.Expr{n.arg}
 		return function("pg_get_userbyid", args[:], true)
@@ -995,210 +819,8 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		args := [1]expr.Expr{n.arg}
 		return function(n.kind.name(), args[:], true)
-	case functions.UUIDExtract:
-		args := [1]expr.Expr{n.Arg}
-		return function(n.Kind.Name(), args[:], true)
-	case functions.NetworkFormat:
-		return function(n.Kind.Name(), n.Args[:n.Kind.Arity()], true)
-	case functions.RangeOperator:
-		r.showImplicit = true
-		return binary(n.Args[0], n.Args[1], operator(n.Namespace, n.Plan.Name()), 5, parent)
-	case functions.RangeInspect:
-		return function(n.Plan.Name(), n.Args, true)
-	case functions.Enum:
-		return function(n.Plan.Name(), n.Args, true)
-	case functions.Math:
-		if n.Plan.Name() == "pg_size_pretty" {
-			text, err := child(n.Args[0])
-			if err != nil {
-				return "", err
-			}
-			text, err = r.cast(text, n.Args[0].ResultUsage(), false)
-			if err != nil {
-				return "", err
-			}
-			return "pg_size_pretty(" + text + ")", nil
-		}
-		return function(n.Plan.Name(), n.Args, true)
-	case functions.DatetimeJustify:
-		return function(n.Plan.Name(), n.Arguments(), true)
-	case functions.DatetimeExtract:
-		if n.Syntax != parser.SQLFunctionSyntax {
-			return function(n.Plan.Name(), n.Arguments(), true)
-		}
-		source, err := child(n.Args[1])
-		if err != nil {
-			return "", err
-		}
-		return "EXTRACT(" + n.Field + " FROM " + source + ")", nil
-	case functions.DatetimeOverlaps:
-		return datetimeOverlapsPublicSQL(n, ctx, r, child)
-	case functions.DatetimeBin:
-		return function("date_bin", n.Arguments(), true)
-	case functions.DatetimeTrunc:
-		return function("date_trunc", n.Arguments(), true)
-	case functions.DatetimeZoneCalendar:
-		return function(n.Name, n.Arguments(), true)
-	case functions.DatetimeAgeFinite:
-		return function(n.Plan.Name(), n.Arguments(), true)
-	case functions.JSONStripNulls:
-		return functions.JSONStripNullsSQL(n, "json_strip_nulls", func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.JSONExtract:
-		return functions.JSONExtractSQL(n, n.Plan.Name(), func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.JSONBPathQueryArray:
-		return functions.JSONBPathQueryArraySQL(n, "jsonb_path_query_array", func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.JSONBPathExists:
-		return functions.JSONBPathExistsSQL(n, "jsonb_path_exists", func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.JSONBPathMatch:
-		return functions.JSONBPathMatchSQL(n, "jsonb_path_match", func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.JSONBPathQueryFirst:
-		return functions.JSONBPathQueryFirstSQL(n, "jsonb_path_query_first", func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.JSONBPathQuery:
-		return functions.JSONBPathQuerySQL(n, "jsonb_path_query", func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.JSONBSet:
-		return functions.JSONBSetSQL(n, n.Plan.Name(), func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.DatetimeMake:
-		return datetimeMakeSQL(n, n.Plan.Name(), func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		}, pgIdentifier)
-	case functions.DatetimeFormatting:
-		return function(n.Plan.Name(), n.Args[:], true)
-	case functions.NumericFormatting:
-		return function(n.Plan.Name(), n.Args[:], true)
-	case functions.String:
-		if n.Plan.Name() == "||" {
-			return binary(n.Args[0], n.Args[1], "||", 5, parent)
-		}
-		if n.Syntax == parser.OrdinaryStringSyntax || n.Syntax == parser.PrefixStringSyntax {
-			name := n.Plan.Name()
-			if name == "normalize" || name == "overlay" || name == "left" || name == "right" || name == "substring" {
-				name = quoteIdentifier(name)
-			} else if name == "position" {
-				name = r.identifier(name)
-			}
-			parts := make([]string, len(n.Args))
-			for i, arg := range n.Args {
-				argRenderer := r
-				argRenderer.showImplicit = true
-				argParent := pgRenderParent{functionArgument: true}
-				if n.Syntax == parser.PrefixStringSyntax {
-					argParent = pgRenderParent{precedence: 5, operator: "^@", right: i == 1}
-				}
-				text, err := argRenderer.sql(ctx, arg, argParent)
-				if err != nil {
-					return "", err
-				}
-				// Present the provider's resolved formal conversion without
-				// evaluating or adding a second runtime conversion.
-				target := n.Plan.ArgumentUsage(i)
-				if n.Textual[i] && arg.ResultUsage().Type != target.Type {
-					simple := false
-					switch arg.(type) {
-					case columnExpression, literalExpression, coercionExpression:
-						simple = true
-					}
-					text, err = r.cast(text, target, simple)
-					if err != nil {
-						return "", err
-					}
-				}
-				if n.Plan.Name() == "parse_ident" && !n.Textual[0] {
-					label := "strict"
-					if n.Textual[i] {
-						label = "str"
-					}
-					text = label + " => " + text
-				}
-				parts[i] = text
-			}
-			if n.Syntax == parser.PrefixStringSyntax {
-				text := parts[0] + " ^@ " + parts[1]
-				if !r.pretty || pgOperatorGrouped("^@", true, parent) {
-					text = "(" + text + ")"
-				}
-				return text, nil
-			}
-			return name + "(" + strings.Join(parts, ", ") + ")", nil
-		}
-		argRenderer := r
-		argRenderer.showImplicit = false
-		parts := make([]string, len(n.Args))
-		for i, arg := range n.Args {
-			text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
-			if err != nil {
-				return "", err
-			}
-			parts[i] = text
-		}
-		return stringSpecialSQL(n, parts)
-	case functions.Binary:
-		if err := n.ValidateSyntax(); err != nil {
-			return "", err
-		}
-		if n.Plan.Name() == "||" {
-			return binary(n.Args[0], n.Args[1], "||", 5, parent)
-		}
-		if n.Plan.Name() == "-" {
-			return binary(n.Args[0], n.Args[1], "-", 5, parent)
-		}
-		if n.Plan.Name() == "#-" || jsonbContainmentName(n.Plan.Name()) || jsonbExistenceName(n.Plan.Name()) || jsonExtractionName(n.Plan.Name()) {
-			return binary(n.Args[0], n.Args[1], n.Plan.Name(), 5, parent)
-		}
-		if n.Syntax == parser.SQLFunctionSyntax {
-			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, n.Plan.Name(), child)
-		}
-		return function(r.identifier(n.Plan.Name()), n.Args, true)
-	case functions.Random:
-		return function(n.Name, n.Args, true)
-	case functions.DatetimeSleep:
-		if !n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) {
-			return "", fmt.Errorf("stuntgres: invalid datetime sleep signature")
-		}
-		return function(n.Kind.Name(), []expr.Expr{n.Arg}, true)
 	case advisoryExpression:
 		return function(n.name, n.args, true)
-	case functions.UUIDGeneration:
-		return function(n.Name, n.Args, true)
-	case functions.NullCount:
-		name := "num_nulls"
-		if n.Kind == functions.CountNonnulls {
-			name = "num_nonnulls"
-		}
-		return function(name, n.Args, true)
 	case installedSoundexFunctionExpression:
 		namespace, ok := r.view.Namespace(n.procedure.namespace)
 		if !ok {
@@ -1246,53 +868,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", err
 		}
 		return jsonPredicateRecipe(text, n.kind, n.unique, n.not), nil
-	case functions.JSONCreate:
-		parts := make([]string, len(n.Args))
-		for i, arg := range n.Args {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			argRenderer.unknownTextLiteral = n.UnknownArgument(i)
-			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
-			if err != nil {
-				return "", err
-			}
-			if n.Variadic && i == len(n.Args)-1 {
-				text = "VARIADIC " + text
-			}
-			parts[i] = text
-		}
-		return r.identifier(n.Kind.Name()) + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.StringVariadic:
-		parts := make([]string, len(n.Args))
-		for i, arg := range n.Args {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
-			if err != nil {
-				return "", err
-			}
-			if n.Variadic && i == len(n.Args)-1 {
-				text = "VARIADIC " + text
-			}
-			parts[i] = text
-		}
-		return r.identifier(n.Name) + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.Format:
-		parts := make([]string, len(n.Args))
-		for i, arg := range n.Args {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			argRenderer.unknownTextLiteral = n.RawUnknown[i/64]&(uint64(1)<<uint(i%64)) != 0
-			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
-			if err != nil {
-				return "", err
-			}
-			if n.Variadic && i == len(n.Args)-1 {
-				text = "VARIADIC " + text
-			}
-			parts[i] = text
-		}
-		return r.identifier("format") + "(" + strings.Join(parts, ", ") + ")", nil
 	case visibilityInquiryExpression:
 		u := n.ResultUsage()
 		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {
@@ -1354,22 +929,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		return function(n.kind.name(), n.arguments(), true)
 	case sequenceCallExpression:
 		return function(n.name, n.args, true)
-	case functions.Timezone:
-		if n.Function {
-			return function("timezone", n.Arguments(), true)
-		}
-		text, err := child(n.Value)
-		if err != nil {
-			return "", err
-		}
-		if n.Local {
-			return "(" + text + " AT LOCAL)", nil
-		}
-		zone, err := child(n.Zone)
-		if err != nil {
-			return "", err
-		}
-		return "(" + text + " AT TIME ZONE " + zone + ")", nil
 	case indexPropertyExpression:
 		if err := validateStoredIndexPropertyExpression(n); err != nil {
 			return "", err
@@ -1380,6 +939,14 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", err
 		}
 		return function(deparseSignatures[n.signature].name, n.args, true)
+	case expr.Renderable:
+		// Function nodes describe themselves; engine wrappers that embed one
+		// keep their explicit cases above.
+		spec, err := n.Render()
+		if err != nil {
+			return "", err
+		}
+		return r.rendering(ctx, node, spec, parent)
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse node %T", node)
 	}

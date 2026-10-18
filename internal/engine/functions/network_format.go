@@ -97,5 +97,6 @@ var _ expr.Renderable = NetworkFormat{}
 
 // Render implements expr.Renderable.
 func (e NetworkFormat) Render() (expr.Rendering, error) {
-	return expr.Rendering{Tree: "NetworkFormat " + e.Kind.Name(), Inputs: e.Args[:e.Kind.Arity()]}, nil
+	args := e.Args[:e.Kind.Arity()]
+	return callRendering("NetworkFormat "+e.Kind.Name(), args, e.Kind.Name(), args), nil
 }
