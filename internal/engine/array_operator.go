@@ -44,7 +44,7 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 	}
 	if jsonbContainmentName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) &&
 		(left != nil && left.BaseType().ID() == sqltype.JSONB || right != nil && right.BaseType().ID() == sqltype.JSONB) {
-		return b.bindJSONBContainment(raw, operands)
+		return bindJSONBContainment(b, raw, [2]functions.Argument{operandArgument(operands[0]), operandArgument(operands[1])})
 	}
 	// ACL arrays select the fixed array/item signature for an unknown RHS;
 	// a known array RHS still belongs to the generic array/array operator.

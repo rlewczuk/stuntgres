@@ -3597,6 +3597,16 @@ func (o comparisonOperand) descriptor() *sqltype.Descriptor {
 	return o.node.ResultUsage().Type
 }
 
+// operandArgument hands an analyzed comparison operand to functions bind
+// code; CoerceArgument rebuilds the operand from Expression and Raw.
+func operandArgument(o comparisonOperand) functions.Argument {
+	argument := functions.Argument{Expression: o.node, Raw: o.raw}
+	if o.node != nil {
+		argument.Usage = o.node.ResultUsage()
+	}
+	return argument
+}
+
 func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand, error) {
 	return b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext})
 }
@@ -4029,7 +4039,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), lt, rt, raw)
 	}
 	if name == "-" && len(raw.Args) == 2 {
-		if node, selected, err := b.selectJSONBDelete(raw, left, right); selected {
+		if node, selected, err := selectJSONBDelete(b, raw, operandArgument(left), operandArgument(right)); selected {
 			return node, err
 		}
 	}

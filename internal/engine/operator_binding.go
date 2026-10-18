@@ -47,11 +47,11 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 	case arrayMembershipName(name):
 		return b.bindArrayMembership(r)
 	case jsonExtractionName(name):
-		return b.bindJSONExtraction(r)
+		return bindJSONExtraction(b, r)
 	case jsonbExistenceName(name):
-		return b.bindJSONBExistence(r)
+		return bindJSONBExistence(b, r)
 	case name == "#-":
-		return b.bindJSONBPathDelete(r)
+		return bindJSONBPathDelete(b, r)
 	case bitwiseName(name):
 		return b.bindBitwise(r)
 	case arithmeticName(name) || symbolicArithmeticName(name):
