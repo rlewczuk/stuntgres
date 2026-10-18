@@ -78,14 +78,14 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err := validateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) { p.Result = 25 },
-		func(p *procedureDescriptor) { p.Signature = "25,25" },
-		func(p *procedureDescriptor) { p.ObjectName = "levenshtein" },
-		func(p *procedureDescriptor) {
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) { p.Result = 25 },
+		func(p *catalog.Procedure) { p.Signature = "25,25" },
+		func(p *catalog.Procedure) { p.ObjectName = "levenshtein" },
+		func(p *catalog.Procedure) {
 			p.Implementation = &fuzzystrmatchProvider{control: extensionControl{Version: "1.2"}}
 		},
-		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
+		func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
 	} {
 		state := catalog.CloneState(e.catalog.state)
 		bad := *n.procedure

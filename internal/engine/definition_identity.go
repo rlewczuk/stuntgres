@@ -91,7 +91,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *catalog.Relation) error {
 func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 	d, relation := descriptor.(*catalog.Relation)
 	if !relation {
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				if helper.ID == id {
 					return true
@@ -163,7 +163,7 @@ func definitionOIDUsed(descriptor Descriptor, id ids.OID) bool {
 func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 	d, relation := descriptor.(*catalog.Relation)
 	if !relation {
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				reserved[helper.ID] = true
 			}
@@ -220,7 +220,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				if err := claim(helper.ID); err != nil {
 					return err
@@ -300,7 +300,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	var domains []*typeDescriptor
 	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] = true
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			reserveDefinitionOIDs(reserved, proc)
 		}
 		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.DomainChecks) != 0 {
@@ -316,7 +316,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	claimed := make(map[ids.OID]bool)
 	for address, descriptor := range next.Descriptors() {
 		claimed[address.ObjectID] = true
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			for _, helper := range proc.Aggregate.Helpers {
 				claimed[helper.ID] = true
 			}

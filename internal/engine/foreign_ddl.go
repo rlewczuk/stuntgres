@@ -13,7 +13,7 @@ import (
 )
 
 type foreignValidation struct {
-	procedure   *foreignProcedure
+	procedure   *catalog.ForeignProcedure
 	kind        ForeignObjectKind
 	options     []ForeignOption
 	importTable string
@@ -54,7 +54,7 @@ func foreignRef(auth AuthorizationView, d Descriptor) ids.ObjectRef {
 	return auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 }
 
-func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.ObjectName, signature procedureSignature) (*procedureDescriptor, error) {
+func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
 	if name == nil {
 		return nil, nil
 	}
@@ -65,7 +65,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 	p := procedureInNamespaces(auth.catalog, path, name.Parts[len(name.Parts)-1].Text, signature)
 	if p == nil {
 		args := ""
-		if signature == foreignValidatorSignature {
+		if signature == catalog.ForeignValidatorSignature {
 			args = "text[], oid"
 		}
 		return nil, sqlError("42883", "function "+objectNameText(*name)+"("+args+") does not exist")
@@ -74,7 +74,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 		return nil, err
 	}
 	result := ids.OID(3115)
-	if signature == foreignValidatorSignature {
+	if signature == catalog.ForeignValidatorSignature {
 		result = 2278
 	}
 	if p.Result != result {
@@ -309,7 +309,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	switch class {
 	case ids.ForeignWrapperClassID:
 		if s.HandlerSet {
-			p, er := e.foreignProcedureLocked(auth, s.Handler, foreignHandlerSignature)
+			p, er := e.foreignProcedureLocked(auth, s.Handler, catalog.ForeignHandlerSignature)
 			if er != nil {
 				return nil, nil, er
 			}
@@ -320,7 +320,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 		}
 		if s.ValidatorSet {
-			p, er := e.foreignProcedureLocked(auth, s.Validator, foreignValidatorSignature)
+			p, er := e.foreignProcedureLocked(auth, s.Validator, catalog.ForeignValidatorSignature)
 			if er != nil {
 				return nil, nil, er
 			}

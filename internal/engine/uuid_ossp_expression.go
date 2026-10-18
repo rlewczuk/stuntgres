@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -13,7 +14,7 @@ import (
 // recipes always use the captured installed procedure, never a builtin alias.
 type installedUUIDOsspFunctionExpression struct {
 	functions.UUIDGeneration
-	procedure *procedureDescriptor
+	procedure *catalog.Procedure
 	ref       ids.ObjectRef
 }
 

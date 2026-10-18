@@ -53,7 +53,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *catalog.Relation, ref
 		}
 		ns, ok := view.Namespace(target.Namespace())
 		return ok && ns.Temporary == namespace.Temporary && (collationProvider{}).Validate(view, target) == nil
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || namespace.Temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
 		}
@@ -119,8 +119,8 @@ func storedViewReferenceValid(view CatalogRead, consumer *catalog.Relation, ref 
 		before, beforeErr := old.Usage()
 		after, afterErr := actual.Usage()
 		return beforeErr == nil && afterErr == nil && before == after
-	case *procedureDescriptor:
-		old, ok := captured.(*procedureDescriptor)
+	case *catalog.Procedure:
+		old, ok := captured.(*catalog.Procedure)
 		// An old-epoch intagg occurrence bridges replacement only through the
 		// exact descriptor captured by this retained TEMP consumer. Ordinary
 		// current-epoch COW declarations take the path above, not this bridge.

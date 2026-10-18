@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -20,7 +21,7 @@ type aggregateCall struct {
 	stageWidth   int             // Value, separator, then unique local targets; keys address cache slots.
 	operation    functions.AggregateOperation
 	includeNulls bool // Non-strict providers must see SQL NULL, including ordered replay.
-	procedure    *procedureDescriptor
+	procedure    *catalog.Procedure
 	ref          ids.ObjectRef
 }
 

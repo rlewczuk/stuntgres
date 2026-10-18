@@ -97,23 +97,23 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
 	proc := view.MustProcedure(ext.Members[0])
-	for _, mutate := range []func(*ownedAggregate){
-		func(a *ownedAggregate) { a.Helpers[0].ID = 0 },
-		func(a *ownedAggregate) {
+	for _, mutate := range []func(*catalog.OwnedAggregate){
+		func(a *catalog.OwnedAggregate) { a.Helpers[0].ID = 0 },
+		func(a *catalog.OwnedAggregate) {
 			a.Helpers[0].ID = a.Helpers[1].ID
 			a.Definition.Functions[0] = a.Helpers[0].ID
 		},
-		func(a *ownedAggregate) { a.Helpers[0].ID = 2333; a.Definition.Functions[0] = 2333 },
-		func(a *ownedAggregate) {
+		func(a *catalog.OwnedAggregate) { a.Helpers[0].ID = 2333; a.Definition.Functions[0] = 2333 },
+		func(a *catalog.OwnedAggregate) {
 			a.Helpers[0].ID = ext.Members[1].ObjectID
 			a.Definition.Functions[0] = a.Helpers[0].ID
 		},
-		func(a *ownedAggregate) { a.Helpers[0].Namespace = 0 },
-		func(a *ownedAggregate) { a.Helpers[0].Name = "array_agg_transfn" },
-		func(a *ownedAggregate) { a.Helpers[1].Signature = "23" },
-		func(a *ownedAggregate) { a.Definition.Function++ },
-		func(a *ownedAggregate) { a.Definition.Functions[2] = 463 },
-		func(a *ownedAggregate) { a.Definition.HasInitial = true },
+		func(a *catalog.OwnedAggregate) { a.Helpers[0].Namespace = 0 },
+		func(a *catalog.OwnedAggregate) { a.Helpers[0].Name = "array_agg_transfn" },
+		func(a *catalog.OwnedAggregate) { a.Helpers[1].Signature = "23" },
+		func(a *catalog.OwnedAggregate) { a.Definition.Function++ },
+		func(a *catalog.OwnedAggregate) { a.Definition.Functions[2] = 463 },
+		func(a *catalog.OwnedAggregate) { a.Definition.HasInitial = true },
 	} {
 		bad := *proc
 		owned := *proc.Aggregate
@@ -163,7 +163,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 	for i, helper := range proc.Aggregate.Helpers {
 		mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: helper.ID}] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900002 + i)}
 	}
-	remapped := remapExtensionDescriptor(proc, mapping).(*procedureDescriptor)
+	remapped := remapExtensionDescriptor(proc, mapping).(*catalog.Procedure)
 	if remapped == proc || remapped.Aggregate == proc.Aggregate || remapped.Address().ObjectID != 900000 || remapped.Namespace().ObjectID != 900001 || *proc.Aggregate != original {
 		t.Fatal("copy-on-change metadata remap")
 	}
@@ -222,7 +222,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 		t.Fatal("failed provider published partial installation")
 	}
 	for _, d := range e.catalog.state.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && intaggProviderOf(p) != nil {
+		if p, ok := d.(*catalog.Procedure); ok && intaggProviderOf(p) != nil {
 			t.Fatal("failed provider leaked a callable/aggregate owner")
 		}
 	}

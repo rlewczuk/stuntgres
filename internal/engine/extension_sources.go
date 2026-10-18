@@ -65,7 +65,7 @@ func captureExtensionCatalog(ctx context.Context, view CatalogRead, ref ids.Obje
 			text(5, d.Version)
 			row[6] = sqltype.Null(source.Columns[6].Usage.Type)
 			row[7] = sqltype.Null(source.Columns[7].Usage.Type)
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			integer(0, int64(d.Address().ObjectID))
 			text(1, d.Name())
 			integer(2, int64(d.Namespace().ObjectID))

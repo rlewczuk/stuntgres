@@ -59,8 +59,8 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	}
 	var name parser.ObjectName
 	var err error
-	var signature procedureSignature
-	var exact *procedureSignature
+	var signature catalog.ProcedureSignature
+	var exact *catalog.ProcedureSignature
 	if signatureQualified {
 		var encoded strings.Builder
 		name, err = parser.ParseRegprocedureName(text, func(argument string) error {
@@ -74,7 +74,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 			encoded.WriteString(strconv.FormatUint(uint64(id), 10))
 			return nil
 		})
-		signature = procedureSignature(encoded.String())
+		signature = catalog.ProcedureSignature(encoded.String())
 		exact = &signature
 	} else {
 		name, err = parser.ParseRegclassName(text)

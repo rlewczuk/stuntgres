@@ -47,7 +47,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal("missing original declaration", outer, err)
 			}
 			d := outer.Builtin
-			if d.Identity != (routineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, procedureSignature(tc.sig)}) || d.Result != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Variadic != 0 || d.Defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
+			if d.Identity != (catalog.RoutineIdentity{tc.id, ids.PGCatalogNamespaceOID, tc.name, catalog.ProcedureSignature(tc.sig)}) || d.Result != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Variadic != 0 || d.Defaults != 0 || ids.OID(node.ResultUsage().Type.ID()) != tc.result {
 				t.Fatal("released declaration", d)
 			}
 			found := map[ids.OID]bool{}

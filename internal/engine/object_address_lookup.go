@@ -308,7 +308,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			signature.WriteString(strconv.FormatUint(uint64(id), 10))
 			human[i] = regtypeSpelling(view, scope.deparsePath, id)
 		}
-		p, count := selectExactRoutine(view, path, names[len(names)-1], procedureSignature(signature.String()))
+		p, count := selectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
 		spelling := make([]string, len(names))
 		for i, name := range names {
 			spelling[i] = pgIdentifier(name)

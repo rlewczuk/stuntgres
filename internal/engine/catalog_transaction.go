@@ -136,7 +136,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	}
 	n := catalog.CloneState(e.catalog.state)
 	n.OverlayDefaultACLs(e.catalog.state, c.defaultACLs)
-	operators := operatorIndexEdit{Index: e.catalog.state.OperatorNames()}
+	operators := catalog.OperatorIndexEdit{Index: e.catalog.state.OperatorNames()}
 	for a, d := range c.descriptors {
 		operators.Replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -13,7 +14,7 @@ import (
 type unnestExpression struct {
 	expr.Info
 	args      []expr.Expr
-	procedure *procedureDescriptor
+	procedure *catalog.Procedure
 	ref       ids.ObjectRef
 }
 

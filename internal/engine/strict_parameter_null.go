@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
@@ -9,8 +10,8 @@ import (
 // PostgreSQL leaves RECORD calls unreduced so their concrete tuple description
 // survives, even for a strict known-NULL input (evaluate_function, REL_18_0).
 // Scalar calls may disappear in either target or FROM position; SRFs may not.
-func strictScalarRoutine(routine *procedureDescriptor) bool {
-	return routine != nil && routine.Strict && routine.RoutineKind == functionRoutine &&
+func strictScalarRoutine(routine *catalog.Procedure) bool {
+	return routine != nil && routine.Strict && routine.RoutineKind == catalog.FunctionRoutine &&
 		routine.Result != 2249 && !procedureReturnsSet(routine)
 }
 

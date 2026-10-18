@@ -1,9 +1,12 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // Commutator and negator are reciprocal links, deliberately not dependencies.
-func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.ObjectAddress {
+func operatorDependencyAddresses(view CatalogRead, d *catalog.Operator) []ids.ObjectAddress {
 	refs := make([]ids.ObjectAddress, 0, 7)
 	add := func(a ids.ObjectAddress) {
 		if a.ObjectID == 0 {
@@ -28,13 +31,13 @@ func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.
 	}
 	return refs
 }
-func (p *dropProvider) clearOperatorLinks(d *operatorDescriptor) error {
+func (p *dropProvider) clearOperatorLinks(d *catalog.Operator) error {
 	for address, descriptor := range p.base.Descriptors() {
-		peer, ok := descriptor.(*operatorDescriptor)
+		peer, ok := descriptor.(*catalog.Operator)
 		if !ok || address == d.Address() || p.removed(address) {
 			continue
 		}
-		if current, ok := p.replacement(address).(*operatorDescriptor); ok {
+		if current, ok := p.replacement(address).(*catalog.Operator); ok {
 			peer = current
 		}
 		if peer.Commutator != d.Address().ObjectID && peer.Negator != d.Address().ObjectID {

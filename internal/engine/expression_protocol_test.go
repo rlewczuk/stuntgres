@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -32,7 +33,7 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	procedure := &procedureDescriptor{}
+	procedure := &catalog.Procedure{}
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
 	node := installedSoundexFunctionExpression{Soundex: call, procedure: procedure, ref: ref}
 	rebuilt, err := node.Rebuild(info, []expr.Expr{literal("b")})
@@ -93,7 +94,7 @@ func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	procedure := &procedureDescriptor{}
+	procedure := &catalog.Procedure{}
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
 	node := installedUUIDOsspFunctionExpression{UUIDGeneration: call, procedure: procedure, ref: ref}
 	next := info

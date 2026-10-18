@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -76,7 +77,7 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	stage := e.BeginCatalogStage(view)
-	d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Owner: e.authorizationDomain.Principal(10), Function: 177, Result: 23}
+	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Owner: e.authorizationDomain.Principal(10), Function: 177, Result: 23}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +85,7 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 	if err := (operatorProvider{}).Validate(candidate, d); err != nil {
 		t.Fatal(err)
 	}
-	for _, alter := range []func(*operatorDescriptor){func(n *operatorDescriptor) { n.Result = 20 }, func(n *operatorDescriptor) { n.Left = 21 }, func(n *operatorDescriptor) { n.Right = 0 }, func(n *operatorDescriptor) { n.Function = 0 }, func(n *operatorDescriptor) { n.Negator = n.Address().ObjectID }} {
+	for _, alter := range []func(*catalog.Operator){func(n *catalog.Operator) { n.Result = 20 }, func(n *catalog.Operator) { n.Left = 21 }, func(n *catalog.Operator) { n.Right = 0 }, func(n *catalog.Operator) { n.Function = 0 }, func(n *catalog.Operator) { n.Negator = n.Address().ObjectID }} {
 		next := *d
 		alter(&next)
 		if err := (operatorProvider{}).Validate(candidate, &next); err == nil {
@@ -115,10 +116,10 @@ func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 	if err := (operatorProvider{}).Validate(view, seed); err != nil {
 		t.Fatal("lookup-only released seed rejected", err)
 	}
-	for _, alter := range []func(*operatorDescriptor){
-		func(d *operatorDescriptor) { d.Result = 23 },
-		func(d *operatorDescriptor) { d.Function = 177 },
-		func(d *operatorDescriptor) { d.Result, d.Function = 0, 0 },
+	for _, alter := range []func(*catalog.Operator){
+		func(d *catalog.Operator) { d.Result = 23 },
+		func(d *catalog.Operator) { d.Function = 177 },
+		func(d *catalog.Operator) { d.Result, d.Function = 0, 0 },
 	} {
 		next := *seed
 		alter(&next)
@@ -334,7 +335,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal(id, err)
 	}
 	stage := e.BeginCatalogStage(view)
-	source := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Result: 23, Function: 177, Owner: e.authorizationDomain.Principal(10)}
+	source := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Result: 23, Function: 177, Owner: e.authorizationDomain.Principal(10)}
 	destination := *source
 	destination.ObjectAddress.ObjectID = 90001
 	destination.ObjectName = "#/#"
@@ -480,7 +481,7 @@ func TestUserOperatorCatalogPublicationFences(t *testing.T) {
 	}
 	e.DiscardCatalogStage(stage)
 	stage = e.BeginCatalogStage(before)
-	unowned := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23}
+	unowned := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23}
 	if err = stage.Create(unowned); err != nil {
 		t.Fatal(err)
 	}
@@ -556,7 +557,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
 	stage := operatorUnitStage(t, e, op, auth, operatorUnitDefinition("#~~#", "int4pl"))
-	shell := &operatorDescriptor{
+	shell := &catalog.Operator{
 		ObjectAddress:   ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000},
 		ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
 		ObjectRevision:  1, ObjectName: "#?#", Left: 23, Right: 23, Owner: auth.state.CurrentUser,

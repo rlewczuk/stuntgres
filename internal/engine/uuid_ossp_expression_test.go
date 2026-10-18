@@ -77,7 +77,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
-	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	proc := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
 	if uuidOsspProviderOf(proc) != stockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
 		t.Fatal(proc)
 	}
@@ -217,7 +217,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(installedUUIDOsspFunctionExpression)
 	captured, err := expressionRoutineDescriptor(node)
-	if err != nil || captured != n.procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != functionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.Domain {
+	if err != nil || captured != n.procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.dependencies)
@@ -268,12 +268,12 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 			}
 		})
 	}
-	for _, mutate := range []func(*procedureDescriptor){
-		func(d *procedureDescriptor) { d.Implementation = nil },
-		func(d *procedureDescriptor) {
+	for _, mutate := range []func(*catalog.Procedure){
+		func(d *catalog.Procedure) { d.Implementation = nil },
+		func(d *catalog.Procedure) {
 			d.Implementation = &uuidOsspProvider{control: extensionControl{Version: "1.1"}}
 		},
-		func(d *procedureDescriptor) { d.RoutineKind = procedureRoutine },
+		func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 	} {
 		auth := *evaluation.routineAuthority
 		auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))

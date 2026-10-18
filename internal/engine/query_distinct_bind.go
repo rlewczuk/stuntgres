@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -62,7 +63,7 @@ func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ids.Ob
 		return ids.ObjectRef{}, true, nil
 	}
 	base := usage.Type.BaseType()
-	var declaration *builtinRoutineDeclaration
+	var declaration *catalog.BuiltinRoutineDeclaration
 	if base.IsArray() {
 		declaration = builtinOperatorRoutineByDeclaration[builtinOperatorRoutineKey{"=", 2277, 2277}]
 	} else {

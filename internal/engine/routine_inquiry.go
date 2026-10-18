@@ -12,7 +12,7 @@ import "stuntgres/internal/engine/catalog"
 // EXECUTE-actual programme; its individual calls still carry exact identities.
 // Both are consumed graphs owned by the same existing statement collection.
 type commandRoutineProgram struct {
-	outer     *procedureDescriptor
+	outer     *catalog.Procedure
 	consumer  *catalog.Relation
 	ri        bool
 	admission routineAdmissionProgram

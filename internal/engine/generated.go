@@ -599,7 +599,7 @@ func validateGenerationProviders(view CatalogRead, d *catalog.Relation) error {
 				// Analyzed dependencies retain installed identity even when a
 				// branch is pruned. Surviving-tree immutability is checked
 				// separately; validate the actual procedure manifest here.
-				procedure, ok := provider.(*procedureDescriptor)
+				procedure, ok := provider.(*catalog.Procedure)
 				if !ok || ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid generation procedure")
 				}

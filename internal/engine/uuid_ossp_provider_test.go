@@ -13,11 +13,11 @@ import (
 
 func TestUUIDOsspZeroArity(t *testing.T) {
 	for _, tc := range []struct {
-		signature procedureSignature
+		signature catalog.ProcedureSignature
 		want      int64
 	}{{"", 0}, {"25", 1}, {"25,23", 2}, {"25,23,2950,16", 4}} {
 		t.Run(string(tc.signature), func(t *testing.T) {
-			if got := procedureArity(&procedureDescriptor{Signature: tc.signature}); got != tc.want {
+			if got := procedureArity(&catalog.Procedure{Signature: tc.signature}); got != tc.want {
 				t.Fatalf("procedureArity(%q)=%d want=%d", tc.signature, got, tc.want)
 			}
 		})
@@ -48,7 +48,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	address := ext.Members[0]
 	proc := view.MustProcedure(address)
-	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || procedureArity(proc) != 0 || proc.RoutineKind != functionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
+	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || procedureArity(proc) != 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
 		t.Fatal(proc)
 	}
 	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
@@ -70,27 +70,27 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if count != 1 {
 		t.Fatal("membership count", count)
 	}
-	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) {
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) {
 			p.Implementation = &uuidOsspProvider{control: extensionControl{Version: "1.1"}}
 		},
-		func(p *procedureDescriptor) { p.RoutineKind = procedureRoutine },
-		func(p *procedureDescriptor) { p.Builtin = builtinRoutineByOID[3432] },
-		func(p *procedureDescriptor) { p.Implementation = stockPgcrypto },
-		func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch },
-		func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
-		func(p *procedureDescriptor) { p.Implementation = stockIntarray },
-		func(p *procedureDescriptor) { p.Implementation = stockIntagg },
-		func(p *procedureDescriptor) { p.Aggregate = &ownedAggregate{} },
-		func(p *procedureDescriptor) { p.Foreign = &foreignProcedure{} },
-		func(p *procedureDescriptor) { p.ObjectName = "uuidv4" },
-		func(p *procedureDescriptor) { p.Signature = "25" },
-		func(p *procedureDescriptor) { p.Result = 25 },
-		func(p *procedureDescriptor) { p.Volatility = expr.Immutable },
-		func(p *procedureDescriptor) { p.Strict = false },
-		func(p *procedureDescriptor) { p.ObjectRevision = 0 },
-		func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
-		func(p *procedureDescriptor) { p.Dictionary = ext.Address() },
+		func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
+		func(p *catalog.Procedure) { p.Builtin = builtinRoutineByOID[3432] },
+		func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
+		func(p *catalog.Procedure) { p.Implementation = stockFuzzystrmatch },
+		func(p *catalog.Procedure) { p.Implementation = stockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = stockIntarray },
+		func(p *catalog.Procedure) { p.Implementation = stockIntagg },
+		func(p *catalog.Procedure) { p.Aggregate = &catalog.OwnedAggregate{} },
+		func(p *catalog.Procedure) { p.Foreign = &catalog.ForeignProcedure{} },
+		func(p *catalog.Procedure) { p.ObjectName = "uuidv4" },
+		func(p *catalog.Procedure) { p.Signature = "25" },
+		func(p *catalog.Procedure) { p.Result = 25 },
+		func(p *catalog.Procedure) { p.Volatility = expr.Immutable },
+		func(p *catalog.Procedure) { p.Strict = false },
+		func(p *catalog.Procedure) { p.ObjectRevision = 0 },
+		func(p *catalog.Procedure) { p.Owner = authorization.PrincipalRef{} },
+		func(p *catalog.Procedure) { p.Dictionary = ext.Address() },
 	} {
 		bad := *proc
 		mutate(&bad)

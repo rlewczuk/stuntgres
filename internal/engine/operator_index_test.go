@@ -13,10 +13,10 @@ import (
 // exact keys and members, no stale/nonoperator addresses and no duplicates.
 func assertOperatorIndex(t *testing.T, state *catalogState) {
 	t.Helper()
-	want := make(map[operatorNameKey]map[ids.ObjectAddress]bool)
+	want := make(map[catalog.OperatorNameKey]map[ids.ObjectAddress]bool)
 	for address, descriptor := range state.Descriptors() {
-		if operator, ok := descriptor.(*operatorDescriptor); ok {
-			key := operatorNameKey{operator.Namespace(), operator.Name()}
+		if operator, ok := descriptor.(*catalog.Operator); ok {
+			key := catalog.OperatorNameKey{operator.Namespace(), operator.Name()}
 			if want[key] == nil {
 				want[key] = make(map[ids.ObjectAddress]bool)
 			}
@@ -61,8 +61,8 @@ func assertOperatorIndex(t *testing.T, state *catalogState) {
 	}
 }
 
-func indexUnitOperator(id ids.OID, namespace ids.ObjectAddress, name string) *operatorDescriptor {
-	return &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Left: 23, Right: 23}
+func indexUnitOperator(id ids.OID, namespace ids.ObjectAddress, name string) *catalog.Operator {
+	return &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, Left: 23, Right: 23}
 }
 
 func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
@@ -71,7 +71,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	other := indexUnitOperator(90002, namespace, "#?#")
 	base := catalogStateFixture(0, map[ids.ObjectAddress]Descriptor{first.Address(): first, other.Address(): other}, map[ids.NameKey]ids.ObjectAddress{catalog.DescriptorNameKey(first): first.Address(), catalog.DescriptorNameKey(other): other.Address()})
 	base.SetOperatorNames(catalog.RebuildOperatorNames(base.Descriptors()))
-	key := operatorNameKey{namespace, first.Name()}
+	key := catalog.OperatorNameKey{namespace, first.Name()}
 	// This unpublished fixture deliberately retains capacity and a sentinel
 	// outside its length: append must not overwrite a sibling's backing array.
 	backing := make([]ids.ObjectAddress, 4)
@@ -99,7 +99,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	if backing[1] != other.Address() {
 		t.Fatal("child append overwrote shared spare capacity")
 	}
-	untouched := operatorNameKey{namespace, other.Name()}
+	untouched := catalog.OperatorNameKey{namespace, other.Name()}
 	if &child.OperatorNames().Buckets[untouched][0] != &base.OperatorNames().Buckets[untouched][0] {
 		t.Fatal("untouched bucket copied")
 	}
@@ -136,12 +136,12 @@ func TestUserOperatorIndexCurrentMetadata(t *testing.T) {
 	}
 	base = e.stageRead(stage)
 	oldIndex := base.State().OperatorNames()
-	for _, update := range []func(*operatorDescriptor){
-		func(d *operatorDescriptor) { d.ObjectRevision++ },
-		func(d *operatorDescriptor) { d.Owner = e.authorizationDomain.Principal(10) },
-		func(d *operatorDescriptor) { d.Left, d.Right = 0, 20 },
-		func(d *operatorDescriptor) { d.Result, d.Function = 20, 463 },
-		func(d *operatorDescriptor) { d.Hash, d.Merge, d.Negator = true, true, 90002 },
+	for _, update := range []func(*catalog.Operator){
+		func(d *catalog.Operator) { d.ObjectRevision++ },
+		func(d *catalog.Operator) { d.Owner = e.authorizationDomain.Principal(10) },
+		func(d *catalog.Operator) { d.Left, d.Right = 0, 20 },
+		func(d *catalog.Operator) { d.Result, d.Function = 20, 463 },
+		func(d *catalog.Operator) { d.Hash, d.Merge, d.Negator = true, true, 90002 },
 	} {
 		previous := base.MustOperator(first.Address())
 		next := *previous

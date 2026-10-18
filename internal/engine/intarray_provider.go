@@ -21,8 +21,8 @@ var stockIntarray = &intarrayProvider{control: extensionControl{Version: "1.5", 
 const intarrayTypeContext = "SQL statement \"CREATE TYPE query_int (\n\tINTERNALLENGTH = -1,\n\tINPUT = bqarr_in,\n\tOUTPUT = bqarr_out\n)\"\nextension script file \"intarray--1.2.sql\", near line 21"
 const intarrayInputContext = "SQL statement \"CREATE FUNCTION bqarr_in(cstring)\nRETURNS query_int\nAS '$libdir/_int'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"intarray--1.2.sql\", near line 11"
 
-func queryIntSignature(id sqltype.ID) procedureSignature {
-	return procedureSignature(strconv.FormatUint(uint64(id), 10))
+func queryIntSignature(id sqltype.ID) catalog.ProcedureSignature {
+	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
 }
 
 func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
@@ -67,11 +67,11 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if err != nil {
 			return err
 		}
-		name, signature, result := "bqarr_in", procedureSignature("2275"), ids.OID(typ.ID())
+		name, signature, result := "bqarr_in", catalog.ProcedureSignature("2275"), ids.OID(typ.ID())
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(typ.ID()), 2275
 		}
-		proc := &procedureDescriptor{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
@@ -112,7 +112,7 @@ func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 		if !ok || proc.Address() != address || intarrayProviderOf(proc) != p || proc.Extension != ext.Address() || proc.Namespace() != ext.TargetNamespace || proc.Revision() == 0 {
 			return invalid()
 		}
-		name, signature, result := "bqarr_in", procedureSignature("2275"), ids.OID(base.SQLType.ID())
+		name, signature, result := "bqarr_in", catalog.ProcedureSignature("2275"), ids.OID(base.SQLType.ID())
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(base.SQLType.ID()), 2275
 		}
@@ -123,7 +123,7 @@ func (p *intarrayProvider) ValidateExtension(v CatalogRead, ext *extensionDescri
 	return nil
 }
 
-func (p *intarrayProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
+func (p *intarrayProvider) validateProcedure(v CatalogRead, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing intarray codec installation")

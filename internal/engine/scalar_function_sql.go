@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
@@ -80,7 +81,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, quoteIdentifier(namespace.Name())+"."+quoteIdentifier(n.procedure.Name()), n.Args)
 	case installedFunctionExpression:
-		proc, ok := r.descriptor(view, n.ref.Address).(*procedureDescriptor)
+		proc, ok := r.descriptor(view, n.ref.Address).(*catalog.Procedure)
 		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || !n.validProvider() || proc.Name() != n.procedure.Name() || proc.Signature != n.procedure.Signature || proc.RoutineKind != n.procedure.RoutineKind || proc.Result != n.procedure.Result || proc.Strict != n.procedure.Strict || proc.Volatility != n.procedure.Volatility || unaccentProviderOf(proc) != unaccentProviderOf(n.procedure) || intarrayProviderOf(proc) != intarrayProviderOf(n.procedure) || pgcryptoProviderOf(proc) != pgcryptoProviderOf(n.procedure) || fuzzystrmatchProviderOf(proc) != fuzzystrmatchProviderOf(n.procedure) || proc.Dictionary != n.procedure.Dictionary || proc.Extension != n.procedure.Extension || proc.Namespace() != n.procedure.Namespace() {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
 		}

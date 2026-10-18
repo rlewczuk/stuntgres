@@ -75,9 +75,9 @@ func ownershipRoot(view CatalogRead, d Descriptor) bool {
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *conversionDescriptor:
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
-	case *operatorDescriptor:
+	case *catalog.Operator:
 		return !operatorSeeded(t)
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		return !t.Seeded() && t.Foreign == nil
 	case *databaseDescriptor, *extensionDescriptor, *tsDictionaryDescriptor:
 		return true
@@ -115,7 +115,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
@@ -139,7 +139,7 @@ func stageOwnership(stage *CatalogStage, d Descriptor, target authorization.Prin
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)
-	case *operatorDescriptor:
+	case *catalog.Operator:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision
 		return stage.Replace(&next)

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -18,7 +19,7 @@ import (
 func regoperatorPreparedInstall(t *testing.T, e *Engine, namespace ids.ObjectAddress, oid, left, right ids.OID) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	d := &operatorDescriptor{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: "#=#", Left: left, Right: right, Owner: e.authorizationDomain.Principal(10)}
+	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: "#=#", Left: left, Right: right, Owner: e.authorizationDomain.Principal(10)}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}

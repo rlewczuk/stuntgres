@@ -1,12 +1,15 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 // Explicit metadata owned by the aggregate signatures implemented by the family
 // binders. This is not an admission rule for other lookup-only routine aliases.
 // PostgreSQL REL_18_0 catalog construction facts:
 // https://github.com/postgres/postgres/blob/REL_18_0/src/include/catalog/pg_aggregate.dat
-var builtinAggregateDefinitions = [...]aggregateDefinition{
+var builtinAggregateDefinitions = [...]catalog.AggregateDefinition{
 	{2100, "n", 0, [8]ids.OID{2746, 3389, 2785, 2786, 2787, 2746, 3387, 3389}, false, false, "r", "r", 0, 2281, 48, 2281, 48, "", "", false, false},   // avg(int8)
 	{2101, "n", 0, [8]ids.OID{1963, 1964, 3324, 0, 0, 1963, 3571, 1964}, false, false, "r", "r", 0, 1016, 0, 1016, 0, "{0,0}", "{0,0}", true, true},   // avg(int4)
 	{2102, "n", 0, [8]ids.OID{1962, 1964, 3324, 0, 0, 1962, 3570, 1964}, false, false, "r", "r", 0, 1016, 0, 1016, 0, "{0,0}", "{0,0}", true, true},   // avg(int2)

@@ -566,16 +566,16 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 		if d.(*conversionDescriptor).Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
-	case *operatorDescriptor:
-		if operatorSeeded(d.(*operatorDescriptor)) {
+	case *catalog.Operator:
+		if operatorSeeded(d.(*catalog.Operator)) {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *foreignDescriptor:
 		if err := provider.owner.catalog.Provider(ref.Address.ClassID).Validate(provider.base, d); err != nil {
 			return err
 		}
-	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
-		if procedure, ok := d.(*procedureDescriptor); ok && procedure.Seeded() {
+	case *extensionDescriptor, *catalog.Procedure, *tsTemplateDescriptor, *tsDictionaryDescriptor:
+		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 		objectProvider := provider.owner.catalog.Provider(ref.Address.ClassID)
@@ -603,7 +603,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 	if err := provider.recordRemoval(ref, namespace); err != nil {
 		return err
 	}
-	if operator, ok := d.(*operatorDescriptor); ok {
+	if operator, ok := d.(*catalog.Operator); ok {
 		if err := provider.clearOperatorLinks(operator); err != nil {
 			return err
 		}
@@ -950,7 +950,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		e.mu.Unlock()
 		next := catalog.CloneState(current)
 		next.OverlayDefaultACLs(current, s.DefaultACLs)
-		operators := operatorIndexEdit{Index: current.OperatorNames()}
+		operators := catalog.OperatorIndexEdit{Index: current.OperatorNames()}
 		storage := make(map[ids.ObjectAddress]*relationStorage, len(currentStorage)+len(s.Descriptors))
 		for a, v := range currentStorage {
 			storage[a] = v

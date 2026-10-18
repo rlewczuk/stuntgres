@@ -40,7 +40,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	seen := map[ids.ObjectAddress]bool{}
 	expected := []struct {
 		name       string
-		signature  procedureSignature
+		signature  catalog.ProcedureSignature
 		result     ids.OID
 		volatility expr.Volatility
 		strict     bool
@@ -79,24 +79,24 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	if count != 14 {
 		t.Fatal(count)
 	}
-	for _, mutate := range []func(*procedureDescriptor){
-		func(p *procedureDescriptor) {
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) {
 			p.Implementation = &pgcryptoProvider{control: extensionControl{Version: "1.4"}}
 		},
-		func(p *procedureDescriptor) { p.Implementation = stockUnaccent },
-		func(p *procedureDescriptor) { p.Implementation = stockIntarray },
-		func(p *procedureDescriptor) { p.Implementation = stockFuzzystrmatch },
-		func(p *procedureDescriptor) { p.ObjectName = "crypt" },
-		func(p *procedureDescriptor) { p.Signature = "25" },
-		func(p *procedureDescriptor) { p.Result = 25 },
-		func(p *procedureDescriptor) { p.ObjectRevision = 0 },
-		func(p *procedureDescriptor) { p.Owner = authorization.PrincipalRef{} },
-		func(p *procedureDescriptor) { p.Dictionary = ext.Address() },
-		func(p *procedureDescriptor) { p.Strict = false },
-		func(p *procedureDescriptor) { p.Volatility = expr.Stable },
+		func(p *catalog.Procedure) { p.Implementation = stockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = stockIntarray },
+		func(p *catalog.Procedure) { p.Implementation = stockFuzzystrmatch },
+		func(p *catalog.Procedure) { p.ObjectName = "crypt" },
+		func(p *catalog.Procedure) { p.Signature = "25" },
+		func(p *catalog.Procedure) { p.Result = 25 },
+		func(p *catalog.Procedure) { p.ObjectRevision = 0 },
+		func(p *catalog.Procedure) { p.Owner = authorization.PrincipalRef{} },
+		func(p *catalog.Procedure) { p.Dictionary = ext.Address() },
+		func(p *catalog.Procedure) { p.Strict = false },
+		func(p *catalog.Procedure) { p.Volatility = expr.Stable },
 	} {
 		original := view.Get(ext.Members[0])
-		bad := *original.(*procedureDescriptor)
+		bad := *original.(*catalog.Procedure)
 		mutate(&bad)
 		view.State().SetDescriptor(ext.Members[0], &bad)
 		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
@@ -111,11 +111,11 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	}
 	for _, address := range ext.Members[11:] {
 		original := view.MustProcedure(address)
-		for _, mutate := range []func(*procedureDescriptor){
-			func(p *procedureDescriptor) { p.Strict = !p.Strict },
-			func(p *procedureDescriptor) { p.Result = 25 },
-			func(p *procedureDescriptor) { p.Signature = "25" },
-			func(p *procedureDescriptor) {
+		for _, mutate := range []func(*catalog.Procedure){
+			func(p *catalog.Procedure) { p.Strict = !p.Strict },
+			func(p *catalog.Procedure) { p.Result = 25 },
+			func(p *catalog.Procedure) { p.Signature = "25" },
+			func(p *catalog.Procedure) {
 				p.Implementation = &pgcryptoProvider{control: extensionControl{Version: "1.4"}}
 			},
 		} {
@@ -205,7 +205,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*procedureDescriptor)
+	mapped := remapExtensionDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
 	if pgcryptoProviderOf(mapped) != stockPgcrypto || mapped.Signature != n.procedure.Signature || mapped.Result != 17 || mapped.Address() == n.procedure.Address() {
 		t.Fatal(mapped)
 	}
@@ -236,7 +236,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil || !slices.Contains(aesRefs, aesCall.ref.Address) {
 		t.Fatal(aesRefs, err)
 	}
-	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*procedureDescriptor)
+	mappedAES := remapExtensionDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*catalog.Procedure)
 	if pgcryptoProviderOf(mappedAES) != stockPgcrypto || mappedAES.Signature != "17,17,17,25" || mappedAES.Address() == aesCall.ref.Address {
 		t.Fatal(mappedAES)
 	}

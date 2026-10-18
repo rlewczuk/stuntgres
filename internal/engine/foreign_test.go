@@ -217,9 +217,9 @@ func TestFDWRegistry(t *testing.T) {
 	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)})
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
 	procedure := e.catalog.state.MustProcedure(address)
-	if procedure.Foreign.Wrapper != w || procedure.Result != 3115 || procedure.Signature != foreignHandlerSignature {
+	if procedure.Foreign.Wrapper != w || procedure.Result != 3115 || procedure.Signature != catalog.ForeignHandlerSignature {
 		t.Fatal("installed declaration lost executable identity", procedure)
 	}
 	if err = e.catalog.Providers[ids.ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
@@ -234,7 +234,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	if err := e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}
+	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
 	oldAddress := e.catalog.state.NameAddress(key)
 	wrapper := &foreignDescriptor{ObjectName: "wrapper", Handler: oldAddress}
 	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {

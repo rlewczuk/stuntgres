@@ -189,7 +189,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		}
 		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
-	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
+	signatures := [4]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
 	for i, signature := range signatures {
 		rev, err := e.catalog.revisionLocked()
 		if err != nil {
@@ -211,7 +211,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 			vol = expr.Volatile
 			strict = false
 		}
-		proc := &procedureDescriptor{ObjectAddress: ext.Members[i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: functionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: ext.Members[i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: vol, Strict: strict, Implementation: p}
 		if i < 2 {
 			proc.Dictionary = ext.Members[5]
 		}
@@ -238,9 +238,9 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	var helpers [2]ids.ObjectAddress
 	for i, helper := range [...]struct {
 		name      string
-		signature procedureSignature
+		signature catalog.ProcedureSignature
 		arguments string
-	}{{"unaccent_init", unaccentInitSignature, "internal"}, {"unaccent_lexize", unaccentLexizeSignature, "internal, internal, internal, internal"}} {
+	}{{"unaccent_init", catalog.UnaccentInitSignature, "internal"}, {"unaccent_lexize", catalog.UnaccentLexizeSignature, "internal, internal, internal, internal"}} {
 		procedure := procedureInNamespaces(auth.catalog, namespaceSelection{path: path}, helper.name, helper.signature)
 		if procedure == nil {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: unaccentTemplateContext}
@@ -271,16 +271,16 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 func extensionMemberConflict(d Descriptor, ns ids.ObjectAddress) error {
 	err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR"}
 	switch d := d.(type) {
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		err.Code = "42723"
 		err.Message = fmt.Sprintf(`function "%s" already exists with same argument types`, d.Name())
 		args, result, symbol, properties, line := "text", "text", "unaccent_dict", "STABLE STRICT PARALLEL SAFE", 11
 		switch d.Signature {
-		case unaccentDictionarySignature:
+		case catalog.UnaccentDictionarySignature:
 			args, line = "regdictionary, text", 6
-		case unaccentInitSignature:
+		case catalog.UnaccentInitSignature:
 			args, result, symbol, properties, line = "internal", "internal", "unaccent_init", "PARALLEL SAFE", 16
-		case unaccentLexizeSignature:
+		case catalog.UnaccentLexizeSignature:
 			args, result, symbol, properties, line = "internal,internal,internal,internal", "internal", "unaccent_lexize", "PARALLEL SAFE", 21
 		}
 		err.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS '$libdir/unaccent', '%s'\n\tLANGUAGE C %s\"\nextension script file \"unaccent--1.1.sql\", near line %d", d.Name(), args, result, symbol, properties, line)

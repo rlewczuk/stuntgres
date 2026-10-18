@@ -95,10 +95,10 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			d := captured.Builtin
-			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != functionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("released identity", captured)
 			}
-			if d.Kind != functionRoutine || d.Result != tc.result || d.Strict != tc.strict || d.Volatility != expr.Stable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Variadic != 0 || d.Defaults != 0 || d.Providers&jsonRoutineProvider == 0 {
+			if d.Kind != catalog.FunctionRoutine || d.Result != tc.result || d.Strict != tc.strict || d.Volatility != expr.Stable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Variadic != 0 || d.Defaults != 0 || d.Providers&jsonRoutineProvider == 0 {
 				t.Fatal("released full declaration", d)
 			}
 			if evaluation.catalog.Get(address) != captured {
@@ -242,7 +242,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("incompatible declaration admitted")
 			}
 			invalid := call
-			invalid.Info.RoutineReference = (*procedureDescriptor)(nil)
+			invalid.Info.RoutineReference = (*catalog.Procedure)(nil)
 			if err := admitRoutineCall(&evaluation, invalid, false, false); err == nil {
 				t.Fatal("typed nil carrier admitted")
 			}
@@ -478,7 +478,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			if err := stageOwnership(badStage, current, owner); err != nil {
 				t.Fatal(err)
 			}
-			bad := badStage.Descriptors[current.Address()].(*procedureDescriptor)
+			bad := badStage.Descriptors[current.Address()].(*catalog.Procedure)
 			if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, bad); err == nil {
 				t.Fatal("zero/foreign staged owner provenance accepted")
 			}

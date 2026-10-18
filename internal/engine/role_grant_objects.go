@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -111,7 +112,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d Descriptor, s 
 		n.ACL = nextACL
 		n.ACLSyntheticDefault = false
 		next = &n
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		n := *d
 		n.ACL = nextACL
 		next = &n

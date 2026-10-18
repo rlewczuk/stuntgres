@@ -31,7 +31,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 		}
 	}
 	next := catalog.CloneState(view.State())
-	operators := operatorIndexEdit{Index: view.State().OperatorNames()}
+	operators := catalog.OperatorIndexEdit{Index: view.State().OperatorNames()}
 	for a, d := range view.Descriptors() {
 		ns, isNamespace := d.(*namespaceDescriptor)
 		parent, hasParent := view.Namespace(d.Namespace())
@@ -303,7 +303,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		if err := remapCollision(address); err != nil {
 			return err
 		}
-		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.Aggregate != nil {
+		if proc, ok := descriptor.(*catalog.Procedure); ok && proc.Aggregate != nil {
 			// These are mapping-only identities, not callable descriptors.
 			// Publish their mapping before scalar/default/expression remapping.
 			for _, helper := range proc.Aggregate.Helpers {
@@ -375,7 +375,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				n := *r
 				n.OID, n.ObjectNamespace, n.Handler = target.ObjectID, namespace, handler
 				d = &n
-			case *operatorDescriptor:
+			case *catalog.Operator:
 				n := *r
 				n.ObjectAddress = target
 				move := func(class, id ids.OID) ids.OID {
@@ -529,7 +529,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp, indexes); err != nil {
 		return err
 	}
-	operators := operatorIndexEdit{Index: next.OperatorNames()}
+	operators := catalog.OperatorIndexEdit{Index: next.OperatorNames()}
 	for a, d := range temporary {
 		operators.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)

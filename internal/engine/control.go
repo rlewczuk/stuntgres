@@ -139,7 +139,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var domains []*typeDescriptor
 	var collations []*collationDescriptor
 	var conversions []*conversionDescriptor
-	var operators []*operatorDescriptor
+	var operators []*catalog.Operator
 	type dumpSchema struct {
 		name, owner string
 		configured  bool
@@ -277,7 +277,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: dump cannot serialize altered tablespace authority")
 				}
 				continue
-			case *operatorDescriptor:
+			case *catalog.Operator:
 				if err := (operatorProvider{}).Validate(catalogView, t); err != nil {
 					e.mu.Unlock()
 					return err
@@ -286,7 +286,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					operators = append(operators, t)
 				}
 				continue
-			case *procedureDescriptor:
+			case *catalog.Procedure:
 				if t.Foreign != nil {
 					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalogView, t); err != nil {
 						e.mu.Unlock()

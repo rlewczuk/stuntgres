@@ -182,7 +182,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		for _, a := range roots {
 			var extension ids.ObjectAddress
 			switch d := auth.catalog.Get(a).(type) {
-			case *procedureDescriptor:
+			case *catalog.Procedure:
 				extension = d.Extension
 			case *tsDictionaryDescriptor:
 				extension = d.Extension
@@ -244,7 +244,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				if err == nil {
 					err = ownershipDatabaseCreate(auth)
 				}
-			case *collationDescriptor, *conversionDescriptor, *operatorDescriptor, *databaseDescriptor, *extensionDescriptor, *procedureDescriptor, *tsDictionaryDescriptor:
+			case *collationDescriptor, *conversionDescriptor, *catalog.Operator, *databaseDescriptor, *extensionDescriptor, *catalog.Procedure, *tsDictionaryDescriptor:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
 					err = ownershipEligibility(auth, target, d.Namespace())
@@ -257,7 +257,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				break
 			}
 			switch d.(type) {
-			case *procedureDescriptor, *operatorDescriptor, *tsDictionaryDescriptor:
+			case *catalog.Procedure, *catalog.Operator, *tsDictionaryDescriptor:
 				providersChanged = true
 			}
 		}

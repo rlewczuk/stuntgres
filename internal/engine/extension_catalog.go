@@ -49,7 +49,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		if err := implementation.ValidateExtension(v, d); err != nil {
 			return err
 		}
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		if uuidOsspProviderOf(d) != nil && (d.Aggregate != nil || d.Foreign != nil || d.Builtin != nil) {
 			return invalid()
 		}
@@ -62,10 +62,10 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 				return invalid()
 			}
 			if p.Wrapper != nil {
-				if p.Validator != nil || d.Signature != foreignHandlerSignature || d.Result != 3115 {
+				if p.Validator != nil || d.Signature != catalog.ForeignHandlerSignature || d.Result != 3115 {
 					return invalid()
 				}
-			} else if p.Validator == nil || d.Signature != foreignValidatorSignature || d.Result != 2278 {
+			} else if p.Validator == nil || d.Signature != catalog.ForeignValidatorSignature || d.Result != 2278 {
 				return invalid()
 			}
 			break
@@ -84,7 +84,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			ext = d.Extension
 			break
 		}
-		if d.RoutineKind != functionRoutine {
+		if d.RoutineKind != catalog.FunctionRoutine {
 			return invalid()
 		}
 		if uuidOsspProviderOf(d) != nil {
@@ -120,7 +120,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		if d.Conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.Name())
-			if !ok || d.Conversion != registered || unaccentProviderOf(d) != nil || d.Signature != conversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.Address().ObjectID) != d.Name() {
+			if !ok || d.Conversion != registered || unaccentProviderOf(d) != nil || d.Signature != catalog.ConversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || conversionRoutineName(d.Address().ObjectID) != d.Name() {
 				return invalid()
 			}
 			break
@@ -130,7 +130,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		ext = d.Extension
 		switch d.Signature {
-		case unaccentTextSignature, unaccentDictionarySignature:
+		case catalog.UnaccentTextSignature, catalog.UnaccentDictionarySignature:
 			if d.Name() != "unaccent" || d.Result != 25 || d.Volatility != expr.Stable || !d.Strict {
 				return invalid()
 			}
@@ -140,11 +140,11 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 					return invalid()
 				}
 			}
-		case unaccentInitSignature:
+		case catalog.UnaccentInitSignature:
 			if d.Name() != "unaccent_init" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
 				return invalid()
 			}
-		case unaccentLexizeSignature:
+		case catalog.UnaccentLexizeSignature:
 			if d.Name() != "unaccent_lexize" || d.Result != 2281 || d.Volatility != expr.Volatile || d.Strict {
 				return invalid()
 			}
@@ -158,7 +158,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		ext = d.Extension
 		for i, a := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
 			proc, ok := v.Procedure(a)
-			if !ok || ext != (ids.ObjectAddress{}) && proc.Namespace() != d.Namespace() || proc.Extension != ext || proc.Signature != [2]procedureSignature{unaccentInitSignature, unaccentLexizeSignature}[i] {
+			if !ok || ext != (ids.ObjectAddress{}) && proc.Namespace() != d.Namespace() || proc.Extension != ext || proc.Signature != [2]catalog.ProcedureSignature{catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}[i] {
 				return invalid()
 			}
 		}
@@ -193,7 +193,7 @@ func extensionMembership(d Descriptor) ids.ObjectAddress {
 	switch d := d.(type) {
 	case *typeDescriptor:
 		return d.Extension
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		return d.Extension
 	case *tsTemplateDescriptor:
 		return d.Extension
@@ -202,7 +202,7 @@ func extensionMembership(d Descriptor) ids.ObjectAddress {
 	}
 	return ids.ObjectAddress{}
 }
-func procedureArity(p *procedureDescriptor) int64 {
+func procedureArity(p *catalog.Procedure) int64 {
 	if p.Signature == "" {
 		return 0
 	}
@@ -241,7 +241,7 @@ func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) 
 	return children, nil
 }
 
-func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name string, signature procedureSignature) *procedureDescriptor {
+func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name string, signature catalog.ProcedureSignature) *catalog.Procedure {
 	for i := range path.count() {
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)})
 		if address != (ids.ObjectAddress{}) {
@@ -263,7 +263,7 @@ func (p *unaccentProvider) ValidateExtension(v CatalogRead, d *extensionDescript
 			return invalid()
 		}
 	}
-	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
+	signatures := [4]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
 	for i, signature := range signatures {
 		proc, ok := v.Procedure(d.Members[i])
 		if !ok || proc.Signature != signature || proc.Implementation != p {

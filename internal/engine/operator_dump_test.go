@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -15,13 +16,13 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 		// D.neg=C is asymmetric; A.comm=B is asymmetric; B/C are reciprocal
 		// in both kinds. Allocation order must not become link-establishment order.
 		d, c, a, b := oids[0], oids[1], oids[2], oids[3]
-		operators := []*operatorDescriptor{
+		operators := []*catalog.Operator{
 			{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: d}, ObjectName: "#!#", Function: 144, Result: 16, Negator: c},
 			{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: c}, ObjectName: "#?#", Function: 65, Result: 16, Commutator: b, Negator: b},
 			{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, ObjectName: "#~#", Function: 65, Result: 16, Commutator: b},
 			{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, ObjectName: "#@#", Function: 65, Result: 16, Commutator: c, Negator: c},
 		}
-		before := make([]operatorDescriptor, len(operators))
+		before := make([]catalog.Operator, len(operators))
 		graph := make(map[dumpEventKey][]dumpEventKey)
 		for i, op := range operators {
 			op.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
@@ -90,7 +91,7 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 	e := New()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	a, b := ids.OID(90001), ids.OID(90003)
-	operators := []*operatorDescriptor{
+	operators := []*catalog.Operator{
 		{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: a}, ObjectName: "#~#", Commutator: b},
 		{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: b}, ObjectName: "#@#", Commutator: a},
 	}

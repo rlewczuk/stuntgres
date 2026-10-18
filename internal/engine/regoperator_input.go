@@ -12,7 +12,7 @@ import (
 )
 
 type operatorSignature struct{ left, right ids.OID }
-type operatorGroups map[string][]*operatorDescriptor
+type operatorGroups map[string][]*catalog.Operator
 
 func collectOperatorGroups(view CatalogRead) operatorGroups {
 	groups := make(operatorGroups)
@@ -26,8 +26,8 @@ func collectOperatorGroups(view CatalogRead) operatorGroups {
 }
 
 // Earlier namespaces mask only the same ordered operand signature.
-func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name string) []*operatorDescriptor {
-	var result []*operatorDescriptor
+func visibleOperators(groups operatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
+	var result []*catalog.Operator
 	seen := make(map[operatorSignature]bool)
 	for _, ns := range path {
 		for _, d := range groups[name] {
@@ -84,7 +84,7 @@ func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32
 	n, err := v.OID()
 	return n, true, err
 }
-func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, error) {
+func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, error) {
 	raw, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return nil, sqlError("42602", "invalid name syntax")

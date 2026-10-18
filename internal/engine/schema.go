@@ -605,11 +605,11 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				domains = append(domains, c)
 			} else if c, ok := d.(*conversionDescriptor); ok {
 				domains = append(domains, c)
-			} else if operator, ok := d.(*operatorDescriptor); ok {
+			} else if operator, ok := d.(*catalog.Operator); ok {
 				domains = append(domains, operator)
 			} else if extension, ok := d.(*extensionDescriptor); ok {
 				domains = append(domains, extension)
-			} else if procedure, ok := d.(*procedureDescriptor); ok && procedure.Foreign != nil {
+			} else if procedure, ok := d.(*catalog.Procedure); ok && procedure.Foreign != nil {
 				domains = append(domains, procedure)
 			} else if t, ok := d.(*typeDescriptor); ok && (t.OwningRelation != (ids.ObjectAddress{}) || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined()) {
 				continue // removed automatically with the owning relation or element type

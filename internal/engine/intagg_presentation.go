@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -10,7 +11,7 @@ import (
 // Occurrences use the same normalized structural paths as frozen literal and
 // column presentation. The captured reference comes from binding, never a later
 // lookup by the written name or the renderer's current search_path.
-func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *procedureDescriptor, ref ids.ObjectRef, name string) error {
+func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
 	if err := validateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
 		return err
 	}
@@ -38,7 +39,7 @@ func intaggRecipeFunction(raw parser.Expr) string {
 	return ""
 }
 
-func (v *viewDefinition) intaggRecipeProcedure(catalog CatalogRead, path viewLiteralPath, name string) (*procedureDescriptor, error) {
+func (v *viewDefinition) intaggRecipeProcedure(catalog CatalogRead, path viewLiteralPath, name string) (*catalog.Procedure, error) {
 	ref, exists := v.intaggRefs[path]
 	consumer, _ := catalog.Relation(v.consumer)
 	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(catalog, consumer, ref) || ref.Epoch != catalog.Epoch() && (consumer == nil || viewOf(consumer) != v) {

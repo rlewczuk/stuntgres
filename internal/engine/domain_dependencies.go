@@ -121,7 +121,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				continue
 			}
 			switch d := descriptor.(type) {
-			case *operatorDescriptor:
+			case *catalog.Operator:
 				for _, dependency := range operatorDependencyAddresses(provider.base, d) {
 					if dependency == target {
 						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
@@ -142,7 +142,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				if d.TargetNamespace == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
-			case *procedureDescriptor:
+			case *catalog.Procedure:
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
@@ -512,7 +512,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	for _, target := range targets {
 		observe := target.ClassID == ids.ExtensionClassID || target.ClassID == ids.ForeignWrapperClassID || target.ClassID == ids.ForeignServerClassID
 		if target.ClassID == ids.ProcedureClassID {
-			procedure, ok := provider.retirementDescriptor(target).(*procedureDescriptor)
+			procedure, ok := provider.retirementDescriptor(target).(*catalog.Procedure)
 			observe = ok && procedure.Foreign != nil
 		}
 		if observe {

@@ -1,18 +1,21 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+)
 
 type routineKey struct {
 	name      string
-	signature procedureSignature
+	signature catalog.ProcedureSignature
 }
 
 var routineByOID, routinesByName, routineBySignature = indexBuiltinRoutines()
 
-func indexBuiltinRoutines() (map[ids.OID]routineIdentity, map[string][]routineIdentity, map[routineKey]routineIdentity) {
-	byOID := make(map[ids.OID]routineIdentity, len(builtinRoutineIdentities))
-	byName := make(map[string][]routineIdentity)
-	bySignature := make(map[routineKey]routineIdentity, len(builtinRoutineIdentities))
+func indexBuiltinRoutines() (map[ids.OID]catalog.RoutineIdentity, map[string][]catalog.RoutineIdentity, map[routineKey]catalog.RoutineIdentity) {
+	byOID := make(map[ids.OID]catalog.RoutineIdentity, len(builtinRoutineIdentities))
+	byName := make(map[string][]catalog.RoutineIdentity)
+	bySignature := make(map[routineKey]catalog.RoutineIdentity, len(builtinRoutineIdentities))
 	for _, p := range builtinRoutineIdentities {
 		byOID[p.ID] = p
 		byName[p.Name] = append(byName[p.Name], p)
@@ -21,9 +24,9 @@ func indexBuiltinRoutines() (map[ids.OID]routineIdentity, map[string][]routineId
 	return byOID, byName, bySignature
 }
 
-func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) {
+func routineIdentityByOID(view CatalogRead, id ids.OID) (catalog.RoutineIdentity, bool) {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
-		return routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, true
+		return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, true
 	}
 	if p, ok := routineByOID[id]; ok {
 		return p, true
@@ -35,7 +38,7 @@ func routineIdentityByOID(view CatalogRead, id ids.OID) (routineIdentity, bool) 
 			}
 		}
 	}
-	return routineIdentity{}, false
+	return catalog.RoutineIdentity{}, false
 }
 
 func routineNamespaceVisible(view CatalogRead, namespace ids.ObjectAddress) bool {
@@ -45,17 +48,17 @@ func routineNamespaceVisible(view CatalogRead, namespace ids.ObjectAddress) bool
 
 // Exact signatures use both existing catalog NameKeys and the immutable release
 // signature index. The first candidate masks all later identical signatures.
-func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, signature procedureSignature) (routineIdentity, int) {
+func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	for i := range path.count() {
 		namespace := path.at(i)
 		if !routineNamespaceVisible(view, namespace) {
 			continue
 		}
 		if p := procedureInNamespaces(view, namespaceSelection{qualified: namespace}, name, signature); p != nil {
-			return routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
+			return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
 		}
 		for _, d := range view.Descriptors() {
-			if owner, ok := d.(*procedureDescriptor); ok && owner.Aggregate != nil && owner.Namespace() == namespace {
+			if owner, ok := d.(*catalog.Procedure); ok && owner.Aggregate != nil && owner.Namespace() == namespace {
 				for _, helper := range owner.Aggregate.Helpers {
 					if helper.Name == name && helper.Signature == signature {
 						return helper, 1
@@ -69,19 +72,19 @@ func selectExactRoutine(view CatalogRead, path namespaceSelection, name string, 
 			}
 		}
 	}
-	return routineIdentity{}, 0
+	return catalog.RoutineIdentity{}, 0
 }
 
 // Earlier schemas mask only identical signatures, not every same-named routine.
 // Bare-name selection stops after two candidates, the regproc ambiguity boundary.
-func selectRoutine(view CatalogRead, path namespaceSelection, name string, signature *procedureSignature) (routineIdentity, int) {
+func selectRoutine(view CatalogRead, path namespaceSelection, name string, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	if signature != nil {
 		return selectExactRoutine(view, path, name, *signature)
 	}
-	var selected routineIdentity
+	var selected catalog.RoutineIdentity
 	count := 0
-	seen := make(map[procedureSignature]bool)
-	accept := func(p routineIdentity) bool {
+	seen := make(map[catalog.ProcedureSignature]bool)
+	accept := func(p catalog.RoutineIdentity) bool {
 		if seen[p.Signature] {
 			return false
 		}
@@ -96,8 +99,8 @@ func selectRoutine(view CatalogRead, path namespaceSelection, name string, signa
 			continue
 		}
 		for _, d := range view.Descriptors() {
-			if p, ok := d.(*procedureDescriptor); ok && p.Namespace() == namespace {
-				if p.Name() == name && accept(routineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}) {
+			if p, ok := d.(*catalog.Procedure); ok && p.Namespace() == namespace {
+				if p.Name() == name && accept(catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}) {
 					return selected, count
 				}
 				if p.Aggregate != nil {

@@ -321,7 +321,7 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 			case ids.ForeignWrapperClassID, ids.ForeignServerClassID:
 				targets = append(targets, address)
 			case ids.ProcedureClassID:
-				if procedure, ok := p.retirementDescriptor(address).(*procedureDescriptor); ok && procedure.Foreign != nil {
+				if procedure, ok := p.retirementDescriptor(address).(*catalog.Procedure); ok && procedure.Foreign != nil {
 					targets = append(targets, address)
 				}
 			}

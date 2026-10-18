@@ -46,7 +46,7 @@ func extensionOwnerMetadata(view CatalogRead, roles authorization.Read, ext *ext
 		var member extensionMemberOwner
 		var principal authorization.PrincipalRef
 		switch d := d.(type) {
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			member = extensionMemberOwner{Kind: "procedure", Name: d.Name(), Signature: string(d.Signature)}
 			if intarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
 				member.Signature = "query_int"
@@ -187,7 +187,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 			valid := false
 			switch record.Name {
 			case "unaccent":
-				valid = member.Name == "unaccent" && (member.Signature == string(unaccentTextSignature) || member.Signature == string(unaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(unaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(unaccentLexizeSignature)
+				valid = member.Name == "unaccent" && (member.Signature == string(catalog.UnaccentTextSignature) || member.Signature == string(catalog.UnaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(catalog.UnaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(catalog.UnaccentLexizeSignature)
 			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
 			case "intagg":
@@ -203,7 +203,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 				valid = member.Name == "uuid_generate_v4" && member.Signature == ""
 			}
 			if record.Name == "fuzzystrmatch" {
-				valid = fuzzystrmatchResult(member.Name, procedureSignature(member.Signature)) != 0
+				valid = fuzzystrmatchResult(member.Name, catalog.ProcedureSignature(member.Signature)) != 0
 			}
 			if !valid {
 				return invalid()
@@ -298,7 +298,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 					candidate.SetDescriptor(arrayAddress, &mapped)
 					ownersChanged = true
 				}
-			case *procedureDescriptor:
+			case *catalog.Procedure:
 				if d.Owner != owner.Ref {
 					n := *d
 					n.Owner = owner.Ref

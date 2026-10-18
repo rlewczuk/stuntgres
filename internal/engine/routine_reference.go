@@ -11,7 +11,7 @@ import (
 
 // The cross-package interface is an identity carrier, not catalog authority.
 // Dynamic extraction rejects arbitrary implementations and typed nil pointers.
-func expressionRoutineDescriptor(node expr.Expr) (*procedureDescriptor, error) {
+func expressionRoutineDescriptor(node expr.Expr) (*catalog.Procedure, error) {
 	call, ok := node.(interface {
 		CallRoutineReference() expr.RoutineReference
 	})
@@ -22,7 +22,7 @@ func expressionRoutineDescriptor(node expr.Expr) (*procedureDescriptor, error) {
 	if reference == nil {
 		return nil, nil
 	}
-	d, ok := reference.(*procedureDescriptor)
+	d, ok := reference.(*catalog.Procedure)
 	if !ok || d == nil || d.Address().ClassID != ids.ProcedureClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 {
 		return nil, fmt.Errorf("stuntgres: invalid routine reference carrier")
 	}
@@ -32,7 +32,7 @@ func expressionRoutineDescriptor(node expr.Expr) (*procedureDescriptor, error) {
 // Ownership's domain tag proves carrier provenance only. The captured owner and
 // ACL are never used as a permission decision, and a COW ACL/owner replacement
 // does not require captured-descriptor pointer equality with the current root.
-func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captured *procedureDescriptor) (*procedureDescriptor, error) {
+func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captured *catalog.Procedure) (*catalog.Procedure, error) {
 	if err := roles.ValidatePrincipal(captured.Owner); err != nil {
 		return nil, err
 	}
@@ -43,14 +43,14 @@ func validateRoutineDescriptor(view CatalogRead, roles authorization.Read, captu
 // validation, which holds no role snapshot: the owner's provenance is checked
 // against the principal domain of view's own engine, which is what the
 // engine's committed role root would check.
-func validateStoredRoutineDescriptor(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
+func validateStoredRoutineDescriptor(view CatalogRead, captured *catalog.Procedure) (*catalog.Procedure, error) {
 	if _, ok := view.Database(catalog.CurrentDatabaseAddress); !ok || view.Owner() == nil || captured.Owner.ID() == 0 || captured.Owner != view.Owner().Principals.Principal(captured.Owner.ID()) {
 		return nil, fmt.Errorf("stuntgres: foreign or zero principal")
 	}
 	return currentRoutineDeclaration(view, captured)
 }
 
-func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
+func currentRoutineDeclaration(view CatalogRead, captured *catalog.Procedure) (*catalog.Procedure, error) {
 	current, ok := view.Procedure(captured.Address())
 	if !ok || !sameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
@@ -58,7 +58,7 @@ func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) 
 	return current, nil
 }
 
-func sameRoutineDeclaration(current, captured *procedureDescriptor) bool {
+func sameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 	return current != nil && captured != nil &&
 		current.Name() == captured.Name() && current.Signature == captured.Signature &&
 		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&

@@ -125,7 +125,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			next.ACLSyntheticDefault = false
 			next.ObjectRevision = revision
 			err = stage.Replace(&next)
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			next := *old
 			next.ACL, next.ObjectRevision = nextACL, revision
 			err = stage.Replace(&next)

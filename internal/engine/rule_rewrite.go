@@ -199,7 +199,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *catalog.Relation, slo
 		return err
 	}
 	var failure error
-	record := func(captured *procedureDescriptor) {
+	record := func(captured *catalog.Procedure) {
 		if failure != nil || captured == nil {
 			return
 		}
@@ -252,7 +252,7 @@ func loanRuleDefaultDependencies(view CatalogRead, parent *catalog.Relation, slo
 		}
 		record(captured)
 		if captured != nil {
-			failure = walkRoutineBody(captured, node, func(body *procedureDescriptor) error {
+			failure = walkRoutineBody(captured, node, func(body *catalog.Procedure) error {
 				current, ok := view.Procedure(body.Address())
 				if !ok || !sameRoutineDeclaration(current, body) {
 					return fmt.Errorf("stuntgres: stale rule DEFAULT SQL body declaration")

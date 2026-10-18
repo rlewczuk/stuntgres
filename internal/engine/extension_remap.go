@@ -64,7 +64,7 @@ func remapExtensionDescriptor(d Descriptor, mapping map[ids.ObjectAddress]ids.Ob
 			return d
 		}
 		return &n
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		n := *d
 		n.ObjectAddress = address(n.Address())
 		n.ObjectNamespace = address(n.Namespace())

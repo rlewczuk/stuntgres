@@ -23,7 +23,7 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 		return nil, err
 	}
 	text := name.Parts[len(name.Parts)-1].Text
-	var proc *procedureDescriptor
+	var proc *catalog.Procedure
 	if extension == functions.PgcryptoExtension {
 		for i := range path.count() {
 			namespace := path.at(i)
@@ -32,13 +32,13 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 			if text == "gen_random_uuid" && namespace.ObjectID == ids.PGCatalogNamespaceOID {
 				return functions.CatalogBuiltin{}, nil
 			}
-			proc = procedureInNamespaces(auth.catalog, namespaceSelection{qualified: namespace}, text, procedureSignature(signature))
+			proc = procedureInNamespaces(auth.catalog, namespaceSelection{qualified: namespace}, text, catalog.ProcedureSignature(signature))
 			if proc != nil {
 				break
 			}
 		}
 	} else {
-		proc = procedureInNamespaces(auth.catalog, path, text, procedureSignature(signature))
+		proc = procedureInNamespaces(auth.catalog, path, text, catalog.ProcedureSignature(signature))
 	}
 	if proc == nil {
 		return nil, nil
@@ -69,7 +69,7 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 type installedExtensionRoutine struct {
 	binder    *expressionBinder
 	catalog   CatalogRead
-	procedure *procedureDescriptor
+	procedure *catalog.Procedure
 }
 
 func (r installedExtensionRoutine) Validate() error {

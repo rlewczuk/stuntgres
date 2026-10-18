@@ -33,9 +33,9 @@ func capturePGOperator(ctx context.Context, view CatalogRead, ref ids.ObjectRef,
 			return nil, fmt.Errorf("stuntgres: foreign operator source type")
 		}
 	}
-	var definitions []*operatorDescriptor
+	var definitions []*catalog.Operator
 	for _, descriptor := range view.Descriptors() {
-		d, ok := descriptor.(*operatorDescriptor)
+		d, ok := descriptor.(*catalog.Operator)
 		if !ok {
 			continue
 		}

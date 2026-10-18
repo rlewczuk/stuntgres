@@ -1,24 +1,25 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 )
 
-func grantRoutineKindMatches(target string, kind routineKind) bool {
+func grantRoutineKindMatches(target string, kind catalog.RoutineKind) bool {
 	switch target {
 	case "function":
-		return kind == functionRoutine || kind == aggregateRoutine || kind == windowRoutine
+		return kind == catalog.FunctionRoutine || kind == catalog.AggregateRoutine || kind == catalog.WindowRoutine
 	case "procedure":
-		return kind == procedureRoutine
+		return kind == catalog.ProcedureRoutine
 	case "routine":
-		return kind == functionRoutine || kind == aggregateRoutine || kind == windowRoutine || kind == procedureRoutine
+		return kind == catalog.FunctionRoutine || kind == catalog.AggregateRoutine || kind == catalog.WindowRoutine || kind == catalog.ProcedureRoutine
 	}
 	return false
 }
 
-func procedureReturnsSet(d *procedureDescriptor) bool {
+func procedureReturnsSet(d *catalog.Procedure) bool {
 	return d.Builtin != nil && d.Builtin.ReturnsSet ||
-		intaggProviderOf(d) == stockIntagg && d.RoutineKind == functionRoutine &&
+		intaggProviderOf(d) == stockIntagg && d.RoutineKind == catalog.FunctionRoutine &&
 			d.Name() == "int_array_enum" && d.Signature == "1007" && d.Result == 23
 }
 

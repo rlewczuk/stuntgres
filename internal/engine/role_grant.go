@@ -99,7 +99,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 			if err := op.Context().Err(); err != nil {
 				return nil, err
 			}
-			if routine, ok := descriptor.(*procedureDescriptor); ok {
+			if routine, ok := descriptor.(*catalog.Procedure); ok {
 				if routine.Namespace() == addr && grantRoutineKindMatches(s.Kind, routine.RoutineKind) {
 					targets = append(targets, descriptor)
 				}

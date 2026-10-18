@@ -2,18 +2,19 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 )
 
 // Namespace order wins first, then the released default-index OID order within
 // that namespace. Name shadowing is unrelated to directed default dispatch.
 type conversionDefault struct {
 	conversion *conversionDescriptor
-	procedure  *procedureDescriptor
+	procedure  *catalog.Procedure
 }
 
 // A statement lazily projects its immutable snapshot exactly once, only for
 // nonempty nonidentity conversion. Rows do no catalog scanning or path allocation.
-func (s *StatementScope) conversionProcedure(source, destination int) (*procedureDescriptor, error) {
+func (s *StatementScope) conversionProcedure(source, destination int) (*catalog.Procedure, error) {
 	if s == nil || s.visibilityCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing conversion execution snapshot")
 	}
@@ -29,7 +30,7 @@ func (s *StatementScope) conversionProcedure(source, destination int) (*procedur
 				old := defaults[key].conversion
 				if old == nil || old.Namespace() == namespace && d.OID < old.OID {
 					procedure, ok := s.visibilityCatalog.Procedure(d.Handler)
-					if !ok || procedure.Conversion.Name() == "" || procedure.Signature != conversionSignature || procedure.Result != 23 {
+					if !ok || procedure.Conversion.Name() == "" || procedure.Signature != catalog.ConversionSignature || procedure.Result != 23 {
 						return nil, fmt.Errorf("stuntgres: invalid conversion execution capability")
 					}
 					defaults[key] = conversionDefault{d, procedure}

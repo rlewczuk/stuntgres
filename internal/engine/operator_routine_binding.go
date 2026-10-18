@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -18,8 +19,8 @@ type builtinOperatorRoutineKey struct {
 // happen before this identity lookup; evaluation never consults the catalog.
 var builtinOperatorRoutineByDeclaration = indexBuiltinOperatorRoutines()
 
-func indexBuiltinOperatorRoutines() map[builtinOperatorRoutineKey]*builtinRoutineDeclaration {
-	byDeclaration := make(map[builtinOperatorRoutineKey]*builtinRoutineDeclaration, len(builtinOperatorRoutineAssociations))
+func indexBuiltinOperatorRoutines() map[builtinOperatorRoutineKey]*catalog.BuiltinRoutineDeclaration {
+	byDeclaration := make(map[builtinOperatorRoutineKey]*catalog.BuiltinRoutineDeclaration, len(builtinOperatorRoutineAssociations))
 	for _, association := range builtinOperatorRoutineAssociations {
 		i := sort.Search(len(builtinOperators), func(i int) bool { return builtinOperators[i].oid >= association.operator })
 		if i == len(builtinOperators) || builtinOperators[i].oid != association.operator {
@@ -49,7 +50,7 @@ func (b *expressionBinder) builtinOperatorRoutineInfo(info expr.Info, name strin
 // Operands are already the instantiated targets selected by ResolveComparison.
 // This lookup records the released routine identity, never a second resolver or
 // physical source-pair capability gate.
-func (b *expressionBinder) comparisonRoutineDeclaration(name string, left, right *sqltype.Descriptor) (*builtinRoutineDeclaration, sqltype.EqualitySignature, error) {
+func (b *expressionBinder) comparisonRoutineDeclaration(name string, left, right *sqltype.Descriptor) (*catalog.BuiltinRoutineDeclaration, sqltype.EqualitySignature, error) {
 	if name == "!=" {
 		name = "<>"
 	}

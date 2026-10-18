@@ -257,7 +257,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 		return d.Owner, d.ACL, nil
 	case *extensionDescriptor:
 		return d.Owner, authorization.ACLValue{}, nil
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		return d.Owner, d.ACL, nil
 	case *parameterDescriptor:
 		return d.Owner, d.ACL, nil
@@ -275,7 +275,7 @@ func descriptorACL(d Descriptor) (authorization.PrincipalRef, authorization.ACLV
 		return d.Owner, authorization.ACLValue{}, nil
 	case *conversionDescriptor:
 		return d.Owner, authorization.ACLValue{}, nil
-	case *operatorDescriptor:
+	case *catalog.Operator:
 		return d.Owner, authorization.ACLValue{}, nil
 	}
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
@@ -824,7 +824,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		n.ACL = acl
 		n.ACLSyntheticDefault = false
 		next = &n
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		if ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: procedure subobject")
 		}

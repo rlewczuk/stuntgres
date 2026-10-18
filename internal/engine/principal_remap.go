@@ -88,7 +88,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				state.BindName(catalog.DescriptorNameKey(&n), n.Address())
 			}
 			state.SetDescriptor(addr, &n)
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, d.Seeded() || d.Foreign != nil)
@@ -161,7 +161,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 				return nil, err
 			}
 			state.SetDescriptor(addr, &n)
-		case *operatorDescriptor:
+		case *catalog.Operator:
 			n := *d
 			var err error
 			n.Owner, err = seedOwner(d.Owner, operatorSeeded(d))

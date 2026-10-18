@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 )
 
@@ -31,8 +32,8 @@ func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node expr.Expr) er
 	if err := r.recordStoredRoutineDescriptor(view, captured); err != nil {
 		return err
 	}
-	return walkRoutineBody(captured, node, func(body *procedureDescriptor) error {
-		current, ok := r.descriptor(view, body.Address()).(*procedureDescriptor)
+	return walkRoutineBody(captured, node, func(body *catalog.Procedure) error {
+		current, ok := r.descriptor(view, body.Address()).(*catalog.Procedure)
 		if !ok || !sameRoutineDeclaration(current, body) {
 			return fmt.Errorf("stuntgres: stale stored SQL body declaration")
 		}
@@ -42,7 +43,7 @@ func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node expr.Expr) er
 	})
 }
 
-func (r scalarRenderer) recordStoredRoutineDescriptor(view CatalogRead, captured *procedureDescriptor) error {
+func (r scalarRenderer) recordStoredRoutineDescriptor(view CatalogRead, captured *catalog.Procedure) error {
 	current, err := validateStoredRoutineDescriptor(view, captured)
 	if err != nil {
 		return err

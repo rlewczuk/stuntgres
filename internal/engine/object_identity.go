@@ -299,7 +299,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 		r.identity = objectQualifiedType(view, a.ObjectID)
 		r.names = []string{r.identity}
 		display = regtypeSpelling(view, path, a.ObjectID)
-	case *operatorDescriptor:
+	case *catalog.Operator:
 		r.name = ""
 		left, right := "NONE", "NONE"
 		if d.Left != 0 {

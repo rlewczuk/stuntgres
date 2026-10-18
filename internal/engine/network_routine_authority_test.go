@@ -57,8 +57,8 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("missing selected declaration", outer, err)
 			}
 			declaration := outer.Builtin
-			wantIdentity := routineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, procedureSignature(test.formals)}
-			if declaration.Identity != wantIdentity || declaration.Result != test.result || declaration.Kind != functionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
+			wantIdentity := catalog.RoutineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, catalog.ProcedureSignature(test.formals)}
+			if declaration.Identity != wantIdentity || declaration.Result != test.result || declaration.Kind != catalog.FunctionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			want := map[ids.OID]bool{test.id: true}
@@ -66,7 +66,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 				// RETURN $2 + $1: the existing provider commutes the two inputs;
 				// this real SQL occurrence selects inetpl(INET,INT8), not itself.
 				want[2630] = true
-				if len(outer.Body) != 1 || outer.Body[0].Routine.Address().ObjectID != 2630 || outer.Body[0].Demand != bodyAlways {
+				if len(outer.Body) != 1 || outer.Body[0].Routine.Address().ObjectID != 2630 || outer.Body[0].Demand != catalog.BodyAlways {
 					t.Fatal("real reversed SQL body edge", outer.Body)
 				}
 			} else if len(outer.Body) != 0 {

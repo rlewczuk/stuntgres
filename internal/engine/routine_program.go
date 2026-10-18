@@ -11,7 +11,7 @@ import (
 // after constant computation, but its original lifetime still fences subsequent
 // admission after a wait. Values/providers are never replayed by readmit.
 type routineAdmission struct {
-	routine   *procedureDescriptor
+	routine   *catalog.Procedure
 	reference ids.ObjectRef
 	consumer  *catalog.Relation
 	body      routineBodyContext
@@ -19,7 +19,7 @@ type routineAdmission struct {
 }
 type routineAdmissionProgram struct{ calls []routineAdmission }
 
-func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.ExpressionDependency, routine *procedureDescriptor) error {
+func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure) error {
 	var ref ids.ObjectRef
 	if c.routineReferences != nil {
 		for _, candidate := range c.routineReferences {

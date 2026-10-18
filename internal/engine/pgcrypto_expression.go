@@ -4,6 +4,7 @@ import (
 	"crypto/fips140"
 	"crypto/rand"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -12,7 +13,7 @@ import (
 
 type installedCryptoFunctionExpression struct {
 	functions.Pgcrypto
-	procedure *procedureDescriptor
+	procedure *catalog.Procedure
 	ref       ids.ObjectRef
 }
 
@@ -53,7 +54,7 @@ func (n installedCryptoFunctionExpression) validate(v CatalogRead) error {
 	return n.Validate()
 }
 
-func cryptoExpressionSignature(n installedCryptoFunctionExpression) procedureSignature {
+func cryptoExpressionSignature(n installedCryptoFunctionExpression) catalog.ProcedureSignature {
 	if n.Plan.Name() == "gen_random_bytes" {
 		if len(n.Args) == 1 && n.Args[0].ResultUsage().Type.ID() == sqltype.Int4 {
 			return "23"

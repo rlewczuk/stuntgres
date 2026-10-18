@@ -163,19 +163,19 @@ func dependencyObject(view CatalogRead, target ids.ObjectAddress, path []ids.Obj
 			arguments = "integer"
 		case "1007":
 			arguments = "integer[]"
-		case foreignHandlerSignature:
+		case catalog.ForeignHandlerSignature:
 			arguments = ""
-		case foreignValidatorSignature:
+		case catalog.ForeignValidatorSignature:
 			arguments = "text[],oid"
-		case unaccentTextSignature:
+		case catalog.UnaccentTextSignature:
 			arguments = "text"
-		case unaccentDictionarySignature:
+		case catalog.UnaccentDictionarySignature:
 			arguments = "regdictionary,text"
-		case unaccentInitSignature:
+		case catalog.UnaccentInitSignature:
 			arguments = "internal"
-		case unaccentLexizeSignature:
+		case catalog.UnaccentLexizeSignature:
 			arguments = "internal,internal,internal,internal"
-		case conversionSignature:
+		case catalog.ConversionSignature:
 			arguments = "integer,integer,cstring,internal,integer,boolean"
 		default:
 			panic("stuntgres: invalid installed procedure signature")

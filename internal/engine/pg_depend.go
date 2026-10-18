@@ -38,9 +38,9 @@ func pgDependPinned(view CatalogRead, address ids.ObjectAddress) bool {
 		return d.Seeded()
 	case *conversionDescriptor:
 		return d.Seeded()
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		return d.Seeded()
-	case *operatorDescriptor:
+	case *catalog.Operator:
 		return operatorSeeded(d)
 	case *catalog.Relation:
 		return d.RelationKind == catalog.CatalogRelation
@@ -81,7 +81,7 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 			return nil, err
 		}
 		switch d := descriptor.(type) {
-		case *operatorDescriptor:
+		case *catalog.Operator:
 			if !operatorSeeded(d) {
 				for _, address := range operatorDependencyAddresses(view, d) {
 					add(d.Address(), address, 'n')
@@ -95,7 +95,7 @@ func collectPGDepend(ctx context.Context, view CatalogRead) ([]pgDependEdge, err
 			}
 		case *extensionDescriptor:
 			add(d.Address(), d.TargetNamespace, 'n')
-		case *procedureDescriptor:
+		case *catalog.Procedure:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
 			if intarrayProviderOf(d) != nil {

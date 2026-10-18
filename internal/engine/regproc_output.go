@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +17,7 @@ func routineSpelling(view CatalogRead, path []ids.ObjectAddress, id ids.OID, sig
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
-	var signature *procedureSignature
+	var signature *catalog.ProcedureSignature
 	if signatureQualified {
 		signature = &procedure.Signature
 	}

@@ -32,14 +32,14 @@ func capturePGAggregate(ctx context.Context, view CatalogRead, ref ids.ObjectRef
 	}
 	count := len(builtinAggregateDefinitions)
 	for _, d := range view.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
+		if p, ok := d.(*catalog.Procedure); ok && p.Aggregate != nil {
 			count++
 		}
 	}
 	rows := make([][]sqltype.Value, count)
 	cells := make([]sqltype.Value, count*len(aggregateColumnTypes))
 	index := 0
-	put := func(d *aggregateDefinition) error {
+	put := func(d *catalog.AggregateDefinition) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -99,7 +99,7 @@ func capturePGAggregate(ctx context.Context, view CatalogRead, ref ids.ObjectRef
 		}
 	}
 	for _, d := range view.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
+		if p, ok := d.(*catalog.Procedure); ok && p.Aggregate != nil {
 			if err := put(&p.Aggregate.Definition); err != nil {
 				return nil, err
 			}

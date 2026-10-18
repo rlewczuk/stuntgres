@@ -3,21 +3,22 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func intaggDefinition(function, transition, final ids.OID) aggregateDefinition {
-	return aggregateDefinition{Function: function, Kind: "n", Functions: [8]ids.OID{transition, final}, FinalModify: "r", MovingFinalModify: "r", TransitionType: 2281}
+func intaggDefinition(function, transition, final ids.OID) catalog.AggregateDefinition {
+	return catalog.AggregateDefinition{Function: function, Kind: "n", Functions: [8]ids.OID{transition, final}, FinalModify: "r", MovingFinalModify: "r", TransitionType: 2281}
 }
 
 // A helper's dependencies are dependencies on this real aggregate descriptor,
 // never invented ObjectRefs for metadata-only identities.
-func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
+func routineDescriptorOwner(view CatalogRead, id ids.OID) *catalog.Procedure {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
 		return p
 	}
 	for _, d := range view.Descriptors() {
-		if p, ok := d.(*procedureDescriptor); ok && p.Aggregate != nil {
+		if p, ok := d.(*catalog.Procedure); ok && p.Aggregate != nil {
 			for _, helper := range p.Aggregate.Helpers {
 				if helper.ID == id {
 					return p
@@ -28,7 +29,7 @@ func routineDescriptorOwner(view CatalogRead, id ids.OID) *procedureDescriptor {
 	return nil
 }
 
-func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
+func validateOwnedAggregate(view CatalogRead, proc *catalog.Procedure) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg aggregate metadata") }
 	if proc.Name() != "int_array_aggregate" {
 		if proc.Aggregate != nil {
@@ -41,7 +42,7 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 		return invalid()
 	}
 	for i, helper := range owned.Helpers {
-		name, signature := "int_agg_state", procedureSignature("2281,23")
+		name, signature := "int_agg_state", catalog.ProcedureSignature("2281,23")
 		if i == 1 {
 			name, signature = "int_agg_final_array", "2281"
 		}
@@ -55,7 +56,7 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 			if address.ObjectID == helper.ID {
 				return invalid()
 			}
-			if other, ok := d.(*procedureDescriptor); ok && other != proc && other.Aggregate != nil {
+			if other, ok := d.(*catalog.Procedure); ok && other != proc && other.Aggregate != nil {
 				for _, alias := range other.Aggregate.Helpers {
 					if alias.ID == helper.ID || alias.Namespace == helper.Namespace && alias.Name == helper.Name && alias.Signature == helper.Signature {
 						return invalid()
@@ -70,7 +71,7 @@ func validateOwnedAggregate(view CatalogRead, proc *procedureDescriptor) error {
 	return nil
 }
 
-func remapOwnedAggregate(owned *ownedAggregate, owner, namespace ids.ObjectAddress, mapping map[ids.ObjectAddress]ids.ObjectAddress) *ownedAggregate {
+func remapOwnedAggregate(owned *catalog.OwnedAggregate, owner, namespace ids.ObjectAddress, mapping map[ids.ObjectAddress]ids.ObjectAddress) *catalog.OwnedAggregate {
 	if owned == nil {
 		return nil
 	}

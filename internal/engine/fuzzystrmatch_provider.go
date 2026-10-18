@@ -19,7 +19,7 @@ var stockFuzzystrmatch = &fuzzystrmatchProvider{control: extensionControl{Versio
 
 var fuzzystrmatchMembers = [...]struct {
 	name      string
-	signature procedureSignature
+	signature catalog.ProcedureSignature
 	result    ids.OID
 }{
 	{"daitch_mokotoff", "25", 1009},
@@ -34,7 +34,7 @@ var fuzzystrmatchMembers = [...]struct {
 	{"difference", "25,25", 23},
 }
 
-func fuzzystrmatchResult(name string, signature procedureSignature) ids.OID {
+func fuzzystrmatchResult(name string, signature catalog.ProcedureSignature) ids.OID {
 	for _, member := range fuzzystrmatchMembers {
 		if member.name == name && member.signature == signature {
 			return member.result
@@ -56,7 +56,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.Members[i] = address
-		proc := &procedureDescriptor{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: functionRoutine, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: true, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Signature: member.signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: member.result, Volatility: expr.Immutable, Strict: true, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
@@ -75,7 +75,7 @@ func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionD
 	var seen [len(fuzzystrmatchMembers)]bool
 	for _, address := range ext.Members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != functionRoutine || proc.Volatility != expr.Immutable || !proc.Strict || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.Address() != address || proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Revision() == 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Volatility != expr.Immutable || !proc.Strict || proc.Implementation != p || proc.Conversion.Name() != "" || proc.Dictionary != (ids.ObjectAddress{}) || v.NameAddress(catalog.DescriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		found := false
@@ -100,7 +100,7 @@ func (p *fuzzystrmatchProvider) ValidateExtension(v CatalogRead, ext *extensionD
 	return nil
 }
 
-func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *procedureDescriptor) error {
+func (p *fuzzystrmatchProvider) validateProcedure(v CatalogRead, proc *catalog.Procedure) error {
 	ext, ok := v.Extension(proc.Extension)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing fuzzystrmatch installation")

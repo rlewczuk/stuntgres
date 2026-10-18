@@ -323,7 +323,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		kind = "tablespace "
 	case *extensionDescriptor:
 		kind = "extension "
-	case *procedureDescriptor:
+	case *catalog.Procedure:
 		kind = "function "
 	case *tsDictionaryDescriptor:
 		kind = "text search dictionary "
