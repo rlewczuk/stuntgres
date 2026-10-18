@@ -2,6 +2,7 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,21 +25,17 @@ func NullCountFunctionKind(name string) NullCountKind {
 	}
 }
 
-type NullCountContext[E any] interface {
-	Context
-	WholeRowNullPresence(E) (handled, absent bool, err error)
-}
-type NullCount[E Expression[C], C NullCountContext[E], P any] struct {
-	Info[P]
+type NullCount struct {
+	expr.Info
 	Kind       NullCountKind
-	Args       []E
+	Args       []expr.Expr
 	DotBuiltin bool // Admitted field-notation fallback, retained for stored replay.
 }
 
-func (e NullCount[E, C, P]) ValidSignature() bool {
+func (e NullCount) ValidSignature() bool {
 	return e.Usage.Type != nil && e.Usage.Type.ID() == sqltype.Int4 && len(e.Args) > 0 && len(e.Args) <= 100
 }
-func (e NullCount[E, C, P]) Name() string {
+func (e NullCount) Name() string {
 	switch e.Kind {
 	case CountNulls:
 		return "num_nulls"
@@ -47,7 +44,7 @@ func (e NullCount[E, C, P]) Name() string {
 	}
 	return ""
 }
-func (e NullCount[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e NullCount) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -86,7 +83,7 @@ type NullCountArgumentIssue struct {
 	Position              parser.Position
 }
 
-func AnalyzeNullCountArgument[E any, B ArgumentAnalyzer[E]](b B, raw parser.Expr) (Argument[E], NullCountArgumentIssue, error) {
+func AnalyzeNullCountArgument(b ArgumentAnalyzer, raw parser.Expr) (Argument, NullCountArgumentIssue, error) {
 	// Casts remain selected arguments, but cannot hide computed arithmetic.
 	// Former signed literal input remains admitted through either spelling.
 	argument := raw
@@ -100,7 +97,7 @@ func AnalyzeNullCountArgument[E any, B ArgumentAnalyzer[E]](b B, raw parser.Expr
 	if operator, ok := argument.(parser.OperatorExpr); ok {
 		issue := NullCountArgumentIssue{UnsupportedArithmetic: true, Position: operator.Pos}
 		if len(operator.Name.Parts) != 1 || (operator.Name.Parts[0].Text != "+" && operator.Name.Parts[0].Text != "-") || len(operator.Args) != 1 {
-			return Argument[E]{}, issue, nil
+			return Argument{}, issue, nil
 		}
 		child := operator.Args[0]
 		for {
@@ -112,7 +109,7 @@ func AnalyzeNullCountArgument[E any, B ArgumentAnalyzer[E]](b B, raw parser.Expr
 		}
 		literal, ok := child.(parser.LiteralExpr)
 		if !ok || (literal.Value.Kind != parser.IntegerValue && literal.Value.Kind != parser.NumericValue) {
-			return Argument[E]{}, issue, nil
+			return Argument{}, issue, nil
 		}
 		literal.Value.Pos = operator.Pos
 		if _, direct := operator.Args[0].(parser.LiteralExpr); direct && operator.Name.Parts[0].Text == "+" {

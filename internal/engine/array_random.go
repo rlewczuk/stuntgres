@@ -119,7 +119,7 @@ func (b *expressionBinder) bindArrayRandom(raw parser.FunctionExpr) (BoundExpr, 
 			return nil, err
 		}
 	}
-	e := functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args, Namespace: namespace}
+	e := functions.ArrayRandom{Info: info, Kind: kind, Args: args, Namespace: namespace}
 	if err := e.Validate(); err != nil {
 		return nil, err
 	}
@@ -128,11 +128,11 @@ func (b *expressionBinder) bindArrayRandom(raw parser.FunctionExpr) (BoundExpr, 
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	return e, nil
 }
 
-func mapArrayRandomChildren(e functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties], bool, error) {
+func mapArrayRandomChildren(e functions.ArrayRandom, child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayRandom, bool, error) {
 	var args []BoundExpr
 	for i, old := range e.Args {
 		next, changed, err := child(old)
@@ -152,7 +152,7 @@ func mapArrayRandomChildren(e functions.ArrayRandom[BoundExpr, ExprContext, Expr
 	e.Args = args
 	return e, true, nil
 }
-func arrayRandomSQL(e functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error)) (string, error) {
+func arrayRandomSQL(e functions.ArrayRandom, child func(BoundExpr) (string, error)) (string, error) {
 	if err := e.Validate(); err != nil {
 		return "", err
 	}

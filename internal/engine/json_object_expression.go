@@ -9,9 +9,9 @@ import (
 // Explicit VARIADIC already carries its final array as one argument. These
 // nonvariadic signatures therefore use exactly the ordinary argument path.
 func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name string, visible bool) (BoundExpr, error) {
-	var small [2]functions.Argument[BoundExpr]
+	var small [2]functions.Argument
 	var smallNames [2]string
-	var operands []functions.Argument[BoundExpr]
+	var operands []functions.Argument
 	var names []string
 	if len(raw.Args) <= len(small) {
 		operands = small[:len(raw.Args)]
@@ -60,5 +60,5 @@ func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name 
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
+	return functions.NewBinary(info, name, args, parser.OrdinaryFunctionSyntax)
 }

@@ -34,7 +34,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected, ok := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		selected, ok := node.(functions.String)
 		if !ok || selected.Plan.ArgumentUsage(0).Type.ID() != id || selected.ResultUsage().Type.ID() != sqltype.Text || selected.Properties().Volatility != Immutable {
 			t.Fatal(node)
 		}
@@ -51,7 +51,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(changed, err)
 		}
-		next := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		next := rebound.(functions.String)
 		if next.Plan.ArgumentUsage(0).Type != replacements[id] || next.ResultUsage().Type != replacements[sqltype.Text] {
 			t.Fatal(next)
 		}
@@ -94,7 +94,7 @@ func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	next := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	next := rebound.(functions.String)
 	got, err := next.Eval(&EvalContext{Context: context.Background()})
 	if err != nil || got.Type() != replacements[sqltype.Text] {
 		t.Fatal(got, err)
@@ -143,7 +143,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 						t.Fatal(canonical, err)
 					}
 					for _, node := range []BoundExpr{original, replayed} {
-						selected := node.(functions.String[BoundExpr, ExprContext, ExprProperties])
+						selected := node.(functions.String)
 						id, want := sqltype.Int4, tc.int4
 						if width == "bigint" {
 							id, want = sqltype.Int8, tc.int8

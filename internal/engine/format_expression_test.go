@@ -22,7 +22,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, ok := bound.(functions.Format[BoundExpr, ExprContext, ExprProperties])
+	node, ok := bound.(functions.Format)
 	if !ok || node.ResultUsage().Type.ID() != sqltype.Text || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != Stable || plannedVolatility(node) != Stable {
 		t.Fatalf("format metadata: %#v", bound)
 	}
@@ -37,7 +37,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 		if err != nil || changed {
 			t.Fatalf("%s consumed runtime format: %v/%v", rewrite.name, changed, err)
 		}
-		if _, ok := got.(functions.Format[BoundExpr, ExprContext, ExprProperties]); !ok {
+		if _, ok := got.(functions.Format); !ok {
 			t.Fatalf("lost format node: %T", got)
 		}
 	}
@@ -179,7 +179,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(functions.Format[BoundExpr, ExprContext, ExprProperties])
+	node := bound.(functions.Format)
 	other := node
 	other.Variadic = true
 	if !b.sameGroupExpression(node, node) || b.sameGroupExpression(node, other) {
@@ -195,7 +195,7 @@ func TestFormatNodeIdentityAndRetainedGeneration(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	fresh := retained.(functions.Format[BoundExpr, ExprContext, ExprProperties])
+	fresh := retained.(functions.Format)
 	if fresh.RawUnknown != node.RawUnknown || fresh.Int4 != types[sqltype.Int4] || fresh.ResultUsage().Type != types[sqltype.Text] || fresh.Args[0].ResultUsage().Type != types[sqltype.Text] || node.Int4 == fresh.Int4 || node.Args[0].ResultUsage().Type == fresh.Args[0].ResultUsage().Type {
 		t.Fatal("retag must own a new immutable descriptor generation")
 	}
@@ -218,13 +218,13 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(functions.Format[BoundExpr, ExprContext, ExprProperties])
+	node := bound.(functions.Format)
 	types := formatUnitTypes()
 	retained, changed, err := retagBoundTypes(b.bindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	fresh := retained.(functions.Format[BoundExpr, ExprContext, ExprProperties])
+	fresh := retained.(functions.Format)
 	if fresh.Args[1].ResultUsage().Type.BaseType().Element() != types[sqltype.Name] || node.Args[1].ResultUsage().Type == fresh.Args[1].ResultUsage().Type || fresh.Args[1].ResultUsage().Type != types[sqltype.NameArray] {
 		t.Fatal("VARIADIC descriptors not retained")
 	}
@@ -247,7 +247,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	grouped := rebound.(functions.Format[BoundExpr, ExprContext, ExprProperties])
+	grouped := rebound.(functions.Format)
 	if _, ok := grouped.Args[1].(groupExpression); !ok {
 		t.Fatalf("group descendant not rewritten: %T", grouped.Args[1])
 	}

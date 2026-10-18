@@ -11,10 +11,10 @@ import (
 )
 
 func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [3]functions.Argument[BoundExpr]
+	var small [3]functions.Argument
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -52,7 +52,7 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 	}
 	selected := selection.Selected
 	input := selection.Input
-	e := functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]{Count: len(operands)}
+	e := functions.DatetimeTrunc{Count: len(operands)}
 	properties := ExprProperties{Volatility: Immutable}
 	if functions.DatetimeTruncIntrinsicStable(selected, e.Count) {
 		properties.Volatility = Stable
@@ -77,7 +77,7 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
-	e.Info = functionInfo(info)
+	e.Info = info
 	var zone *sqltype.Descriptor
 	if e.Count == 3 {
 		zone = b.typ(sqltype.Text)
@@ -92,6 +92,6 @@ func (b *expressionBinder) bindDatetimeTrunc(raw parser.FunctionExpr, visible bo
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	return e, nil
 }

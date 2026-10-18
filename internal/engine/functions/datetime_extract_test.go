@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -47,7 +48,7 @@ func TestDatetimeExtractSelectedPlanExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e := DatetimeExtract[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: result.Usage()}, Plan: plan, Args: [2]temporalTestExpression{temporalTestLiteral(sqltype.String(d[sqltype.Text], "epoch")), temporalTestLiteral(value)}}
+			e := DatetimeExtract{Info: expr.Info{Usage: result.Usage()}, Plan: plan, Args: [2]expr.Expr{temporalTestLiteral(sqltype.String(d[sqltype.Text], "epoch")), temporalTestLiteral(value)}}
 			actual, err := e.Eval(&temporalTestContext{Context: context.Background(), input: input})
 			if err != nil {
 				t.Fatal(source, api, err)

@@ -11,10 +11,10 @@ import (
 
 func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [4]functions.Argument[BoundExpr]
+	var small [4]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.DatetimeFormattingAnalysis(name, i)})
@@ -100,7 +100,7 @@ func (b *expressionBinder) bindDatetimeFormatting(raw parser.FunctionExpr, visib
 	if err != nil {
 		return nil, err
 	}
-	return functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Args: args}, nil
+	return functions.DatetimeFormatting{Info: info, Plan: plan, Args: args}, nil
 }
 func datetimeFormattingTypeName(d *sqltype.Descriptor) string {
 	if d != nil {

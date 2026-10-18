@@ -2,6 +2,7 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -16,7 +17,7 @@ func MetaphoneSignature(name string, count int) string {
 	return ""
 }
 
-func MetaphoneInput[E any](name string, args []Argument[E], text, integer sqltype.Usage) Resolution {
+func MetaphoneInput(name string, args []Argument, text, integer sqltype.Usage) Resolution {
 	if MetaphoneSignature(name, len(args)) == "" {
 		return Missing
 	}
@@ -34,8 +35,8 @@ func MetaphoneInput[E any](name string, args []Argument[E], text, integer sqltyp
 	return Resolved
 }
 
-func CoerceMetaphoneArguments[E any, B ArgumentCoercer[E]](b B, args []Argument[E], text, integer sqltype.Usage) ([]E, error) {
-	children := make([]E, len(args))
+func CoerceMetaphoneArguments(b ArgumentCoercer, args []Argument, text, integer sqltype.Usage) ([]expr.Expr, error) {
+	children := make([]expr.Expr, len(args))
 	for i, arg := range args {
 		target := text
 		if i == 1 {
@@ -50,20 +51,20 @@ func CoerceMetaphoneArguments[E any, B ArgumentCoercer[E]](b B, args []Argument[
 	return children, nil
 }
 
-type Metaphone[E Expression[C], C Context, P any] struct {
-	Info[P]
+type Metaphone struct {
+	expr.Info
 	Function string
-	Args     []E
+	Args     []expr.Expr
 }
 
-func NewMetaphone[E Expression[C], C Context, P any](info Info[P], name string, args []E) (Metaphone[E, C, P], error) {
-	call := Metaphone[E, C, P]{Info: info, Function: name, Args: args}
+func NewMetaphone(info expr.Info, name string, args []expr.Expr) (Metaphone, error) {
+	call := Metaphone{Info: info, Function: name, Args: args}
 	return call, call.Validate()
 }
-func (e Metaphone[E, C, P]) Reconstruct(info Info[P], args []E) (Metaphone[E, C, P], error) {
-	return NewMetaphone[E, C](info, e.Function, args)
+func (e Metaphone) Reconstruct(info expr.Info, args []expr.Expr) (Metaphone, error) {
+	return NewMetaphone(info, e.Function, args)
 }
-func (e Metaphone[E, C, P]) Validate() error {
+func (e Metaphone) Validate() error {
 	if MetaphoneSignature(e.Function, len(e.Args)) == "" || e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Text {
 		return fmt.Errorf("stuntgres: invalid stored Metaphone call")
 	}
@@ -78,7 +79,7 @@ func (e Metaphone[E, C, P]) Validate() error {
 	}
 	return nil
 }
-func (e Metaphone[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Metaphone) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err

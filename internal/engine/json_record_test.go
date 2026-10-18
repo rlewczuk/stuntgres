@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonRecordUnitCall(t *testing.T, b *expressionBinder, name string, defined bool) functions.JSONRecord[BoundExpr, ExprContext, ExprProperties] {
+func jsonRecordUnitCall(t *testing.T, b *expressionBinder, name string, defined bool) functions.JSONRecord {
 	t.Helper()
 	b.aggregateClause = "FROM"
 	b.queryNamespace = &queryNamespace{}
@@ -26,7 +26,7 @@ func jsonRecordUnitCall(t *testing.T, b *expressionBinder, name string, defined 
 			t.Fatal(err)
 		}
 	}
-	return node.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
+	return node.(functions.JSONRecord)
 }
 func TestJSONRecordBinding(t *testing.T) {
 	e := New()
@@ -61,7 +61,7 @@ func TestJSONRecordRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(mapped, changed, err)
 	}
-	next := mapped.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
+	next := mapped.(functions.JSONRecord)
 	if next.ResultUsage().Type == original.ResultUsage().Type || next.Plan.ResultUsage() != next.ResultUsage() || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Int4] || !next.Defined {
 		t.Fatal("foreign plan/result authority", next)
 	}

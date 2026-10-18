@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) selectJSONBConcat(raw parser.OperatorExpr, operands [2]functions.Argument[BoundExpr], visible bool) (BoundExpr, bool, error) {
+func (b *expressionBinder) selectJSONBConcat(raw parser.OperatorExpr, operands [2]functions.Argument, visible bool) (BoundExpr, bool, error) {
 	known := false
 	var args [2]comparisonOperand
 	for i, o := range operands {
@@ -65,7 +65,7 @@ func (b *expressionBinder) jsonbOperatorNode(raw parser.OperatorExpr, operands [
 		properties = mergeExpressionProperties(properties, node.Properties())
 	}
 	info := b.info(targets[0], raw.Pos, properties)
-	node, err := functions.NewBinary[BoundExpr, ExprContext](functionInfo(info), name, args, parser.OrdinaryFunctionSyntax)
+	node, err := functions.NewBinary(info, name, args, parser.OrdinaryFunctionSyntax)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +73,6 @@ func (b *expressionBinder) jsonbOperatorNode(raw parser.OperatorExpr, operands [
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }

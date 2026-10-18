@@ -14,6 +14,14 @@ type quoteOrigin struct {
 	definition ids.OID
 	revision   ids.DefinitionRevision
 }
+
+// quoteOriginOf reads the opaque occurrence origin the engine stored on e. An
+// unset origin is the zero quoteOrigin.
+func quoteOriginOf(e functions.StringVariadic) quoteOrigin {
+	origin, _ := e.Origin.(quoteOrigin)
+	return origin
+}
+
 type quoteConstant struct {
 	offset     int
 	origin     quoteOrigin
@@ -30,7 +38,7 @@ type quoteCaptureCandidate struct {
 	sealed  bool
 }
 
-func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]) (BoundExpr, bool, error) {
+func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (BoundExpr, bool, error) {
 	p := e.Properties()
 	if e.IntrinsicStable() || p.Volatility != Immutable || !conditionalConstantInputs(e) {
 		return e, false, nil
@@ -42,7 +50,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic[BoundExpr, Ex
 	var entry quoteConstant
 	index := -1
 	if retained {
-		origin := e.Origin
+		origin := quoteOriginOf(e)
 		if origin.owner == (ids.ObjectRef{}) {
 			origin = c.quoteOrigin
 		}

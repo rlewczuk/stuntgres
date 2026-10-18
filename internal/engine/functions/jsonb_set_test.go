@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,7 +18,7 @@ func TestJSONBSetAllArgumentDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := JSONBSet[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[sqltype.JSONB].Usage()}, Plan: plan, Count: 5, WrittenCount: 5, WrittenSlots: [5]uint8{4, 2, 0, 3, 1}, Labels: [5]string{"null_value_treatment", "replacement", "jsonb_in", "create_if_missing", "path"}}
+	base := JSONBSet{Info: expr.Info{Usage: d[sqltype.JSONB].Usage()}, Plan: plan, Count: 5, WrittenCount: 5, WrittenSlots: [5]uint8{4, 2, 0, 3, 1}, Labels: [5]string{"null_value_treatment", "replacement", "jsonb_in", "create_if_missing", "path"}}
 	for i := range base.Count {
 		base.Args[i] = temporalTestLiteral(sqltype.Null(usages[i].Type))
 	}
@@ -26,7 +27,7 @@ func TestJSONBSetAllArgumentDemand(t *testing.T) {
 		failure := errors.New("ordinary child failure")
 		var order []int
 		for i := range e.Count {
-			e.Args[i] = temporalTestArgument{Info: Info[struct{}]{Usage: usages[i]}, value: sqltype.Null(usages[i].Type), order: &order, index: i}
+			e.Args[i] = temporalTestArgument{Info: expr.Info{Usage: usages[i]}, value: sqltype.Null(usages[i].Type), order: &order, index: i}
 		}
 		arg := e.Args[failing].(temporalTestArgument)
 		arg.err = failure
@@ -58,7 +59,7 @@ func TestJSONBSetAllArgumentDemand(t *testing.T) {
 	e.WrittenCount = 4
 	e.WrittenSlots = [5]uint8{0, 1, 2, 3}
 	failure := errors.New("strict NULL does not hide child error")
-	e.Args[3] = temporalTestArgument{Info: Info[struct{}]{Usage: usages[3]}, err: failure}
+	e.Args[3] = temporalTestArgument{Info: expr.Info{Usage: usages[3]}, err: failure}
 	if got, err := e.Eval(ctx); !errors.Is(err, failure) || got != (sqltype.Value{}) {
 		t.Fatal(got, err)
 	}
@@ -68,7 +69,7 @@ func TestJSONBSetReconstructAuthorityAndPresentation(t *testing.T) {
 	d, fresh := temporalTestTypes(), temporalTestTypes()
 	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
 	var usages [5]sqltype.Usage
-	e := JSONBSet[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[sqltype.JSONB].Usage()}, Count: 5, WrittenCount: 3, WrittenSlots: [5]uint8{2, 0, 1}, Labels: [5]string{"replacement", "jsonb_in", "path"}, Variadic: true}
+	e := JSONBSet{Info: expr.Info{Usage: d[sqltype.JSONB].Usage()}, Count: 5, WrittenCount: 3, WrittenSlots: [5]uint8{2, 0, 1}, Labels: [5]string{"replacement", "jsonb_in", "path"}, Variadic: true}
 	for i, id := range ids {
 		usages[i] = d[id].Usage()
 		e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
@@ -78,11 +79,11 @@ func TestJSONBSetReconstructAuthorityAndPresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Plan = plan
-	var args [5]temporalTestExpression
+	var args [5]expr.Expr
 	for i, id := range ids {
 		args[i] = temporalTestLiteral(sqltype.Null(fresh[id]))
 	}
-	got, err := e.Reconstruct(Info[struct{}]{Usage: fresh[sqltype.JSONB].Usage()}, args)
+	got, err := e.Reconstruct(expr.Info{Usage: fresh[sqltype.JSONB].Usage()}, args)
 	if err != nil || got.Usage.Type != fresh[sqltype.JSONB] || got.WrittenSlots != e.WrittenSlots || got.Labels != e.Labels || !got.Variadic || got.WrittenCount != 3 {
 		t.Fatal(got, err)
 	}
@@ -93,7 +94,7 @@ func TestJSONBSetReconstructAuthorityAndPresentation(t *testing.T) {
 	}
 	bad := args
 	bad[4] = e.Args[4]
-	if _, err := e.Reconstruct(Info[struct{}]{Usage: fresh[sqltype.JSONB].Usage()}, bad); err == nil {
+	if _, err := e.Reconstruct(expr.Info{Usage: fresh[sqltype.JSONB].Usage()}, bad); err == nil {
 		t.Fatal("foreign mode generation accepted")
 	}
 }

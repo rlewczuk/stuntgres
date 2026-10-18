@@ -3,6 +3,7 @@ package functions
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -43,7 +44,10 @@ func TestRandomIntegerSampler(t *testing.T) {
 	}
 }
 
-type randomUnitContext struct{ context.Context }
+type randomUnitContext struct {
+	unitCapabilities
+	context.Context
+}
 
 func (c *randomUnitContext) FunctionContext() context.Context {
 	if c == nil {
@@ -56,13 +60,14 @@ func (c *randomUnitContext) FunctionRandomOwner() (RandomOwner, error) {
 }
 
 type randomUnitArgument struct {
+	expr.Info
 	usage sqltype.Usage
 	value sqltype.Value
 	calls *int
 }
 
 func (a randomUnitArgument) ResultUsage() sqltype.Usage { return a.usage }
-func (a randomUnitArgument) Eval(*randomUnitContext) (sqltype.Value, error) {
+func (a randomUnitArgument) Eval(expr.Context) (sqltype.Value, error) {
 	*a.calls++
 	return a.value, nil
 }
@@ -73,9 +78,9 @@ func TestRandomRuntimeNullEvaluatesSibling(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	first := randomUnitArgument{d.Usage(), sqltype.Null(d), &calls}
-	last := randomUnitArgument{d.Usage(), value, &calls}
-	node := Random[randomUnitArgument, *randomUnitContext, struct{}]{Info: Info[struct{}]{Usage: d.Usage()}, Name: "random_normal", Args: []randomUnitArgument{first, last}}
+	first := randomUnitArgument{usage: d.Usage(), value: sqltype.Null(d), calls: &calls}
+	last := randomUnitArgument{usage: d.Usage(), value: value, calls: &calls}
+	node := Random{Info: expr.Info{Usage: d.Usage()}, Name: "random_normal", Args: []expr.Expr{first, last}}
 	result, err := node.Eval(&randomUnitContext{Context: context.Background()})
 	if err != nil || !result.IsNull() || result.Type() != d || calls != 2 {
 		t.Fatal(result, err, calls)

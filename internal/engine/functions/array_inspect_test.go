@@ -6,17 +6,18 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-func arrayInspectTestCall(t *testing.T, kind ArrayInspectKind, input string, dimension int64) ArrayInspect[arraySearchTestExpression, *arraySearchTestContext, struct{}] {
+func arrayInspectTestCall(t *testing.T, kind ArrayInspectKind, input string, dimension int64) ArrayInspect {
 	t.Helper()
 	types := arraySearchTestTypes()
 	a, err := types[1007].Input(context.Background(), input, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args := []arraySearchTestExpression{arraySearchTestLiteral(a)}
+	args := []expr.Expr{arraySearchTestLiteral(a)}
 	if kind.Arity() == 2 {
 		d, err := sqltype.Integer(types[sqltype.Int4], dimension)
 		if err != nil {
@@ -24,7 +25,7 @@ func arrayInspectTestCall(t *testing.T, kind ArrayInspectKind, input string, dim
 		}
 		args = append(args, arraySearchTestLiteral(d))
 	}
-	call := ArrayInspect[arraySearchTestExpression, *arraySearchTestContext, struct{}]{Info: Info[struct{}]{Usage: types[kind.Result()].Usage()}, Kind: kind, Args: args}
+	call := ArrayInspect{Info: expr.Info{Usage: types[kind.Result()].Usage()}, Kind: kind, Args: args}
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +33,7 @@ func arrayInspectTestCall(t *testing.T, kind ArrayInspectKind, input string, dim
 }
 
 func TestArrayInspectValues(t *testing.T) {
-	ctx := &arraySearchTestContext{context.Background()}
+	ctx := &arraySearchTestContext{Context: context.Background()}
 	for _, tc := range []struct {
 		kind ArrayInspectKind
 		d    int64
@@ -86,10 +87,10 @@ func TestArrayInspectDemand(t *testing.T) {
 	call := arrayInspectTestCall(t, ArrayLength, "{1}", 1)
 	var order []int
 	first, second := errors.New("first"), errors.New("second")
-	a := arraySearchTestArgument{Info: Info[struct{}]{Usage: call.Args[0].ResultUsage()}, value: sqltype.Null(call.Args[0].ResultUsage().Type), order: &order, index: 0}
-	d := arraySearchTestArgument{Info: Info[struct{}]{Usage: call.Args[1].ResultUsage()}, order: &order, index: 1, err: second}
-	call.Args = []arraySearchTestExpression{a, d}
-	ctx := &arraySearchTestContext{context.Background()}
+	a := arraySearchTestArgument{Info: expr.Info{Usage: call.Args[0].ResultUsage()}, value: sqltype.Null(call.Args[0].ResultUsage().Type), order: &order, index: 0}
+	d := arraySearchTestArgument{Info: expr.Info{Usage: call.Args[1].ResultUsage()}, order: &order, index: 1, err: second}
+	call.Args = []expr.Expr{a, d}
+	ctx := &arraySearchTestContext{Context: context.Background()}
 	if _, err := call.Eval(ctx); !errors.Is(err, second) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
@@ -102,7 +103,7 @@ func TestArrayInspectDemand(t *testing.T) {
 	order = nil
 	a.err, d.err = nil, nil
 	d.value = sqltype.Null(d.Usage.Type)
-	call.Args = []arraySearchTestExpression{a, d}
+	call.Args = []expr.Expr{a, d}
 	v, err := call.Eval(ctx)
 	if err != nil || !v.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(v, order, err)
@@ -110,13 +111,13 @@ func TestArrayInspectDemand(t *testing.T) {
 	c, cancel := context.WithCancel(context.Background())
 	cancel()
 	order = nil
-	if _, err := call.Eval(&arraySearchTestContext{c}); !errors.Is(err, context.Canceled) || len(order) != 0 {
+	if _, err := call.Eval(&arraySearchTestContext{Context: c}); !errors.Is(err, context.Canceled) || len(order) != 0 {
 		t.Fatal(order, err)
 	}
 }
 
 func TestArrayInspectNoCopy(t *testing.T) {
-	ctx := &arraySearchTestContext{context.Background()}
+	ctx := &arraySearchTestContext{Context: context.Background()}
 	for _, kind := range []ArrayInspectKind{ArrayLength, ArrayLower, ArrayUpper, ArrayNDims, ArrayCardinality} {
 		call := arrayInspectTestCall(t, kind, "[-2:-1][3:5]={{1,NULL,3},{4,5,6}}", 2)
 		input, _ := call.Args[0].Eval(ctx)
@@ -139,7 +140,7 @@ func TestArrayInspectNoCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := ArrayInspect[arraySearchTestExpression, *arraySearchTestContext, struct{}]{Info: Info[struct{}]{Usage: types[sqltype.Int4].Usage()}, Kind: ArrayCardinality, Args: []arraySearchTestExpression{arraySearchTestLiteral(payload)}}
+	call := ArrayInspect{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, Kind: ArrayCardinality, Args: []expr.Expr{arraySearchTestLiteral(payload)}}
 	v, err := call.Eval(ctx)
 	n, nerr := v.Integer()
 	if err != nil || nerr != nil || n != 2 {

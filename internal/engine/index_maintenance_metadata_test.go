@@ -52,8 +52,8 @@ func TestIndexMaintenanceMetadataCompleteVectorsAndTrees(t *testing.T) {
 	if !reflect.DeepEqual(expressions, expected) || names.IndexDef != "CREATE INDEX ei ON public.t USING btree (lower(s), ((n + (2 - 1))), n DESC NULLS LAST)" {
 		t.Fatal("derived metadata lost original trees/providers", expressions, names, expected)
 	}
-	first := expressions.IndexExpressions[0].(functions.String[BoundExpr, ExprContext, ExprProperties])
-	original := ei.sqlIndex.keys[0].derived.definition.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	first := expressions.IndexExpressions[0].(functions.String)
+	original := ei.sqlIndex.keys[0].derived.definition.(functions.String)
 	if &first.Args[0] != &original.Args[0] {
 		t.Fatal("metadata copied an immutable analyzed function tree")
 	}

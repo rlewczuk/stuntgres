@@ -1,9 +1,10 @@
 package functions
 
+import "stuntgres/internal/engine/expr"
 import "stuntgres/internal/sqltype"
 
 // Keep the original lazy target demand: an exact INT4 match never looks up INT8.
-func StringNumericBaseCandidates[E any](visible bool, args []Argument[E]) (ids [2]sqltype.ID, count int) {
+func StringNumericBaseCandidates(visible bool, args []Argument) (ids [2]sqltype.ID, count int) {
 	if !visible || len(args) != 1 {
 		return ids, 0
 	}
@@ -13,7 +14,7 @@ func StringNumericBaseCandidates[E any](visible bool, args []Argument[E]) (ids [
 	}
 	return ids, 2
 }
-func SelectStringNumericBase[E any](visible bool, args []Argument[E], targets []sqltype.Usage) (target sqltype.Usage, resolution Resolution) {
+func SelectStringNumericBase(visible bool, args []Argument, targets []sqltype.Usage) (target sqltype.Usage, resolution Resolution) {
 	matches := 0
 	if visible && len(args) == 1 {
 		argument := args[0]
@@ -39,6 +40,6 @@ func SelectStringNumericBase[E any](visible bool, args []Argument[E], targets []
 	}
 	return target, Missing
 }
-func CoerceStringNumericBase[E any, B ArgumentCoercer[E]](b B, argument Argument[E], target sqltype.Usage) (E, error) {
+func CoerceStringNumericBase(b ArgumentCoercer, argument Argument, target sqltype.Usage) (expr.Expr, error) {
 	return b.CoerceArgument(argument, CoercionRequest{Intent: ExactFormalArgument, Target: target, PreserveProperties: true})
 }

@@ -2,24 +2,25 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type JSONKeys[E Expression[C], C Context, P any] struct {
-	Info[P]
+type JSONKeys struct {
+	expr.Info
 	Plan sqltype.JSONKeysPlan
-	Args []E
+	Args []expr.Expr
 }
 
-func (e JSONKeys[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONKeys) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSON keys set call")
 }
-func (e JSONKeys[E, C, P]) Reconstruct(info Info[P], args []E) (JSONKeys[E, C, P], error) {
+func (e JSONKeys) Reconstruct(info expr.Info, args []expr.Expr) (JSONKeys, error) {
 	plan, err := sqltype.BindJSONKeys(e.Plan.Name(), args[0].ResultUsage(), info.Usage)
-	return JSONKeys[E, C, P]{info, plan, args}, err
+	return JSONKeys{info, plan, args}, err
 }
 
 type JSONFunctionDefinition struct {
@@ -75,94 +76,94 @@ func ResolveJSONArgument(argument, input sqltype.Usage) Resolution {
 	return Resolved
 }
 
-func NewJSONKeys[E Expression[C], C Context, P any](info Info[P], name string, arg E) (JSONKeys[E, C, P], error) {
+func NewJSONKeys(info expr.Info, name string, arg expr.Expr) (JSONKeys, error) {
 	plan, err := sqltype.BindJSONKeys(name, arg.ResultUsage(), info.Usage)
 	if err != nil {
-		return JSONKeys[E, C, P]{}, err
+		return JSONKeys{}, err
 	}
-	return JSONKeys[E, C, P]{info, plan, []E{arg}}, nil
+	return JSONKeys{info, plan, []expr.Expr{arg}}, nil
 }
 
-type JSONEach[E Expression[C], C Context, P any] struct {
-	Info[P]
+type JSONEach struct {
+	expr.Info
 	Plan sqltype.JSONEachPlan
-	Args []E
+	Args []expr.Expr
 }
 
-func (e JSONEach[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONEach) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSON each set call")
 }
-func (e JSONEach[E, C, P]) Reconstruct(info Info[P], args []E) (JSONEach[E, C, P], error) {
+func (e JSONEach) Reconstruct(info expr.Info, args []expr.Expr) (JSONEach, error) {
 	if len(args) != 1 {
-		return JSONEach[E, C, P]{}, fmt.Errorf("invalid JSON each arguments")
+		return JSONEach{}, fmt.Errorf("invalid JSON each arguments")
 	}
 	plan, err := sqltype.BindJSONEach(e.Plan.Name(), args[0].ResultUsage(), info.Usage)
-	return JSONEach[E, C, P]{info, plan, args}, err
+	return JSONEach{info, plan, args}, err
 }
 
-func NewJSONEach[E Expression[C], C Context, P any](info Info[P], name string, arg E) (JSONEach[E, C, P], error) {
+func NewJSONEach(info expr.Info, name string, arg expr.Expr) (JSONEach, error) {
 	plan, err := sqltype.BindJSONEach(name, arg.ResultUsage(), info.Usage)
 	if err != nil {
-		return JSONEach[E, C, P]{}, err
+		return JSONEach{}, err
 	}
-	return JSONEach[E, C, P]{info, plan, []E{arg}}, nil
+	return JSONEach{info, plan, []expr.Expr{arg}}, nil
 }
 
-type JSONElements[E Expression[C], C Context, P any] struct {
-	Info[P]
+type JSONElements struct {
+	expr.Info
 	Plan sqltype.JSONElementsPlan
-	Args []E
+	Args []expr.Expr
 }
 
-func (e JSONElements[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONElements) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSON elements set call")
 }
 
-func (e JSONElements[E, C, P]) Reconstruct(info Info[P], args []E) (JSONElements[E, C, P], error) {
+func (e JSONElements) Reconstruct(info expr.Info, args []expr.Expr) (JSONElements, error) {
 	if len(args) != 1 {
-		return JSONElements[E, C, P]{}, fmt.Errorf("invalid JSON elements arguments")
+		return JSONElements{}, fmt.Errorf("invalid JSON elements arguments")
 	}
 	plan, err := sqltype.BindJSONElements(e.Plan.Name(), args[0].ResultUsage(), info.Usage)
-	return JSONElements[E, C, P]{info, plan, args}, err
+	return JSONElements{info, plan, args}, err
 }
 
-func NewJSONElements[E Expression[C], C Context, P any](info Info[P], name string, arg E) (JSONElements[E, C, P], error) {
+func NewJSONElements(info expr.Info, name string, arg expr.Expr) (JSONElements, error) {
 	plan, err := sqltype.BindJSONElements(name, arg.ResultUsage(), info.Usage)
 	if err != nil {
-		return JSONElements[E, C, P]{}, err
+		return JSONElements{}, err
 	}
-	return JSONElements[E, C, P]{info, plan, []E{arg}}, nil
+	return JSONElements{info, plan, []expr.Expr{arg}}, nil
 }
 
-type JSONBElements[E Expression[C], C Context, P any] struct {
-	Info[P]
+type JSONBElements struct {
+	expr.Info
 	Plan sqltype.JSONBElementsPlan
-	Args []E
+	Args []expr.Expr
 }
 
-func (e JSONBElements[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONBElements) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted JSONB elements set call")
 }
-func (e JSONBElements[E, C, P]) Reconstruct(info Info[P], args []E) (JSONBElements[E, C, P], error) {
+func (e JSONBElements) Reconstruct(info expr.Info, args []expr.Expr) (JSONBElements, error) {
 	if len(args) != 1 {
-		return JSONBElements[E, C, P]{}, fmt.Errorf("invalid JSONB elements arguments")
+		return JSONBElements{}, fmt.Errorf("invalid JSONB elements arguments")
 	}
 	plan, err := sqltype.BindJSONBElements(e.Plan.Name(), args[0].ResultUsage(), info.Usage)
-	return JSONBElements[E, C, P]{info, plan, args}, err
+	return JSONBElements{info, plan, args}, err
 }
-func NewJSONBElements[E Expression[C], C Context, P any](info Info[P], name string, arg E) (JSONBElements[E, C, P], error) {
+func NewJSONBElements(info expr.Info, name string, arg expr.Expr) (JSONBElements, error) {
 	plan, err := sqltype.BindJSONBElements(name, arg.ResultUsage(), info.Usage)
 	if err != nil {
-		return JSONBElements[E, C, P]{}, err
+		return JSONBElements{}, err
 	}
-	return JSONBElements[E, C, P]{info, plan, []E{arg}}, nil
+	return JSONBElements{info, plan, []expr.Expr{arg}}, nil
 }

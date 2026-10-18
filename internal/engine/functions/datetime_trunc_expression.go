@@ -1,24 +1,20 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeTruncContext[E any] interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type DatetimeTrunc[E Expression[C], C DatetimeTruncContext[E], P any] struct {
-	Info[P]
+type DatetimeTrunc struct {
+	expr.Info
 	Plan  sqltype.DatetimeTruncPlan
-	Args  [3]E
+	Args  [3]expr.Expr
 	Count int
 }
 
-func (e DatetimeTrunc[E, C, P]) Arguments() []E { return e.Args[:e.Count] }
+func (e DatetimeTrunc) Arguments() []expr.Expr { return e.Args[:e.Count] }
 
-func (e DatetimeTrunc[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeTrunc) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -42,7 +38,7 @@ type DatetimeTruncPreparation struct {
 	Demand     TemporalDemand
 }
 
-func PrepareDatetimeTrunc[E any](visible, variadic bool, args []Argument[E]) DatetimeTruncPreparation {
+func PrepareDatetimeTrunc(visible, variadic bool, args []Argument) DatetimeTruncPreparation {
 	if !visible || variadic || (len(args) != 2 && len(args) != 3) {
 		return DatetimeTruncPreparation{}
 	}
@@ -68,7 +64,7 @@ func PrepareDatetimeTrunc[E any](visible, variadic bool, args []Argument[E]) Dat
 	return p
 }
 
-func ResolveDatetimeTrunc[E any](prepared DatetimeTruncPreparation, operands []Argument[E], types TemporalTypes) TemporalSelection {
+func ResolveDatetimeTrunc(prepared DatetimeTruncPreparation, operands []Argument, types TemporalTypes) TemporalSelection {
 	if !prepared.valid {
 		return TemporalSelection{Resolution: Missing}
 	}
@@ -149,7 +145,7 @@ func DatetimeTruncIntrinsicStable(selected sqltype.ID, count int) bool {
 	return selected == sqltype.Timestamptz && count == 2
 }
 
-func (e DatetimeTrunc[E, C, P]) Reconstruct(info Info[P], args [3]E, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeTrunc[E, C, P], bool, error) {
+func (e DatetimeTrunc) Reconstruct(info expr.Info, args [3]expr.Expr, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeTrunc, bool, error) {
 	plan, err := e.Plan.Retag(retain)
 	if err != nil {
 		return e, false, err

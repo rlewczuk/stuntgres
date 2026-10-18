@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func uuidExtractUnit(t *testing.T, op UUIDExtractKind, text string) (UUIDExtract[stringUnitExpression, *stringUnitContext, struct{}], *stringUnitContext, *[]int) {
+func uuidExtractUnit(t *testing.T, op UUIDExtractKind, text string) (UUIDExtract, *stringUnitContext, *[]int) {
 	t.Helper()
 	types := inspectCarrierTypes()
 	value, err := types[sqltype.UUID].Input(context.Background(), text, -1)
@@ -16,8 +17,8 @@ func uuidExtractUnit(t *testing.T, op UUIDExtractKind, text string) (UUIDExtract
 		t.Fatal(err)
 	}
 	order := []int{}
-	arg := stringUnitArgument{Info: Info[struct{}]{Usage: types[sqltype.UUID].Usage()}, value: value, order: &order}
-	node, err := NewUUIDExtract[stringUnitExpression, *stringUnitContext](Info[struct{}]{Usage: types[op.Result()].Usage()}, op, arg)
+	arg := stringUnitArgument{Info: expr.Info{Usage: types[sqltype.UUID].Usage()}, value: value, order: &order}
+	node, err := NewUUIDExtract(expr.Info{Usage: types[op.Result()].Usage()}, op, arg)
 	if err != nil {
 		t.Fatal(err)
 	}

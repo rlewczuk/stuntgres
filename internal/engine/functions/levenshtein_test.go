@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -51,14 +52,14 @@ func TestLevenshteinWeights(t *testing.T) {
 	text, integer := types[sqltype.Text], types[sqltype.Int4]
 	var order []int
 	one, _ := sqltype.Integer(integer, 1)
-	args := []binaryUnitExpression{
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.String(text, "b"), order: &order, index: 1},
+	args := []expr.Expr{
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "b"), order: &order, index: 1},
 	}
 	for i := 2; i < 6; i++ {
-		args = append(args, binaryUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: one, order: &order, index: i})
+		args = append(args, binaryUnitArgument{Info: expr.Info{Usage: integer.Usage()}, value: one, order: &order, index: i})
 	}
-	call, err := NewLevenshtein[binaryUnitExpression, *binaryUnitContext](Info[struct{}]{Usage: integer.Usage()}, "levenshtein_less_equal", args)
+	call, err := NewLevenshtein(expr.Info{Usage: integer.Usage()}, "levenshtein_less_equal", args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,7 @@ func TestLevenshteinWeights(t *testing.T) {
 		t.Fatal(value, order, err)
 	}
 	failure := errors.New("late demanded cost")
-	args[5] = binaryUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, err: failure, order: &order, index: 5}
+	args[5] = binaryUnitArgument{Info: expr.Info{Usage: integer.Usage()}, err: failure, order: &order, index: 5}
 	order = nil
 	if _, err := call.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1, 2, 3, 4, 5}) {
 		t.Fatal(order, err)
@@ -85,7 +86,7 @@ func TestLevenshteinWeights(t *testing.T) {
 		{"levenshtein_less_equal", []sqltype.ID{0, 0, 0}, Resolved},
 		{"levenshtein", []sqltype.ID{0, 0, 0}, Missing},
 	} {
-		arguments := make([]Argument[struct{}], len(tc.ids))
+		arguments := make([]Argument, len(tc.ids))
 		for i, id := range tc.ids {
 			if id != 0 {
 				arguments[i].Usage = types[id].Usage()

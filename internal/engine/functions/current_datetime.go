@@ -2,17 +2,14 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type CurrentDateTimeContext interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-}
-type CurrentDateTime[C CurrentDateTimeContext, P any] struct {
-	Info[P]
+type CurrentDateTime struct {
+	expr.Info
 	Kind         parser.CurrentDateTimeKind
 	HasPrecision bool
 	Precision    int32
@@ -42,13 +39,13 @@ func ResolveCurrentDateTimeUsage(raw parser.CurrentDateTimeExpr, usage sqltype.U
 	}
 	return usage, nil, nil
 }
-func (e CurrentDateTime[C, P]) Eval(c C) (sqltype.Value, error) {
+func (e CurrentDateTime) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.CurrentDateTime(e.Usage, c.FunctionInput())
 }
-func (e CurrentDateTime[C, P]) Validate(intrinsicMatch bool) error {
+func (e CurrentDateTime) Validate(intrinsicMatch bool) error {
 	id := CurrentDateTimeType(e.Kind)
 	if id == 0 || e.Usage.Type == nil || e.Usage.Type.ID() != id || !e.Usage.Valid() || !intrinsicMatch {
 		return fmt.Errorf("stuntgres: invalid current datetime expression")

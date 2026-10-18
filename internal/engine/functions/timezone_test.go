@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestTimezoneLiteralNullExecution(t *testing.T) {
 			value = temporalTestTimestamp(t, d[tc.source], 0)
 			zone = sqltype.Null(d[sqltype.Text])
 		}
-		e := Timezone[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[tc.result].Usage()}, Value: temporalTestLiteral(value), Zone: temporalTestLiteral(zone), Local: tc.local}
+		e := Timezone{Info: expr.Info{Usage: d[tc.result].Usage()}, Value: temporalTestLiteral(value), Zone: temporalTestLiteral(zone), Local: tc.local}
 		got, err := e.Eval(&temporalTestContext{Context: context.Background()})
 		if err != nil || !got.IsNull() || got.Type() != d[tc.result] {
 			t.Fatal(got, err)

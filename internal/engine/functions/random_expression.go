@@ -4,21 +4,18 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type RandomContext interface {
-	Context
-	FunctionRandomOwner() (RandomOwner, error)
-}
-type Random[E Expression[C], C RandomContext, P any] struct {
-	Info[P]
+type Random struct {
+	expr.Info
 	Name string
-	Args []E
+	Args []expr.Expr
 }
 
-func (x Random[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (x Random) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -150,7 +147,7 @@ type RandomSelection struct {
 	Coercions [2]sqltype.CoercionPlan
 }
 
-func SelectRandom[E interface{ ResultUsage() sqltype.Usage }](p RandomPreparation, args []E, unknown []bool, types NumericTypes) (RandomSelection, Resolution) {
+func SelectRandom(p RandomPreparation, args []expr.Expr, unknown []bool, types NumericTypes) (RandomSelection, Resolution) {
 	selected := RandomSelection{Result: p.result, Target: types.Float8}
 	if !p.valid {
 		return selected, Missing
@@ -206,9 +203,9 @@ func SelectRandom[E interface{ ResultUsage() sqltype.Usage }](p RandomPreparatio
 	}
 	return selected, Resolved
 }
-func CoerceRandomArguments[E interface{ ResultUsage() sqltype.Usage }, B ArgumentCoercer[E]](b B, raw []parser.Expr, args []E, unknown []bool, selected RandomSelection) error {
+func CoerceRandomArguments(b ArgumentCoercer, raw []parser.Expr, args []expr.Expr, unknown []bool, selected RandomSelection) error {
 	for i, arg := range args {
-		argument := Argument[E]{Expression: arg, Raw: raw[i]}
+		argument := Argument{Expression: arg, Raw: raw[i]}
 		if !unknown[i] {
 			argument.Usage = arg.ResultUsage()
 		}

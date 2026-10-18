@@ -1,5 +1,6 @@
 package functions
 
+import "stuntgres/internal/engine/expr"
 import "stuntgres/internal/sqltype"
 
 type TextObjectDefinition struct {
@@ -17,7 +18,7 @@ func ResolveTextObject(name string, visible bool, count int) (TextObjectDefiniti
 	}
 	return definition, Resolved
 }
-func TextObjectArgumentsViable[E any](arguments []Argument[E], target sqltype.Usage) bool {
+func TextObjectArgumentsViable(arguments []Argument, target sqltype.Usage) bool {
 	for _, argument := range arguments {
 		if argument.Usage.Type != nil {
 			if _, err := sqltype.PlanCoercion(argument.Usage, target, sqltype.Implicit); err != nil {
@@ -27,8 +28,8 @@ func TextObjectArgumentsViable[E any](arguments []Argument[E], target sqltype.Us
 	}
 	return true
 }
-func CoerceTextObjectArguments[E any, B ArgumentCoercer[E]](b B, arguments []Argument[E], target sqltype.Usage, intent CoercionIntent) ([]E, error) {
-	args := make([]E, len(arguments))
+func CoerceTextObjectArguments(b ArgumentCoercer, arguments []Argument, target sqltype.Usage, intent CoercionIntent) ([]expr.Expr, error) {
+	args := make([]expr.Expr, len(arguments))
 	for i, argument := range arguments {
 		node, err := b.CoerceArgument(argument, CoercionRequest{Intent: intent, Target: target})
 		if err != nil {

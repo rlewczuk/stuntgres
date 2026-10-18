@@ -11,15 +11,15 @@ import (
 )
 
 type installedSoundexFunctionExpression struct {
-	functions.Soundex[BoundExpr, ExprContext, ExprProperties]
+	functions.Soundex
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
 
 func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundExpr, error) {
-	var operands []functions.Argument[BoundExpr]
+	var operands []functions.Argument
 	if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
@@ -101,7 +101,7 @@ func (b *expressionBinder) bindInstalledSoundex(raw parser.FunctionExpr) (BoundE
 	}
 	info := b.info(result, raw.Pos, properties)
 	info.RoutineReference = proc
-	call, err := functions.NewSoundex[BoundExpr, ExprContext](functionInfo(info), canonical, args)
+	call, err := functions.NewSoundex(info, canonical, args)
 	if err != nil {
 		return nil, err
 	}

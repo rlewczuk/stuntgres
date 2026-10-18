@@ -280,8 +280,8 @@ func (b *expressionBinder) finishArrayTransform(raw parser.FunctionExpr, kind fu
 	if len(raw.Name.Parts) == 2 {
 		namespace = raw.Name.Parts[0].Text
 	}
-	e := functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]{
-		Info: functionInfo(info), Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: namespace, Operator: operator,
+	e := functions.ArrayTransform{
+		Info: info, Kind: kind, Args: args, Slots: slots, Labels: labels, Namespace: namespace, Operator: operator,
 	}
 	if kind == functions.ArraySort && !targets[0].CatalogNullUsage() {
 		if err := b.captureComparisonDiagnosticInput(targets[0].Type); err != nil {
@@ -314,7 +314,7 @@ func operandUsage(o comparisonOperand) sqltype.Usage {
 
 // This is the array branch of the existing || selector. Its children have
 // already been analyzed by bindStringConcat; no child is rebound here.
-func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [2]functions.Argument[BoundExpr], visible bool) (BoundExpr, bool, error) {
+func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [2]functions.Argument, visible bool) (BoundExpr, bool, error) {
 	left, right := operands[0].Usage.Type, operands[1].Usage.Type
 	array := func(d *sqltype.Descriptor) bool { return d != nil && d.BaseType().IsArray() }
 	if !array(left) && !array(right) {
@@ -348,7 +348,7 @@ func (b *expressionBinder) selectArrayConcat(raw parser.OperatorExpr, operands [
 	return e, true, err
 }
 
-func mapArrayTransformChildren(e functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], bool, error) {
+func mapArrayTransformChildren(e functions.ArrayTransform, child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayTransform, bool, error) {
 	var args []BoundExpr
 	// Simplification/preflight may evaluate immutable children and fail. Preserve
 	// formal evaluation precedence there too, without changing written slots.
@@ -376,7 +376,7 @@ func mapArrayTransformChildren(e functions.ArrayTransform[BoundExpr, ExprContext
 	return e, true, nil
 }
 
-func arrayTransformSQL(e functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
+func arrayTransformSQL(e functions.ArrayTransform, child func(BoundExpr) (string, error), operator func(string, string) string) (string, error) {
 	if err := e.Validate(); err != nil {
 		return "", err
 	}

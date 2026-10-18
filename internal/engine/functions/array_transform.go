@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -76,12 +77,12 @@ func (k ArrayTransformKind) Arity(n int) bool {
 	return false
 }
 
-type ArrayTransform[E Expression[C], C StringVariadicContext, P any] struct {
-	Info[P]
+type ArrayTransform struct {
+	expr.Info
 	Kind ArrayTransformKind
 	// Args and labels retain written order; Slots maps each written child to its
 	// formal position. Evaluation uses formal order without rebinding children.
-	Args      []E
+	Args      []expr.Expr
 	Slots     [3]uint8
 	Labels    [3]string
 	Namespace string
@@ -89,20 +90,20 @@ type ArrayTransform[E Expression[C], C StringVariadicContext, P any] struct {
 	Sort      sqltype.ArraySortPlan
 }
 
-func (e ArrayTransform[E, C, P]) IntrinsicStable() bool {
+func (e ArrayTransform) IntrinsicStable() bool {
 	return e.Kind == ArrayToString || e.Kind == ArraySort && e.Sort.SessionDependent()
 }
-func (e ArrayTransform[E, C, P]) Formal(i int) E {
+func (e ArrayTransform) Formal(i int) expr.Expr {
 	for j := range e.Args {
 		if int(e.Slots[j]) == i {
 			return e.Args[j]
 		}
 	}
-	var zero E
+	var zero expr.Expr
 	return zero
 }
 
-func (e ArrayTransform[E, C, P]) Validate() error {
+func (e ArrayTransform) Validate() error {
 	bad := func() error { return fmt.Errorf("stuntgres: invalid stored array transformation provider") }
 	if !e.Kind.Arity(len(e.Args)) || e.Usage.Type == nil || e.Namespace != "" && e.Namespace != "pg_catalog" || e.Operator && (e.Kind < ArrayAppend || e.Kind > ArrayConcatenate) {
 		return bad()
@@ -183,7 +184,7 @@ func (e ArrayTransform[E, C, P]) Validate() error {
 	return nil
 }
 
-func (e ArrayTransform[E, C, P]) Reconstruct(info Info[P], args []E, ref sqltype.CollationRef, conflict bool) (ArrayTransform[E, C, P], error) {
+func (e ArrayTransform) Reconstruct(info expr.Info, args []expr.Expr, ref sqltype.CollationRef, conflict bool) (ArrayTransform, error) {
 	e.Info, e.Args = info, args
 	if !e.Kind.Arity(len(args)) {
 		return e, fmt.Errorf("stuntgres: invalid reconstructed array transformation arity")
@@ -208,7 +209,7 @@ func (e ArrayTransform[E, C, P]) Reconstruct(info Info[P], args []E, ref sqltype
 	return e, e.Validate()
 }
 
-func (e ArrayTransform[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e ArrayTransform) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err

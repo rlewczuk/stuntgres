@@ -10,15 +10,15 @@ import (
 )
 
 type installedMetaphoneFunctionExpression struct {
-	functions.Metaphone[BoundExpr, ExprContext, ExprProperties]
+	functions.Metaphone
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
 
 func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (BoundExpr, error) {
-	var operands []functions.Argument[BoundExpr]
+	var operands []functions.Argument
 	if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
@@ -96,7 +96,7 @@ func (b *expressionBinder) bindInstalledMetaphone(raw parser.FunctionExpr) (Boun
 	}
 	info := b.info(text, raw.Pos, properties)
 	info.RoutineReference = proc
-	call, err := functions.NewMetaphone[BoundExpr, ExprContext](functionInfo(info), canonical, args)
+	call, err := functions.NewMetaphone(info, canonical, args)
 	if err != nil {
 		return nil, err
 	}

@@ -2,21 +2,17 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type NumericFormattingContext interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-	FunctionOutput() sqltype.OutputEnvironment
-}
-type NumericFormatting[E Expression[C], C NumericFormattingContext, P any] struct {
-	Info[P]
+type NumericFormatting struct {
+	expr.Info
 	Plan sqltype.NumericFormatPlan
-	Args [2]E
+	Args [2]expr.Expr
 }
 
-func (e NumericFormatting[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e NumericFormatting) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -31,7 +27,7 @@ func (e NumericFormatting[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Plan.Evaluate(ctx, values[0], values[1], c.FunctionInput(), c.FunctionOutput())
 }
-func (e NumericFormatting[E, C, P]) Reconstruct(info Info[P], args [2]E) (NumericFormatting[E, C, P], error) {
+func (e NumericFormatting) Reconstruct(info expr.Info, args [2]expr.Expr) (NumericFormatting, error) {
 	plan, err := e.Plan.Retag(info.Usage, args[0].ResultUsage())
 	if err != nil {
 		return e, err
@@ -39,11 +35,11 @@ func (e NumericFormatting[E, C, P]) Reconstruct(info Info[P], args [2]E) (Numeri
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
-func NewNumericFormatting[E Expression[C], C NumericFormattingContext, P any](ctx context.Context, info Info[P], name string, args [2]E, constant *string) (NumericFormatting[E, C, P], error) {
+func NewNumericFormatting(ctx context.Context, info expr.Info, name string, args [2]expr.Expr, constant *string) (NumericFormatting, error) {
 	plan, err := sqltype.BindNumericFormat(ctx, name, info.Usage, args[0].ResultUsage(), constant)
-	return NumericFormatting[E, C, P]{info, plan, args}, err
+	return NumericFormatting{info, plan, args}, err
 }
-func ResolveNumericFormatting[E any](visible, variadic bool, args []Argument[E]) Resolution {
+func ResolveNumericFormatting(visible, variadic bool, args []Argument) Resolution {
 	if !visible || len(args) != 2 || variadic {
 		return Missing
 	}
@@ -54,7 +50,7 @@ func ResolveNumericFormatting[E any](visible, variadic bool, args []Argument[E])
 	}
 	return Resolved
 }
-func CoerceNumericFormattingArguments[E any, B ArgumentCoercer[E]](b B, arguments []Argument[E], source, text sqltype.Usage) (args [2]E, err error) {
+func CoerceNumericFormattingArguments(b ArgumentCoercer, arguments []Argument, source, text sqltype.Usage) (args [2]expr.Expr, err error) {
 	for i, argument := range arguments {
 		target := text
 		if i == 0 {

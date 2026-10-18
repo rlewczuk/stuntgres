@@ -2,21 +2,22 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
 // JSONExtract retains written argument order and labels for persistent replay.
 // Its child slice is immutable; reconstruction accepts an owned replacement.
-type JSONExtract[E Expression[C], C Context, P any] struct {
-	Info[P]
+type JSONExtract struct {
+	expr.Info
 	Plan     sqltype.JSONExtractPlan
-	Args     []E
+	Args     []expr.Expr
 	Labels   []string
 	Variadic bool
 }
 
-func (e JSONExtract[E, C, P]) Arguments() []E { return e.Args }
-func (e JSONExtract[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e JSONExtract) Arguments() []expr.Expr { return e.Args }
+func (e JSONExtract) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -34,7 +35,7 @@ func (e JSONExtract[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Plan.Evaluate(ctx, values)
 }
-func (e JSONExtract[E, C, P]) Reconstruct(info Info[P], args []E) (JSONExtract[E, C, P], error) {
+func (e JSONExtract) Reconstruct(info expr.Info, args []expr.Expr) (JSONExtract, error) {
 	if len(args) < 2 || len(args) > 100 || e.Variadic && len(args) != 2 {
 		return e, fmt.Errorf("invalid JSON extraction arity")
 	}
@@ -51,7 +52,7 @@ func (e JSONExtract[E, C, P]) Reconstruct(info Info[P], args []E) (JSONExtract[E
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
-func (e JSONExtract[E, C, P]) Validate() error {
+func (e JSONExtract) Validate() error {
 	next, err := e.Reconstruct(e.Info, e.Args)
 	if err != nil {
 		return err

@@ -73,8 +73,8 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, array := bound.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties])
-			_, text := bound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+			_, array := bound.(functions.ArrayTransform)
+			_, text := bound.(functions.String)
 			if array != tc.array || text == tc.array {
 				t.Fatalf("wrong actual dispatch %T, want array=%t", bound, tc.array)
 			}

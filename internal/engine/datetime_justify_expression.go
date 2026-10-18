@@ -7,10 +7,10 @@ import (
 )
 
 func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [1]functions.Argument[BoundExpr]
+	var small [1]functions.Argument
 	operands := small[:min(len(raw.Args), 1)]
 	if len(raw.Args) > 1 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -52,5 +52,5 @@ func (b *expressionBinder) bindDatetimeJustify(raw parser.FunctionExpr, visible 
 	if err != nil {
 		return nil, err
 	}
-	return functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Plan: plan, Arg: arg}, nil
+	return functions.DatetimeJustify{Info: info, Plan: plan, Arg: arg}, nil
 }

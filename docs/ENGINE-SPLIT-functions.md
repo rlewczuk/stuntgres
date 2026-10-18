@@ -134,7 +134,8 @@ Tier C has a refined plan.
 
 ## Status
 
-- [ ] F1 — Generics removed
+- [x] F1 — Generics removed (`69aeb6167` generics, `5ec01573f`
+  `functionInfo`, docs `937962c4f`)
 - [ ] F2 — Switches converted: [ ] retag [ ] remap [ ] volatility
   [ ] deparse [ ] node tree [ ] generated admission [ ] conditional plan
   [ ] join legality
@@ -151,6 +152,52 @@ Tier C has a refined plan.
 
 `Binder` methods added beyond the F3 set: none yet.
 
-Outstanding aliases: none yet.
+Outstanding aliases: none yet. F1 added none; the step 2b aliases in
+`functions/expr_aliases.go` are still listed in `ENGINE-SPLIT-expr.md` for 2d.
 
-Notes for later steps: none yet.
+F1 record, measured at its start on `b12c7ee57`:
+
+- `functions` had 82 generic types in 50 files and ~106 generic functions.
+  All 28 context constraints were subsets of `expr.Context`, so they and
+  `Context`, `Expression`, `LiteralContext` and `Info[P]` were deleted. The
+  engine had 1,808 suffix references in 184 files and 284 `functionInfo`
+  references. A throwaway `go/ast` rewriter stripped the `functions` type
+  parameters; a regex stripped the engine suffixes.
+- Kept: the private `randomInteger[S randomIntegerSource]` sampler. It is a
+  numeric kernel generic, not part of the expression contract.
+- `StringVariadic[E, C, P, O]` carried the engine's `quoteOrigin` as `O`. Its
+  `Origin` is now an opaque `any`; the engine reads it only through
+  `quoteOriginOf`, which maps an unset origin to the zero `quoteOrigin`.
+- `ArgumentCoercer`/`ArgumentAnalyzer` are plain interfaces; bind helpers that
+  took `B ArgumentCoercer[E]` now take the interface (bind time only).
+- `functionInfo` was removed in its own commit. It also cleared
+  `UnknownNull` and `RegclassRef`; only literal nodes set them, and no inlined
+  site receives a literal's info.
+- F1 also removes the 2a hazard where the two-parameter `TransactionTime`,
+  `VersionInformation` and `CurrentDateTime` instantiations compiled with any
+  context: a type switch case can no longer silently miss.
+
+Tests in F1: no test moved or was deleted. `functions` unit fakes were adapted:
+fake arguments embed `expr.Info`; fake contexts embed the nil
+`unitCapabilities` (`expr.Context`) from the new `unit_capabilities_test.go`,
+which also holds `unitArgs` to widen fake argument slices. Tests that used
+`bool`, `IntrinsicPropertyRule` or integers as `P` now use `expr.Properties`
+with `expr.PropertiesMatch`, keeping each assertion. Fake args stored in
+`Args` are now read through a type assertion. One test passed an untyped
+`nil` context; it now passes the typed nil pointer it meant.
+
+Verification: `make quickcheck` passed after each commit; bench median
+1.53 ms/op with 7,753 allocs/op, against 1.60 ms and 7,753 before (startup
+was already above the 1 ms target on master). Function-family
+`REFERENCE=1` selection (feature smoke, stored and control tests, 196 tests)
+passed except three failures that reproduce on unmodified master, listed
+below. Racecheck skipped at the user's request.
+
+Notes for later steps:
+
+- Oracle drift on the pinned PostgreSQL 18.6 image, failing on master too,
+  in the `/postgres` subtests only: `TestReferenceJSONStripNullsFeatureSmoke`
+  (expects 42P17, gets success) and
+  `TestReferenceUUIDGenerationStoredConsumersAndControls` /
+  `TestReferenceUUIDGenerationFeatureSmoke` (18.6 rejects out-of-range
+  `uuidv7` shifts that 18.0 accepted). Needs a separate compatibility task.

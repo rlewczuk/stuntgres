@@ -44,7 +44,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if err != nil {
 				t.Fatal(tc.name, defaults, err)
 			}
-			binary, ok := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+			binary, ok := node.(functions.Binary)
 			if !ok || node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation != (sqltype.CollationRef{}) || node.Properties().Volatility != Immutable {
 				t.Fatal(tc.name, node)
 			}
@@ -74,7 +74,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(tc.name, changed, err)
 			}
-			next := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+			next := rebound.(functions.Binary)
 			if err := next.Validate(); err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +127,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 			t.Fatal(err)
 		}
 		source := literalExpression{expressionInfo: expressionInfo{Usage: sourceUsage}, value: sourceValue}
-		operands := []functions.Argument[BoundExpr]{{Expression: source, Usage: sourceUsage}}
+		operands := []functions.Argument{{Expression: source, Usage: sourceUsage}}
 		if name == "overlay" || name == "position" {
 			operands = append(operands, operands[0])
 		}
@@ -138,14 +138,14 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 				t.Fatal(err)
 			}
 			index := literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: value}
-			operands = append(operands, functions.Argument[BoundExpr]{Expression: index, Usage: usage})
+			operands = append(operands, functions.Argument{Expression: index, Usage: usage})
 		}
 		var types functions.BinaryTypes
 		node, err := b.finishBinary(name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		binary := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+		binary := node.(functions.Binary)
 		if err := binary.Validate(); err != nil {
 			t.Fatal(name, err)
 		}

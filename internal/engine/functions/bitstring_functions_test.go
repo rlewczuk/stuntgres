@@ -29,7 +29,7 @@ func TestBitStringFunctionsSelection(t *testing.T) {
 		{"position", []sqltype.ID{0, sqltype.Bit}, Resolved, sqltype.Bit, sqltype.Int4},
 	} {
 		for _, defaults := range []bool{false, true} {
-			args := make([]Argument[struct{}], len(tc.ids))
+			args := make([]Argument, len(tc.ids))
 			for i, id := range tc.ids {
 				if id != 0 {
 					args[i].Usage = types[id].Usage()
@@ -55,7 +55,7 @@ func TestBitStringFunctionsSelection(t *testing.T) {
 			}
 		}
 	}
-	args := []Argument[struct{}]{{Usage: types[sqltype.Bit].Usage()}}
+	args := []Argument{{Usage: types[sqltype.Bit].Usage()}}
 	for _, name := range []string{"reverse", "md5", "get_bit", "set_bit", "substr", "btrim", "||"} {
 		if BinaryBitCandidate(name, false, args) {
 			t.Fatal("adjacent candidate", name)
@@ -64,7 +64,7 @@ func TestBitStringFunctionsSelection(t *testing.T) {
 	if BinaryBitCandidate("length", true, args) {
 		t.Fatal("variadic candidate")
 	}
-	unknown := []Argument[struct{}]{{Kind: DeferredNullArgument}}
+	unknown := []Argument{{Kind: DeferredNullArgument}}
 	selection := ResolveBinary(PrepareBinary("bit_count", true, false, false, unknown), "bit_count", unknown, &supplied)
 	if selection.Resolution != Ambiguous {
 		t.Fatal(selection)
@@ -106,7 +106,7 @@ func TestBitStringOperatorsConcatSelection(t *testing.T) {
 		!BinaryResultDemand("||", sqltype.VarBit).Needs(sqltype.VarBit) {
 		t.Fatal("VARBIT demand lost")
 	}
-	args := []Argument[struct{}]{{Usage: types[sqltype.Bit].Usage()}, {Usage: types[sqltype.VarBit].Usage()}}
+	args := []Argument{{Usage: types[sqltype.Bit].Usage()}, {Usage: types[sqltype.VarBit].Usage()}}
 	if !BinaryArgumentDemand("||", sqltype.VarBit, args, false).Needs(sqltype.VarBit) ||
 		!BinaryArgumentsViable("||", sqltype.VarBit, args, &supplied) {
 		t.Fatal("VARBIT concat coercion not viable")

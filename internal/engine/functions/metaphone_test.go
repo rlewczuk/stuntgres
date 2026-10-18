@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -29,7 +30,7 @@ func TestMetaphoneSignatures(t *testing.T) {
 		{"dmetaphone_alt", []sqltype.ID{sqltype.Int4}, "25", Missing},
 		{"dmetaphone", []sqltype.ID{0, 0}, "", Missing},
 	} {
-		args := make([]Argument[struct{}], len(tc.ids))
+		args := make([]Argument, len(tc.ids))
 		for i, id := range tc.ids {
 			if id != 0 {
 				args[i].Usage = types[id].Usage()
@@ -99,11 +100,11 @@ func TestMetaphoneStrictDemand(t *testing.T) {
 	text, integer := types[sqltype.Text], types[sqltype.Int4]
 	var order []int
 	cap, _ := sqltype.Integer(integer, 4)
-	args := []binaryUnitExpression{
-		binaryUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
-		binaryUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: cap, order: &order, index: 1},
+	args := []expr.Expr{
+		binaryUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
+		binaryUnitArgument{Info: expr.Info{Usage: integer.Usage()}, value: cap, order: &order, index: 1},
 	}
-	call, err := NewMetaphone[binaryUnitExpression, *binaryUnitContext](Info[struct{}]{Usage: text.Usage()}, "metaphone", args)
+	call, err := NewMetaphone(expr.Info{Usage: text.Usage()}, "metaphone", args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestMetaphoneStrictDemand(t *testing.T) {
 		t.Fatal(value, order, err)
 	}
 	failure := errors.New("demanded cap error")
-	args[1] = binaryUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, err: failure, order: &order, index: 1}
+	args[1] = binaryUnitArgument{Info: expr.Info{Usage: integer.Usage()}, err: failure, order: &order, index: 1}
 	order = nil
 	if _, err := call.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)

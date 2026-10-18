@@ -221,51 +221,51 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 // Inquiry and original TYPE buffers share this rule; canonical Dump does not.
 func pgIndexFunctionExpression(node BoundExpr) bool {
 	switch n := node.(type) {
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		return n.Plan.Name() != "||"
 	case sqlJSONExpression, jsonPredicateExpression:
 		return true
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin], functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.StringVariadic, functions.JSONCreate:
 		return true
 	case indexPropertyExpression:
 		return true
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		return true
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		return true
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		return true
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties], functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc, functions.DatetimeBin:
 		return true
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		return true
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		return n.Function
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		return true
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		return true
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		return true
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		return true
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		return true
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		return true
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		return true
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		return true
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		return true
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties], unnestExpression:
+	case functions.ArrayRandom, unnestExpression:
 		return false
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		return true
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		return true
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		return !n.Plan.Membership()
 	case aclValueExpression:
 		return n.kind != aclContains
@@ -275,25 +275,25 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 		return true
 	case commitTimestampExpression:
 		return true
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		return true
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		return true
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		return false
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return true
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties], functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties], functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum, functions.PosixSubstring, functions.Regexp:
 		return true
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		return true
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		return !jsonbExistenceName(n.Plan.Name()) && !jsonbContainmentName(n.Plan.Name())
 	case namespaceInquiryExpression, blockingInquiryExpression, accessInquiryExpression, objectACLExpression, objectAddressExpression:
 		return true
-	case functions.VersionInformation[ExprContext, ExprProperties]:
+	case functions.VersionInformation:
 		return true
-	case functions.Math[BoundExpr, ExprContext, ExprProperties], functions.Random[BoundExpr, ExprContext, ExprProperties], advisoryExpression, functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties], functions.NullCount[BoundExpr, ExprContext, ExprProperties], sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, functions.CurrentDateTime[ExprContext, ExprProperties], functions.TransactionTime[ExprContext, ExprProperties]:
+	case functions.Math, functions.Random, advisoryExpression, functions.UUIDGeneration, functions.NullCount, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, functions.CurrentDateTime, functions.TransactionTime:
 		return true
 	default:
 		return false

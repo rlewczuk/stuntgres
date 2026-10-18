@@ -82,11 +82,11 @@ func (e *Engine) initializeBuiltinRoutineBodies() {
 
 func polymorphicBodyArgument(node BoundExpr, id ids.OID) BoundExpr {
 	switch n := node.(type) {
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		if (id == 1285 || id == 1290) && len(n.Args) == 1 {
 			return n.Args[0]
 		}
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		if id == 2003 && len(n.Args) == 2 {
 			return n.Args[1]
 		}

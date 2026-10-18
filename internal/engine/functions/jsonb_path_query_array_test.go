@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,13 +16,13 @@ func (r jsonpathArrayUnitReference) RoutineRecipeOID() uint32 { return uint32(r)
 func TestJSONBPathQueryArrayReconstruct(t *testing.T) {
 	d, fresh := temporalTestTypes(), temporalTestTypes()
 	ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
-	e := JSONBPathQueryArray[temporalTestExpression, *temporalTestContext, uint64]{
-		Info:         Info[uint64]{Usage: d[sqltype.JSONB].Usage(), Property: 7},
+	e := JSONBPathQueryArray{
+		Info:         expr.Info{Usage: d[sqltype.JSONB].Usage(), Property: expr.Properties{Volatility: expr.Stable, RowDependent: true}},
 		WrittenCount: 3, WrittenSlots: [4]uint8{1, 0, 3},
 		Labels: [4]string{"path", "target", "silent"},
 	}
 	var usages [4]sqltype.Usage
-	var args [4]temporalTestExpression
+	var args [4]expr.Expr
 	for i, id := range ids {
 		usages[i] = d[id].Usage()
 		e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
@@ -32,7 +33,7 @@ func TestJSONBPathQueryArrayReconstruct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	info := Info[uint64]{Usage: fresh[sqltype.JSONB].Usage(), Property: 19,
+	info := expr.Info{Usage: fresh[sqltype.JSONB].Usage(), Property: expr.Properties{Volatility: expr.Volatile, ParameterDependent: true},
 		RoutineReference: jsonpathArrayUnitReference(4007), RoutineRecipeReference: jsonpathArrayUnitReference(123)}
 	got, err := e.Reconstruct(info, args)
 	if err != nil {

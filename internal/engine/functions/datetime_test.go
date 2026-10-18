@@ -2,15 +2,13 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-type temporalTestExpression interface {
-	ResultUsage() sqltype.Usage
-	Eval(*temporalTestContext) (sqltype.Value, error)
-}
 type temporalTestContext struct {
+	unitCapabilities
 	context.Context
 	input  sqltype.InputEnvironment
 	output sqltype.OutputEnvironment
@@ -19,17 +17,17 @@ type temporalTestContext struct {
 func (c *temporalTestContext) FunctionContext() context.Context          { return c.Context }
 func (c *temporalTestContext) FunctionInput() sqltype.InputEnvironment   { return c.input }
 func (c *temporalTestContext) FunctionOutput() sqltype.OutputEnvironment { return c.output }
-func (c *temporalTestContext) FunctionLiteralNull(e temporalTestExpression) bool {
+func (c *temporalTestContext) FunctionLiteralNull(e expr.Expr) bool {
 	a, ok := e.(temporalTestArgument)
 	return ok && a.literal && a.value.IsNull()
 }
-func (c *temporalTestContext) FunctionOverlapsConstant(e temporalTestExpression) bool {
+func (c *temporalTestContext) FunctionOverlapsConstant(e expr.Expr) bool {
 	a, ok := e.(temporalTestArgument)
 	return ok && a.literal
 }
 
 type temporalTestArgument struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	order   *[]int
 	index   int
@@ -37,7 +35,7 @@ type temporalTestArgument struct {
 	literal bool
 }
 
-func (a temporalTestArgument) Eval(*temporalTestContext) (sqltype.Value, error) {
+func (a temporalTestArgument) Eval(expr.Context) (sqltype.Value, error) {
 	if a.order != nil {
 		*a.order = append(*a.order, a.index)
 	}
@@ -51,7 +49,7 @@ func temporalTestTypes() map[sqltype.ID]*sqltype.Descriptor {
 	return d
 }
 func temporalTestLiteral(v sqltype.Value) temporalTestArgument {
-	return temporalTestArgument{Info: Info[struct{}]{Usage: v.Type().Usage()}, value: v, literal: true}
+	return temporalTestArgument{Info: expr.Info{Usage: v.Type().Usage()}, value: v, literal: true}
 }
 func temporalTestTimestamp(t *testing.T, d *sqltype.Descriptor, micros int64) sqltype.Value {
 	t.Helper()

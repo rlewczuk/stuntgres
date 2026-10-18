@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonElementsUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONElements[BoundExpr, ExprContext, ExprProperties] {
+func jsonElementsUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONElements {
 	t.Helper()
 	b.aggregateClause = "SELECT"
 	b.queryNamespace = &queryNamespace{}
@@ -19,7 +19,7 @@ func jsonElementsUnitMarker(t *testing.T, b *expressionBinder, name, input strin
 	if err != nil {
 		t.Fatal(err)
 	}
-	marker, ok := node.(functions.JSONElements[BoundExpr, ExprContext, ExprProperties])
+	marker, ok := node.(functions.JSONElements)
 	if !ok {
 		t.Fatalf("missing scalar marker: %T", node)
 	}
@@ -47,7 +47,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("retag", changed, err)
 		}
-		next := mapped.(functions.JSONElements[BoundExpr, ExprContext, ExprProperties])
+		next := mapped.(functions.JSONElements)
 		if next.ResultUsage().Type != fresh[id] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.Plan.ResultUsage() != next.ResultUsage() || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation marker", next)
 		}
@@ -99,7 +99,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rewritten.(*functionFromNode).calls[0].(functions.JSONElements[BoundExpr, ExprContext, ExprProperties]).Args[0] != other.Args[0] || root.calls[0].(functions.JSONElements[BoundExpr, ExprContext, ExprProperties]).Args[0] != original.Args[0] {
+		if rewritten.(*functionFromNode).calls[0].(functions.JSONElements).Args[0] != other.Args[0] || root.calls[0].(functions.JSONElements).Args[0] != original.Args[0] {
 			t.Fatal("query rewrite mutated original")
 		}
 		if err := validateFunctionFromLayout(root); err != nil {

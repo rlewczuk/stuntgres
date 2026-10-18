@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -13,8 +14,8 @@ import (
 func TestMathFourArgumentTraversal(t *testing.T) {
 	source, target := arraySearchTestTypes(), arraySearchTestTypes()
 	var order []int
-	makeArgs := func(types map[sqltype.ID]*sqltype.Descriptor) []functionTestExpression {
-		args := make([]functionTestExpression, 4)
+	makeArgs := func(types map[sqltype.ID]*sqltype.Descriptor) []expr.Expr {
+		args := make([]expr.Expr, 4)
 		for i, n := range []int64{2, 0, 10, 5} {
 			d := types[sqltype.Numeric]
 			if i == 3 {
@@ -24,17 +25,17 @@ func TestMathFourArgumentTraversal(t *testing.T) {
 			if err != nil {
 				t.Fatal(n, err)
 			}
-			args[i] = functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: value, order: &order, index: i}
+			args[i] = functionTestArgument{Info: expr.Info{Usage: d.Usage()}, value: value, order: &order, index: i}
 		}
 		return args
 	}
 	args := makeArgs(source)
-	call, err := NewMath[functionTestExpression, *functionTestContext](Info[struct{}]{Usage: source[sqltype.Int4].Usage()}, "width_bucket", args)
+	call, err := NewMath(expr.Info{Usage: source[sqltype.Int4].Usage()}, "width_bucket", args)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := &functionTestContext{context.Background()}
-	check := func(call Math[functionTestExpression, *functionTestContext, struct{}], want int64) {
+	ctx := &functionTestContext{Context: context.Background()}
+	check := func(call Math, want int64) {
 		order = nil
 		got, err := call.Eval(ctx)
 		n, numberErr := got.Integer()
@@ -44,7 +45,7 @@ func TestMathFourArgumentTraversal(t *testing.T) {
 	}
 	check(call, 2)
 	mapped := makeArgs(target)
-	rebuilt, err := call.Reconstruct(Info[struct{}]{Usage: target[sqltype.Int4].Usage()}, mapped, sqltype.CollationRef{}, false)
+	rebuilt, err := call.Reconstruct(expr.Info{Usage: target[sqltype.Int4].Usage()}, mapped, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,15 +54,15 @@ func TestMathFourArgumentTraversal(t *testing.T) {
 	}
 	check(rebuilt, 2)
 	check(call, 2)
-	call.Args = append([]functionTestExpression(nil), call.Args...)
-	call.Args[0] = functionTestArgument{Info: Info[struct{}]{Usage: source[sqltype.Numeric].Usage()}, value: sqltype.Null(source[sqltype.Numeric]), literal: true, order: &order, index: 0}
+	call.Args = append([]expr.Expr(nil), call.Args...)
+	call.Args[0] = functionTestArgument{Info: expr.Info{Usage: source[sqltype.Numeric].Usage()}, value: sqltype.Null(source[sqltype.Numeric]), literal: true, order: &order, index: 0}
 	order = nil
 	got, err := call.Eval(ctx)
 	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
 		t.Fatal("selected literal NULL demands operands", got, order, err)
 	}
 	demanded := errors.New("required fourth argument")
-	call.Args[3] = functionTestArgument{Info: Info[struct{}]{Usage: source[sqltype.Int4].Usage()}, err: demanded, order: &order, index: 3}
+	call.Args[3] = functionTestArgument{Info: expr.Info{Usage: source[sqltype.Int4].Usage()}, err: demanded, order: &order, index: 3}
 	order = nil
 	got, err = call.Eval(ctx)
 	if !errors.Is(err, demanded) || got.Type() != nil || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
@@ -73,7 +74,7 @@ func TestMathFourArgumentTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wrapper, err := NewMath[functionTestExpression, *functionTestContext](Info[struct{}]{Usage: d.Usage()}, "log10", []functionTestExpression{functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: negative}})
+	wrapper, err := NewMath(expr.Info{Usage: d.Usage()}, "log10", []expr.Expr{functionTestArgument{Info: expr.Info{Usage: d.Usage()}, value: negative}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,13 +85,13 @@ func TestMathFourArgumentTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "child failure"}
-	wrapper.Args[0] = functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, err: child}
+	wrapper.Args[0] = functionTestArgument{Info: expr.Info{Usage: d.Usage()}, err: child}
 	_, err = wrapper.Eval(ctx)
 	if err != child || child.Context != "" {
 		t.Fatal("child diagnostic annotated/mutated", err)
 	}
 	// Reconstructed collated thresholds bind target leaves and input authority.
-	makeThreshold := func(types map[sqltype.ID]*sqltype.Descriptor) Math[functionTestExpression, *functionTestContext, struct{}] {
+	makeThreshold := func(types map[sqltype.ID]*sqltype.Descriptor) Math {
 		text, array := types[sqltype.Text], types[1009]
 		p, err := sqltype.BindWidthBucketThreshold(types[sqltype.Int4].Usage(), text.Usage(), array.Usage(), text.Usage().Collation, false)
 		if err != nil {
@@ -104,7 +105,7 @@ func TestMathFourArgumentTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return Math[functionTestExpression, *functionTestContext, struct{}]{Info: Info[struct{}]{Usage: types[sqltype.Int4].Usage()}, Plan: p, Args: []functionTestExpression{functionTestArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: a}, functionTestArgument{Info: Info[struct{}]{Usage: array.Usage()}, value: b}}}
+		return Math{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, Plan: p, Args: []expr.Expr{functionTestArgument{Info: expr.Info{Usage: text.Usage()}, value: a}, functionTestArgument{Info: expr.Info{Usage: array.Usage()}, value: b}}}
 	}
 	old, next := makeThreshold(source), makeThreshold(target)
 	ref, conflict := next.Plan.InputCollation()
@@ -115,7 +116,7 @@ func TestMathFourArgumentTraversal(t *testing.T) {
 	if err := mappedThreshold.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	for _, call := range []Math[functionTestExpression, *functionTestContext, struct{}]{old, mappedThreshold} {
+	for _, call := range []Math{old, mappedThreshold} {
 		got, err := call.Eval(ctx)
 		n, numberErr := got.Integer()
 		if err != nil || numberErr != nil || n != 3 || got.Type() != call.Usage.Type {

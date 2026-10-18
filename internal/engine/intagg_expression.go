@@ -10,13 +10,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) intaggArguments(raw parser.FunctionExpr) ([]functions.Argument[BoundExpr], error) {
-	var small [1]functions.Argument[BoundExpr]
-	var operands []functions.Argument[BoundExpr]
+func (b *expressionBinder) intaggArguments(raw parser.FunctionExpr) ([]functions.Argument, error) {
+	var small [1]functions.Argument
+	var operands []functions.Argument
 	if len(raw.Args) <= 1 {
 		operands = small[:len(raw.Args)]
 	} else if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, child := range raw.Args {
 		o, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -43,7 +43,7 @@ func (b *expressionBinder) intaggArguments(raw parser.FunctionExpr) ([]functions
 	return operands, nil
 }
 
-func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) (BoundExpr, *procedureDescriptor, ids.ObjectRef, error) {
+func (b *expressionBinder) resolveIntagg(raw parser.FunctionExpr, operands []functions.Argument) (BoundExpr, *procedureDescriptor, ids.ObjectRef, error) {
 	var small [1]string
 	var names []string
 	if len(operands) <= 1 {

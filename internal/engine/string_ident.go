@@ -15,7 +15,7 @@ func stringIdentStrictArgument(raw parser.FunctionExpr, i int) bool {
 	return i == 1
 }
 
-func selectStringIdent(raw parser.FunctionExpr, visible bool, args []functions.Argument[BoundExpr], targets functions.StringTargets) (functions.StringSelection, functions.Resolution) {
+func selectStringIdent(raw parser.FunctionExpr, visible bool, args []functions.Argument, targets functions.StringTargets) (functions.StringSelection, functions.Resolution) {
 	selected := functions.StringSelection{Result: sqltype.Text, Array: true}
 	if !visible || raw.Variadic || len(args) < 1 || len(args) > 2 {
 		return selected, functions.Missing

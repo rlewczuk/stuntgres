@@ -14,7 +14,7 @@ func jsonRecordFunction(name string) bool {
 func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	populate := name == "json_populate_record" || name == "json_populate_recordset"
-	var operandStorage [2]functions.Argument[BoundExpr]
+	var operandStorage [2]functions.Argument
 	operands := operandStorage[:min(len(raw.Args), len(operandStorage))]
 	var nameStorage [100]string
 	names := nameStorage[:min(len(raw.Args), len(nameStorage))]
@@ -133,7 +133,7 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 	properties.DomainDependent = properties.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
 	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || sqltype.ContainsDomainChecks(usage.Type)
 	info := b.info(usage, raw.Pos, properties)
-	record, err := functions.NewJSONRecord[BoundExpr, ExprContext](functionInfo(info), name, baseIndex, args)
+	record, err := functions.NewJSONRecord(info, name, baseIndex, args)
 	if err != nil {
 		return nil, err
 	}
@@ -145,15 +145,15 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	record.Info = functionInfo(info)
+	record.Info = info
 	return record, nil
 }
 
 // Completion follows ordinary call/signature/SRF analysis, but precedes source
 // schema expansion. Explicit definitions are occurrence authorities, not aliases.
 func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, call BoundExpr, definitions []parser.FunctionColumnDefinition) (BoundExpr, error) {
-	record, isRecord := call.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
-	jsonb, isJSONB := call.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	record, isRecord := call.(functions.JSONRecord)
+	jsonb, isJSONB := call.(functions.JSONBRecord)
 	anonymous := (isRecord || isJSONB) && call.ResultUsage().Type.ID() == 2249
 	if len(definitions) == 0 {
 		if isRecord && anonymous || jsonbRecordUnresolved(call) {

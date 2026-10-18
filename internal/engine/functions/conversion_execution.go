@@ -1,8 +1,9 @@
 package functions
 
+import "stuntgres/internal/engine/expr"
 import "stuntgres/internal/sqltype"
 
-func (e Binary[E, C, P]) evalConversion(c C, values []sqltype.Value) (sqltype.Value, error) {
+func (e Binary) evalConversion(c expr.Context, values []sqltype.Value) (sqltype.Value, error) {
 	ctx := c.FunctionContext()
 	raw, sourceName, destinationName, null, err := e.Plan.EncodingInput(ctx, values...)
 	if err != nil {

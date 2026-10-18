@@ -5,19 +5,18 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `b12c7ee57`.
+Last verified against `master` at `031c41882`.
 
 ## Next ready sub-steps
 
 - **2c** — node protocol with the walk switch as first adopter (needs 2b ✓).
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
-- **F1** — remove the `functions` generics (needs 2b ✓) *(broad rewrite)*.
 - **F3** — `Binder`, `Definition`/`Lookup` and engine dispatch with a pilot
   family (needs 2b ✓).
 - **5a** — `catalogStore` state ownership (needs 1 ✓, 2b ✓).
 
-They may run in parallel on separate branches, except that 4c and F1 must not
-run alongside another broad rewrite or alias removal (§8).
+They may run in parallel on separate branches, except that 4c must not run
+alongside another broad rewrite or alias removal (§8).
 
 ## Task tree
 
@@ -40,7 +39,7 @@ run alongside another broad rewrite or alias removal (§8).
   - [ ] 2d — Aliases removed *(broad rewrite)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs
   2b, and 2c for F2)
-  - [ ] F1 — Generics removed *(broad rewrite; needs 2b)*
+  - [x] F1 — Generics removed (`69aeb6167`, `5ec01573f`, docs `937962c4f`)
   - [ ] F2 — Switches converted to the node protocol *(broad rewrite; needs
     2c)*
     - [ ] retag

@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,33 +15,27 @@ func StringVariadicFunctionName(name string) bool {
 	return false
 }
 
-type StringVariadicContext interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-	FunctionStringOutput() sqltype.OutputEnvironment
-}
-
 // Stable is the original intrinsic operation fact, independent of merged P.
 // Origin and Frame are opaque owner occurrence facts, never interpreted here.
-type StringVariadic[E Expression[C], C StringVariadicContext, P, O any] struct {
-	Info[P]
+type StringVariadic struct {
+	expr.Info
 	Name        string
-	Args        []E
+	Args        []expr.Expr
 	Variadic    bool
 	AnyElement  bool
 	Cast        sqltype.CoercionPlan
 	CastPlanned bool
 	Stable      bool
 	Frame       uint32
-	Origin      O
+	Origin      any
 }
 
-func (e StringVariadic[E, C, P, O]) IntrinsicStable() bool { return e.Stable }
-func (e StringVariadic[E, C, P, O]) WithOrigin(origin O) StringVariadic[E, C, P, O] {
+func (e StringVariadic) IntrinsicStable() bool { return e.Stable }
+func (e StringVariadic) WithOrigin(origin any) StringVariadic {
 	e.Origin = origin
 	return e
 }
-func (e StringVariadic[E, C, P, O]) Eval(c C) (sqltype.Value, error) {
+func (e StringVariadic) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -205,7 +200,7 @@ func ResolveStringVariadicFirst(name string, source, text sqltype.Usage) StringV
 	}
 	return selection
 }
-func CoerceStringVariadicFirst[E any, B ArgumentCoercer[E]](b B, first Argument[E], text sqltype.Usage) (E, error) {
+func CoerceStringVariadicFirst(b ArgumentCoercer, first Argument, text sqltype.Usage) (expr.Expr, error) {
 	if first.Usage.Type == nil {
 		return b.CoerceArgument(first, CoercionRequest{Intent: FinalizeArgument, Target: text})
 	}
@@ -224,7 +219,7 @@ func StringVariadicResult(name string) sqltype.ID {
 	return sqltype.Text
 }
 
-func (e StringVariadic[E, C, P, O]) Reconstruct(info Info[P], args []E) (StringVariadic[E, C, P, O], error) {
+func (e StringVariadic) Reconstruct(info expr.Info, args []expr.Expr) (StringVariadic, error) {
 	if e.CastPlanned {
 		plan, err := sqltype.PlanCoercion(args[0].ResultUsage(), info.Usage, sqltype.Explicit)
 		if err != nil {

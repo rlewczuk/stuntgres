@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONEach[BoundExpr, ExprContext, ExprProperties] {
+func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONEach {
 	t.Helper()
 	b.aggregateClause = "SELECT"
 	b.queryNamespace = &queryNamespace{}
@@ -18,7 +18,7 @@ func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) f
 	if err != nil {
 		t.Fatal(err)
 	}
-	marker, ok := node.(functions.JSONEach[BoundExpr, ExprContext, ExprProperties])
+	marker, ok := node.(functions.JSONEach)
 	if !ok {
 		t.Fatalf("missing record marker: %T", node)
 	}
@@ -50,7 +50,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("record remap", changed, err)
 		}
-		next := mapped.(functions.JSONEach[BoundExpr, ExprContext, ExprProperties])
+		next := mapped.(functions.JSONEach)
 		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[inputID] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation remap", next)
 		}
@@ -99,7 +99,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rewritten.(*functionFromNode).calls[0].(functions.JSONEach[BoundExpr, ExprContext, ExprProperties]).Args[0] != other.Args[0] || root.calls[0].(functions.JSONEach[BoundExpr, ExprContext, ExprProperties]).Args[0] != original.Args[0] {
+		if rewritten.(*functionFromNode).calls[0].(functions.JSONEach).Args[0] != other.Args[0] || root.calls[0].(functions.JSONEach).Args[0] != original.Args[0] {
 			t.Fatal("mutated retained query")
 		}
 		if err := validateFunctionFromLayout(root); err != nil {

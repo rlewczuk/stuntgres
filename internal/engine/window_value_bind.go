@@ -11,13 +11,13 @@ func windowValueName(name string) bool {
 }
 
 func (b *expressionBinder) resolveWindowValueSignature(raw parser.AggregateExpr, name parser.ObjectName) (value, ordinal BoundExpr, usage sqltype.Usage, err error) {
-	var small [2]functions.Argument[BoundExpr]
+	var small [2]functions.Argument
 	var names [2]string
 	arguments, types := small[:], names[:]
 	if len(raw.Args) <= 2 {
 		arguments, types = arguments[:len(raw.Args)], types[:len(raw.Args)]
 	} else {
-		arguments = make([]functions.Argument[BoundExpr], len(raw.Args))
+		arguments = make([]functions.Argument, len(raw.Args))
 		types = make([]string, len(raw.Args))
 	}
 	for i, child := range raw.Args {

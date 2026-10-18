@@ -15,14 +15,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind functions.TransactionTimeKind) functions.TransactionTime[ExprContext, ExprProperties] {
+func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind functions.TransactionTimeKind) functions.TransactionTime {
 	t.Helper()
 	name := kind.Name()
 	bound, err := b.bindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Offset: 7, Character: 8}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf, ok := bound.(functions.TransactionTime[ExprContext, ExprProperties])
+	leaf, ok := bound.(functions.TransactionTime)
 	if !ok {
 		t.Fatalf("producer=%T", bound)
 	}
@@ -119,7 +119,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copy := remapped.(functions.TransactionTime[ExprContext, ExprProperties])
+		copy := remapped.(functions.TransactionTime)
 		if copy.Kind != kind || copy.Usage.Type == leaf.Usage.Type || copy.Pos != leaf.Pos || copy.Validate(expr.PropertiesMatch(copy.Property, copy.Kind.IntrinsicRule())) != nil {
 			t.Fatal(leaf, copy)
 		}
@@ -161,7 +161,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	if invalid.Validate(expr.PropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("demoted clock admitted")
 	}
-	random := functions.Random[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: binder.typ(sqltype.Float8).Usage(), Property: ExprProperties{Volatility: Volatile}}), Name: "random"}
+	random := functions.Random{Info: expressionInfo{Usage: binder.typ(sqltype.Float8).Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "random"}
 	if closedTransactionTimeDefault(random) {
 		t.Error("unrelated volatile default admitted")
 	}

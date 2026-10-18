@@ -2,26 +2,22 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type FormatContext interface {
-	Context
-	FunctionFormatOutput() sqltype.OutputEnvironment
-}
-
 // Format retains ANY operands in their original types: OUTPUT is not the
 // implicit TEXT conversion used by strict string functions or concatenation.
-type Format[E Expression[C], C FormatContext, P any] struct {
-	Info[P]
-	Args       []E
+type Format struct {
+	expr.Info
+	Args       []expr.Expr
 	Variadic   bool
 	Int4       *sqltype.Descriptor
 	RawUnknown [2]uint64
 }
 
-func (e Format[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Format) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -61,7 +57,7 @@ func (e Format[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return sqltype.String(e.Usage.Type, text), nil
 }
-func (e Format[E, C, P]) Validate() error {
+func (e Format) Validate() error {
 	if len(e.Args) < 1 || len(e.Args) > 100 || e.Usage.Type.ID() != sqltype.Text || e.Args[0].ResultUsage().Type.ID() != sqltype.Text || e.Int4 == nil || e.Int4.ID() != sqltype.Int4 || e.Variadic && (len(e.Args) != 2 || !e.Args[1].ResultUsage().Type.BaseType().IsArray()) {
 		return fmt.Errorf("stuntgres: invalid stored format signature")
 	}
@@ -87,7 +83,7 @@ func ResolveFormat(visible, variadic bool, count int, first sqltype.Usage) Resol
 	}
 	return Missing
 }
-func CoerceFormatFirst[E any, B ArgumentCoercer[E]](b B, first Argument[E], text sqltype.Usage) (E, error) {
+func CoerceFormatFirst(b ArgumentCoercer, first Argument, text sqltype.Usage) (expr.Expr, error) {
 	if first.Usage.Type == nil {
 		return b.CoerceArgument(first, CoercionRequest{Intent: FinalizeArgument, Target: text})
 	}

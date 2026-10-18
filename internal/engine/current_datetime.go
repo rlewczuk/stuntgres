@@ -22,10 +22,10 @@ func (b *expressionBinder) bindCurrentDateTime(raw parser.CurrentDateTimeExpr) (
 		b.op.emitNotice(levelWarning, *warning)
 	}
 	info := b.info(usage, raw.Pos, expr.IntrinsicProperties(functions.CurrentDateTimeIntrinsicRule()))
-	return functions.CurrentDateTime[ExprContext, ExprProperties]{Info: functionInfo(info), Kind: raw.Kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}, nil
+	return functions.CurrentDateTime{Info: info, Kind: raw.Kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}, nil
 }
 
-func currentDateTimeSQL(e functions.CurrentDateTime[ExprContext, ExprProperties]) (string, error) {
+func currentDateTimeSQL(e functions.CurrentDateTime) (string, error) {
 	if err := e.Validate(expr.PropertiesMatch(e.Property, functions.CurrentDateTimeIntrinsicRule())); err != nil {
 		return "", err
 	}

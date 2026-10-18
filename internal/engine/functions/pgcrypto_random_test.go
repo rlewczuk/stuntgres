@@ -8,11 +8,13 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type pgcryptoRandomContext struct {
+	unitCapabilities
 	context.Context
 	fill     byte
 	requests []int
@@ -44,12 +46,13 @@ func (c *pgcryptoRandomContext) FunctionInput() sqltype.InputEnvironment {
 func (c *pgcryptoRandomContext) FunctionPgcryptoFIPSMode() bool { return c.mode }
 
 type pgcryptoRandomArgument struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	failure error
 }
 
-func (a pgcryptoRandomArgument) Eval(c *pgcryptoRandomContext) (sqltype.Value, error) {
+func (a pgcryptoRandomArgument) Eval(ec expr.Context) (sqltype.Value, error) {
+	c := ec.(*pgcryptoRandomContext)
 	c.order = append(c.order, 0)
 	return a.value, a.failure
 }
@@ -66,7 +69,7 @@ func TestPgcryptoRandomResolution(t *testing.T) {
 		{"gen_random_bytes", []sqltype.ID{sqltype.Int8}, Missing}, {"gen_random_bytes", []sqltype.ID{sqltype.Numeric}, Missing}, {"gen_random_bytes", []sqltype.ID{sqltype.Text}, Missing}, {"gen_random_bytes", []sqltype.ID{sqltype.Bool}, Missing},
 		{"gen_random_uuid", nil, Resolved}, {"fips_mode", nil, Resolved}, {"gen_random_uuid", []sqltype.ID{0}, Missing}, {"fips_mode", []sqltype.ID{0}, Missing},
 	} {
-		args := make([]Argument[struct{}], len(v.ids))
+		args := make([]Argument, len(v.ids))
 		for i, id := range v.ids {
 			if id != 0 {
 				args[i].Usage = types[id].Usage()
@@ -79,7 +82,7 @@ func TestPgcryptoRandomResolution(t *testing.T) {
 	}
 }
 
-func pgcryptoRandomCall(t *testing.T, name string, count int64, null bool) (Pgcrypto[pgcryptoRandomArgument, *pgcryptoRandomContext, struct{}], *sqltype.Descriptor) {
+func pgcryptoRandomCall(t *testing.T, name string, count int64, null bool) (Pgcrypto, *sqltype.Descriptor) {
 	t.Helper()
 	types := formatUnitTypes()
 	result := types[sqltype.Bytea]
@@ -93,13 +96,13 @@ func pgcryptoRandomCall(t *testing.T, name string, count int64, null bool) (Pgcr
 		if null {
 			n = sqltype.Null(types[sqltype.Int4])
 		}
-		args = []pgcryptoRandomArgument{{Info: Info[struct{}]{Usage: types[sqltype.Int4].Usage()}, value: n}}
+		args = []pgcryptoRandomArgument{{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: n}}
 	case "gen_random_uuid":
 		result = types[sqltype.UUID]
 	case "fips_mode":
 		result = types[sqltype.Bool]
 	}
-	call, err := NewPgcrypto[pgcryptoRandomArgument, *pgcryptoRandomContext](Info[struct{}]{Usage: result.Usage()}, name, args)
+	call, err := NewPgcrypto(expr.Info{Usage: result.Usage()}, name, unitArgs(args))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +144,9 @@ func TestPgcryptoRandomEvaluation(t *testing.T) {
 		t.Fatal(got, err, ctx)
 	}
 	childError := errors.New("demanded count failure")
-	call.Args[0].failure = childError
+	failing := call.Args[0].(pgcryptoRandomArgument)
+	failing.failure = childError
+	call.Args[0] = failing
 	if _, err := call.Eval(ctx); !errors.Is(err, childError) || len(ctx.requests) != 0 {
 		t.Fatal(err, ctx)
 	}
@@ -159,7 +164,7 @@ func TestPgcryptoRandomEvaluation(t *testing.T) {
 		if err != nil || hex.EncodeToString(raw[:]) != v.want {
 			t.Fatal(raw, err)
 		}
-		core := UUIDGeneration[pgcryptoRandomArgument, *pgcryptoRandomContext, struct{}]{Info: call.Info, Name: "gen_random_uuid"}
+		core := UUIDGeneration{Info: call.Info, Name: "gen_random_uuid"}
 		coreContext := &pgcryptoRandomContext{Context: context.Background(), fill: v.fill}
 		coreValue, err := core.Eval(coreContext)
 		if err != nil || coreValue.Type() != typ || !reflect.DeepEqual(coreContext.requests, []int{16}) {

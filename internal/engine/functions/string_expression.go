@@ -2,24 +2,20 @@ package functions
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type StringContext[E any] interface {
-	LiteralContext[E]
-	FunctionInput() sqltype.InputEnvironment
-	FunctionStringOutput() sqltype.OutputEnvironment
-}
-type String[E Expression[C], C StringContext[E], P any] struct {
-	Info[P]
+type String struct {
+	expr.Info
 	Plan    sqltype.StringPlan
-	Args    []E
+	Args    []expr.Expr
 	Textual [4]bool
 	Syntax  parser.StringSyntax
 }
 
-func (e String[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e String) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -44,7 +40,7 @@ func (e String[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return e.Plan.Evaluate(ctx, values, c.FunctionInput(), c.FunctionStringOutput())
 }
-func (e String[E, C, P]) Reconstruct(info Info[P], args []E, text sqltype.Usage) (String[E, C, P], error) {
+func (e String) Reconstruct(info expr.Info, args []expr.Expr, text sqltype.Usage) (String, error) {
 	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
@@ -56,7 +52,7 @@ func (e String[E, C, P]) Reconstruct(info Info[P], args []E, text sqltype.Usage)
 	e.Info, e.Args, e.Plan = info, args, plan
 	return e, nil
 }
-func (e String[E, C, P]) Validate() error {
+func (e String) Validate() error {
 	if len(e.Args) < 1 || len(e.Args) > 4 {
 		return fmt.Errorf("stuntgres: invalid stored string arity")
 	}
@@ -70,13 +66,13 @@ func (e String[E, C, P]) Validate() error {
 	}
 	return nil
 }
-func NewString[E Expression[C], C StringContext[E], P any](info Info[P], name string, text sqltype.Usage, args []E, textual [4]bool, syntax parser.StringSyntax, conflict bool) (String[E, C, P], error) {
+func NewString(info expr.Info, name string, text sqltype.Usage, args []expr.Expr, textual [4]bool, syntax parser.StringSyntax, conflict bool) (String, error) {
 	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindString(name, info.Usage, text, usages[:len(args)], textual, conflict)
-	return String[E, C, P]{info, plan, args, textual, syntax}, err
+	return String{info, plan, args, textual, syntax}, err
 }
 func StringIntrinsic(name string, textual [4]bool) (stable, stage bool) {
 	return name == "||" && (!textual[0] || !textual[1]), name == "string_to_table"
@@ -111,7 +107,7 @@ type StringSelection struct {
 	Array     bool
 }
 
-func StringEncodingLength[E any](name string, visible bool, args []Argument[E], encodingName sqltype.Usage) bool {
+func StringEncodingLength(name string, visible bool, args []Argument, encodingName sqltype.Usage) bool {
 	if !visible || name != "length" || len(args) != 2 {
 		return false
 	}
@@ -126,7 +122,7 @@ func StringEncodingLength[E any](name string, visible bool, args []Argument[E], 
 	}
 	return true
 }
-func StringBinaryCandidate[E any](name string, variadic bool, args []Argument[E]) bool {
+func StringBinaryCandidate(name string, variadic bool, args []Argument) bool {
 	if BinaryBitCandidate(name, variadic, args) {
 		return true
 	}
@@ -158,7 +154,7 @@ func StringTargetDemand(name string, count int) (integer, encodingName bool) {
 	}
 	return
 }
-func SelectStringFunction[E any](name string, visible, variadic bool, args []Argument[E], targets StringTargets) (StringSelection, Resolution) {
+func SelectStringFunction(name string, visible, variadic bool, args []Argument, targets StringTargets) (StringSelection, Resolution) {
 	encodingID := sqltype.Name
 	if name == "to_ascii" && len(args) > 1 && args[1].Usage.Type != nil {
 		if _, err := sqltype.PlanCoercion(args[1].Usage, targets.Integer, sqltype.Implicit); err == nil {
@@ -238,8 +234,8 @@ func SelectStringFunction[E any](name string, visible, variadic bool, args []Arg
 	}
 	return selection, Resolved
 }
-func CoerceStringArguments[E any, B ArgumentCoercer[E]](b B, arguments []Argument[E], selection StringSelection, targets StringTargets) ([]E, error) {
-	args := make([]E, len(arguments))
+func CoerceStringArguments(b ArgumentCoercer, arguments []Argument, selection StringSelection, targets StringTargets) ([]expr.Expr, error) {
+	args := make([]expr.Expr, len(arguments))
 	for i, argument := range arguments {
 		intent := FinalizeArgument
 		if !selection.Textual[i] {

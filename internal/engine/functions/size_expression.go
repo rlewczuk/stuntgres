@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ const (
 	SizeNumeric
 )
 
-func AnalyzeSizeArgument[E any, B ArgumentAnalyzer[E]](b B, name string, raw parser.Expr) (Argument[E], error) {
+func AnalyzeSizeArgument(b ArgumentAnalyzer, name string, raw parser.Expr) (Argument, error) {
 	intent := StringOtherArgument
 	if name == "pg_size_bytes" {
 		intent = StringTextArgument
@@ -63,15 +64,15 @@ func SelectSize(name string, visible bool, count int, input sqltype.Usage, types
 	}
 	return target, Missing
 }
-func CoerceSizeArgument[E any, B ArgumentCoercer[E]](b B, operand Argument[E], target sqltype.Usage) (E, error) {
+func CoerceSizeArgument(b ArgumentCoercer, operand Argument, target sqltype.Usage) (expr.Expr, error) {
 	return b.CoerceArgument(operand, CoercionRequest{Intent: SizeFormalArgument, Target: target})
 }
 
 // NewSize retains the selected unmodified formal usage independently of the
 // argument's coercion metadata, which may preserve a domain's numeric typmod.
-func NewSize[E Expression[C], C MathContext[E], P any](info Info[P], name string, arg E, formal sqltype.Usage) (Math[E, C, P], error) {
+func NewSize(info expr.Info, name string, arg expr.Expr, formal sqltype.Usage) (Math, error) {
 	plan, err := sqltype.BindMath(name, info.Usage, formal)
-	return Math[E, C, P]{Info: info, Plan: plan, Args: []E{arg}}, err
+	return Math{Info: info, Plan: plan, Args: []expr.Expr{arg}}, err
 }
 func SizeResult(name string) sqltype.ID {
 	if name == "pg_size_bytes" {

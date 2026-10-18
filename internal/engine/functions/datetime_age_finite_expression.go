@@ -1,24 +1,20 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeAgeFiniteContext[E any] interface {
-	LiteralContext[E]
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type DatetimeAgeFinite[E Expression[C], C DatetimeAgeFiniteContext[E], P any] struct {
-	Info[P]
+type DatetimeAgeFinite struct {
+	expr.Info
 	Plan  sqltype.DatetimeAgeFinitePlan
-	Args  [2]E
+	Args  [2]expr.Expr
 	Count int
 }
 
-func (e DatetimeAgeFinite[E, C, P]) Arguments() []E { return e.Args[:e.Count] }
+func (e DatetimeAgeFinite) Arguments() []expr.Expr { return e.Args[:e.Count] }
 
-func (e DatetimeAgeFinite[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeAgeFinite) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -61,7 +57,7 @@ type DatetimeAgeFinitePreparation struct {
 	Demand     TemporalDemand
 }
 
-func PrepareDatetimeAgeFinite[E any](name string, visible, variadic bool, args []Argument[E]) DatetimeAgeFinitePreparation {
+func PrepareDatetimeAgeFinite(name string, visible, variadic bool, args []Argument) DatetimeAgeFinitePreparation {
 	if !visible || variadic || len(args) < 1 || len(args) > 2 || name == "isfinite" && len(args) != 1 {
 		return DatetimeAgeFinitePreparation{}
 	}
@@ -84,7 +80,7 @@ func PrepareDatetimeAgeFinite[E any](name string, visible, variadic bool, args [
 	return p
 }
 
-func ResolveDatetimeAgeFinite[E any](prepared DatetimeAgeFinitePreparation, name string, operands []Argument[E], types TemporalTypes) TemporalSelection {
+func ResolveDatetimeAgeFinite(prepared DatetimeAgeFinitePreparation, name string, operands []Argument, types TemporalTypes) TemporalSelection {
 	if len(prepared.candidates) == 0 {
 		return TemporalSelection{Resolution: Missing}
 	}
@@ -194,7 +190,7 @@ func DatetimeAgeFiniteResult(name string) sqltype.ID {
 	return sqltype.Interval
 }
 
-func (e DatetimeAgeFinite[E, C, P]) Reconstruct(info Info[P], args [2]E, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeAgeFinite[E, C, P], bool, error) {
+func (e DatetimeAgeFinite) Reconstruct(info expr.Info, args [2]expr.Expr, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeAgeFinite, bool, error) {
 	plan, err := e.Plan.Retag(retain)
 	if err != nil {
 		return e, false, err

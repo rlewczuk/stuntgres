@@ -8,7 +8,7 @@ import (
 
 // Both integer candidates are considered before unknown input is finalized.
 // Neither is a preferred numeric type, so SMALLINT and UNKNOWN remain ambiguous.
-func (b *expressionBinder) finishStringNumericBase(raw parser.FunctionExpr, visible bool, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
+func (b *expressionBinder) finishStringNumericBase(raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
 	ids, count := functions.StringNumericBaseCandidates(visible, operands)
 	var targets [2]sqltype.Usage
 	for i, id := range ids[:count] {

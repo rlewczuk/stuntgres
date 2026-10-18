@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,8 +23,8 @@ func TestStringNumericBaseWidthRuntime(t *testing.T) {
 			t.Fatal(err)
 		}
 		var order []int
-		node := String[stringUnitExpression, *stringUnitContext, struct{}]{Info: Info[struct{}]{Usage: text.Usage()}, Plan: plan, Args: []stringUnitExpression{
-			stringUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, value: value, order: &order},
+		node := String{Info: expr.Info{Usage: text.Usage()}, Plan: plan, Args: []expr.Expr{
+			stringUnitArgument{Info: expr.Info{Usage: integer.Usage()}, value: value, order: &order},
 		}}
 		got, err := node.Eval(&stringUnitContext{Context: context.Background()})
 		if err != nil {
@@ -63,8 +64,8 @@ func TestStringNumericBaseMD5Runtime(t *testing.T) {
 			t.Fatal(err)
 		}
 		var order []int
-		node := String[stringUnitExpression, *stringUnitContext, struct{}]{Info: Info[struct{}]{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true}, Args: []stringUnitExpression{
-			stringUnitArgument{Info: Info[struct{}]{Usage: source.Usage()}, value: value, order: &order},
+		node := String{Info: expr.Info{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true}, Args: []expr.Expr{
+			stringUnitArgument{Info: expr.Info{Usage: source.Usage()}, value: value, order: &order},
 		}}
 		got, err := node.Eval(&stringUnitContext{Context: context.Background()})
 		if err != nil || got.Type() != text || got.IsNull() != tc.null {

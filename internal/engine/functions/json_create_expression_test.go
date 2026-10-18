@@ -5,29 +5,29 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type jsonCreateUnitContext struct{ context.Context }
+type jsonCreateUnitContext struct {
+	unitCapabilities
+	context.Context
+}
 
 func (c *jsonCreateUnitContext) FunctionContext() context.Context { return c.Context }
 func (c *jsonCreateUnitContext) FunctionJSONOutput() sqltype.OutputEnvironment {
 	return sqltype.OutputEnvironment{}
 }
 
-type jsonCreateUnitExpression interface {
-	ResultUsage() sqltype.Usage
-	Eval(*jsonCreateUnitContext) (sqltype.Value, error)
-}
 type jsonCreateCountingExpression struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	count   *int
 	failure error
 }
 
-func (e jsonCreateCountingExpression) Eval(*jsonCreateUnitContext) (sqltype.Value, error) {
+func (e jsonCreateCountingExpression) Eval(expr.Context) (sqltype.Value, error) {
 	*e.count++
 	return e.value, e.failure
 }
@@ -39,16 +39,16 @@ func TestJSONCreateEvaluatesChildrenOnceInOrder(t *testing.T) {
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
 	counts := [3]int{}
 	failure := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}
-	args := []jsonCreateUnitExpression{
-		jsonCreateCountingExpression{Info: Info[struct{}]{Usage: one.Type().Usage()}, value: one, count: &counts[0]},
-		jsonCreateCountingExpression{Info: Info[struct{}]{Usage: one.Type().Usage()}, count: &counts[1], failure: failure},
-		jsonCreateCountingExpression{Info: Info[struct{}]{Usage: one.Type().Usage()}, value: one, count: &counts[2]},
+	args := []expr.Expr{
+		jsonCreateCountingExpression{Info: expr.Info{Usage: one.Type().Usage()}, value: one, count: &counts[0]},
+		jsonCreateCountingExpression{Info: expr.Info{Usage: one.Type().Usage()}, count: &counts[1], failure: failure},
+		jsonCreateCountingExpression{Info: expr.Info{Usage: one.Type().Usage()}, value: one, count: &counts[2]},
 	}
-	node, err := NewJSONCreate[jsonCreateUnitExpression, *jsonCreateUnitContext](Info[struct{}]{Usage: types[sqltype.JSON].Usage()}, sqltype.JSONBuildObject, args, false, [2]uint64{})
+	node, err := NewJSONCreate(expr.Info{Usage: types[sqltype.JSON].Usage()}, sqltype.JSONBuildObject, args, false, [2]uint64{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = node.Eval(&jsonCreateUnitContext{context.Background()})
+	_, err = node.Eval(&jsonCreateUnitContext{Context: context.Background()})
 	if !errors.Is(err, failure) || counts != [3]int{1, 1, 0} {
 		t.Fatal("arity validation hid child evaluation", err, counts)
 	}

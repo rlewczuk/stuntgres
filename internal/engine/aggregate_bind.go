@@ -122,14 +122,14 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case identityExpression:
 		o, ok := other.(identityExpression)
 		return ok && e.kind == o.kind && (!checkDefinitionEquality || e.ordinaryCall == o.ordinaryCall)
-	case functions.CurrentDateTime[ExprContext, ExprProperties]:
-		o, ok := other.(functions.CurrentDateTime[ExprContext, ExprProperties])
+	case functions.CurrentDateTime:
+		o, ok := other.(functions.CurrentDateTime)
 		return ok && e.Kind == o.Kind && e.HasPrecision == o.HasPrecision && (!checkDefinitionEquality || e.Precision == o.Precision)
-	case functions.VersionInformation[ExprContext, ExprProperties]:
-		o, ok := other.(functions.VersionInformation[ExprContext, ExprProperties])
+	case functions.VersionInformation:
+		o, ok := other.(functions.VersionInformation)
 		return ok && e.Kind == o.Kind
-	case functions.TransactionTime[ExprContext, ExprProperties]:
-		o, ok := other.(functions.TransactionTime[ExprContext, ExprProperties])
+	case functions.TransactionTime:
+		o, ok := other.(functions.TransactionTime)
 		return ok && e.Kind == o.Kind
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
@@ -274,8 +274,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case bitwiseExpression:
 		o, ok := other.(bitwiseExpression)
 		return ok && e.provider == o.provider && e.bits == o.bits && e.network == o.network && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Timezone[BoundExpr, ExprContext, ExprProperties])
+	case functions.Timezone:
+		o, ok := other.(functions.Timezone)
 		return ok && e.Local == o.Local && same(e.Value, o.Value) && (e.Local || same(e.Zone, o.Zone))
 	case selectedOperatorExpression:
 		o, ok := other.(selectedOperatorExpression)
@@ -286,29 +286,29 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case likeExpression:
 		o, ok := other.(likeExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && e.namespace == o.namespace && same(e.left, o.left) && same(e.right, o.right)
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.LikeEscape[BoundExpr, ExprContext, ExprProperties])
+	case functions.LikeEscape:
+		o, ok := other.(functions.LikeEscape)
 		return ok && e.Provider == o.Provider && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Posix[BoundExpr, ExprContext, ExprProperties])
+	case functions.Posix:
+		o, ok := other.(functions.Posix)
 		return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Similar[BoundExpr, ExprContext, ExprProperties])
+	case functions.Similar:
+		o, ok := other.(functions.Similar)
 		return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties])
+	case functions.SimilarEscape:
+		o, ok := other.(functions.SimilarEscape)
 		return ok && e.Provider == o.Provider && e.Omitted == o.Omitted && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties])
+	case functions.PosixSubstring:
+		o, ok := other.(functions.PosixSubstring)
 		return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties])
+	case functions.SimilarSubstring:
+		o, ok := other.(functions.SimilarSubstring)
 		return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1]) && same(e.Args[2], o.Args[2])
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Regexp[BoundExpr, ExprContext, ExprProperties])
+	case functions.Regexp:
+		o, ok := other.(functions.Regexp)
 		return ok && sameRegexpCall(e.RegexpCall, o.RegexpCall, same)
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.RegexpSet[BoundExpr, ExprContext, ExprProperties])
+	case functions.RegexpSet:
+		o, ok := other.(functions.RegexpSet)
 		return ok && sameRegexpCall(e.RegexpCall, o.RegexpCall, same)
 	case scalarArrayComparisonExpression:
 		o, ok := other.(scalarArrayComparisonExpression)
@@ -346,11 +346,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case unnestExpression:
 		o, ok := other.(unnestExpression)
 		return ok && sameIntaggIdentity(e.procedure, e.ref, o.procedure, o.ref) && e.ResultUsage() == o.ResultUsage() && same(e.args[0], o.args[0])
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONKeys[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONKeys:
+		o, ok := other.(functions.JSONKeys)
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBRecord:
+		o, ok := other.(functions.JSONBRecord)
 		if !ok || e.Name != o.Name || e.Unresolved != o.Unresolved || e.Definitions != o.Definitions || !sameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -360,11 +360,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBElements[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBElements:
+		o, ok := other.(functions.JSONBElements)
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONRecord:
+		o, ok := other.(functions.JSONRecord)
 		if !ok || e.Plan.Name() != o.Plan.Name() || e.Plan.BaseIndex() != o.Plan.BaseIndex() || e.Defined != o.Defined || !sameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -374,11 +374,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONEach[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONEach:
+		o, ok := other.(functions.JSONEach)
 		return ok && e.Plan.Name() == o.Plan.Name() && sameRecordUsage(e.ResultUsage(), o.ResultUsage()) && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONElements[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONElements:
+		o, ok := other.(functions.JSONElements)
 		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
@@ -429,8 +429,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+	case functions.Binary:
+		o, ok := other.(functions.Binary)
 		// SQL-special spelling is display provenance, not semantic identity.
 		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
@@ -441,14 +441,14 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeJustify:
+		o, ok := other.(functions.DatetimeJustify)
 		return ok && e.Plan.Name() == o.Plan.Name() && same(e.Arg, o.Arg)
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeExtract:
+		o, ok := other.(functions.DatetimeExtract)
 		return ok && e.Plan.Name() == o.Plan.Name() && e.Plan.InputID() == o.Plan.InputID() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeOverlaps:
+		o, ok := other.(functions.DatetimeOverlaps)
 		if !ok || e.Plan != o.Plan || e.WrapperContext != o.WrapperContext {
 			return false
 		}
@@ -460,8 +460,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeBin:
+		o, ok := other.(functions.DatetimeBin)
 		if !ok || e.Plan != o.Plan {
 			return false
 		}
@@ -471,8 +471,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeTrunc:
+		o, ok := other.(functions.DatetimeTrunc)
 		if !ok || e.Plan != o.Plan || e.Count != o.Count {
 			return false
 		}
@@ -482,8 +482,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeZoneCalendar:
+		o, ok := other.(functions.DatetimeZoneCalendar)
 		if !ok || e.Name != o.Name || e.Count != o.Count {
 			return false
 		}
@@ -493,8 +493,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeAgeFinite:
+		o, ok := other.(functions.DatetimeAgeFinite)
 		if !ok || e.Plan.Name() != o.Plan.Name() || e.Plan.InputID() != o.Plan.InputID() || e.Count != o.Count {
 			return false
 		}
@@ -504,8 +504,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONStripNulls:
+		o, ok := other.(functions.JSONStripNulls)
 		if !ok {
 			return false
 		}
@@ -515,8 +515,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONExtract[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONExtract:
+		o, ok := other.(functions.JSONExtract)
 		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -526,8 +526,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBPathQueryArray:
+		o, ok := other.(functions.JSONBPathQueryArray)
 		// Redundant VARIADIC is presentation only for this nonvariadic routine.
 		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 			return false
@@ -538,8 +538,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBPathExists:
+		o, ok := other.(functions.JSONBPathExists)
 		// Redundant VARIADIC is presentation only for this nonvariadic routine.
 		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 			return false
@@ -550,8 +550,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBPathMatch:
+		o, ok := other.(functions.JSONBPathMatch)
 		// Redundant VARIADIC is presentation only for this nonvariadic routine.
 		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 			return false
@@ -562,8 +562,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBPathQueryFirst:
+		o, ok := other.(functions.JSONBPathQueryFirst)
 		// Redundant VARIADIC is presentation only for this nonvariadic routine.
 		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 			return false
@@ -574,8 +574,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBPathQuery:
+		o, ok := other.(functions.JSONBPathQuery)
 		// Redundant VARIADIC is presentation only for this nonvariadic routine.
 		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 			return false
@@ -586,8 +586,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONBSet[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONBSet:
+		o, ok := other.(functions.JSONBSet)
 		if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
 			return false
 		}
@@ -597,8 +597,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeMake:
+		o, ok := other.(functions.DatetimeMake)
 		if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
 			return false
 		}
@@ -608,14 +608,14 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeFormatting:
+		o, ok := other.(functions.DatetimeFormatting)
 		return ok && e.Plan.Name() == o.Plan.Name() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties])
+	case functions.NumericFormatting:
+		o, ok := other.(functions.NumericFormatting)
 		return ok && e.Plan.Name() == o.Plan.Name() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	case functions.String:
+		o, ok := other.(functions.String)
 		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -625,8 +625,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties])
+	case functions.ArrayRandom:
+		o, ok := other.(functions.ArrayRandom)
 		if !ok || e.Kind != o.Kind || e.ResultUsage() != o.ResultUsage() || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -636,8 +636,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties])
+	case functions.ArrayTransform:
+		o, ok := other.(functions.ArrayTransform)
 		if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) || !e.Sort.Equal(o.Sort) {
 			return false
 		}
@@ -647,8 +647,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties])
+	case functions.ArrayInspect:
+		o, ok := other.(functions.ArrayInspect)
 		// Kind identifies the resolved builtin; lexical pg_catalog qualification
 		// is presentation provenance, not a different grouping expression.
 		if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
@@ -660,8 +660,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.ArraySearch[BoundExpr, ExprContext, ExprProperties])
+	case functions.ArraySearch:
+		o, ok := other.(functions.ArraySearch)
 		if !ok || !e.Plan.Equal(o.Plan) || e.Namespace != o.Namespace || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -683,11 +683,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case commitTimestampExpression:
 		o, ok := other.(commitTimestampExpression)
 		return ok && e.kind == o.kind && ((e.arg == nil && o.arg == nil) || (e.arg != nil && o.arg != nil && same(e.arg, o.arg)))
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties])
+	case functions.UUIDExtract:
+		o, ok := other.(functions.UUIDExtract)
 		return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties])
+	case functions.NetworkFormat:
+		o, ok := other.(functions.NetworkFormat)
 		if !ok || e.Kind != o.Kind || e.Plan != o.Plan {
 			return false
 		}
@@ -697,11 +697,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.RangeOperator[BoundExpr, ExprContext, ExprProperties])
+	case functions.RangeOperator:
+		o, ok := other.(functions.RangeOperator)
 		return ok && e.Plan == o.Plan && e.Namespace == o.Namespace && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.RangeInspect[BoundExpr, ExprContext, ExprProperties])
+	case functions.RangeInspect:
+		o, ok := other.(functions.RangeInspect)
 		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -711,8 +711,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Enum[BoundExpr, ExprContext, ExprProperties])
+	case functions.Enum:
+		o, ok := other.(functions.Enum)
 		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -722,8 +722,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Math[BoundExpr, ExprContext, ExprProperties])
+	case functions.Math:
+		o, ok := other.(functions.Math)
 		if !ok || !e.Plan.Equal(o.Plan) || e.WrapperContext != o.WrapperContext || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -733,8 +733,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties])
+	case functions.UUIDGeneration:
+		o, ok := other.(functions.UUIDGeneration)
 		if !ok || e.Name != o.Name || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -744,8 +744,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Random[BoundExpr, ExprContext, ExprProperties])
+	case functions.Random:
+		o, ok := other.(functions.Random)
 		if !ok || e.Name != o.Name || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -755,8 +755,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties])
+	case functions.DatetimeSleep:
+		o, ok := other.(functions.DatetimeSleep)
 		return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
 	case advisoryExpression:
 		o, ok := other.(advisoryExpression)
@@ -805,8 +805,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.NullCount[BoundExpr, ExprContext, ExprProperties])
+	case functions.NullCount:
+		o, ok := other.(functions.NullCount)
 		if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -880,8 +880,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	case jsonPredicateExpression:
 		o, ok := other.(jsonPredicateExpression)
 		return ok && e.kind == o.kind && e.unique == o.unique && e.not == o.not && same(e.child, o.child)
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.JSONCreate[BoundExpr, ExprContext, ExprProperties])
+	case functions.JSONCreate:
+		o, ok := other.(functions.JSONCreate)
 		if !ok || e.Kind != o.Kind || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -891,8 +891,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
-		o, ok := other.(functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin])
+	case functions.StringVariadic:
+		o, ok := other.(functions.StringVariadic)
 		if !ok || e.Name != o.Name || e.AnyElement != o.AnyElement || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -902,8 +902,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 			}
 		}
 		return true
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
-		o, ok := other.(functions.Format[BoundExpr, ExprContext, ExprProperties])
+	case functions.Format:
+		o, ok := other.(functions.Format)
 		if !ok || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -1086,14 +1086,14 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.right = rewrite(e.right)
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		e.Value = rewrite(e.Value)
 		if !e.Local {
 			e.Zone = rewrite(e.Zone)
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case selectedOperatorExpression:
 		e.provider = rewrite(e.provider)
@@ -1108,45 +1108,45 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.left, e.right = rewrite(e.left), rewrite(e.right)
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case rowComparisonExpression:
 		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
@@ -1155,23 +1155,23 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case scalarArrayComparisonExpression:
 		e.left = rewrite(e.left)
@@ -1202,13 +1202,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.args = []BoundExpr{rewrite(e.args[0])}
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		args := make([]BoundExpr, len(e.Args))
 		for i, arg := range e.Args {
 			args[i] = rewrite(arg)
@@ -1216,34 +1216,34 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.Args = args
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i, arg := range e.Args {
 			e.Args[i] = rewrite(arg)
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		e.Args = []BoundExpr{rewrite(e.Args[0])}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
@@ -1292,202 +1292,202 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		e.Arg = rewrite(e.Arg)
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		e, _, err = mapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
 			next := rewrite(arg)
 			return next, !b.sameGroupExpression(arg, next), err
 		})
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case catalogUserNameExpression:
 		e.arg = rewrite(e.arg)
@@ -1508,77 +1508,77 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		e.Arg = rewrite(e.Arg)
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		for i := range e.Kind.Arity() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		if len(e.Args) != 0 {
 			e.Args = []BoundExpr{rewrite(e.Args[0])}
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Random:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		e.Arg = rewrite(e.Arg)
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case advisoryExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
@@ -1619,14 +1619,14 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case installedSoundexFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
@@ -1635,7 +1635,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case installedMetaphoneFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
@@ -1644,7 +1644,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case installedLevenshteinFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
@@ -1653,12 +1653,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case installedUUIDOsspFunctionExpression:
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case installedCryptoFunctionExpression:
 		e.Args = append([]BoundExpr(nil), e.Args...)
@@ -1667,7 +1667,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	case installedFunctionExpression:
 		e.arg = rewrite(e.arg)
@@ -1684,32 +1684,32 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
 		expr = e
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		e.Args = append([]BoundExpr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
 		info := boundExpressionInfo(e)
 		stage(&info)
-		e.Info = functionInfo(info)
+		e.Info = info
 		expr = e
 	}
 	return expr, err
@@ -1771,7 +1771,7 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case bitwiseExpression:
 		walk(e.left)
 		walk(e.right)
-	case functions.Timezone[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Timezone:
 		walk(e.Value)
 		if !e.Local {
 			walk(e.Zone)
@@ -1784,23 +1784,23 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case likeExpression:
 		walk(e.left)
 		walk(e.right)
-	case functions.LikeEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.LikeEscape:
 		walk(e.Pattern)
 		walk(e.Escape)
-	case functions.Posix[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Posix:
 		walk(e.Left)
 		walk(e.Right)
-	case functions.Similar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Similar:
 		walk(e.Left)
 		walk(e.Right)
-	case functions.SimilarEscape[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarEscape:
 		walk(e.Pattern)
 		walk(e.Escape)
-	case functions.PosixSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.PosixSubstring:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.SimilarSubstring[BoundExpr, ExprContext, ExprProperties]:
+	case functions.SimilarSubstring:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
@@ -1809,11 +1809,11 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(pair.left)
 			walk(pair.right)
 		}
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
@@ -1835,21 +1835,21 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case unnestExpression:
 		walk(e.args[0])
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		walk(e.Args[0])
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		walk(e.Args[0])
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		walk(e.Args[0])
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		walk(e.Args[0])
 	case comparisonExpression:
 		walk(e.left)
@@ -1879,97 +1879,97 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		walk(e.Arg)
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.DatetimeZoneCalendar[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeZoneCalendar:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		for _, arg := range e.Arguments() {
 			walk(arg)
 		}
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
@@ -1984,37 +1984,37 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		if e.arg != nil {
 			walk(e.arg)
 		}
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		walk(e.Arg)
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		for _, arg := range e.Args[:e.Kind.Arity()] {
 			walk(arg)
 		}
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Random:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.DatetimeSleep[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeSleep:
 		walk(e.Arg)
 	case advisoryExpression:
 		for _, arg := range e.args {
@@ -2034,7 +2034,7 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
@@ -2064,15 +2064,15 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case jsonPredicateExpression:
 		walk(e.child)
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		for _, arg := range e.Args {
 			walk(arg)
 		}

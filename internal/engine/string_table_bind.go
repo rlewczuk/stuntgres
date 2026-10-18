@@ -9,7 +9,7 @@ import (
 )
 
 func isStringSet(expr BoundExpr) bool {
-	e, ok := expr.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	e, ok := expr.(functions.String)
 	return ok && e.Plan.Name() == "string_to_table"
 }
 func isQuerySet(expr BoundExpr) bool {
@@ -22,43 +22,43 @@ func isQuerySet(expr BoundExpr) bool {
 	if call, ok := expr.(aclValueExpression); ok {
 		return call.kind == aclExplode
 	}
-	if record, ok := expr.(functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]); ok {
+	if record, ok := expr.(functions.JSONRecord); ok {
 		return record.Plan.ReturnsSet()
 	}
-	if call, ok := expr.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]); ok {
+	if call, ok := expr.(functions.JSONBRecord); ok {
 		return call.ReturnsSet()
 	}
 	switch expr.(type) {
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		return true
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties], functions.JSONKeys[BoundExpr, ExprContext, ExprProperties], functions.JSONEach[BoundExpr, ExprContext, ExprProperties], functions.JSONElements[BoundExpr, ExprContext, ExprProperties], functions.JSONBElements[BoundExpr, ExprContext, ExprProperties], seriesExpression, subscriptsExpression, unnestExpression:
+	case functions.RegexpSet, functions.JSONKeys, functions.JSONEach, functions.JSONElements, functions.JSONBElements, seriesExpression, subscriptsExpression, unnestExpression:
 		return true
 	}
 	return isStringSet(expr)
 }
 func validFunctionSourceCall(expr BoundExpr) bool {
 	switch call := expr.(type) {
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties], catalogUserNameExpression, catalogForeignKeysExpression:
+	case functions.JSONBPathQuery, catalogUserNameExpression, catalogForeignKeysExpression:
 		return true
 	case aclValueExpression:
 		return call.kind != aclContains
-	case objectAddressExpression, functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case objectAddressExpression, functions.JSONBRecord:
 		return true
 	case transactionIdentityExpression:
 		return true
-	case commitTimestampExpression, functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case commitTimestampExpression, functions.JSONRecord:
 		return true
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		return isStringSet(call)
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		return call.Plan.ReturnsSet()
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties], functions.JSONEach[BoundExpr, ExprContext, ExprProperties], functions.JSONElements[BoundExpr, ExprContext, ExprProperties], functions.JSONBElements[BoundExpr, ExprContext, ExprProperties], seriesExpression, subscriptsExpression, unnestExpression:
+	case functions.JSONKeys, functions.JSONEach, functions.JSONElements, functions.JSONBElements, seriesExpression, subscriptsExpression, unnestExpression:
 		return true
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return call.Plan.Operation() == sqltype.RangeConstruct
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		return parser.JSONFunctionName(call.Plan.Name())
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		return !call.Plan.ReturnsSet()
 	default:
 		return false
@@ -77,7 +77,7 @@ func selectedFunctionSourceName(name string) bool {
 // A selected scalar OUT name controls the column label, not the range alias.
 func functionScalarOutName(expr BoundExpr) string {
 	switch expr.(type) {
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties], functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements, functions.JSONBElements:
 		return "value"
 	}
 	return ""
@@ -110,7 +110,7 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (BoundExp
 }
 func functionCallArguments(expr BoundExpr) []BoundExpr {
 	switch call := expr.(type) {
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		return call.Arguments()
 	case catalogUserNameExpression:
 		return []BoundExpr{call.arg}
@@ -120,9 +120,9 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.arguments()
 	case objectAddressExpression:
 		return call.args[:]
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		return call.Args
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		return call.Args
 	case transactionIdentityExpression:
 		if call.arg != nil {
@@ -140,23 +140,23 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 		return call.args
 	case unnestExpression:
 		return call.args
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return call.Args
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		return call.Args
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		return call.Args
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		return call.Args
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		return call.Args
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		return call.Args
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		return call.Args
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		return call.Args
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		return call.Args
 	default:
 		return nil
@@ -164,7 +164,7 @@ func functionCallArguments(expr BoundExpr) []BoundExpr {
 }
 func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, error) {
 	switch call := expr.(type) {
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		if len(args) != 4 {
 			return nil, fmt.Errorf("invalid JSONPath query arguments")
 		}
@@ -192,9 +192,9 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		}
 		copy(call.args[:], args)
 		return call, nil
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		return call.Reconstruct(call.Info, args)
-	case functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBRecord:
 		return call.Reconstruct(call.Info, args)
 	case transactionIdentityExpression:
 		if (call.arg == nil) != (len(args) == 0) || len(args) > 1 {
@@ -232,38 +232,38 @@ func withFunctionCallArguments(expr BoundExpr, args []BoundExpr) (BoundExpr, err
 		}
 		call.args = args
 		return call, nil
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		return call.Reconstruct(call.Info, args)
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		call.Args = args
 		return call, nil
-	case functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RegexpSet:
 		call.Args = args
 		return call, nil
-	case functions.JSONKeys[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONKeys:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid JSON keys arguments")
 		}
 		call.Args = args
 		return call, nil
-	case functions.JSONBElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBElements:
 		return call.Reconstruct(call.Info, args)
-	case functions.JSONEach[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONEach:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid JSON each arguments")
 		}
 		call.Args = args
 		return call, nil
-	case functions.JSONElements[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONElements:
 		if len(args) != 1 {
 			return nil, fmt.Errorf("stuntgres: invalid JSON elements arguments")
 		}
 		call.Args = args
 		return call, nil
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		call.Args = args
 		return call, nil
-	case functions.Regexp[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Regexp:
 		call.Args = args
 		return call, nil
 	default:

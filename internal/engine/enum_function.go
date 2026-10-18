@@ -10,7 +10,7 @@ import (
 
 func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	operands := make([]functions.Argument[BoundExpr], len(raw.Args))
+	operands := make([]functions.Argument, len(raw.Args))
 	names := make([]string, len(raw.Args))
 	for i, r := range raw.Args {
 		operand, err := b.AnalyzeArgument(r, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -61,7 +61,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		result = array.Usage()
 	}
 	info := b.info(result, raw.Pos, properties)
-	node, err := functions.NewEnum[BoundExpr, ExprContext](functionInfo(info), name, args, b.diagnosticTypeName(selected))
+	node, err := functions.NewEnum(info, name, args, b.diagnosticTypeName(selected))
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +70,6 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }

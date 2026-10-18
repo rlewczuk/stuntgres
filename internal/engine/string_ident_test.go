@@ -18,7 +18,7 @@ func TestStringIdentBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := expr.(functions.String[BoundExpr, ExprContext, ExprProperties])
+		n := expr.(functions.String)
 		reversed := !n.Textual[0]
 		if len(n.Args) != 2 || !n.ResultUsage().Type.IsArray() || n.ResultUsage().Type.Element() != b.typ(sqltype.Text) || !n.Properties().ParameterDependent {
 			t.Fatal(n)
@@ -70,7 +70,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := expr.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	n := expr.(functions.String)
 	if err := n.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -103,14 +103,14 @@ func TestStringIdentReconstruction(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	copy := rebound.(functions.String[BoundExpr, ExprContext, ExprProperties])
+	copy := rebound.(functions.String)
 	if copy.Textual != n.Textual || copy.Textual[0] || !copy.Textual[1] {
 		t.Fatal(copy.Textual)
 	}
 	if err := copy.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	for i, node := range []functions.String[BoundExpr, ExprContext, ExprProperties]{n, copy} {
+	for i, node := range []functions.String{n, copy} {
 		owner := b
 		if i == 1 {
 			owner = targetBinder

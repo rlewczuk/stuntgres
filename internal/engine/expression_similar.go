@@ -40,7 +40,7 @@ func (b *expressionBinder) bindSimilar(raw parser.OperatorExpr) (BoundExpr, erro
 	op := raw.Name.Parts[0].Text
 	result := b.typ(sqltype.Bool).Usage()
 	info := b.info(result, raw.Pos, likeProperties(l, r))
-	node, err := functions.NewSimilar[BoundExpr, ExprContext](functionInfo(info), l, r, op, collation.Usage.Collation, collation.CollationConflict)
+	node, err := functions.NewSimilar(info, l, r, op, collation.Usage.Collation, collation.CollationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (b *expressionBinder) bindSimilar(raw parser.OperatorExpr) (BoundExpr, erro
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	return node, nil
 }
 func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr, error) {
@@ -56,7 +56,7 @@ func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr
 	if !valid {
 		return nil, b.functionSignatureError(raw)
 	}
-	var operands [2]functions.Argument[BoundExpr]
+	var operands [2]functions.Argument
 	names := make([]string, len(raw.Args))
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -101,9 +101,9 @@ func (b *expressionBinder) bindSimilarEscape(raw parser.FunctionExpr) (BoundExpr
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewSimilarEscape[BoundExpr, ExprContext](functionInfo(info), pattern, escape, omitted)
+	return functions.NewSimilarEscape(info, pattern, escape, omitted)
 }
-func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
+func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operands []functions.Argument) (BoundExpr, error) {
 	text := b.typ(sqltype.Text).Usage()
 	args, err := functions.CoerceSimilarSubstringArguments(b, operands, text)
 	if err != nil {
@@ -128,5 +128,5 @@ func (b *expressionBinder) bindSimilarSubstring(raw parser.FunctionExpr, operand
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewSimilarSubstring[BoundExpr, ExprContext](functionInfo(info), args, raw.Syntax, wrapper)
+	return functions.NewSimilarSubstring(info, args, raw.Syntax, wrapper)
 }

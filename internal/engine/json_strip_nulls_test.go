@@ -24,7 +24,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	node := jsonStripUnitBind(t, b, "SELECT json_strip_nulls(strip_in_arrays => $2,target => $1)")
-	e := node.(functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties])
+	e := node.(functions.JSONStripNulls)
 	for i, id := range []sqltype.ID{sqltype.JSON, sqltype.Bool} {
 		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
 			t.Fatal("formal inference", i)
@@ -70,13 +70,13 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 	engine := New()
 	view := engine.CatalogRead()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
-	e := jsonStripUnitBind(t, b, `SELECT json_strip_nulls(strip_in_arrays => true,target => '{"a":null,"b":[null,1]}')`).(functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties])
+	e := jsonStripUnitBind(t, b, `SELECT json_strip_nulls(strip_in_arrays => true,target => '{"a":null,"b":[null,1]}')`).(functions.JSONStripNulls)
 	fresh := jsonObjectUnitTypes()
 	next, changed, err := retagBoundTypes(view, e, func(d *sqltype.Descriptor) *sqltype.Descriptor { return fresh[d.ID()] })
 	if err != nil || !changed {
 		t.Fatal(next, changed, err)
 	}
-	n := next.(functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties])
+	n := next.(functions.JSONStripNulls)
 	for i, arg := range n.Arguments() {
 		if arg.ResultUsage().Type != fresh[e.Args[i].ResultUsage().Type.ID()] {
 			t.Fatal("retag lost authority", i)

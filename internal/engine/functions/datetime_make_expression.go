@@ -1,28 +1,24 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeMakeContext[E any] interface {
-	LiteralContext[E]
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type DatetimeMake[E Expression[C], C DatetimeMakeContext[E], P any] struct {
-	Info[P]
+type DatetimeMake struct {
+	expr.Info
 	Plan         sqltype.DatetimeMakePlan
-	Args         [7]E // Declared parameter order, including interval defaults.
+	Args         [7]expr.Expr // Declared parameter order, including interval defaults.
 	Count        int
 	WrittenCount int
 	WrittenSlots [7]uint8
 	Labels       [7]string // Written order; empty denotes positional Syntax.
 }
 
-func (e *DatetimeMake[E, C, P]) Arguments() []E { return e.Args[:e.Count] }
+func (e *DatetimeMake) Arguments() []expr.Expr { return e.Args[:e.Count] }
 
-func (e DatetimeMake[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeMake) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -95,7 +91,7 @@ type DatetimeMakePreparation struct {
 	Demand    TemporalDemand
 }
 
-func PrepareDatetimeMake[E any](name string, visible, variadic bool, args []Argument[E], argNames []parser.Identifier, labels *[7]string, types *[7]sqltype.ID, count int, result sqltype.ID) DatetimeMakePreparation {
+func PrepareDatetimeMake(name string, visible, variadic bool, args []Argument, argNames []parser.Identifier, labels *[7]string, types *[7]sqltype.ID, count int, result sqltype.ID) DatetimeMakePreparation {
 	if !visible || variadic || result == 0 || len(args) > count {
 		return DatetimeMakePreparation{}
 	}
@@ -139,7 +135,7 @@ func PrepareDatetimeMake[E any](name string, visible, variadic bool, args []Argu
 	}
 	return p
 }
-func ResolveDatetimeMake[E any](prepared DatetimeMakePreparation, args []Argument[E], types TemporalTypes) DatetimeMakeSelection {
+func ResolveDatetimeMake(prepared DatetimeMakePreparation, args []Argument, types TemporalTypes) DatetimeMakeSelection {
 	if !prepared.valid {
 		return DatetimeMakeSelection{Resolution: Missing}
 	}
@@ -159,7 +155,7 @@ func ResolveDatetimeMake[E any](prepared DatetimeMakePreparation, args []Argumen
 
 func DatetimeMakeIntrinsicStable(name string) bool { return name == "make_timestamptz" }
 
-func (e DatetimeMake[E, C, P]) Reconstruct(info Info[P], args [7]E) (DatetimeMake[E, C, P], error) {
+func (e DatetimeMake) Reconstruct(info expr.Info, args [7]expr.Expr) (DatetimeMake, error) {
 	plan, err := sqltype.BindDatetimeMake(e.Plan.Name(), info.Usage.Type, e.Count)
 	if err != nil {
 		return e, err

@@ -8,12 +8,12 @@ import (
 )
 
 func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr, error) {
-	var small [2]functions.Argument[BoundExpr]
-	var operands []functions.Argument[BoundExpr]
+	var small [2]functions.Argument
+	var operands []functions.Argument
 	if len(raw.Args) <= len(small) {
 		operands = small[:len(raw.Args)]
 	} else if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, child := range raw.Args {
 		arg, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -74,10 +74,10 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 	if err != nil {
 		return nil, err
 	}
-	return functions.NewNetworkFormat[BoundExpr, ExprContext](functionInfo(info), kind, args)
+	return functions.NewNetworkFormat(info, kind, args)
 }
 
-func mapNetworkFormatChildren(e functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties], mapChild func(BoundExpr) (BoundExpr, bool, error)) (functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties], bool, error) {
+func mapNetworkFormatChildren(e functions.NetworkFormat, mapChild func(BoundExpr) (BoundExpr, bool, error)) (functions.NetworkFormat, bool, error) {
 	changed := false
 	for i, arg := range e.Args[:e.Kind.Arity()] {
 		next, did, err := mapChild(arg)

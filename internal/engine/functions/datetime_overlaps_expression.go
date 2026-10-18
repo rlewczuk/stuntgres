@@ -1,20 +1,15 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeOverlapsContext[E any] interface {
-	Context
-	FunctionInput() sqltype.InputEnvironment
-	FunctionOverlapsConstant(E) bool
-}
-
-type DatetimeOverlaps[E Expression[C], C DatetimeOverlapsContext[E], P any] struct {
-	Info[P]
-	Args           [4]E
+type DatetimeOverlaps struct {
+	expr.Info
+	Args           [4]expr.Expr
 	Plan           sqltype.DatetimeOverlapsPlan
 	Syntax         parser.FunctionSyntax
 	WrapperContext bool
@@ -22,9 +17,9 @@ type DatetimeOverlaps[E Expression[C], C DatetimeOverlapsContext[E], P any] stru
 	Folded [2]sqltype.Value
 }
 
-func (e DatetimeOverlaps[E, C, P]) Arguments() []E { return e.Args[:] }
+func (e DatetimeOverlaps) Arguments() []expr.Expr { return e.Args[:] }
 
-func (e DatetimeOverlaps[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeOverlaps) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -45,7 +40,7 @@ func (e DatetimeOverlaps[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return value, err
 }
-func (e DatetimeOverlaps[E, C, P]) ErrorContext(c C, pair int) string {
+func (e DatetimeOverlaps) ErrorContext(c expr.Context, pair int) string {
 	if pair < 0 {
 		return ""
 	}
@@ -112,7 +107,7 @@ type DatetimeOverlapsPreparation struct {
 	Demand     TemporalDemand
 }
 
-func PrepareDatetimeOverlaps[E any](visible, variadic bool, args []Argument[E]) DatetimeOverlapsPreparation {
+func PrepareDatetimeOverlaps(visible, variadic bool, args []Argument) DatetimeOverlapsPreparation {
 	if !visible || variadic || len(args) != 4 {
 		return DatetimeOverlapsPreparation{}
 	}
@@ -159,7 +154,7 @@ func PrepareDatetimeOverlaps[E any](visible, variadic bool, args []Argument[E]) 
 	return p
 }
 
-func ResolveDatetimeOverlaps[E any](prepared DatetimeOverlapsPreparation, operands []Argument[E], types TemporalTypes) OverlapsSelection {
+func ResolveDatetimeOverlaps(prepared DatetimeOverlapsPreparation, operands []Argument, types TemporalTypes) OverlapsSelection {
 	if len(prepared.candidates) == 0 {
 		return OverlapsSelection{Resolution: Missing}
 	}
@@ -298,7 +293,7 @@ func OverlapsErrorContext(err error, context string) error {
 
 func DatetimeOverlapsResult() sqltype.ID { return sqltype.Bool }
 
-func (e DatetimeOverlaps[E, C, P]) Reconstruct(info Info[P], args [4]E, retain func(*sqltype.Descriptor) *sqltype.Descriptor, remapValue func(sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)) (DatetimeOverlaps[E, C, P], bool, error) {
+func (e DatetimeOverlaps) Reconstruct(info expr.Info, args [4]expr.Expr, retain func(*sqltype.Descriptor) *sqltype.Descriptor, remapValue func(sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)) (DatetimeOverlaps, bool, error) {
 	plan, err := e.Plan.Retag(retain)
 	if err != nil {
 		return e, false, err

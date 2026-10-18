@@ -3,24 +3,20 @@ package functions
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-type MathContext[E any] interface {
-	LiteralContext[E]
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type Math[E Expression[C], C MathContext[E], P any] struct {
-	Info[P]
+type Math struct {
+	expr.Info
 	Plan           sqltype.MathPlan
-	Args           []E
+	Args           []expr.Expr
 	WrapperContext string
 }
 
-func (e Math[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Math) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -51,7 +47,7 @@ func (e Math[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	}
 	return value, err
 }
-func (e Math[E, C, P]) Reconstruct(info Info[P], args []E, ref sqltype.CollationRef, conflict bool) (Math[E, C, P], error) {
+func (e Math) Reconstruct(info expr.Info, args []expr.Expr, ref sqltype.CollationRef, conflict bool) (Math, error) {
 	if len(args) > 4 {
 		return e, fmt.Errorf("stuntgres: invalid remapped math arity")
 	}
@@ -66,7 +62,7 @@ func (e Math[E, C, P]) Reconstruct(info Info[P], args []E, ref sqltype.Collation
 	e.Info, e.Plan, e.Args = info, plan, args
 	return e, nil
 }
-func (e Math[E, C, P]) Validate() error {
+func (e Math) Validate() error {
 	if len(e.Args) > 4 {
 		return fmt.Errorf("stuntgres: invalid stored math arity")
 	}
@@ -196,7 +192,7 @@ func PrepareMath(name string) MathCandidates {
 	return prepared
 }
 func (p MathCandidates) Needs(id sqltype.ID) bool { return p.demand&numericTypeBit(id) != 0 }
-func SelectMath[E interface{ ResultUsage() sqltype.Usage }](prepared MathCandidates, name string, variadic bool, args []E, unknown []bool, types NumericTypes) (MathSignature, Resolution) {
+func SelectMath(prepared MathCandidates, name string, variadic bool, args []expr.Expr, unknown []bool, types NumericTypes) (MathSignature, Resolution) {
 	if name == "trunc" && len(args) == 1 && unknown[0] && !variadic {
 		return MathSignature{}, Ambiguous
 	}
@@ -293,9 +289,9 @@ func SelectMath[E interface{ ResultUsage() sqltype.Usage }](prepared MathCandida
 	return candidates[0], Resolved
 }
 
-func CoerceMathArguments[E interface{ ResultUsage() sqltype.Usage }, B ArgumentCoercer[E]](b B, name string, raw []parser.Expr, args []E, unknown []bool, signature MathSignature, types NumericTypes) error {
+func CoerceMathArguments(b ArgumentCoercer, name string, raw []parser.Expr, args []expr.Expr, unknown []bool, signature MathSignature, types NumericTypes) error {
 	for i, arg := range args {
-		argument := Argument[E]{Expression: arg, Raw: raw[i]}
+		argument := Argument{Expression: arg, Raw: raw[i]}
 		if !unknown[i] {
 			argument.Usage = arg.ResultUsage()
 		}
@@ -313,14 +309,14 @@ func CoerceMathArguments[E interface{ ResultUsage() sqltype.Usage }, B ArgumentC
 	}
 	return nil
 }
-func NewMath[E Expression[C], C MathContext[E], P any](info Info[P], name string, args []E) (Math[E, C, P], error) {
+func NewMath(info expr.Info, name string, args []expr.Expr) (Math, error) {
 	if len(args) > 4 {
-		return Math[E, C, P]{}, fmt.Errorf("invalid math arity")
+		return Math{}, fmt.Errorf("invalid math arity")
 	}
 	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindMath(name, info.Usage, usages[:len(args)]...)
-	return Math[E, C, P]{Info: info, Plan: plan, Args: args}, err
+	return Math{Info: info, Plan: plan, Args: args}, err
 }

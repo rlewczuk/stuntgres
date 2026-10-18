@@ -12,7 +12,7 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node BoundExpr, u sqltype.Usage) (string, error) {
 	switch n := node.(type) {
-	case functions.JSONRecord[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONRecord:
 		if _, err := n.Reconstruct(n.Info, n.Args); err != nil {
 			return "", err
 		}
@@ -129,7 +129,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []BoundExpr{n.arg})
-	case functions.UUIDGeneration[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDGeneration:
 		if u.Type.ID() != sqltype.UUID || (n.Name != "uuidv7" && n.Name != "uuidv4" && n.Name != "gen_random_uuid") || len(n.Args) > 1 || len(n.Args) != 0 && n.Name != "uuidv7" {
 			return "", fmt.Errorf("stuntgres: invalid stored UUID generation signature")
 		}
@@ -138,7 +138,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		r.uuidShiftIntervalNulls = len(n.Args) != 0
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Name, n.Args)
-	case functions.Random[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Random:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")
 		}
@@ -167,7 +167,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Name, n.Args)
-	case functions.Binary[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Binary:
 		if len(n.Args) < 1 || len(n.Args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored binary arity")
 		}
@@ -194,41 +194,41 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		return "(" + left + " OPERATOR(pg_catalog." + n.Plan.Name() + ") " + right + ")", nil
-	case functions.DatetimeJustify[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeJustify:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
-	case functions.DatetimeExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeExtract:
 		return datetimeExtractLogicalSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
-	case functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeOverlaps:
 		return datetimeOverlapsLogicalSQL(n, func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
-	case functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeBin:
 		return r.functionSQL(ctx, view, "pg_catalog.date_bin", n.Arguments())
-	case functions.DatetimeTrunc[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeTrunc:
 		return r.functionSQL(ctx, view, "pg_catalog.date_trunc", n.Arguments())
-	case functions.DatetimeAgeFinite[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeAgeFinite:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
-	case functions.JSONStripNulls[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONStripNulls:
 		return jsonStripNullsSQL(n, "pg_catalog.json_strip_nulls", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.JSONExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONExtract:
 		return jsonExtractSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryArray:
 		return jsonbPathQueryArraySQL(n, "pg_catalog.jsonb_path_query_array", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.JSONBPathExists[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathExists:
 		return jsonbPathExistsSQL(n, "pg_catalog.jsonb_path_exists", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.JSONBPathMatch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathMatch:
 		return jsonbPathMatchSQL(n, "pg_catalog.jsonb_path_match", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.JSONBPathQueryFirst[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQueryFirst:
 		return jsonbPathQueryFirstSQL(n, "pg_catalog.jsonb_path_query_first", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.JSONBPathQuery[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBPathQuery:
 		return jsonbPathQuerySQL(n, "pg_catalog.jsonb_path_query", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.JSONBSet[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONBSet:
 		return jsonbSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.DatetimeMake[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeMake:
 		return datetimeMakeSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
-	case functions.DatetimeFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.DatetimeFormatting:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args[:])
-	case functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NumericFormatting:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args[:])
-	case functions.String[BoundExpr, ExprContext, ExprProperties]:
+	case functions.String:
 		if len(n.Args) < 1 || len(n.Args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored string arity")
 		}
@@ -290,18 +290,18 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			name = quoteIdentifier(name)
 		}
 		return "pg_catalog." + name + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.ArrayRandom[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayRandom:
 		return arrayRandomSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
-	case functions.ArrayTransform[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayTransform:
 		return arrayTransformSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
 			if namespace != "" {
 				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
 			}
 			return name
 		})
-	case functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArrayInspect:
 		return arrayInspectSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
-	case functions.ArraySearch[BoundExpr, ExprContext, ExprProperties]:
+	case functions.ArraySearch:
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
@@ -348,7 +348,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		args := [1]BoundExpr{n.arg}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), args[:])
-	case functions.UUIDExtract[BoundExpr, ExprContext, ExprProperties]:
+	case functions.UUIDExtract:
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
@@ -357,12 +357,12 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		return "pg_catalog." + n.Kind.Name() + "(" + arg + ")", nil
-	case functions.NetworkFormat[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NetworkFormat:
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Kind.Name(), n.Args[:n.Kind.Arity()])
-	case functions.RangeOperator[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeOperator:
 		if n.Args[0] == nil || n.Args[1] == nil {
 			return "", fmt.Errorf("stuntgres: missing range operator operand")
 		}
@@ -375,7 +375,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			}
 			return name
 		})
-	case functions.RangeInspect[BoundExpr, ExprContext, ExprProperties]:
+	case functions.RangeInspect:
 		for _, arg := range n.Args {
 			if arg == nil {
 				return "", fmt.Errorf("stuntgres: missing range inspection operand")
@@ -385,7 +385,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args)
-	case functions.Enum[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Enum:
 		if len(n.Args) < 1 || len(n.Args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored enum arity")
 		}
@@ -398,7 +398,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args)
-	case functions.Math[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Math:
 		if len(n.Args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored math arity")
 		}
@@ -422,7 +422,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "pg_catalog.pg_size_pretty(CAST(" + text + " AS " + declaration + "))", nil
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args)
-	case functions.NullCount[BoundExpr, ExprContext, ExprProperties]:
+	case functions.NullCount:
 		if !n.ValidSignature() {
 			return "", fmt.Errorf("stuntgres: invalid stored null count signature")
 		}
@@ -441,7 +441,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "(" + base + ")." + pgIdentifier(name), nil
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.Args)
-	case functions.JSONCreate[BoundExpr, ExprContext, ExprProperties]:
+	case functions.JSONCreate:
 		parts := make([]string, len(n.Args))
 		for i, arg := range n.Args {
 			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
@@ -464,7 +464,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			parts[i] = text
 		}
 		return "pg_catalog." + n.Kind.Name() + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.StringVariadic[BoundExpr, ExprContext, ExprProperties, quoteOrigin]:
+	case functions.StringVariadic:
 		parts := make([]string, len(n.Args))
 		for i, arg := range n.Args {
 			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
@@ -490,7 +490,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			parts[i] = text
 		}
 		return "pg_catalog." + n.Name + "(" + strings.Join(parts, ", ") + ")", nil
-	case functions.Format[BoundExpr, ExprContext, ExprProperties]:
+	case functions.Format:
 		if err := n.Validate(); err != nil {
 			return "", err
 		}

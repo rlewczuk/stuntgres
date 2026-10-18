@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqltype/unicode16"
 )
@@ -52,24 +53,19 @@ func (kind VersionInformationKind) IntrinsicRule() IntrinsicPropertyRule {
 	return ExactImmutable
 }
 
-type VersionInformationContext[P any] interface {
-	Context
-	FunctionPropertiesMatch(P, IntrinsicPropertyRule) bool
-}
-
-type VersionInformation[C VersionInformationContext[P], P any] struct {
-	Info[P]
+type VersionInformation struct {
+	expr.Info
 	Kind VersionInformationKind
 }
 
-func (e VersionInformation[C, P]) Validate(intrinsicMatch bool) error {
+func (e VersionInformation) Validate(intrinsicMatch bool) error {
 	if e.Kind.Name() == "" || !e.Usage.Valid() || !e.Usage.Type.Concrete() || e.Usage.Type.ID() != sqltype.Text || e.Usage.Typmod != -1 || !intrinsicMatch {
 		return fmt.Errorf("stuntgres: invalid version information expression")
 	}
 	return nil
 }
 
-func (e VersionInformation[C, P]) Eval(c C) (sqltype.Value, error) {
+func (e VersionInformation) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

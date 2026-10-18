@@ -1,22 +1,17 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeFormattingContext[E any] interface {
-	LiteralContext[E]
-	FunctionInput() sqltype.InputEnvironment
-	FunctionOutput() sqltype.OutputEnvironment
-}
-
-type DatetimeFormatting[E Expression[C], C DatetimeFormattingContext[E], P any] struct {
-	Info[P]
+type DatetimeFormatting struct {
+	expr.Info
 	Plan sqltype.DatetimeFormatPlan
-	Args [2]E
+	Args [2]expr.Expr
 }
 
-func (e DatetimeFormatting[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeFormatting) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -51,7 +46,7 @@ type DatetimeFormattingSelection struct {
 	Unsupported string
 }
 
-func ResolveDatetimeFormatting[E any](name string, visible, variadic bool, operands []Argument[E]) DatetimeFormattingSelection {
+func ResolveDatetimeFormatting(name string, visible, variadic bool, operands []Argument) DatetimeFormattingSelection {
 	numeric := func(id sqltype.ID) bool {
 		return id == sqltype.Int2 || id == sqltype.Int4 || id == sqltype.Int8 || id == sqltype.Numeric || id == sqltype.Float4 || id == sqltype.Float8
 	}
@@ -111,7 +106,7 @@ func DatetimeFormattingResult(name string) sqltype.ID {
 	return sqltype.Text
 }
 
-func (e DatetimeFormatting[E, C, P]) Reconstruct(info Info[P], args [2]E) (DatetimeFormatting[E, C, P], error) {
+func (e DatetimeFormatting) Reconstruct(info expr.Info, args [2]expr.Expr) (DatetimeFormatting, error) {
 	plan, err := e.Plan.Retag(info.Usage, args[0].ResultUsage())
 	if err != nil {
 		return e, err

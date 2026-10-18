@@ -80,7 +80,7 @@ func (b *expressionBinder) bindCommitTimestamp(raw parser.FunctionExpr) (BoundEx
 	if name == "pg_last_committed_xact" {
 		kind = commitTimestampLast
 	}
-	var operand functions.Argument[BoundExpr]
+	var operand functions.Argument
 	var one [1]string
 	var names []string
 	if len(raw.Args) <= 1 {

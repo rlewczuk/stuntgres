@@ -3,16 +3,14 @@ package functions
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-type conversionUnitExpression interface {
-	ResultUsage() sqltype.Usage
-	Eval(*conversionUnitContext) (sqltype.Value, error)
-}
 type conversionUnitContext struct {
+	unitCapabilities
 	context.Context
 	handler    *sqltype.EncodingConversionHandler
 	ownerError error
@@ -20,7 +18,7 @@ type conversionUnitContext struct {
 }
 
 func (c *conversionUnitContext) FunctionContext() context.Context { return c.Context }
-func (c *conversionUnitContext) FunctionLiteralNull(arg conversionUnitExpression) bool {
+func (c *conversionUnitContext) FunctionLiteralNull(arg expr.Expr) bool {
 	value, ok := arg.(conversionUnitArgument)
 	return ok && value.literal
 }
@@ -38,23 +36,23 @@ func (c *conversionUnitContext) FunctionBinaryConversion(source, destination int
 }
 
 type conversionUnitArgument struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	order   *[]int
 	index   int
 	literal bool
 }
 
-func (a conversionUnitArgument) Eval(*conversionUnitContext) (sqltype.Value, error) {
+func (a conversionUnitArgument) Eval(expr.Context) (sqltype.Value, error) {
 	if a.order != nil {
 		*a.order = append(*a.order, a.index)
 	}
 	return a.value, nil
 }
-func conversionUnitCall(t *testing.T, name string, ids []sqltype.ID, result sqltype.ID, raw []string, order *[]int) Binary[conversionUnitExpression, *conversionUnitContext, struct{}] {
+func conversionUnitCall(t *testing.T, name string, ids []sqltype.ID, result sqltype.ID, raw []string, order *[]int) Binary {
 	t.Helper()
 	types := formatUnitTypes()
-	args := make([]conversionUnitExpression, len(ids))
+	args := make([]expr.Expr, len(ids))
 	usages := make([]sqltype.Usage, len(ids))
 	for i, id := range ids {
 		source := types[id]
@@ -69,14 +67,14 @@ func conversionUnitCall(t *testing.T, name string, ids []sqltype.ID, result sqlt
 		} else {
 			value = sqltype.String(source, raw[i])
 		}
-		args[i] = conversionUnitArgument{Info: Info[struct{}]{Usage: source.Usage()}, value: value, order: order, index: i}
+		args[i] = conversionUnitArgument{Info: expr.Info{Usage: source.Usage()}, value: value, order: order, index: i}
 	}
 	usage := types[result].Usage()
 	plan, err := sqltype.BindBinary(name, usage, usages...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Binary[conversionUnitExpression, *conversionUnitContext, struct{}]{Info: Info[struct{}]{Usage: usage}, Plan: plan, Args: args}
+	return Binary{Info: expr.Info{Usage: usage}, Plan: plan, Args: args}
 }
 func TestBinaryConversionEmptyAndIdentity(t *testing.T) {
 	for _, tc := range []struct{ source, destination, want string }{{"", "LATIN1", ""}, {"abc", "UTF8", "abc"}} {

@@ -123,11 +123,11 @@ func (b *expressionBinder) bindArrayInspect(raw parser.FunctionExpr) (BoundExpr,
 	if err != nil {
 		return nil, err
 	}
-	e := functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Kind: kind, Args: args, Namespace: namespace}
+	e := functions.ArrayInspect{Info: info, Kind: kind, Args: args, Namespace: namespace}
 	return e, e.Validate()
 }
 
-func mapArrayInspectChildren(e functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties], bool, error) {
+func mapArrayInspectChildren(e functions.ArrayInspect, child func(BoundExpr) (BoundExpr, bool, error)) (functions.ArrayInspect, bool, error) {
 	var args []BoundExpr
 	for i, old := range e.Args {
 		next, changed, err := child(old)
@@ -148,7 +148,7 @@ func mapArrayInspectChildren(e functions.ArrayInspect[BoundExpr, ExprContext, Ex
 	return e, true, nil
 }
 
-func arrayInspectSQL(e functions.ArrayInspect[BoundExpr, ExprContext, ExprProperties], child func(BoundExpr) (string, error)) (string, error) {
+func arrayInspectSQL(e functions.ArrayInspect, child func(BoundExpr) (string, error)) (string, error) {
 	if err := e.Validate(); err != nil {
 		return "", err
 	}

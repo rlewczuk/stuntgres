@@ -6,26 +6,26 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type functionTestExpression interface {
-	ResultUsage() sqltype.Usage
-	Eval(*functionTestContext) (sqltype.Value, error)
+type functionTestContext struct {
+	unitCapabilities
+	context.Context
 }
-type functionTestContext struct{ context.Context }
 
 func (c *functionTestContext) FunctionContext() context.Context { return c.Context }
 func (c *functionTestContext) FunctionInput() sqltype.InputEnvironment {
 	return sqltype.InputEnvironment{}
 }
-func (c *functionTestContext) FunctionLiteralNull(e functionTestExpression) bool {
+func (c *functionTestContext) FunctionLiteralNull(e expr.Expr) bool {
 	argument, ok := e.(functionTestArgument)
 	return ok && argument.literal && argument.value.IsNull()
 }
 
 type functionTestArgument struct {
-	Info[struct{}]
+	expr.Info
 	value   sqltype.Value
 	order   *[]int
 	index   int
@@ -33,7 +33,7 @@ type functionTestArgument struct {
 	literal bool
 }
 
-func (e functionTestArgument) Eval(*functionTestContext) (sqltype.Value, error) {
+func (e functionTestArgument) Eval(expr.Context) (sqltype.Value, error) {
 	if e.order != nil {
 		*e.order = append(*e.order, e.index)
 	}
@@ -52,25 +52,25 @@ func TestMathTrigRuntimeDemand(t *testing.T) {
 	}
 	one, _ := sqltype.Float(d, 1)
 	var order []int
-	expr := Math[functionTestExpression, *functionTestContext, struct{}]{Info: Info[struct{}]{Usage: d.Usage()}, Plan: plan, Args: []functionTestExpression{
-		functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
-		functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: one, order: &order, index: 1},
+	node := Math{Info: expr.Info{Usage: d.Usage()}, Plan: plan, Args: []expr.Expr{
+		functionTestArgument{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
+		functionTestArgument{Info: expr.Info{Usage: d.Usage()}, value: one, order: &order, index: 1},
 	}}
-	c := &functionTestContext{context.Background()}
-	got, err := expr.Eval(c)
+	c := &functionTestContext{Context: context.Background()}
+	got, err := node.Eval(c)
 	if err != nil || got != sqltype.Null(d) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal("runtime NULL demands siblings", got, order, err)
 	}
 	demanded := errors.New("demanded inverse sibling")
-	expr.Args[1] = functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, order: &order, index: 1, err: demanded}
+	node.Args[1] = functionTestArgument{Info: expr.Info{Usage: d.Usage()}, order: &order, index: 1, err: demanded}
 	order = nil
-	_, err = expr.Eval(c)
+	_, err = node.Eval(c)
 	if !errors.Is(err, demanded) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal("runtime demand failure", order, err)
 	}
-	expr.Args[0] = functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: sqltype.Null(d), literal: true}
+	node.Args[0] = functionTestArgument{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d), literal: true}
 	order = nil
-	got, err = expr.Eval(c)
+	got, err = node.Eval(c)
 	if err != nil || got != sqltype.Null(d) || len(order) != 0 {
 		t.Fatal("literal NULL eliminated runtime sibling", got, order, err)
 	}
@@ -80,16 +80,16 @@ func TestMathTrigRuntimeDemand(t *testing.T) {
 			t.Fatal(err)
 		}
 		order = nil
-		expr := Math[functionTestExpression, *functionTestContext, struct{}]{Info: Info[struct{}]{Usage: d.Usage()}, Plan: plan, Args: []functionTestExpression{
-			functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
+		node := Math{Info: expr.Info{Usage: d.Usage()}, Plan: plan, Args: []expr.Expr{
+			functionTestArgument{Info: expr.Info{Usage: d.Usage()}, value: sqltype.Null(d), order: &order, index: 0},
 		}}
-		got, err := expr.Eval(c)
+		got, err := node.Eval(c)
 		if err != nil || got != sqltype.Null(d) || !reflect.DeepEqual(order, []int{0}) {
 			t.Fatal("direct runtime typed NULL", name, got, order, err)
 		}
 		order = nil
-		expr.Args[0] = functionTestArgument{Info: Info[struct{}]{Usage: d.Usage()}, order: &order, index: 0, err: demanded}
-		_, err = expr.Eval(c)
+		node.Args[0] = functionTestArgument{Info: expr.Info{Usage: d.Usage()}, order: &order, index: 0, err: demanded}
+		_, err = node.Eval(c)
 		if !errors.Is(err, demanded) || !reflect.DeepEqual(order, []int{0}) {
 			t.Fatal("direct runtime argument failure", name, order, err)
 		}

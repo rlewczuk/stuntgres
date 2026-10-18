@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,13 +29,13 @@ func (c *uuidOsspUnitContext) FunctionUUIDEntropy(dst []byte) error {
 type uuidOsspUnitArgument struct{}
 
 func (uuidOsspUnitArgument) ResultUsage() sqltype.Usage { panic("zero-arity leaf has no argument") }
-func (uuidOsspUnitArgument) Eval(*uuidOsspUnitContext) (sqltype.Value, error) {
+func (uuidOsspUnitArgument) Eval(expr.Context) (sqltype.Value, error) {
 	panic("zero-arity leaf has no argument")
 }
 
 func TestUUIDOsspKernelDemand(t *testing.T) {
 	typ := formatUnitTypes()[sqltype.UUID]
-	n := UUIDGeneration[uuidOsspUnitArgument, *uuidOsspUnitContext, struct{}]{Info: Info[struct{}]{Usage: typ.Usage()}, Name: "uuidv4"}
+	n := UUIDGeneration{Info: expr.Info{Usage: typ.Usage()}, Name: "uuidv4"}
 	c := &uuidOsspUnitContext{uuidUnitContext: uuidUnitContext{Context: context.Background()}}
 	// FunctionUUIDTime and FunctionInput remain panic probes from uuidUnitContext.
 	if c.ready != 0 || c.entropy != 0 {

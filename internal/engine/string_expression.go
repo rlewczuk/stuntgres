@@ -40,7 +40,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if result.Collation.ID != 0 {
 		info = inputInfo
 	}
-	node, err := functions.NewString[BoundExpr, ExprContext](functionInfo(info), name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.CollationConflict)
+	node, err := functions.NewString(info, name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.CollationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if err != nil {
 		return nil, err
 	}
-	node.Info = functionInfo(info)
+	node.Info = info
 	if err := b.capturePolymorphicBody(node); err != nil {
 		return nil, err
 	}
@@ -105,12 +105,12 @@ func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (compari
 
 func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [4]functions.Argument[BoundExpr]
-	var operands []functions.Argument[BoundExpr]
+	var small [4]functions.Argument
+	var operands []functions.Argument
 	if len(raw.Args) <= len(small) {
 		operands = small[:len(raw.Args)]
 	} else if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, r := range raw.Args {
 		request := functions.StringArgumentAnalysis(name, i)
@@ -139,7 +139,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 
 // Reuse already transformed operands when selected lower/upper routing shares
 // the text provider. Other string providers retain their existing analysis.
-func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible bool, operands []functions.Argument[BoundExpr]) (BoundExpr, error) {
+func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible bool, operands []functions.Argument) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if (name == "lower" || name == "upper") && len(operands) == 1 && sqltype.IsRangeInspectType(operands[0].Usage.Type) {
 		return b.finishRangeInspect(raw, visible, operands)
@@ -238,7 +238,7 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 }
 
 func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (BoundExpr, error) {
-	var operands [2]functions.Argument[BoundExpr]
+	var operands [2]functions.Argument
 	var types [2]*sqltype.Descriptor
 	for i, child := range raw.Args {
 		o, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.StringTextArgument})
@@ -269,7 +269,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 	if len(raw.Args) != 2 {
 		return nil, expressionError("42883", "operator does not exist: ||", raw.Pos)
 	}
-	var operands [2]functions.Argument[BoundExpr]
+	var operands [2]functions.Argument
 	var types [2]*sqltype.Descriptor
 	for i, r := range raw.Args {
 		o, err := b.AnalyzeArgument(r, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -324,7 +324,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 
 // Both PostgreSQL presentation and native replay preserve special syntax, but
 // each renderer owns its child formatting and literal transport.
-func stringSpecialSQL(n functions.String[BoundExpr, ExprContext, ExprProperties], parts []string) (string, error) {
+func stringSpecialSQL(n functions.String, parts []string) (string, error) {
 	source, set := parts[0], ""
 	if len(parts) > 1 {
 		set = parts[1]

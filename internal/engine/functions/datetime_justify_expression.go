@@ -1,22 +1,19 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type DatetimeJustifyContext[E any] interface {
-	LiteralContext[E]
-}
-
-type DatetimeJustify[E Expression[C], C DatetimeJustifyContext[E], P any] struct {
-	Info[P]
+type DatetimeJustify struct {
+	expr.Info
 	Plan sqltype.DatetimeJustifyPlan
-	Arg  E
+	Arg  expr.Expr
 }
 
-func (e DatetimeJustify[E, C, P]) Arguments() []E { return []E{e.Arg} }
+func (e DatetimeJustify) Arguments() []expr.Expr { return []expr.Expr{e.Arg} }
 
-func (e DatetimeJustify[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e DatetimeJustify) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -31,7 +28,7 @@ func (e DatetimeJustify[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	return e.Plan.Evaluate(ctx, value)
 }
 
-func ResolveDatetimeJustify[E any](visible, variadic bool, args []Argument[E], interval sqltype.Usage) TemporalSelection {
+func ResolveDatetimeJustify(visible, variadic bool, args []Argument, interval sqltype.Usage) TemporalSelection {
 	if !visible || variadic || len(args) != 1 {
 		return TemporalSelection{Resolution: Missing}
 	}
@@ -46,7 +43,7 @@ func ResolveDatetimeJustify[E any](visible, variadic bool, args []Argument[E], i
 	return TemporalSelection{Selected: sqltype.Interval}
 }
 
-func (e DatetimeJustify[E, C, P]) Reconstruct(info Info[P], arg E, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeJustify[E, C, P], bool, error) {
+func (e DatetimeJustify) Reconstruct(info expr.Info, arg expr.Expr, retain func(*sqltype.Descriptor) *sqltype.Descriptor) (DatetimeJustify, bool, error) {
 	plan, err := e.Plan.Retag(retain)
 	if err != nil {
 		return e, false, err

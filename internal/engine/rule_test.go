@@ -258,9 +258,9 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			if !parent.Properties().RowDependent {
 				t.Fatal("mutated original formal-dependent function")
 			}
-			if _, formatting := mapped.(functions.Format[BoundExpr, ExprContext, ExprProperties]); formatting {
+			if _, formatting := mapped.(functions.Format); formatting {
 				stable, _, err := mapBoundExpression(auth.catalog, mapped, identityType, nil, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
-					if _, random := expr.(functions.Random[BoundExpr, ExprContext, ExprProperties]); random {
+					if _, random := expr.(functions.Random); random {
 						return ruleUnitInt(src, 11), true, nil
 					}
 					return expr, false, nil

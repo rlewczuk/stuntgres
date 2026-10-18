@@ -14,10 +14,10 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 	const count = 4
 	labels := [4]string{"target", "path", "vars", "silent"}
 	ids := [4]sqltype.ID{sqltype.JSONB, sqltype.JSONPath, sqltype.JSONB, sqltype.Bool}
-	var small [4]functions.Argument[BoundExpr]
+	var small [4]functions.Argument
 	operands := small[:min(len(raw.Args), len(small))]
 	if len(raw.Args) > len(small) && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -51,7 +51,7 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 	if !visible || raw.ResolutionOnly || name != "jsonb_path_query_array" || len(operands) > count {
 		return signature()
 	}
-	e := functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties]{WrittenCount: len(operands), Variadic: raw.Variadic}
+	e := functions.JSONBPathQueryArray{WrittenCount: len(operands), Variadic: raw.Variadic}
 	var supplied [4]bool
 	for i, o := range operands {
 		slot := i
@@ -126,7 +126,7 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 		typ := b.typ(sqltype.Bool)
 		e.Args[3] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, false)}
 	}
-	e.Info = functionInfo(b.info(b.typ(sqltype.JSONB).Usage(), raw.Pos, properties))
+	e.Info = b.info(b.typ(sqltype.JSONB).Usage(), raw.Pos, properties)
 	var usages [4]sqltype.Usage
 	for i := range count {
 		usages[i] = e.Args[i].ResultUsage()
@@ -139,12 +139,12 @@ func (b *expressionBinder) bindJSONBPathQueryArray(raw parser.FunctionExpr, visi
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	e.Plan = plan
 	return e, nil
 }
 
-func jsonbPathQueryArraySQL(e functions.JSONBPathQueryArray[BoundExpr, ExprContext, ExprProperties], name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func jsonbPathQueryArraySQL(e functions.JSONBPathQueryArray, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
 	if e.WrittenCount < 2 || e.WrittenCount > 4 {
 		return "", fmt.Errorf("invalid stored JSONPath array query")
 	}

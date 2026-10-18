@@ -356,7 +356,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 		}
 	}
 	column := project.expressions[0].(columnExpression)
-	for _, expr := range []BoundExpr{sequenceCallExpression{}, functions.Random[BoundExpr, ExprContext, ExprProperties]{}, advisoryExpression{}, subqueryExpression{}, queryProbe(column.ResultUsage(), nil)} {
+	for _, expr := range []BoundExpr{sequenceCallExpression{}, functions.Random{}, advisoryExpression{}, subqueryExpression{}, queryProbe(column.ResultUsage(), nil)} {
 		if parallelQueryExpression(expr, project.frame, len(project.child.Schema())) {
 			t.Fatalf("unsafe/unknown %T admitted", expr)
 		}

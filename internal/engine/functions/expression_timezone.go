@@ -1,22 +1,18 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-type TimezoneContext[E any] interface {
-	LiteralContext[E]
-	FunctionInput() sqltype.InputEnvironment
-}
-
-type Timezone[E Expression[C], C TimezoneContext[E], P any] struct {
-	Info[P]
-	Value, Zone E
+type Timezone struct {
+	expr.Info
+	Value, Zone expr.Expr
 	Local       bool
 	Function    bool
 }
 
-func (e Timezone[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (e Timezone) Eval(c expr.Context) (sqltype.Value, error) {
 	_, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -54,12 +50,12 @@ func (e Timezone[E, C, P]) Eval(c C) (sqltype.Value, error) {
 	return sqltype.AtTimeZone(value, e.Usage.Type, name, e.Local, c.FunctionInput())
 }
 
-func (e Timezone[E, C, P]) IntrinsicStable() bool {
+func (e Timezone) IntrinsicStable() bool {
 	return e.Local || e.Value.ResultUsage().Type.BaseType().ID() == sqltype.Timetz && e.Zone.ResultUsage().Type.BaseType().ID() != sqltype.Interval
 }
-func (e Timezone[E, C, P]) Arguments() []E {
+func (e Timezone) Arguments() []expr.Expr {
 	if e.Local {
-		return []E{e.Value}
+		return []expr.Expr{e.Value}
 	}
-	return []E{e.Zone, e.Value}
+	return []expr.Expr{e.Zone, e.Value}
 }

@@ -7,10 +7,10 @@ import (
 )
 
 func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
-	var small [3]functions.Argument[BoundExpr]
+	var small [3]functions.Argument
 	operands := small[:min(len(raw.Args), 3)]
 	if len(raw.Args) > 3 && len(raw.Args) <= 100 {
-		operands = make([]functions.Argument[BoundExpr], len(raw.Args))
+		operands = make([]functions.Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
 		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
@@ -40,7 +40,7 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		return nil, expressionError("0A000", selection.Unsupported, raw.Pos)
 	}
 	selected := selection.Selected
-	e := functions.DatetimeBin[BoundExpr, ExprContext, ExprProperties]{}
+	e := functions.DatetimeBin{}
 	properties := ExprProperties{Volatility: Immutable}
 	for i, o := range operands {
 		id := selected
@@ -62,7 +62,7 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 	}
 	info := b.info(b.typ(selected).Usage(), raw.Pos, properties)
-	e.Info = functionInfo(info)
+	e.Info = info
 	plan, err := sqltype.BindDatetimeBin(b.typ(sqltype.Interval), b.typ(selected), e.Usage.Type)
 	if err != nil {
 		return nil, err
@@ -72,6 +72,6 @@ func (b *expressionBinder) bindDatetimeBin(raw parser.FunctionExpr, visible bool
 	if err != nil {
 		return nil, err
 	}
-	e.Info = functionInfo(info)
+	e.Info = info
 	return e, nil
 }

@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -9,6 +10,7 @@ import (
 )
 
 type currentDateTimeUnitContext struct {
+	unitCapabilities
 	context.Context
 	input sqltype.InputEnvironment
 }
@@ -33,8 +35,8 @@ func TestCurrentDateTimeInputDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := CurrentDateTime[*currentDateTimeUnitContext, struct{}]{Info: Info[struct{}]{Usage: usage}, Kind: kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}
-		if _, err := node.Eval(nil); err == nil {
+		node := CurrentDateTime{Info: expr.Info{Usage: usage}, Kind: kind, HasPrecision: raw.HasPrecision, Precision: usage.Typmod}
+		if _, err := node.Eval((*currentDateTimeUnitContext)(nil)); err == nil {
 			t.Fatal("missing evaluation context accepted")
 		}
 		if _, err := node.Eval(&currentDateTimeUnitContext{Context: ctx}); err == nil {

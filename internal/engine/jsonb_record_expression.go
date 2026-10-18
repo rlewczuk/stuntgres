@@ -76,7 +76,7 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 	if populate {
 		count = 2
 	}
-	operands := make([]functions.Argument[BoundExpr], len(raw.Args))
+	operands := make([]functions.Argument, len(raw.Args))
 	names := make([]string, len(raw.Args))
 	for i, arg := range raw.Args {
 		o, err := b.jsonbRecordArgument(arg, populate && i == 0)
@@ -169,7 +169,7 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 		properties.StageDependent = true
 	}
 	info := b.info(result, raw.Pos, properties)
-	call := functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(info), Name: name, Args: args, Unresolved: unresolved}
+	call := functions.JSONBRecord{Info: info, Name: name, Args: args, Unresolved: unresolved}
 	call, err = call.Reconstruct(call.Info, args)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 	if err != nil {
 		return nil, err
 	}
-	call.Info = functionInfo(info)
+	call.Info = info
 	return call, nil
 }
 
@@ -218,11 +218,11 @@ func (b *expressionBinder) bindJSONBRecordDefinition(raw []parser.FunctionColumn
 }
 
 func jsonbRecordUnresolved(expr BoundExpr) bool {
-	call, ok := expr.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties])
+	call, ok := expr.(functions.JSONBRecord)
 	return ok && call.Unresolved && call.ResultUsage().Type.ID() == 2249
 }
 
-func (b *expressionBinder) jsonbRecordArgument(raw parser.Expr, base bool) (functions.Argument[BoundExpr], error) {
+func (b *expressionBinder) jsonbRecordArgument(raw parser.Expr, base bool) (functions.Argument, error) {
 	previous := b.jsonbRecordBase
 	b.jsonbRecordBase = previous || base
 	defer func() { b.jsonbRecordBase = previous }()
@@ -256,7 +256,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	offset := 0
 	for _, expression := range source.calls {
 		width := functionFromCallWidth(expression)
-		if call, selected := expression.(functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]); selected && call.ResultUsage().Type.BaseType().IsComposite() {
+		if call, selected := expression.(functions.JSONBRecord); selected && call.ResultUsage().Type.BaseType().IsComposite() {
 			if offset+width > len(qualifier.columns) {
 				return nil, fmt.Errorf("stuntgres: invalid JSONB record source span")
 			}
@@ -271,7 +271,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	return columns, nil
 }
 
-func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord[BoundExpr, ExprContext, ExprProperties]) ([]queryColumn, error) {
+func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord) ([]queryColumn, error) {
 	usage := call.ResultUsage()
 	shape := usage.Type.BaseType()
 	key := preparedCompositeKey{offset: call.SourcePosition().Offset, kind: compositeSourceExpansion, projection: star.Pos.Offset}

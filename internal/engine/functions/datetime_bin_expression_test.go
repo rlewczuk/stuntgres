@@ -2,6 +2,7 @@ package functions
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestDatetimeBinSelectedPlanAlignment(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := DatetimeBin[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[id].Usage()}, Plan: plan, Args: [3]temporalTestExpression{temporalTestLiteral(stride), temporalTestLiteral(temporalTestTimestamp(t, d[id], 149999999)), temporalTestLiteral(temporalTestTimestamp(t, d[id], 150000000))}}
+		e := DatetimeBin{Info: expr.Info{Usage: d[id].Usage()}, Plan: plan, Args: [3]expr.Expr{temporalTestLiteral(stride), temporalTestLiteral(temporalTestTimestamp(t, d[id], 149999999)), temporalTestLiteral(temporalTestTimestamp(t, d[id], 150000000))}}
 		value, err := e.Eval(&temporalTestContext{Context: context.Background()})
 		n, failure := value.Timestamp()
 		if err != nil || failure != nil || n != -750000000 {

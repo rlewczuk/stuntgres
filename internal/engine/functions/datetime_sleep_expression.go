@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"time"
@@ -39,25 +40,15 @@ func (kind DatetimeSleepKind) Name() string {
 	return ""
 }
 
-type datetimeSleepClockContext interface {
-	Context
-	FunctionSleepClock(sqltype.Usage) (sqltype.Value, error)
-}
-type DatetimeSleepContext[E, P any] interface {
-	datetimeSleepClockContext
-	FunctionInput() sqltype.InputEnvironment
-	FunctionPropertiesMatch(P, IntrinsicPropertyRule) bool
-	FunctionSleepArgumentPresent(E) bool
-}
-type DatetimeSleep[E Expression[C], C DatetimeSleepContext[E, P], P any] struct {
-	Info[P]
+type DatetimeSleep struct {
+	expr.Info
 	Kind       DatetimeSleepKind
-	Arg        E
+	Arg        expr.Expr
 	ClockUsage sqltype.Usage
 	Calendar   sqltype.Arithmetic
 }
 
-func (x DatetimeSleep[E, C, P]) Validate(intrinsicMatch, argPresent bool) bool {
+func (x DatetimeSleep) Validate(intrinsicMatch, argPresent bool) bool {
 	_, id := DatetimeSleepDefinition(x.Kind.Name())
 	if id == 0 || !argPresent {
 		return false
@@ -65,7 +56,7 @@ func (x DatetimeSleep[E, C, P]) Validate(intrinsicMatch, argPresent bool) bool {
 	argUsage := x.Arg.ResultUsage()
 	return x.Usage.Type != nil && x.Usage.Valid() && x.Usage.Type.ID() == sqltype.Void && intrinsicMatch && argUsage.Type != nil && argUsage.Valid() && argUsage.Type.ID() == id && x.ClockUsage.Type != nil && x.ClockUsage.Valid() && x.ClockUsage.Type.ID() == sqltype.Timestamptz && (x.Kind != DatetimeSleepInterval || x.Calendar.ResultType() == x.ClockUsage.Type)
 }
-func (x DatetimeSleep[E, C, P]) Eval(c C) (sqltype.Value, error) {
+func (x DatetimeSleep) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -141,7 +132,7 @@ type datetimeSleepRemaining struct {
 	until      bool
 }
 
-func datetimeSleepRemainingSeconds[C datetimeSleepClockContext](c C, remaining datetimeSleepRemaining) (float64, error) {
+func datetimeSleepRemainingSeconds(c expr.Context, remaining datetimeSleepRemaining) (float64, error) {
 	if !remaining.until {
 		return remaining.seconds - time.Since(remaining.start).Seconds(), nil
 	}
@@ -152,7 +143,7 @@ func datetimeSleepRemainingSeconds[C datetimeSleepClockContext](c C, remaining d
 	stamp, _ := now.Timestamp()
 	return datetimeSleepDifference(remaining.target, stamp), nil
 }
-func datetimeSleepWait[C datetimeSleepClockContext](c C, seconds float64) error {
+func datetimeSleepWait(c expr.Context, seconds float64) error {
 	return datetimeSleepWaitRemaining(c, datetimeSleepRemaining{start: time.Now(), seconds: seconds})
 }
 func datetimeSleepStopTimer(timer **time.Timer) {
@@ -160,7 +151,7 @@ func datetimeSleepStopTimer(timer **time.Timer) {
 		(*timer).Stop()
 	}
 }
-func datetimeSleepWaitRemaining[C datetimeSleepClockContext](c C, remaining datetimeSleepRemaining) error {
+func datetimeSleepWaitRemaining(c expr.Context, remaining datetimeSleepRemaining) error {
 	ctx := c.FunctionContext()
 	var timer *time.Timer
 	defer datetimeSleepStopTimer(&timer)
@@ -188,7 +179,7 @@ func datetimeSleepWaitRemaining[C datetimeSleepClockContext](c C, remaining date
 		}
 	}
 }
-func AnalyzeDatetimeSleepArgument[E any, B ArgumentAnalyzer[E]](b B, raw parser.Expr) (Argument[E], error) {
+func AnalyzeDatetimeSleepArgument(b ArgumentAnalyzer, raw parser.Expr) (Argument, error) {
 	return b.AnalyzeArgument(raw, AnalysisRequest{Intent: ComparisonArgument})
 }
 func DatetimeSleepShape(raw parser.FunctionExpr, visible bool, kind DatetimeSleepKind) bool {
@@ -214,18 +205,18 @@ func DatetimeSleepDecoration(raw parser.FunctionExpr) string {
 	}
 	return ""
 }
-func CoerceDatetimeSleepArgument[E any, B ArgumentCoercer[E]](b B, arg Argument[E], target sqltype.Usage) (E, error) {
+func CoerceDatetimeSleepArgument(b ArgumentCoercer, arg Argument, target sqltype.Usage) (expr.Expr, error) {
 	return b.CoerceArgument(arg, CoercionRequest{Intent: ExactFormalArgument, Target: target, PreserveProperties: true})
 }
-func NewDatetimeSleep[E Expression[C], C DatetimeSleepContext[E, P], P any](info Info[P], kind DatetimeSleepKind, arg E, clock sqltype.Usage) (DatetimeSleep[E, C, P], error) {
+func NewDatetimeSleep(info expr.Info, kind DatetimeSleepKind, arg expr.Expr, clock sqltype.Usage) (DatetimeSleep, error) {
 	var calendar sqltype.Arithmetic
 	var err error
 	if kind == DatetimeSleepInterval {
 		calendar, err = sqltype.BindArithmetic(sqltype.ArithmeticAdd, clock.Type, arg.ResultUsage().Type, clock.Type)
 	}
-	return DatetimeSleep[E, C, P]{info, kind, arg, clock, calendar}, err
+	return DatetimeSleep{info, kind, arg, clock, calendar}, err
 }
-func (x DatetimeSleep[E, C, P]) Reconstruct(info Info[P], arg E, clock sqltype.Usage) (DatetimeSleep[E, C, P], error) {
+func (x DatetimeSleep) Reconstruct(info expr.Info, arg expr.Expr, clock sqltype.Usage) (DatetimeSleep, error) {
 	calendar := x.Calendar
 	if x.Kind == DatetimeSleepInterval {
 		var err error

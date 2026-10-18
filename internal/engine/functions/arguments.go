@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -16,8 +17,8 @@ const (
 
 // A deferred literal has no Expression. An unresolved parameter already has its
 // occurrence expression; only the engine can finalize that occurrence's type.
-type Argument[E any] struct {
-	Expression E
+type Argument struct {
+	Expression expr.Expr
 	Raw        parser.Expr
 	Usage      sqltype.Usage
 	Kind       ArgumentKind
@@ -34,8 +35,8 @@ const (
 )
 
 type AnalysisRequest struct{ Intent AnalysisIntent }
-type ArgumentAnalyzer[E any] interface {
-	AnalyzeArgument(parser.Expr, AnalysisRequest) (Argument[E], error)
+type ArgumentAnalyzer interface {
+	AnalyzeArgument(parser.Expr, AnalysisRequest) (Argument, error)
 }
 
 func ResolveAnyValue(visible, star bool, count int, usage sqltype.Usage) Resolution {
@@ -130,8 +131,8 @@ type CoercionRequest struct {
 	AtRaw              bool
 	Label              string
 }
-type ArgumentCoercer[E any] interface {
-	CoerceArgument(Argument[E], CoercionRequest) (E, error)
+type ArgumentCoercer interface {
+	CoerceArgument(Argument, CoercionRequest) (expr.Expr, error)
 }
 
 type FunctionLabelIssue struct {
@@ -163,11 +164,11 @@ func FunctionLabels(raw parser.FunctionExpr) FunctionLabelIssue {
 	return FunctionLabelIssue{}
 }
 
-func AnalyzeDirectArguments[E any, B ArgumentAnalyzer[E]](b B, raw []parser.Expr) ([]E, []bool, error) {
-	var args []E
+func AnalyzeDirectArguments(b ArgumentAnalyzer, raw []parser.Expr) ([]expr.Expr, []bool, error) {
+	var args []expr.Expr
 	var unknown []bool
 	if len(raw) <= 100 {
-		args = make([]E, len(raw))
+		args = make([]expr.Expr, len(raw))
 		unknown = make([]bool, len(raw))
 	}
 	for i, child := range raw {

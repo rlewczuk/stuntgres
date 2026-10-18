@@ -55,7 +55,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: usage}), Plan: plan, Args: args}
+			expr := functions.Binary{Info: expressionInfo{Usage: usage}, Plan: plan, Args: args}
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
@@ -105,7 +105,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			next := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+			next := rebound.(functions.Binary)
 			result, err := next.Eval(eval)
 			want, retagErr := got.Retag(replacement[tc.result])
 			if err != nil || retagErr != nil || result != want {

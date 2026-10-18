@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -21,11 +22,11 @@ func TestPosixEvaluationDemand(t *testing.T) {
 	}
 	var order []int
 	failure := errors.New("demanded row pattern")
-	left := regexpUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0}
-	right := regexpUnitArgument{Info: Info[struct{}]{Usage: text.Usage()}, err: failure, order: &order, index: 1}
-	predicate := Posix[regexpUnitExpression, *regexpUnitContext, struct{}]{Info: Info[struct{}]{Usage: boolean.Usage()}, Left: left, Right: right, Provider: provider, Operator: "~"}
-	substring := PosixSubstring[regexpUnitExpression, *regexpUnitContext, struct{}]{Info: Info[struct{}]{Usage: text.Usage()}, Args: [2]regexpUnitExpression{left, right}, Provider: extraction}
-	for _, node := range []regexpUnitExpression{predicate, substring} {
+	left := regexpUnitArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0}
+	right := regexpUnitArgument{Info: expr.Info{Usage: text.Usage()}, err: failure, order: &order, index: 1}
+	predicate := Posix{Info: expr.Info{Usage: boolean.Usage()}, Left: left, Right: right, Provider: provider, Operator: "~"}
+	substring := PosixSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [2]expr.Expr{left, right}, Provider: extraction}
+	for _, node := range []expr.Expr{predicate, substring} {
 		order = nil
 		value, err := node.Eval(&regexpUnitContext{Context: context.Background()})
 		if err != nil || !value.IsNull() || !reflect.DeepEqual(order, []int{0}) {
@@ -35,7 +36,7 @@ func TestPosixEvaluationDemand(t *testing.T) {
 	left.value = sqltype.String(text, "a")
 	predicate.Left = left
 	substring.Args[0] = left
-	for _, node := range []regexpUnitExpression{predicate, substring} {
+	for _, node := range []expr.Expr{predicate, substring} {
 		order = nil
 		if _, err := node.Eval(&regexpUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 			t.Fatal(err, order)

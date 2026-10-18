@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -20,20 +21,20 @@ func TestBinarySliceHeterogeneousTraversal(t *testing.T) {
 	s, _ := sqltype.Integer(integer, 3)
 	n, _ := sqltype.Integer(integer, 2)
 	var order []int
-	expr := Binary[binaryUnitExpression, *binaryUnitContext, struct{}]{Info: Info[struct{}]{Usage: bytea.Usage()}, Plan: plan}
+	node := Binary{Info: expr.Info{Usage: bytea.Usage()}, Plan: plan}
 	for i, value := range []sqltype.Value{a, r, s, n} {
-		expr.Args = append(expr.Args, binaryUnitArgument{Info: Info[struct{}]{Usage: value.Type().Usage()}, value: value, order: &order, index: i})
+		node.Args = append(node.Args, binaryUnitArgument{Info: expr.Info{Usage: value.Type().Usage()}, value: value, order: &order, index: i})
 	}
-	got, err := expr.Eval(&binaryUnitContext{Context: context.Background()})
+	got, err := node.Eval(&binaryUnitContext{Context: context.Background()})
 	raw, _ := got.Binary()
 	if err != nil || raw != "abXYef" || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
 		t.Fatal(raw, order, err)
 	}
 	failure := errors.New("fourth child failure")
-	expr.Args[0] = binaryUnitArgument{Info: Info[struct{}]{Usage: bytea.Usage()}, value: sqltype.Null(bytea), order: &order, index: 0}
-	expr.Args[3] = binaryUnitArgument{Info: Info[struct{}]{Usage: integer.Usage()}, order: &order, index: 3, err: failure}
+	node.Args[0] = binaryUnitArgument{Info: expr.Info{Usage: bytea.Usage()}, value: sqltype.Null(bytea), order: &order, index: 0}
+	node.Args[3] = binaryUnitArgument{Info: expr.Info{Usage: integer.Usage()}, order: &order, index: 3, err: failure}
 	order = nil
-	if _, err := expr.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
+	if _, err := node.Eval(&binaryUnitContext{Context: context.Background()}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1, 2, 3}) {
 		t.Fatal(order, err)
 	}
 }

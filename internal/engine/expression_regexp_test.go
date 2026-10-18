@@ -35,7 +35,7 @@ func TestRegexpScalarBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
-		node, ok := bound.(functions.Regexp[BoundExpr, ExprContext, ExprProperties])
+		node, ok := bound.(functions.Regexp)
 		if !ok || node.ResultUsage().Type.ID() != tc.typ || node.Plan.ReturnsSet() {
 			t.Fatal(tc.name, bound)
 		}
@@ -60,7 +60,7 @@ func TestRegexpScalarBinding(t *testing.T) {
 	}
 	raw = nullCountRaw("regexp_like", collate("C", 19), literal("a"))
 	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
-	if err != nil || bound.(functions.Regexp[BoundExpr, ExprContext, ExprProperties]).Plan.Collation().ID != 950 {
+	if err != nil || bound.(functions.Regexp).Plan.Collation().ID != 950 {
 		t.Fatal(bound, err)
 	}
 	raw = nullCountRaw("regexp_like", collate("C", 19), collate("POSIX", 34))
@@ -84,7 +84,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2201B" || diagnostic.Position != "" {
 		t.Fatal(err)
 	}
-	node := bound.(functions.Regexp[BoundExpr, ExprContext, ExprProperties])
+	node := bound.(functions.Regexp)
 	node.Args[1] = columnExpression{expressionInfo: expressionInfo{Usage: node.Args[1].ResultUsage(), Property: ExprProperties{Volatility: Immutable, RowDependent: true}}, slot: 0}
 	node.Property.RowDependent = true
 	_, _, err = preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, node, true)
@@ -108,7 +108,7 @@ func TestRegexpScalarGroupingAlias(t *testing.T) {
 	if err != nil || len(keys) != 1 || len(families) != 1 || !reflect.DeepEqual(sets, [][]int{{0}}) {
 		t.Fatal(keys, families, sets, err)
 	}
-	if _, ok := keys[0].(functions.RegexpSet[BoundExpr, ExprContext, ExprProperties]); !ok {
+	if _, ok := keys[0].(functions.RegexpSet); !ok {
 		t.Fatal("alias lost the set expression", keys[0])
 	}
 	second, err := b.bind(nullCountRaw("regexp_split_to_table", literal("c d"), literal(" ")), expressionPolicy{context: projectionContext})

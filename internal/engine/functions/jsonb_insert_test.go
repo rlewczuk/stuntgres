@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,7 +14,7 @@ func TestJSONBInsertWrittenDemandAndReconstruction(t *testing.T) {
 	d, fresh := temporalTestTypes(), temporalTestTypes()
 	ids := [4]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool}
 	var usages [4]sqltype.Usage
-	e := JSONBSet[temporalTestExpression, *temporalTestContext, struct{}]{Info: Info[struct{}]{Usage: d[sqltype.JSONB].Usage()}, Count: 4, WrittenCount: 4, WrittenSlots: [5]uint8{3, 2, 0, 1}, Labels: [5]string{"insert_after", "replacement", "jsonb_in", "path"}}
+	e := JSONBSet{Info: expr.Info{Usage: d[sqltype.JSONB].Usage()}, Count: 4, WrittenCount: 4, WrittenSlots: [5]uint8{3, 2, 0, 1}, Labels: [5]string{"insert_after", "replacement", "jsonb_in", "path"}}
 	for i, id := range ids {
 		usages[i] = d[id].Usage()
 		e.Args[i] = temporalTestLiteral(sqltype.Null(d[id]))
@@ -29,7 +30,7 @@ func TestJSONBInsertWrittenDemandAndReconstruction(t *testing.T) {
 		failure := errors.New("ordinary child error before strict NULL")
 		var order []int
 		for i := range 4 {
-			arg := temporalTestArgument{Info: Info[struct{}]{Usage: usages[i]}, value: sqltype.Null(usages[i].Type), order: &order, index: i}
+			arg := temporalTestArgument{Info: expr.Info{Usage: usages[i]}, value: sqltype.Null(usages[i].Type), order: &order, index: i}
 			if i == failing {
 				arg.err = failure
 			}
@@ -47,11 +48,11 @@ func TestJSONBInsertWrittenDemandAndReconstruction(t *testing.T) {
 			t.Fatal(failing, got, err, order, want)
 		}
 	}
-	var args [5]temporalTestExpression
+	var args [5]expr.Expr
 	for i, id := range ids {
 		args[i] = temporalTestLiteral(sqltype.Null(fresh[id]))
 	}
-	r, err := e.Reconstruct(Info[struct{}]{Usage: fresh[sqltype.JSONB].Usage()}, args)
+	r, err := e.Reconstruct(expr.Info{Usage: fresh[sqltype.JSONB].Usage()}, args)
 	if err != nil || r.WrittenSlots != e.WrittenSlots || r.Labels != e.Labels || r.WrittenCount != 4 || r.Plan.Name() != "jsonb_insert" {
 		t.Fatal(r, err)
 	}
@@ -67,7 +68,7 @@ func TestJSONBInsertWrittenDemandAndReconstruction(t *testing.T) {
 	for _, slot := range []int{0, 2} {
 		bad := args
 		bad[slot] = e.Args[slot]
-		if _, err := e.Reconstruct(Info[struct{}]{Usage: fresh[sqltype.JSONB].Usage()}, bad); err == nil {
+		if _, err := e.Reconstruct(expr.Info{Usage: fresh[sqltype.JSONB].Usage()}, bad); err == nil {
 			t.Fatal("foreign JSONB generation accepted", slot)
 		}
 	}

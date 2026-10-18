@@ -28,7 +28,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(c, err)
 		}
-		n, ok := bound.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties])
+		n, ok := bound.(functions.NumericFormatting)
 		if !ok || n.Args[0].ResultUsage().Type.ID() != c.id || n.ResultUsage().Type.ID() != sqltype.Text || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
 			t.Fatal("overload authority", c, bound)
 		}
@@ -37,7 +37,7 @@ func TestNumericFormattingBindingAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, ok := bound.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]); !ok || n.ResultUsage().Type.ID() != sqltype.Numeric || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
+	if n, ok := bound.(functions.NumericFormatting); !ok || n.ResultUsage().Type.ID() != sqltype.Numeric || n.ResultUsage().Typmod != -1 || n.Properties().Volatility != Stable {
 		t.Fatal(bound)
 	}
 	// An invalid constant mask belongs to demanded execution, not binding.
@@ -56,7 +56,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	}
 	// Pure NULL/sibling-error runtime demand is exercised locally. Retain
 	// genuine STABLE/group/retag owner invariants with executable literals.
-	n := functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}}), Plan: plan, Args: [2]BoundExpr{
+	n := functions.NumericFormatting{Info: expressionInfo{Usage: text.Usage(), Property: ExprProperties{Volatility: Stable}}, Plan: plan, Args: [2]BoundExpr{
 		literalExpression{expressionInfo: expressionInfo{Usage: numeric.Usage()}, value: sqltype.Null(numeric)},
 		literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, mask)},
 	}}
@@ -64,7 +64,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := simplified.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties]); !ok {
+	if _, ok := simplified.(functions.NumericFormatting); !ok {
 		t.Fatal("STABLE demand lost through NULL folding", simplified)
 	}
 	if plannedVolatility(n) != Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
@@ -107,7 +107,7 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		numeric, ok := node.(functions.NumericFormatting[BoundExpr, ExprContext, ExprProperties])
+		numeric, ok := node.(functions.NumericFormatting)
 		if !ok || numeric.Properties().Volatility != Volatile {
 			t.Fatal("numeric wrapper lost UUID child volatility", node)
 		}

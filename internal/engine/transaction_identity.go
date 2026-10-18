@@ -122,7 +122,7 @@ func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (Bou
 			break
 		}
 	}
-	var operand functions.Argument[BoundExpr]
+	var operand functions.Argument
 	names := make([]string, len(raw.Args))
 	for i, child := range raw.Args {
 		arg, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})

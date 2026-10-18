@@ -110,7 +110,7 @@ func bodyEdgeDemanded(node BoundExpr, outer *procedureDescriptor, edge routineBo
 		argument := polymorphicBodyArgument(node, outer.address.ObjectID)
 		return bodyCastMatches(edge, argument) && !randomLiteralNull(argument)
 	case bodyLeftDuration, bodyRightDuration:
-		overlap, ok := node.(functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties])
+		overlap, ok := node.(functions.DatetimeOverlaps)
 		if !ok {
 			return false
 		}
@@ -158,7 +158,7 @@ func admitRoutineBody(c *EvalContext, node BoundExpr, outer *procedureDescriptor
 	return nil
 }
 
-func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps[BoundExpr, ExprContext, ExprProperties], pair int) error {
+func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) error {
 	outer, err := expressionRoutineDescriptor(e)
 	if err != nil || outer == nil {
 		return err

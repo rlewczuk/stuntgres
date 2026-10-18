@@ -106,12 +106,12 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary[BoundExpr, ExprContext, ExprProperties]{Info: functionInfo(expressionInfo{Usage: types[result].Usage()}), Plan: p, Args: args}
+		original := functions.Binary{Info: expressionInfo{Usage: types[result].Usage()}, Plan: p, Args: args}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, changed, err)
 		}
-		next := rebound.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+		next := rebound.(functions.Binary)
 		got, err := next.Eval(&EvalContext{Context: context.Background()})
 		before, oldErr := original.Eval(&EvalContext{Context: context.Background()})
 		want, retagErr := before.Retag(replacement[result])
@@ -152,7 +152,7 @@ func bitAccessBindingProperties(t *testing.T) {
 				if err != nil {
 					t.Fatal(name, unknown, defaults, err)
 				}
-				binary := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+				binary := node.(functions.Binary)
 				if err := binary.Validate(); err != nil {
 					t.Fatal(err)
 				}
@@ -191,18 +191,18 @@ func bitAccessBindingProperties(t *testing.T) {
 			}
 			props := ExprProperties{Volatility: Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
 			source := literalExpression{expressionInfo: expressionInfo{Usage: usage, Property: props}, value: value}
-			operands := []functions.Argument[BoundExpr]{{Expression: source, Usage: usage}}
+			operands := []functions.Argument{{Expression: source, Usage: usage}}
 			for i := 1; i < len(raw.Args); i++ {
 				u := b.typ(sqltype.Int4).Usage()
 				v, _ := sqltype.Integer(u.Type, 0)
-				operands = append(operands, functions.Argument[BoundExpr]{Expression: literalExpression{expressionInfo: expressionInfo{Usage: u}, value: v}, Usage: u})
+				operands = append(operands, functions.Argument{Expression: literalExpression{expressionInfo: expressionInfo{Usage: u}, value: v}, Usage: u})
 			}
 			var types functions.BinaryTypes
 			node, err := b.finishBinary(name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
 			if err != nil {
 				t.Fatal(name, family, err)
 			}
-			binary := node.(functions.Binary[BoundExpr, ExprContext, ExprProperties])
+			binary := node.(functions.Binary)
 			if err := binary.Validate(); err != nil {
 				t.Fatal(err)
 			}
