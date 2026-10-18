@@ -21,7 +21,7 @@ holds identity values, with no behavior:
   catalog class-ID constants, and the builtin namespace OIDs.
 - **Runtime identity:** `SessionID`, `SessionToken`, `TxID`, `TxRef`,
   `CommandID`, `CommitSeq`, `RowID`, `VersionID`, and the transaction
-  completion state (today `transactionIdentityState`).
+  completion state (`ids.TxCompletion`, formerly `transactionIdentityState`).
 - **`Domain`:** the per-engine provenance token. Today this is `catalogOwner`,
   allocated once in `newEngine` (`engine.go`) and never replaced.
 
@@ -128,19 +128,12 @@ lifetime across Reset and Restore.
 - [x] 1b — Owner handles replace `attachment` and `private` (`f39333b2f`)
 - [x] 1c — `ids` created, declarations moved, aliases in place (`9a56cf39d`
   accessors, `3993c587c` rewrite, `ebb5ee0dd` move)
-- [ ] 1d — Aliases removed
+- [x] 1d — Aliases removed (`282b6608a` local renames, `369dc435f` catalog
+  identity, `3d31f69ba` class IDs and namespaces, `01bb004d6` `Domain`,
+  `77a7d4bd0` session, `e799ad1e3` transaction, `ebdcd8c6b` row and version
+  identity; `ids_aliases.go` deleted)
 
-Outstanding aliases, all in `internal/engine/ids_aliases.go`:
-
-- Types: `OID`, `CatalogEpoch`, `DefinitionRevision`, `ObjectAddress`,
-  `ObjectRef`, `NameKey`, `ObjectKind`, `Domain`, `SessionID`,
-  `SessionToken`, `SessionOwner`, `SessionOwnerMarker`, `TxID`, `TxRef`,
-  `TxOwner`, `TxOwnerMarker`, `CommandID`, `CommitSeq`, `RowID`, `VersionID`,
-  and the unexported `transactionIdentityState` (`ids.TxCompletion`).
-- Constants: the 18 `*ClassID` constants, the three builtin namespace OIDs,
-  the 16 `*Object` kinds, and the unexported `transactionInProgress`,
-  `transactionCommitted` and `transactionAborted` (`ids.TxInProgress`,
-  `ids.TxCommitted`, `ids.TxAborted`).
+Outstanding aliases: none.
 
 Corrections to this prompt, measured at the 1a start:
 
@@ -175,3 +168,20 @@ Notes for later steps:
   approach to replace alias names with `ids.` names.
 - `gofmt -r` reprints whole files: apply it only to files that were already
   gofmt-clean, or the diff picks up unrelated reformatting.
+
+1d results and lessons for later alias removals (2d, 6c, 7c):
+
+- The type-checked rewrite qualified 14,417 identifiers in 1,021 engine
+  files; the root driver (`driver.go`, `tx.go` and two tests) and
+  `cmd/stuntgres/database.go` were edited by hand.
+- Sixteen local variables named `ids` would have shadowed the package where
+  an alias was used inside their scope. A preparatory commit renamed only
+  those (`typeIDs`, `oids`, `byObjectID`, `versions`); other `ids` locals stay.
+  Before removing the `expr` aliases, audit locals named `expr` the same way:
+  resolve `LookupParent(<package name>, pos)` at every rewritten use.
+- Rewrite by object identity (`types.Info.Uses` of the alias objects), not by
+  name: fields, composite-literal keys and embedded field names resolve to
+  field objects and stay untouched.
+- `go vet ./internal/engine` reports existing warnings (copylocks, unkeyed
+  fields, lostcancel), so use `go test -count=1 -run '^$'` as the
+  per-commit compile check for test files.

@@ -46,9 +46,8 @@ identities), the transaction options `Isolation` and `TxOptions`, the
 lowercase `pg*OID` relation constants, and `authorization.Domain`, which has
 its own Restore staging domain.
 
-The engine still reaches these names through temporary aliases in
-`internal/engine/ids_aliases.go`. Step 1d of
-[ENGINE-SPLIT-ids.md](../../../docs/ENGINE-SPLIT-ids.md) removes them.
+The engine, the root driver and `cmd/stuntgres` use the `ids.` names
+directly; there are no aliases.
 
 ## Testing
 

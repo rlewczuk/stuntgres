@@ -303,7 +303,7 @@ parallel.
   catalog class IDs and builtin namespace OIDs.
 - Runtime identity: `SessionID`, `SessionToken`, `TxID`, `TxRef`, `CommandID`,
   `CommitSeq`, `RowID`, `VersionID`, and the transaction completion state
-  (today `transactionIdentityState`).
+  (`ids.TxCompletion`, formerly `transactionIdentityState`).
 - `catalogOwner` becomes `ids.Domain`: one per engine, nonzero size, never
   reused.
 
@@ -327,7 +327,7 @@ library, there are no methods to relocate beyond trivial ones, and aliases make
 the move a one-file diff.
 
 **Done when** `ids` has no imports beyond the standard library and the engine
-uses aliases or direct `ids.` names.
+uses aliases or direct `ids.` names. Done: 1d removed the aliases.
 
 ### Step 2 — `engine/expr`: the expression contract
 
@@ -670,7 +670,7 @@ package-specific scope. This section holds the rules every session follows.
 
 | Step | Prompt file | Needs | Status |
 |---|---|---|---|
-| 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | 1a–1c done; 1d (alias removal) pending |
+| 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | not started |
 | 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | not started |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | not started |
