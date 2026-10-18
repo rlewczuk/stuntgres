@@ -93,7 +93,7 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 			names[i] = functionNamedType(raw, i, name)
 		}
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := validateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)

@@ -126,7 +126,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		}
 	}
 	if name == "parse_ident" || strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
-		if err := b.validateRangeInspectSyntax(raw); err != nil {
+		if err := validateCallSyntax(b, raw); err != nil {
 			return nil, err
 		}
 		return b.finishStringFunction(raw, visible, operands)

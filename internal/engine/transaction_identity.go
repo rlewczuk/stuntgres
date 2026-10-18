@@ -138,7 +138,7 @@ func (b *expressionBinder) bindTransactionIdentity(raw parser.FunctionExpr) (Bou
 		}
 		names[i] = functionNamedType(raw, i, names[i])
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := validateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)

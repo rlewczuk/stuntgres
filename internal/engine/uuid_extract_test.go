@@ -117,7 +117,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	}
 	// A UUID-producing volatile descendant remains visible through extraction.
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_extract_version"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuidv4"}}}}}}
-	node, err := b.bindUUIDExtract(raw)
+	node, err := bindUUIDExtract(b, raw)
 	if err != nil || node.Properties().Volatility != Volatile || plannedVolatility(node) != Volatile || generationImmutable(node) {
 		t.Fatal("volatile child erased", node, err)
 	}

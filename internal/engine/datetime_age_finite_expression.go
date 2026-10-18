@@ -64,7 +64,7 @@ func (b *expressionBinder) bindDatetimeAgeFinite(raw parser.FunctionExpr, visibl
 		if raw.ResolutionOnly {
 			return signature()
 		}
-		if err := b.validateRangeInspectSyntax(raw); err != nil {
+		if err := validateCallSyntax(b, raw); err != nil {
 			return nil, err
 		}
 		if err := rangeInspectDecorationError(raw); err != nil {

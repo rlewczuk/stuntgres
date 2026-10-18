@@ -33,7 +33,7 @@ func (b *expressionBinder) bindRangeInspect(raw parser.FunctionExpr) (BoundExpr,
 			operands[i] = operand
 		}
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := validateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	// Visibility follows ordinary/FILTER children and label/count validation.
@@ -98,8 +98,8 @@ func (b *expressionBinder) finishRangeInspect(raw parser.FunctionExpr, visible b
 
 // The selected text/range overloads share diagnostic ordering, not coercion
 // rules. This envelope is reached only after ordinary children are analyzed.
-func (b *expressionBinder) validateRangeInspectSyntax(raw parser.FunctionExpr) error {
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
+func validateCallSyntax(b functions.Binder, raw parser.FunctionExpr) error {
+	if err := b.AnalyzeFilter(raw.Filter); err != nil {
 		return err
 	}
 	if len(raw.Args) > 100 {

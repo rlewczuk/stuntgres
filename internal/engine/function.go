@@ -177,7 +177,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindRangeInspect(raw)
 	}
 	if parser.UUIDExtractFunctionName(name) {
-		return b.bindUUIDExtract(raw)
+		return bindUUIDExtract(b, raw)
 	}
 	if parser.NetworkFormatFunctionName(name) {
 		return b.bindNetworkFormat(raw)

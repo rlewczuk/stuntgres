@@ -24,7 +24,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (BoundExpr
 			operands[i] = arg
 		}
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := validateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)

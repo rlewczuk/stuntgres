@@ -49,7 +49,7 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if err := b.validateRangeInspectSyntax(raw); err != nil {
+	if err := validateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
